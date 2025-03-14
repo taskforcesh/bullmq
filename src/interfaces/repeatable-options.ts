@@ -5,5 +5,4 @@ export type RepeatableOptions = {
   limit?: number;
   pattern?: string;
   every?: number;
-  offset?: number;
 };
