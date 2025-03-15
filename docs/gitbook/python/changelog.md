@@ -2,6 +2,23 @@
 
 <!--next-version-placeholder-->
 
+## v2.13.0 (2025-03-15)
+### Feature
+* **job:** Support ignored and failed counts in getDependenciesCount (#3137) ref #3136 ([`83953db`](https://github.com/taskforcesh/bullmq/commit/83953db54cad80e4ec0a7659f41cb5bc086ccacf))
+* **job:** Add complete span in moveToCompleted method ([#3132](https://github.com/taskforcesh/bullmq/issues/3132)) ([`c37123c`](https://github.com/taskforcesh/bullmq/commit/c37123cc84632328d8c4e251641688eb36ac1a8a))
+
+### Fix
+* **job-scheduler:** Restore iterationCount attribute ([#3134](https://github.com/taskforcesh/bullmq/issues/3134)) ([`eec7114`](https://github.com/taskforcesh/bullmq/commit/eec711468de39ec10da9206d7f8c5ad1eb0df882))
+* **flow:** Consider to fail a parent not in waiting-children when failParentOnFailure is provided ([#3098](https://github.com/taskforcesh/bullmq/issues/3098)) ([`589adb4`](https://github.com/taskforcesh/bullmq/commit/589adb4f89bcb7d7721200333c2d605eb6ba7864))
+* **scheduler:** Remove multi when updating a job scheduler ([#3108](https://github.com/taskforcesh/bullmq/issues/3108)) ([`4b619ca`](https://github.com/taskforcesh/bullmq/commit/4b619cab9a6bf8d25efec83dcdf0adaaa362e12a))
+* **job:** Deserialize priority in fromJSON ([#3126](https://github.com/taskforcesh/bullmq/issues/3126)) ([`c3269b1`](https://github.com/taskforcesh/bullmq/commit/c3269b11e2def4e2acd4eafc02ce7958a8fcf63e))
+
+### Documentation
+* **nestjs-bullmq-pro:** Update changelog to v3.1.0 ([#3123](https://github.com/taskforcesh/bullmq/issues/3123)) ([`707853c`](https://github.com/taskforcesh/bullmq/commit/707853c3f23c865d372df29279cbd7291ae16508))
+
+### Performance
+* **worker:** Optimize job retrieval for failed jobs in chunks ([#3127](https://github.com/taskforcesh/bullmq/issues/3127)) ([`e0f02ce`](https://github.com/taskforcesh/bullmq/commit/e0f02ceb00ced5ca00a6c73d96801a040c40d958))
+
 ## v2.12.1 (2025-02-28)
 ### Fix
 * **worker:** Cast delay_until to integer [python] ([#3116](https://github.com/taskforcesh/bullmq/issues/3116)) ([`db617e4`](https://github.com/taskforcesh/bullmq/commit/db617e48ef1dd52446bfd73e15f24957df2ca315))
