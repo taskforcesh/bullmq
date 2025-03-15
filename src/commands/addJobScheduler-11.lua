@@ -12,6 +12,7 @@
       KEYS[8]  'id' key
       KEYS[9]  'events' key
       KEYS[10] 'pc' priority counter
+      KEYS[11] 'active' key
       
       ARGV[1] next milliseconds
       ARGV[2] msgpacked options
@@ -91,8 +92,9 @@ if rcall("EXISTS", nextDelayedJobKey) ~= 1 then
 
     rcall("INCR", KEYS[8])
 
-    addJobFromScheduler(nextDelayedJobKey, nextDelayedJobId, ARGV[6], waitKey, pausedKey, metaKey, prioritizedKey,
-      KEYS[10], delayedKey, KEYS[7], eventsKey, schedulerOpts['name'], maxEvents, ARGV[7], ARGV[4], jobSchedulerId)
+    addJobFromScheduler(nextDelayedJobKey, nextDelayedJobId, ARGV[6], waitKey, pausedKey,
+        KEYS[11], metaKey, prioritizedKey, KEYS[10], delayedKey, KEYS[7], eventsKey,
+        schedulerOpts['name'], maxEvents, ARGV[7], ARGV[4], jobSchedulerId)
 
     if ARGV[9] ~= "" then
         rcall("HSET", ARGV[9], "nrjid", nextDelayedJobId)

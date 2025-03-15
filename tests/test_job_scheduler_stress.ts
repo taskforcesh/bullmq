@@ -103,6 +103,45 @@ describe('Job Scheduler Stress', function () {
     await queue.close();
   });
 
+  it('should start processing a job as soon as it is upserted when using every', async () => {
+    const worker = new Worker(
+      queueName,
+      async job => {
+        return 42;
+      },
+      {
+        connection,
+        concurrency: 1,
+        prefix,
+      },
+    );
+
+    await worker.waitUntilReady();
+
+    const waitingCompleted = new Promise<void>(resolve => {
+      worker.on('completed', () => {
+        resolve();
+      });
+    });
+
+    await queue.upsertJobScheduler(
+      '1s-test',
+      {
+        every: 4_000,
+      },
+      {
+        name: '1s-test',
+      },
+    );
+
+    const timestamp = Date.now();
+    await waitingCompleted;
+
+    const diff = Date.now() - timestamp;
+    expect(diff).to.be.lessThan(ONE_SECOND);
+    await worker.close();
+  });
+
   it.skip('should upsert many times with different settings respecting the guarantees', async () => {
     const worker = new Worker(
       queueName,
