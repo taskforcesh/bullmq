@@ -1103,9 +1103,16 @@ describe('Job Scheduler', function () {
       this.clock.setSystemTime(date);
       const nextTick = 2 * ONE_SECOND;
 
+      let iterationCount = 0;
       const worker = new Worker(
         queueName,
-        async () => {
+        async job => {
+          if (iterationCount === 0) {
+            expect(job.opts.delay).to.be.eq(0);
+          } else {
+            expect(job.opts.delay).to.be.eq(2000);
+          }
+          iterationCount++;
           this.clock.tick(nextTick);
         },
         { autorun: false, connection, prefix },
