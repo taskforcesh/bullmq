@@ -2,6 +2,10 @@
 
 <!--next-version-placeholder-->
 
+## v2.13.1 (2025-03-15)
+### Fix
+* **job-scheduler:** Add marker when upserting job scheduler if needed ([#3145](https://github.com/taskforcesh/bullmq/issues/3145)) ([`0e137b2`](https://github.com/taskforcesh/bullmq/commit/0e137b2e78882b6206b3fa47d4a6babb4fcfc484))
+
 ## v2.13.0 (2025-03-15)
 ### Feature
 * **job:** Support ignored and failed counts in getDependenciesCount (#3137) ref #3136 ([`83953db`](https://github.com/taskforcesh/bullmq/commit/83953db54cad80e4ec0a7659f41cb5bc086ccacf))
