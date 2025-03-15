@@ -1167,6 +1167,78 @@ describe('Job Scheduler', function () {
     });
   });
 
+  describe("when using 'every' option and jobs are moved to active some time after after delay", function () {
+    it('should repeat every 2 seconds and start immediately', async function () {
+      const date = new Date('2017-02-07 9:24:00');
+      this.clock.setSystemTime(date);
+      const nextTick = 2 * ONE_SECOND;
+
+      let iterationCount = 0;
+      const worker = new Worker(
+        queueName,
+        async job => {
+          if (iterationCount === 0) {
+            expect(job.opts.delay).to.be.eq(0);
+          } else {
+            expect(job.opts.delay).to.be.eq(2000);
+          }
+          this.clock.tick(nextTick + iterationCount * 100);
+          iterationCount++;
+        },
+        { autorun: false, connection, prefix },
+      );
+
+      let prev: Job;
+      let counter = 0;
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async job => {
+          try {
+            if (prev && counter === 1) {
+              expect(prev.timestamp).to.be.lte(job.timestamp);
+              expect(job.timestamp - prev.timestamp).to.be.lte(1);
+            } else if (prev) {
+              expect(prev.timestamp).to.be.lt(job.timestamp);
+              expect(job.timestamp - prev.timestamp).to.be.eq(
+                2000 + (counter - 2) * 100,
+              );
+            }
+            prev = job;
+            counter++;
+            if (counter === 5) {
+              resolve();
+            }
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      await queue.upsertJobScheduler(
+        'repeat',
+        {
+          every: 2000,
+        },
+        { data: { foo: 'bar' } },
+      );
+
+      const waitingCountBefore = await queue.getWaitingCount();
+      expect(waitingCountBefore).to.be.eq(1);
+
+      worker.run();
+
+      await completing;
+
+      const waitingCount = await queue.getWaitingCount();
+      expect(waitingCount).to.be.eq(0);
+
+      const delayedCountAfter = await queue.getDelayedCount();
+      expect(delayedCountAfter).to.be.eq(1);
+
+      await worker.close();
+    });
+  });
+
   describe("when using 'every' and time is one millisecond before iteration time", function () {
     it('should repeat every 2 seconds and start immediately', async function () {
       const startTimeMillis = new Date('2017-02-07 9:24:00').getTime();
