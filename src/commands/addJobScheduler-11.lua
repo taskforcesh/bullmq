@@ -39,6 +39,7 @@ local waitKey = KEYS[3]
 local pausedKey = KEYS[4]
 local metaKey = KEYS[5]
 local prioritizedKey = KEYS[6]
+local eventsKey = KEYS[9]
 
 local nextMillis = ARGV[1]
 local jobSchedulerId = ARGV[3]
@@ -61,8 +62,43 @@ local prevMillis = rcall("ZSCORE", repeatKey, jobSchedulerId)
 
 if prevMillis ~= false then
     local currentJobId = "repeat:" .. jobSchedulerId .. ":" .. prevMillis
+    local currentDelayedJobKey = schedulerKey .. ":" .. prevMillis
 
-    if rcall("EXISTS", nextDelayedJobKey) ~= 1 or currentJobId == nextDelayedJobId then
+    if rcall("EXISTS", nextDelayedJobKey) ~= 1 then
+        if rcall("ZSCORE", delayedKey, nextDelayedJobId) ~= false then
+            removeJob(nextDelayedJobId, true, prefixKey, true --[[remove debounce key]] )
+            rcall("ZREM", delayedKey, nextDelayedJobId)
+        elseif rcall("ZSCORE", prioritizedKey, nextDelayedJobId) ~= false then
+            removeJob(nextDelayedJobId, true, prefixKey, true --[[remove debounce key]] )
+            rcall("ZREM", prioritizedKey, nextDelayedJobId)
+        else
+            if isQueuePaused(metaKey) then
+                if rcall("LREM", pausedKey, 1, nextDelayedJobId) > 0 then
+                    removeJob(nextDelayedJobId, true, prefixKey, true --[[remove debounce key]] )
+                else
+                    local maxEvents = getOrSetMaxEvents(metaKey)
+
+                    rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
+                        "duplicated", "jobId", nextDelayedJobId)
+
+                    return nextDelayedJobId .. "" -- convert to string
+                end
+            else
+                if rcall("LREM", waitKey, 1, nextDelayedJobId) > 0 then
+                    removeJob(nextDelayedJobId, true, prefixKey, true --[[remove debounce key]] )
+                else
+                    local maxEvents = getOrSetMaxEvents(metaKey)
+
+                    rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
+                        "duplicated", "jobId", nextDelayedJobId)
+
+                    return nextDelayedJobId .. "" -- convert to string
+                end
+            end
+        end
+    end
+
+    if currentJobId ~= nextDelayedJobId and rcall("EXISTS", currentDelayedJobKey) ~= 1 then
         if rcall("ZSCORE", delayedKey, currentJobId) ~= false then
             removeJob(currentJobId, true, prefixKey, true --[[remove debounce key]] )
             rcall("ZREM", delayedKey, currentJobId)
@@ -86,19 +122,14 @@ end
 local schedulerOpts = cmsgpack.unpack(ARGV[2])
 storeJobScheduler(jobSchedulerId, schedulerKey, repeatKey, nextMillis, schedulerOpts, ARGV[4], templateOpts)
 
-if rcall("EXISTS", nextDelayedJobKey) ~= 1 then
-    local eventsKey = KEYS[9]
-    local maxEvents = getOrSetMaxEvents(metaKey)
+rcall("INCR", KEYS[8])
 
-    rcall("INCR", KEYS[8])
+addJobFromScheduler(nextDelayedJobKey, nextDelayedJobId, ARGV[6], waitKey, pausedKey,
+    KEYS[11], metaKey, prioritizedKey, KEYS[10], delayedKey, KEYS[7], eventsKey,
+    schedulerOpts['name'], maxEvents, ARGV[7], ARGV[4], jobSchedulerId)
 
-    addJobFromScheduler(nextDelayedJobKey, nextDelayedJobId, ARGV[6], waitKey, pausedKey,
-        KEYS[11], metaKey, prioritizedKey, KEYS[10], delayedKey, KEYS[7], eventsKey,
-        schedulerOpts['name'], maxEvents, ARGV[7], ARGV[4], jobSchedulerId)
-
-    if ARGV[9] ~= "" then
-        rcall("HSET", ARGV[9], "nrjid", nextDelayedJobId)
-    end
-
-    return nextDelayedJobId .. "" -- convert to string
+if ARGV[9] ~= "" then
+    rcall("HSET", ARGV[9], "nrjid", nextDelayedJobId)
 end
+
+return nextDelayedJobId .. "" -- convert to string
