@@ -300,7 +300,7 @@ describe('Job Scheduler', function () {
 
     describe('when next delayed job already existed and it is not in waiting or delayed states', function () {
       it('emits duplicated event and does not update scheduler', async function () {
-        const date = new Date('2017-02-07 9:24:00');
+        const date = new Date('2017-02-07T09:24:00.000+05:30');
         this.clock.setSystemTime(date);
         const worker = new Worker(queueName, void 0, { connection, prefix });
         const token = 'my-token';
@@ -332,7 +332,7 @@ describe('Job Scheduler', function () {
         expect(repeatableJobs[0]).to.deep.equal({
           key: 'test',
           name: 'test',
-          next: 1486481100000,
+          next: 1486439700000,
           iterationCount: 2,
           every: '60000',
         });
