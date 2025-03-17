@@ -249,19 +249,9 @@ describe('Job Scheduler', function () {
     });
 
     it('should create only one job scheduler and one delayed job with different settings', async function () {
-      const date = new Date('2017-02-07 9:24:00');
+      const date = new Date('2017-02-07T09:24:00.000+05:30');
       this.clock.setSystemTime(date);
-      const worker = new Worker(
-        queueName,
-        async () => {
-          await this.clock.tickAsync(1);
-        },
-        {
-          connection,
-          prefix,
-          concurrency: 1,
-        },
-      );
+      const worker = new Worker(queueName, void 0, { connection, prefix });
       await worker.waitUntilReady();
 
       const jobSchedulerId = 'test';
@@ -269,7 +259,11 @@ describe('Job Scheduler', function () {
         every: ONE_MINUTE * 1,
       });
 
+      const token = 'my-token';
+      (await worker.getNextJob(token)) as Job;
+
       await this.clock.tickAsync(1);
+
       await queue.upsertJobScheduler(jobSchedulerId, {
         every: ONE_MINUTE * 2,
       });
@@ -289,7 +283,13 @@ describe('Job Scheduler', function () {
       const repeatableJobs = await queue.getJobSchedulers();
       expect(repeatableJobs.length).to.be.eql(1);
 
-      expect(repeatableJobs[0]).to.be.have.property('every', '240000');
+      expect(repeatableJobs[0]).to.deep.equal({
+        key: 'test',
+        name: 'test',
+        next: 1486439520000,
+        iterationCount: 1,
+        every: '240000',
+      });
 
       await this.clock.tickAsync(ONE_MINUTE);
       const count = await queue.getJobCountByTypes('delayed', 'waiting');
