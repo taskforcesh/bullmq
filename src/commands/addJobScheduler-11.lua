@@ -64,7 +64,7 @@ if prevMillis ~= false then
     local currentJobId = "repeat:" .. jobSchedulerId .. ":" .. prevMillis
     local currentDelayedJobKey = schedulerKey .. ":" .. prevMillis
 
-    if rcall("EXISTS", nextDelayedJobKey) ~= 1 then
+    if rcall("EXISTS", nextDelayedJobKey) == 1 then
         if rcall("ZSCORE", delayedKey, nextDelayedJobId) ~= false then
             removeJob(nextDelayedJobId, true, prefixKey, true --[[remove debounce key]] )
             rcall("ZREM", delayedKey, nextDelayedJobId)
@@ -98,7 +98,7 @@ if prevMillis ~= false then
         end
     end
 
-    if currentJobId ~= nextDelayedJobId and rcall("EXISTS", currentDelayedJobKey) ~= 1 then
+    if currentJobId ~= nextDelayedJobId and rcall("EXISTS", currentDelayedJobKey) == 1 then
         if rcall("ZSCORE", delayedKey, currentJobId) ~= false then
             removeJob(currentJobId, true, prefixKey, true --[[remove debounce key]] )
             rcall("ZREM", delayedKey, currentJobId)
@@ -123,6 +123,8 @@ local schedulerOpts = cmsgpack.unpack(ARGV[2])
 storeJobScheduler(jobSchedulerId, schedulerKey, repeatKey, nextMillis, schedulerOpts, ARGV[4], templateOpts)
 
 rcall("INCR", KEYS[8])
+
+local maxEvents = getOrSetMaxEvents(metaKey)
 
 addJobFromScheduler(nextDelayedJobKey, nextDelayedJobId, ARGV[6], waitKey, pausedKey,
     KEYS[11], metaKey, prioritizedKey, KEYS[10], delayedKey, KEYS[7], eventsKey,
