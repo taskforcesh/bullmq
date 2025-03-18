@@ -582,7 +582,9 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
    * @sa {@link https://prometheus.io/docs/instrumenting/exposition_formats/}
    *
    **/
-  async exportPrometheusMetrics(): Promise<string> {
+  async exportPrometheusMetrics(
+    globalVariables: Record<string, string>,
+  ): Promise<string> {
     const counts = await this.getJobCounts();
     const metrics: string[] = [];
 
@@ -592,9 +594,14 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
     );
     metrics.push('# TYPE bullmq_job_count gauge');
 
+    const variables = Object.keys(globalVariables).reduce(
+      (curr, acc) => `${acc}, ${curr}="${globalVariables[curr]}"`,
+      '',
+    );
+
     for (const [state, count] of Object.entries(counts)) {
       metrics.push(
-        `bullmq_job_count{queue="${this.name}", state="${state}"} ${count}`,
+        `bullmq_job_count{queue="${this.name}", state="${state}"${variables}} ${count}`,
       );
     }
 
