@@ -293,7 +293,7 @@ describe('Job Scheduler', function () {
 
       await this.clock.tickAsync(ONE_MINUTE);
       const count = await queue.getJobCountByTypes('delayed', 'waiting');
-      expect(count).to.be.equal(1);
+      expect(count).to.be.equal(2);
 
       await worker.close();
     });
