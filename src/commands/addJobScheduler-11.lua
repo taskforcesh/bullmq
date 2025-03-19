@@ -72,28 +72,20 @@ if prevMillis ~= false then
             removeJob(nextDelayedJobId, true, prefixKey, true --[[remove debounce key]] )
             rcall("ZREM", prioritizedKey, nextDelayedJobId)
         else
+            local pausedOrWaitKey = waitKey
             if isQueuePaused(metaKey) then
-                if rcall("LREM", pausedKey, 1, nextDelayedJobId) > 0 then
-                    removeJob(nextDelayedJobId, true, prefixKey, true --[[remove debounce key]] )
-                else
-                    local maxEvents = getOrSetMaxEvents(metaKey)
+                pausedOrWaitKey = pausedKey
+            end
 
-                    rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
-                        "duplicated", "jobId", nextDelayedJobId)
-
-                    return nextDelayedJobId .. "" -- convert to string
-                end
+            if rcall("LREM", pausedOrWaitKey, 1, nextDelayedJobId) > 0 then
+                removeJob(nextDelayedJobId, true, prefixKey, true --[[remove debounce key]] )
             else
-                if rcall("LREM", waitKey, 1, nextDelayedJobId) > 0 then
-                    removeJob(nextDelayedJobId, true, prefixKey, true --[[remove debounce key]] )
-                else
-                    local maxEvents = getOrSetMaxEvents(metaKey)
+                local maxEvents = getOrSetMaxEvents(metaKey)
 
-                    rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
-                        "duplicated", "jobId", nextDelayedJobId)
+                rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
+                    "duplicated", "jobId", nextDelayedJobId)
 
-                    return nextDelayedJobId .. "" -- convert to string
-                end
+                return nextDelayedJobId .. "" -- convert to string
             end
         end
     end
@@ -106,14 +98,13 @@ if prevMillis ~= false then
             removeJob(currentJobId, true, prefixKey, true --[[remove debounce key]] )
             rcall("ZREM", prioritizedKey, currentJobId)
         else
+            local pausedOrWaitKey = waitKey
             if isQueuePaused(metaKey) then
-                if rcall("LREM", pausedKey, 1, currentJobId) > 0 then
-                    removeJob(currentJobId, true, prefixKey, true --[[remove debounce key]] )
-                end
-            else
-                if rcall("LREM", waitKey, 1, currentJobId) > 0 then
-                    removeJob(currentJobId, true, prefixKey, true --[[remove debounce key]] )
-                end
+                pausedOrWaitKey = pausedKey
+            end
+
+            if rcall("LREM", pausedOrWaitKey, 1, currentJobId) > 0 then
+                removeJob(currentJobId, true, prefixKey, true --[[remove debounce key]] )
             end
         end
     end
