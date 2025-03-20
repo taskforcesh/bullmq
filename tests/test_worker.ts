@@ -1976,12 +1976,10 @@ describe('workers', function () {
   });
 
   it('emits error if lock is lost', async function () {
-    this.timeout(10000);
-
     const worker = new Worker(
       queueName,
       async () => {
-        return delay(2000);
+        return delay(1250);
       },
       {
         connection,
