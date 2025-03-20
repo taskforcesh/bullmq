@@ -2663,4 +2663,49 @@ describe('Job Scheduler', function () {
     await processing;
     await worker.close();
   });
+
+  it('should schedule next repeatable job after promote', async function () {
+    await queue.upsertJobScheduler('scheduler-test', { every: 50000 });
+
+    await queue.promoteJobs();
+
+    const waitingCount = await queue.getWaitingCount();
+    expect(waitingCount).to.be.equal(1);
+  });
+
+  it('worker should start processing repeatable jobs after drain', async function () {
+    await queue.upsertJobScheduler('scheduler-test', {
+      pattern: '* * * * *',
+      immediately: true,
+    });
+    const worker = new Worker(queueName, async () => {}, { connection });
+    await worker.waitUntilReady();
+
+    await queue.drain(true);
+
+    await queue.upsertJobScheduler('scheduler-test', {
+      pattern: '* * * * *',
+      immediately: true,
+    });
+
+    const completing = new Promise<void>((resolve, reject) => {
+      worker.once('completed', async job => {
+        try {
+          expect(job).to.be.ok;
+          expect(job.data.foo).to.be.eql('bar');
+        } catch (err) {
+          reject(err);
+        }
+        resolve();
+      });
+    });
+
+    const job = await queue.add('test', { foo: 'bar' });
+    expect(job.id).to.be.ok;
+    expect(job.data.foo).to.be.eql('bar');
+
+    await completing;
+
+    await worker.close();
+  });
 });
