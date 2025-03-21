@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import { Redis, ChainableCommander } from 'ioredis';
-import { v4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import {
   FlowJob,
   FlowQueuesOpts,
@@ -324,7 +324,7 @@ export class FlowProducer extends EventEmitter {
     const queueOpts = queuesOpts && queuesOpts[node.queueName];
 
     const jobsOpts = queueOpts?.defaultJobOptions ?? {};
-    const jobId = node.opts?.jobId || v4();
+    const jobId = node.opts?.jobId || randomUUID();
 
     return trace<Promise<JobNode>>(
       this.telemetry,

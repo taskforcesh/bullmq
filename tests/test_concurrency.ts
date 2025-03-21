@@ -8,7 +8,7 @@ import {
 } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 import { beforeEach, describe, it, after as afterAll } from 'mocha';
-import { v4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { expect } from 'chai';
 import * as ProgressBar from 'progress';
 import { after } from 'lodash';
@@ -24,7 +24,7 @@ describe('Concurrency', () => {
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     await new IORedis().flushall();
   });
 
