@@ -63,7 +63,7 @@ local rcall = redis.call
 --- @include "includes/getRateLimitTTL"
 --- @include "includes/getTargetQueueList"
 --- @include "includes/moveJobFromPriorityToActive"
---- @include "includes/moveParentFromWaitingChildrenToFailed"
+--- @include "includes/moveParentToFailedIfNeeded"
 --- @include "includes/moveParentToWaitIfNeeded"
 --- @include "includes/prepareJobForProcessing"
 --- @include "includes/promoteDelayedJobs"
@@ -148,7 +148,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
             if opts['fpof'] then
                 local unsuccesssfulSet = parentKey .. ":unsuccessful"
                 rcall("ZADD", unsuccesssfulSet, timestamp, jobIdKey)
-                moveParentFromWaitingChildrenToFailed(parentQueueKey, parentKey,
+                moveParentToFailedIfNeeded(parentQueueKey, parentKey,
                                                       parentId, jobIdKey,
                                                       timestamp)
             elseif opts['idof'] or opts['rdof'] then
