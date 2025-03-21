@@ -11,6 +11,7 @@ import {
   JobNode,
   WaitingChildrenError,
   DelayedError,
+  RateLimitError,
 } from '../src/classes';
 import { removeAllQueueData, delay } from '../src/utils';
 
@@ -2494,6 +2495,138 @@ describe('flows', () => {
           {
             attempts: 3,
             backoff: 1000,
+          },
+        );
+
+        await failed;
+        await flow.close();
+        await worker.close();
+        await grandchildrenWorker.close();
+        await removeAllQueueData(new IORedis(redisHost), childrenQueueName);
+        await removeAllQueueData(
+          new IORedis(redisHost),
+          grandchildrenQueueName,
+        );
+      });
+    });
+
+    describe('when parent is in prioritized state', async () => {
+      it('should move parent to failed when child is moved to failed', async () => {
+        const childrenQueueName = `children-queue-${v4()}`;
+        const grandchildrenQueueName = `grandchildren-queue-${v4()}`;
+
+        enum Step {
+          Initial,
+          Second,
+          Third,
+          Finish,
+        }
+
+        const flow = new FlowProducer({ connection, prefix });
+
+        const grandchildrenWorker = new Worker(
+          grandchildrenQueueName,
+          async () => {
+            await delay(500);
+            throw new Error('failed');
+          },
+          { connection, prefix },
+        );
+
+        const queueEvents = new QueueEvents(queueName, {
+          connection,
+          prefix,
+        });
+        await queueEvents.waitUntilReady();
+
+        let childId;
+        const worker = new Worker(
+          queueName,
+          async (job: Job, token?: string) => {
+            let step = job.data.step;
+            while (step !== Step.Finish) {
+              switch (step) {
+                case Step.Initial: {
+                  const { job: child } = await flow.add({
+                    name: 'child-job',
+                    queueName: childrenQueueName,
+                    data: {},
+                    children: [
+                      {
+                        name: 'grandchild-job',
+                        data: { idx: 0, foo: 'bar' },
+                        queueName: grandchildrenQueueName,
+                        opts: {
+                          failParentOnFailure: true,
+                        },
+                      },
+                    ],
+                    opts: {
+                      failParentOnFailure: true,
+                      parent: {
+                        id: job.id!,
+                        queue: job.queueQualifiedName,
+                      },
+                    },
+                  });
+                  childId = child.id;
+                  await job.updateData({
+                    step: Step.Second,
+                  });
+                  step = Step.Second;
+                  break;
+                }
+                case Step.Second: {
+                  await queue.rateLimit(2000);
+                  await job.updateData({
+                    step: Step.Third,
+                  });
+                  step = Step.Third;
+                  throw new RateLimitError();
+                }
+                case Step.Third: {
+                  const shouldWait = await job.moveToWaitingChildren(token!);
+                  if (!shouldWait) {
+                    await job.updateData({
+                      step: Step.Finish,
+                    });
+                    step = Step.Finish;
+                    return Step.Finish;
+                  } else {
+                    throw new WaitingChildrenError();
+                  }
+                }
+                default: {
+                  throw new Error('invalid step');
+                }
+              }
+            }
+          },
+          { connection, prefix },
+        );
+        await grandchildrenWorker.waitUntilReady();
+        await worker.waitUntilReady();
+
+        const failed = new Promise<void>((resolve, reject) => {
+          queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
+            try {
+              expect(jobId).to.be.equal(job.id);
+              expect(prev).to.be.equal('prioritized');
+              expect(failedReason).to.be.equal(
+                `child ${prefix}:${childrenQueueName}:${childId} failed`,
+              );
+              resolve();
+            } catch (error) {
+              reject(error);
+            }
+          });
+        });
+
+        const job = await queue.add(
+          'test',
+          { step: Step.Initial },
+          {
+            priority: 10,
           },
         );
 
