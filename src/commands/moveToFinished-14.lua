@@ -95,7 +95,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     local maxCount = opts['keepJobs']['count']
     local maxAge = opts['keepJobs']['age']
 
-    if rcall("SCARD", jobIdKey .. ":dependencies") ~= 0 then -- // Make sure it does not have pending dependencies
+    if ARGV[5] == "completed" and rcall("SCARD", jobIdKey .. ":dependencies") ~= 0 then -- // Make sure it does not have pending dependencies
         return -4
     end
 
