@@ -1206,6 +1206,119 @@ describe('flows', () => {
         await grandchildrenWorker.close();
       });
     });
+
+    describe('when parent failed before moving to waiting-children', () => {
+      it('should fail parent with last error', async function () {
+        const childrenQueueName = `children-queue-${v4()}`;
+        const grandchildrenQueueName = `grandchildren-queue-${v4()}`;
+
+        enum Step {
+          Initial,
+          Second,
+          Third,
+          Finish,
+        }
+
+        const flow = new FlowProducer({ connection, prefix });
+
+        const grandchildrenWorker = new Worker(
+          grandchildrenQueueName,
+          async () => {
+            throw new Error('fail');
+          },
+          { connection, prefix },
+        );
+
+        const worker = new Worker(
+          queueName,
+          async (job: Job, token?: string) => {
+            let step = job.data.step;
+            while (step !== Step.Finish) {
+              switch (step) {
+                case Step.Initial: {
+                  await flow.add({
+                    name: 'child-job',
+                    queueName: childrenQueueName,
+                    data: {},
+                    children: [
+                      {
+                        name: 'grandchild-job',
+                        data: { idx: 0, foo: 'bar' },
+                        queueName: grandchildrenQueueName,
+                        opts: {
+                          failParentOnFailure: true,
+                        },
+                      },
+                    ],
+                    opts: {
+                      parent: {
+                        id: job.id!,
+                        queue: job.queueQualifiedName,
+                      },
+                      failParentOnFailure: true,
+                    },
+                  });
+                  await job.updateData({
+                    step: Step.Second,
+                  });
+                  step = Step.Second;
+                  break;
+                }
+                case Step.Second: {
+                  await job.updateData({
+                    step: Step.Third,
+                  });
+                  step = Step.Third;
+
+                  throw new Error('fail');
+                }
+                case Step.Third: {
+                  const shouldWait = await job.moveToWaitingChildren(token!);
+                  if (!shouldWait) {
+                    await job.updateData({
+                      step: Step.Finish,
+                    });
+                    step = Step.Finish;
+                    return Step.Finish;
+                  } else {
+                    throw new WaitingChildrenError();
+                  }
+                }
+                default: {
+                  throw new Error('invalid step');
+                }
+              }
+            }
+          },
+          { connection, prefix },
+        );
+        const queueEvents = new QueueEvents(queueName, {
+          connection,
+          prefix,
+        });
+        await queueEvents.waitUntilReady();
+        await grandchildrenWorker.waitUntilReady();
+        await worker.waitUntilReady();
+
+        const job = await queue.add('test', { step: Step.Initial });
+
+        const failed = new Promise<void>(resolve => {
+          queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
+            if (jobId === job.id) {
+              expect(prev).to.be.equal('active');
+              expect(failedReason).to.be.equal('fail');
+              resolve();
+            }
+          });
+        });
+
+        await failed;
+
+        await flow.close();
+        await worker.close();
+        await grandchildrenWorker.close();
+      });
+    });
   });
 
   describe('when moving jobs from wait to active continuing', async () => {
