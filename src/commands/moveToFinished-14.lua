@@ -95,7 +95,8 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     local maxCount = opts['keepJobs']['count']
     local maxAge = opts['keepJobs']['age']
 
-    if ARGV[5] == "completed" and rcall("SCARD", jobIdKey .. ":dependencies") ~= 0 then -- // Make sure it does not have pending dependencies
+    -- Make sure it does not have pending dependencies
+    if ARGV[5] == "completed" and rcall("SCARD", jobIdKey .. ":dependencies") ~= 0 then
         return -4
     end
 
@@ -194,7 +195,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     end
 
     rcall("XADD", eventStreamKey, "*", "event", ARGV[5], "jobId", jobId, ARGV[3],
-          ARGV[4])
+          ARGV[4], "prev", "active")
 
     if ARGV[5] == "failed" then
         if tonumber(attemptsMade) >= tonumber(attempts) then
