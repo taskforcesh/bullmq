@@ -36,13 +36,13 @@ local timestamp = ARGV[3]
 local jobId = ARGV[4]
 
 --- Includes
---- @include "includes/moveParentFromWaitingChildrenToFailed"
+--- @include "includes/moveParentToFailedIfNeeded"
 --- @include "includes/moveParentToWaitIfNeeded"
 --- @include "includes/removeDeduplicationKeyIfNeeded"
 --- @include "includes/removeJobsOnFail"
 --- @include "includes/removeLock"
 
-local function moveToWaitingChildren (activeKey, waitingChildrenKey, jobId,
+local function moveToWaitingChildren(activeKey, waitingChildrenKey, jobId,
     timestamp)
   local score = tonumber(timestamp)
 
@@ -80,7 +80,7 @@ if rcall("EXISTS", jobKey) == 1 then
         local parentKey = parentData['queueKey'] .. ':' .. parentData['id']
         local parentUnsuccesssful = parentKey .. ":unsuccessful"
         rcall("ZADD", parentUnsuccesssful, timestamp, jobKey)                        
-        moveParentFromWaitingChildrenToFailed(
+        moveParentToFailedIfNeeded(
             parentData['queueKey'],
             parentData['queueKey'] .. ':' .. parentData['id'],
             parentData['id'],

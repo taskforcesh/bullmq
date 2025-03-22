@@ -63,7 +63,7 @@ local rcall = redis.call
 --- @include "includes/getRateLimitTTL"
 --- @include "includes/getTargetQueueList"
 --- @include "includes/moveJobFromPriorityToActive"
---- @include "includes/moveParentFromWaitingChildrenToFailed"
+--- @include "includes/moveParentToFailedIfNeeded"
 --- @include "includes/moveParentToWaitIfNeeded"
 --- @include "includes/prepareJobForProcessing"
 --- @include "includes/promoteDelayedJobs"
@@ -95,7 +95,8 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     local maxCount = opts['keepJobs']['count']
     local maxAge = opts['keepJobs']['age']
 
-    if rcall("SCARD", jobIdKey .. ":dependencies") ~= 0 then -- // Make sure it does not have pending dependencies
+    -- Make sure it does not have pending dependencies
+    if ARGV[5] == "completed" and rcall("SCARD", jobIdKey .. ":dependencies") ~= 0 then
         return -4
     end
 
@@ -148,7 +149,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
             if opts['fpof'] then
                 local unsuccesssfulSet = parentKey .. ":unsuccessful"
                 rcall("ZADD", unsuccesssfulSet, timestamp, jobIdKey)
-                moveParentFromWaitingChildrenToFailed(parentQueueKey, parentKey,
+                moveParentToFailedIfNeeded(parentQueueKey, parentKey,
                                                       parentId, jobIdKey,
                                                       timestamp)
             elseif opts['idof'] or opts['rdof'] then
@@ -194,7 +195,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     end
 
     rcall("XADD", eventStreamKey, "*", "event", ARGV[5], "jobId", jobId, ARGV[3],
-          ARGV[4])
+          ARGV[4], "prev", "active")
 
     if ARGV[5] == "failed" then
         if tonumber(attemptsMade) >= tonumber(attempts) then

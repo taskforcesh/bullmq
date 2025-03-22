@@ -1,3 +1,24 @@
+## [5.44.3](https://github.com/taskforcesh/bullmq/compare/v5.44.2...v5.44.3) (2025-03-22)
+
+
+### Bug Fixes
+
+* **flow:** only validate pending dependencies when moving to completed ([#3164](https://github.com/taskforcesh/bullmq/issues/3164)) ([d3c397f](https://github.com/taskforcesh/bullmq/commit/d3c397fa3f122287026018aaae5ed2c5dfad19aa))
+
+## [5.44.2](https://github.com/taskforcesh/bullmq/compare/v5.44.1...v5.44.2) (2025-03-22)
+
+
+### Performance Improvements
+
+* **flow:** validate parentKey existence before trying to move it to failed ([#3163](https://github.com/taskforcesh/bullmq/issues/3163)) ([5a88e47](https://github.com/taskforcesh/bullmq/commit/5a88e4745d9449e41c5e2c467b5d02ca21357703))
+
+## [5.44.1](https://github.com/taskforcesh/bullmq/compare/v5.44.0...v5.44.1) (2025-03-21)
+
+
+### Bug Fixes
+
+* **flow:** consider prioritized state when moving a parent to failed ([#3160](https://github.com/taskforcesh/bullmq/issues/3160)) ([d91d9f4](https://github.com/taskforcesh/bullmq/commit/d91d9f4398584506f5af8b46e4d47b769beaa212))
+
 # [5.44.0](https://github.com/taskforcesh/bullmq/compare/v5.43.1...v5.44.0) (2025-03-18)
 
 

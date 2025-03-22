@@ -27,7 +27,7 @@ local rcall = redis.call
 --- @include "includes/addJobInTargetList"
 --- @include "includes/batches"
 --- @include "includes/getTargetQueueList"
---- @include "includes/moveParentFromWaitingChildrenToFailed"
+--- @include "includes/moveParentToFailedIfNeeded"
 --- @include "includes/moveParentToWaitIfNeeded"
 --- @include "includes/removeDeduplicationKeyIfNeeded"
 --- @include "includes/removeJobsOnFail"
@@ -103,7 +103,7 @@ if (#stalling > 0) then
                                 local parentKey = parentData['queueKey'] .. ':' .. parentData['id']
                                 local unsuccesssfulSet = parentKey .. ":unsuccessful"
                                 rcall("ZADD", unsuccesssfulSet, timestamp, jobKey)
-                                moveParentFromWaitingChildrenToFailed(
+                                moveParentToFailedIfNeeded(
                                     parentData['queueKey'],
                                     parentData['queueKey'] .. ':' .. parentData['id'],
                                     parentData['id'],
