@@ -5,6 +5,7 @@ import {
   DependenciesOpts,
   JobJson,
   JobJsonRaw,
+  JobRepeatOptsRaw,
   MinimalJob,
   MoveToWaitingChildrenOpts,
   ParentKeys,
