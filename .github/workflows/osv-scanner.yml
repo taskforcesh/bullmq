@@ -1,7 +1,6 @@
 # .github/workflows/osv-scanner.yml
 name: OSV-Scanner Vulnerability Scan
 
-# Trigger the workflow on pull requests and scheduled times
 on:
   pull_request:
     branches:
@@ -14,11 +13,10 @@ on:
   schedule:
     - cron: '0 0 * * *' # Runs daily at midnight UTC
 
-# Permissions needed for the action
 permissions:
-  contents: read # To read the repository contents
-  security-events: write # To upload SARIF results to Security tab
-  actions: read # To run the workflow
+  contents: read
+  security-events: write
+  actions: read
 
 jobs:
   vulnerability-scan:
@@ -26,21 +24,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout the repository
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Run OSV-Scanner using the official action
       - name: Run OSV-Scanner
-        uses: google/osv-scanner-action@v2.0.0
+        uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2
         with:
-          # Scan the entire repository recursively
-          scan-args: |
+          scan-args: |-
             --recursive
             ./
-          # Name of the output SARIF file
           results-file-name: osv-results.sarif
-          # Upload results to GitHub Security tab
           upload-sarif: true
-          # Fail the build if vulnerabilities are found (only for PR/push)
           fail-on-vuln: ${{ github.event_name != 'schedule' }}
