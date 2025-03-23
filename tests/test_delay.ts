@@ -75,7 +75,6 @@ describe('Delayed jobs', function () {
           const delayedJobs = await queue.getDelayed();
           expect(delayedJobs.length).to.be.equal(0);
           expect(publishHappened).to.be.eql(true);
-          await worker.close();
           resolve();
         } catch (err) {
           reject(err);
@@ -139,7 +138,6 @@ describe('Delayed jobs', function () {
             const delayedJobs = await queue.getDelayed();
             expect(delayedJobs.length).to.be.equal(0);
             expect(publishHappened).to.be.eql(true);
-            await worker.close();
             resolve();
           } catch (err) {
             reject(err);

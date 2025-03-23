@@ -839,7 +839,6 @@ describe('events', function () {
     const completed = new Promise<void>(resolve => {
       worker.once('active', function () {
         worker.once('completed', async function () {
-          await worker.close();
           resolve();
         });
       });
