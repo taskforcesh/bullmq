@@ -796,7 +796,6 @@ function sandboxProcessTests(
             expect(value).to.be.eql({
               [`${prefix}:${queueName}:${childJobId}`]: { childResult: 'bar' },
             });
-            await parentWorker.close();
             resolve();
           } catch (err) {
             await parentWorker.close();
@@ -824,6 +823,7 @@ function sandboxProcessTests(
       await parentWorker.close();
       await childWorker.close();
       await flow.close();
+      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
     });
 
     it('will fail job if calling getChildrenValues is too slow', async () => {
@@ -861,7 +861,6 @@ function sandboxProcessTests(
             expect(error.message).to.be.eql(
               'TimeoutError: getChildrenValues timed out in (500ms)',
             );
-            await parentWorker.close();
             resolve();
           } catch (err) {
             await parentWorker.close();
@@ -887,6 +886,7 @@ function sandboxProcessTests(
 
       // Restore Job.getChildrenValues
       Job.prototype.getChildrenValues = getChildrenValues;
+      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
     });
 
     it('should process and move to delayed', async () => {
@@ -1048,6 +1048,7 @@ function sandboxProcessTests(
 
       await worker.close();
       await flow.close();
+      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
     });
 
     it('should process and fail', async () => {

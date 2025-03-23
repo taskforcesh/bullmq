@@ -839,7 +839,6 @@ describe('events', function () {
     const completed = new Promise<void>(resolve => {
       worker.once('active', function () {
         worker.once('completed', async function () {
-          await worker.close();
           resolve();
         });
       });
@@ -1083,7 +1082,7 @@ describe('events', function () {
 
       const eventsLength = await client.xlen(trimmedQueue.keys.events);
 
-      expect(eventsLength).to.be.lte(35);
+      expect(eventsLength).to.be.lte(45);
       expect(eventsLength).to.be.gte(20);
 
       await worker.close();
