@@ -6,6 +6,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required for merging branches, committing changes, and deploying to GitHub Pages
 
     strategy:
       matrix:
