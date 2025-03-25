@@ -77,6 +77,7 @@
 ## Patterns
 
 * [Adding jobs in bulk across different queues](patterns/adding-bulks.md)
+* [Deduplication of jobs using Job Schedulers](patterns/deduplicate-job-schedulers.md)
 * [Manually processing jobs](patterns/manually-fetching-jobs.md)
 * [Named Processor](patterns/named-processor.md)
 * [Flows](patterns/flows.md)
