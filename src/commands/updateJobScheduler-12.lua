@@ -25,7 +25,8 @@
 
     Output:
       next delayed job id  - OK
-]] local rcall = redis.call
+]]
+local rcall = redis.call
 local repeatKey = KEYS[1]
 local delayedKey = KEYS[2]
 local waitKey = KEYS[3]
@@ -51,34 +52,39 @@ local prevMillis = rcall("ZSCORE", repeatKey, jobSchedulerId)
 if prevMillis ~= false then
     local currentDelayedJobId = "repeat:" .. jobSchedulerId .. ":" .. prevMillis
 
-    if producerId == currentDelayedJobId and rcall("EXISTS", nextDelayedJobKey) ~= 1 then
-        local schedulerAttributes = rcall("HMGET", schedulerKey, "name", "data")
-
-        rcall("ZADD", repeatKey, nextMillis, jobSchedulerId)
-        rcall("HINCRBY", schedulerKey, "ic", 1)
-
+    if producerId == currentDelayedJobId then
         local eventsKey = KEYS[9]
         local maxEvents = getOrSetMaxEvents(metaKey)
 
-        rcall("INCR", KEYS[8])
+        if rcall("EXISTS", nextDelayedJobKey) ~= 1 then
+            local schedulerAttributes = rcall("HMGET", schedulerKey, "name", "data")
 
-        -- TODO: remove this workaround in next breaking change,
-        -- all job-schedulers must save job data
-        local templateData = schedulerAttributes[2] or ARGV[3]
+            rcall("ZADD", repeatKey, nextMillis, jobSchedulerId)
+            rcall("HINCRBY", schedulerKey, "ic", 1)
 
-        if templateData and templateData ~= '{}' then
-            rcall("HSET", schedulerKey, "data", templateData)
+            rcall("INCR", KEYS[8])
+
+            -- TODO: remove this workaround in next breaking change,
+            -- all job-schedulers must save job data
+            local templateData = schedulerAttributes[2] or ARGV[3]
+
+            if templateData and templateData ~= '{}' then
+                rcall("HSET", schedulerKey, "data", templateData)
+            end
+
+            addJobFromScheduler(nextDelayedJobKey, nextDelayedJobId, ARGV[4], waitKey, pausedKey, 
+                KEYS[12], metaKey, prioritizedKey, KEYS[10], delayedKey, KEYS[7], eventsKey, 
+                schedulerAttributes[1], maxEvents, ARGV[5], templateData or '{}', jobSchedulerId)
+
+            -- TODO: remove this workaround in next breaking change
+            if KEYS[11] ~= "" then
+                rcall("HSET", KEYS[11], "nrjid", nextDelayedJobId)
+            end
+
+            return nextDelayedJobId .. "" -- convert to string
+        else
+            rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
+                "duplicated", "jobId", nextDelayedJobId)
         end
-
-        addJobFromScheduler(nextDelayedJobKey, nextDelayedJobId, ARGV[4], waitKey, pausedKey, 
-            KEYS[12], metaKey, prioritizedKey, KEYS[10], delayedKey, KEYS[7], eventsKey, 
-            schedulerAttributes[1], maxEvents, ARGV[5], templateData or '{}', jobSchedulerId)
-
-        -- TODO: remove this workaround in next breaking change
-        if KEYS[11] ~= "" then
-            rcall("HSET", KEYS[11], "nrjid", nextDelayedJobId)
-        end
-
-        return nextDelayedJobId .. "" -- convert to string
     end
 end
