@@ -1,0 +1,38 @@
+# .github/workflows/osv-scanner.yml
+name: OSV-Scanner Vulnerability Scan
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+  push:
+    branches:
+      - main
+      - master
+  schedule:
+    - cron: '0 0 * * *' # Runs daily at midnight UTC
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  vulnerability-scan:
+    name: Scan for vulnerabilities
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run OSV-Scanner
+        uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2
+        with:
+          scan-args: |-
+            --recursive
+            ./
+          results-file-name: osv-results.sarif
+          upload-sarif: true
+          fail-on-vuln: ${{ github.event_name != 'schedule' }}
