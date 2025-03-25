@@ -111,7 +111,7 @@
     "progress": "^2.0.3",
     "rimraf": "^3.0.2",
     "rrule": "^2.6.9",
-    "semantic-release": "^19.0.3",
+    "semantic-release": "^24.2.3",
     "sinon": "^18.0.1",
     "test-console": "^2.0.0",
     "ts-mocha": "^10.0.0",
