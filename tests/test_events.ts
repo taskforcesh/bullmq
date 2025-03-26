@@ -610,6 +610,49 @@ describe('events', function () {
   });
 
   describe('when job is deduplicated when added again with same debounce id', function () {
+    it('emits deduplicated event', async function () {
+      const testName = 'test';
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await delay(50);
+          await queue.add(testName, { foo: 'bar' }, { jobId: 'a1' });
+          await delay(50);
+        },
+        { autorun: false, connection, prefix },
+      );
+      await worker.waitUntilReady();
+
+      const waitingEvent = new Promise<void>((resolve, reject) => {
+        queueEvents.on(
+          'deduplicated',
+          ({ jobId, deduplicationId, deduplicatedJobId }) => {
+            try {
+              expect(jobId).to.be.equal('a1');
+              expect(deduplicationId).to.be.equal('dedupKey');
+              expect(deduplicatedJobId).to.be.equal('a2');
+              resolve();
+            } catch (error) {
+              reject(error);
+            }
+          },
+        );
+      });
+
+      const firstJob = await queue.add(
+        testName,
+        { foo: 'bar' },
+        { jobId: 'a1', deduplication: { id: 'dedupKey' } },
+      );
+      const secondJob = await queue.add(
+        testName,
+        { foo: 'bar' },
+        { jobId: 'a2', deduplication: { id: 'dedupKey' } },
+      );
+
+      await waitingEvent;
+    });
+
     describe('when ttl is provided', function () {
       it('used a fixed time period and emits debounced event', async function () {
         const testName = 'test';
