@@ -44,6 +44,31 @@ Note that you must provide a deduplication id that should represent your job. Yo
 Any manual deletion will disable the deduplication. For example, when calling _job.remove_ method.
 {% endhint %}
 
+## The Deduplicated Event
+
+The **deduplicated** event is emitted whenever a job is ignored due to deduplication in either Simple Mode or Throttle Mode. This event allows you to monitor deduplication activity and take action if needed, such as logging the occurrence or notifying a user that their request was ignored.
+
+### Listening for the Deduplicated Event
+
+To listen for the **deduplicated** event, use the `QueueEvents` class from BullMQ:
+
+```typescript
+import { QueueEvents } from 'bullmq';
+
+const queueEvents = new QueueEvents('myQueue');
+
+queueEvents.on('deduplicated', ({ jobId, deduplicationId, deduplicatedJobId }, id) => {
+  console.log(`Job ${deduplicatedJobId} was deduplicated due to existing job ${jobId} 
+  with deduplication ID ${deduplicationId}`);
+});
+```
+
+In this example:
+
+* `jobId`: The Id of the existing job that triggered the deduplication.
+* `deduplicationId`: The deduplication Id that caused the job to be ignored.
+* `deduplicatedJobId`: The Id of the job that was ignored.
+
 ## Get Deduplication Job Id
 
 If you need to know the id of the job that started the deduplicated state, you can call the **getDeduplicationJobId** method.
@@ -62,5 +87,5 @@ await myQueue.removeDeduplicationKey('customValue');
 
 ## Read more:
 
-- 💡 [Add Job API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#add)
-- 💡 [Remove Deduplication Key API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removeDeduplicationKey)
+* 💡 [Add Job API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#add)
+* 💡 [Remove Deduplication Key API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removeDeduplicationKey)
