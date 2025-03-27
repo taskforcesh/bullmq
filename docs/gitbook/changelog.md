@@ -1,3 +1,10 @@
+# [5.45.0](https://github.com/taskforcesh/bullmq/compare/v5.44.4...v5.45.0) (2025-03-27)
+
+
+### Features
+
+* add deduplicated job id to the deduplicated event ([0f21c10](https://github.com/taskforcesh/bullmq/commit/0f21c10bc9fd9a2290e8dde3c9b43bc366fcb15a))
+
 ## [5.44.4](https://github.com/taskforcesh/bullmq/compare/v5.44.3...v5.44.4) (2025-03-24)
 
 
