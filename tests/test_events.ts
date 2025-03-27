@@ -616,8 +616,6 @@ describe('events', function () {
         queueName,
         async () => {
           await delay(50);
-          await queue.add(testName, { foo: 'bar' }, { jobId: 'a1' });
-          await delay(50);
         },
         { autorun: false, connection, prefix },
       );
