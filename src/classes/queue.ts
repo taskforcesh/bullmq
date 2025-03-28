@@ -1,4 +1,4 @@
-import { v4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import {
   BaseJobOptions,
   BulkJobOptions,
@@ -152,7 +152,7 @@ export class Queue<
   ResultType = ExtractResultType<DataTypeOrJob, DefaultResultType>,
   NameType extends string = ExtractNameType<DataTypeOrJob, DefaultNameType>,
 > extends QueueGetters<JobBase<DataTypeOrJob, ResultType, NameType>> {
-  token = v4();
+  token = randomUUID();
   jobsOpts: BaseJobOptions;
   opts: QueueOptions;
 

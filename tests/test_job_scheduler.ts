@@ -3,7 +3,7 @@ import { default as IORedis } from 'ioredis';
 import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 
 import * as sinon from 'sinon';
-import { v4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { rrulestr } from 'rrule';
 import {
   Job,
@@ -41,7 +41,7 @@ describe('Job Scheduler', function () {
 
   beforeEach(async function () {
     this.clock = sinon.useFakeTimers({ shouldClearNativeTimers: true });
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     repeat = new Repeat(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
@@ -754,7 +754,7 @@ describe('Job Scheduler', function () {
   describe('when using removeOnComplete', function () {
     it('should remove repeated job', async function () {
       this.timeout(10000);
-      const queueName2 = `test-${v4()}`;
+      const queueName2 = `test-${randomUUID()}`;
       const queue2 = new Queue(queueName2, {
         connection,
         prefix,

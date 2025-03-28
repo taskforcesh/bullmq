@@ -2,10 +2,7 @@ import * as fs from 'fs';
 import { URL } from 'url';
 import { Redis } from 'ioredis';
 import * as path from 'path';
-import { v4 } from 'uuid';
-
-// Note: this Polyfill is only needed for Node versions < 15.4.0
-import { AbortController } from 'node-abort-controller';
+import { randomUUID } from 'crypto';
 
 import {
   GetNextJobOptions,
@@ -239,7 +236,7 @@ export class Worker<
     this.opts.lockRenewTime =
       this.opts.lockRenewTime || this.opts.lockDuration / 2;
 
-    this.id = v4();
+    this.id = randomUUID();
 
     if (processor) {
       if (typeof processor === 'function') {

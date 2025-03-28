@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
-import { v4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { Job, Queue, QueueEvents, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
@@ -19,7 +19,7 @@ describe('Pause', function () {
   });
 
   beforeEach(async function () {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
