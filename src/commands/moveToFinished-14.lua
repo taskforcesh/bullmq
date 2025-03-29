@@ -78,7 +78,13 @@ local rcall = redis.call
 --- @include "includes/updateJobFields"
 
 local jobIdKey = KEYS[12]
-if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
+if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
+    -- Make sure it does not have pending dependencies
+    -- It must happen before removing lock
+    if ARGV[5] == "completed" and rcall("SCARD", jobIdKey .. ":dependencies") ~= 0 then
+        return -4
+    end
+
     local opts = cmsgpack.unpack(ARGV[8])
 
     local token = opts['token']
@@ -94,11 +100,6 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     local maxMetricsSize = opts['maxMetricsSize']
     local maxCount = opts['keepJobs']['count']
     local maxAge = opts['keepJobs']['age']
-
-    -- Make sure it does not have pending dependencies
-    if ARGV[5] == "completed" and rcall("SCARD", jobIdKey .. ":dependencies") ~= 0 then
-        return -4
-    end
 
     local jobAttributes = rcall("HMGET", jobIdKey, "parentKey", "parent", "deid")
     local parentKey = jobAttributes[1] or ""
