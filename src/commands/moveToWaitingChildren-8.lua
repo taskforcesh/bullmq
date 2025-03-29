@@ -37,6 +37,7 @@ local jobId = ARGV[4]
 
 --- Includes
 --- @include "includes/moveParentToFailedIfNeeded"
+--- @include "includes/moveParentToWait"
 --- @include "includes/moveParentToWaitIfNeeded"
 --- @include "includes/removeDeduplicationKeyIfNeeded"
 --- @include "includes/removeJobsOnFail"
@@ -75,18 +76,22 @@ if rcall("EXISTS", jobKey) == 1 then
     local opts = cjson.decode(rawOpts)
 
     if rawParentData ~= false then
-      if opts['fpof'] then
+      if opts['fpof'] or opts['cpof'] then
         local parentData = cjson.decode(rawParentData)
         local parentKey = parentData['queueKey'] .. ':' .. parentData['id']
         local parentUnsuccesssful = parentKey .. ":unsuccessful"
         rcall("ZADD", parentUnsuccesssful, timestamp, jobKey)                        
-        moveParentToFailedIfNeeded(
-            parentData['queueKey'],
-            parentData['queueKey'] .. ':' .. parentData['id'],
-            parentData['id'],
-            jobKey,
-            timestamp
-        )
+        if opts['fpof'] then
+          moveParentToFailedIfNeeded(
+              parentData['queueKey'],
+              parentData['queueKey'] .. ':' .. parentData['id'],
+              parentData['id'],
+              jobKey,
+              timestamp
+          )
+        elseif opts['cpof'] then
+          moveParentToWait(parentData['queueKey'], parentKey, parentData['id'], timestamp)
+        end
       elseif opts['idof'] or opts['rdof'] then
         local parentData = cjson.decode(rawParentData)
         local parentKey = parentData['queueKey'] .. ':' .. parentData['id']

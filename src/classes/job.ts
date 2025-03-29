@@ -43,6 +43,7 @@ const logger = debuglog('bull');
 const optsDecodeMap = {
   de: 'deduplication',
   fpof: 'failParentOnFailure',
+  cpof: 'continueParentOnFailure',
   idof: 'ignoreDependencyOnFailure',
   kl: 'keepLogs',
   rdof: 'removeDependencyOnFailure',
@@ -1283,6 +1284,13 @@ export class Job<
   }
 
   protected validateOptions(jobData: JobJson) {
+    const exclusiveOptions: (keyof JobsOptions)[] = [
+      'removeDependencyOnFailure',
+      'failParentOnFailure',
+      'continueParentOnFailure',
+      'ignoreDependencyOnFailure',
+    ];
+
     const exceedLimit =
       this.opts.sizeLimit &&
       lengthInUtf8Bytes(jobData.data) > this.opts.sizeLimit;
@@ -1297,24 +1305,14 @@ export class Job<
       throw new Error(`Delay and repeat options could not be used together`);
     }
 
-    if (this.opts.removeDependencyOnFailure && this.opts.failParentOnFailure) {
-      throw new Error(
-        `RemoveDependencyOnFailure and failParentOnFailure options can not be used together`,
-      );
-    }
+    const enabledExclusiveOptions = exclusiveOptions.filter(
+      opt => this.opts[opt],
+    );
 
-    if (
-      this.opts.removeDependencyOnFailure &&
-      this.opts.ignoreDependencyOnFailure
-    ) {
+    if (enabledExclusiveOptions.length > 1) {
+      const optionsList = enabledExclusiveOptions.join(', ');
       throw new Error(
-        `RemoveDependencyOnFailure and ignoreDependencyOnFailure options can not be used together`,
-      );
-    }
-
-    if (this.opts.failParentOnFailure && this.opts.ignoreDependencyOnFailure) {
-      throw new Error(
-        `FailParentOnFailure and ignoreDependencyOnFailure options can not be used together`,
+        `The following options cannot be used together: ${optionsList}`,
       );
     }
 

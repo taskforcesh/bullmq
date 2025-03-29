@@ -4,6 +4,7 @@
 
 -- Includes
 --- @include "moveParentToWaitIfNeeded"
+--- @include "moveParentToWait"
 --- @include "removeDeduplicationKeyIfNeeded"
 --- @include "removeJobsOnFail"
 
@@ -52,6 +53,8 @@ local function moveParentToFailedIfNeeded(parentQueueKey, parentKey, parentId, j
             parentKey,
             timestamp
           )
+        elseif parentData['cpof'] then
+          moveParentToWait(parentData['queueKey'], parentKey, parentData['id'], timestamp)
         elseif parentData['idof'] or parentData['rdof'] then
           local grandParentKey = parentData['queueKey'] .. ':' .. parentData['id']
           local grandParentDependenciesSet = grandParentKey .. ":dependencies"

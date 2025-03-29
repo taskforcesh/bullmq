@@ -147,7 +147,7 @@ describe('Job', function () {
           failParentOnFailure: true,
         };
         await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
-          'RemoveDependencyOnFailure and failParentOnFailure options can not be used together',
+          'The following options cannot be used together: removeDependencyOnFailure, failParentOnFailure',
         );
       });
     });
@@ -160,7 +160,7 @@ describe('Job', function () {
           ignoreDependencyOnFailure: true,
         };
         await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
-          'RemoveDependencyOnFailure and ignoreDependencyOnFailure options can not be used together',
+          'The following options cannot be used together: removeDependencyOnFailure, ignoreDependencyOnFailure',
         );
       });
     });
@@ -173,7 +173,7 @@ describe('Job', function () {
           failParentOnFailure: true,
         };
         await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
-          'FailParentOnFailure and ignoreDependencyOnFailure options can not be used together',
+          'The following options cannot be used together: failParentOnFailure, ignoreDependencyOnFailure',
         );
       });
     });
