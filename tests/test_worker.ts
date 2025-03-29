@@ -21,6 +21,8 @@ import {
   removeAllQueueData,
 } from '../src/utils';
 
+const NoopProc = () => Promise.resolve();
+
 describe('workers', function () {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
@@ -252,7 +254,7 @@ describe('workers', function () {
 
     await Promise.all(jobs);
 
-    const worker = new Worker(queueName, async () => {}, {
+    const worker = new Worker(queueName, NoopProc, {
       connection,
       prefix,
     });
@@ -428,7 +430,7 @@ describe('workers', function () {
       async job => {
         expect(job.data.foo).to.be.equal('bar');
         if (job.data.index == 1) {
-          const job = await queue.add('test', { foo: 'bar', index: 2 });
+          await queue.add('test', { foo: 'bar', index: 2 });
           await delay(1000);
         }
         return 'my data';
@@ -499,8 +501,8 @@ describe('workers', function () {
     expect(bclientSpy.callCount).to.be.gte(0);
     expect(bclientSpy.callCount).to.be.lte(1);
 
-    await new Promise<void>((resolve, reject) => {
-      worker.on('completed', (_job: Job, _result: any) => {
+    await new Promise<void>(resolve => {
+      worker.on('completed', () => {
         completedJobs++;
         if (completedJobs == numJobs) {
           resolve();
@@ -545,8 +547,8 @@ describe('workers', function () {
 
     expect(bclientSpy.callCount).to.be.equal(0);
 
-    await new Promise<void>((resolve, reject) => {
-      worker.on('completed', (job: Job, result: any) => {
+    await new Promise<void>(resolve => {
+      worker.on('completed', () => {
         completedJobs++;
         if (completedJobs == numJobs) {
           resolve();
@@ -596,7 +598,7 @@ describe('workers', function () {
 
     await anotherWorker.waitUntilReady();
 
-    await new Promise<void>((resolve, reject) => {
+    await new Promise<void>(resolve => {
       worker.on('completed', async () => {
         resolve();
       });
@@ -833,7 +835,7 @@ describe('workers', function () {
 
   describe('when 0.002 is used as blocktimeout', () => {
     it('should not block forever', async () => {
-      const worker = new Worker(queueName, async () => {}, {
+      const worker = new Worker(queueName, NoopProc, {
         connection,
         prefix,
       });
@@ -933,7 +935,7 @@ describe('workers', function () {
     describe('when blockUntil is 0', () => {
       describe('when drainDelay is greater than minimumBlockTimeout', () => {
         it('returns drainDelay', async () => {
-          const worker = new Worker(queueName, async () => {}, {
+          const worker = new Worker(queueName, NoopProc, {
             connection,
             prefix,
             autorun: false,
@@ -946,7 +948,7 @@ describe('workers', function () {
 
       describe('when drainDelay is lower than minimumBlockTimeout', () => {
         it('returns drainDelay', async () => {
-          const worker = new Worker(queueName, async () => {}, {
+          const worker = new Worker(queueName, NoopProc, {
             connection,
             drainDelay: 0.00001,
             prefix,
@@ -967,7 +969,7 @@ describe('workers', function () {
     describe('when blockUntil is greater than 0', () => {
       describe('when blockUntil is lower than date now value', () => {
         it('returns blockDelay value lower or equal 0', async () => {
-          const worker = new Worker(queueName, async () => {}, {
+          const worker = new Worker(queueName, NoopProc, {
             connection,
             prefix,
             autorun: false,
@@ -983,7 +985,7 @@ describe('workers', function () {
 
       describe('when blockUntil is greater than date now value', () => {
         it('returns delay value greater than minimumBlockTimeout', async () => {
-          const worker = new Worker(queueName, async () => {}, {
+          const worker = new Worker(queueName, NoopProc, {
             connection,
             prefix,
             autorun: false,
@@ -1804,7 +1806,7 @@ describe('workers', function () {
     describe('when run method is called when worker is running', function () {
       it('throws error', async () => {
         const maxJobs = 10;
-        const worker = new Worker(queueName, async () => {}, {
+        const worker = new Worker(queueName, NoopProc, {
           autorun: false,
           connection,
           prefix,
@@ -2086,7 +2088,7 @@ describe('workers', function () {
     this.timeout(4000);
     expect(
       () =>
-        new Worker(queueName, async () => {}, {
+        new Worker(queueName, NoopProc, {
           connection,
           prefix,
           stalledInterval: 0,
@@ -2098,7 +2100,7 @@ describe('workers', function () {
     this.timeout(4000);
     expect(
       () =>
-        new Worker(queueName, async () => {}, {
+        new Worker(queueName, NoopProc, {
           connection,
           prefix,
           drainDelay: 0,
@@ -2143,7 +2145,7 @@ describe('workers', function () {
   describe('Concurrency process', () => {
     it('should thrown an exception if I specify a concurrency of 0', () => {
       try {
-        const worker = new Worker(queueName, async () => {}, {
+        const worker = new Worker(queueName, NoopProc, {
           connection,
           prefix,
           concurrency: 0,
@@ -2158,7 +2160,7 @@ describe('workers', function () {
 
     it('should thrown an exception if I specify a NaN concurrency', () => {
       try {
-        const worker = new Worker(queueName, async () => {}, {
+        const worker = new Worker(queueName, NoopProc, {
           connection,
           prefix,
           concurrency: NaN,
@@ -2672,7 +2674,7 @@ describe('workers', function () {
 
     describe('when jobs do not fail and get the maximum attempts limit', () => {
       it('does not emit retries-exhausted event', async () => {
-        const worker = new Worker(queueName, async () => {}, {
+        const worker = new Worker(queueName, NoopProc, {
           connection,
           prefix,
         });
@@ -4522,7 +4524,7 @@ describe('workers', function () {
   });
 
   it('should retrieve concurrency from getter', async () => {
-    const worker = new Worker(queueName, async () => {}, {
+    const worker = new Worker(queueName, NoopProc, {
       connection,
       concurrency: 100,
     });
