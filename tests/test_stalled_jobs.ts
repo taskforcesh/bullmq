@@ -6,6 +6,8 @@ import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 import { v4 } from 'uuid';
 import { expect } from 'chai';
 
+const NoopProc = () => Promise.resolve();
+
 describe('stalled jobs', function () {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
@@ -69,7 +71,7 @@ describe('stalled jobs', function () {
     await allActive;
     await worker.close(true);
 
-    const worker2 = new Worker(queueName, async job => {}, {
+    const worker2 = new Worker(queueName, NoopProc, {
       connection,
       prefix,
       stalledInterval: 100,
@@ -175,7 +177,7 @@ describe('stalled jobs', function () {
 
     await worker.close(true);
 
-    const worker2 = new Worker(queueName, async job => {}, {
+    const worker2 = new Worker(queueName, NoopProc, {
       connection,
       prefix,
       stalledInterval: 100,
@@ -251,7 +253,7 @@ describe('stalled jobs', function () {
 
       await worker.close(true);
 
-      const worker2 = new Worker(queueName, async job => {}, {
+      const worker2 = new Worker(queueName, NoopProc, {
         connection,
         prefix,
         stalledInterval: 100,
@@ -435,7 +437,7 @@ describe('stalled jobs', function () {
         await allActive;
         await worker.close(true);
 
-        const worker2 = new Worker(queueName, async job => {}, {
+        const worker2 = new Worker(queueName, NoopProc, {
           connection,
           prefix,
           stalledInterval: 100,
@@ -524,7 +526,7 @@ describe('stalled jobs', function () {
         await allActive;
         await worker.close(true);
 
-        const worker2 = new Worker(queueName, async job => {}, {
+        const worker2 = new Worker(queueName, NoopProc, {
           connection,
           prefix,
           stalledInterval: 100,
@@ -616,7 +618,7 @@ describe('stalled jobs', function () {
         await allActive;
         await worker.close(true);
 
-        const worker2 = new Worker(queueName, async job => {}, {
+        const worker2 = new Worker(queueName, NoopProc, {
           connection,
           prefix,
           stalledInterval: 100,
@@ -710,7 +712,7 @@ describe('stalled jobs', function () {
         await allActive;
         await worker.close(true);
 
-        const worker2 = new Worker(queueName, async job => {}, {
+        const worker2 = new Worker(queueName, NoopProc, {
           connection,
           prefix,
           stalledInterval: 100,
@@ -782,7 +784,7 @@ describe('stalled jobs', function () {
 
         await worker.close(true);
 
-        const worker2 = new Worker(queueName, async job => {}, {
+        const worker2 = new Worker(queueName, NoopProc, {
           connection,
           prefix,
           stalledInterval: 100,
@@ -852,7 +854,7 @@ describe('stalled jobs', function () {
 
         await worker.close(true);
 
-        const worker2 = new Worker(queueName, async job => {}, {
+        const worker2 = new Worker(queueName, NoopProc, {
           connection,
           prefix,
           stalledInterval: 100,
@@ -928,7 +930,7 @@ describe('stalled jobs', function () {
 
         await worker.close(true);
 
-        const worker2 = new Worker(queueName, async job => {}, {
+        const worker2 = new Worker(queueName, NoopProc, {
           connection,
           prefix,
           stalledInterval: 100,
@@ -991,7 +993,7 @@ describe('stalled jobs', function () {
 
     await allActive;
 
-    const worker2 = new Worker(queueName, async job => {}, {
+    const worker2 = new Worker(queueName, NoopProc, {
       connection,
       prefix,
       stalledInterval: 50,
