@@ -3247,6 +3247,7 @@ describe('flows', () => {
       await parentWorker.close();
       await childrenWorker.close();
       await flow.close();
+      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
     });
 
     it('should start processing parent after child fails even with more unprocessed children', async () => {
@@ -3338,6 +3339,7 @@ describe('flows', () => {
       await waitingChildren;
       await childrenWorker.close();
       await flow.close();
+      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
     });
 
     it('should ignore parent if a child has already failed and another one fails afterwards', async () => {});
@@ -3426,6 +3428,7 @@ describe('flows', () => {
       await parentWorker.close();
       await childrenWorker.close();
       await flow.close();
+      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
     });
 
     it('should move the parent to prioritized after a child fails', async () => {
@@ -3515,6 +3518,7 @@ describe('flows', () => {
       await parentWorker.close();
       await childrenWorker.close();
       await flow.close();
+      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
     });
   });
 
