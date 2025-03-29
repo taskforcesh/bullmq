@@ -10,7 +10,7 @@
 --- @include "getTargetQueueList"
 --- @include "removeJobKeys"
 
-local function moveParentToWait(parentPrefix, parentId, emitEvent)
+local function _moveParentToWait(parentPrefix, parentId, emitEvent)
   local parentTarget, isPausedOrMaxed = getTargetQueueList(parentPrefix .. "meta", parentPrefix .. "active",
     parentPrefix .. "wait", parentPrefix .. "paused")
   addJobInTargetList(parentTarget, parentPrefix .. "marker", "RPUSH", isPausedOrMaxed, parentId)
@@ -42,10 +42,10 @@ local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey, debou
                 rcall("DEL", parentPrefix .. "de:" .. debounceId)
               end
             else
-              moveParentToWait(parentPrefix, parentId)
+              _moveParentToWait(parentPrefix, parentId)
             end
           else
-            moveParentToWait(parentPrefix, parentId, true)
+            _moveParentToWait(parentPrefix, parentId, true)
           end
         end
       end
@@ -75,10 +75,10 @@ local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey, debou
                   rcall("DEL", parentPrefix .. "de:" .. parentAttributes[2])
                 end
               else
-                moveParentToWait(parentPrefix, parentId)
+                _moveParentToWait(parentPrefix, parentId)
               end
             else
-              moveParentToWait(parentPrefix, parentId, true)
+              _moveParentToWait(parentPrefix, parentId, true)
             end
           end
         end

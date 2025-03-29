@@ -17,9 +17,16 @@ export type CompressableJobOptions = {
   deduplication?: DebounceOptions;
 
   /**
-   * If true, moves parent to failed.
+   * If true, moves parent to failed if any of its children fail.
    */
   failParentOnFailure?: boolean;
+
+  /**
+   * If true, starts processing parent job as soon as any
+   * of its children fail.
+   *
+   */
+  continueParentOnFailure?: boolean;
 
   /**
    * If true, moves the jobId from its parent dependencies to failed dependencies when it fails after all attempts.
@@ -63,6 +70,12 @@ export type RedisJobOptions = BaseJobOptions & {
    * If true, moves parent to failed.
    */
   fpof?: boolean;
+
+  /**
+   * If true, starts processing parent job as soon as any
+   * of its children fail.
+   */
+  cpof?: boolean;
 
   /**
    * If true, moves the jobId from its parent dependencies to failed dependencies when it fails after all attempts.
