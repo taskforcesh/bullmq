@@ -3342,7 +3342,95 @@ describe('flows', () => {
       await removeAllQueueData(new IORedis(redisHost), parentQueueName);
     });
 
-    it('should ignore parent if a child has already failed and another one fails afterwards', async () => {});
+    it('should ignore parent if a child has already failed and another one fails afterwards', async () => {
+      const name = 'child-job';
+      const parentQueueName = `parent-queue-${v4()}`;
+
+      const flow = new FlowProducer({ connection, prefix });
+      const flowTree = await flow.add({
+        name: 'parent-job',
+        queueName: parentQueueName,
+        data: {},
+        children: [
+          {
+            name,
+            data: { foo: 'baz' },
+            queueName,
+          },
+          {
+            name,
+            data: { foo: 'bar' },
+            queueName,
+            opts: { continueParentOnFailure: true },
+          },
+          {
+            name,
+            data: { foo: 'bar' },
+            queueName,
+            opts: { continueParentOnFailure: true },
+          },
+          {
+            name,
+            data: { foo: 'baz' },
+            queueName,
+          },
+          {
+            name,
+            data: { foo: 'baz' },
+            queueName,
+          },
+        ],
+      });
+
+      const childToFail = flowTree.children![1].job;
+
+      let parentWorker;
+      const processing = new Promise<void>((resolve, reject) => {
+        parentWorker = new Worker(
+          parentQueueName,
+          async job => {
+            try {
+              const failedChildren = await job.getFailedChildrenValues();
+              const childKey = `${childToFail.queueQualifiedName}:${childToFail.id}`;
+              expect(failedChildren[childKey]).to.be.equal('failed');
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          },
+          {
+            connection,
+            prefix,
+          },
+        );
+      });
+      let counter = 0;
+      let childrenWorker;
+      const waitingChildren = new Promise<void>(resolve => {
+        childrenWorker = new Worker(
+          queueName,
+          async job => {
+            counter++;
+            if (job.id === childToFail.id) {
+              throw new Error('failed');
+            }
+            if (counter === 5) {
+              resolve();
+            }
+          },
+          {
+            connection,
+            prefix,
+          },
+        );
+      });
+      await processing;
+      await parentWorker.close();
+      await waitingChildren;
+      await childrenWorker.close();
+      await flow.close();
+      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+    });
 
     it('should move the parent to delayed after a child fails', async () => {
       const name = 'child-job';
@@ -3458,30 +3546,6 @@ describe('flows', () => {
         ],
       });
 
-      const child = flowTree.children![0].job;
-
-      let parentWorker;
-      const processing = new Promise<void>((resolve, reject) => {
-        parentWorker = new Worker(
-          parentQueueName,
-          async job => {
-            try {
-              const children = await job.getFailedChildrenValues();
-              const childKey = `${child.queueQualifiedName}:${child.id}`;
-
-              expect(children[childKey]).to.be.equal('failed');
-              resolve();
-            } catch (err) {
-              reject(err);
-            }
-          },
-          {
-            connection,
-            prefix,
-          },
-        );
-      });
-
       const childrenWorker = new Worker(
         queueName,
         async job => {
@@ -3512,6 +3576,30 @@ describe('flows', () => {
       });
 
       await waitingFailedChildren;
+
+      const child = flowTree.children![0].job;
+
+      let parentWorker;
+      const processing = new Promise<void>((resolve, reject) => {
+        parentWorker = new Worker(
+          parentQueueName,
+          async job => {
+            try {
+              const children = await job.getFailedChildrenValues();
+              const childKey = `${child.queueQualifiedName}:${child.id}`;
+
+              expect(children[childKey]).to.be.equal('failed');
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          },
+          {
+            connection,
+            prefix,
+          },
+        );
+      });
 
       await processing;
 
