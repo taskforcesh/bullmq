@@ -83,6 +83,12 @@ local jobIdKey = KEYS[12]
 if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     local opts = cmsgpack.unpack(ARGV[8])
 
+    -- Make sure it does not have pending dependencies
+    if ARGV[5] == "completed" and not rcall("HGET", jobIdKey, "igdp") and rcall("SCARD", jobIdKey .. ":dependencies") ~=
+        0 then
+        return -4
+    end
+
     local token = opts['token']
 
     local errorCode = removeLock(jobIdKey, KEYS[5], token, ARGV[1])
@@ -96,12 +102,6 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     local maxMetricsSize = opts['maxMetricsSize']
     local maxCount = opts['keepJobs']['count']
     local maxAge = opts['keepJobs']['age']
-
-    -- Make sure it does not have pending dependencies
-    if ARGV[5] == "completed" and not rcall("HGET", jobIdKey, "igdp") and rcall("SCARD", jobIdKey .. ":dependencies") ~=
-        0 then
-        return -4
-    end
 
     local jobAttributes = rcall("HMGET", jobIdKey, "parentKey", "parent", "deid")
     local parentKey = jobAttributes[1] or ""
