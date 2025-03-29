@@ -7,9 +7,8 @@
 --- @include "isQueuePausedOrMaxed"
 --- @include "getTargetQueueList"
 local function moveParentToWait(parentQueueKey, parentKey, parentId, timestamp)
-    local isParentWaitingChildren = rcall("ZSCORE", parentQueueKey .. ":waiting-children", parentId)
-    if isParentWaitingChildren then
-        rcall("ZREM", parentQueueKey .. ":waiting-children", parentId)
+    local isParentWaitingChildren = rcall("ZREM", parentQueueKey .. ":waiting-children", parentId)
+    if isParentWaitingChildren > 1 then
         local parentWaitKey = parentQueueKey .. ":wait"
         local parentPausedKey = parentQueueKey .. ":paused"
         local parentActiveKey = parentQueueKey .. ":active"
