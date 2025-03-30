@@ -673,7 +673,7 @@ describe('Job', function () {
         `${prefix}:${parentQueueName}:${job.id}:lock`,
       );
 
-      expect(lock).to.be.null;
+      expect(lock).to.be.equal(token);
 
       const isCompleted = await job.isCompleted();
 
