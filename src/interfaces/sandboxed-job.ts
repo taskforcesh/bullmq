@@ -10,6 +10,6 @@ export interface SandboxedJob<T = any, R = any>
   moveToDelayed: (timestamp: number, token?: string) => Promise<void>;
   log: (row: any) => void;
   updateData: (data: any) => Promise<void>;
-  updateProgress: (value: object | number) => Promise<void>;
+  updateProgress: (value: object | number | string | boolean) => Promise<void>;
   returnValue: R;
 }

@@ -81,7 +81,7 @@ export class Job<
    * The progress a job has performed so far.
    * @defaultValue 0
    */
-  progress: number | object = 0;
+  progress: number | object | string | boolean = 0;
 
   /**
    * The value returned by the processor when processing this job.
@@ -570,7 +570,9 @@ export class Job<
    *
    * @param progress - number or object to be saved as progress.
    */
-  async updateProgress(progress: number | object): Promise<void> {
+  async updateProgress(
+    progress: number | object | string | boolean,
+  ): Promise<void> {
     this.progress = progress;
     await this.scripts.updateProgress(this.id, progress);
     this.queue.emit('progress', this, progress);

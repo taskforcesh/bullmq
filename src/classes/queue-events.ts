@@ -177,7 +177,7 @@ export interface QueueEventsListener extends IoredisListener {
    * @param id - The identifier of the event.
    */
   progress: (
-    args: { jobId: string; data: number | object },
+    args: { jobId: string; data: number | object | string | boolean },
     id: string,
   ) => void;
 

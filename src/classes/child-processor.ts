@@ -127,7 +127,7 @@ export class ChildProcessor {
       /*
        * Proxy `updateProgress` function, should works as `progress` function.
        */
-      async updateProgress(progress: number | object) {
+      async updateProgress(progress: number | object | string | boolean) {
         // Locally store reference to new progress value
         // so that we can return it from this process synchronously.
         this.progress = progress;

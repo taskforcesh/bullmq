@@ -555,7 +555,7 @@ export class Scripts {
 
   async updateProgress(
     jobId: string,
-    progress: number | object,
+    progress: number | object | string | boolean,
   ): Promise<void> {
     const client = await this.queue.client;
 

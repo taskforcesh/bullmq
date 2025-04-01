@@ -56,7 +56,7 @@ export interface MinimalJob<
    * The progress a job has performed so far.
    * @defaultValue 0
    */
-  progress: number | object;
+  progress: number | object | string | boolean;
   /**
    * The value returned by the processor when processing this job.
    * @defaultValue null
@@ -126,7 +126,7 @@ export interface MinimalJob<
    *
    * @param progress - number or object to be saved as progress.
    */
-  updateProgress(progress: number | object): Promise<void>;
+  updateProgress(progress: number | object | string | boolean): Promise<void>;
   /**
    * Logs one row of log data.
    *

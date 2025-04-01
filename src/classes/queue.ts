@@ -810,7 +810,7 @@ export class Queue<
    */
   async updateJobProgress(
     jobId: string,
-    progress: number | object,
+    progress: number | object | string | boolean,
   ): Promise<void> {
     await this.trace<void>(
       SpanKind.INTERNAL,

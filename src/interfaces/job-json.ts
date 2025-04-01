@@ -6,7 +6,7 @@ export interface JobJson {
   name: string;
   data: string;
   opts: RedisJobOptions;
-  progress: number | object;
+  progress: number | object | string | boolean;
   attemptsMade: number;
   attemptsStarted: number;
   finishedOn?: number;

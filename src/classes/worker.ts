@@ -131,7 +131,7 @@ export interface WorkerListener<
    */
   progress: (
     job: Job<DataType, ResultType, NameType>,
-    progress: number | object,
+    progress: number | object | string | boolean,
   ) => void;
 
   /**
