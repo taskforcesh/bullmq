@@ -20,6 +20,7 @@ import {
   MinimalQueue,
   RedisJobOptions,
   CompressableJobOptions,
+  JobProgress,
 } from '../types';
 import {
   errorObject,
@@ -81,7 +82,7 @@ export class Job<
    * The progress a job has performed so far.
    * @defaultValue 0
    */
-  progress: number | object | string | boolean = 0;
+  progress: JobProgress = 0;
 
   /**
    * The value returned by the processor when processing this job.
@@ -570,9 +571,7 @@ export class Job<
    *
    * @param progress - number or object to be saved as progress.
    */
-  async updateProgress(
-    progress: number | object | string | boolean,
-  ): Promise<void> {
+  async updateProgress(progress: JobProgress): Promise<void> {
     this.progress = progress;
     await this.scripts.updateProgress(this.id, progress);
     this.queue.emit('progress', this, progress);

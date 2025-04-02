@@ -1,6 +1,6 @@
 import { ParentCommand } from '../enums';
 import { SandboxedJob, Receiver } from '../interfaces';
-import { JobJsonSandbox } from '../types';
+import { JobJsonSandbox, JobProgress } from '../types';
 import { errorToJSON } from '../utils';
 
 enum ChildStatus {
@@ -127,7 +127,7 @@ export class ChildProcessor {
       /*
        * Proxy `updateProgress` function, should works as `progress` function.
        */
-      async updateProgress(progress: number | object | string | boolean) {
+      async updateProgress(progress: JobProgress) {
         // Locally store reference to new progress value
         // so that we can return it from this process synchronously.
         this.progress = progress;

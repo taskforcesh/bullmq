@@ -1,3 +1,4 @@
+import { JobProgress } from '@src/types';
 import {
   IoredisListener,
   QueueEventsOptions,
@@ -176,10 +177,7 @@ export interface QueueEventsListener extends IoredisListener {
    * @param args.data - The progress data, which can be a number (e.g., percentage) or an object with custom data.
    * @param id - The identifier of the event.
    */
-  progress: (
-    args: { jobId: string; data: number | object | string | boolean },
-    id: string,
-  ) => void;
+  progress: (args: { jobId: string; data: JobProgress }, id: string) => void;
 
   /**
    * Listen to 'removed' event.

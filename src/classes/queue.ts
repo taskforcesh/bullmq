@@ -13,6 +13,7 @@ import {
   JobsOptions,
   JobSchedulerTemplateOptions,
   MinimalQueue,
+  JobProgress,
 } from '../types';
 import { Job } from './job';
 import { QueueGetters } from './queue-getters';
@@ -808,10 +809,7 @@ export class Queue<
    * @param jobId - The id of the job to update
    * @param progress - Number or object to be saved as progress.
    */
-  async updateJobProgress(
-    jobId: string,
-    progress: number | object | string | boolean,
-  ): Promise<void> {
+  async updateJobProgress(jobId: string, progress: JobProgress): Promise<void> {
     await this.trace<void>(
       SpanKind.INTERNAL,
       'updateJobProgress',
