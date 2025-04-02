@@ -391,7 +391,24 @@ describe('Job', function () {
       expect(storedJob!.progress).to.eql({ total: 120, completed: 40 });
     });
 
-    it('cat set progress as number using the Queue instance', async () => {
+    it('can set and get progress as string', async function () {
+      const job = await Job.create(queue, 'test', { foo: 'bar' });
+      await job.updateProgress('hello, world!');
+      const storedJob = await Job.fromId(queue, job.id!);
+      expect(storedJob!.progress).to.eql('hello, world!');
+    });
+
+    it('can set and get progress as boolean', async function () {
+      const job = await Job.create(queue, 'test', { foo: 'bar' });
+      await job.updateProgress(false);
+      let storedJob = await Job.fromId(queue, job.id!);
+      expect(storedJob!.progress).to.eql(false);
+      await job.updateProgress(true);
+      storedJob = await Job.fromId(queue, job.id!);
+      expect(storedJob!.progress).to.eql(true);
+    });
+
+    it('can set progress as number using the Queue instance', async () => {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
 
       await queue.updateJobProgress(job.id!, 42);
@@ -400,7 +417,7 @@ describe('Job', function () {
       expect(storedJob!.progress).to.be.equal(42);
     });
 
-    it('cat set progress as object using the Queue instance', async () => {
+    it('can set progress as object using the Queue instance', async () => {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
       await queue.updateJobProgress(job.id!, { total: 120, completed: 40 });
       const storedJob = await Job.fromId(queue, job.id!);

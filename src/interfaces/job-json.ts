@@ -1,4 +1,4 @@
-import { RedisJobOptions } from '../types';
+import { JobProgress, RedisJobOptions } from '../types';
 import { ParentKeys } from './parent';
 
 export interface JobJson {
@@ -6,7 +6,7 @@ export interface JobJson {
   name: string;
   data: string;
   opts: RedisJobOptions;
-  progress: number | object;
+  progress: JobProgress;
   attemptsMade: number;
   attemptsStarted: number;
   finishedOn?: number;

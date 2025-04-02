@@ -16,7 +16,7 @@ import {
   Span,
   WorkerOptions,
 } from '../interfaces';
-import { MinimalQueue } from '../types';
+import { JobProgress, MinimalQueue } from '../types';
 import {
   delay,
   DELAY_TIME_1,
@@ -131,7 +131,7 @@ export interface WorkerListener<
    */
   progress: (
     job: Job<DataType, ResultType, NameType>,
-    progress: number | object,
+    progress: JobProgress,
   ) => void;
 
   /**

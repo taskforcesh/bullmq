@@ -34,6 +34,7 @@ import {
   FinishedPropValAttribute,
   MinimalQueue,
   RedisJobOptions,
+  JobProgress,
 } from '../types';
 import { ErrorCode } from '../enums';
 import {
@@ -553,10 +554,7 @@ export class Scripts {
     }
   }
 
-  async updateProgress(
-    jobId: string,
-    progress: number | object,
-  ): Promise<void> {
+  async updateProgress(jobId: string, progress: JobProgress): Promise<void> {
     const client = await this.queue.client;
 
     const keys = [
