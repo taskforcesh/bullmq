@@ -408,7 +408,7 @@ describe('Job', function () {
       expect(storedJob!.progress).to.eql(true);
     });
 
-    it('cat set progress as number using the Queue instance', async () => {
+    it('can set progress as number using the Queue instance', async () => {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
 
       await queue.updateJobProgress(job.id!, 42);
@@ -417,7 +417,7 @@ describe('Job', function () {
       expect(storedJob!.progress).to.be.equal(42);
     });
 
-    it('cat set progress as object using the Queue instance', async () => {
+    it('can set progress as object using the Queue instance', async () => {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
       await queue.updateJobProgress(job.id!, { total: 120, completed: 40 });
       const storedJob = await Job.fromId(queue, job.id!);
