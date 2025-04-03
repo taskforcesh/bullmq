@@ -1,3 +1,10 @@
+## [5.46.1](https://github.com/taskforcesh/bullmq/compare/v5.46.0...v5.46.1) (2025-04-03)
+
+
+### Bug Fixes
+
+* **queue-events:** pass right path for JobProgress type ([#3192](https://github.com/taskforcesh/bullmq/issues/3192)) fixes [#3191](https://github.com/taskforcesh/bullmq/issues/3191) ([33c62e6](https://github.com/taskforcesh/bullmq/commit/33c62e67268daf24d92653abb5b857ac2241b3aa))
+
 # [5.46.0](https://github.com/taskforcesh/bullmq/compare/v5.45.2...v5.46.0) (2025-04-02)
 
 
