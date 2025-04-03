@@ -17,9 +17,6 @@
     "allowSyntheticDefaultImports": false,
     "strictNullChecks": false,
     "baseUrl": ".",
-    "paths": {
-      "@src/*": ["src/*"]
-    },
     "lib": ["esnext", "DOM"]
   },
   "include": ["src"],

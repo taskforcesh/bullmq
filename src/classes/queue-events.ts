@@ -1,4 +1,4 @@
-import { JobProgress } from '@src/types';
+import { JobProgress } from '../types';
 import {
   IoredisListener,
   QueueEventsOptions,
