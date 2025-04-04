@@ -19,7 +19,7 @@ export interface QueueBaseOptions {
 
   /**
    * Denotes commands should retry indefinitely.
-   * @deprecated
+   * @deprecated not in use anymore.
    */
   blockingConnection?: boolean;
 

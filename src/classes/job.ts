@@ -647,6 +647,18 @@ export class Job<
   }
 
   /**
+   * Remove all children from this job that are not yet processed,
+   * in other words that are in any other state than completed, failed or active.
+   * Notes:
+   *  - Jobs with locks (most likely active) are ignored.
+   *  - This method can be slow if the number of children is large (> 1000).
+   */
+  async removeUnprocessedChildren(): Promise<void> {
+    const jobId = this.id;
+    await this.scripts.removeUnprocessedChildren(jobId);
+  }
+
+  /**
    * Extend the lock for this job.
    *
    * @param token - unique token for the lock
