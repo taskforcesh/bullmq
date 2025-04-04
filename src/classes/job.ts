@@ -952,7 +952,18 @@ export class Job<
   }
 
   /**
-   * Get this jobs children failure values if any.
+   * Get jobs children failure values that were ignored if any.
+   *
+   * @returns Object mapping children job keys with their failure values.
+   */
+  async getIgnoredChildrenValues(): Promise<{ [jobKey: string]: string }> {
+    return this.getFailedChildrenValues();
+  }
+
+  /**
+   * Get jobs children failure values that were ignored if any.
+   *
+   * @deprecated This method is deprecated and will be removed in v6. Use getIgnoredChildrenValues instead.
    *
    * @returns Object mapping children job keys with their failure values.
    */
