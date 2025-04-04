@@ -502,7 +502,7 @@ export class Scripts {
     return result;
   }
 
-  async removeUnprocessedChildren(jobId: string): Promise<number> {
+  async removeUnprocessedChildren(jobId: string): Promise<void> {
     const client = await this.queue.client;
 
     const args = [

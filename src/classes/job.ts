@@ -653,7 +653,7 @@ export class Job<
    *  - Jobs with locks (most likely active) are ignored.
    *  - This method can be slow if the number of children is large (> 1000).
    */
-  async removeUnprocessedChildren() {
+  async removeUnprocessedChildren(): Promise<void> {
     const jobId = this.id;
     await this.scripts.removeUnprocessedChildren(jobId);
   }
