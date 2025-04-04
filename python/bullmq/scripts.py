@@ -541,6 +541,7 @@ class Scripts:
             "attemptsMade": job.attemptsMade,
             "maxMetricsSize": getMetricsSize(opts),
             "fpof": opts.get("failParentOnFailure", False),
+            "cpof": opts.get("continueParentOnFailure", False),
             "idof": opts.get("ignoreDependencyOnFailure", False)
         }, use_bin_type=True)
 
