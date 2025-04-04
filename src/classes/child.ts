@@ -36,7 +36,7 @@ export class Child extends EventEmitter {
 
   private _exitCode: number = null;
   private _signalCode: number = null;
-  private _killed: boolean = false;
+  private _killed = false;
 
   constructor(
     private mainFile: string,

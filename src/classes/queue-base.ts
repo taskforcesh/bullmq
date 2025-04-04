@@ -28,8 +28,8 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
   keys: KeysMap;
   closing: Promise<void> | undefined;
 
-  protected closed: boolean = false;
-  protected hasBlockingConnection: boolean = false;
+  protected closed = false;
+  protected hasBlockingConnection = false;
   protected scripts: Scripts;
   protected connection: RedisConnection;
   public readonly qualifiedName: string;

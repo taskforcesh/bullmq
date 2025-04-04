@@ -177,7 +177,7 @@ export class Worker<
   private blockUntil = 0;
   private _concurrency: number;
   private childPool: ChildPool;
-  private drained: boolean = false;
+  private drained = false;
   private extendLocksTimer: NodeJS.Timeout | null = null;
   private limitUntil = 0;
 
