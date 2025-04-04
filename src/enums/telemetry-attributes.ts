@@ -7,6 +7,7 @@ export enum TelemetryAttributes {
   JobId = 'bullmq.job.id',
   JobKey = 'bullmq.job.key',
   JobIds = 'bullmq.job.ids',
+  JobAttemptsMade = 'bullmq.job.attempts.made',
   DeduplicationKey = 'bullmq.job.deduplication.key',
   JobOptions = 'bullmq.job.options',
   JobProgress = 'bullmq.job.progress',
