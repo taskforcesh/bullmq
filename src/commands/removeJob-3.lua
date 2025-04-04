@@ -1,19 +1,21 @@
 --[[
-    Remove a job from all the queues it may be in as well as all its data.
+    Remove a job from all the statuses it may be in as well as all its data.
     In order to be able to remove a job, it cannot be active.
 
     Input:
-      KEYS[1] queue prefix
+      KEYS[1] jobKey
       KEYS[2] meta key
       KEYS[3] repeat key
 
       ARGV[1] jobId
       ARGV[2] remove children
+      ARGV[3] queue prefix
+
 
     Events:
       'removed'
 ]]
-      
+
 local rcall = redis.call
 
 -- Includes
@@ -21,10 +23,11 @@ local rcall = redis.call
 --- @include "includes/isLocked"
 --- @include "includes/removeJobWithChildren"
 
-local prefix = KEYS[1]
 local jobId = ARGV[1]
 local shouldRemoveChildren = ARGV[2]
-local jobKey = prefix .. jobId
+local prefix = ARGV[3]
+local jobKey = KEYS[1]
+local meta = KEYS[2]
 local repeatKey = KEYS[3]
 
 if isJobSchedulerJob(jobId, jobKey, repeatKey) then
@@ -32,7 +35,13 @@ if isJobSchedulerJob(jobId, jobKey, repeatKey) then
 end
 
 if not isLocked(prefix, jobId, shouldRemoveChildren) then
-    removeJobWithChildren(prefix, jobId, nil, shouldRemoveChildren)
+    local options = {
+        removeChildren = shouldRemoveChildren == "1",
+        ignoreProcessed = false,
+        ignoreLocked = false
+    }
+
+    removeJobWithChildren(prefix, meta, jobId, nil, options)
     return 1
 end
 return 0
