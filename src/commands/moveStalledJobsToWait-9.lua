@@ -93,39 +93,7 @@ if (#stalling > 0) then
                         rcall("XADD", eventStreamKey, "*", "event", "failed", "jobId", jobId, 'prev', 'active',
                             'failedReason', failedReason)
 
-                        if rawParentData then
-                            if opts['fpof'] or opts['cpof'] then
-                                local dependenciesSet = parentKey .. ":dependencies"
-                                if rcall("SREM", dependenciesSet, jobKey) == 1 then
-                                    local parentData = cjson.decode(rawParentData)
-                                    local parentKey = parentData['queueKey'] .. ':' .. parentData['id']
-
-                                    if opts['fpof'] then
-                                        local unsuccesssfulSet = parentKey .. ":unsuccessful"
-                                        rcall("ZADD", unsuccesssfulSet, timestamp, jobKey)
-                                        moveParentToFailedIfNeeded(parentData['queueKey'],
-                                            parentData['queueKey'] .. ':' .. parentData['id'], parentData['id'], jobKey,
-                                            timestamp)
-                                    elseif opts['cpof'] then
-                                        local failedSet = parentKey .. ":failed"
-                                        rcall("HSET", failedSet, jobKey, failedReason)                
-                                        moveParentToWait(parentData['queueKey'], parentKey, parentData['id'], timestamp)
-                                    end    
-                                end
-                            elseif opts['idof'] or opts['rdof'] then
-                                local parentData = cjson.decode(rawParentData)
-                                local parentKey = parentData['queueKey'] .. ':' .. parentData['id']
-                                local dependenciesSet = parentKey .. ":dependencies"
-                                if rcall("SREM", dependenciesSet, jobKey) == 1 then
-                                    moveParentToWaitIfNeeded(parentData['queueKey'], dependenciesSet, parentKey,
-                                        parentData['id'], timestamp)
-                                    if opts['idof'] then
-                                        local failedSet = parentKey .. ":failed"
-                                        rcall("HSET", failedSet, jobKey, failedReason)
-                                    end
-                                end
-                            end
-                        end
+                        moveChildFromDependenciesIfNeeded(rawParentData, jobKey, timestamp)
 
                         removeJobsOnFail(queueKeyPrefix, failedKey, jobId, opts, timestamp)
 
