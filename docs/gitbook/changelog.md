@@ -1,3 +1,10 @@
+## [5.47.1](https://github.com/taskforcesh/bullmq/compare/v5.47.0...v5.47.1) (2025-04-05)
+
+
+### Bug Fixes
+
+* **flow-producer:** fix queueName otel attribute when passing it to addNode ([#3198](https://github.com/taskforcesh/bullmq/issues/3198)) ([758ea26](https://github.com/taskforcesh/bullmq/commit/758ea2647b3dad683796351919b0380172fa717f))
+
 # [5.47.0](https://github.com/taskforcesh/bullmq/compare/v5.46.1...v5.47.0) (2025-04-04)
 
 
