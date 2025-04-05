@@ -77,7 +77,10 @@ export class JobScheduler extends QueueBase {
     // Check if we reached the end date of the repeatable job
     let now = Date.now();
     const { endDate } = repeatOpts;
-    if (!(typeof endDate === undefined) && now > new Date(endDate!).getTime()) {
+    if (
+      !(typeof endDate === 'undefined') &&
+      now > new Date(endDate!).getTime()
+    ) {
       return;
     }
 

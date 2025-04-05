@@ -35,7 +35,7 @@
     "dc:up": "docker-compose -f docker-compose.yml up -d",
     "dc:down": "docker-compose -f docker-compose.yml down",
     "dry-run": "npm publish --dry-run",
-    "eslint:fix": "./node_modules/.bin/eslint . --ignore-path ./.eslintignore --fix",
+    "eslint:fix": "./node_modules/.bin/eslint . --fix",
     "generate:raw:scripts": "ts-node --project tsconfig-cjs.json scripts/generateRawScripts.ts",
     "lint": "./node_modules/.bin/eslint . --ignore-path ./.eslintignore",
     "lint:staged": "lint-staged",
