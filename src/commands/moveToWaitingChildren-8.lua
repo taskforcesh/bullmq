@@ -79,9 +79,9 @@ if rcall("EXISTS", jobKey) == 1 then
       if opts['fpof'] or opts['cpof'] then
         local parentData = cjson.decode(rawParentData)
         local parentKey = parentData['queueKey'] .. ':' .. parentData['id']
-        local parentUnsuccesssful = parentKey .. ":unsuccessful"
-        rcall("ZADD", parentUnsuccesssful, timestamp, jobKey)                        
         if opts['fpof'] then
+          local parentUnsuccesssful = parentKey .. ":unsuccessful"
+          rcall("ZADD", parentUnsuccesssful, timestamp, jobKey)                        
           moveParentToFailedIfNeeded(
               parentData['queueKey'],
               parentData['queueKey'] .. ':' .. parentData['id'],
@@ -90,6 +90,8 @@ if rcall("EXISTS", jobKey) == 1 then
               timestamp
           )
         elseif opts['cpof'] then
+          local failedSet = parentKey .. ":failed"
+          rcall("HSET", failedSet, jobKey, failedReason)
           moveParentToWait(parentData['queueKey'], parentKey, parentData['id'], timestamp)
         end
       elseif opts['idof'] or opts['rdof'] then

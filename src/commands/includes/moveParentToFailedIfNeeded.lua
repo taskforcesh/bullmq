@@ -43,18 +43,24 @@ local function moveParentToFailedIfNeeded(parentQueueKey, parentKey, parentId, j
       if jobAttributes[1] then
         local parentData = cjson.decode(jobAttributes[1])
         local grandParentKey = parentData['queueKey'] .. ':' .. parentData['id']
-        local grandParentUnsuccesssful = grandParentKey .. ":unsuccessful"
-        rcall("ZADD", grandParentUnsuccesssful, timestamp, parentKey)
         if parentData['fpof'] then
-          moveParentToFailedIfNeeded(
-            parentData['queueKey'],
-            parentData['queueKey'] .. ':' .. parentData['id'],
-            parentData['id'],
-            parentKey,
-            timestamp
-          )
+          if rcall("SREM", grandParentDependenciesSet, parentKey) == 1 then
+            local grandParentUnsuccesssful = grandParentKey .. ":unsuccessful"
+            rcall("ZADD", grandParentUnsuccesssful, timestamp, parentKey)
+            moveParentToFailedIfNeeded(
+              parentData['queueKey'],
+              parentData['queueKey'] .. ':' .. parentData['id'],
+              parentData['id'],
+              parentKey,
+              timestamp
+            )
+          end
         elseif parentData['cpof'] then
-          moveParentToWait(parentData['queueKey'], parentKey, parentData['id'], timestamp)
+          if rcall("SREM", grandParentDependenciesSet, parentKey) == 1 then
+            local grandParentFailedSet = grandParentKey .. ":failed"
+            rcall("HSET", grandParentFailedSet, parentKey, failedReason)
+            moveParentToWait(parentData['queueKey'], parentKey, parentData['id'], timestamp)
+          end
         elseif parentData['idof'] or parentData['rdof'] then
           local grandParentKey = parentData['queueKey'] .. ':' .. parentData['id']
           local grandParentDependenciesSet = grandParentKey .. ":dependencies"

@@ -95,19 +95,22 @@ if (#stalling > 0) then
 
                         if rawParentData then
                             if opts['fpof'] or opts['cpof'] then
-                                local parentData = cjson.decode(rawParentData)
-                                -- TODO: need to remove this job from dependencies set in next breaking change
-                                -- no for now as it would imply a breaking change
-                                local parentKey = parentData['queueKey'] .. ':' .. parentData['id']
-                                local unsuccesssfulSet = parentKey .. ":unsuccessful"
-                                rcall("ZADD", unsuccesssfulSet, timestamp, jobKey)
+                                local dependenciesSet = parentKey .. ":dependencies"
+                                if rcall("SREM", dependenciesSet, jobKey) == 1 then
+                                    local parentData = cjson.decode(rawParentData)
+                                    local parentKey = parentData['queueKey'] .. ':' .. parentData['id']
 
-                                if opts['fpof'] then
-                                    moveParentToFailedIfNeeded(parentData['queueKey'],
-                                        parentData['queueKey'] .. ':' .. parentData['id'], parentData['id'], jobKey,
-                                        timestamp)
-                                elseif opts['cpof'] then
-                                    moveParentToWait(parentData['queueKey'], parentKey, parentData['id'], timestamp)
+                                    if opts['fpof'] then
+                                        local unsuccesssfulSet = parentKey .. ":unsuccessful"
+                                        rcall("ZADD", unsuccesssfulSet, timestamp, jobKey)
+                                        moveParentToFailedIfNeeded(parentData['queueKey'],
+                                            parentData['queueKey'] .. ':' .. parentData['id'], parentData['id'], jobKey,
+                                            timestamp)
+                                    elseif opts['cpof'] then
+                                        local failedSet = parentKey .. ":failed"
+                                        rcall("HSET", failedSet, jobKey, failedReason)                
+                                        moveParentToWait(parentData['queueKey'], parentKey, parentData['id'], timestamp)
+                                    end    
                                 end
                             elseif opts['idof'] or opts['rdof'] then
                                 local parentData = cjson.decode(rawParentData)

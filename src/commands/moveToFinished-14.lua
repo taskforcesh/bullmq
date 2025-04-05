@@ -153,15 +153,17 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
             end
         else
             if opts['fpof'] or opts['cpof'] then
-                local unsuccesssfulSet = parentKey .. ":unsuccessful"
-                rcall("ZADD", unsuccesssfulSet, timestamp, jobIdKey)
-
-                if opts['fpof'] then
-                    moveParentToFailedIfNeeded(parentQueueKey, parentKey, parentId, jobIdKey, timestamp)
-                elseif opts['cpof'] then
-                    local failedSet = parentKey .. ":failed"
-                    rcall("HSET", failedSet, jobIdKey, ARGV[4])
-                    moveParentToWait(parentQueueKey, parentKey, parentId, timestamp)
+                local dependenciesSet = parentKey .. ":dependencies"
+                if rcall("SREM", dependenciesSet, jobIdKey) == 1 then
+                    if opts['fpof'] then
+                        local unsuccesssfulSet = parentKey .. ":unsuccessful"
+                        rcall("ZADD", unsuccesssfulSet, timestamp, jobIdKey)
+                        moveParentToFailedIfNeeded(parentQueueKey, parentKey, parentId, jobIdKey, timestamp)
+                    elseif opts['cpof'] then
+                        local failedSet = parentKey .. ":failed"
+                        rcall("HSET", failedSet, jobIdKey, ARGV[4])
+                        moveParentToWait(parentQueueKey, parentKey, parentId, timestamp)
+                    end
                 end
             elseif opts['idof'] or opts['rdof'] then
                 local dependenciesSet = parentKey .. ":dependencies"
