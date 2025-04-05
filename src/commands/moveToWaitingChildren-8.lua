@@ -36,7 +36,7 @@ local timestamp = ARGV[3]
 local jobId = ARGV[4]
 
 --- Includes
---- @include "includes/moveParentToFailedIfNeeded"
+--- @include "includes/moveChildFromDependenciesIfNeeded"
 --- @include "includes/moveParentToWait"
 --- @include "includes/moveParentToWaitIfNeeded"
 --- @include "includes/removeDeduplicationKeyIfNeeded"
