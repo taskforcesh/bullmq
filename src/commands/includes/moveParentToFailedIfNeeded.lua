@@ -42,7 +42,7 @@ moveParentToFailedIfNeeded = function (parentQueueKey, parentKey, parentId, jobI
 
       removeDeduplicationKeyIfNeeded(parentQueueKey .. ":", jobAttributes[2])
 
-      moveChildFromDependenciesIfNeeded(jobAttributes[1], parentKey, timestamp)
+      moveChildFromDependenciesIfNeeded(jobAttributes[1], parentKey, failedReason, timestamp)
 
       local parentRawOpts = jobAttributes[3]
       local parentOpts = cjson.decode(parentRawOpts)
@@ -59,7 +59,7 @@ moveParentToFailedIfNeeded = function (parentQueueKey, parentKey, parentId, jobI
   end
 end
 
-moveChildFromDependenciesIfNeeded = function (rawParentData, childKey, timestamp)
+moveChildFromDependenciesIfNeeded = function (rawParentData, childKey, failedReason, timestamp)
   if rawParentData then
     local parentData = cjson.decode(rawParentData)
     local parentKey = parentData['queueKey'] .. ':' .. parentData['id']

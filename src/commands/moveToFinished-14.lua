@@ -152,7 +152,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
                     timestamp)
             end
         else
-            moveChildFromDependenciesIfNeeded(jobAttributes[2], jobIdKey, timestamp)
+            moveChildFromDependenciesIfNeeded(jobAttributes[2], jobIdKey, ARGV[4], timestamp)
         end
     end
 

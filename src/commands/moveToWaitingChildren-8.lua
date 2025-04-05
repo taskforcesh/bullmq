@@ -75,7 +75,7 @@ if rcall("EXISTS", jobKey) == 1 then
     local rawOpts = jobAttributes[3]
     local opts = cjson.decode(rawOpts)
 
-    moveChildFromDependenciesIfNeeded(rawParentData, jobKey, timestamp)
+    moveChildFromDependenciesIfNeeded(rawParentData, jobKey, failedReason, timestamp)
 
     removeJobsOnFail(ARGV[5], failedKey, jobId, opts, timestamp)
 

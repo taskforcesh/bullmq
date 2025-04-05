@@ -93,7 +93,7 @@ if (#stalling > 0) then
                         rcall("XADD", eventStreamKey, "*", "event", "failed", "jobId", jobId, 'prev', 'active',
                             'failedReason', failedReason)
 
-                        moveChildFromDependenciesIfNeeded(rawParentData, jobKey, timestamp)
+                        moveChildFromDependenciesIfNeeded(rawParentData, jobKey, failedReason, timestamp)
 
                         removeJobsOnFail(queueKeyPrefix, failedKey, jobId, opts, timestamp)
 
