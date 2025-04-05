@@ -64,7 +64,7 @@ local rcall = redis.call
 --- @include "includes/getRateLimitTTL"
 --- @include "includes/getTargetQueueList"
 --- @include "includes/moveJobFromPriorityToActive"
---- @include "includes/moveParentToFailedIfNeeded"
+--- @include "includes/moveChildFromDependenciesIfNeeded"
 --- @include "includes/moveParentToWait"
 --- @include "includes/moveParentToWaitIfNeeded"
 --- @include "includes/prepareJobForProcessing"
@@ -109,7 +109,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
     local parentKey = jobAttributes[1] or ""
     local parentId = ""
     local parentQueueKey = ""
-    if jobAttributes[2] then
+    if jobAttributes[2] then -- TODO: need to revisit this logic if it's still needed
         local jsonDecodedParent = cjson.decode(jobAttributes[2])
         parentId = jsonDecodedParent['id']
         parentQueueKey = jsonDecodedParent['queueKey']
@@ -152,27 +152,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
                     timestamp)
             end
         else
-            if opts['fpof'] or opts['cpof'] then
-                local unsuccesssfulSet = parentKey .. ":unsuccessful"
-                rcall("ZADD", unsuccesssfulSet, timestamp, jobIdKey)
-
-                if opts['fpof'] then
-                    moveParentToFailedIfNeeded(parentQueueKey, parentKey, parentId, jobIdKey, timestamp)
-                elseif opts['cpof'] then
-                    local failedSet = parentKey .. ":failed"
-                    rcall("HSET", failedSet, jobIdKey, ARGV[4])
-                    moveParentToWait(parentQueueKey, parentKey, parentId, timestamp)
-                end
-            elseif opts['idof'] or opts['rdof'] then
-                local dependenciesSet = parentKey .. ":dependencies"
-                if rcall("SREM", dependenciesSet, jobIdKey) == 1 then
-                    moveParentToWaitIfNeeded(parentQueueKey, dependenciesSet, parentKey, parentId, timestamp)
-                    if opts['idof'] then
-                        local failedSet = parentKey .. ":failed"
-                        rcall("HSET", failedSet, jobIdKey, ARGV[4])
-                    end
-                end
-            end
+            moveChildFromDependenciesIfNeeded(jobAttributes[2], jobIdKey, ARGV[4], timestamp)
         end
     end
 

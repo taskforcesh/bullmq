@@ -36,7 +36,7 @@ local timestamp = ARGV[3]
 local jobId = ARGV[4]
 
 --- Includes
---- @include "includes/moveParentToFailedIfNeeded"
+--- @include "includes/moveChildFromDependenciesIfNeeded"
 --- @include "includes/moveParentToWait"
 --- @include "includes/moveParentToWaitIfNeeded"
 --- @include "includes/removeDeduplicationKeyIfNeeded"
@@ -75,37 +75,7 @@ if rcall("EXISTS", jobKey) == 1 then
     local rawOpts = jobAttributes[3]
     local opts = cjson.decode(rawOpts)
 
-    if rawParentData ~= false then
-      if opts['fpof'] or opts['cpof'] then
-        local parentData = cjson.decode(rawParentData)
-        local parentKey = parentData['queueKey'] .. ':' .. parentData['id']
-        local parentUnsuccesssful = parentKey .. ":unsuccessful"
-        rcall("ZADD", parentUnsuccesssful, timestamp, jobKey)                        
-        if opts['fpof'] then
-          moveParentToFailedIfNeeded(
-              parentData['queueKey'],
-              parentData['queueKey'] .. ':' .. parentData['id'],
-              parentData['id'],
-              jobKey,
-              timestamp
-          )
-        elseif opts['cpof'] then
-          moveParentToWait(parentData['queueKey'], parentKey, parentData['id'], timestamp)
-        end
-      elseif opts['idof'] or opts['rdof'] then
-        local parentData = cjson.decode(rawParentData)
-        local parentKey = parentData['queueKey'] .. ':' .. parentData['id']
-        local dependenciesSet = parentKey .. ":dependencies"
-        if rcall("SREM", dependenciesSet, jobKey) == 1 then
-          moveParentToWaitIfNeeded(parentData['queueKey'], dependenciesSet,
-                                    parentKey, parentData['id'], timestamp)
-          if opts['idof'] then
-            local failedSet = parentKey .. ":failed"
-            rcall("HSET", failedSet, jobKey, failedReason)
-          end
-        end
-      end
-    end
+    moveChildFromDependenciesIfNeeded(rawParentData, jobKey, failedReason, timestamp)
 
     removeJobsOnFail(ARGV[5], failedKey, jobId, opts, timestamp)
 
