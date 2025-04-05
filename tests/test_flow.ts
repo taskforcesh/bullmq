@@ -1276,6 +1276,13 @@ describe('flows', () => {
             if (jobId === job.id) {
               expect(prev).to.be.equal('active');
               expect(failedReason).to.be.equal(`children are failed`);
+              const childrenCounts = await job.getDependenciesCount();
+              expect(childrenCounts).to.deep.equal({
+                processed: 0,
+                unprocessed: 0,
+                ignored: 0,
+                failed: 1,
+              });
               resolve();
             }
           });
@@ -3301,6 +3308,14 @@ describe('flows', () => {
               const childKey = `${child.queueQualifiedName}:${child.id}`;
 
               expect(children[childKey]).to.be.equal('failed');
+
+              const childrenCounts = await job.getDependenciesCount();
+              expect(childrenCounts).to.deep.equal({
+                processed: 0,
+                unprocessed: 0,
+                ignored: 1,
+                failed: 0,
+              });
               resolve();
             } catch (err) {
               reject(err);
