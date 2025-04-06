@@ -1,3 +1,10 @@
+## [5.47.2](https://github.com/taskforcesh/bullmq/compare/v5.47.1...v5.47.2) (2025-04-06)
+
+
+### Bug Fixes
+
+* **flow:** remove job from dependencies when failParentOnFailure or continueParentOnFailure ([#3201](https://github.com/taskforcesh/bullmq/issues/3201)) ([1fbcbec](https://github.com/taskforcesh/bullmq/commit/1fbcbec56969fc4aa628f77e4b05d2c6844894ae))
+
 ## [5.47.1](https://github.com/taskforcesh/bullmq/compare/v5.47.0...v5.47.1) (2025-04-05)
 
 
