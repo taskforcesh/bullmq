@@ -185,7 +185,13 @@ export class Scripts {
     const queueKeys = this.queue.keys;
 
     const parent: Record<string, any> = job.parent
-      ? { ...job.parent, fpof: opts.fpof, rdof: opts.rdof, idof: opts.idof }
+      ? {
+          ...job.parent,
+          fpof: opts.fpof,
+          rdof: opts.rdof,
+          idof: opts.idof,
+          cpof: opts.cpof,
+        }
       : null;
 
     const args = [
