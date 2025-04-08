@@ -10,13 +10,15 @@ local function storeJob(eventsKey, jobIdKey, jobId, name, data, opts, timestamp,
     
     local optionalValues = {}
     if parentKey ~= nil then
+        rcall("SET", "DEBUG-pk", type(repeatJobKey))
         table.insert(optionalValues, "parentKey")
         table.insert(optionalValues, parentKey)
         table.insert(optionalValues, "parent")
         table.insert(optionalValues, parentData)
     end
 
-    if repeatJobKey ~= nil then
+    if repeatJobKey then
+        rcall("SET", "DEBUG-rjk", type(repeatJobKey))
         table.insert(optionalValues, "rjk")
         table.insert(optionalValues, repeatJobKey)
     end
@@ -25,7 +27,13 @@ local function storeJob(eventsKey, jobIdKey, jobId, name, data, opts, timestamp,
         table.insert(optionalValues, "deid")
         table.insert(optionalValues, debounceId)
     end
-
+    rcall("SET", "DEBUG-key", type(jobIdKey))
+    rcall("SET", "DEBUG-name", type(name))
+    rcall("SET", "DEBUG-data", type(data))
+    rcall("SET", "DEBUG-opts", type(jsonOpts))
+    rcall("SET", "DEBUG-times", type(timestamp))
+    rcall("SET", "DEBUG-delay", type(delay))
+    rcall("SET", "DEBUG-priority", type(priority))
     rcall("HMSET", jobIdKey, "name", name, "data", data, "opts", jsonOpts,
           "timestamp", timestamp, "delay", delay, "priority", priority,
           unpack(optionalValues))
