@@ -4912,6 +4912,155 @@ describe('flows', () => {
     });
   });
 
+  describe('.removeUnprocessedChildren', async () => {
+    it('should remove unprocessed children', async () => {
+      const name = 'child-job';
+      const values = [{ idx: 0, bar: 'something' }];
+
+      const parentQueueName = `parent-queue-${v4()}`;
+      const flow = new FlowProducer({ connection, prefix });
+
+      const tree = await flow.add({
+        name: 'parent-job',
+        queueName: parentQueueName,
+        data: {},
+        children: [
+          { name, data: { idx: 0, foo: 'bar' }, queueName },
+          { name, data: { idx: 1, foo: 'bar' }, queueName },
+          { name, data: { idx: 2, foo: 'bar' }, queueName },
+          { name, data: { idx: 3, foo: 'bar' }, queueName },
+          { name, data: { idx: 4, foo: 'bar' }, queueName },
+          {
+            name,
+            data: { idx: 0, foo: 'baz' },
+            queueName,
+            children: [{ name, data: { idx: 0, foo: 'qux' }, queueName }],
+          },
+        ],
+      });
+
+      // We will process one job, we will fail the second job and then on the third job we will try
+      // to remove all children.
+      // so that we can test that it does not remove the active nor the completed and failed jobs.
+
+      let counter = 0;
+      const processed: string[] = [];
+      let worker;
+
+      const processing = new Promise<void>((resolve, reject) => {
+        worker = new Worker(
+          queueName,
+          async (job: Job) => {
+            counter++;
+            if (counter === 1) {
+              processed.push(job.id!);
+              return values[job.data.idx];
+            } else if (counter === 2) {
+              processed.push(job.id!);
+              throw new Error('failed job');
+            } else if (counter === 3) {
+              try {
+                await tree.job.removeUnprocessedChildren();
+                const children = tree.children!;
+                processed.push(job.id!);
+
+                for (let i = 0; i < children.length; i++) {
+                  const child = children[i]!;
+                  const childJob = await Job.fromId(queue, child.job.id!);
+
+                  if (!processed.includes(child.job.id!)) {
+                    expect(childJob).to.be.undefined;
+                  } else {
+                    expect(childJob).to.be.ok;
+                    expect(childJob!.parent).to.deep.equal({
+                      id: tree.job.id,
+                      queueKey: `${prefix}:${parentQueueName}`,
+                    });
+                  }
+                }
+                resolve();
+              } catch (err) {
+                reject(err);
+              }
+            }
+          },
+          {
+            connection,
+            prefix,
+          },
+        );
+      });
+      try {
+        await processing;
+      } finally {
+        await worker.close();
+        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      }
+    });
+
+    it('should not remove completed children', async () => {
+      const parentQueueName = `parent-queue-${v4()}`;
+      const name = 'child-job';
+      const numChildren = 6;
+
+      const flow = new FlowProducer({ connection, prefix });
+      const tree = await flow.add({
+        name: 'parent-job',
+        queueName: parentQueueName,
+        data: {},
+        children: [
+          { name, data: { idx: 0, foo: 'bar' }, queueName },
+          { name, data: { idx: 1, foo: 'bar' }, queueName },
+          { name, data: { idx: 2, foo: 'bar' }, queueName },
+          { name, data: { idx: 3, foo: 'bar' }, queueName },
+          {
+            name,
+            data: { idx: 0, foo: 'baz' },
+            queueName,
+            children: [{ name, data: { idx: 0, foo: 'qux' }, queueName }],
+          },
+        ],
+      });
+
+      const parentWorker = new Worker(parentQueueName, async job => {}, {
+        connection,
+        prefix,
+      });
+      const childrenWorker = new Worker(
+        queueName,
+        async job => {
+          await delay(10);
+        },
+        {
+          connection,
+          prefix,
+        },
+      );
+      await parentWorker.waitUntilReady();
+      await childrenWorker.waitUntilReady();
+
+      const completing = new Promise(resolve => {
+        parentWorker.on('completed', resolve);
+      });
+
+      await completing;
+
+      const childrenJobs = await queue.getJobCountByTypes('completed');
+      expect(childrenJobs).to.be.equal(numChildren);
+
+      // We try to remove now, but no children should be removed as they are all completed
+      await tree.job.removeUnprocessedChildren();
+
+      const jobs = await queue.getJobCountByTypes('completed');
+      expect(jobs).to.be.equal(numChildren);
+
+      await flow.close();
+      await childrenWorker.close();
+      await parentWorker.close();
+      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+    });
+  });
+
   describe('.remove', () => {
     it('should remove all children when removing a parent', async () => {
       const parentQueueName = `parent-queue-${v4()}`;
