@@ -274,5 +274,6 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
 
     return 0
 else
+    rcall("SET", "DEBUG", "DEBUG")
     return -1
 end

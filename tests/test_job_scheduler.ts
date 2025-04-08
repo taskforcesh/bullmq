@@ -2467,6 +2467,53 @@ describe('Job Scheduler', function () {
     expect(waiting.length).to.be.eql(1);
   });
 
+  it.only(
+    'should not throw error when deleting and upserting a job scheduler while processing jobs',
+    async function () {
+      this.clock.restore();
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await queue.removeJobScheduler('foo');
+          await queue.upsertJobScheduler(
+            'foo',
+            { every: 1000 },
+            {
+              name: 'bruh',
+              data: { something: 'else' },
+            },
+          );
+        },
+        { autorun: false, connection, prefix },
+      );
+      await worker.waitUntilReady();
+
+      await queue.upsertJobScheduler(
+        'foo',
+        { every: 1000 },
+        {
+          name: 'bruh',
+          data: { hello: 'world' },
+        },
+      );
+
+      const completing = new Promise<void>((resolve, reject) => {
+        queueEvents.once('completed', () => {
+          resolve();
+        });
+        worker.on('error', () => {
+          reject();
+        });
+      });
+      worker.run();
+
+      await completing;
+
+      await worker.close();
+    },
+  ).timeout(4000);
+
   it('should not repeat more than 5 times', async function () {
     const date = new Date('2017-02-07T09:24:00.000+05:30');
     this.clock.setSystemTime(date);
