@@ -1,3 +1,10 @@
+## [5.47.3](https://github.com/taskforcesh/bullmq/compare/v5.47.2...v5.47.3) (2025-04-08)
+
+
+### Bug Fixes
+
+* **job-scheduler:** fix endDate presence validation ([#3195](https://github.com/taskforcesh/bullmq/issues/3195)) ([339f13e](https://github.com/taskforcesh/bullmq/commit/339f13e277c7c087adc9023f5a433d9a21c661a2))
+
 ## [5.47.2](https://github.com/taskforcesh/bullmq/compare/v5.47.1...v5.47.2) (2025-04-06)
 
 
