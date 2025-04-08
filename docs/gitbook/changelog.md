@@ -1,3 +1,10 @@
+# [5.48.0](https://github.com/taskforcesh/bullmq/compare/v5.47.3...v5.48.0) (2025-04-08)
+
+
+### Features
+
+* add removeUnprocessedChildren ([#3190](https://github.com/taskforcesh/bullmq/issues/3190)) ([4b96266](https://github.com/taskforcesh/bullmq/commit/4b96266d4a7e2fe4b1b3eba12e9e7cc5a64fc044))
+
 ## [5.47.3](https://github.com/taskforcesh/bullmq/compare/v5.47.2...v5.47.3) (2025-04-08)
 
 
