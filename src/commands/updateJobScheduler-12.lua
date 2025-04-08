@@ -49,7 +49,7 @@ local nextDelayedJobKey = schedulerKey .. ":" .. nextMillis
 
 -- Validate that scheduler exists.
 local prevMillis = rcall("ZSCORE", repeatKey, jobSchedulerId)
-if prevMillis ~= false then
+if prevMillis then
     local currentDelayedJobId = "repeat:" .. jobSchedulerId .. ":" .. prevMillis
 
     if producerId == currentDelayedJobId then
