@@ -177,7 +177,7 @@ export class Worker<
   private blockUntil = 0;
   private _concurrency: number;
   private childPool: ChildPool;
-  private drained: boolean = false;
+  private drained = false;
   private extendLocksTimer: NodeJS.Timeout | null = null;
   private limitUntil = 0;
 
@@ -705,7 +705,6 @@ will never work with more accuracy than 1ms. */
           // Markers should only be used for un-blocking, so we will handle them in this
           // function only.
           const result = await bclient.bzpopmin(this.keys.marker, blockTimeout);
-
           if (result) {
             const [_key, member, score] = result;
 

@@ -329,7 +329,7 @@ export class FlowProducer extends EventEmitter {
     return trace<Promise<JobNode>>(
       this.telemetry,
       SpanKind.PRODUCER,
-      node.name,
+      node.queueName,
       'addNode',
       node.queueName,
       async (span, srcPropagationMedatada) => {

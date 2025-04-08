@@ -20,15 +20,15 @@
     Events:
       'stalled' with stalled job id.
 ]]
-
 local rcall = redis.call
 
 -- Includes
 --- @include "includes/addJobInTargetList"
 --- @include "includes/batches"
 --- @include "includes/getTargetQueueList"
---- @include "includes/moveParentToFailedIfNeeded"
+--- @include "includes/moveChildFromDependenciesIfNeeded"
 --- @include "includes/moveParentToWaitIfNeeded"
+--- @include "includes/moveParentToWait"
 --- @include "includes/removeDeduplicationKeyIfNeeded"
 --- @include "includes/removeJobsOnFail"
 --- @include "includes/trimEvents"
@@ -47,7 +47,9 @@ local queueKeyPrefix = ARGV[2]
 local timestamp = ARGV[3]
 local maxCheckTime = ARGV[4]
 
-if rcall("EXISTS", stalledCheckKey) == 1 then return {{}, {}} end
+if rcall("EXISTS", stalledCheckKey) == 1 then
+    return {{}, {}}
+end
 
 rcall("SET", stalledCheckKey, timestamp, "PX", maxCheckTime)
 
@@ -77,8 +79,7 @@ if (#stalling > 0) then
 
                 if (removed > 0) then
                     -- If this job has been stalled too many times, such as if it crashes the worker, then fail it.
-                    local stalledCount =
-                        rcall("HINCRBY", jobKey, "stalledCounter", 1)
+                    local stalledCount = rcall("HINCRBY", jobKey, "stalledCounter", 1)
                     if (stalledCount > maxStalledJobCount) then
                         local jobAttributes = rcall("HMGET", jobKey, "opts", "parent", "deid")
                         local rawOpts = jobAttributes[1]
@@ -87,60 +88,26 @@ if (#stalling > 0) then
                         rcall("ZADD", failedKey, timestamp, jobId)
                         removeDeduplicationKeyIfNeeded(queueKeyPrefix, jobAttributes[3])
 
-                        local failedReason =
-                            "job stalled more than allowable limit"
-                        rcall("HMSET", jobKey, "failedReason", failedReason,
-                              "finishedOn", timestamp)
-                        rcall("XADD", eventStreamKey, "*", "event",
-                              "failed", "jobId", jobId, 'prev', 'active',
-                              'failedReason', failedReason)
+                        local failedReason = "job stalled more than allowable limit"
+                        rcall("HMSET", jobKey, "failedReason", failedReason, "finishedOn", timestamp)
+                        rcall("XADD", eventStreamKey, "*", "event", "failed", "jobId", jobId, 'prev', 'active',
+                            'failedReason', failedReason)
 
-                        if rawParentData then
-                            if opts['fpof'] then
-                                local parentData = cjson.decode(rawParentData)
-                                -- TODO: need to remove this job from dependencies set in next breaking change
-                                -- no for now as it would imply a breaking change
-                                local parentKey = parentData['queueKey'] .. ':' .. parentData['id']
-                                local unsuccesssfulSet = parentKey .. ":unsuccessful"
-                                rcall("ZADD", unsuccesssfulSet, timestamp, jobKey)
-                                moveParentToFailedIfNeeded(
-                                    parentData['queueKey'],
-                                    parentData['queueKey'] .. ':' .. parentData['id'],
-                                    parentData['id'],
-                                    jobKey,
-                                    timestamp
-                                )
-                            elseif opts['idof'] or opts['rdof'] then
-                                local parentData = cjson.decode(rawParentData)
-                                local parentKey = parentData['queueKey'] .. ':' .. parentData['id']
-                                local dependenciesSet = parentKey .. ":dependencies"
-                                if rcall("SREM", dependenciesSet, jobKey) == 1 then
-                                    moveParentToWaitIfNeeded(parentData['queueKey'], dependenciesSet,
-                                                             parentKey, parentData['id'], timestamp)
-                                    if opts['idof'] then
-                                       local failedSet = parentKey .. ":failed"
-                                       rcall("HSET", failedSet, jobKey, failedReason)
-                                    end
-                                end
-                            end
-                        end
+                        moveChildFromDependenciesIfNeeded(rawParentData, jobKey, failedReason, timestamp)
 
                         removeJobsOnFail(queueKeyPrefix, failedKey, jobId, opts, timestamp)
 
                         table.insert(failed, jobId)
                     else
-                        local target, isPausedOrMaxed =
-                            getTargetQueueList(metaKey, activeKey, waitKey, pausedKey)
+                        local target, isPausedOrMaxed = getTargetQueueList(metaKey, activeKey, waitKey, pausedKey)
 
                         -- Move the job back to the wait queue, to immediately be picked up by a waiting worker.
                         addJobInTargetList(target, markerKey, "RPUSH", isPausedOrMaxed, jobId)
 
-                        rcall("XADD", eventStreamKey, "*", "event",
-                              "waiting", "jobId", jobId, 'prev', 'active')
+                        rcall("XADD", eventStreamKey, "*", "event", "waiting", "jobId", jobId, 'prev', 'active')
 
                         -- Emit the stalled event
-                        rcall("XADD", eventStreamKey, "*", "event",
-                              "stalled", "jobId", jobId)
+                        rcall("XADD", eventStreamKey, "*", "event", "stalled", "jobId", jobId)
                         table.insert(stalled, jobId)
                     end
                 end

@@ -40,6 +40,7 @@
       opts - attempts max attempts
       opts - maxMetricsSize
       opts - fpof - fail parent on fail
+      opts - cpof - continue parent on fail
       opts - idof - ignore dependency on fail
       opts - rdof - remove dependency on fail
       opts - name - worker name
@@ -63,7 +64,8 @@ local rcall = redis.call
 --- @include "includes/getRateLimitTTL"
 --- @include "includes/getTargetQueueList"
 --- @include "includes/moveJobFromPriorityToActive"
---- @include "includes/moveParentToFailedIfNeeded"
+--- @include "includes/moveChildFromDependenciesIfNeeded"
+--- @include "includes/moveParentToWait"
 --- @include "includes/moveParentToWaitIfNeeded"
 --- @include "includes/prepareJobForProcessing"
 --- @include "includes/promoteDelayedJobs"
@@ -81,7 +83,9 @@ local jobIdKey = KEYS[12]
 if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
     -- Make sure it does not have pending dependencies
     -- It must happen before removing lock
-    if ARGV[5] == "completed" and rcall("SCARD", jobIdKey .. ":dependencies") ~= 0 then
+    if ARGV[5] == "completed" and
+        not rcall("HGET", jobIdKey, "igdp") and -- check if we should ignore this check
+        rcall("SCARD", jobIdKey .. ":dependencies") ~= 0 then
         return -4
     end
 
@@ -105,7 +109,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
     local parentKey = jobAttributes[1] or ""
     local parentId = ""
     local parentQueueKey = ""
-    if jobAttributes[2] then
+    if jobAttributes[2] then -- TODO: need to revisit this logic if it's still needed
         local jsonDecodedParent = cjson.decode(jobAttributes[2])
         parentId = jsonDecodedParent['id']
         parentQueueKey = jsonDecodedParent['queueKey']
@@ -117,7 +121,9 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
     -- Remove from active list (if not active we shall return error)
     local numRemovedElements = rcall("LREM", KEYS[2], -1, jobId)
 
-    if (numRemovedElements < 1) then return -3 end
+    if (numRemovedElements < 1) then
+        return -3
+    end
 
     local eventStreamKey = KEYS[4]
     local metaKey = KEYS[9]
@@ -142,28 +148,11 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
         if ARGV[5] == "completed" then
             local dependenciesSet = parentKey .. ":dependencies"
             if rcall("SREM", dependenciesSet, jobIdKey) == 1 then
-                updateParentDepsIfNeeded(parentKey, parentQueueKey,
-                                         dependenciesSet, parentId, jobIdKey,
-                                         ARGV[4], timestamp)
+                updateParentDepsIfNeeded(parentKey, parentQueueKey, dependenciesSet, parentId, jobIdKey, ARGV[4],
+                    timestamp)
             end
         else
-            if opts['fpof'] then
-                local unsuccesssfulSet = parentKey .. ":unsuccessful"
-                rcall("ZADD", unsuccesssfulSet, timestamp, jobIdKey)
-                moveParentToFailedIfNeeded(parentQueueKey, parentKey,
-                                                      parentId, jobIdKey,
-                                                      timestamp)
-            elseif opts['idof'] or opts['rdof'] then
-                local dependenciesSet = parentKey .. ":dependencies"
-                if rcall("SREM", dependenciesSet, jobIdKey) == 1 then
-                    moveParentToWaitIfNeeded(parentQueueKey, dependenciesSet,
-                                             parentKey, parentId, timestamp)
-                    if opts['idof'] then
-                        local failedSet = parentKey .. ":failed"
-                        rcall("HSET", failedSet, jobIdKey, ARGV[4])
-                    end
-                end
-            end
+            moveChildFromDependenciesIfNeeded(jobAttributes[2], jobIdKey, ARGV[4], timestamp)
         end
     end
 
@@ -195,13 +184,12 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
         end
     end
 
-    rcall("XADD", eventStreamKey, "*", "event", ARGV[5], "jobId", jobId, ARGV[3],
-          ARGV[4], "prev", "active")
+    rcall("XADD", eventStreamKey, "*", "event", ARGV[5], "jobId", jobId, ARGV[3], ARGV[4], "prev", "active")
 
     if ARGV[5] == "failed" then
         if tonumber(attemptsMade) >= tonumber(attempts) then
-            rcall("XADD", eventStreamKey, "*", "event", "retries-exhausted", "jobId",
-                  jobId, "attemptsMade", attemptsMade)
+            rcall("XADD", eventStreamKey, "*", "event", "retries-exhausted", "jobId", jobId, "attemptsMade",
+                attemptsMade)
         end
     end
 
@@ -218,17 +206,21 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
 
         local markerKey = KEYS[14]
         -- Check if there are delayed jobs that can be promoted
-        promoteDelayedJobs(KEYS[7], markerKey, target, KEYS[3], eventStreamKey, prefix,
-                           timestamp, KEYS[10], isPausedOrMaxed)
+        promoteDelayedJobs(KEYS[7], markerKey, target, KEYS[3], eventStreamKey, prefix, timestamp, KEYS[10],
+            isPausedOrMaxed)
 
         local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
         -- Check if we are rate limited first.
         local expireTime = getRateLimitTTL(maxJobs, KEYS[6])
 
-        if expireTime > 0 then return {0, 0, expireTime, 0} end
+        if expireTime > 0 then
+            return {0, 0, expireTime, 0}
+        end
 
         -- paused or maxed queue
-        if isPausedOrMaxed then return {0, 0, 0, 0} end
+        if isPausedOrMaxed then
+            return {0, 0, 0, 0}
+        end
 
         jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
 
@@ -240,23 +232,19 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
                 -- If jobId is special ID 0:delay (delay greater than 0), then there is no job to process
                 -- but if ID is 0:0, then there is at least 1 prioritized job to process
                 if jobId == "0:0" then
-                    jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2],
-                                                        KEYS[10])
-                    return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId,
-                                                   timestamp, maxJobs, markerKey,
-                                                   opts)
+                    jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2], KEYS[10])
+                    return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId, timestamp, maxJobs,
+                        markerKey, opts)
                 end
             else
-                return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId,
-                                               timestamp, maxJobs, markerKey,
-                                               opts)
+                return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId, timestamp, maxJobs, markerKey,
+                    opts)
             end
         else
             jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2], KEYS[10])
             if jobId then
-                return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId,
-                                               timestamp, maxJobs, markerKey,
-                                               opts)
+                return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId, timestamp, maxJobs, markerKey,
+                    opts)
             end
         end
 

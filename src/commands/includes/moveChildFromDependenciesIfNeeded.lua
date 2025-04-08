@@ -4,10 +4,13 @@
 
 -- Includes
 --- @include "moveParentToWaitIfNeeded"
+--- @include "moveParentToWait"
 --- @include "removeDeduplicationKeyIfNeeded"
 --- @include "removeJobsOnFail"
 
-local function moveParentToFailedIfNeeded(parentQueueKey, parentKey, parentId, jobIdKey, timestamp)
+local moveParentToFailedIfNeeded
+local moveChildFromDependenciesIfNeeded
+moveParentToFailedIfNeeded = function (parentQueueKey, parentKey, parentId, jobIdKey, timestamp)
   if rcall("EXISTS", parentKey) == 1 then
     local parentWaitingChildrenKey = parentQueueKey .. ":waiting-children"
     local parentDelayedKey = parentQueueKey .. ":delayed"
@@ -39,32 +42,7 @@ local function moveParentToFailedIfNeeded(parentQueueKey, parentKey, parentId, j
 
       removeDeduplicationKeyIfNeeded(parentQueueKey .. ":", jobAttributes[2])
 
-      if jobAttributes[1] then
-        local parentData = cjson.decode(jobAttributes[1])
-        local grandParentKey = parentData['queueKey'] .. ':' .. parentData['id']
-        local grandParentUnsuccesssful = grandParentKey .. ":unsuccessful"
-        rcall("ZADD", grandParentUnsuccesssful, timestamp, parentKey)
-        if parentData['fpof'] then
-          moveParentToFailedIfNeeded(
-            parentData['queueKey'],
-            parentData['queueKey'] .. ':' .. parentData['id'],
-            parentData['id'],
-            parentKey,
-            timestamp
-          )
-        elseif parentData['idof'] or parentData['rdof'] then
-          local grandParentKey = parentData['queueKey'] .. ':' .. parentData['id']
-          local grandParentDependenciesSet = grandParentKey .. ":dependencies"
-          if rcall("SREM", grandParentDependenciesSet, parentKey) == 1 then
-            moveParentToWaitIfNeeded(parentData['queueKey'], grandParentDependenciesSet,
-              grandParentKey, parentData['id'], timestamp)
-            if parentData['idof'] then
-              local grandParentFailedSet = grandParentKey .. ":failed"
-              rcall("HSET", grandParentFailedSet, parentKey, failedReason)
-            end
-          end
-        end
-      end
+      moveChildFromDependenciesIfNeeded(jobAttributes[1], parentKey, failedReason, timestamp)
 
       local parentRawOpts = jobAttributes[3]
       local parentOpts = cjson.decode(parentRawOpts)
@@ -76,6 +54,42 @@ local function moveParentToFailedIfNeeded(parentQueueKey, parentKey, parentId, j
       if grandParentKey then
         local grandParentUnsuccesssfulSet = grandParentKey .. ":unsuccessful"
         rcall("ZADD", grandParentUnsuccesssfulSet, timestamp, parentKey)
+      end
+    end
+  end
+end
+
+moveChildFromDependenciesIfNeeded = function (rawParentData, childKey, failedReason, timestamp)
+  if rawParentData then
+    local parentData = cjson.decode(rawParentData)
+    local parentKey = parentData['queueKey'] .. ':' .. parentData['id']
+    local parentDependenciesChildrenKey = parentKey .. ":dependencies"
+    if parentData['fpof'] then
+      if rcall("SREM", parentDependenciesChildrenKey, childKey) == 1 then
+        local parentUnsuccesssfulChildrenKey = parentKey .. ":unsuccessful"
+        rcall("ZADD", parentUnsuccesssfulChildrenKey, timestamp, childKey)
+        moveParentToFailedIfNeeded(
+          parentData['queueKey'],
+          parentKey,
+          parentData['id'],
+          childKey,
+          timestamp
+        )
+      end
+    elseif parentData['cpof'] then
+      if rcall("SREM", parentDependenciesChildrenKey, childKey) == 1 then
+        local parentFailedChildrenKey = parentKey .. ":failed"
+        rcall("HSET", parentFailedChildrenKey, childKey, failedReason)
+        moveParentToWait(parentData['queueKey'], parentKey, parentData['id'], timestamp)
+      end
+    elseif parentData['idof'] or parentData['rdof'] then
+      if rcall("SREM", parentDependenciesChildrenKey, childKey) == 1 then
+        moveParentToWaitIfNeeded(parentData['queueKey'], parentDependenciesChildrenKey,
+          parentKey, parentData['id'], timestamp)
+        if parentData['idof'] then
+          local parentFailedChildrenKey = parentKey .. ":failed"
+          rcall("HSET", parentFailedChildrenKey, childKey, failedReason)
+        end
       end
     end
   end

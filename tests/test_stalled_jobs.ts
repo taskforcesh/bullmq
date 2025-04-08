@@ -6,6 +6,8 @@ import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 import { v4 } from 'uuid';
 import { expect } from 'chai';
 
+const NoopProc = () => Promise.resolve();
+
 describe('stalled jobs', function () {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
@@ -69,7 +71,7 @@ describe('stalled jobs', function () {
     await allActive;
     await worker.close(true);
 
-    const worker2 = new Worker(queueName, async job => {}, {
+    const worker2 = new Worker(queueName, NoopProc, {
       connection,
       prefix,
       stalledInterval: 100,
@@ -175,7 +177,7 @@ describe('stalled jobs', function () {
 
     await worker.close(true);
 
-    const worker2 = new Worker(queueName, async job => {}, {
+    const worker2 = new Worker(queueName, NoopProc, {
       connection,
       prefix,
       stalledInterval: 100,
@@ -251,7 +253,7 @@ describe('stalled jobs', function () {
 
       await worker.close(true);
 
-      const worker2 = new Worker(queueName, async job => {}, {
+      const worker2 = new Worker(queueName, NoopProc, {
         connection,
         prefix,
         stalledInterval: 100,
@@ -435,7 +437,7 @@ describe('stalled jobs', function () {
         await allActive;
         await worker.close(true);
 
-        const worker2 = new Worker(queueName, async job => {}, {
+        const worker2 = new Worker(queueName, NoopProc, {
           connection,
           prefix,
           stalledInterval: 100,
@@ -454,6 +456,98 @@ describe('stalled jobs', function () {
               expect(prev).to.be.equal('active');
               expect(failedReason.message).to.be.equal(errorMessage);
               resolve();
+            }),
+          );
+        });
+
+        await allFailed;
+
+        await worker2.close();
+        await parentQueue.close();
+        await flow.close();
+        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      });
+    });
+
+    describe('when continueParentOnFailure is provided as true', function () {
+      it('should start processing parent when child is moved to failed', async function () {
+        this.timeout(6000);
+        const concurrency = 4;
+        const parentQueueName = `parent-queue-${v4()}`;
+
+        const parentQueue = new Queue(parentQueueName, {
+          connection,
+          prefix,
+        });
+
+        const flow = new FlowProducer({ connection, prefix });
+
+        const worker = new Worker(
+          queueName,
+          async () => {
+            return delay(10000);
+          },
+          {
+            connection,
+            prefix,
+            lockDuration: 1000,
+            stalledInterval: 100,
+            maxStalledCount: 0,
+            concurrency,
+          },
+        );
+
+        const allActive = new Promise(resolve => {
+          worker.on('active', after(concurrency, resolve));
+        });
+
+        await worker.waitUntilReady();
+
+        const { job: parent } = await flow.add({
+          name: 'parent-job',
+          queueName: parentQueueName,
+          data: {},
+          children: [
+            {
+              name: 'test',
+              data: { foo: 'bar' },
+              queueName,
+              opts: { continueParentOnFailure: true },
+            },
+          ],
+        });
+
+        const jobs = Array.from(Array(3).keys()).map(index => ({
+          name: 'test',
+          data: { index },
+        }));
+
+        await queue.addBulk(jobs);
+        await allActive;
+        await worker.close(true);
+
+        const worker2 = new Worker(queueName, NoopProc, {
+          connection,
+          prefix,
+          stalledInterval: 100,
+          maxStalledCount: 0,
+          concurrency,
+        });
+
+        const errorMessage = 'job stalled more than allowable limit';
+        const allFailed = new Promise<void>((resolve, reject) => {
+          worker2.on(
+            'failed',
+            after(concurrency, async (job, failedReason, prev) => {
+              try {
+                const parentState = await parent.getState();
+                expect(parentState).to.be.equal('waiting');
+                expect(prev).to.be.equal('active');
+                expect(failedReason.message).to.be.equal(errorMessage);
+                resolve();
+              } catch (err) {
+                reject(err);
+              }
             }),
           );
         });
@@ -524,7 +618,7 @@ describe('stalled jobs', function () {
         await allActive;
         await worker.close(true);
 
-        const worker2 = new Worker(queueName, async job => {}, {
+        const worker2 = new Worker(queueName, NoopProc, {
           connection,
           prefix,
           stalledInterval: 100,
@@ -618,7 +712,7 @@ describe('stalled jobs', function () {
         await allActive;
         await worker.close(true);
 
-        const worker2 = new Worker(queueName, async job => {}, {
+        const worker2 = new Worker(queueName, NoopProc, {
           connection,
           prefix,
           stalledInterval: 100,
@@ -690,7 +784,7 @@ describe('stalled jobs', function () {
 
         await worker.close(true);
 
-        const worker2 = new Worker(queueName, async job => {}, {
+        const worker2 = new Worker(queueName, NoopProc, {
           connection,
           prefix,
           stalledInterval: 100,
@@ -760,7 +854,7 @@ describe('stalled jobs', function () {
 
         await worker.close(true);
 
-        const worker2 = new Worker(queueName, async job => {}, {
+        const worker2 = new Worker(queueName, NoopProc, {
           connection,
           prefix,
           stalledInterval: 100,
@@ -836,7 +930,7 @@ describe('stalled jobs', function () {
 
         await worker.close(true);
 
-        const worker2 = new Worker(queueName, async job => {}, {
+        const worker2 = new Worker(queueName, NoopProc, {
           connection,
           prefix,
           stalledInterval: 100,
@@ -899,7 +993,7 @@ describe('stalled jobs', function () {
 
     await allActive;
 
-    const worker2 = new Worker(queueName, async job => {}, {
+    const worker2 = new Worker(queueName, NoopProc, {
       connection,
       prefix,
       stalledInterval: 50,
