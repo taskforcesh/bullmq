@@ -49,7 +49,7 @@ export type CompressableJobOptions = {
 
     /**
      * If `true` telemetry will omit the context propagation
-     * @default false
+     * @defaultValue false
      */
     omitContext?: boolean;
   };

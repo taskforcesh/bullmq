@@ -78,6 +78,7 @@ export function delay(
   abortController?: AbortController,
 ): Promise<void> {
   return new Promise(resolve => {
+    // eslint-disable-next-line prefer-const
     let timeout: ReturnType<typeof setTimeout> | undefined;
     const callback = () => {
       abortController?.signal.removeEventListener('abort', callback);

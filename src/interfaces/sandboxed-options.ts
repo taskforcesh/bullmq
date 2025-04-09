@@ -7,7 +7,7 @@ export interface SandboxedOptions {
    * Note: This option can only be used when specifying
    * a file for the processor argument.
    *
-   * @default false
+   * @defaultValue false
    */
   useWorkerThreads?: boolean;
 
