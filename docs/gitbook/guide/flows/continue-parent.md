@@ -1,5 +1,5 @@
 ---
-description: Make parent process if any children fails.
+description: Process parent if any children fails.
 ---
 
 # Continue Parent
