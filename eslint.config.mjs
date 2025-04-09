@@ -121,7 +121,7 @@ export default defineConfig([
         },
       ],
 
-      'tsdoc/syntax': 'warn',
+      'tsdoc/syntax': 'error',
     },
   },
 ]);
