@@ -6,13 +6,13 @@ description: Make parents fail is any of its children fails
 
 In certain workflows, you may need a parent job to fail immediately if any of its child jobs fail. The `failParentOnFailure` option allows you to achieve this behaviour. When set to true on a child job, it ensures that if the child fails, its parent job is also marked as failed. This effect can propagate recursively up the job hierarchy, potentially causing grandparents or higher-level ancestors to fail as well, depending on the configuration.
 
-#### Key Points
+### Key Points
 
 * Selective Application: Only child jobs with failParentOnFailure: true will trigger the failure of their parent job upon failing. Child jobs without this option will not affect the parent's state if they fail.
 * Recursive Behavior: If a child with this option fails, and its parent also has failParentOnFailure: true, the failure propagates upward through the job tree, potentially affecting grandparents and beyond.
 * Immediate Effect: As soon as a qualifying child job fails, the parent job is moved to the failed state.
 
-#### Example
+### Example
 
 ```typescript
 import { FlowProducer } from 'bullmq';
@@ -66,7 +66,7 @@ How it Works
 * If grandchild-job-2 fails, its parent (child-job-1) will not fail because failParentOnFailure is not set on this grandchild.
 * Similarly, if child-job-2 fails, the root job will remain unaffected since failParentOnFailure is not enabled for that child.
 
-#### Use Case
+### Use Case
 
 This option is particularly useful in workflows where the success of a parent job depends critically on specific child jobs, allowing you to enforce strict dependencies and fail fast when necessary.
 
