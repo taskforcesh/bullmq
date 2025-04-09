@@ -65,7 +65,6 @@ export const PRIORITY_LIMIT = 2 ** 21;
  *
  * A Job instance is also passed to the Worker's process function.
  *
- * @class Job
  */
 export class Job<
   DataType = any,
@@ -462,10 +461,10 @@ export class Job<
   /**
    * addJobLog
    *
-   * @param queue Queue instance
-   * @param jobId Job id
-   * @param logRow Log row
-   * @param keepLogs optional maximum number of logs to keep
+   * @param queue - A minimal queue instance
+   * @param jobId - Job id
+   * @param logRow - String with a row of log data to be logged
+   * @param keepLogs - The optional amount of log entries to preserve
    *
    * @returns The total number of log entries for this job so far.
    */
@@ -649,9 +648,10 @@ export class Job<
   /**
    * Remove all children from this job that are not yet processed,
    * in other words that are in any other state than completed, failed or active.
-   * Notes:
+   *
+   * @remarks
    *  - Jobs with locks (most likely active) are ignored.
-   *  - This method can be slow if the number of children is large (> 1000).
+   *  - This method can be slow if the number of children is large (\> 1000).
    */
   async removeUnprocessedChildren(): Promise<void> {
     const jobId = this.id;

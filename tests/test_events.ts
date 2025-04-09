@@ -417,6 +417,7 @@ describe('events', function () {
         );
 
         let debouncedCounter = 0;
+        // eslint-disable-next-line prefer-const
         let secondJob;
         queueEvents.on('debounced', ({ jobId, debounceId }) => {
           if (debouncedCounter > 1) {
@@ -662,6 +663,7 @@ describe('events', function () {
         );
 
         let deduplicatedCounter = 0;
+        // eslint-disable-next-line prefer-const
         let secondJob;
         queueEvents.on('deduplicated', ({ jobId, deduplicationId }) => {
           if (deduplicatedCounter > 1) {

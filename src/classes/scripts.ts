@@ -1547,7 +1547,7 @@ export class Scripts {
 
   /**
    * Paginate a set or hash keys.
-   * @param opts
+   * @param opts - options to define the pagination behaviour
    *
    */
   async paginate(

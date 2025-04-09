@@ -1141,7 +1141,8 @@ describe('workers', function () {
 
       const datas = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
 
-      let jobIds;
+      // eslint-disable-next-line prefer-const
+      let jobIds: string[];
 
       const processing = new Promise<void>(resolve => {
         worker.on(fail ? 'failed' : 'completed', async job => {
@@ -1220,6 +1221,7 @@ describe('workers', function () {
 
       const datas = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
 
+      // eslint-disable-next-line prefer-const
       let jobIds;
 
       const processing = new Promise<void>(resolve => {
@@ -2464,6 +2466,7 @@ describe('workers', function () {
     it('should wait for all concurrent processing in case of pause', async function () {
       let i = 0;
       let nbJobFinish = 0;
+      // eslint-disable-next-line prefer-const
       let runExecution: Promise<void>;
 
       const worker = new Worker(
@@ -3155,7 +3158,8 @@ describe('workers', function () {
           const worker = new Worker(
             queueName,
             async job => {
-              let { step, timeout } = job.data;
+              const { timeout } = job.data;
+              let { step } = job.data;
               let timeoutReached = false;
 
               setTimeout(() => {
