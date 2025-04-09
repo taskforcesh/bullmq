@@ -476,11 +476,11 @@ export class Scripts {
     jobId: string,
     removeChildren: boolean,
   ): (string | number)[] {
-    const keys: (string | number)[] = ['', 'meta', 'repeat'].map(name =>
+    const keys: (string | number)[] = [jobId, 'meta', 'repeat'].map(name =>
       this.queue.toKey(name),
     );
 
-    const args = [jobId, removeChildren ? 1 : 0];
+    const args = [jobId, removeChildren ? 1 : 0, this.queue.toKey('')];
 
     return keys.concat(args);
   }
@@ -500,6 +500,19 @@ export class Scripts {
     }
 
     return result;
+  }
+
+  async removeUnprocessedChildren(jobId: string): Promise<void> {
+    const client = await this.queue.client;
+
+    const args = [
+      this.queue.toKey(jobId),
+      this.queue.keys.meta,
+      this.queue.toKey(''),
+      jobId,
+    ];
+
+    await this.execCommand(client, 'removeUnprocessedChildren', args);
   }
 
   async extendLock(
@@ -1534,7 +1547,7 @@ export class Scripts {
 
   /**
    * Paginate a set or hash keys.
-   * @param opts
+   * @param opts - options to define the pagination behaviour
    *
    */
   async paginate(

@@ -45,6 +45,7 @@
   * [Adding flows in bulk](guide/flows/adding-bulks.md)
   * [Get Flow Tree](guide/flows/get-flow-tree.md)
   * [Fail Parent](guide/flows/fail-parent.md)
+  * [Continue Parent](guide/flows/continue-parent.md)
   * [Remove Dependency](guide/flows/remove-dependency.md)
   * [Ignore Dependency](guide/flows/ignore-dependency.md)
   * [Remove Child Dependency](guide/flows/remove-child-dependency.md)

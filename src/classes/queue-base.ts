@@ -16,10 +16,7 @@ import { Scripts } from './scripts';
 import { SpanKind } from '../enums';
 
 /**
- * @class QueueBase
- * @extends EventEmitter
- *
- * @description Base class for all classes that need to interact with queues.
+ * Base class for all classes that need to interact with queues.
  * This class is normally not used directly, but extended by the other classes.
  *
  */

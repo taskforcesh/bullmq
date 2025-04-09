@@ -21,8 +21,9 @@ export interface QueueEventsListener extends IoredisListener {
    * This event is triggered when a job enters the 'active' state, meaning it is being processed.
    *
    * @param args - An object containing details about the job that became active.
-   * @param args.jobId - The unique identifier of the job that entered the active state.
-   * @param args.prev - The previous state of the job before it became active (e.g., 'waiting'), if applicable.
+   *   - `jobId`: The unique identifier of the job that entered the active state.
+   *   - `prev`: The previous state of the job before it became active (e.g., 'waiting'), if applicable.
+   *
    * @param id - The identifier of the event.
    */
 
@@ -34,8 +35,8 @@ export interface QueueEventsListener extends IoredisListener {
    * This event is triggered when a job is created and added to the queue.
    *
    * @param args - An object containing details about the newly added job.
-   * @param args.jobId - The unique identifier of the job that was added.
-   * @param args.name - The name of the job, typically indicating its type or purpose.
+   *   - `jobId` - The unique identifier of the job that was added.
+   *   - `name` - The name of the job, typically indicating its type or purpose.
    * @param id - The identifier of the event.
    */
   added: (args: { jobId: string; name: string }, id: string) => void;
@@ -46,7 +47,7 @@ export interface QueueEventsListener extends IoredisListener {
    * This event is triggered when jobs are cleaned (e.g., removed) from the queue, typically via a cleanup method.
    *
    * @param args - An object containing the count of cleaned jobs.
-   * @param args.count - The number of jobs that were cleaned, represented as a string due to Redis serialization.
+   *   - `count` - The number of jobs that were cleaned, represented as a string due to Redis serialization.
    * @param id - The identifier of the event.
    */
   cleaned: (args: { count: string }, id: string) => void;
@@ -57,9 +58,9 @@ export interface QueueEventsListener extends IoredisListener {
    * This event is triggered when a job has successfully completed its execution.
    *
    * @param args - An object containing details about the completed job.
-   * @param args.jobId - The unique identifier of the job that completed.
-   * @param args.returnvalue - The return value of the job, serialized as a string.
-   * @param args.prev - The previous state of the job before completion (e.g., 'active'), if applicable.
+   *   - `jobId` - The unique identifier of the job that completed.
+   *   - `returnvalue` - The return value of the job, serialized as a string.
+   *   - `prev` - The previous state of the job before completion (e.g., 'active'), if applicable.
    * @param id - The identifier of the event.
    */
   completed: (
@@ -75,8 +76,8 @@ export interface QueueEventsListener extends IoredisListener {
    * This event is triggered when a job is debounced because a job with the same debounceId still exists.
    *
    * @param args - An object containing details about the debounced job.
-   * @param args.jobId - The unique identifier of the job that was debounced.
-   * @param args.debounceId - The identifier used to debounce the job, preventing duplicate processing.
+   *   - `jobId` - The unique identifier of the job that was debounced.
+   *   - `debounceId` - The identifier used to debounce the job, preventing duplicate processing.
    * @param id - The identifier of the event.
    */
   debounced: (args: { jobId: string; debounceId: string }, id: string) => void;
@@ -88,9 +89,9 @@ export interface QueueEventsListener extends IoredisListener {
    * already exists.
    *
    * @param args - An object containing details about the deduplicated job.
-   * @param args.jobId - The unique identifier of the job that was attempted to be added.
-   * @param args.deduplicationId - The deduplication identifier that caused the job to be deduplicated.
-   * @param args.deduplicatedJobId - The unique identifier of the existing job that caused the deduplication.
+   *  - `jobId` - The unique identifier of the job that was attempted to be added.
+   *  - `deduplicationId` - The deduplication identifier that caused the job to be deduplicated.
+   *  - `deduplicatedJobId` - The unique identifier of the existing job that caused the deduplication.
    * @param id - The identifier of the event.
    */
   deduplicated: (
@@ -104,8 +105,8 @@ export interface QueueEventsListener extends IoredisListener {
    * This event is triggered when a job is scheduled with a delay before it becomes active.
    *
    * @param args - An object containing details about the delayed job.
-   * @param args.jobId - The unique identifier of the job that was delayed.
-   * @param args.delay - The delay duration in milliseconds before the job becomes active.
+   *  - `jobId` - The unique identifier of the job that was delayed.
+   *  - `delay` - The delay duration in milliseconds before the job becomes active.
    * @param id - The identifier of the event.
    */
   delayed: (args: { jobId: string; delay: number }, id: string) => void;
@@ -128,7 +129,7 @@ export interface QueueEventsListener extends IoredisListener {
    * This event is triggered when a job is not created because a job with the same identifier already exists.
    *
    * @param args - An object containing the job identifier.
-   * @param args.jobId - The unique identifier of the job that was attempted to be added.
+   *  - `jobId` - The unique identifier of the job that was attempted to be added.
    * @param id - The identifier of the event.
    */
   duplicated: (args: { jobId: string }, id: string) => void;
@@ -146,9 +147,9 @@ export interface QueueEventsListener extends IoredisListener {
    * This event is triggered when a job fails by throwing an exception during execution.
    *
    * @param args - An object containing details about the failed job.
-   * @param args.jobId - The unique identifier of the job that failed.
-   * @param args.failedReason - The reason or message describing why the job failed.
-   * @param args.prev - The previous state of the job before failure (e.g., 'active'), if applicable.
+   *  - `jobId` - The unique identifier of the job that failed.
+   *  - `failedReason` - The reason or message describing why the job failed.
+   *  - `prev` - The previous state of the job before failure (e.g., 'active'), if applicable.
    * @param id - The identifier of the event.
    */
   failed: (
@@ -164,7 +165,7 @@ export interface QueueEventsListener extends IoredisListener {
    * @param args - An empty object (no additional data provided).
    * @param id - The identifier of the event.
    */
-  paused: (args: {}, id: string) => void;
+  paused: (args: object, id: string) => void;
 
   /**
    * Listen to 'progress' event.
@@ -173,8 +174,8 @@ export interface QueueEventsListener extends IoredisListener {
    * progress or custom data to be communicated externally.
    *
    * @param args - An object containing the job identifier and progress data.
-   * @param args.jobId - The unique identifier of the job reporting progress.
-   * @param args.data - The progress data, which can be a number (e.g., percentage) or an object with custom data.
+   *  - `jobId` - The unique identifier of the job reporting progress.
+   *  - `data` - The progress data, which can be a number (e.g., percentage) or an object with custom data.
    * @param id - The identifier of the event.
    */
   progress: (args: { jobId: string; data: JobProgress }, id: string) => void;
@@ -185,8 +186,8 @@ export interface QueueEventsListener extends IoredisListener {
    * This event is triggered when a job is manually removed from the queue.
    *
    * @param args - An object containing details about the removed job.
-   * @param args.jobId - The unique identifier of the job that was removed.
-   * @param args.prev - The previous state of the job before removal (e.g., 'active' or 'waiting').
+   *  - `jobId` - The unique identifier of the job that was removed.
+   *  - `prev` - The previous state of the job before removal (e.g., 'active' or 'waiting').
    * @param id - The identifier of the event.
    */
   removed: (args: { jobId: string; prev: string }, id: string) => void;
@@ -199,7 +200,7 @@ export interface QueueEventsListener extends IoredisListener {
    * @param args - An empty object (no additional data provided).
    * @param id - The identifier of the event.
    */
-  resumed: (args: {}, id: string) => void;
+  resumed: (args: object, id: string) => void;
 
   /**
    * Listen to 'retries-exhausted' event.
@@ -207,8 +208,8 @@ export interface QueueEventsListener extends IoredisListener {
    * This event is triggered when a job has exhausted its maximum retry attempts after repeated failures.
    *
    * @param args - An object containing details about the job that exhausted retries.
-   * @param args.jobId - The unique identifier of the job that exhausted its retries.
-   * @param args.attemptsMade - The number of retry attempts made, represented as a string
+   *  - `jobId` - The unique identifier of the job that exhausted its retries.
+   *  - `attemptsMade` - The number of retry attempts made, represented as a string
    * (due to Redis serialization).
    * @param id - The identifier of the event.
    */
@@ -225,7 +226,7 @@ export interface QueueEventsListener extends IoredisListener {
    * potential processing issue.
    *
    * @param args - An object containing the job identifier.
-   * @param args.jobId - The unique identifier of the job that stalled.
+   *  - `jobId` - The unique identifier of the job that stalled.
    * @param id - The identifier of the event.
    */
   stalled: (args: { jobId: string }, id: string) => void;
@@ -237,8 +238,8 @@ export interface QueueEventsListener extends IoredisListener {
    * awaiting processing.
    *
    * @param args - An object containing details about the job in the waiting state.
-   * @param args.jobId - The unique identifier of the job that is waiting.
-   * @param args.prev - The previous state of the job before entering 'waiting' (e.g., 'stalled'),
+   *  - `jobId` - The unique identifier of the job that is waiting.
+   *  - `prev` - The previous state of the job before entering 'waiting' (e.g., 'stalled'),
    * if applicable.
    * @param id - The identifier of the event.
    */
@@ -252,7 +253,7 @@ export interface QueueEventsListener extends IoredisListener {
    * waiting for its child jobs to complete.
    *
    * @param args - An object containing the job identifier.
-   * @param args.jobId - The unique identifier of the job waiting for its children.
+   *  - `jobId` - The unique identifier of the job waiting for its children.
    * @param id - The identifier of the event.
    */
   'waiting-children': (args: { jobId: string }, id: string) => void;
