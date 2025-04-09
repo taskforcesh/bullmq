@@ -1,8 +1,12 @@
 ---
-description: Make parent process if any children fails
+description: Make parent process if any children fails.
 ---
 
 # Continue Parent
+
+{% hint style="info" %}
+Available since v5.58.0
+{% endhint %}
 
 The `continueParentOnFailure` option allows a parent job to start processing as soon as a child job fails, while the `removeUnprocessedChildren` method enables dynamic cleanup of unprocessed child jobs. Additionally, you can use the `getFailedChildrenValues`() method to determine whether the parent is processing due to a child failure or because all children completed successfully, allowing you to define distinct logic paths.
 
