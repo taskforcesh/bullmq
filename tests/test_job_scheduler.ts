@@ -14,7 +14,7 @@ import {
   Worker,
 } from '../src/classes';
 import { JobsOptions } from '../src/types';
-import { removeAllQueueData } from '../src/utils';
+import { delay, removeAllQueueData } from '../src/utils';
 
 const moment = require('moment');
 
@@ -2468,53 +2468,62 @@ describe('Job Scheduler', function () {
   });
 
   describe('when deleting and upserting a job scheduler', function () {
-    it(
-      'should not throw error while processing jobs',
-      async function () {
-        this.clock.restore();
+    it('should not throw error while processing jobs', async function () {
+      this.clock.restore();
 
-        const worker = new Worker(
-          queueName,
-          async () => {
-            await queue.removeJobScheduler('foo');
-            await queue.upsertJobScheduler(
-              'foo',
-              { every: 1000 },
-              {
-                name: 'bruh',
-                data: { something: 'else' },
-              },
-            );
-          },
-          { autorun: false, connection, prefix },
-        );
-        await worker.waitUntilReady();
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await queue.removeJobScheduler('foo');
+          await queue.upsertJobScheduler(
+            'foo',
+            { every: 50 },
+            {
+              name: 'bruh',
+              data: { something: 'else' },
+            },
+          );
+        },
+        { autorun: false, concurrency: 2, connection, prefix },
+      );
+      await worker.waitUntilReady();
 
-        await queue.upsertJobScheduler(
-          'foo',
-          { every: 1000 },
-          {
-            name: 'bruh',
-            data: { hello: 'world' },
-          },
-        );
+      await queue.upsertJobScheduler(
+        'foo',
+        { every: 50 },
+        {
+          name: 'bruh',
+          data: { hello: 'world' },
+        },
+      );
 
-        const completing = new Promise<void>((resolve, reject) => {
-          queueEvents.once('completed', () => {
+      let count = 0;
+      const completing = new Promise<void>((resolve, reject) => {
+        queueEvents.on('completed', async () => {
+          await delay(55);
+          await queue.upsertJobScheduler(
+            'foo',
+            { every: 50 },
+            {
+              name: 'bruh',
+              data: { something: 'else' },
+            },
+          );
+          if (count++ > 5) {
             resolve();
-          });
-          worker.on('error', () => {
-            reject();
-          });
+          }
         });
-        worker.run();
+        worker.on('error', () => {
+          reject();
+        });
+      });
+      worker.run();
 
-        await completing;
+      await completing;
 
-        await worker.close();
-      },
-    ).timeout(4000);
-  })
+      await worker.close();
+    }).timeout(4000);
+  });
 
   it('should not repeat more than 5 times', async function () {
     const date = new Date('2017-02-07T09:24:00.000+05:30');
