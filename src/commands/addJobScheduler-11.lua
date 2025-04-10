@@ -61,7 +61,8 @@ local nextDelayedJobId = "repeat:" .. jobSchedulerId .. ":" .. nextMillis
 
 local maxEvents = getOrSetMaxEvents(metaKey)
 
-local function removeJobFromScheduler(prefixKey, delayedKey, prioritizedKey, waitKey, pausedKey, jobId, metaKey, eventsKey)
+local function removeJobFromScheduler(prefixKey, delayedKey, prioritizedKey, waitKey, pausedKey, jobId,
+    metaKey, eventsKey)
     if rcall("ZSCORE", delayedKey, jobId) then
         removeJob(nextDelayedJobId, true, prefixKey, true --[[remove debounce key]] )
         rcall("ZREM", delayedKey, jobId)
@@ -83,7 +84,7 @@ local function removeJobFromScheduler(prefixKey, delayedKey, prioritizedKey, wai
     end
     return false
 end
-    
+
 if rcall("EXISTS", nextDelayedJobKey) == 1 then
     if not removeJobFromScheduler(prefixKey, delayedKey, prioritizedKey, waitKey, pausedKey,
         nextDelayedJobId, metaKey, eventsKey) then
@@ -96,7 +97,7 @@ end
 
 local prevMillis = rcall("ZSCORE", repeatKey, jobSchedulerId)
 
-if prevMillis then
+if prevMillis then    
     local currentJobId = "repeat:" .. jobSchedulerId .. ":" .. prevMillis
     local currentDelayedJobKey = schedulerKey .. ":" .. prevMillis
     
