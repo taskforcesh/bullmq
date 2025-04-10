@@ -87,7 +87,8 @@ removeJobWithChildren = function(prefix, meta, jobId, parentKey, options)
         removeDeduplicationKey(prefix, jobKey)
         if removeJobKeys(jobKey) > 0 then
             local maxEvents = getOrSetMaxEvents(meta)
-            rcall("XADD", prefix .. "events", "MAXLEN", "~", maxEvents, "*", "event", "removed", "jobId", jobId, "prev", prev)
+            rcall("XADD", prefix .. "events", "MAXLEN", "~", maxEvents, "*", "event", "removed",
+                "jobId", jobId, "prev", prev)
         end
     end
 end
