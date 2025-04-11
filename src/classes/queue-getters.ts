@@ -548,7 +548,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
   }
 
   private parseClientList(list: string, matcher: (name: string) => boolean) {
-    const lines = list.split('\n');
+    const lines = list.split(/\r?\n/);
     const clients: { [index: string]: string }[] = [];
 
     lines.forEach((line: string) => {
