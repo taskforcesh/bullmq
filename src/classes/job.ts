@@ -970,7 +970,9 @@ export class Job<
    * @returns Object mapping children job keys with their failure values.
    */
   async getIgnoredChildrenValues(): Promise<{ [jobKey: string]: string }> {
-    return this.getFailedChildrenValues();
+    const client = await this.queue.client;
+
+    return client.hgetall(this.toKey(`${this.id}:failed`));
   }
 
   /**
