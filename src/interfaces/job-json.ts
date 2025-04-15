@@ -22,6 +22,7 @@ export interface JobJson {
   debounceId?: string;
   deduplicationId?: string;
   processedBy?: string;
+  stalledCounter: number;
 }
 
 export interface JobJsonRaw {
@@ -45,6 +46,7 @@ export interface JobJsonRaw {
   rjk?: string;
   nrjid?: string;
   atm?: string;
+  stc?: string;
   ats?: string;
   pb?: string; // Worker name
 }
