@@ -128,6 +128,12 @@ export class Job<
   attemptsMade = 0;
 
   /**
+   * Number of times where job has stalled.
+   * @defaultValue 0
+   */
+  stalledCounter = 0;
+
+  /**
    * Reason for failing.
    */
   failedReason: string;
@@ -377,6 +383,8 @@ export class Job<
 
     job.attemptsMade = parseInt(json.attemptsMade || json.atm || '0');
 
+    job.stalledCounter = parseInt(json.stc || '0');
+
     job.stacktrace = getTraces(json.stacktrace);
 
     if (typeof json.returnvalue === 'string') {
@@ -499,6 +507,7 @@ export class Job<
       progress: this.progress,
       attemptsMade: this.attemptsMade,
       attemptsStarted: this.attemptsStarted,
+      stalledCounter: this.stalledCounter,
       finishedOn: this.finishedOn,
       processedOn: this.processedOn,
       timestamp: this.timestamp,
