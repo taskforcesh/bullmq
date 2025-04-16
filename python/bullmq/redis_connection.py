@@ -50,11 +50,14 @@ class RedisConnection:
         """
         return self.conn.disconnect()
 
-    def close(self):
+    async def close(self):
         """
         Close the connection
         """
-        return self.conn.close()
+        try:
+            await self.conn.aclose()
+        except AttributeError:
+            await self.conn.close()
 
     async def getRedisVersion(self):
         if self.version is not None:
