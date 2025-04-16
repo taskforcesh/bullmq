@@ -412,7 +412,7 @@ export class Job<
 
   static optsFromJSON(
     rawOpts?: string,
-    optsDecode = optsDecodeMap,
+    optsDecode: Record<string, string> = optsDecodeMap,
   ): JobsOptions {
     const opts = JSON.parse(rawOpts || '{}');
 
@@ -522,7 +522,7 @@ export class Job<
 
   static optsAsJSON(
     opts: JobsOptions = {},
-    optsEncode = optsEncodeMap,
+    optsEncode: Record<string, string> = optsEncodeMap,
   ): RedisJobOptions {
     const optionEntries = Object.entries(opts) as Array<
       [keyof JobsOptions, any]
