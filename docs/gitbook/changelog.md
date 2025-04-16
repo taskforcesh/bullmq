@@ -1,3 +1,10 @@
+# [5.49.0](https://github.com/taskforcesh/bullmq/compare/v5.48.1...v5.49.0) (2025-04-16)
+
+
+### Features
+
+* **job:** expose stalledCounter attribute ([#3218](https://github.com/taskforcesh/bullmq/issues/3218)) ([9456472](https://github.com/taskforcesh/bullmq/commit/94564724593699d13bc0ac238e23c13737edbbf2))
+
 ## [5.48.1](https://github.com/taskforcesh/bullmq/compare/v5.48.0...v5.48.1) (2025-04-10)
 
 
