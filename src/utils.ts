@@ -113,6 +113,20 @@ export function invertObject<T extends Record<PropertyKey, PropertyKey>>(
   }, {} as Invert<T>);
 }
 
+export const optsDecodeMap = {
+  de: 'deduplication',
+  fpof: 'failParentOnFailure',
+  cpof: 'continueParentOnFailure',
+  idof: 'ignoreDependencyOnFailure',
+  kl: 'keepLogs',
+  rdof: 'removeDependencyOnFailure',
+} as const;
+
+export const optsEncodeMap = {
+  ...invertObject(optsDecodeMap),
+  /*/ Legacy for backwards compatibility */ debounce: 'de', // TODO: remove in next breaking change
+} as const;
+
 export function isRedisInstance(obj: any): obj is Redis | Cluster {
   if (!obj) {
     return false;
