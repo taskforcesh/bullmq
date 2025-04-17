@@ -330,7 +330,7 @@ describe('scriptLoader', () => {
     //let loader: ScriptLoader;
 
     beforeEach(async () => {
-      connection = new RedisConnection();
+      connection = new RedisConnection({});
       connection.on('error', () => {});
       client = await connection.client;
       await RedisConnection.waitUntilReady(client);

@@ -7,7 +7,7 @@ class QueueKeys:
         self.prefix = prefix
 
     def getKeys(self, name: str):
-        names = ["", "active", "wait", "waiting-children", "paused", "completed", "failed", "delayed",
+        names = ["", "active", "wait", "waiting-children", "paused", "completed", "failed", "delayed", "repeat",
                  "stalled", "limiter", "prioritized", "id", "stalled-check", "meta", "pc", "events", "marker"]
         keys = {}
         for name_type in names:

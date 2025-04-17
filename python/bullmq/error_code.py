@@ -8,3 +8,4 @@ class ErrorCode(Enum):
     JobPendingDependencies = -4
     ParentJobNotExist = -5
     JobLockMismatch = -6
+    ParentJobCannotBeReplaced = -7
