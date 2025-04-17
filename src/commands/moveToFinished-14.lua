@@ -65,8 +65,6 @@ local rcall = redis.call
 --- @include "includes/getTargetQueueList"
 --- @include "includes/moveJobFromPriorityToActive"
 --- @include "includes/moveChildFromDependenciesIfNeeded"
---- @include "includes/moveParentToWait"
---- @include "includes/moveParentToWaitIfNeeded"
 --- @include "includes/prepareJobForProcessing"
 --- @include "includes/promoteDelayedJobs"
 --- @include "includes/removeDeduplicationKeyIfNeeded"
