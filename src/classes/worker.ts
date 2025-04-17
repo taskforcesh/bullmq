@@ -35,6 +35,7 @@ import {
   RateLimitError,
   RATE_LIMIT_ERROR,
   WaitingChildrenError,
+  UnrecoverableError,
 } from './errors';
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { JobScheduler } from './job-scheduler';
@@ -906,6 +907,12 @@ will never work with more accuracy than 1ms. */
 
         try {
           jobsInProgress.add(inProgressItem);
+          if (job.lazyFailedReason) {
+            const failed = await handleFailed(
+              new UnrecoverableError(job.lazyFailedReason),
+            );
+            return failed;
+          }
           const result = await this.callProcessJob(job, token);
           return await handleCompleted(result);
         } catch (err) {

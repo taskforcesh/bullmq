@@ -139,6 +139,11 @@ export class Job<
   failedReason: string;
 
   /**
+   * Reason for failing in a lazy way.
+   */
+  lazyFailedReason: string;
+
+  /**
    * Timestamp for when the job finished (completed or failed).
    */
   finishedOn?: number;
@@ -384,6 +389,10 @@ export class Job<
     job.attemptsMade = parseInt(json.attemptsMade || json.atm || '0');
 
     job.stalledCounter = parseInt(json.stc || '0');
+
+    if (json.lfr) {
+      job.lazyFailedReason = json.lfr;
+    }
 
     job.stacktrace = getTraces(json.stacktrace);
 

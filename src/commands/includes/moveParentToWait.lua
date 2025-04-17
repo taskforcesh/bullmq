@@ -1,5 +1,5 @@
 --[[
-  Validate and move parent to a wait status (wait, prioritized or delayed)
+  Move parent to a wait status (wait, prioritized or delayed)
 ]]
 
 -- Includes
