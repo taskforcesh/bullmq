@@ -250,6 +250,7 @@ export class FlowProducer extends EventEmitter {
       {
         depth: 10,
         maxChildren: 20,
+        prefix: this.opts.prefix,
       },
       opts,
     );
