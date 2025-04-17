@@ -95,8 +95,14 @@ describe('stalled jobs', function () {
     await allStalled;
     await allStalledGlobalEvent;
 
-    const allCompleted = new Promise(resolve => {
-      worker2.on('completed', after(concurrency, resolve));
+    const allCompleted = new Promise<void>(resolve => {
+      worker2.on(
+        'completed',
+        after(concurrency, job => {
+          expect(job.stalledCounter).to.be.equal(1);
+          resolve();
+        }),
+      );
     });
 
     await allCompleted;

@@ -1,3 +1,17 @@
+## [5.49.1](https://github.com/taskforcesh/bullmq/compare/v5.49.0...v5.49.1) (2025-04-17)
+
+
+### Bug Fixes
+
+* **flow-producer:** use FlowProducer prefix by defualt when calling getFlow ([#3224](https://github.com/taskforcesh/bullmq/issues/3224)) ([bd17aad](https://github.com/taskforcesh/bullmq/commit/bd17aad64ec73917548e1bb45ee611b799363cc0))
+
+# [5.49.0](https://github.com/taskforcesh/bullmq/compare/v5.48.1...v5.49.0) (2025-04-16)
+
+
+### Features
+
+* **job:** expose stalledCounter attribute ([#3218](https://github.com/taskforcesh/bullmq/issues/3218)) ([9456472](https://github.com/taskforcesh/bullmq/commit/94564724593699d13bc0ac238e23c13737edbbf2))
+
 ## [5.48.1](https://github.com/taskforcesh/bullmq/compare/v5.48.0...v5.48.1) (2025-04-10)
 
 

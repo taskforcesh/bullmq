@@ -3828,7 +3828,7 @@ describe('flows', () => {
     const { job: topJob } = originalTree;
 
     const tree = await flow.getFlow({
-      id: topJob.id,
+      id: topJob.id!,
       queueName: topQueueName,
       prefix,
     });
@@ -3899,7 +3899,7 @@ describe('flows', () => {
     const { job: topJob } = originalTree;
 
     const tree = await flow.getFlow({
-      id: topJob.id,
+      id: topJob.id!,
       queueName: topQueueName,
       depth: 2,
       maxChildren: 2,
@@ -3924,6 +3924,68 @@ describe('flows', () => {
     await flow.close();
 
     await removeAllQueueData(new IORedis(redisHost), topQueueName);
+  });
+
+  describe('when prefix is not provided in getFlow', function () {
+    it('should get a flow tree using default prefix from FlowProducer', async () => {
+      const name = 'child-job';
+      const topQueueName = `parent-queue-${v4()}`;
+      const customPrefix = `{${prefix}}`;
+
+      const flow = new FlowProducer({ connection, prefix: customPrefix });
+      const originalTree = await flow.add({
+        name: 'root-job',
+        queueName: topQueueName,
+        data: {},
+        children: [
+          {
+            name,
+            data: { idx: 0, foo: 'bar' },
+            queueName,
+            children: [
+              {
+                name,
+                data: { idx: 1, foo: 'baz' },
+                queueName,
+                children: [{ name, data: { idx: 2, foo: 'qux' }, queueName }],
+              },
+            ],
+          },
+        ],
+      });
+
+      const { job: topJob } = originalTree;
+
+      const tree = await flow.getFlow({
+        id: topJob.id!,
+        queueName: topQueueName,
+      });
+
+      expect(tree).to.have.property('job');
+      expect(tree).to.have.property('children');
+
+      const { children, job } = tree;
+      const isWaitingChildren = await job.isWaitingChildren();
+
+      expect(isWaitingChildren).to.be.true;
+      expect(children).to.have.length(1);
+
+      expect(children[0].job.id).to.be.ok;
+      expect(children[0].job.data.foo).to.be.eql('bar');
+      expect(children[0].job.queueName).to.be.eql(queueName);
+      expect(children[0].children).to.have.length(1);
+
+      expect(children[0].children[0].job.id).to.be.ok;
+      expect(children[0].children[0].job.queueName).to.be.eql(queueName);
+      expect(children[0].children[0].job.data.foo).to.be.eql('baz');
+
+      expect(children[0].children[0].children[0].job.id).to.be.ok;
+      expect(children[0].children[0].children[0].job.data.foo).to.be.eql('qux');
+
+      await flow.close();
+
+      await removeAllQueueData(new IORedis(redisHost), topQueueName);
+    });
   });
 
   describe('when parent has removeOnComplete as true', function () {
