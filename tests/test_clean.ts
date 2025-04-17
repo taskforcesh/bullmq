@@ -486,10 +486,13 @@ describe('Cleaner', () => {
           await queue.clean(0, 0, 'failed');
 
           const client = await queue.client;
-          const keys = await client.keys(`${prefix}:${queue.name}:*`);
+          // only checks if there are keys under job key prefix
+          // this way we make sure that all of them were removed
+          const keys = await client.keys(
+            `${prefix}:${queue.name}:${tree.job.id}*`,
+          );
 
-          // Expected keys: meta, id, stalled-check, events, failed and 2 jobs
-          expect(keys.length).to.be.eql(7);
+          expect(keys.length).to.be.eql(0);
 
           const jobs = await queue.getJobCountByTypes('completed');
           expect(jobs).to.be.equal(2);
