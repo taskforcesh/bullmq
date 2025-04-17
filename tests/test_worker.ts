@@ -2865,7 +2865,7 @@ describe('workers', function () {
                 throw new Error('Not yet!');
               }
             },
-            { connection, prefix },
+            { autorun: false, connection, prefix },
           );
 
           await worker.waitUntilReady();
@@ -2891,6 +2891,8 @@ describe('workers', function () {
           }));
 
           await queue.addBulk(jobs);
+
+          worker.run();
 
           await completing;
 
