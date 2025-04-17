@@ -486,6 +486,8 @@ describe('Cleaner', () => {
           await queue.clean(0, 0, 'failed');
 
           const client = await queue.client;
+          // only checks if there are keys under job key prefix
+          // this way we make sure that all of them were removed
           const keys = await client.keys(
             `${prefix}:${queue.name}:${tree.job.id}*`,
           );
