@@ -2,8 +2,8 @@ import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after, beforeEach, describe, it, before } from 'mocha';
 import { v4 } from 'uuid';
-import { Queue, Worker, Job } from '../src/classes';
-import { removeAllQueueData } from '../src/utils';
+import { Queue, QueueEvents, Worker, Job } from '../src/classes';
+import { removeAllQueueData, delay } from '../src/utils';
 
 describe('bulk jobs', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
@@ -84,7 +84,7 @@ describe('bulk jobs', () => {
         data: { idx: 0, foo: 'bar' },
         opts: {
           parent: {
-            id: parent.id,
+            id: parent.id!,
             queue: `${prefix}:${parentQueueName}`,
           },
         },
@@ -94,7 +94,7 @@ describe('bulk jobs', () => {
         data: { idx: 1, foo: 'baz' },
         opts: {
           parent: {
-            id: parent.id,
+            id: parent.id!,
             queue: `${prefix}:${parentQueueName}`,
           },
         },
@@ -118,6 +118,51 @@ describe('bulk jobs', () => {
     await parentQueue.close();
     await removeAllQueueData(new IORedis(redisHost), parentQueueName);
   });
+
+  it('should keep workers busy', async () => {
+    const numJobs = 6;
+    const queueEvents = new QueueEvents(queueName, { connection, prefix });
+    await queueEvents.waitUntilReady();
+
+    const worker = new Worker(
+      queueName,
+      async () => {
+        await delay(900);
+      },
+      { connection, prefix },
+    );
+    const worker2 = new Worker(
+      queueName,
+      async () => {
+        await delay(900);
+      },
+      { connection, prefix },
+    );
+    await worker.waitUntilReady();
+    await worker2.waitUntilReady();
+
+    let counter = 0;
+    const completed = new Promise<void>(resolve => {
+      queueEvents.on('completed', () => {
+        counter++;
+        if (counter === numJobs) {
+          resolve();
+        }
+      });
+    });
+
+    const jobs = Array.from(Array(numJobs).keys()).map(index => ({
+      name: 'test',
+      data: { index },
+    }));
+
+    await queue.addBulk(jobs);
+
+    await completed;
+    await worker.close();
+    await worker2.close();
+    await queueEvents.close();
+  }).timeout(10_000);
 
   it('should process jobs with custom ids', async () => {
     const name = 'test';

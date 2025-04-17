@@ -27,6 +27,3 @@ A simple Queue instance used for managing the queue such as adding jobs, pausing
 For example, say that you are adding jobs to a queue as the result of a call to an HTTP endpoint. The caller of this endpoint cannot wait forever if the connection to Redis happens to be down when this call is made.
 
 Therefore the `maxRetriesPerRequest` setting should either be left at its default (which currently is 20) or set it to another value, maybe 1 so that the user gets an error quickly and can retry later.
-
-
-

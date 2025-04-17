@@ -56,6 +56,6 @@ have pending children in other queues, or just moved to wait.
 
 ## Read more:
 
-- 💡 [Drain API Reference](https://api.docs.bullmq.io/classes/v4.Queue.html#drain)
-- 💡 [Clean API Reference](https://api.docs.bullmq.io/classes/v4.Queue.html#clean)
-- 💡 [Obliterate API Reference](https://api.docs.bullmq.io/classes/v4.Queue.html#obliterate)
+- 💡 [Drain API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#drain)
+- 💡 [Clean API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#clean)
+- 💡 [Obliterate API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#obliterate)

@@ -1,4 +1,4 @@
-import { RedisJobOptions } from '../types';
+import { JobProgress, RedisJobOptions } from '../types';
 import { ParentKeys } from './parent';
 
 export interface JobJson {
@@ -6,7 +6,7 @@ export interface JobJson {
   name: string;
   data: string;
   opts: RedisJobOptions;
-  progress: number | object;
+  progress: JobProgress;
   attemptsMade: number;
   attemptsStarted: number;
   finishedOn?: number;
@@ -18,6 +18,11 @@ export interface JobJson {
   parent?: ParentKeys;
   parentKey?: string;
   repeatJobKey?: string;
+  nextRepeatableJobKey?: string;
+  debounceId?: string;
+  deduplicationId?: string;
+  processedBy?: string;
+  stalledCounter: number;
 }
 
 export interface JobJsonRaw {
@@ -30,13 +35,18 @@ export interface JobJsonRaw {
   attemptsMade?: string;
   finishedOn?: string;
   processedOn?: string;
+  priority: string;
   timestamp: string;
   failedReason: string;
   stacktrace: string[];
   returnvalue: string;
   parentKey?: string;
   parent?: string;
+  deid?: string;
   rjk?: string;
+  nrjid?: string;
   atm?: string;
+  stc?: string;
   ats?: string;
+  pb?: string; // Worker name
 }

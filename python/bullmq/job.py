@@ -5,7 +5,7 @@ from bullmq.backoffs import Backoffs
 if TYPE_CHECKING:
     from bullmq.queue import Queue
 from bullmq.types import JobOptions
-from bullmq.utils import get_parent_key
+from bullmq.utils import get_parent_key, parse_json_string_values
 
 import json
 import time
@@ -14,6 +14,8 @@ import traceback
 
 optsDecodeMap = {
     'fpof': 'failParentOnFailure',
+    'cpof': 'continueParentOnFailure',
+    'idof': 'ignoreDependencyOnFailure',
     'kl': 'keepLogs',
 }
 
@@ -114,6 +116,12 @@ class Job:
         """
         return self.isInZSet('waiting-children')
 
+    def isActive(self):
+        """
+        Returns true if the job is active.
+        """
+        return self.isInList('active')
+
     async def isWaiting(self):
         return ( await self.isInList('wait') or await self.isInList('paused'))
 
@@ -146,7 +154,7 @@ class Job:
                 elif delay:
                     keys, args = self.scripts.moveToDelayedArgs(
                         self.id,
-                        round(time.time() * 1000) + delay,
+                        round(time.time() * 1000),
                         token,
                         delay
                     )
@@ -183,6 +191,9 @@ class Job:
 
         self.attemptsMade = self.attemptsMade + 1
 
+    def log(self, logRow: str):
+        return Job.addJobLog(self.queue, self.id, logRow, self.opts.get("keepLogs", 0))
+
     async def saveStacktrace(self, pipe, err:str):
         stacktrace = traceback.format_exc()
         stackTraceLimit = self.opts.get("stackTraceLimit")
@@ -193,12 +204,16 @@ class Job:
                 self.stacktrace = self.stacktrace[-(stackTraceLimit-1):stackTraceLimit]
 
         keys, args = self.scripts.saveStacktraceArgs(
-            self.id, json.dumps(self.stacktrace, separators=(',', ':')), err)
+            self.id, json.dumps(self.stacktrace, separators=(',', ':'), allow_nan=False), err)
 
         await self.scripts.commands["saveStacktrace"](keys=keys, args=args, client=pipe)
 
     def moveToWaitingChildren(self, token, opts:dict):
         return self.scripts.moveToWaitingChildren(self.id, token, opts)
+
+    async def getChildrenValues(self):
+        results = await self.queue.client.hgetall(f"{self.queue.prefix}:{self.queue.name}:{self.id}:processed")
+        return parse_json_string_values(results)
 
     @staticmethod
     def fromJSON(queue: Queue, rawData: dict, jobId: str | None = None):
@@ -244,7 +259,7 @@ class Job:
             job.parentKey = rawData.get("parentKey")
 
         if rawData.get("parent"):
-           job.parent = json.loads(rawData.get("parent"))
+            job.parent = json.loads(rawData.get("parent"))
 
         return job
 
@@ -255,6 +270,19 @@ class Job:
         if len(raw_data):
             return Job.fromJSON(queue, raw_data, jobId)
 
+    @staticmethod
+    async def addJobLog(queue: Queue, jobId: str, logRow: str, keepLogs: int = 0):
+        logs_key = f"{queue.prefix}:{queue.name}:{jobId}:logs"
+        multi = await queue.client.pipeline()
+
+        multi.rpush(logs_key, logRow)
+
+        if keepLogs:
+            multi.ltrim(logs_key, -keepLogs, -1)
+
+        result = await multi.execute()
+
+        return min(keepLogs, result[0]) if keepLogs else result[0]
 
 def optsFromJSON(rawOpts: dict) -> dict:
     # opts = json.loads(rawOpts)

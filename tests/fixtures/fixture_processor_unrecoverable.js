@@ -13,7 +13,7 @@ module.exports = function (job) {
       throw new Error('Not yet!');
     }
     if (job.attemptsMade < 2) {
-      throw new UnrecoverableError('Unrecoverable');
+      throw new UnrecoverableError();
     }
   });
 };

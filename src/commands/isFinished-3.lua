@@ -23,7 +23,7 @@ if rcall("EXISTS", KEYS[3]) ~= 1 then
   return -1
 end
 
-if rcall("ZSCORE", KEYS[1], ARGV[1]) ~= false then
+if rcall("ZSCORE", KEYS[1], ARGV[1]) then
   if ARGV[2] == "1" then
     local returnValue = rcall("HGET", KEYS[3], "returnvalue")
 
@@ -32,7 +32,7 @@ if rcall("ZSCORE", KEYS[1], ARGV[1]) ~= false then
   return 1
 end
 
-if rcall("ZSCORE", KEYS[2], ARGV[1]) ~= false then
+if rcall("ZSCORE", KEYS[2], ARGV[1]) then
   if ARGV[2] == "1" then
     local failedReason = rcall("HGET", KEYS[3], "failedReason")
 

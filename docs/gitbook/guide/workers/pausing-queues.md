@@ -2,7 +2,7 @@
 
 BullMQ supports pausing queues _globally_ or _locally_. When a queue is paused _globally_ no workers will pick up any jobs from the queue. When you pause a queue, the workers that are currently busy processing a job will continue working on that job until it completes (or fails), and then will keep idling until the queue is unpaused.
 
-Pausing a queue is performed by calling the _**`pause`**_ method on a [queue](https://api.docs.bullmq.io/classes/v4.Queue.html) instance:
+Pausing a queue is performed by calling the _**`pause`**_ method on a [queue](https://api.docs.bullmq.io/classes/v5.Queue.html) instance:
 
 ```typescript
 await myQueue.pause();
@@ -22,5 +22,5 @@ await myWorker.pause(true);
 
 ## Read more:
 
-- 💡 [Pause Queue API Reference](https://api.docs.bullmq.io/classes/v4.Queue.html#pause)
-- 💡 [Pause Worker API Reference](https://api.docs.bullmq.io/classes/v4.Worker.html#pause)
+- 💡 [Pause Queue API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#pause)
+- 💡 [Pause Worker API Reference](https://api.docs.bullmq.io/classes/v5.Worker.html#pause)

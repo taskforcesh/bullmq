@@ -3,7 +3,11 @@
 * [What is BullMQ](README.md)
 * [Quick Start](<README (1).md>)
 * [API Reference](https://api.docs.bullmq.io)
-* [Changelog](changelog.md)
+* [Changelogs](changelog.md)
+  * [v4](changelogs/changelog-v4.md)
+  * [v3](changelogs/changelog-v3.md)
+  * [v2](changelogs/changelog-v2.md)
+  * [v1](changelogs/changelog-v1.md)
 
 ## Guide
 
@@ -12,8 +16,10 @@
 * [Queues](guide/queues/README.md)
   * [Auto-removal of jobs](guide/queues/auto-removal-of-jobs.md)
   * [Adding jobs in bulk](guide/queues/adding-bulks.md)
+  * [Global Concurrency](guide/queues/global-concurrency.md)
   * [Removing Jobs](guide/queues/removing-jobs.md)
 * [Workers](guide/workers/README.md)
+  * [Auto-removal of jobs](guide/workers/auto-removal-of-jobs.md)
   * [Concurrency](guide/workers/concurrency.md)
   * [Graceful shutdown](guide/workers/graceful-shutdown.md)
   * [Stalled Jobs](guide/workers/stalled-jobs.md)
@@ -24,21 +30,37 @@
   * [LIFO](guide/jobs/lifo.md)
   * [Job Ids](guide/jobs/job-ids.md)
   * [Job Data](guide/jobs/job-data.md)
+  * [Deduplication](guide/jobs/deduplication.md)
   * [Delayed](guide/jobs/delayed.md)
   * [Repeatable](guide/jobs/repeatable.md)
   * [Prioritized](guide/jobs/prioritized.md)
   * [Removing jobs](guide/jobs/removing-job.md)
   * [Stalled](guide/jobs/stalled.md)
   * [Getters](guide/jobs/getters.md)
+* [Job Schedulers](guide/job-schedulers/README.md)
+  * [Repeat Strategies](guide/job-schedulers/repeat-strategies.md)
+  * [Repeat options](guide/job-schedulers/repeat-options.md)
+  * [Manage Job Schedulers](guide/job-schedulers/manage-job-schedulers.md)
 * [Flows](guide/flows/README.md)
   * [Adding flows in bulk](guide/flows/adding-bulks.md)
   * [Get Flow Tree](guide/flows/get-flow-tree.md)
   * [Fail Parent](guide/flows/fail-parent.md)
-* [Metrics](guide/metrics/metrics.md)
+  * [Continue Parent](guide/flows/continue-parent.md)
+  * [Remove Dependency](guide/flows/remove-dependency.md)
+  * [Ignore Dependency](guide/flows/ignore-dependency.md)
+  * [Remove Child Dependency](guide/flows/remove-child-dependency.md)
+* [Metrics](guide/metrics/README.md)
+  * [Prometheus](guide/metrics/prometheus.md)
 * [Rate limiting](guide/rate-limiting.md)
+* [Parallelism and Concurrency](guide/parallelism-and-concurrency.md)
 * [Retrying failing jobs](guide/retrying-failing-jobs.md)
 * [Returning job data](guide/returning-job-data.md)
-* [Events](guide/events.md)
+* [Events](guide/events/README.md)
+  * [Create Custom Events](guide/events/create-custom-events.md)
+* [Telemetry](guide/telemetry/README.md)
+  * [Getting started](guide/telemetry/getting-started.md)
+  * [Running Jaeger](guide/telemetry/running-jaeger.md)
+  * [Running a simple example](guide/telemetry/running-a-simple-example.md)
 * [QueueScheduler](guide/queuescheduler.md)
 * [Redis™ Compatibility](guide/redis-tm-compatibility/README.md)
   * [Dragonfly](guide/redis-tm-compatibility/dragonfly.md)
@@ -51,6 +73,7 @@
   * [Queue Events Listeners](guide/nestjs/queue-events-listeners.md)
 * [Going to production](guide/going-to-production.md)
 * [Migration to newer versions](guide/migration-to-newer-versions.md)
+* [Troubleshooting](guide/troubleshooting.md)
 
 ## Patterns
 
@@ -63,6 +86,8 @@
 * [Process Step Jobs](patterns/process-step-jobs.md)
 * [Failing fast when Redis is down](patterns/failing-fast-when-redis-is-down.md)
 * [Stop retrying jobs](patterns/stop-retrying-jobs.md)
+* [Timeout jobs](patterns/timeout-jobs.md)
+* [Timeout for Sandboxed processors](patterns/timeout-for-sandboxed-processors.md)
 * [Redis Cluster](patterns/redis-cluster.md)
 
 ## BullMQ Pro
@@ -72,11 +97,16 @@
 * [Observables](bullmq-pro/observables/README.md)
   * [Cancelation](bullmq-pro/observables/cancelation.md)
 * [Groups](bullmq-pro/groups/README.md)
+  * [Getters](bullmq-pro/groups/getters.md)
   * [Rate limiting](bullmq-pro/groups/rate-limiting.md)
+  * [Local group rate limit](bullmq-pro/groups/local-group-rate-limit.md)
   * [Concurrency](bullmq-pro/groups/concurrency.md)
+  * [Local group concurrency](bullmq-pro/groups/local-group-concurrency.md)
   * [Max group size](bullmq-pro/groups/max-group-size.md)
   * [Pausing groups](bullmq-pro/groups/pausing-groups.md)
   * [Prioritized intra-groups](bullmq-pro/groups/prioritized.md)
+  * [Sandboxes for groups](bullmq-pro/groups/sandboxes-for-groups.md)
+* [Telemetry](bullmq-pro/telemetry.md)
 * [Batches](bullmq-pro/batches.md)
 * [NestJs](bullmq-pro/nestjs/README.md)
   * [Producers](bullmq-pro/nestjs/producers.md)
@@ -85,6 +115,7 @@
   * [Changelog](bullmq-pro/nestjs/changelog.md)
 * [API Reference](https://api.bullmq.pro)
 * [Changelog](bullmq-pro/changelog.md)
+* [New Releases](bullmq-pro/new-releases.md)
 * [Support](bullmq-pro/support.md)
 
 ## Bull
@@ -103,11 +134,6 @@
   * [Custom backoff strategy](bull/patterns/custom-backoff-strategy.md)
   * [Debugging](bull/patterns/debugging.md)
   * [Manually fetching jobs](bull/patterns/manually-fetching-jobs.md)
-
-## Bull 3.x Migration
-
-* [Compatibility class](bull-3.x-migration/compatibility-class.md)
-* [Migration](bull-3.x-migration/migration.md)
 
 ## Python
 

@@ -2,7 +2,7 @@
 
 In some situations, you need to get a job and all of its children, grandchildren, and so on.
 
-The pattern to solve this requirement consists of using the [`getFlow`](https://api.docs.bullmq.io/classes/v4.FlowProducer.html#getFlow) method.
+The pattern to solve this requirement consists of using the [`getFlow`](https://api.docs.bullmq.io/classes/v5.FlowProducer.html#getFlow) method.
 
 ```typescript
 const flow = new FlowProducer({ connection });
@@ -66,4 +66,4 @@ const { children, job } = limitedTree;
 
 ## Read more:
 
-- 💡 [Get Flow API Reference](https://api.docs.bullmq.io/classes/v4.FlowProducer.html#getFlow)
+- 💡 [Get Flow API Reference](https://api.docs.bullmq.io/classes/v5.FlowProducer.html#getFlow)

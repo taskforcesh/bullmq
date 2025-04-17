@@ -7,7 +7,7 @@ class JobOptions(TypedDict, total=False):
     """
     Backoff setting for automatic retries if the job fails.
     """
-    
+
     jobId: str
     """
     Override the job ID - by default, the job ID is a unique

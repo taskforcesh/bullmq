@@ -10,7 +10,7 @@ The BullMQ Pro version continues to evolve, with more features being added regul
 
 
 
-![](<../.gitbook/assets/image (4).png>)
+![](<../.gitbook/assets/image (4) (1).png>)
 
 ### Commercial License
 

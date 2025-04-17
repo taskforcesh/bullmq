@@ -6,6 +6,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required for merging branches, committing changes, and deploying to GitHub Pages
 
     strategy:
       matrix:
@@ -17,7 +19,7 @@ jobs:
           # check out all branches
           fetch-depth: 0
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@e33196f7422957bea03ed53f6fbb155025ffc7b8 # v3
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v3
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'yarn'

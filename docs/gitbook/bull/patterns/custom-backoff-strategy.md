@@ -46,7 +46,7 @@ const myQueue = new Queue("Server B", {
         console.error({ attemptsMade, err, options });
         return Math.round(
           Math.random() *
-            (Math.pow(2, Math.max(attemptsMade, truncate)) - 1) *
+            (Math.pow(2, Math.min(attemptsMade, truncate)) - 1) *
             delay
         );
       },

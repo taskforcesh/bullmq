@@ -1,7 +1,7 @@
 export type KeysMap = { [index in string]: string };
 
 export class QueueKeys {
-  constructor(public readonly prefix: string = 'bull') {}
+  constructor(public readonly prefix = 'bull') {}
 
   getKeys(name: string): KeysMap {
     const keys: { [index: string]: string } = {};
@@ -24,6 +24,7 @@ export class QueueKeys {
       'events',
       'pc', // priority counter key
       'marker', // marker key
+      'de', // deduplication key
     ].forEach(key => {
       keys[key] = this.toKey(name, key);
     });

@@ -14,7 +14,7 @@ See [Connections](../connections.md) for details on how to pass Redis details to
 
 When you instantiate a Queue, BullMQ will just _upsert_ a small "meta-key", so if the queue existed before it will just pick it up and you can continue adding jobs to it.
 
-The most important method is probably the [_**add**_](https://api.docs.bullmq.io/classes/v4.Queue.html#add) method. This method allows you to add jobs to the queue in different fashions:
+The most important method is probably the [_**add**_](https://api.docs.bullmq.io/classes/v5.Queue.html#add) method. This method allows you to add jobs to the queue in different fashions:
 
 ```typescript
 await queue.add('paint', { color: 'red' });
@@ -36,8 +36,8 @@ Prior to BullMQ 2.0, in order for delay jobs to work you need to have at least o
 From BullMQ 2.0 and onwards, the `QueueScheduler` is not needed anymore.
 {% endhint %}
 
-There are many other options available such as priorities, backoff settings, lifo behaviour, remove-on-complete policies, etc. Please check the remaining of this guide for more information regarding these options.
+There are many other options available such as priorities, backoff settings, lifo behaviour, remove-on-complete policies, etc. Please check the remainder of this guide for more information regarding these options.
 
 ## Read more:
 
-* 💡 [Queue API Reference](https://api.docs.bullmq.io/classes/v4.Queue.html)
+- 💡 [Queue API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html)

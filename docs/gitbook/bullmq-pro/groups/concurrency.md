@@ -10,13 +10,12 @@ The concurrency factor is configured as follows:
 import { WorkerPro } from '@taskforcesh/bullmq-pro';
 
 const worker = new WorkerPro('myQueue', processFn, {
-    group: {
-      concurrency: 3 // Limit to max 3 parallel jobs per group
-    },
-    concurrency: 100,
-    connection
+  group: {
+    concurrency: 3, // Limit to max 3 parallel jobs per group
+  },
+  concurrency: 100,
+  connection,
 });
 ```
 
 The concurrency factor is global, so in the example above, independently of the concurrency factor per worker or the number of workers that you instantiate in your application, it will never process more than 3 jobs per group at any given time.
-

@@ -28,7 +28,7 @@ describe('metrics', function () {
   });
 
   beforeEach(function () {
-    this.clock = sinon.useFakeTimers();
+    this.clock = sinon.useFakeTimers({ shouldClearNativeTimers: true });
   });
 
   beforeEach(async function () {
@@ -66,6 +66,8 @@ describe('metrics', function () {
       ONE_MINUTE,
       ONE_MINUTE,
       ONE_MINUTE * 3,
+      ONE_SECOND * 70,
+      ONE_SECOND * 50,
       ONE_HOUR,
       ONE_MINUTE,
     ];
@@ -131,6 +133,8 @@ describe('metrics', function () {
       '0',
       '0',
       '0',
+      '1',
+      '1',
       '1',
       '0',
       '0',
@@ -305,6 +309,7 @@ describe('metrics', function () {
         throw new Error('test');
       },
       {
+        autorun: false,
         connection,
         prefix,
         metrics: {
@@ -329,11 +334,10 @@ describe('metrics', function () {
       await queue.add('test', { index: i });
     }
 
+    worker.run();
     await completing;
 
-    const closing = worker.close();
-
-    await closing;
+    await worker.close();
 
     const metrics = await queue.getMetrics('failed');
 

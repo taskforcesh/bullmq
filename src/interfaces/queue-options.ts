@@ -1,6 +1,7 @@
 import { AdvancedRepeatOptions } from './advanced-options';
 import { DefaultJobOptions } from './base-job-options';
 import { ConnectionOptions } from './redis-options';
+import { Telemetry } from './telemetry';
 
 export enum ClientType {
   blocking = 'blocking',
@@ -18,6 +19,7 @@ export interface QueueBaseOptions {
 
   /**
    * Denotes commands should retry indefinitely.
+   * @deprecated not in use anymore.
    */
   blockingConnection?: boolean;
 
@@ -31,6 +33,21 @@ export interface QueueBaseOptions {
    * @defaultValue false
    */
   skipVersionCheck?: boolean;
+
+  /**
+   * Telemetry client
+   */
+  telemetry?: Telemetry;
+
+  /**
+   * Skip waiting for connection ready.
+   *
+   * In some instances if you want the queue to fail fast if the connection is
+   * not ready you can set this to true. This could be useful for testing and when
+   * adding jobs via HTTP endpoints for example.
+   *
+   */
+  skipWaitingForReady?: boolean;
 }
 
 /**
@@ -54,6 +71,19 @@ export interface QueueOptions extends QueueBaseOptions {
     };
   };
 
+  /**
+   * Skip Meta update.
+   *
+   * If true, the queue will not update the metadata of the queue.
+   * Useful for read-only systems that do should not update the metadata.
+   *
+   * @defaultValue false
+   */
+  skipMetasUpdate?: boolean;
+
+  /**
+   * Advanced options for the repeatable jobs.
+   */
   settings?: AdvancedRepeatOptions;
 }
 

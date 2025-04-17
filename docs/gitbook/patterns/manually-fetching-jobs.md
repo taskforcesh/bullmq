@@ -51,13 +51,13 @@ A token represents ownership by given worker currently working on a given job. I
 
 ## Checking for stalled jobs
 
-When processing jobs manually you may also want to start the stalled jobs checker. This checker is needed to move stalled jobs (whose lock has expired) back to the _wait_ status (or _failed_ if they have exhausted the maximum number of [stalled attempts](https://api.docs.bullmq.io/interfaces/v4.WorkerOptions.html#maxStalledCount), which is 1 by default).
+When processing jobs manually you may also want to start the stalled jobs checker. This checker is needed to move stalled jobs (whose lock has expired) back to the _wait_ status (or _failed_ if they have exhausted the maximum number of [stalled attempts](https://api.docs.bullmq.io/interfaces/v5.WorkerOptions.html#maxStalledCount), which is 1 by default).
 
 ```typescript
 await worker.startStalledCheckTimer()
 ```
 
-The checker will run periodically (based on the [`stalledInterval`](https://api.docs.bullmq.io/interfaces/v4.WorkerOptions.html#stalledInterval) option) until the worker is closed.
+The checker will run periodically (based on the [`stalledInterval`](https://api.docs.bullmq.io/interfaces/v5.WorkerOptions.html#stalledInterval) option) until the worker is closed.
 
 ## Looping through jobs
 
@@ -96,3 +96,24 @@ while (1) {
   }
 }
 ```
+
+## Rate Limiting
+
+If you want to move a job back to wait because your queue is rate limited.
+
+```typescript
+const worker = new Worker('my-queue', null, { connection, prefix });
+const token = 'my-token';
+await Job.create(queue, 'test', { foo: 'bar' });
+const job = (await worker.getNextJob(token)) as Job;
+
+await queue.rateLimit(60000);
+await job.moveToWait(token);
+```
+
+## Read more:
+
+- 💡 [Get Next Job API Reference](https://api.docs.bullmq.io/classes/v5.Worker.html#getNextJob)
+- 💡 [Move To Completed API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#moveToCompleted)
+- 💡 [Move To Failed API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#moveToFailed)
+- 💡 [Move To Wait API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#moveToWait)

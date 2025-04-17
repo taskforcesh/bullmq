@@ -22,7 +22,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Setup Node.js
-        uses: actions/setup-node@e33196f7422957bea03ed53f6fbb155025ffc7b8 # v3
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v3
         with:
           node-version: lts/*
           cache: 'yarn'
@@ -55,7 +55,7 @@ jobs:
         if: ${{ contains(env.commitmsg, 'python') }}
         run: |
           cd python
-          pip install packaging
+          pip install build
           git config --global user.email "manast@taskforce.sh"
           git config --global user.name "manast"
           export VERSION=$(semantic-release print-version)

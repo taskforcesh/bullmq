@@ -1,4 +1,6 @@
-import { RepeatOptions, KeepJobs, BackoffOptions } from './';
+import { BackoffOptions } from './backoff-options';
+import { KeepJobs } from './keep-jobs';
+import { RepeatOptions } from './repeat-options';
 
 export interface DefaultJobOptions {
   /**
@@ -8,9 +10,10 @@ export interface DefaultJobOptions {
   timestamp?: number;
 
   /**
-   * Ranges from 1 (highest priority) to 2 097 152 (lowest priority). Note that
+   * Ranges from 0 (highest priority) to 2 097 152 (lowest priority). Note that
    * using priorities has a slight impact on performance,
    * so do not use it if not required.
+   * @defaultValue 0
    */
   priority?: number;
 

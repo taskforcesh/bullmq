@@ -1,3 +1,39 @@
+# [3.1.0](https://github.com/taskforcesh/nestjs-bullmq-pro/compare/v3.0.0...v3.1.0) (2025-03-06)
+
+
+### Features
+
+* support nestjs v11 ([#17](https://github.com/taskforcesh/nestjs-bullmq-pro/issues/17)) ([4b07bd5](https://github.com/taskforcesh/nestjs-bullmq-pro/commit/4b07bd56075824ca8e8372124cc4c67c843625bb))
+
+# [3.0.0](https://github.com/taskforcesh/nestjs-bullmq-pro/compare/v2.1.1...v3.0.0) (2024-04-05)
+
+
+### Features
+
+* support bullmq-pro v7 ([#15](https://github.com/taskforcesh/nestjs-bullmq-pro/issues/15)) ([9ebb21b](https://github.com/taskforcesh/nestjs-bullmq-pro/commit/9ebb21bbd401f2957baca99fffb8e7a8da195e01))
+
+
+### BREAKING CHANGES
+
+* references:
+  - [Better Queue Markers](https://bullmq.io/news/231204/better-queue-markers/)
+  - [BullMQ v5 Migration Notes](https://bullmq.io/news/231221/bullmqv5-release/)
+  - [BullMQ Pro v7 Release](https://bullmq.io/news/240312/bullmq-prov7-release/)
+
+## [2.1.1](https://github.com/taskforcesh/nestjs-bullmq-pro/compare/v2.1.0...v2.1.1) (2024-04-05)
+
+
+### Bug Fixes
+
+* revert bullmq v7.4.0 to v6 ([#14](https://github.com/taskforcesh/nestjs-bullmq-pro/issues/14)) ([3f170d9](https://github.com/taskforcesh/nestjs-bullmq-pro/commit/3f170d9fbaa537f06c26fa2a940962d17c2e386f))
+
+# [2.1.0](https://github.com/taskforcesh/nestjs-bullmq-pro/compare/v2.0.0...v2.1.0) (2024-04-05)
+
+
+### Features
+
+* upgrade bullmq-pro to v7.4.0 ([#10](https://github.com/taskforcesh/nestjs-bullmq-pro/issues/10)) ([7af2548](https://github.com/taskforcesh/nestjs-bullmq-pro/commit/7af2548397cfde027d80786c7d6a0bcece72988a))
+
 # [2.0.0](https://github.com/taskforcesh/nestjs-bullmq-pro/compare/v1.1.0...v2.0.0) (2023-06-28)
 
 

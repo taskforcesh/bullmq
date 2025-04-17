@@ -1,7 +1,14 @@
 import { expect } from 'chai';
 import { default as IORedis, RedisOptions } from 'ioredis';
 import { v4 } from 'uuid';
-import { Queue, Job, Worker, QueueBase } from '../src/classes';
+import {
+  Queue,
+  Job,
+  Worker,
+  QueueBase,
+  FlowProducer,
+  RedisConnection,
+} from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
 import {
   before,
@@ -11,6 +18,149 @@ import {
   afterEach,
   after as afterAll,
 } from 'mocha';
+
+import * as sinon from 'sinon';
+
+describe('RedisConnection', () => {
+  describe('constructor', () => {
+    it('initializes with default extraOptions when none provided', () => {
+      const connection = new RedisConnection({});
+      expect((connection as any).extraOptions).to.deep.equal({
+        shared: false,
+        blocking: true,
+        skipVersionCheck: false,
+        skipWaitingForReady: false,
+      });
+    });
+
+    it('merges provided extraOptions with defaults', () => {
+      const options = {
+        shared: true,
+        blocking: false,
+        skipVersionCheck: true,
+        skipWaitingForReady: true,
+      };
+      const connection = new RedisConnection({}, options);
+      expect((connection as any).extraOptions).to.deep.include(options);
+    });
+  });
+
+  describe('blocking option', () => {
+    it('sets maxRetriesPerRequest to null when blocking is true', () => {
+      const connection = new RedisConnection({}, { blocking: true });
+      expect((connection as any).opts.maxRetriesPerRequest).to.be.null;
+    });
+
+    it('preserves maxRetriesPerRequest when blocking is false', () => {
+      const connection = new RedisConnection(
+        { maxRetriesPerRequest: 10 },
+        { blocking: false },
+      );
+      expect((connection as any).opts.maxRetriesPerRequest).to.equal(10);
+    });
+  });
+
+  describe('connect()', () => {
+    let waitUntilReadyStub: sinon.SinonStub;
+
+    beforeEach(() => {
+      waitUntilReadyStub = sinon
+        .stub(RedisConnection, 'waitUntilReady')
+        .resolves();
+    });
+
+    afterEach(() => {
+      waitUntilReadyStub.restore();
+    });
+
+    it('skips waiting for ready when skipWaitingForReady is true', async () => {
+      const connection = new RedisConnection({}, { skipWaitingForReady: true });
+      const client = await connection.client;
+      expect(waitUntilReadyStub.called).to.be.false;
+    });
+
+    it('awaits ready state when skipWaitingForReady is false', async () => {
+      const connection = new RedisConnection(
+        {},
+        { skipWaitingForReady: false },
+      );
+      const client = await connection.client;
+      expect(waitUntilReadyStub.calledOnce).to.be.true;
+    });
+  });
+
+  describe('Queue', () => {
+    it('propagates skipWaitingForReady to RedisConnection', () => {
+      const queue = new Queue('test', {
+        skipWaitingForReady: true,
+        connection: {},
+      });
+      expect((<any>queue).connection.extraOptions.skipWaitingForReady).to.be
+        .true;
+    });
+
+    it('uses non-blocking connection by default', () => {
+      const queue = new Queue('test');
+      expect((<any>queue).connection.extraOptions.blocking).to.be.false;
+    });
+
+    it('uses shared connection if provided Redis instance', () => {
+      const connection = new IORedis();
+
+      const queue = new Queue('test', {
+        connection,
+      });
+      expect((<any>queue).connection.extraOptions.shared).to.be.true;
+
+      connection.disconnect();
+    });
+  });
+
+  describe('Worker', () => {
+    it('initializes blockingConnection with blocking: true', () => {
+      const worker = new Worker('test', async () => {}, { connection: {} });
+      expect((<any>worker).blockingConnection.extraOptions.blocking).to.be.true;
+    });
+
+    it('sets shared: false for blockingConnection', () => {
+      const connection = new IORedis({ maxRetriesPerRequest: null });
+
+      const worker = new Worker('test', async () => {}, { connection });
+      expect((<any>worker).blockingConnection.extraOptions.shared).to.be.false;
+
+      connection.disconnect();
+    });
+
+    it('uses blocking connection by default', () => {
+      const connection = new IORedis({ maxRetriesPerRequest: null });
+
+      const worker = new Worker('test', async () => {}, { connection });
+
+      expect((<any>worker).connection.extraOptions.blocking).to.be.false;
+      expect((<any>worker).blockingConnection.extraOptions.blocking).to.be.true;
+
+      connection.disconnect();
+    });
+  });
+
+  describe('FlowProducer', () => {
+    it('uses non-blocking connection', () => {
+      const flowProducer = new FlowProducer();
+      expect((<any>flowProducer).connection.extraOptions.blocking).to.be.false;
+    });
+
+    it('shares connection if provided Redis instance', () => {
+      const connection = new IORedis();
+
+      const flowProducer = new FlowProducer({
+        connection,
+      });
+      expect((<any>flowProducer).connection.extraOptions.shared).to.be.true;
+
+      connection.disconnect();
+    });
+  });
+});
 
 describe('connection', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
@@ -35,6 +185,70 @@ describe('connection', () => {
 
   afterAll(async function () {
     await connection.quit();
+  });
+
+  describe('establish ioredis connection', () => {
+    it('should connect with host:port', async () => {
+      const queue = new Queue('valid-host-port', {
+        connection: {
+          host: 'localhost',
+          port: 6379,
+          retryStrategy: () => null,
+        },
+      });
+
+      const client = await queue.waitUntilReady();
+      expect(client.status).to.be.eql('ready');
+
+      await queue.close();
+    });
+
+    it('should fail with invalid host:port', async () => {
+      const queue = new Queue('invalid-host-port', {
+        connection: {
+          host: 'localhost',
+          port: 9000,
+          retryStrategy: () => null,
+        },
+      });
+
+      await expect(queue.waitUntilReady()).to.be.eventually.rejectedWith(
+        'connect ECONNREFUSED 127.0.0.1:9000',
+      );
+    });
+
+    it('should connect with connection URL', async () => {
+      const queue = new Queue('valid-url', {
+        connection: {
+          url: 'redis://localhost:6379',
+          // Make sure defaults are not being used
+          host: '1.1.1.1',
+          port: 2222,
+          retryStrategy: () => null,
+        },
+      });
+
+      const client = await queue.waitUntilReady();
+      expect(client.status).to.be.eql('ready');
+
+      await queue.close();
+    });
+
+    it('should fail with invalid connection URL', async () => {
+      const queue = new Queue('invalid-url', {
+        connection: {
+          url: 'redis://localhost:9001',
+          // Make sure defaults are not being used
+          host: '1.1.1.1',
+          port: 2222,
+          retryStrategy: () => null,
+        },
+      });
+
+      await expect(queue.waitUntilReady()).to.be.eventually.rejectedWith(
+        'connect ECONNREFUSED 127.0.0.1:9001',
+      );
+    });
   });
 
   describe('prefix', () => {
@@ -85,11 +299,10 @@ describe('connection', () => {
 
   describe('non-blocking', () => {
     it('should not override any redis options', async () => {
-      connection = new IORedis(redisHost, { maxRetriesPerRequest: 20 });
+      const connection2 = new IORedis(redisHost, { maxRetriesPerRequest: 20 });
 
-      const queue = new QueueBase(queueName, {
-        connection,
-        blockingConnection: false,
+      const queue = new Queue(queueName, {
+        connection: connection2,
       });
 
       const options = <RedisOptions>(await queue.client).options;
@@ -97,6 +310,7 @@ describe('connection', () => {
       expect(options.maxRetriesPerRequest).to.be.equal(20);
 
       await queue.close();
+      await connection2.quit();
     });
   });
 
@@ -132,6 +346,30 @@ describe('connection', () => {
       const queue = new Queue('myqueue', { connection });
       connection.disconnect();
     });
+  });
+
+  it('should close worker even if redis is down', async () => {
+    const connection = new IORedis('badhost', { maxRetriesPerRequest: null });
+    connection.on('error', () => {});
+
+    const worker = new Worker('test', async () => {}, { connection, prefix });
+
+    worker.on('error', err => {});
+    await worker.close();
+  });
+
+  it('should close underlying redis connection when closing fast', async () => {
+    const queue = new Queue('CALLS_JOB_QUEUE_NAME', {
+      connection: {
+        host: 'localhost',
+        port: 6379,
+      },
+    });
+
+    const client = queue['connection']['_client'];
+    await queue.close();
+
+    expect(client.status).to.be.eql('end');
   });
 
   it('should recover from a connection loss', async () => {
@@ -316,10 +554,10 @@ describe('connection', () => {
       },
     });
 
-    await expect(queueFail.close()).to.be.eventually.equal(undefined);
-
     await expect(queueFail.waitUntilReady()).to.be.eventually.rejectedWith(
       'connect ECONNREFUSED 127.0.0.1:1234',
     );
+
+    await expect(queueFail.close()).to.be.eventually.equal(undefined);
   });
 });

@@ -178,6 +178,48 @@ describe('Cleaner', () => {
     await worker.close();
   });
 
+  describe('when job scheduler is present', async () => {
+    it('should clean all failed jobs', async () => {
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await delay(100);
+          throw new Error('It failed');
+        },
+        { connection, prefix, autorun: false },
+      );
+      await worker.waitUntilReady();
+
+      await queue.addBulk([
+        {
+          name: 'test',
+          data: { some: 'data' },
+        },
+        {
+          name: 'test',
+          data: { some: 'data' },
+        },
+      ]);
+      await queue.upsertJobScheduler('test-scheduler1', { every: 5000 });
+
+      const failing = new Promise(resolve => {
+        queueEvents.on('failed', after(3, resolve));
+      });
+
+      worker.run();
+
+      await failing;
+      await delay(50);
+
+      const jobs = await queue.clean(0, 0, 'failed');
+      expect(jobs.length).to.be.eql(3);
+      const count = await queue.count();
+      expect(count).to.be.eql(1);
+
+      await worker.close();
+    });
+  });
+
   it('should clean all waiting jobs', async () => {
     await queue.add('test', { some: 'data' });
     await queue.add('test', { some: 'data' });
@@ -375,20 +417,16 @@ describe('Cleaner', () => {
             const client = await queue.client;
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
+            const suffixes = keys.map(key => key.split(':')[2]);
             // Expected keys: meta, id, stalled-check, events, failed and job
-            expect(keys.length).to.be.eql(8);
-            for (const key of keys) {
-              const type = key.split(':')[2];
-              expect([
-                'meta',
-                'id',
-                'stalled-check',
-                'events',
-                'failed',
-                'marker',
-                tree.job.id!,
-              ]).to.include(type);
-            }
+            expect(suffixes).to.include.members([
+              'meta',
+              'id',
+              'stalled-check',
+              'events',
+              'failed',
+              tree.job.id!,
+            ]);
 
             const parentState = await tree.job.getState();
             expect(parentState).to.be.equal('failed');
@@ -448,10 +486,13 @@ describe('Cleaner', () => {
           await queue.clean(0, 0, 'failed');
 
           const client = await queue.client;
-          const keys = await client.keys(`${prefix}:${queue.name}:*`);
+          // only checks if there are keys under job key prefix
+          // this way we make sure that all of them were removed
+          const keys = await client.keys(
+            `${prefix}:${queue.name}:${tree.job.id}*`,
+          );
 
-          // Expected keys: meta, id, stalled-check, events, failed and 2 jobs
-          expect(keys.length).to.be.eql(7);
+          expect(keys.length).to.be.eql(0);
 
           const jobs = await queue.getJobCountByTypes('completed');
           expect(jobs).to.be.equal(2);

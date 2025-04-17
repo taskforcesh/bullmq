@@ -18,8 +18,11 @@
 ]]
 local rcall = redis.call
 
+-- Includes
+--- @include "includes/getOrSetMaxEvents"
+
 if rcall("EXISTS", KEYS[1]) == 1 then -- // Make sure job exists
-    local maxEvents = rcall("HGET", KEYS[3], "opts.maxLenEvents") or 10000
+    local maxEvents = getOrSetMaxEvents(KEYS[3])
 
     rcall("HSET", KEYS[1], "progress", ARGV[2])
     rcall("XADD", KEYS[2], "MAXLEN", "~", maxEvents, "*", "event", "progress",

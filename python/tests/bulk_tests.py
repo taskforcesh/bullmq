@@ -5,26 +5,28 @@ https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 """
 
 import unittest
+import os
 
 from asyncio import Future
 from bullmq import Queue, Job, Worker
 from uuid import uuid4
 
 queueName = f"__test_queue__{uuid4().hex}"
+prefix = os.environ.get('BULLMQ_TEST_PREFIX') or "bull"
 
 class TestJob(unittest.IsolatedAsyncioTestCase):
 
     async def asyncSetUp(self):
         print("Setting up test queue")
         # Delete test queue
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         await queue.pause()
         await queue.obliterate()
         await queue.close()
 
     async def test_process_jobs(self):
         name = "test"
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
 
         async def process(job: Job, token: str):
             if job.data.get("idx") == 0:
@@ -34,11 +36,12 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(job.data.get("foo"), "baz")
             return "done"
 
-        worker = Worker(queueName, process)
+        worker = Worker(queueName, process, {"prefix": prefix})
 
         completed_events = Future()
 
         job_count = 1
+
         def completing(job: Job, result):
             nonlocal job_count
             if job_count == 2:

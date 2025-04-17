@@ -3,11 +3,15 @@
 ]]
 
 -- Includes
+--- @include "removeDeduplicationKey"
+--- @include "removeJobKeys"
 --- @include "removeParentDependencyKey"
 
-local function removeJob(jobId, hard, baseKey)
+local function removeJob(jobId, hard, baseKey, shouldRemoveDeduplicationKey)
   local jobKey = baseKey .. jobId
   removeParentDependencyKey(jobKey, hard, nil, baseKey)
-  rcall("DEL", jobKey, jobKey .. ':logs',
-    jobKey .. ':dependencies', jobKey .. ':processed')
+  if shouldRemoveDeduplicationKey then
+    removeDeduplicationKey(baseKey, jobKey)
+  end
+  removeJobKeys(jobKey)
 end
