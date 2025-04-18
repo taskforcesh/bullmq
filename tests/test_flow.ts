@@ -1165,6 +1165,7 @@ describe('flows', () => {
 
         await flow.close();
         await worker.close();
+        await queueEvents.close();
         await removeAllQueueData(new IORedis(redisHost), childrenQueueName);
       });
     });
@@ -1300,6 +1301,7 @@ describe('flows', () => {
         await worker.close();
         await grandchildrenWorker.close();
         await childrenWorker.close();
+        await queueEvents.close();
       });
     });
 
@@ -1413,6 +1415,7 @@ describe('flows', () => {
         await flow.close();
         await worker.close();
         await grandchildrenWorker.close();
+        await queueEvents.close();
       });
     });
   });
@@ -2729,6 +2732,7 @@ describe('flows', () => {
         await worker.close();
         await childrenWorker.close();
         await grandchildrenWorker.close();
+        await queueEvents.close();
         await removeAllQueueData(new IORedis(redisHost), childrenQueueName);
         await removeAllQueueData(
           new IORedis(redisHost),
@@ -2867,6 +2871,7 @@ describe('flows', () => {
         await worker.close();
         await childrenWorker.close();
         await grandchildrenWorker.close();
+        await queueEvents.close();
         await removeAllQueueData(new IORedis(redisHost), childrenQueueName);
         await removeAllQueueData(
           new IORedis(redisHost),
@@ -3636,7 +3641,7 @@ describe('flows', () => {
 
       const childrenWorker = new Worker(
         queueName,
-        async job => {
+        async () => {
           throw new Error('failed');
         },
         {
@@ -3666,6 +3671,7 @@ describe('flows', () => {
 
       await parentWorker.close();
       await childrenWorker.close();
+      await parentQueue.close();
       await flow.close();
       await removeAllQueueData(new IORedis(redisHost), parentQueueName);
     });
@@ -3756,6 +3762,7 @@ describe('flows', () => {
 
       await parentWorker.close();
       await childrenWorker.close();
+      await parentQueue.close();
       await flow.close();
       await removeAllQueueData(new IORedis(redisHost), parentQueueName);
     });
@@ -5110,6 +5117,7 @@ describe('flows', () => {
         await processing;
       } finally {
         await worker.close();
+        await flow.close();
         await removeAllQueueData(new IORedis(redisHost), parentQueueName);
       }
     });
@@ -5620,6 +5628,7 @@ describe('flows', () => {
         expect(await tree.job.getState()).to.be.equal('unknown');
 
         await flow.close();
+        await parentQueueEvents.close();
         await childrenWorker.close();
         await parentWorker.close();
         await parentQueue.close();
