@@ -117,21 +117,23 @@ describe('RedisConnection', () => {
   });
 
   describe('Worker', () => {
-    it('initializes blockingConnection with blocking: true', () => {
+    it('initializes blockingConnection with blocking: true', async () => {
       const worker = new Worker('test', async () => {}, { connection: {} });
       expect((<any>worker).blockingConnection.extraOptions.blocking).to.be.true;
+      await worker.close();
     });
 
-    it('sets shared: false for blockingConnection', () => {
+    it('sets shared: false for blockingConnection', async () => {
       const connection = new IORedis({ maxRetriesPerRequest: null });
 
       const worker = new Worker('test', async () => {}, { connection });
       expect((<any>worker).blockingConnection.extraOptions.shared).to.be.false;
 
+      await worker.close();
       connection.disconnect();
     });
 
-    it('uses blocking connection by default', () => {
+    it('uses blocking connection by default', async () => {
       const connection = new IORedis({ maxRetriesPerRequest: null });
 
       const worker = new Worker('test', async () => {}, { connection });
@@ -139,14 +141,16 @@ describe('RedisConnection', () => {
       expect((<any>worker).connection.extraOptions.blocking).to.be.false;
       expect((<any>worker).blockingConnection.extraOptions.blocking).to.be.true;
 
+      await worker.close();
       connection.disconnect();
     });
   });
 
   describe('FlowProducer', () => {
-    it('uses non-blocking connection', () => {
+    it('uses non-blocking connection', async () => {
       const flowProducer = new FlowProducer();
       expect((<any>flowProducer).connection.extraOptions.blocking).to.be.false;
+      await flowProducer.close();
     });
 
     it('shares connection if provided Redis instance', () => {

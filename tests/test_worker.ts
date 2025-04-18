@@ -2117,6 +2117,7 @@ describe('workers', function () {
     await workerError;
 
     await worker.close();
+    await connection.quit();
   });
 
   it('continues processing after a worker has stalled', async function () {
