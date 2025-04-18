@@ -907,9 +907,9 @@ will never work with more accuracy than 1ms. */
 
         try {
           jobsInProgress.add(inProgressItem);
-          if (job.lazyFailedReason) {
+          if (job.deferredFailure) {
             const failed = await handleFailed(
-              new UnrecoverableError(job.lazyFailedReason),
+              new UnrecoverableError(job.deferredFailure),
             );
             return failed;
           }

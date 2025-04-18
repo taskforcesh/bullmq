@@ -31,13 +31,13 @@ moveParentToFailedIfNeeded = function (parentQueueKey, parentKey, parentId, jobI
       rcall("ZREM", parentWaitingChildrenOrDelayedKey, parentId)
       local parentQueuePrefix = parentQueueKey .. ":"
       local parentFailedKey = parentQueueKey .. ":failed"
-      local lazyFailedReason = "child " .. jobIdKey .. " failed"
-      rcall("HSET", parentKey, "lfr", lazyFailedReason)
+      local deferredFailure = "child " .. jobIdKey .. " failed"
+      rcall("HSET", parentKey, "defa", deferredFailure)
       moveParentToWait(parentQueueKey, parentKey, parentId, timestamp)
     else
       if not rcall("ZSCORE", parentQueueKey .. ":failed", parentId) then
-        local lazyFailedReason = "child " .. jobIdKey .. " failed"
-        rcall("HSET", parentKey, "lfr", lazyFailedReason)
+        local deferredFailure = "child " .. jobIdKey .. " failed"
+        rcall("HSET", parentKey, "defa", deferredFailure)
       end
     end
   end

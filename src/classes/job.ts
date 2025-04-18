@@ -139,9 +139,9 @@ export class Job<
   failedReason: string;
 
   /**
-   * Reason for failing in a lazy way.
+   * Deferred failure to move a job to failed.
    */
-  lazyFailedReason: string;
+  deferredFailure: string;
 
   /**
    * Timestamp for when the job finished (completed or failed).
@@ -390,8 +390,8 @@ export class Job<
 
     job.stalledCounter = parseInt(json.stc || '0');
 
-    if (json.lfr) {
-      job.lazyFailedReason = json.lfr;
+    if (json.defa) {
+      job.deferredFailure = json.defa;
     }
 
     job.stacktrace = getTraces(json.stacktrace);

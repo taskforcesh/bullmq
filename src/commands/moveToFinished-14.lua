@@ -165,7 +165,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
         -- "returnvalue" / "failedReason" and "finishedOn"
 
         if ARGV[5] == "failed" then
-            rcall("HDEL", jobIdKey, "lfr")
+            rcall("HDEL", jobIdKey, "defa")
         end
 
         -- Remove old jobs?
