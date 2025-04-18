@@ -210,6 +210,7 @@ describe('workers', function () {
     expect(eventsLength).to.be.gte(maxEvents);
 
     await worker.close();
+    await trimmedEventsQueue.close();
   });
 
   it('process a job that updates progress as object', async () => {
@@ -1114,6 +1115,7 @@ describe('workers', function () {
 
       await worker.close();
       await queue1.close();
+      await connection.quit();
       await removeAllQueueData(new IORedis(redisHost), queueName2);
     });
   });
@@ -2115,6 +2117,7 @@ describe('workers', function () {
     await workerError;
 
     await worker.close();
+    await connection.quit();
   });
 
   it('continues processing after a worker has stalled', async function () {

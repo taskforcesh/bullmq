@@ -100,7 +100,6 @@ describe('Job Scheduler Stress', function () {
     });
 
     expect(completedJobs).to.be.eql(1);
-    await queue.close();
   });
 
   it('should start processing a job as soon as it is upserted when using every', async () => {

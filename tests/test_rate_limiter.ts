@@ -302,6 +302,7 @@ describe('Rate Limiter', function () {
       await worker.close();
       await parentWorker.close();
       await parentQueueEvents.close();
+      await flow.close();
     });
   });
 

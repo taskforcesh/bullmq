@@ -543,6 +543,7 @@ describe('Cleaner', () => {
           expect(countAfterEmpty).to.be.eql(1);
 
           await flow.close();
+          await childrenQueue.close();
         });
       });
 

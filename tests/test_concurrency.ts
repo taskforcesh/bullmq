@@ -210,6 +210,7 @@ describe('Concurrency', () => {
 
     await worker.close();
     await queue.close();
+    await queueEvents.close();
   }).timeout(6000);
 
   describe('when global dynamic limit is used', () => {
