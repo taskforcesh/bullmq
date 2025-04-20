@@ -139,7 +139,8 @@ export class Job<
   failedReason: string;
 
   /**
-   * Deferred failure to move a job to failed.
+   * Deferred failure. Stores a failed message and marks this job to be failed directly
+   * as soon as the job is picked up by a worker, and using this string as the failed reason.
    */
   deferredFailure: string;
 
