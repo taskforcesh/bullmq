@@ -156,6 +156,15 @@ export class ChildProcessor {
         });
       },
       /*
+       * Proxy `moveToWaitingChildren` function.
+       */
+      moveToWaitingChildren: async (token?: string) => {
+        await send({
+          cmd: ParentCommand.MoveToWaitingChildren,
+          value: { token },
+        });
+      },
+      /*
        * Proxy `updateData` function.
        */
       updateData: async (data: any) => {
