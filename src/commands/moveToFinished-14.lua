@@ -65,8 +65,6 @@ local rcall = redis.call
 --- @include "includes/getTargetQueueList"
 --- @include "includes/moveJobFromPriorityToActive"
 --- @include "includes/moveChildFromDependenciesIfNeeded"
---- @include "includes/moveParentToWait"
---- @include "includes/moveParentToWaitIfNeeded"
 --- @include "includes/prepareJobForProcessing"
 --- @include "includes/promoteDelayedJobs"
 --- @include "includes/removeDeduplicationKeyIfNeeded"
@@ -163,8 +161,12 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
         local targetSet = KEYS[11]
         -- Add to complete/failed set
         rcall("ZADD", targetSet, timestamp, jobId)
-        rcall("HMSET", jobIdKey, ARGV[3], ARGV[4], "finishedOn", timestamp)
+        rcall("HSET", jobIdKey, ARGV[3], ARGV[4], "finishedOn", timestamp)
         -- "returnvalue" / "failedReason" and "finishedOn"
+
+        if ARGV[5] == "failed" then
+            rcall("HDEL", jobIdKey, "defa")
+        end
 
         -- Remove old jobs?
         if maxAge ~= nil then

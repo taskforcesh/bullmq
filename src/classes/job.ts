@@ -139,6 +139,12 @@ export class Job<
   failedReason: string;
 
   /**
+   * Deferred failure. Stores a failed message and marks this job to be failed directly
+   * as soon as the job is picked up by a worker, and using this string as the failed reason.
+   */
+  deferredFailure: string;
+
+  /**
    * Timestamp for when the job finished (completed or failed).
    */
   finishedOn?: number;
@@ -384,6 +390,10 @@ export class Job<
     job.attemptsMade = parseInt(json.attemptsMade || json.atm || '0');
 
     job.stalledCounter = parseInt(json.stc || '0');
+
+    if (json.defa) {
+      job.deferredFailure = json.defa;
+    }
 
     job.stacktrace = getTraces(json.stacktrace);
 
