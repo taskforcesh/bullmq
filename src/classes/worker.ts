@@ -906,13 +906,14 @@ will never work with more accuracy than 1ms. */
         const inProgressItem = { job, ts: processedOn };
 
         try {
-          jobsInProgress.add(inProgressItem);
           if (job.deferredFailure) {
             const failed = await handleFailed(
               new UnrecoverableError(job.deferredFailure),
             );
             return failed;
           }
+          jobsInProgress.add(inProgressItem);
+
           const result = await this.callProcessJob(job, token);
           return await handleCompleted(result);
         } catch (err) {
