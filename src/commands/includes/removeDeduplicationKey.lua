@@ -2,10 +2,13 @@
   Function to remove deduplication key.
 ]]
 
-local function removeDeduplicationKey(prefixKey, jobKey)
+local function removeDeduplicationKey(prefixKey, jobKey, jobId)
   local deduplicationId = rcall("HGET", jobKey, "deid")
   if deduplicationId then
     local deduplicationKey = prefixKey .. "de:" .. deduplicationId
-    rcall("DEL", deduplicationKey)
+    local currentJobId = rcall('GET', deduplicationKey)
+    if currentJobId and currentJobId == jobId then
+      return rcall("DEL", deduplicationKey)
+    end
   end
 end

@@ -11,7 +11,7 @@ local function removeJob(jobId, hard, baseKey, shouldRemoveDeduplicationKey)
   local jobKey = baseKey .. jobId
   removeParentDependencyKey(jobKey, hard, nil, baseKey)
   if shouldRemoveDeduplicationKey then
-    removeDeduplicationKey(baseKey, jobKey)
+    removeDeduplicationKey(baseKey, jobKey, jobId)
   end
   removeJobKeys(jobKey)
 end

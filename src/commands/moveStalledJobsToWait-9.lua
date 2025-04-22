@@ -84,7 +84,7 @@ if (#stalling > 0) then
                         local rawParentData = jobAttributes[2]
                         local opts = cjson.decode(rawOpts)
                         rcall("ZADD", failedKey, timestamp, jobId)
-                        removeDeduplicationKeyIfNeeded(queueKeyPrefix, jobAttributes[3])
+                        removeDeduplicationKeyIfNeeded(queueKeyPrefix, jobAttributes[3], jobId)
 
                         local failedReason = "job stalled more than allowable limit"
                         rcall("HMSET", jobKey, "failedReason", failedReason, "finishedOn", timestamp)

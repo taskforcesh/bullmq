@@ -61,7 +61,7 @@ if rcall("EXISTS", jobKey) == 1 then
     -- TODO: refactor this logic in an include later
     local jobAttributes = rcall("HMGET", jobKey, "parent", "deid", "opts")
 
-    removeDeduplicationKeyIfNeeded(ARGV[5], jobAttributes[2])
+    removeDeduplicationKeyIfNeeded(ARGV[5], jobAttributes[2], jobId)
   
     local failedReason = "children are failed"
     rcall("ZADD", failedKey, timestamp, jobId)

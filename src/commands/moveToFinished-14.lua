@@ -130,7 +130,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
 
     local prefix = ARGV[7]
 
-    removeDeduplicationKeyIfNeeded(prefix, jobAttributes[3])
+    removeDeduplicationKeyIfNeeded(prefix, jobAttributes[3], jobId)
 
     -- If job has a parent we need to
     -- 1) remove this job id from parents dependencies
