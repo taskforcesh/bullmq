@@ -27,10 +27,11 @@ import {
   isEmpty,
   getParentKey,
   lengthInUtf8Bytes,
+  optsDecodeMap,
+  optsEncodeMap,
   parseObjectValues,
   tryCatch,
   removeUndefinedFields,
-  invertObject,
 } from '../utils';
 import { Backoffs } from './backoffs';
 import { Scripts } from './scripts';
@@ -39,21 +40,6 @@ import type { QueueEvents } from './queue-events';
 import { SpanKind } from '../enums';
 
 const logger = debuglog('bull');
-
-// Simple options decode map.
-const optsDecodeMap = {
-  de: 'deduplication',
-  fpof: 'failParentOnFailure',
-  cpof: 'continueParentOnFailure',
-  idof: 'ignoreDependencyOnFailure',
-  kl: 'keepLogs',
-  rdof: 'removeDependencyOnFailure',
-} as const;
-
-const optsEncodeMap = {
-  ...invertObject(optsDecodeMap),
-  /*/ Legacy for backwards compatibility */ debounce: 'de',
-} as const;
 
 export const PRIORITY_LIMIT = 2 ** 21;
 
@@ -424,7 +410,10 @@ export class Job<
     this.scripts = new Scripts(this.queue);
   }
 
-  static optsFromJSON(rawOpts?: string): JobsOptions {
+  static optsFromJSON(
+    rawOpts?: string,
+    optsDecode: Record<string, string> = optsDecodeMap,
+  ): JobsOptions {
     const opts = JSON.parse(rawOpts || '{}');
 
     const optionEntries = Object.entries(opts) as Array<
@@ -434,8 +423,8 @@ export class Job<
     const options: Partial<Record<string, any>> = {};
     for (const item of optionEntries) {
       const [attributeName, value] = item;
-      if ((optsDecodeMap as Record<string, any>)[<string>attributeName]) {
-        options[(optsDecodeMap as Record<string, any>)[<string>attributeName]] =
+      if ((optsDecode as Record<string, any>)[<string>attributeName]) {
+        options[(optsDecode as Record<string, any>)[<string>attributeName]] =
           value;
       } else {
         if (attributeName === 'tm') {
@@ -531,7 +520,10 @@ export class Job<
     });
   }
 
-  static optsAsJSON(opts: JobsOptions = {}): RedisJobOptions {
+  static optsAsJSON(
+    opts: JobsOptions = {},
+    optsEncode: Record<string, string> = optsEncodeMap,
+  ): RedisJobOptions {
     const optionEntries = Object.entries(opts) as Array<
       [keyof JobsOptions, any]
     >;
@@ -541,13 +533,13 @@ export class Job<
       if (typeof value === 'undefined') {
         continue;
       }
-      if (attributeName in optsEncodeMap) {
+      if (attributeName in optsEncode) {
         const compressableAttribute = attributeName as keyof Omit<
           CompressableJobOptions,
           'debounce' | 'telemetry'
         >;
 
-        const key = optsEncodeMap[compressableAttribute];
+        const key = optsEncode[compressableAttribute];
         options[key] = value;
       } else {
         // Handle complex compressable fields separately
