@@ -21,6 +21,10 @@ export interface MoveToWaitingChildrenOpts {
 }
 
 export interface DependenciesOpts {
+  ignored?: {
+    cursor?: number;
+    count?: number;
+  };
   processed?: {
     cursor?: number;
     count?: number;

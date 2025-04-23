@@ -770,11 +770,14 @@ describe('flows', () => {
       const parentProcessor = async (job: Job) => {
         const values = await job.getDependencies({
           processed: {},
+          ignored: {},
         });
-        expect(values).to.deep.equal({
+        expect(values).to.deep.include({
           processed: {},
           nextProcessedCursor: 0,
         });
+        expect(Object.keys(values.ignored!).length).to.be.equal(3);
+        expect(values.nextIgnoredCursor).to.be.equal(0);
       };
 
       const parentWorker = new Worker(parentQueueName, parentProcessor, {
@@ -860,6 +863,12 @@ describe('flows', () => {
         [`${queue.qualifiedName}:${children[1].job.id}`]: 'error',
         [`${queue.qualifiedName}:${children[2].job.id}`]: 'error',
       });
+
+      const flowTree = await flow.getFlow({
+        id: job.id!,
+        queueName: parentQueueName,
+      });
+      expect(flowTree.children?.length).to.be.equal(3);
 
       await childrenWorker.close();
       await parentWorker.close();
