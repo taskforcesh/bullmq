@@ -27,8 +27,6 @@ local rcall = redis.call
 --- @include "includes/batches"
 --- @include "includes/getTargetQueueList"
 --- @include "includes/moveChildFromDependenciesIfNeeded"
---- @include "includes/moveParentToWaitIfNeeded"
---- @include "includes/moveParentToWait"
 --- @include "includes/removeDeduplicationKeyIfNeeded"
 --- @include "includes/removeJobsOnFail"
 --- @include "includes/trimEvents"

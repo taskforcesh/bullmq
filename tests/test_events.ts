@@ -650,6 +650,7 @@ describe('events', function () {
       );
 
       await waitingEvent;
+      await worker.close();
     });
 
     describe('when ttl is provided', function () {

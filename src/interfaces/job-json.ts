@@ -46,6 +46,7 @@ export interface JobJsonRaw {
   rjk?: string;
   nrjid?: string;
   atm?: string;
+  defa?: string;
   stc?: string;
   ats?: string;
   pb?: string; // Worker name

@@ -1433,6 +1433,7 @@ describe('Job', function () {
         expect(isDelayedAfterPromote).to.be.equal(false);
         const isCompleted = await job.isCompleted();
         expect(isCompleted).to.be.equal(true);
+        await worker.close();
       });
 
       describe('when re-adding same repeatable job after previous delayed one is promoted', () => {
@@ -1493,6 +1494,7 @@ describe('Job', function () {
           const delayedCountAfterReAddition = await queue.getDelayedCount();
           expect(completedCountAfterReAddition).to.be.equal(1);
           expect(delayedCountAfterReAddition).to.be.equal(1);
+          await worker.close();
         });
       });
     });
