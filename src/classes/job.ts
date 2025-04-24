@@ -1008,8 +1008,9 @@ export class Job<
    * on processed/unprocessed dependencies, since v7.2 you must consider that count
    * won't have any effect until processed/unprocessed dependencies have a length
    * greater than 127
-   * @see https://redis.io/docs/management/optimization/memory-optimization/#redis--72
-   * @returns dependencies separated by processed and unprocessed.
+   * @see {@link https://redis.io/docs/management/optimization/memory-optimization/#redis--72}
+   * @see {@link https://docs.bullmq.io/guide/flows#getters}
+   * @returns dependencies separated by processed, unprocessed and ignored.
    */
   async getDependencies(opts: DependenciesOpts = {}): Promise<{
     nextIgnoredCursor?: number;
