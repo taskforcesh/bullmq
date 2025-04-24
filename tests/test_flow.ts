@@ -853,7 +853,7 @@ describe('flows', () => {
 
       expect(ignored).to.be.equal(3);
 
-      const ignoredChildrenValues = await job.getIgnoredChildrenValues();
+      const ignoredChildrenValues = await job.getIgnoredChildrenFailures();
 
       expect(ignoredChildrenValues).to.deep.equal({
         [`${queue.qualifiedName}:${children[0].job.id}`]: 'error',
@@ -3312,7 +3312,7 @@ describe('flows', () => {
         expect(updatedGrandparentState).to.be.eql('waiting');
 
         const ignoredChildrenValues =
-          await updatedGrandparentJob.getIgnoredChildrenValues();
+          await updatedGrandparentJob.getIgnoredChildrenFailures();
 
         const failedReason = `child ${prefix}:${grandChildrenQueueName}:${updatedGrandchildJob.id} failed`;
         expect(ignoredChildrenValues).to.deep.equal({
