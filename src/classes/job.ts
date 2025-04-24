@@ -999,7 +999,7 @@ export class Job<
   /**
    * Get job's children failure values that were ignored if any.
    *
-   * @deprecated This method is deprecated and will be removed in v6. Use getIgnoredChildrenValues instead.
+   * @deprecated This method is deprecated and will be removed in v6. Use getIgnoredChildrenFailures instead.
    *
    * @returns Object mapping children job keys with their failure values.
    */
