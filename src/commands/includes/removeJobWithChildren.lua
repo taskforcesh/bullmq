@@ -12,7 +12,7 @@ local rcall = redis.call
 --- @include "destructureJobKey"
 --- @include "getOrSetMaxEvents"
 --- @include "isJobSchedulerJob"
---- @include "removeDeduplicationKey"
+--- @include "removeDeduplicationKeyIfNeededOnRemoval"
 --- @include "removeJobFromAnyState"
 --- @include "removeJobKeys"
 --- @include "removeParentDependencyKey"
@@ -84,7 +84,7 @@ removeJobWithChildren = function(prefix, meta, jobId, parentKey, options)
         end
 
         local prev = removeJobFromAnyState(prefix, jobId)
-        removeDeduplicationKey(prefix, jobKey, jobId)
+        removeDeduplicationKeyIfNeededOnRemoval(prefix, jobKey, jobId)
         if removeJobKeys(jobKey) > 0 then
             local maxEvents = getOrSetMaxEvents(meta)
             rcall("XADD", prefix .. "events", "MAXLEN", "~", maxEvents, "*", "event", "removed",

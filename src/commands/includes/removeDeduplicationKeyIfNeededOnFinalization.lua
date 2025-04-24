@@ -1,8 +1,10 @@
 --[[
-  Function to remove deduplication key if needed.
+  Function to remove deduplication key if needed
+  when a job is moved to completed or failed states.
 ]]
 
-local function removeDeduplicationKeyIfNeeded(prefixKey, deduplicationId, jobId)
+local function removeDeduplicationKeyIfNeededOnFinalization(prefixKey,
+  deduplicationId, jobId)
   if deduplicationId then
     local deduplicationKey = prefixKey .. "de:" .. deduplicationId
     local pttl = rcall("PTTL", deduplicationKey)

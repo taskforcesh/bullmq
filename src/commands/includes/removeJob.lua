@@ -3,7 +3,7 @@
 ]]
 
 -- Includes
---- @include "removeDeduplicationKey"
+--- @include "removeDeduplicationKeyIfNeededOnRemoval"
 --- @include "removeJobKeys"
 --- @include "removeParentDependencyKey"
 
@@ -11,7 +11,7 @@ local function removeJob(jobId, hard, baseKey, shouldRemoveDeduplicationKey)
   local jobKey = baseKey .. jobId
   removeParentDependencyKey(jobKey, hard, nil, baseKey)
   if shouldRemoveDeduplicationKey then
-    removeDeduplicationKey(baseKey, jobKey, jobId)
+    removeDeduplicationKeyIfNeededOnRemoval(baseKey, jobKey, jobId)
   end
   removeJobKeys(jobKey)
 end

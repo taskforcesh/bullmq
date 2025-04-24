@@ -1,8 +1,10 @@
 --[[
-  Function to remove deduplication key.
+  Function to remove deduplication key if needed
+  when a job is being removed.
 ]]
 
-local function removeDeduplicationKey(prefixKey, jobKey, jobId)
+local function removeDeduplicationKeyIfNeededOnRemoval(prefixKey,
+  jobKey, jobId)
   local deduplicationId = rcall("HGET", jobKey, "deid")
   if deduplicationId then
     local deduplicationKey = prefixKey .. "de:" .. deduplicationId
