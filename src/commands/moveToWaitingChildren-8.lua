@@ -37,7 +37,7 @@ local jobId = ARGV[4]
 
 --- Includes
 --- @include "includes/moveChildFromDependenciesIfNeeded"
---- @include "includes/removeDeduplicationKeyIfNeeded"
+--- @include "includes/removeDeduplicationKeyIfNeededOnFinalization"
 --- @include "includes/removeJobsOnFail"
 --- @include "includes/removeLock"
 
@@ -61,7 +61,7 @@ if rcall("EXISTS", jobKey) == 1 then
     -- TODO: refactor this logic in an include later
     local jobAttributes = rcall("HMGET", jobKey, "parent", "deid", "opts")
 
-    removeDeduplicationKeyIfNeeded(ARGV[5], jobAttributes[2])
+    removeDeduplicationKeyIfNeededOnFinalization(ARGV[5], jobAttributes[2], jobId)
   
     local failedReason = "children are failed"
     rcall("ZADD", failedKey, timestamp, jobId)
