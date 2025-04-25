@@ -33,6 +33,10 @@ export interface DependencyOpts {
 
 export interface DependenciesOpts {
   /**
+   * Options for failed child pagination
+   */
+  failed?: DependencyOpts;
+  /**
    * Options for ignored child pagination
    */
   ignored?: DependencyOpts;

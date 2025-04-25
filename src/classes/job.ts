@@ -1010,9 +1010,11 @@ export class Job<
    * greater than 127
    * @see {@link https://redis.io/docs/management/optimization/memory-optimization/#redis--72}
    * @see {@link https://docs.bullmq.io/guide/flows#getters}
-   * @returns dependencies separated by processed, unprocessed and ignored.
+   * @returns dependencies separated by processed, unprocessed, ignored and failed.
    */
   async getDependencies(opts: DependenciesOpts = {}): Promise<{
+    nextFailedCursor?: number;
+    failed?: string[];
     nextIgnoredCursor?: number;
     ignored?: Record<string, any>;
     nextProcessedCursor?: number;
@@ -1026,17 +1028,24 @@ export class Job<
       multi.hgetall(this.toKey(`${this.id}:processed`));
       multi.smembers(this.toKey(`${this.id}:dependencies`));
       multi.hgetall(this.toKey(`${this.id}:failed`));
+      multi.zrange(this.toKey(`${this.id}:unsuccessful`), 0, -1);
 
-      const [[err1, processed], [err2, unprocessed], [err3, ignored]] =
-        (await multi.exec()) as [
-          [null | Error, { [jobKey: string]: string }],
-          [null | Error, string[]],
-          [null | Error, { [jobKey: string]: string }],
-        ];
+      const [
+        [err1, processed],
+        [err2, unprocessed],
+        [err3, ignored],
+        [err4, failed],
+      ] = (await multi.exec()) as [
+        [null | Error, { [jobKey: string]: string }],
+        [null | Error, string[]],
+        [null | Error, { [jobKey: string]: string }],
+        [null | Error, string[]],
+      ];
 
       return {
         processed: parseObjectValues(processed),
         unprocessed,
+        failed,
         ignored: parseObjectValues(ignored),
       };
     } else {
@@ -1082,6 +1091,18 @@ export class Job<
         );
       }
 
+      let failedCursor;
+      if (opts.failed) {
+        childrenResultOrder.push('failed');
+        const failedOpts = Object.assign({ ...defaultOpts }, opts.failed);
+        failedCursor = failedOpts.cursor + failedOpts.count;
+        multi.zrange(
+          this.toKey(`${this.id}:unsuccessful`),
+          failedOpts.cursor,
+          failedOpts.count - 1,
+        );
+      }
+
       const results = (await multi.exec()) as [
         Error,
         [number[], string[] | undefined],
@@ -1091,6 +1112,7 @@ export class Job<
         processed,
         unprocessedCursor,
         unprocessed,
+        failed,
         ignoredCursor,
         ignored;
       childrenResultOrder.forEach((key, index) => {
@@ -1108,6 +1130,11 @@ export class Job<
               }
             }
             processed = transformedProcessed;
+            break;
+          }
+          case 'failed': {
+            failedCursor = results[index][1][0];
+            failed = results[index][1][1];
             break;
           }
           case 'ignored': {
@@ -1143,6 +1170,12 @@ export class Job<
           ? {
               ignored,
               nextIgnoredCursor: Number(ignoredCursor),
+            }
+          : {}),
+        ...(failedCursor
+          ? {
+              failed,
+              nextFailedCursor: failedCursor,
             }
           : {}),
         ...(unprocessedCursor

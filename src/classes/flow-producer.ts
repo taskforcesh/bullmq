@@ -465,8 +465,12 @@ export class FlowProducer extends EventEmitter {
       const {
         processed = {},
         unprocessed = [],
+        failed = [],
         ignored = {},
       } = await job.getDependencies({
+        failed: {
+          count: node.maxChildren,
+        },
         processed: {
           count: node.maxChildren,
         },
@@ -481,12 +485,15 @@ export class FlowProducer extends EventEmitter {
       const ignoredKeys = Object.keys(ignored);
 
       const childrenCount =
-        processedKeys.length + unprocessed.length + ignoredKeys.length;
+        processedKeys.length +
+        unprocessed.length +
+        ignoredKeys.length +
+        failed.length;
       const newDepth = node.depth - 1;
       if (childrenCount > 0 && newDepth) {
         const children = await this.getChildren(
           client,
-          [...processedKeys, ...unprocessed, ...ignoredKeys],
+          [...processedKeys, ...unprocessed, ...failed, ...ignoredKeys],
           newDepth,
           node.maxChildren,
         );
