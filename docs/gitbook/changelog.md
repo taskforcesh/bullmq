@@ -1,3 +1,15 @@
+# [5.50.0](https://github.com/taskforcesh/bullmq/compare/v5.49.2...v5.50.0) (2025-04-25)
+
+
+### Bug Fixes
+
+* **deduplication:** remove deduplication key only when jobId matches with the last one being saved ([#3236](https://github.com/taskforcesh/bullmq/issues/3236)) ([192e82c](https://github.com/taskforcesh/bullmq/commit/192e82caa0f7f530ed495740ec2ade37fe89b43b))
+
+
+### Features
+
+* **queue:** add getIgnoredChildrenFailures method ([#3194](https://github.com/taskforcesh/bullmq/issues/3194)) ([4affb11](https://github.com/taskforcesh/bullmq/commit/4affb11be26afad9f867db19a210c361ba64dd4b))
+
 ## [5.49.2](https://github.com/taskforcesh/bullmq/compare/v5.49.1...v5.49.2) (2025-04-21)
 
 
