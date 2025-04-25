@@ -1,3 +1,15 @@
+# [5.51.0](https://github.com/taskforcesh/bullmq/compare/v5.50.0...v5.51.0) (2025-04-25)
+
+
+### Bug Fixes
+
+* **job-scheduler:** remove next delayed job if present even if scheduler does not exist ([#3203](https://github.com/taskforcesh/bullmq/issues/3203)) ref [#3197](https://github.com/taskforcesh/bullmq/issues/3197) ([61395bf](https://github.com/taskforcesh/bullmq/commit/61395bf0b2fc656d1cdaf094fc62a03920ebe07d))
+
+
+### Features
+
+* **flow:** support ignored children in getFlow and getDependencies methods ([#3238](https://github.com/taskforcesh/bullmq/issues/3238)) ref [#3213](https://github.com/taskforcesh/bullmq/issues/3213) ([2927803](https://github.com/taskforcesh/bullmq/commit/2927803b4b1eaddb77d3690634beb9c071b5adf7))
+
 # [5.50.0](https://github.com/taskforcesh/bullmq/compare/v5.49.2...v5.50.0) (2025-04-25)
 
 
