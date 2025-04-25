@@ -976,7 +976,22 @@ export class Job<
   }
 
   /**
-   * Get this jobs children failure values if any.
+   * Retrieves the failures of child jobs that were explicitly ignored while using ignoreDependencyOnFailure option.
+   * This method is useful for inspecting which child jobs were intentionally ignored when an error occured.
+   * @see {@link https://docs.bullmq.io/guide/flows/ignore-dependency}
+   *
+   * @returns Object mapping children job keys with their failure values.
+   */
+  async getIgnoredChildrenFailures(): Promise<{ [jobKey: string]: string }> {
+    const client = await this.queue.client;
+
+    return client.hgetall(this.toKey(`${this.id}:failed`));
+  }
+
+  /**
+   * Get job's children failure values that were ignored if any.
+   *
+   * @deprecated This method is deprecated and will be removed in v6. Use getIgnoredChildrenFailures instead.
    *
    * @returns Object mapping children job keys with their failure values.
    */
