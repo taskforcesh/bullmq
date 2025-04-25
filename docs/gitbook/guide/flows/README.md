@@ -206,6 +206,32 @@ const dependencies = await job.getDependencies();
 
 it will return all the **direct** **dependencies** (i.e. the children of a given job).
 
+Or if you want to get specific types of children:
+
+```typescript
+// cursors are used in pagination
+const { processed, nextProcessedCursor } = await job.getDependencies({
+  processed: {
+    count: 5,
+    cursor: 0,
+  },
+});
+
+const { unprocessed, nextUnprocessedCursor } = await job.getDependencies({
+  unprocessed: {
+    count: 5,
+    cursor: 0,
+  },
+});
+
+const { ignored, nextIgnoredCursor } = await job.getDependencies({
+  ignored: {
+    count: 5,
+    cursor: 0,
+  },
+});
+```
+
 The `Job` class also provides another method that we presented above to get all the values produced by the children of a given job:
 
 ```typescript
@@ -283,3 +309,4 @@ await queue.remove(job.id);
 - 📋 [Divide large jobs using flows](https://blog.taskforce.sh/splitting-heavy-jobs-using-bullmq-flows/)
 - 💡 [FlowProducer API Reference](https://api.docs.bullmq.io/classes/v5.FlowProducer.html)
 - 💡 [Job API Reference](https://api.docs.bullmq.io/classes/v5.Job.html)
+- 💡 [Get Dependencies API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#getDependencies)

@@ -1008,10 +1008,13 @@ export class Job<
    * on processed/unprocessed dependencies, since v7.2 you must consider that count
    * won't have any effect until processed/unprocessed dependencies have a length
    * greater than 127
-   * @see https://redis.io/docs/management/optimization/memory-optimization/#redis--72
-   * @returns dependencies separated by processed and unprocessed.
+   * @see {@link https://redis.io/docs/management/optimization/memory-optimization/#redis--72}
+   * @see {@link https://docs.bullmq.io/guide/flows#getters}
+   * @returns dependencies separated by processed, unprocessed and ignored.
    */
   async getDependencies(opts: DependenciesOpts = {}): Promise<{
+    nextIgnoredCursor?: number;
+    ignored?: Record<string, any>;
     nextProcessedCursor?: number;
     processed?: Record<string, any>;
     nextUnprocessedCursor?: number;
@@ -1019,25 +1022,32 @@ export class Job<
   }> {
     const client = await this.queue.client;
     const multi = client.multi();
-    if (!opts.processed && !opts.unprocessed) {
+    if (!opts.processed && !opts.unprocessed && !opts.ignored) {
       multi.hgetall(this.toKey(`${this.id}:processed`));
       multi.smembers(this.toKey(`${this.id}:dependencies`));
+      multi.hgetall(this.toKey(`${this.id}:failed`));
 
-      const [[err1, processed], [err2, unprocessed]] = (await multi.exec()) as [
-        [null | Error, { [jobKey: string]: string }],
-        [null | Error, string[]],
-      ];
+      const [[err1, processed], [err2, unprocessed], [err3, ignored]] =
+        (await multi.exec()) as [
+          [null | Error, { [jobKey: string]: string }],
+          [null | Error, string[]],
+          [null | Error, { [jobKey: string]: string }],
+        ];
 
-      const transformedProcessed = parseObjectValues(processed);
-
-      return { processed: transformedProcessed, unprocessed };
+      return {
+        processed: parseObjectValues(processed),
+        unprocessed,
+        ignored: parseObjectValues(ignored),
+      };
     } else {
       const defaultOpts = {
         cursor: 0,
         count: 20,
       };
 
+      const childrenResultOrder = [];
       if (opts.processed) {
+        childrenResultOrder.push('processed');
         const processedOpts = Object.assign({ ...defaultOpts }, opts.processed);
         multi.hscan(
           this.toKey(`${this.id}:processed`),
@@ -1048,6 +1058,7 @@ export class Job<
       }
 
       if (opts.unprocessed) {
+        childrenResultOrder.push('unprocessed');
         const unprocessedOpts = Object.assign(
           { ...defaultOpts },
           opts.unprocessed,
@@ -1060,35 +1071,78 @@ export class Job<
         );
       }
 
-      const [result1, result2] = (await multi.exec()) as [
+      if (opts.ignored) {
+        childrenResultOrder.push('ignored');
+        const ignoredOpts = Object.assign({ ...defaultOpts }, opts.ignored);
+        multi.hscan(
+          this.toKey(`${this.id}:failed`),
+          ignoredOpts.cursor,
+          'COUNT',
+          ignoredOpts.count,
+        );
+      }
+
+      const results = (await multi.exec()) as [
         Error,
         [number[], string[] | undefined],
       ][];
 
-      const [processedCursor, processed = []] = opts.processed
-        ? result1[1]
-        : [];
-      const [unprocessedCursor, unprocessed = []] = opts.unprocessed
-        ? opts.processed
-          ? result2[1]
-          : result1[1]
-        : [];
+      let processedCursor,
+        processed,
+        unprocessedCursor,
+        unprocessed,
+        ignoredCursor,
+        ignored;
+      childrenResultOrder.forEach((key, index) => {
+        switch (key) {
+          case 'processed': {
+            processedCursor = results[index][1][0];
+            const rawProcessed = results[index][1][1];
+            const transformedProcessed: Record<string, any> = {};
 
-      const transformedProcessed: Record<string, any> = {};
+            for (let ind = 0; ind < rawProcessed.length; ++ind) {
+              if (ind % 2) {
+                transformedProcessed[rawProcessed[ind - 1]] = JSON.parse(
+                  rawProcessed[ind],
+                );
+              }
+            }
+            processed = transformedProcessed;
+            break;
+          }
+          case 'ignored': {
+            ignoredCursor = results[index][1][0];
 
-      for (let index = 0; index < processed.length; ++index) {
-        if (index % 2) {
-          transformedProcessed[processed[index - 1]] = JSON.parse(
-            processed[index],
-          );
+            const rawIgnored = results[index][1][1];
+            const transformedIgnored: Record<string, any> = {};
+
+            for (let ind = 0; ind < rawIgnored.length; ++ind) {
+              if (ind % 2) {
+                transformedIgnored[rawIgnored[ind - 1]] = rawIgnored[ind];
+              }
+            }
+            ignored = transformedIgnored;
+            break;
+          }
+          case 'unprocessed': {
+            unprocessedCursor = results[index][1][0];
+            unprocessed = results[index][1][1];
+            break;
+          }
         }
-      }
+      });
 
       return {
         ...(processedCursor
           ? {
-              processed: transformedProcessed,
+              processed,
               nextProcessedCursor: Number(processedCursor),
+            }
+          : {}),
+        ...(ignoredCursor
+          ? {
+              ignored,
+              nextIgnoredCursor: Number(ignoredCursor),
             }
           : {}),
         ...(unprocessedCursor
