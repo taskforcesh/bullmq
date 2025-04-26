@@ -2569,6 +2569,18 @@ describe('flows', () => {
         await processingChildren;
         await failed;
 
+        const { failed: failedCount } = await job.getDependenciesCount({
+          failed: true,
+        });
+
+        expect(failedCount).to.be.equal(1);
+
+        const flowTree = await flow.getFlow({
+          id: job.id!,
+          queueName: parentQueueName,
+        });
+        expect(flowTree.children?.length).to.be.equal(2);
+
         const { children: grandChildren } = children[1];
         const updatedGrandchildJob = await grandChildrenQueue.getJob(
           grandChildren[0].job.id,

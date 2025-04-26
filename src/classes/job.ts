@@ -1024,7 +1024,7 @@ export class Job<
   }> {
     const client = await this.queue.client;
     const multi = client.multi();
-    if (!opts.processed && !opts.unprocessed && !opts.ignored) {
+    if (!opts.processed && !opts.unprocessed && !opts.ignored && !opts.failed) {
       multi.hgetall(this.toKey(`${this.id}:processed`));
       multi.smembers(this.toKey(`${this.id}:dependencies`));
       multi.hgetall(this.toKey(`${this.id}:failed`));
@@ -1133,8 +1133,7 @@ export class Job<
             break;
           }
           case 'failed': {
-            failedCursor = results[index][1][0];
-            failed = results[index][1][1];
+            failed = results[index][1];
             break;
           }
           case 'ignored': {
