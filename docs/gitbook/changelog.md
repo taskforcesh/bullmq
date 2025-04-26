@@ -1,3 +1,10 @@
+## [5.51.1](https://github.com/taskforcesh/bullmq/compare/v5.51.0...v5.51.1) (2025-04-26)
+
+
+### Bug Fixes
+
+* **queue-events:** omit telemetry options ([#3239](https://github.com/taskforcesh/bullmq/issues/3239)) ([e4dac2c](https://github.com/taskforcesh/bullmq/commit/e4dac2c39fac0c8cce34fbcb98a0c72c1619ed4e))
+
 # [5.51.0](https://github.com/taskforcesh/bullmq/compare/v5.50.0...v5.51.0) (2025-04-25)
 
 
