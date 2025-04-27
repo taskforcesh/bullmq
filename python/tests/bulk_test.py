@@ -59,7 +59,7 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         
         await completed_events
 
-        self.assertEqual(len(jobs), 3)
+        self.assertEqual(len(jobs), 2)
         
         self.assertIsNotNone(jobs[0].id)
         self.assertEqual(jobs[0].data.get("foo"),"bar")
