@@ -32,7 +32,7 @@ removeJobChildren = function(prefix, meta, jobKey, options)
             for i = 1, #processed, 2 do
                 local childJobId = getJobIdFromKey(processed[i])
                 local childJobPrefix = getJobKeyPrefix(processed[i], childJobId)
-                removeJobWithChildren(childJobPrefix, meta, childJobId, jobKey, options)
+                removeJobWithChildren(childJobPrefix, childJobPrefix .. "meta", childJobId, jobKey, options)
             end
         end
 
@@ -41,7 +41,7 @@ removeJobChildren = function(prefix, meta, jobKey, options)
             for i = 1, #failed, 2 do
                 local childJobId = getJobIdFromKey(failed[i])
                 local childJobPrefix = getJobKeyPrefix(failed[i], childJobId)
-                removeJobWithChildren(childJobPrefix, meta, childJobId, jobKey, options)
+                removeJobWithChildren(childJobPrefix, childJobPrefix .. "meta", childJobId, jobKey, options)
             end
         end
 
@@ -50,7 +50,7 @@ removeJobChildren = function(prefix, meta, jobKey, options)
             for i = 1, #unsuccessful, 1 do
                 local childJobId = getJobIdFromKey(unsuccessful[i])
                 local childJobPrefix = getJobKeyPrefix(unsuccessful[i], childJobId)
-                removeJobWithChildren(childJobPrefix, meta, childJobId, jobKey, options)
+                removeJobWithChildren(childJobPrefix, childJobPrefix .. "meta", childJobId, jobKey, options)
             end
         end
     end
@@ -60,7 +60,7 @@ removeJobChildren = function(prefix, meta, jobKey, options)
         for i, childJobKey in ipairs(dependencies) do
             local childJobId = getJobIdFromKey(childJobKey)
             local childJobPrefix = getJobKeyPrefix(childJobKey, childJobId)
-            removeJobWithChildren(childJobPrefix, meta, childJobId, jobKey, options)
+            removeJobWithChildren(childJobPrefix, childJobPrefix .. "meta", childJobId, jobKey, options)
         end
     end
 end
