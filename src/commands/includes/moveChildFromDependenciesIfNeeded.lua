@@ -3,9 +3,9 @@
 ]]
 
 -- Includes
+--- @include "moveParentToWaitIfNoPendingDependencies"
 --- @include "moveParentToWaitIfNeeded"
 --- @include "moveParentToWait"
---- @include "removeDeduplicationKeyIfNeeded"
 --- @include "removeJobsOnFail"
 
 local moveParentToFailedIfNeeded
@@ -15,45 +15,28 @@ moveParentToFailedIfNeeded = function (parentQueueKey, parentKey, parentId, jobI
     local parentWaitingChildrenKey = parentQueueKey .. ":waiting-children"
     local parentDelayedKey = parentQueueKey .. ":delayed"
     local parentPrioritizedKey = parentQueueKey .. ":prioritized"
-    local parentWaitingChildrenOrDelayedOrPrioritizedKey
+    local parentWaitingChildrenOrDelayedKey
     local prevState
     if rcall("ZSCORE", parentWaitingChildrenKey, parentId) then
-      parentWaitingChildrenOrDelayedOrPrioritizedKey = parentWaitingChildrenKey
+      parentWaitingChildrenOrDelayedKey = parentWaitingChildrenKey
       prevState = "waiting-children"
     elseif rcall("ZSCORE", parentDelayedKey, parentId) then
-      parentWaitingChildrenOrDelayedOrPrioritizedKey = parentDelayedKey
+      parentWaitingChildrenOrDelayedKey = parentDelayedKey
       prevState = "delayed"
-    elseif rcall("ZSCORE", parentPrioritizedKey, parentId) then
-      parentWaitingChildrenOrDelayedOrPrioritizedKey = parentPrioritizedKey
-      prevState = "prioritized"
+      rcall("HSET", parentKey, "delay", 0)
     end
 
-    if parentWaitingChildrenOrDelayedOrPrioritizedKey then
-      rcall("ZREM", parentWaitingChildrenOrDelayedOrPrioritizedKey, parentId)
+    if parentWaitingChildrenOrDelayedKey then
+      rcall("ZREM", parentWaitingChildrenOrDelayedKey, parentId)
       local parentQueuePrefix = parentQueueKey .. ":"
       local parentFailedKey = parentQueueKey .. ":failed"
-      rcall("ZADD", parentFailedKey, timestamp, parentId)
-      local failedReason = "child " .. jobIdKey .. " failed"
-      rcall("HSET", parentKey, "failedReason", failedReason, "finishedOn", timestamp)
-      rcall("XADD", parentQueueKey .. ":events", "*", "event", "failed", "jobId", parentId, "failedReason",
-        failedReason, "prev", prevState)
-
-      local jobAttributes = rcall("HMGET", parentKey, "parent", "deid", "opts")
-
-      removeDeduplicationKeyIfNeeded(parentQueueKey .. ":", jobAttributes[2])
-
-      moveChildFromDependenciesIfNeeded(jobAttributes[1], parentKey, failedReason, timestamp)
-
-      local parentRawOpts = jobAttributes[3]
-      local parentOpts = cjson.decode(parentRawOpts)
-      
-      removeJobsOnFail(parentQueuePrefix, parentFailedKey, parentId, parentOpts, timestamp)
+      local deferredFailure = "child " .. jobIdKey .. " failed"
+      rcall("HSET", parentKey, "defa", deferredFailure)
+      moveParentToWait(parentQueueKey, parentKey, parentId, timestamp)
     else
-      local grandParentKey = rcall("HGET", parentKey, "parentKey")
-
-      if grandParentKey then
-        local grandParentUnsuccesssfulSet = grandParentKey .. ":unsuccessful"
-        rcall("ZADD", grandParentUnsuccesssfulSet, timestamp, parentKey)
+      if not rcall("ZSCORE", parentQueueKey .. ":failed", parentId) then
+        local deferredFailure = "child " .. jobIdKey .. " failed"
+        rcall("HSET", parentKey, "defa", deferredFailure)
       end
     end
   end
@@ -80,11 +63,11 @@ moveChildFromDependenciesIfNeeded = function (rawParentData, childKey, failedRea
       if rcall("SREM", parentDependenciesChildrenKey, childKey) == 1 then
         local parentFailedChildrenKey = parentKey .. ":failed"
         rcall("HSET", parentFailedChildrenKey, childKey, failedReason)
-        moveParentToWait(parentData['queueKey'], parentKey, parentData['id'], timestamp)
+        moveParentToWaitIfNeeded(parentData['queueKey'], parentKey, parentData['id'], timestamp)
       end
     elseif parentData['idof'] or parentData['rdof'] then
       if rcall("SREM", parentDependenciesChildrenKey, childKey) == 1 then
-        moveParentToWaitIfNeeded(parentData['queueKey'], parentDependenciesChildrenKey,
+        moveParentToWaitIfNoPendingDependencies(parentData['queueKey'], parentDependenciesChildrenKey,
           parentKey, parentData['id'], timestamp)
         if parentData['idof'] then
           local parentFailedChildrenKey = parentKey .. ":failed"

@@ -511,6 +511,70 @@ describe('events', function () {
 
           expect(debouncedCounter).to.be.equal(2);
         });
+
+        describe('when manual removal on a deduplicated job in finished state', function () {
+          it('does not remove deduplication key', async function () {
+            const testName = 'test';
+
+            const job = await queue.add(
+              testName,
+              { foo: 'bar' },
+              { deduplication: { id: 'a1', ttl: 200 } },
+            );
+
+            const worker = new Worker(
+              queueName,
+              async () => {
+                await delay(200);
+              },
+              {
+                autorun: false,
+                connection,
+                prefix,
+              },
+            );
+
+            await worker.waitUntilReady();
+
+            const completion = new Promise<void>(resolve => {
+              worker.once('completed', () => {
+                resolve();
+              });
+            });
+
+            worker.run();
+
+            await completion;
+
+            let deduplicatedCounter = 0;
+            const deduplication = new Promise<void>(resolve => {
+              queueEvents.on('deduplicated', () => {
+                deduplicatedCounter++;
+                if (deduplicatedCounter == 1) {
+                  resolve();
+                }
+              });
+            });
+
+            await queue.add(
+              testName,
+              { foo: 'bar' },
+              { deduplication: { id: 'a1', ttl: 200 } },
+            );
+
+            await job.remove();
+
+            await queue.add(
+              testName,
+              { foo: 'bar' },
+              { deduplication: { id: 'a1', ttl: 200 } },
+            );
+
+            await deduplication;
+
+            expect(deduplicatedCounter).to.be.equal(1);
+          });
+        });
       });
     });
 
@@ -650,6 +714,7 @@ describe('events', function () {
       );
 
       await waitingEvent;
+      await worker.close();
     });
 
     describe('when ttl is provided', function () {
@@ -866,6 +931,70 @@ describe('events', function () {
           await deduplication;
 
           expect(deduplicatedCounter).to.be.equal(2);
+        });
+
+        describe('when manual removal on a deduplicated job in finished state', function () {
+          it('does not remove deduplication key', async function () {
+            const testName = 'test';
+
+            const job = await queue.add(
+              testName,
+              { foo: 'bar' },
+              { deduplication: { id: 'a1' } },
+            );
+
+            const worker = new Worker(
+              queueName,
+              async () => {
+                await delay(100);
+              },
+              {
+                autorun: false,
+                connection,
+                prefix,
+              },
+            );
+
+            await worker.waitUntilReady();
+
+            const completion = new Promise<void>(resolve => {
+              worker.once('completed', () => {
+                resolve();
+              });
+            });
+
+            worker.run();
+
+            await completion;
+
+            let deduplicatedCounter = 0;
+            const deduplication = new Promise<void>(resolve => {
+              queueEvents.on('deduplicated', () => {
+                deduplicatedCounter++;
+                if (deduplicatedCounter == 1) {
+                  resolve();
+                }
+              });
+            });
+
+            await queue.add(
+              testName,
+              { foo: 'bar' },
+              { deduplication: { id: 'a1' } },
+            );
+
+            await job.remove();
+
+            await queue.add(
+              testName,
+              { foo: 'bar' },
+              { deduplication: { id: 'a1' } },
+            );
+
+            await deduplication;
+
+            expect(deduplicatedCounter).to.be.equal(1);
+          });
         });
       });
     });

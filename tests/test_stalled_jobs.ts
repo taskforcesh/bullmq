@@ -413,14 +413,19 @@ describe('stalled jobs', function () {
             concurrency,
           },
         );
+        const parentWorker = new Worker(parentQueueName, async () => {}, {
+          connection,
+          prefix,
+        });
 
         const allActive = new Promise(resolve => {
           worker.on('active', after(concurrency, resolve));
         });
 
         await worker.waitUntilReady();
+        await parentWorker.waitUntilReady();
 
-        const { job: parent } = await flow.add({
+        const { children } = await flow.add({
           name: 'parent-job',
           queueName: parentQueueName,
           data: {},
@@ -456,9 +461,6 @@ describe('stalled jobs', function () {
           worker2.on(
             'failed',
             after(concurrency, async (job, failedReason, prev) => {
-              const parentState = await parent.getState();
-
-              expect(parentState).to.be.equal('failed');
               expect(prev).to.be.equal('active');
               expect(failedReason.message).to.be.equal(errorMessage);
               resolve();
@@ -466,9 +468,20 @@ describe('stalled jobs', function () {
           );
         });
 
+        const parentFailure = new Promise<void>(resolve => {
+          parentWorker.once('failed', async (job, failedReason, prev) => {
+            expect(prev).to.be.equal('active');
+            expect(failedReason.message).to.be.equal(
+              `child ${prefix}:${queueName}:${children[0].job.id!} failed`,
+            );
+            resolve();
+          });
+        });
         await allFailed;
+        await parentFailure;
 
         await worker2.close();
+        await parentWorker.close();
         await parentQueue.close();
         await flow.close();
         await removeAllQueueData(new IORedis(redisHost), parentQueueName);
@@ -648,8 +661,8 @@ describe('stalled jobs', function () {
         });
 
         await allFailed;
-        const failedChildrenValues = await parent.getFailedChildrenValues();
-        expect(failedChildrenValues).to.deep.equal({
+        const ignoredChildrenValues = await parent.getIgnoredChildrenFailures();
+        expect(ignoredChildrenValues).to.deep.equal({
           [`${queue.qualifiedName}:${children[0].job.id}`]:
             'job stalled more than allowable limit',
         });

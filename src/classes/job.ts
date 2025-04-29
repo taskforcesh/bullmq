@@ -27,10 +27,11 @@ import {
   isEmpty,
   getParentKey,
   lengthInUtf8Bytes,
+  optsDecodeMap,
+  optsEncodeMap,
   parseObjectValues,
   tryCatch,
   removeUndefinedFields,
-  invertObject,
 } from '../utils';
 import { Backoffs } from './backoffs';
 import { Scripts } from './scripts';
@@ -39,21 +40,6 @@ import type { QueueEvents } from './queue-events';
 import { SpanKind } from '../enums';
 
 const logger = debuglog('bull');
-
-// Simple options decode map.
-const optsDecodeMap = {
-  de: 'deduplication',
-  fpof: 'failParentOnFailure',
-  cpof: 'continueParentOnFailure',
-  idof: 'ignoreDependencyOnFailure',
-  kl: 'keepLogs',
-  rdof: 'removeDependencyOnFailure',
-} as const;
-
-const optsEncodeMap = {
-  ...invertObject(optsDecodeMap),
-  /*/ Legacy for backwards compatibility */ debounce: 'de',
-} as const;
 
 export const PRIORITY_LIMIT = 2 ** 21;
 
@@ -137,6 +123,12 @@ export class Job<
    * Reason for failing.
    */
   failedReason: string;
+
+  /**
+   * Deferred failure. Stores a failed message and marks this job to be failed directly
+   * as soon as the job is picked up by a worker, and using this string as the failed reason.
+   */
+  deferredFailure: string;
 
   /**
    * Timestamp for when the job finished (completed or failed).
@@ -385,6 +377,10 @@ export class Job<
 
     job.stalledCounter = parseInt(json.stc || '0');
 
+    if (json.defa) {
+      job.deferredFailure = json.defa;
+    }
+
     job.stacktrace = getTraces(json.stacktrace);
 
     if (typeof json.returnvalue === 'string') {
@@ -414,7 +410,10 @@ export class Job<
     this.scripts = new Scripts(this.queue);
   }
 
-  static optsFromJSON(rawOpts?: string): JobsOptions {
+  static optsFromJSON(
+    rawOpts?: string,
+    optsDecode: Record<string, string> = optsDecodeMap,
+  ): JobsOptions {
     const opts = JSON.parse(rawOpts || '{}');
 
     const optionEntries = Object.entries(opts) as Array<
@@ -424,8 +423,8 @@ export class Job<
     const options: Partial<Record<string, any>> = {};
     for (const item of optionEntries) {
       const [attributeName, value] = item;
-      if ((optsDecodeMap as Record<string, any>)[<string>attributeName]) {
-        options[(optsDecodeMap as Record<string, any>)[<string>attributeName]] =
+      if ((optsDecode as Record<string, any>)[<string>attributeName]) {
+        options[(optsDecode as Record<string, any>)[<string>attributeName]] =
           value;
       } else {
         if (attributeName === 'tm') {
@@ -521,7 +520,10 @@ export class Job<
     });
   }
 
-  static optsAsJSON(opts: JobsOptions = {}): RedisJobOptions {
+  static optsAsJSON(
+    opts: JobsOptions = {},
+    optsEncode: Record<string, string> = optsEncodeMap,
+  ): RedisJobOptions {
     const optionEntries = Object.entries(opts) as Array<
       [keyof JobsOptions, any]
     >;
@@ -531,13 +533,13 @@ export class Job<
       if (typeof value === 'undefined') {
         continue;
       }
-      if (attributeName in optsEncodeMap) {
+      if (attributeName in optsEncode) {
         const compressableAttribute = attributeName as keyof Omit<
           CompressableJobOptions,
           'debounce' | 'telemetry'
         >;
 
-        const key = optsEncodeMap[compressableAttribute];
+        const key = optsEncode[compressableAttribute];
         options[key] = value;
       } else {
         // Handle complex compressable fields separately
@@ -974,7 +976,22 @@ export class Job<
   }
 
   /**
-   * Get this jobs children failure values if any.
+   * Retrieves the failures of child jobs that were explicitly ignored while using ignoreDependencyOnFailure option.
+   * This method is useful for inspecting which child jobs were intentionally ignored when an error occured.
+   * @see {@link https://docs.bullmq.io/guide/flows/ignore-dependency}
+   *
+   * @returns Object mapping children job keys with their failure values.
+   */
+  async getIgnoredChildrenFailures(): Promise<{ [jobKey: string]: string }> {
+    const client = await this.queue.client;
+
+    return client.hgetall(this.toKey(`${this.id}:failed`));
+  }
+
+  /**
+   * Get job's children failure values that were ignored if any.
+   *
+   * @deprecated This method is deprecated and will be removed in v6. Use getIgnoredChildrenFailures instead.
    *
    * @returns Object mapping children job keys with their failure values.
    */
@@ -991,10 +1008,13 @@ export class Job<
    * on processed/unprocessed dependencies, since v7.2 you must consider that count
    * won't have any effect until processed/unprocessed dependencies have a length
    * greater than 127
-   * @see https://redis.io/docs/management/optimization/memory-optimization/#redis--72
-   * @returns dependencies separated by processed and unprocessed.
+   * @see {@link https://redis.io/docs/management/optimization/memory-optimization/#redis--72}
+   * @see {@link https://docs.bullmq.io/guide/flows#getters}
+   * @returns dependencies separated by processed, unprocessed and ignored.
    */
   async getDependencies(opts: DependenciesOpts = {}): Promise<{
+    nextIgnoredCursor?: number;
+    ignored?: Record<string, any>;
     nextProcessedCursor?: number;
     processed?: Record<string, any>;
     nextUnprocessedCursor?: number;
@@ -1002,25 +1022,32 @@ export class Job<
   }> {
     const client = await this.queue.client;
     const multi = client.multi();
-    if (!opts.processed && !opts.unprocessed) {
+    if (!opts.processed && !opts.unprocessed && !opts.ignored) {
       multi.hgetall(this.toKey(`${this.id}:processed`));
       multi.smembers(this.toKey(`${this.id}:dependencies`));
+      multi.hgetall(this.toKey(`${this.id}:failed`));
 
-      const [[err1, processed], [err2, unprocessed]] = (await multi.exec()) as [
-        [null | Error, { [jobKey: string]: string }],
-        [null | Error, string[]],
-      ];
+      const [[err1, processed], [err2, unprocessed], [err3, ignored]] =
+        (await multi.exec()) as [
+          [null | Error, { [jobKey: string]: string }],
+          [null | Error, string[]],
+          [null | Error, { [jobKey: string]: string }],
+        ];
 
-      const transformedProcessed = parseObjectValues(processed);
-
-      return { processed: transformedProcessed, unprocessed };
+      return {
+        processed: parseObjectValues(processed),
+        unprocessed,
+        ignored: parseObjectValues(ignored),
+      };
     } else {
       const defaultOpts = {
         cursor: 0,
         count: 20,
       };
 
+      const childrenResultOrder = [];
       if (opts.processed) {
+        childrenResultOrder.push('processed');
         const processedOpts = Object.assign({ ...defaultOpts }, opts.processed);
         multi.hscan(
           this.toKey(`${this.id}:processed`),
@@ -1031,6 +1058,7 @@ export class Job<
       }
 
       if (opts.unprocessed) {
+        childrenResultOrder.push('unprocessed');
         const unprocessedOpts = Object.assign(
           { ...defaultOpts },
           opts.unprocessed,
@@ -1043,35 +1071,78 @@ export class Job<
         );
       }
 
-      const [result1, result2] = (await multi.exec()) as [
+      if (opts.ignored) {
+        childrenResultOrder.push('ignored');
+        const ignoredOpts = Object.assign({ ...defaultOpts }, opts.ignored);
+        multi.hscan(
+          this.toKey(`${this.id}:failed`),
+          ignoredOpts.cursor,
+          'COUNT',
+          ignoredOpts.count,
+        );
+      }
+
+      const results = (await multi.exec()) as [
         Error,
         [number[], string[] | undefined],
       ][];
 
-      const [processedCursor, processed = []] = opts.processed
-        ? result1[1]
-        : [];
-      const [unprocessedCursor, unprocessed = []] = opts.unprocessed
-        ? opts.processed
-          ? result2[1]
-          : result1[1]
-        : [];
+      let processedCursor,
+        processed,
+        unprocessedCursor,
+        unprocessed,
+        ignoredCursor,
+        ignored;
+      childrenResultOrder.forEach((key, index) => {
+        switch (key) {
+          case 'processed': {
+            processedCursor = results[index][1][0];
+            const rawProcessed = results[index][1][1];
+            const transformedProcessed: Record<string, any> = {};
 
-      const transformedProcessed: Record<string, any> = {};
+            for (let ind = 0; ind < rawProcessed.length; ++ind) {
+              if (ind % 2) {
+                transformedProcessed[rawProcessed[ind - 1]] = JSON.parse(
+                  rawProcessed[ind],
+                );
+              }
+            }
+            processed = transformedProcessed;
+            break;
+          }
+          case 'ignored': {
+            ignoredCursor = results[index][1][0];
 
-      for (let index = 0; index < processed.length; ++index) {
-        if (index % 2) {
-          transformedProcessed[processed[index - 1]] = JSON.parse(
-            processed[index],
-          );
+            const rawIgnored = results[index][1][1];
+            const transformedIgnored: Record<string, any> = {};
+
+            for (let ind = 0; ind < rawIgnored.length; ++ind) {
+              if (ind % 2) {
+                transformedIgnored[rawIgnored[ind - 1]] = rawIgnored[ind];
+              }
+            }
+            ignored = transformedIgnored;
+            break;
+          }
+          case 'unprocessed': {
+            unprocessedCursor = results[index][1][0];
+            unprocessed = results[index][1][1];
+            break;
+          }
         }
-      }
+      });
 
       return {
         ...(processedCursor
           ? {
-              processed: transformedProcessed,
+              processed,
               nextProcessedCursor: Number(processedCursor),
+            }
+          : {}),
+        ...(ignoredCursor
+          ? {
+              ignored,
+              nextIgnoredCursor: Number(ignoredCursor),
             }
           : {}),
         ...(unprocessedCursor

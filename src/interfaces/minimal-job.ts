@@ -20,15 +20,30 @@ export interface MoveToWaitingChildrenOpts {
   };
 }
 
+export interface DependencyOpts {
+  /**
+   * Cursor value to be passed for pagination
+   */
+  cursor?: number;
+  /**
+   * Max quantity of jobs to be retrieved
+   */
+  count?: number;
+}
+
 export interface DependenciesOpts {
-  processed?: {
-    cursor?: number;
-    count?: number;
-  };
-  unprocessed?: {
-    cursor?: number;
-    count?: number;
-  };
+  /**
+   * Options for ignored child pagination
+   */
+  ignored?: DependencyOpts;
+  /**
+   * Options for processed child pagination
+   */
+  processed?: DependencyOpts;
+  /**
+   * Options for unprocessed child pagination
+   */
+  unprocessed?: DependencyOpts;
 }
 
 /**
