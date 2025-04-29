@@ -1,3 +1,6 @@
+--[[
+  Function to get current rate limit ttl.
+]]
 local function getRateLimitTTL(maxJobs, rateLimiterKey)
   if maxJobs and maxJobs <= tonumber(rcall("GET", rateLimiterKey) or 0) then
     local pttl = rcall("PTTL", rateLimiterKey)

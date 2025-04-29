@@ -12,6 +12,7 @@ import {
   isRedisInstance,
   isRedisVersionLowerThan,
 } from '../utils';
+import { version as packageVersion } from '../version';
 import * as scripts from '../scripts';
 
 const overrideMessage = [
@@ -24,6 +25,7 @@ const deprecationMessage =
 
 interface RedisCapabilities {
   canDoubleTimeout: boolean;
+  canBlockFor1Ms: boolean;
 }
 
 export interface RawCommand {
@@ -39,7 +41,10 @@ export class RedisConnection extends EventEmitter {
   closing: boolean;
   capabilities: RedisCapabilities = {
     canDoubleTimeout: false,
+    canBlockFor1Ms: true,
   };
+
+  status: 'initializing' | 'ready' | 'closing' | 'closed' = 'initializing';
 
   protected _client: RedisClient;
 
@@ -47,18 +52,31 @@ export class RedisConnection extends EventEmitter {
   private readonly initializing: Promise<RedisClient>;
 
   private version: string;
+  protected packageVersion = packageVersion;
   private skipVersionCheck: boolean;
   private handleClientError: (e: Error) => void;
   private handleClientClose: () => void;
   private handleClientReady: () => void;
 
   constructor(
-    opts?: ConnectionOptions,
-    private readonly shared: boolean = false,
-    private readonly blocking = true,
-    skipVersionCheck = false,
+    opts: ConnectionOptions,
+    private readonly extraOptions?: {
+      shared?: boolean;
+      blocking?: boolean;
+      skipVersionCheck?: boolean;
+      skipWaitingForReady?: boolean;
+    },
   ) {
     super();
+
+    // Set extra options defaults
+    this.extraOptions = {
+      shared: false,
+      blocking: true,
+      skipVersionCheck: false,
+      skipWaitingForReady: false,
+      ...extraOptions,
+    };
 
     if (!isRedisInstance(opts)) {
       this.checkBlockingOptions(overrideMessage, opts);
@@ -72,7 +90,7 @@ export class RedisConnection extends EventEmitter {
         ...opts,
       };
 
-      if (this.blocking) {
+      if (this.extraOptions.blocking) {
         this.opts.maxRetriesPerRequest = null;
       }
     } else {
@@ -96,7 +114,9 @@ export class RedisConnection extends EventEmitter {
     }
 
     this.skipVersionCheck =
-      skipVersionCheck || !!(this.opts && this.opts.skipVersionCheck);
+      extraOptions?.skipVersionCheck ||
+      !!(this.opts && this.opts.skipVersionCheck);
+
     this.handleClientError = (err: Error): void => {
       this.emit('error', err);
     };
@@ -118,7 +138,7 @@ export class RedisConnection extends EventEmitter {
     options?: RedisOptions,
     throwError = false,
   ) {
-    if (this.blocking && options && options.maxRetriesPerRequest) {
+    if (this.extraOptions.blocking && options && options.maxRetriesPerRequest) {
       if (throwError) {
         throw new Error(msg);
       } else {
@@ -160,7 +180,16 @@ export class RedisConnection extends EventEmitter {
         };
 
         handleEnd = () => {
-          reject(lastError || new Error(CONNECTION_CLOSED_ERROR_MSG));
+          if (client.status !== 'end') {
+            reject(lastError || new Error(CONNECTION_CLOSED_ERROR_MSG));
+          } else {
+            if (lastError) {
+              reject(lastError);
+            } else {
+              // when custon 'end' status is set we already closed
+              resolve();
+            }
+          }
         };
 
         increaseMaxListeners(client, 3);
@@ -182,13 +211,17 @@ export class RedisConnection extends EventEmitter {
     return this.initializing;
   }
 
-  protected loadCommands(providedScripts?: Record<string, RawCommand>): void {
+  protected loadCommands(
+    packageVersion: string,
+    providedScripts?: Record<string, RawCommand>,
+  ): void {
     const finalScripts =
       providedScripts || (scripts as Record<string, RawCommand>);
     for (const property in finalScripts as Record<string, RawCommand>) {
       // Only define the command if not already defined
-      if (!(<any>this._client)[finalScripts[property].name]) {
-        (<any>this._client).defineCommand(finalScripts[property].name, {
+      const commandName = `${finalScripts[property].name}:${packageVersion}`;
+      if (!(<any>this._client)[commandName]) {
+        (<any>this._client).defineCommand(commandName, {
           numberOfKeys: finalScripts[property].keys,
           lua: finalScripts[property].content,
         });
@@ -198,7 +231,8 @@ export class RedisConnection extends EventEmitter {
 
   private async init() {
     if (!this._client) {
-      this._client = new IORedis(this.opts);
+      const { url, ...rest } = this.opts;
+      this._client = url ? new IORedis(url, rest) : new IORedis(rest);
     }
 
     increaseMaxListeners(this._client, 3);
@@ -209,35 +243,44 @@ export class RedisConnection extends EventEmitter {
 
     this._client.on('ready', this.handleClientReady);
 
-    await RedisConnection.waitUntilReady(this._client);
-    this.loadCommands();
-
-    this.version = await this.getRedisVersion();
-    if (this.skipVersionCheck !== true && !this.closing) {
-      if (
-        isRedisVersionLowerThan(this.version, RedisConnection.minimumVersion)
-      ) {
-        throw new Error(
-          `Redis version needs to be greater or equal than ${RedisConnection.minimumVersion} Current: ${this.version}`,
-        );
-      }
-
-      if (
-        isRedisVersionLowerThan(
-          this.version,
-          RedisConnection.recommendedMinimumVersion,
-        )
-      ) {
-        console.warn(
-          `It is highly recommended to use a minimum Redis version of ${RedisConnection.recommendedMinimumVersion}
-           Current: ${this.version}`,
-        );
-      }
+    if (!this.extraOptions.skipWaitingForReady) {
+      await RedisConnection.waitUntilReady(this._client);
     }
 
-    this.capabilities = {
-      canDoubleTimeout: !isRedisVersionLowerThan(this.version, '6.0.0'),
-    };
+    this.loadCommands(this.packageVersion);
+
+    if (this._client['status'] !== 'end') {
+      this.version = await this.getRedisVersion();
+      if (this.skipVersionCheck !== true && !this.closing) {
+        if (
+          isRedisVersionLowerThan(this.version, RedisConnection.minimumVersion)
+        ) {
+          throw new Error(
+            `Redis version needs to be greater or equal than ${RedisConnection.minimumVersion} ` +
+              `Current: ${this.version}`,
+          );
+        }
+
+        if (
+          isRedisVersionLowerThan(
+            this.version,
+            RedisConnection.recommendedMinimumVersion,
+          )
+        ) {
+          console.warn(
+            `It is highly recommended to use a minimum Redis version of ${RedisConnection.recommendedMinimumVersion}
+             Current: ${this.version}`,
+          );
+        }
+      }
+
+      this.capabilities = {
+        canDoubleTimeout: !isRedisVersionLowerThan(this.version, '6.0.0'),
+        canBlockFor1Ms: !isRedisVersionLowerThan(this.version, '7.0.8'),
+      };
+
+      this.status = 'ready';
+    }
 
     return this._client;
   }
@@ -278,13 +321,26 @@ export class RedisConnection extends EventEmitter {
     return client.connect();
   }
 
-  async close(): Promise<void> {
+  async close(force = false): Promise<void> {
     if (!this.closing) {
+      const status = this.status;
+      this.status = 'closing';
       this.closing = true;
+
       try {
-        await this.initializing;
-        if (!this.shared) {
-          await this._client.quit();
+        if (status === 'ready') {
+          // Not sure if we need to wait for this
+          await this.initializing;
+        }
+        if (!this.extraOptions.shared) {
+          if (status == 'initializing' || force) {
+            // If we have not still connected to Redis, we need to disconnect.
+            this._client.disconnect();
+          } else {
+            await this._client.quit();
+          }
+          // As IORedis does not update this status properly, we do it ourselves.
+          this._client['status'] = 'end';
         }
       } catch (error) {
         if (isNotConnectionError(error as Error)) {
@@ -298,6 +354,7 @@ export class RedisConnection extends EventEmitter {
         decreaseMaxListeners(this._client, 3);
 
         this.removeAllListeners();
+        this.status = 'closed';
       }
     }
   }
@@ -306,7 +363,7 @@ export class RedisConnection extends EventEmitter {
     const doc = await this._client.info();
     const redisPrefix = 'redis_version:';
     const maxMemoryPolicyPrefix = 'maxmemory_policy:';
-    const lines = doc.split('\r\n');
+    const lines = doc.split(/\r?\n/);
     let redisVersion;
 
     for (let i = 0; i < lines.length; i++) {

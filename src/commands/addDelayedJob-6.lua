@@ -25,7 +25,8 @@
             [7]  parent dependencies key.
             [8]  parent? {id, queueKey}
             [9]  repeat job key
-            
+            [10] deduplication key
+
       ARGV[2] Json stringified job data
       ARGV[3] msgpacked options
 
@@ -47,20 +48,19 @@ local rcall = redis.call
 local args = cmsgpack.unpack(ARGV[1])
 
 local data = ARGV[2]
-local opts = cmsgpack.unpack(ARGV[3])
 
 local parentKey = args[5]
-local repeatJobKey = args[9]
 local parent = args[8]
+local repeatJobKey = args[9]
+local deduplicationKey = args[10]
 local parentData
 
 -- Includes
---- @include "includes/storeJob"
---- @include "includes/addDelayMarkerIfNeeded"
---- @include "includes/isQueuePaused"
---- @include "includes/getNextDelayedTimestamp"
---- @include "includes/updateExistingJobsParent"
+--- @include "includes/addDelayedJob"
+--- @include "includes/deduplicateJob"
 --- @include "includes/getOrSetMaxEvents"
+--- @include "includes/handleDuplicatedJob"
+--- @include "includes/storeJob"
 
 if parentKey ~= nil then
     if rcall("EXISTS", parentKey) ~= 1 then return -5 end
@@ -71,46 +71,34 @@ end
 local jobCounter = rcall("INCR", idKey)
 
 local maxEvents = getOrSetMaxEvents(metaKey)
+local opts = cmsgpack.unpack(ARGV[3])
 
 local parentDependenciesKey = args[7]
 local timestamp = args[4]
+
 if args[2] == "" then
     jobId = jobCounter
     jobIdKey = args[1] .. jobId
 else
-    -- Refactor to: handleDuplicateJob.lua
     jobId = args[2]
     jobIdKey = args[1] .. jobId
     if rcall("EXISTS", jobIdKey) == 1 then
-        updateExistingJobsParent(parentKey, parent, parentData,
-                                 parentDependenciesKey, completedKey, jobIdKey,
-                                 jobId, timestamp)
-        rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
-              "duplicated", "jobId", jobId)
-
-        return jobId .. "" -- convert to string
+        return handleDuplicatedJob(jobIdKey, jobId, parentKey, parent,
+            parentData, parentDependenciesKey, completedKey, eventsKey,
+            maxEvents, timestamp)
     end
 end
 
--- Store the job.
-local delay, priority = storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2],
-                                 opts, timestamp, parentKey, parentData,
-                                 repeatJobKey)
-
--- Compute delayed timestamp and the score.
-local delayedTimestamp = (delay > 0 and (timestamp + delay)) or 0
-local score = delayedTimestamp * 0x1000 + bit.band(jobCounter, 0xfff)
-
-rcall("ZADD", delayedKey, score, jobId)
-rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "delayed",
-      "jobId", jobId, "delay", delayedTimestamp)
-
--- mark that a delayed job is available
-local isPaused = isQueuePaused(metaKey)
-if not isPaused then
-    local markerKey = KEYS[1]
-    addDelayMarkerIfNeeded(markerKey, delayedKey)
+local deduplicationJobId = deduplicateJob(opts['de'], jobId, deduplicationKey,
+  eventsKey, maxEvents)
+if deduplicationJobId then
+  return deduplicationJobId
 end
+
+local delay, priority = storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2],
+    opts, timestamp, parentKey, parentData, repeatJobKey)
+
+addDelayedJob(jobId, delayedKey, eventsKey, timestamp, maxEvents, KEYS[1], delay)
 
 -- Check if this job is a child of another job, if so add it to the parents dependencies
 if parentDependenciesKey ~= nil then

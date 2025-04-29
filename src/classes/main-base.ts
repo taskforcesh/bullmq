@@ -2,16 +2,13 @@
  * Wrapper for sandboxing.
  *
  */
-import { toString } from 'lodash';
 import { ChildProcessor } from './child-processor';
 import { ParentCommand, ChildCommand } from '../enums';
-import { errorToJSON } from '../utils';
+import { errorToJSON, toString } from '../utils';
+import { Receiver } from '../interfaces';
 
-export default (
-  send: (msg: any) => Promise<void>,
-  receiver: { on: (evt: 'message', cb: (msg: any) => void) => void },
-) => {
-  const childProcessor = new ChildProcessor(send);
+export default (send: (msg: any) => Promise<void>, receiver: Receiver) => {
+  const childProcessor = new ChildProcessor(send, receiver);
 
   receiver?.on('message', async msg => {
     try {
@@ -33,10 +30,11 @@ export default (
   process.on('SIGTERM', () => childProcessor.waitForCurrentJobAndExit());
   process.on('SIGINT', () => childProcessor.waitForCurrentJobAndExit());
 
-  process.on('uncaughtException', async (err: Error) => {
-    if (!err.message) {
+  process.on('uncaughtException', async (err: any) => {
+    if (typeof err !== 'object') {
       err = new Error(toString(err));
     }
+
     await send({
       cmd: ParentCommand.Failed,
       value: errorToJSON(err),

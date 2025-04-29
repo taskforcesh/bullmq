@@ -1,18 +1,27 @@
-import { get } from 'lodash';
 import { v4 } from 'uuid';
 import {
   BaseJobOptions,
   BulkJobOptions,
   IoredisListener,
+  JobSchedulerJson,
   QueueOptions,
   RepeatableJob,
   RepeatOptions,
 } from '../interfaces';
-import { FinishedStatus, JobsOptions, MinimalQueue } from '../types';
+import {
+  FinishedStatus,
+  JobsOptions,
+  JobSchedulerTemplateOptions,
+  MinimalQueue,
+  JobProgress,
+} from '../types';
 import { Job } from './job';
 import { QueueGetters } from './queue-getters';
 import { Repeat } from './repeat';
 import { RedisConnection } from './redis-connection';
+import { SpanKind, TelemetryAttributes } from '../enums';
+import { JobScheduler } from './job-scheduler';
+import { version } from '../version';
 
 export interface ObliterateOpts {
   /**
@@ -27,7 +36,7 @@ export interface ObliterateOpts {
   count?: number;
 }
 
-export interface QueueListener<DataType, ResultType, NameType extends string>
+export interface QueueListener<JobBase extends Job = Job>
   extends IoredisListener {
   /**
    * Listen to 'cleaned' event.
@@ -55,17 +64,14 @@ export interface QueueListener<DataType, ResultType, NameType extends string>
    *
    * This event is triggered when the job updates its progress.
    */
-  progress: (
-    job: Job<DataType, ResultType, NameType>,
-    progress: number | object,
-  ) => void;
+  progress: (job: JobBase, progress: number | object) => void;
 
   /**
    * Listen to 'removed' event.
    *
    * This event is triggered when a job is removed.
    */
-  removed: (job: Job<DataType, ResultType, NameType>) => void;
+  removed: (job: JobBase) => void;
 
   /**
    * Listen to 'resumed' event.
@@ -79,24 +85,82 @@ export interface QueueListener<DataType, ResultType, NameType extends string>
    *
    * This event is triggered when the queue creates a new job.
    */
-  waiting: (job: Job<DataType, ResultType, NameType>) => void;
+  waiting: (job: JobBase) => void;
 }
+
+// Helper for JobBase type
+type JobBase<T, ResultType, NameType extends string> = T extends Job<
+  any,
+  any,
+  any
+>
+  ? T
+  : Job<T, ResultType, NameType>;
+
+// Helper types to extract DataType, ResultType, and NameType
+type ExtractDataType<DataTypeOrJob, Default> = DataTypeOrJob extends Job<
+  infer D,
+  any,
+  any
+>
+  ? D
+  : Default;
+
+type ExtractResultType<DataTypeOrJob, Default> = DataTypeOrJob extends Job<
+  any,
+  infer R,
+  any
+>
+  ? R
+  : Default;
+
+type ExtractNameType<
+  DataTypeOrJob,
+  Default extends string,
+> = DataTypeOrJob extends Job<any, any, infer N> ? N : Default;
 
 /**
  * Queue
  *
- * This class provides methods to add jobs to a queue and some othe high-level
+ * This class provides methods to add jobs to a queue and some other high-level
  * administration such as pausing or deleting queues.
  *
+ * @typeParam DataType - The type of the data that the job will process.
+ * @typeParam ResultType - The type of the result of the job.
+ * @typeParam NameType - The type of the name of the job.
+ *
+ * @example
+ *
+ * ```typescript
+ * import { Queue } from 'bullmq';
+ *
+ * interface MyDataType {
+ *  foo: string;
+ * }
+ *
+ * interface MyResultType {
+ *   bar: string;
+ * }
+ *
+ * const queue = new Queue<MyDataType, MyResultType, "blue" | "brown">('myQueue');
+ * ```
  */
 export class Queue<
-  DataType = any,
-  ResultType = any,
-  NameType extends string = string,
-> extends QueueGetters<DataType, ResultType, NameType> {
+  DataTypeOrJob = any,
+  DefaultResultType = any,
+  DefaultNameType extends string = string,
+  DataType = ExtractDataType<DataTypeOrJob, DataTypeOrJob>,
+  ResultType = ExtractResultType<DataTypeOrJob, DefaultResultType>,
+  NameType extends string = ExtractNameType<DataTypeOrJob, DefaultNameType>,
+> extends QueueGetters<JobBase<DataTypeOrJob, ResultType, NameType>> {
   token = v4();
   jobsOpts: BaseJobOptions;
-  private _repeat?: Repeat;
+  opts: QueueOptions;
+
+  protected libName = 'bullmq';
+
+  protected _repeat?: Repeat; // To be deprecated in v6 in favor of JobScheduler
+  protected _jobScheduler?: JobScheduler;
 
   constructor(
     name: string,
@@ -106,22 +170,17 @@ export class Queue<
     super(
       name,
       {
-        blockingConnection: false,
         ...opts,
       },
       Connection,
     );
 
-    this.jobsOpts = get(opts, 'defaultJobOptions') ?? {};
+    this.jobsOpts = opts?.defaultJobOptions ?? {};
 
     this.waitUntilReady()
       .then(client => {
-        if (!this.closing) {
-          client.hset(
-            this.keys.meta,
-            'opts.maxLenEvents',
-            get(opts, 'streams.events.maxLen', 10000),
-          );
+        if (!this.closing && !opts?.skipMetasUpdate) {
+          return client.hmset(this.keys.meta, this.metaValues);
         }
       })
       .catch(err => {
@@ -130,32 +189,34 @@ export class Queue<
       });
   }
 
-  emit<U extends keyof QueueListener<DataType, ResultType, NameType>>(
+  emit<U extends keyof QueueListener<JobBase<DataType, ResultType, NameType>>>(
     event: U,
-    ...args: Parameters<QueueListener<DataType, ResultType, NameType>[U]>
+    ...args: Parameters<
+      QueueListener<JobBase<DataType, ResultType, NameType>>[U]
+    >
   ): boolean {
     return super.emit(event, ...args);
   }
 
-  off<U extends keyof QueueListener<DataType, ResultType, NameType>>(
+  off<U extends keyof QueueListener<JobBase<DataType, ResultType, NameType>>>(
     eventName: U,
-    listener: QueueListener<DataType, ResultType, NameType>[U],
+    listener: QueueListener<JobBase<DataType, ResultType, NameType>>[U],
   ): this {
     super.off(eventName, listener);
     return this;
   }
 
-  on<U extends keyof QueueListener<DataType, ResultType, NameType>>(
+  on<U extends keyof QueueListener<JobBase<DataType, ResultType, NameType>>>(
     event: U,
-    listener: QueueListener<DataType, ResultType, NameType>[U],
+    listener: QueueListener<JobBase<DataType, ResultType, NameType>>[U],
   ): this {
     super.on(event, listener);
     return this;
   }
 
-  once<U extends keyof QueueListener<DataType, ResultType, NameType>>(
+  once<U extends keyof QueueListener<JobBase<DataType, ResultType, NameType>>>(
     event: U,
-    listener: QueueListener<DataType, ResultType, NameType>[U],
+    listener: QueueListener<JobBase<DataType, ResultType, NameType>>[U],
   ): this {
     super.once(event, listener);
     return this;
@@ -166,6 +227,23 @@ export class Queue<
    */
   get defaultJobOptions(): JobsOptions {
     return { ...this.jobsOpts };
+  }
+
+  get metaValues(): Record<string, string | number> {
+    return {
+      'opts.maxLenEvents': this.opts?.streams?.events?.maxLen ?? 10000,
+      version: `${this.libName}:${version}`,
+    };
+  }
+
+  /**
+   * Get library version.
+   *
+   * @returns the content of the meta.library field.
+   */
+  async getVersion(): Promise<string> {
+    const client = await this.client;
+    return await client.hget(this.keys.meta, 'version');
   }
 
   get repeat(): Promise<Repeat> {
@@ -181,10 +259,56 @@ export class Queue<
     });
   }
 
+  get jobScheduler(): Promise<JobScheduler> {
+    return new Promise<JobScheduler>(async resolve => {
+      if (!this._jobScheduler) {
+        this._jobScheduler = new JobScheduler(this.name, {
+          ...this.opts,
+          connection: await this.client,
+        });
+        this._jobScheduler.on('error', e => this.emit.bind(this, e));
+      }
+      resolve(this._jobScheduler);
+    });
+  }
+
+  /**
+   * Get global concurrency value.
+   * Returns null in case no value is set.
+   */
+  async getGlobalConcurrency(): Promise<number | null> {
+    const client = await this.client;
+    const concurrency = await client.hget(this.keys.meta, 'concurrency');
+    if (concurrency) {
+      return Number(concurrency);
+    }
+    return null;
+  }
+
+  /**
+   * Enable and set global concurrency value.
+   * @param concurrency - Maximum number of simultaneous jobs that the workers can handle.
+   * For instance, setting this value to 1 ensures that no more than one job
+   * is processed at any given time. If this limit is not defined, there will be no
+   * restriction on the number of concurrent jobs.
+   */
+  async setGlobalConcurrency(concurrency: number) {
+    const client = await this.client;
+    return client.hset(this.keys.meta, 'concurrency', concurrency);
+  }
+
+  /**
+   * Remove global concurrency value.
+   */
+  async removeGlobalConcurrency() {
+    const client = await this.client;
+    return client.hdel(this.keys.meta, 'concurrency');
+  }
+
   /**
    * Adds a new job to the queue.
    *
-   * @param name - Name of the job to be added to the queue,.
+   * @param name - Name of the job to be added to the queue.
    * @param data - Arbitrary data to append to the job.
    * @param opts - Job options that affects how the job is going to be processed.
    */
@@ -193,12 +317,57 @@ export class Queue<
     data: DataType,
     opts?: JobsOptions,
   ): Promise<Job<DataType, ResultType, NameType>> {
+    return this.trace<Job<DataType, ResultType, NameType>>(
+      SpanKind.PRODUCER,
+      'add',
+      `${this.name}.${name}`,
+      async (span, srcPropagationMedatada) => {
+        if (srcPropagationMedatada && !opts?.telemetry?.omitContext) {
+          const telemetry = {
+            metadata: srcPropagationMedatada,
+          };
+          opts = { ...opts, telemetry };
+        }
+
+        const job = await this.addJob(name, data, opts);
+
+        span?.setAttributes({
+          [TelemetryAttributes.JobName]: name,
+          [TelemetryAttributes.JobId]: job.id,
+        });
+
+        return job;
+      },
+    );
+  }
+
+  /**
+   * addJob is a telemetry free version of the add method, useful in order to wrap it
+   * with custom telemetry on subclasses.
+   *
+   * @param name - Name of the job to be added to the queue.
+   * @param data - Arbitrary data to append to the job.
+   * @param opts - Job options that affects how the job is going to be processed.
+   *
+   * @returns Job
+   */
+  protected async addJob(
+    name: NameType,
+    data: DataType,
+    opts?: JobsOptions,
+  ): Promise<Job<DataType, ResultType, NameType>> {
     if (opts && opts.repeat) {
-      return (await this.repeat).addNextRepeatableJob<
+      if (opts.repeat.endDate) {
+        if (+new Date(opts.repeat.endDate) < Date.now()) {
+          throw new Error('End date must be greater than current timestamp');
+        }
+      }
+
+      return (await this.repeat).updateRepeatableJob<
         DataType,
         ResultType,
         NameType
-      >(name, data, { ...this.jobsOpts, ...opts }, true);
+      >(name, data, { ...this.jobsOpts, ...opts }, { override: true });
     } else {
       const jobId = opts?.jobId;
 
@@ -216,7 +385,8 @@ export class Queue<
           jobId,
         },
       );
-      this.emit('waiting', job);
+      this.emit('waiting', job as JobBase<DataType, ResultType, NameType>);
+
       return job;
     }
   }
@@ -228,20 +398,95 @@ export class Queue<
    * @param jobs - The array of jobs to add to the queue. Each job is defined by 3
    * properties, 'name', 'data' and 'opts'. They follow the same signature as 'Queue.add'.
    */
-  addBulk(
+  async addBulk(
     jobs: { name: NameType; data: DataType; opts?: BulkJobOptions }[],
   ): Promise<Job<DataType, ResultType, NameType>[]> {
-    return this.Job.createBulk<DataType, ResultType, NameType>(
-      this as MinimalQueue,
-      jobs.map(job => ({
-        name: job.name,
-        data: job.data,
-        opts: {
-          ...this.jobsOpts,
-          ...job.opts,
-          jobId: job.opts?.jobId,
-        },
-      })),
+    return this.trace<Job<DataType, ResultType, NameType>[]>(
+      SpanKind.PRODUCER,
+      'addBulk',
+      this.name,
+      async (span, srcPropagationMedatada) => {
+        if (span) {
+          span.setAttributes({
+            [TelemetryAttributes.BulkNames]: jobs.map(job => job.name),
+            [TelemetryAttributes.BulkCount]: jobs.length,
+          });
+        }
+
+        return await this.Job.createBulk<DataType, ResultType, NameType>(
+          this as MinimalQueue,
+          jobs.map(job => {
+            let telemetry = job.opts?.telemetry;
+            if (srcPropagationMedatada) {
+              const omitContext = job.opts?.telemetry?.omitContext;
+              const telemetryMetadata =
+                job.opts?.telemetry?.metadata ||
+                (!omitContext && srcPropagationMedatada);
+
+              if (telemetryMetadata || omitContext) {
+                telemetry = {
+                  metadata: telemetryMetadata,
+                  omitContext,
+                };
+              }
+            }
+
+            return {
+              name: job.name,
+              data: job.data,
+              opts: {
+                ...this.jobsOpts,
+                ...job.opts,
+                jobId: job.opts?.jobId,
+                telemetry,
+              },
+            };
+          }),
+        );
+      },
+    );
+  }
+
+  /**
+   * Upserts a scheduler.
+   *
+   * A scheduler is a job factory that creates jobs at a given interval.
+   * Upserting a scheduler will create a new job scheduler or update an existing one.
+   * It will also create the first job based on the repeat options and delayed accordingly.
+   *
+   * @param key - Unique key for the repeatable job meta.
+   * @param repeatOpts - Repeat options
+   * @param jobTemplate - Job template. If provided it will be used for all the jobs
+   * created by the scheduler.
+   *
+   * @returns The next job to be scheduled (would normally be in delayed state).
+   */
+  async upsertJobScheduler(
+    jobSchedulerId: NameType,
+    repeatOpts: Omit<RepeatOptions, 'key'>,
+    jobTemplate?: {
+      name?: NameType;
+      data?: DataType;
+      opts?: JobSchedulerTemplateOptions;
+    },
+  ) {
+    if (repeatOpts.endDate) {
+      if (+new Date(repeatOpts.endDate) < Date.now()) {
+        throw new Error('End date must be greater than current timestamp');
+      }
+    }
+
+    return (await this.jobScheduler).upsertJobScheduler<
+      DataType,
+      ResultType,
+      NameType
+    >(
+      jobSchedulerId,
+      repeatOpts,
+      jobTemplate?.name ?? jobSchedulerId,
+      jobTemplate?.data ?? <DataType>{},
+      { ...this.jobsOpts, ...jobTemplate?.opts },
+      { override: true },
     );
   }
 
@@ -257,8 +502,11 @@ export class Queue<
    * and in that case it will add it there instead of the wait list.
    */
   async pause(): Promise<void> {
-    await this.scripts.pause(true);
-    this.emit('paused');
+    await this.trace<void>(SpanKind.INTERNAL, 'pause', this.name, async () => {
+      await this.scripts.pause(true);
+
+      this.emit('paused');
+    });
   }
 
   /**
@@ -266,13 +514,44 @@ export class Queue<
    *
    */
   async close(): Promise<void> {
-    if (!this.closing) {
-      if (this._repeat) {
-        await this._repeat.close();
+    await this.trace<void>(SpanKind.INTERNAL, 'close', this.name, async () => {
+      if (!this.closing) {
+        if (this._repeat) {
+          await this._repeat.close();
+        }
       }
-    }
-    return super.close();
+
+      await super.close();
+    });
   }
+
+  /**
+   * Overrides the rate limit to be active for the next jobs.
+   *
+   * @param expireTimeMs - expire time in ms of this rate limit.
+   */
+  async rateLimit(expireTimeMs: number): Promise<void> {
+    await this.trace<void>(
+      SpanKind.INTERNAL,
+      'rateLimit',
+      this.name,
+      async span => {
+        span?.setAttributes({
+          [TelemetryAttributes.QueueRateLimit]: expireTimeMs,
+        });
+
+        await this.client.then(client =>
+          client.set(
+            this.keys.limiter,
+            Number.MAX_SAFE_INTEGER,
+            'PX',
+            expireTimeMs,
+          ),
+        );
+      },
+    );
+  }
+
   /**
    * Resumes the processing of this queue globally.
    *
@@ -280,8 +559,11 @@ export class Queue<
    * queue.
    */
   async resume(): Promise<void> {
-    await this.scripts.pause(false);
-    this.emit('resumed');
+    await this.trace<void>(SpanKind.INTERNAL, 'resume', this.name, async () => {
+      await this.scripts.pause(false);
+
+      this.emit('resumed');
+    });
   }
 
   /**
@@ -294,7 +576,17 @@ export class Queue<
   }
 
   /**
+   * Returns true if the queue is currently maxed.
+   */
+  isMaxed(): Promise<boolean> {
+    return this.scripts.isMaxed();
+  }
+
+  /**
    * Get all repeatable meta jobs.
+   *
+   *
+   * @deprecated This method is deprecated and will be removed in v6. Use getJobSchedulers instead.
    *
    * @param start - Offset of first job to return.
    * @param end - Offset of last job to return.
@@ -310,16 +602,57 @@ export class Queue<
   }
 
   /**
+   * Get Job Scheduler by id
+   *
+   * @param id - identifier of scheduler.
+   */
+  async getJobScheduler(id: string): Promise<JobSchedulerJson<DataType>> {
+    return (await this.jobScheduler).getScheduler<DataType>(id);
+  }
+
+  /**
+   * Get all Job Schedulers
+   *
+   * @param start - Offset of first scheduler to return.
+   * @param end - Offset of last scheduler to return.
+   * @param asc - Determine the order in which schedulers are returned based on their
+   * next execution time.
+   */
+  async getJobSchedulers(
+    start?: number,
+    end?: number,
+    asc?: boolean,
+  ): Promise<JobSchedulerJson<DataType>[]> {
+    return (await this.jobScheduler).getJobSchedulers<DataType>(
+      start,
+      end,
+      asc,
+    );
+  }
+
+  /**
+   *
+   * Get the number of job schedulers.
+   *
+   * @returns The number of job schedulers.
+   */
+  async getJobSchedulersCount(): Promise<number> {
+    return (await this.jobScheduler).getSchedulersCount();
+  }
+
+  /**
    * Removes a repeatable job.
    *
    * Note: you need to use the exact same repeatOpts when deleting a repeatable job
    * than when adding it.
    *
+   * @deprecated This method is deprecated and will be removed in v6. Use removeJobScheduler instead.
+   *
    * @see removeRepeatableByKey
    *
-   * @param name - job name
-   * @param repeatOpts -
-   * @param jobId -
+   * @param name - Job name
+   * @param repeatOpts - Repeat options
+   * @param jobId - Job id to remove. If not provided, all jobs with the same repeatOpts
    * @returns
    */
   async removeRepeatable(
@@ -327,10 +660,90 @@ export class Queue<
     repeatOpts: RepeatOptions,
     jobId?: string,
   ): Promise<boolean> {
-    const repeat = await this.repeat;
-    const removed = await repeat.removeRepeatable(name, repeatOpts, jobId);
+    return this.trace<boolean>(
+      SpanKind.INTERNAL,
+      'removeRepeatable',
+      `${this.name}.${name}`,
+      async span => {
+        span?.setAttributes({
+          [TelemetryAttributes.JobName]: name,
+          [TelemetryAttributes.JobId]: jobId,
+        });
+
+        const repeat = await this.repeat;
+        const removed = await repeat.removeRepeatable(name, repeatOpts, jobId);
+
+        return !removed;
+      },
+    );
+  }
+
+  /**
+   *
+   * Removes a job scheduler.
+   *
+   * @param jobSchedulerId - identifier of the job scheduler.
+   *
+   * @returns
+   */
+  async removeJobScheduler(jobSchedulerId: string): Promise<boolean> {
+    const jobScheduler = await this.jobScheduler;
+    const removed = await jobScheduler.removeJobScheduler(jobSchedulerId);
 
     return !removed;
+  }
+
+  /**
+   * Removes a debounce key.
+   * @deprecated use removeDeduplicationKey
+   *
+   * @param id - debounce identifier
+   */
+  async removeDebounceKey(id: string): Promise<number> {
+    return this.trace<number>(
+      SpanKind.INTERNAL,
+      'removeDebounceKey',
+      `${this.name}`,
+      async span => {
+        span?.setAttributes({
+          [TelemetryAttributes.JobKey]: id,
+        });
+
+        const client = await this.client;
+
+        return await client.del(`${this.keys.de}:${id}`);
+      },
+    );
+  }
+
+  /**
+   * Removes a deduplication key.
+   *
+   * @param id - identifier
+   */
+  async removeDeduplicationKey(id: string): Promise<number> {
+    return this.trace<number>(
+      SpanKind.INTERNAL,
+      'removeDeduplicationKey',
+      `${this.name}`,
+      async span => {
+        span?.setAttributes({
+          [TelemetryAttributes.DeduplicationKey]: id,
+        });
+
+        const client = await this.client;
+        return client.del(`${this.keys.de}:${id}`);
+      },
+    );
+  }
+
+  /**
+   * Removes rate limit key.
+   */
+  async removeRateLimitKey(): Promise<number> {
+    const client = await this.client;
+
+    return client.del(this.keys.limiter);
   }
 
   /**
@@ -340,14 +753,27 @@ export class Queue<
    *
    * @see getRepeatableJobs
    *
-   * @param repeatJobKey - to the repeatable job.
+   * @deprecated This method is deprecated and will be removed in v6. Use removeJobScheduler instead.
+   *
+   * @param repeatJobKey - To the repeatable job.
    * @returns
    */
   async removeRepeatableByKey(key: string): Promise<boolean> {
-    const repeat = await this.repeat;
-    const removed = await repeat.removeRepeatableByKey(key);
+    return this.trace<boolean>(
+      SpanKind.INTERNAL,
+      'removeRepeatableByKey',
+      `${this.name}`,
+      async span => {
+        span?.setAttributes({
+          [TelemetryAttributes.JobKey]: key,
+        });
 
-    return !removed;
+        const repeat = await this.repeat;
+        const removed = await repeat.removeRepeatableByKey(key);
+
+        return !removed;
+      },
+    );
   }
 
   /**
@@ -359,29 +785,52 @@ export class Queue<
    * @returns 1 if it managed to remove the job or 0 if the job or
    * any of its dependencies were locked.
    */
-  remove(jobId: string, { removeChildren = true } = {}): Promise<number> {
-    return this.scripts.remove(jobId, removeChildren);
+  async remove(jobId: string, { removeChildren = true } = {}): Promise<number> {
+    return this.trace<number>(
+      SpanKind.INTERNAL,
+      'remove',
+      this.name,
+      async span => {
+        span?.setAttributes({
+          [TelemetryAttributes.JobId]: jobId,
+          [TelemetryAttributes.JobOptions]: JSON.stringify({
+            removeChildren,
+          }),
+        });
+
+        return await this.scripts.remove(jobId, removeChildren);
+      },
+    );
   }
 
   /**
    * Updates the given job's progress.
    *
    * @param jobId - The id of the job to update
-   * @param progress - number or object to be saved as progress.
+   * @param progress - Number or object to be saved as progress.
    */
-  async updateJobProgress(
-    jobId: string,
-    progress: number | object,
-  ): Promise<void> {
-    return this.scripts.updateProgress(jobId, progress);
+  async updateJobProgress(jobId: string, progress: JobProgress): Promise<void> {
+    await this.trace<void>(
+      SpanKind.INTERNAL,
+      'updateJobProgress',
+      this.name,
+      async span => {
+        span?.setAttributes({
+          [TelemetryAttributes.JobId]: jobId,
+          [TelemetryAttributes.JobProgress]: JSON.stringify(progress),
+        });
+
+        await this.scripts.updateProgress(jobId, progress);
+      },
+    );
   }
 
   /**
    * Logs one row of job's log data.
    *
    * @param jobId - The job id to log against.
-   * @param logRow - string with log data to be logged.
-   * @param keepLogs - max number of log entries to keep (0 for unlimited).
+   * @param logRow - String with log data to be logged.
+   * @param keepLogs - Max number of log entries to keep (0 for unlimited).
    *
    * @returns The total number of log entries for this job so far.
    */
@@ -400,15 +849,26 @@ export class Queue<
    * @param delayed - Pass true if it should also clean the
    * delayed jobs.
    */
-  drain(delayed = false): Promise<void> {
-    return this.scripts.drain(delayed);
+  async drain(delayed = false): Promise<void> {
+    await this.trace<void>(
+      SpanKind.INTERNAL,
+      'drain',
+      this.name,
+      async span => {
+        span?.setAttributes({
+          [TelemetryAttributes.QueueDrainDelay]: delayed,
+        });
+
+        await this.scripts.drain(delayed);
+      },
+    );
   }
 
   /**
    * Cleans jobs from a queue. Similar to drain but keeps jobs within a certain
    * grace period.
    *
-   * @param grace - The grace period
+   * @param grace - The grace period in milliseconds
    * @param limit - Max number of jobs to clean
    * @param type - The type of job to clean
    * Possible values are completed, wait, active, paused, delayed, failed. Defaults to completed.
@@ -426,28 +886,43 @@ export class Queue<
       | 'delayed'
       | 'failed' = 'completed',
   ): Promise<string[]> {
-    const maxCount = limit || Infinity;
-    const maxCountPerCall = Math.min(10000, maxCount);
-    const timestamp = Date.now() - grace;
-    let deletedCount = 0;
-    const deletedJobsIds: string[] = [];
+    return this.trace<string[]>(
+      SpanKind.INTERNAL,
+      'clean',
+      this.name,
+      async span => {
+        const maxCount = limit || Infinity;
+        const maxCountPerCall = Math.min(10000, maxCount);
+        const timestamp = Date.now() - grace;
+        let deletedCount = 0;
+        const deletedJobsIds: string[] = [];
 
-    while (deletedCount < maxCount) {
-      const jobsIds = await this.scripts.cleanJobsInSet(
-        type,
-        timestamp,
-        maxCountPerCall,
-      );
+        while (deletedCount < maxCount) {
+          const jobsIds = await this.scripts.cleanJobsInSet(
+            type,
+            timestamp,
+            maxCountPerCall,
+          );
 
-      this.emit('cleaned', jobsIds, type);
-      deletedCount += jobsIds.length;
-      deletedJobsIds.push(...jobsIds);
+          this.emit('cleaned', jobsIds, type);
+          deletedCount += jobsIds.length;
+          deletedJobsIds.push(...jobsIds);
 
-      if (jobsIds.length < maxCountPerCall) {
-        break;
-      }
-    }
-    return deletedJobsIds;
+          if (jobsIds.length < maxCountPerCall) {
+            break;
+          }
+        }
+
+        span?.setAttributes({
+          [TelemetryAttributes.QueueGrace]: grace,
+          [TelemetryAttributes.JobType]: type,
+          [TelemetryAttributes.QueueCleanLimit]: maxCount,
+          [TelemetryAttributes.JobIds]: deletedJobsIds,
+        });
+
+        return deletedJobsIds;
+      },
+    );
   }
 
   /**
@@ -462,22 +937,29 @@ export class Queue<
    * @param opts - Obliterate options.
    */
   async obliterate(opts?: ObliterateOpts): Promise<void> {
-    await this.pause();
+    await this.trace<void>(
+      SpanKind.INTERNAL,
+      'obliterate',
+      this.name,
+      async () => {
+        await this.pause();
 
-    let cursor = 0;
-    do {
-      cursor = await this.scripts.obliterate({
-        force: false,
-        count: 1000,
-        ...opts,
-      });
-    } while (cursor);
+        let cursor = 0;
+        do {
+          cursor = await this.scripts.obliterate({
+            force: false,
+            count: 1000,
+            ...opts,
+          });
+        } while (cursor);
+      },
+    );
   }
 
   /**
-   * Retry all the failed jobs.
+   * Retry all the failed or completed jobs.
    *
-   * @param opts: { count: number; state: FinishedStatus; timestamp: number}
+   * @param opts - An object with the following properties:
    *   - count  number to limit how many jobs will be moved to wait status per iteration,
    *   - state  failed by default or completed.
    *   - timestamp from which timestamp to start moving jobs to wait status, default Date.now().
@@ -487,29 +969,51 @@ export class Queue<
   async retryJobs(
     opts: { count?: number; state?: FinishedStatus; timestamp?: number } = {},
   ): Promise<void> {
-    let cursor = 0;
-    do {
-      cursor = await this.scripts.retryJobs(
-        opts.state,
-        opts.count,
-        opts.timestamp,
-      );
-    } while (cursor);
+    await this.trace<void>(
+      SpanKind.PRODUCER,
+      'retryJobs',
+      this.name,
+      async span => {
+        span?.setAttributes({
+          [TelemetryAttributes.QueueOptions]: JSON.stringify(opts),
+        });
+
+        let cursor = 0;
+        do {
+          cursor = await this.scripts.retryJobs(
+            opts.state,
+            opts.count,
+            opts.timestamp,
+          );
+        } while (cursor);
+      },
+    );
   }
 
   /**
    * Promote all the delayed jobs.
    *
-   * @param opts: { count: number }
+   * @param opts - An object with the following properties:
    *   - count  number to limit how many jobs will be moved to wait status per iteration
    *
    * @returns
    */
   async promoteJobs(opts: { count?: number } = {}): Promise<void> {
-    let cursor = 0;
-    do {
-      cursor = await this.scripts.promoteJobs(opts.count);
-    } while (cursor);
+    await this.trace<void>(
+      SpanKind.INTERNAL,
+      'promoteJobs',
+      this.name,
+      async span => {
+        span?.setAttributes({
+          [TelemetryAttributes.QueueOptions]: JSON.stringify(opts),
+        });
+
+        let cursor = 0;
+        do {
+          cursor = await this.scripts.promoteJobs(opts.count);
+        } while (cursor);
+      },
+    );
   }
 
   /**
@@ -518,8 +1022,19 @@ export class Queue<
    * @param maxLength -
    */
   async trimEvents(maxLength: number): Promise<number> {
-    const client = await this.client;
-    return client.xtrim(this.keys.events, 'MAXLEN', '~', maxLength);
+    return this.trace<number>(
+      SpanKind.INTERNAL,
+      'trimEvents',
+      this.name,
+      async span => {
+        span?.setAttributes({
+          [TelemetryAttributes.QueueEventMaxLength]: maxLength,
+        });
+
+        const client = await this.client;
+        return await client.xtrim(this.keys.events, 'MAXLEN', '~', maxLength);
+      },
+    );
   }
 
   /**

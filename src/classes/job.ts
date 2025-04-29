@@ -1,5 +1,3 @@
-import { ChainableCommander } from 'ioredis';
-import { invert } from 'lodash';
 import { debuglog } from 'util';
 import {
   BackoffOptions,
@@ -8,7 +6,6 @@ import {
   JobJson,
   JobJsonRaw,
   MinimalJob,
-  MoveToDelayedOpts,
   MoveToWaitingChildrenOpts,
   ParentKeys,
   ParentOpts,
@@ -22,6 +19,8 @@ import {
   JobJsonSandbox,
   MinimalQueue,
   RedisJobOptions,
+  CompressableJobOptions,
+  JobProgress,
 } from '../types';
 import {
   errorObject,
@@ -30,21 +29,31 @@ import {
   lengthInUtf8Bytes,
   parseObjectValues,
   tryCatch,
+  removeUndefinedFields,
+  invertObject,
 } from '../utils';
 import { Backoffs } from './backoffs';
 import { Scripts } from './scripts';
 import { UnrecoverableError } from './errors/unrecoverable-error';
 import type { QueueEvents } from './queue-events';
+import { SpanKind } from '../enums';
 
 const logger = debuglog('bull');
 
+// Simple options decode map.
 const optsDecodeMap = {
+  de: 'deduplication',
   fpof: 'failParentOnFailure',
+  cpof: 'continueParentOnFailure',
+  idof: 'ignoreDependencyOnFailure',
   kl: 'keepLogs',
   rdof: 'removeDependencyOnFailure',
-};
+} as const;
 
-const optsEncodeMap = invert(optsDecodeMap);
+const optsEncodeMap = {
+  ...invertObject(optsDecodeMap),
+  /*/ Legacy for backwards compatibility */ debounce: 'de',
+} as const;
 
 export const PRIORITY_LIMIT = 2 ** 21;
 
@@ -56,7 +65,6 @@ export const PRIORITY_LIMIT = 2 ** 21;
  *
  * A Job instance is also passed to the Worker's process function.
  *
- * @class Job
  */
 export class Job<
   DataType = any,
@@ -74,7 +82,7 @@ export class Job<
    * The progress a job has performed so far.
    * @defaultValue 0
    */
-  progress: number | object = 0;
+  progress: JobProgress = 0;
 
   /**
    * The value returned by the processor when processing this job.
@@ -92,7 +100,15 @@ export class Job<
    * An amount of milliseconds to wait until this job can be processed.
    * @defaultValue 0
    */
-  delay: number;
+  delay = 0;
+
+  /**
+   * Ranges from 0 (highest priority) to 2 097 152 (lowest priority). Note that
+   * using priorities has a slight impact on performance,
+   * so do not use it if not required.
+   * @defaultValue 0
+   */
+  priority = 0;
 
   /**
    * Timestamp when the job was created (unless overridden with job options).
@@ -110,6 +126,12 @@ export class Job<
    * @defaultValue 0
    */
   attemptsMade = 0;
+
+  /**
+   * Number of times where job has stalled.
+   * @defaultValue 0
+   */
+  stalledCounter = 0;
 
   /**
    * Reason for failing.
@@ -137,17 +159,42 @@ export class Job<
   parent?: ParentKeys;
 
   /**
+   * Debounce identifier.
+   * @deprecated use deduplicationId
+   */
+  debounceId?: string;
+
+  /**
+   * Deduplication identifier.
+   */
+  deduplicationId?: string;
+
+  /**
    * Base repeat job key.
    */
   repeatJobKey?: string;
+
+  /**
+   * Produced next repetable job Id.
+   *
+   */
+  nextRepeatableJobId?: string;
 
   /**
    * The token used for locking this job.
    */
   token?: string;
 
+  /**
+   * The worker name that is processing or processed this job.
+   */
+  processedBy?: string;
+
   protected toKey: (type: string) => string;
 
+  /**
+   * @deprecated use UnrecoverableError
+   */
   protected discarded: boolean;
 
   protected scripts: Scripts;
@@ -175,12 +222,13 @@ export class Job<
     this.opts = Object.assign(
       {
         attempts: 0,
-        delay: 0,
       },
       restOpts,
     );
 
     this.delay = this.opts.delay;
+
+    this.priority = this.opts.priority || 0;
 
     this.repeatJobKey = repeatJobKey;
 
@@ -194,8 +242,13 @@ export class Job<
       ? { id: opts.parent.id, queueKey: opts.parent.queue }
       : undefined;
 
+    this.debounceId = opts.debounce ? opts.debounce.id : undefined;
+    this.deduplicationId = opts.deduplication
+      ? opts.deduplication.id
+      : this.debounceId;
+
     this.toKey = queue.toKey.bind(queue);
-    this.scripts = new Scripts(queue);
+    this.setScripts();
 
     this.queueQualifiedName = queue.qualifiedName;
   }
@@ -251,10 +304,10 @@ export class Job<
         new this<T, R, N>(queue, job.name, job.data, job.opts, job.opts?.jobId),
     );
 
-    const multi = client.multi();
+    const pipeline = client.pipeline();
 
     for (const job of jobInstances) {
-      job.addJob(<RedisClient>(multi as unknown), {
+      job.addJob(<RedisClient>(pipeline as unknown), {
         parentKey: job.parentKey,
         parentDependenciesKey: job.parentKey
           ? `${job.parentKey}:dependencies`
@@ -262,7 +315,7 @@ export class Job<
       });
     }
 
-    const results = (await multi.exec()) as [null | Error, string][];
+    const results = (await pipeline.exec()) as [null | Error, string][];
     for (let index = 0; index < results.length; ++index) {
       const [err, id] = results[index];
       if (err) {
@@ -303,6 +356,8 @@ export class Job<
 
     job.delay = parseInt(json.delay);
 
+    job.priority = parseInt(json.priority);
+
     job.timestamp = parseInt(json.timestamp);
 
     if (json.finishedOn) {
@@ -317,11 +372,18 @@ export class Job<
       job.repeatJobKey = json.rjk;
     }
 
+    if (json.deid) {
+      job.debounceId = json.deid;
+      job.deduplicationId = json.deid;
+    }
+
     job.failedReason = json.failedReason;
 
     job.attemptsStarted = parseInt(json.ats || '0');
 
     job.attemptsMade = parseInt(json.attemptsMade || json.atm || '0');
+
+    job.stalledCounter = parseInt(json.stc || '0');
 
     job.stacktrace = getTraces(json.stacktrace);
 
@@ -337,10 +399,22 @@ export class Job<
       job.parent = JSON.parse(json.parent);
     }
 
+    if (json.pb) {
+      job.processedBy = json.pb;
+    }
+
+    if (json.nrjid) {
+      job.nextRepeatableJobId = json.nrjid;
+    }
+
     return job;
   }
 
-  private static optsFromJSON(rawOpts?: string): JobsOptions {
+  protected setScripts() {
+    this.scripts = new Scripts(this.queue);
+  }
+
+  static optsFromJSON(rawOpts?: string): JobsOptions {
     const opts = JSON.parse(rawOpts || '{}');
 
     const optionEntries = Object.entries(opts) as Array<
@@ -354,7 +428,13 @@ export class Job<
         options[(optsDecodeMap as Record<string, any>)[<string>attributeName]] =
           value;
       } else {
-        options[<string>attributeName] = value;
+        if (attributeName === 'tm') {
+          options.telemetry = { ...options.telemetry, metadata: value };
+        } else if (attributeName === 'omc') {
+          options.telemetry = { ...options.telemetry, omitContext: value };
+        } else {
+          options[<string>attributeName] = value;
+        }
       }
     }
 
@@ -389,36 +469,22 @@ export class Job<
   /**
    * addJobLog
    *
-   * @param queue Queue instance
-   * @param jobId Job id
-   * @param logRow Log row
-   * @param keepLogs optional maximum number of logs to keep
+   * @param queue - A minimal queue instance
+   * @param jobId - Job id
+   * @param logRow - String with a row of log data to be logged
+   * @param keepLogs - The optional amount of log entries to preserve
    *
    * @returns The total number of log entries for this job so far.
    */
-  static async addJobLog(
+  static addJobLog(
     queue: MinimalQueue,
     jobId: string,
     logRow: string,
     keepLogs?: number,
   ): Promise<number> {
-    const client = await queue.client;
-    const logsKey = queue.toKey(jobId) + ':logs';
+    const scripts = (queue as any).scripts as Scripts;
 
-    const multi = client.multi();
-
-    multi.rpush(logsKey, logRow);
-
-    if (keepLogs) {
-      multi.ltrim(logsKey, -keepLogs, -1);
-    }
-
-    const result = (await multi.exec()) as [
-      [Error, number],
-      [Error, string] | undefined,
-    ];
-
-    return keepLogs ? Math.min(keepLogs, result[0][1]) : result[0][1];
+    return scripts.addLog(jobId, logRow, keepLogs);
   }
 
   toJSON() {
@@ -431,41 +497,58 @@ export class Job<
    * @returns
    */
   asJSON(): JobJson {
-    return {
+    return removeUndefinedFields<JobJson>({
       id: this.id,
       name: this.name,
       data: JSON.stringify(typeof this.data === 'undefined' ? {} : this.data),
-      opts: this.optsAsJSON(this.opts),
+      opts: Job.optsAsJSON(this.opts),
       parent: this.parent ? { ...this.parent } : undefined,
       parentKey: this.parentKey,
       progress: this.progress,
       attemptsMade: this.attemptsMade,
       attemptsStarted: this.attemptsStarted,
+      stalledCounter: this.stalledCounter,
       finishedOn: this.finishedOn,
       processedOn: this.processedOn,
       timestamp: this.timestamp,
       failedReason: JSON.stringify(this.failedReason),
       stacktrace: JSON.stringify(this.stacktrace),
+      debounceId: this.debounceId,
+      deduplicationId: this.deduplicationId,
       repeatJobKey: this.repeatJobKey,
       returnvalue: JSON.stringify(this.returnvalue),
-    };
+      nrjid: this.nextRepeatableJobId,
+    });
   }
 
-  private optsAsJSON(opts: JobsOptions = {}): RedisJobOptions {
+  static optsAsJSON(opts: JobsOptions = {}): RedisJobOptions {
     const optionEntries = Object.entries(opts) as Array<
       [keyof JobsOptions, any]
     >;
-    const options: Partial<Record<string, any>> = {};
-    for (const item of optionEntries) {
-      const [attributeName, value] = item;
-      if ((optsEncodeMap as Record<string, any>)[<string>attributeName]) {
-        options[(optsEncodeMap as Record<string, any>)[<string>attributeName]] =
-          value;
+    const options: Record<string, any> = {};
+
+    for (const [attributeName, value] of optionEntries) {
+      if (typeof value === 'undefined') {
+        continue;
+      }
+      if (attributeName in optsEncodeMap) {
+        const compressableAttribute = attributeName as keyof Omit<
+          CompressableJobOptions,
+          'debounce' | 'telemetry'
+        >;
+
+        const key = optsEncodeMap[compressableAttribute];
+        options[key] = value;
       } else {
-        options[<string>attributeName] = value;
+        // Handle complex compressable fields separately
+        if (attributeName === 'telemetry') {
+          options.tm = value.metadata;
+          options.omc = value.omitContext;
+        } else {
+          options[attributeName] = value;
+        }
       }
     }
-
     return options as RedisJobOptions;
   }
 
@@ -497,7 +580,7 @@ export class Job<
    *
    * @param progress - number or object to be saved as progress.
    */
-  async updateProgress(progress: number | object): Promise<void> {
+  async updateProgress(progress: JobProgress): Promise<void> {
     this.progress = progress;
     await this.scripts.updateProgress(this.id, progress);
     this.queue.emit('progress', this, progress);
@@ -511,6 +594,25 @@ export class Job<
    */
   async log(logRow: string): Promise<number> {
     return Job.addJobLog(this.queue, this.id, logRow, this.opts.keepLogs);
+  }
+
+  /**
+   * Removes child dependency from parent when child is not yet finished
+   *
+   * @returns True if the relationship existed and if it was removed.
+   */
+  async removeChildDependency(): Promise<boolean> {
+    const childDependencyIsRemoved = await this.scripts.removeChildDependency(
+      this.id,
+      this.parentKey,
+    );
+    if (childDependencyIsRemoved) {
+      this.parent = undefined;
+      this.parentKey = undefined;
+      return true;
+    }
+
+    return false;
   }
 
   /**
@@ -553,6 +655,19 @@ export class Job<
   }
 
   /**
+   * Remove all children from this job that are not yet processed,
+   * in other words that are in any other state than completed, failed or active.
+   *
+   * @remarks
+   *  - Jobs with locks (most likely active) are ignored.
+   *  - This method can be slow if the number of children is large (\> 1000).
+   */
+  async removeUnprocessedChildren(): Promise<void> {
+    const jobId = this.id;
+    await this.scripts.removeUnprocessedChildren(jobId);
+  }
+
+  /**
    * Extend the lock for this job.
    *
    * @param token - unique token for the lock
@@ -569,39 +684,83 @@ export class Job<
    * @param returnValue - The jobs success message.
    * @param token - Worker token used to acquire completed job.
    * @param fetchNext - True when wanting to fetch the next job.
-   * @returns Returns the jobData of the next job in the waiting queue.
+   * @returns Returns the jobData of the next job in the waiting queue or void.
    */
   async moveToCompleted(
     returnValue: ReturnType,
     token: string,
     fetchNext = true,
-  ) {
-    await this.queue.waitUntilReady();
+  ): Promise<void | any[]> {
+    return this.queue.trace<Promise<void | any[]>>(
+      SpanKind.INTERNAL,
+      'complete',
+      this.queue.name,
+      async (span, dstPropagationMedatadata) => {
+        let tm;
+        if (!this.opts?.telemetry?.omitContext && dstPropagationMedatadata) {
+          tm = dstPropagationMedatadata;
+        }
 
-    this.returnvalue = returnValue || void 0;
+        await this.queue.waitUntilReady();
 
-    const stringifiedReturnValue = tryCatch(JSON.stringify, JSON, [
-      returnValue,
-    ]);
-    if (stringifiedReturnValue === errorObject) {
-      throw errorObject.value;
-    }
+        this.returnvalue = returnValue || void 0;
 
-    const args = this.scripts.moveToCompletedArgs(
-      this,
-      stringifiedReturnValue,
-      this.opts.removeOnComplete,
-      token,
-      fetchNext,
+        const stringifiedReturnValue = tryCatch(JSON.stringify, JSON, [
+          returnValue,
+        ]);
+        if (stringifiedReturnValue === errorObject) {
+          throw errorObject.value;
+        }
+
+        const args = this.scripts.moveToCompletedArgs(
+          this,
+          stringifiedReturnValue,
+          this.opts.removeOnComplete,
+          token,
+          fetchNext,
+        );
+
+        const result = await this.scripts.moveToFinished(this.id, args);
+        this.finishedOn = args[
+          this.scripts.moveToFinishedKeys.length + 1
+        ] as number;
+        this.attemptsMade += 1;
+
+        return result;
+      },
     );
+  }
 
-    const result = await this.scripts.moveToFinished(this.id, args);
-    this.finishedOn = args[
-      this.scripts.moveToFinishedKeys.length + 1
-    ] as number;
-    this.attemptsMade += 1;
+  /**
+   * Moves a job to the wait or prioritized state.
+   *
+   * @param token - Worker token used to acquire completed job.
+   * @returns Returns pttl.
+   */
+  moveToWait(token: string): Promise<number> {
+    return this.scripts.moveJobFromActiveToWait(this.id, token);
+  }
 
-    return result;
+  private async shouldRetryJob(err: Error): Promise<[boolean, number]> {
+    if (
+      this.attemptsMade + 1 < this.opts.attempts &&
+      !this.discarded &&
+      !(err instanceof UnrecoverableError || err.name == 'UnrecoverableError')
+    ) {
+      const opts = this.queue.opts as WorkerOptions;
+
+      const delay = await Backoffs.calculate(
+        <BackoffOptions>this.opts.backoff,
+        this.attemptsMade + 1,
+        err,
+        this,
+        opts.settings && opts.settings.backoffStrategy,
+      );
+
+      return [delay == -1 ? false : true, delay == -1 ? 0 : delay];
+    } else {
+      return [false, 0];
+    }
   }
 
   /**
@@ -610,103 +769,100 @@ export class Job<
    * @param err - the jobs error message.
    * @param token - token to check job is locked by current worker
    * @param fetchNext - true when wanting to fetch the next job
-   * @returns void
+   * @returns Returns the jobData of the next job in the waiting queue or void.
    */
   async moveToFailed<E extends Error>(
     err: E,
     token: string,
     fetchNext = false,
-  ): Promise<void> {
-    const client = await this.queue.client;
-    const message = err?.message;
+  ): Promise<void | any[]> {
+    this.failedReason = err?.message;
 
-    const queue = this.queue;
-    this.failedReason = message;
-
-    let command: string;
-    const multi = client.multi();
-
-    this.saveStacktrace(multi, err);
-
-    //
     // Check if an automatic retry should be performed
-    //
-    let moveToFailed = false;
-    let finishedOn, delay;
-    if (
-      this.attemptsMade + 1 < this.opts.attempts &&
-      !this.discarded &&
-      !(err instanceof UnrecoverableError || err.name == 'UnrecoverableError')
-    ) {
-      const opts = queue.opts as WorkerOptions;
+    const [shouldRetry, retryDelay] = await this.shouldRetryJob(err);
 
-      // Check if backoff is needed
-      delay = await Backoffs.calculate(
-        <BackoffOptions>this.opts.backoff,
-        this.attemptsMade + 1,
-        err,
-        this,
-        opts.settings && opts.settings.backoffStrategy,
-      );
+    return this.queue.trace<Promise<void | any[]>>(
+      SpanKind.INTERNAL,
+      this.getSpanOperation(shouldRetry, retryDelay),
+      this.queue.name,
+      async (span, dstPropagationMedatadata) => {
+        let tm;
+        if (!this.opts?.telemetry?.omitContext && dstPropagationMedatadata) {
+          tm = dstPropagationMedatadata;
+        }
+        let result;
 
-      if (delay === -1) {
-        moveToFailed = true;
-      } else if (delay) {
-        const args = this.scripts.moveToDelayedArgs(
-          this.id,
-          Date.now() + delay,
-          token,
-          delay,
-        );
-        (<any>multi).moveToDelayed(args);
-        command = 'delayed';
-      } else {
-        // Retry immediately
-        (<any>multi).retryJob(
-          this.scripts.retryJobArgs(this.id, this.opts.lifo, token),
-        );
-        command = 'retryJob';
+        this.updateStacktrace(err);
+
+        const fieldsToUpdate = {
+          failedReason: this.failedReason,
+          stacktrace: JSON.stringify(this.stacktrace),
+          tm,
+        };
+
+        let finishedOn: number;
+        if (shouldRetry) {
+          if (retryDelay) {
+            // Retry with delay
+            result = await this.scripts.moveToDelayed(
+              this.id,
+              Date.now(),
+              retryDelay,
+              token,
+              { fieldsToUpdate },
+            );
+          } else {
+            // Retry immediately
+            result = await this.scripts.retryJob(
+              this.id,
+              this.opts.lifo,
+              token,
+              {
+                fieldsToUpdate,
+              },
+            );
+          }
+        } else {
+          const args = this.scripts.moveToFailedArgs(
+            this,
+            this.failedReason,
+            this.opts.removeOnFail,
+            token,
+            fetchNext,
+            fieldsToUpdate,
+          );
+
+          result = await this.scripts.moveToFinished(this.id, args);
+          finishedOn = args[
+            this.scripts.moveToFinishedKeys.length + 1
+          ] as number;
+        }
+
+        if (finishedOn && typeof finishedOn === 'number') {
+          this.finishedOn = finishedOn;
+        }
+
+        if (retryDelay && typeof retryDelay === 'number') {
+          this.delay = retryDelay;
+        }
+
+        this.attemptsMade += 1;
+
+        return result;
+      },
+    );
+  }
+
+  private getSpanOperation(shouldRetry: boolean, retryDelay: number): string {
+    if (shouldRetry) {
+      if (retryDelay) {
+        return 'delay';
       }
-    } else {
-      // If not, move to failed
-      moveToFailed = true;
+
+      return 'retry';
     }
 
-    if (moveToFailed) {
-      const args = this.scripts.moveToFailedArgs(
-        this,
-        message,
-        this.opts.removeOnFail,
-        token,
-        fetchNext,
-      );
-      (<any>multi).moveToFinished(args);
-      finishedOn = args[this.scripts.moveToFinishedKeys.length + 1] as number;
-      command = 'failed';
-    }
-
-    const results = await multi.exec();
-    const anyError = results.find(result => result[0]);
-    if (anyError) {
-      throw new Error(
-        `Error "moveToFailed" with command ${command}: ${anyError}`,
-      );
-    }
-
-    const code = results[results.length - 1][1] as number;
-    if (code < 0) {
-      throw this.scripts.finishedErrors(code, this.id, command, 'active');
-    }
-
-    if (finishedOn && typeof finishedOn === 'number') {
-      this.finishedOn = finishedOn;
-    }
-
-    if (delay && typeof delay === 'number') {
-      this.delay = delay;
-    }
-
-    this.attemptsMade += 1;
+    return 'fail';
   }
 
   /**
@@ -789,6 +945,7 @@ export class Job<
   /**
    * Change job priority.
    *
+   * @param opts - options containing priority and lifo values.
    * @returns void
    */
   async changePriority(opts: {
@@ -796,6 +953,7 @@ export class Job<
     lifo?: boolean;
   }): Promise<void> {
     await this.scripts.changePriority(this.id, opts.priority, opts.lifo);
+    this.priority = opts.priority || 0;
   }
 
   /**
@@ -813,6 +971,17 @@ export class Job<
     if (result) {
       return parseObjectValues(result);
     }
+  }
+
+  /**
+   * Get this jobs children failure values if any.
+   *
+   * @returns Object mapping children job keys with their failure values.
+   */
+  async getFailedChildrenValues(): Promise<{ [jobKey: string]: string }> {
+    const client = await this.queue.client;
+
+    return client.hgetall(this.toKey(`${this.id}:failed`));
   }
 
   /**
@@ -915,51 +1084,42 @@ export class Job<
   /**
    * Get children job counts if this job is a parent and has children.
    *
-   * @returns dependencies count separated by processed and unprocessed.
+   * @returns dependencies count separated by processed, unprocessed, ignored and failed.
    */
   async getDependenciesCount(
     opts: {
+      failed?: boolean;
+      ignored?: boolean;
       processed?: boolean;
       unprocessed?: boolean;
     } = {},
   ): Promise<{
+    failed?: number;
+    ignored?: number;
     processed?: number;
     unprocessed?: number;
   }> {
-    const client = await this.queue.client;
-    const multi = client.multi();
+    const types: string[] = [];
+    Object.entries(opts).forEach(([key, value]) => {
+      if (value) {
+        types.push(key);
+      }
+    });
 
-    const updatedOpts =
-      !opts.processed && !opts.unprocessed
-        ? { processed: true, unprocessed: true }
-        : opts;
+    const finalTypes = types.length
+      ? types
+      : ['processed', 'unprocessed', 'ignored', 'failed'];
+    const responses = await this.scripts.getDependencyCounts(
+      this.id,
+      finalTypes,
+    );
 
-    if (updatedOpts.processed) {
-      multi.hlen(this.toKey(`${this.id}:processed`));
-    }
+    const counts: { [index: string]: number } = {};
+    responses.forEach((res, index) => {
+      counts[`${finalTypes[index]}`] = res || 0;
+    });
 
-    if (updatedOpts.unprocessed) {
-      multi.scard(this.toKey(`${this.id}:dependencies`));
-    }
-
-    const [[err1, result1] = [], [err2, result2] = []] =
-      (await multi.exec()) as [[null | Error, number], [null | Error, number]];
-
-    const processed = updatedOpts.processed ? result1 : undefined;
-    const unprocessed = updatedOpts.unprocessed
-      ? updatedOpts.processed
-        ? result2
-        : result1
-      : undefined;
-
-    return {
-      ...(updatedOpts.processed
-        ? {
-            processed,
-          }
-        : {}),
-      ...(updatedOpts.unprocessed ? { unprocessed } : {}),
-    };
+    return counts;
   }
 
   /**
@@ -1037,19 +1197,22 @@ export class Job<
   /**
    * Moves the job to the delay set.
    *
-   * @param timestamp - timestamp where the job should be moved back to "wait"
+   * @param timestamp - timestamp when the job should be moved back to "wait"
    * @param token - token to check job is locked by current worker
    * @returns
    */
   async moveToDelayed(timestamp: number, token?: string): Promise<void> {
-    const delay = timestamp - Date.now();
+    const now = Date.now();
+    const delay = timestamp - now;
+    const finalDelay = delay > 0 ? delay : 0;
     const movedToDelayed = await this.scripts.moveToDelayed(
       this.id,
-      timestamp,
-      delay > 0 ? delay : 0,
+      now,
+      finalDelay,
       token,
       { skipAttempt: true },
     );
+    this.delay = finalDelay;
 
     return movedToDelayed;
   }
@@ -1104,6 +1267,7 @@ export class Job<
 
   /**
    * Marks a job to not be retried if it fails (even if attempts has been configured)
+   * @deprecated use UnrecoverableError
    */
   discard(): void {
     this.discarded = true;
@@ -1142,6 +1306,13 @@ export class Job<
   }
 
   protected validateOptions(jobData: JobJson) {
+    const exclusiveOptions: (keyof JobsOptions)[] = [
+      'removeDependencyOnFailure',
+      'failParentOnFailure',
+      'continueParentOnFailure',
+      'ignoreDependencyOnFailure',
+    ];
+
     const exceedLimit =
       this.opts.sizeLimit &&
       lengthInUtf8Bytes(jobData.data) > this.opts.sizeLimit;
@@ -1156,9 +1327,14 @@ export class Job<
       throw new Error(`Delay and repeat options could not be used together`);
     }
 
-    if (this.opts.removeDependencyOnFailure && this.opts.failParentOnFailure) {
+    const enabledExclusiveOptions = exclusiveOptions.filter(
+      opt => this.opts[opt],
+    );
+
+    if (enabledExclusiveOptions.length > 1) {
+      const optionsList = enabledExclusiveOptions.join(', ');
       throw new Error(
-        `RemoveDependencyOnFailure and failParentOnFailure options can not be used together`,
+        `The following options cannot be used together: ${optionsList}`,
       );
     }
 
@@ -1177,23 +1353,17 @@ export class Job<
     }
   }
 
-  protected saveStacktrace(multi: ChainableCommander, err: Error): void {
+  protected updateStacktrace(err: Error) {
     this.stacktrace = this.stacktrace || [];
 
     if (err?.stack) {
       this.stacktrace.push(err.stack);
-      if (this.opts.stackTraceLimit) {
-        this.stacktrace = this.stacktrace.slice(0, this.opts.stackTraceLimit);
+      if (this.opts.stackTraceLimit === 0) {
+        this.stacktrace = [];
+      } else if (this.opts.stackTraceLimit) {
+        this.stacktrace = this.stacktrace.slice(-this.opts.stackTraceLimit);
       }
     }
-
-    const args = this.scripts.saveStacktraceArgs(
-      this.id,
-      JSON.stringify(this.stacktrace),
-      err?.message,
-    );
-
-    (<any>multi).saveStacktrace(args);
   }
 }
 

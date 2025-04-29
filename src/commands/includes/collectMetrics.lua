@@ -17,7 +17,7 @@ local function collectMetrics(metaKey, dataPointsList, maxDataPoints,
         return
     end
 
-    local N = math.floor((timestamp - prevTS) / 60000)
+    local N = math.min(math.floor(timestamp / 60000) - math.floor(prevTS / 60000), tonumber(maxDataPoints))
 
     if N > 0 then
         local delta = count - rcall("HGET", metaKey, "prevCount")

@@ -22,6 +22,7 @@ local rcall = redis.call
 
 local markerKey = KEYS[7]
 local hasJobs = rcall("EXISTS", KEYS[1]) == 1
+--TODO: check this logic to be reused when changing a delay
 if hasJobs then rcall("RENAME", KEYS[1], KEYS[2]) end
 
 if ARGV[1] == "paused" then

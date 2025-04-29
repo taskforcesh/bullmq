@@ -4,6 +4,8 @@ import { QueueBaseOptions } from './queue-options';
 import { RateLimiterOptions } from './rate-limiter-options';
 import { MetricsOptions } from './metrics-options';
 import { KeepJobs } from './keep-jobs';
+import { Telemetry } from './telemetry';
+import { SandboxedOptions } from './sandboxed-options';
 
 /**
  * An async function that receives `Job`s and handles them.
@@ -13,11 +15,18 @@ export type Processor<T = any, R = any, N extends string = string> = (
   token?: string,
 ) => Promise<R>;
 
-export interface WorkerOptions extends QueueBaseOptions {
+export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
+  /**
+   * Optional worker name. The name will be stored on every job
+   * processed by this worker instance, and can be used to monitor
+   * which worker is processing or has processed a given job.
+   */
+  name?: string;
+
   /**
    * Condition to start processor at instance creation.
    *
-   * @default true
+   * @defaultValue true
    */
   autorun?: boolean;
 
@@ -25,7 +34,7 @@ export interface WorkerOptions extends QueueBaseOptions {
    * Amount of jobs that a single worker is allowed to work on
    * in parallel.
    *
-   * @default 1
+   * @defaultValue 1
    * @see {@link https://docs.bullmq.io/guide/workers/concurrency}
    */
   concurrency?: number;
@@ -47,14 +56,14 @@ export interface WorkerOptions extends QueueBaseOptions {
    * to the `wait` state. If this is exceeded, the job is moved
    * to `failed`.
    *
-   * @default 1
+   * @defaultValue 1
    */
   maxStalledCount?: number;
 
   /**
    * Number of milliseconds between stallness checks.
    *
-   * @default 30000
+   * @defaultValue 30000
    */
   stalledInterval?: number;
 
@@ -77,7 +86,7 @@ export interface WorkerOptions extends QueueBaseOptions {
    *  perform stalled checkd and move jobs back to wait for jobs being processed
    *  by this worker.
    *
-   *  @default false
+   *  @defaultValue false
    */
   skipStalledCheck?: boolean;
 
@@ -86,26 +95,24 @@ export interface WorkerOptions extends QueueBaseOptions {
    *  after lockDuration and moved back to the wait queue (if the stalled check is
    *  not disabled)
    *
-   *  @default false
+   *  @defaultValue false
    */
   skipLockRenewal?: boolean;
 
   /**
-   *
    * Number of seconds to long poll for jobs when the queue is empty.
    *
-   * @default 5
+   * @defaultValue 5
    */
   drainDelay?: number;
 
   /**
-   *
    * Duration of the lock for the job in milliseconds. The lock represents that
    * a worker is processing the job. If the lock is lost, the job will be eventually
    * be picked up by the stalled checker and move back to wait so that another worker
    * can process it again.
    *
-   * @default 30000
+   * @defaultValue 30000
    */
   lockDuration?: number;
 
@@ -120,7 +127,7 @@ export interface WorkerOptions extends QueueBaseOptions {
   /**
    * This is an internal option that should not be modified.
    *
-   * @default 15000
+   * @defaultValue 15000
    */
   runRetryDelay?: number;
 
@@ -134,9 +141,14 @@ export interface WorkerOptions extends QueueBaseOptions {
    * Note: This option can only be used when specifying
    * a file for the processor argument.
    *
-   * @default false
+   * @defaultValue false
    */
   useWorkerThreads?: boolean;
+
+  /**
+   * Telemetry Addon
+   */
+  telemetry?: Telemetry;
 }
 
 export interface GetNextJobOptions {

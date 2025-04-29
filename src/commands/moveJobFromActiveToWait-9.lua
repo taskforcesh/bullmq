@@ -1,15 +1,15 @@
 --[[
   Function to move job from active state to wait.
   Input:
-    KEYS[1] active key
-    KEYS[2] wait key
+    KEYS[1]  active key
+    KEYS[2]  wait key
     
-    KEYS[3] stalled key
-    KEYS[4] job lock key
-    KEYS[5] paused key
-    KEYS[6] meta key
-    KEYS[7] limiter key
-    KEYS[8] prioritized key
+    KEYS[3]  stalled key
+    KEYS[4]  paused key
+    KEYS[5]  meta key
+    KEYS[6]  limiter key
+    KEYS[7]  prioritized key
+    KEYS[8]  marker key
     KEYS[9] event key
 
     ARGV[1] job id
@@ -19,35 +19,45 @@
 local rcall = redis.call
 
 -- Includes
+--- @include "includes/addJobInTargetList"
 --- @include "includes/pushBackJobWithPriority"
+--- @include "includes/getOrSetMaxEvents"
 --- @include "includes/getTargetQueueList"
+--- @include "includes/removeLock"
 
 local jobId = ARGV[1]
 local token = ARGV[2]
-local lockKey = KEYS[4]
+local jobKey = ARGV[3]
 
-local lockToken = rcall("GET", lockKey)
-local pttl = rcall("PTTL", KEYS[7])
-if lockToken == token and pttl > 0 then
-  local removed = rcall("LREM", KEYS[1], 1, jobId)
-  if (removed > 0) then
-    local target = getTargetQueueList(KEYS[6], KEYS[2], KEYS[5])
-
-    rcall("SREM", KEYS[3], jobId)
-
-    local priority = tonumber(rcall("HGET", ARGV[3], "priority")) or 0
-
-    if priority > 0 then
-      pushBackJobWithPriority(KEYS[8], priority, jobId)
-    else
-      rcall("RPUSH", target, jobId)
-    end
-
-    rcall("DEL", lockKey)
-
-    -- Emit waiting event
-    rcall("XADD", KEYS[9], "*", "event", "waiting", "jobId", jobId)
-  end
+local errorCode = removeLock(jobKey, KEYS[3], token, jobId)
+if errorCode < 0 then
+  return errorCode
 end
 
-return pttl
+local metaKey = KEYS[5]
+local removed = rcall("LREM", KEYS[1], 1, jobId)
+if removed > 0 then
+  local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[1], KEYS[2], KEYS[4])
+
+  local priority = tonumber(rcall("HGET", ARGV[3], "priority")) or 0
+
+  if priority > 0 then
+    pushBackJobWithPriority(KEYS[7], priority, jobId)
+  else
+    addJobInTargetList(target, KEYS[8], "RPUSH", isPausedOrMaxed, jobId)
+  end
+
+  local maxEvents = getOrSetMaxEvents(metaKey)
+
+  -- Emit waiting event
+  rcall("XADD", KEYS[9], "MAXLEN", "~", maxEvents, "*", "event", "waiting",
+    "jobId", jobId)
+end
+
+local pttl = rcall("PTTL", KEYS[6])
+
+if pttl > 0 then
+  return pttl
+else
+  return 0
+end

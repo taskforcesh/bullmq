@@ -6,7 +6,7 @@ description: >-
 
 # Architecture
 
-In order to use the full potential of Bull queues, it is important to understand the lifecycle of a job. From the moment a producer calls the [`add`](https://api.docs.bullmq.io/classes/v4.Queue.html#add) method on a `Queue` instance, a job enters a lifecycle where it will be in different states, until its completion or failure (although technically a failed job could be retried and get a new lifecycle).
+In order to use the full potential of Bull queues, it is important to understand the lifecycle of a job. From the moment a producer calls the [`add`](https://api.docs.bullmq.io/classes/v5.Queue.html#add) method on a `Queue` instance, a job enters a lifecycle where it will be in different states, until its completion or failure (although technically a failed job could be retried and get a new lifecycle).
 
 <figure><img src="../.gitbook/assets/mermaid-diagram-2023-06-22-093303.png" alt=""><figcaption><p>Lifecycle of a job - Queue</p></figcaption></figure>
 
@@ -21,7 +21,7 @@ Note that priorities go from `0` to `2^21`, where 0 is the highest priority. Thi
 
 The next state for a job is the **“active”** state. The active state is represented by a set, and are jobs that are currently being processed (i.e. they are running in the `process` function explained in the previous chapter). A job can be in the active state for an unlimited amount of time until the process is completed or an exception is thrown so that the job will end in either the **“completed”** or the **“failed”** status.
 
-Another way to add a job is by the [`add`](https://api.docs.bullmq.io/classes/v4.FlowProducer.html#add) method on a flow producer instance.
+Another way to add a job is by the [`add`](https://api.docs.bullmq.io/classes/v5.FlowProducer.html#add) method on a flow producer instance.
 
 <figure><img src="../.gitbook/assets/mermaid-diagram-2023-06-22-095138.png" alt=""><figcaption><p>Lifecycle of a job - Flow Producer</p></figcaption></figure>
 

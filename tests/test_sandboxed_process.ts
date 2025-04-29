@@ -2,19 +2,207 @@ import { expect } from 'chai';
 import { pathToFileURL } from 'url';
 import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
-import { FlowProducer, Job, Queue, QueueEvents, Worker } from '../src/classes';
+import {
+  Child,
+  FlowProducer,
+  Job,
+  Queue,
+  QueueEvents,
+  UNRECOVERABLE_ERROR,
+  Worker,
+} from '../src/classes';
 import { beforeEach, before, after as afterAll, it } from 'mocha';
 import { v4 } from 'uuid';
 import { delay, removeAllQueueData } from '../src/utils';
-import { Child } from '../src/classes/child';
 const { stdout, stderr } = require('test-console');
 
 describe('Sandboxed process using child processes', () => {
   sandboxProcessTests();
+
+  describe('custom cases', () => {
+    const redisHost = process.env.REDIS_HOST || 'localhost';
+    const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
+    let queue: Queue;
+    let queueEvents: QueueEvents;
+    let queueName: string;
+
+    let connection;
+    before(async function () {
+      connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    });
+
+    beforeEach(async function () {
+      queueName = `test-${v4()}`;
+      queue = new Queue(queueName, { connection, prefix });
+      queueEvents = new QueueEvents(queueName, { connection, prefix });
+      await queueEvents.waitUntilReady();
+    });
+
+    afterEach(async function () {
+      await queue.close();
+      await queueEvents.close();
+      await removeAllQueueData(new IORedis(), queueName);
+    });
+
+    afterAll(async function () {
+      await connection.quit();
+    });
+
+    it('should allow to pass workerForkOptions', async function () {
+      const processFile = __dirname + '/fixtures/fixture_processor.js';
+
+      const worker = new Worker(queueName, processFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads: false,
+        workerForkOptions: {
+          serialization: 'advanced',
+        },
+      });
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async (job: Job, value: any) => {
+          try {
+            expect(job.returnvalue).to.be.eql(42);
+            expect(job.data).to.be.eql({ foo: 'bar' });
+            expect(value).to.be.eql(42);
+            expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
+              0,
+            );
+            expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      await queue.add('test', { foo: 'bar' });
+
+      await completing;
+
+      await worker.close();
+    });
+
+    it('should allow to pass workerForkOptions with timeout', async function () {
+      const processFile = __dirname + '/fixtures/fixture_processor.js';
+
+      // Note that this timeout will not kill the child process immediately, but
+      // will wait for the child process to resolve all its promises before killing it.
+      // Therefore the job will not be "cancelled" but will be completed.
+      const workerForkOptions = {
+        timeout: 1000,
+      } as any;
+      const worker = new Worker(queueName, processFile, {
+        autorun: false,
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads: false,
+        workerForkOptions,
+      });
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async (job, error) => {
+          try {
+            const retainedChild = Object.values(
+              worker['childPool'].retained,
+            )[0];
+            expect(retainedChild).to.be.undefined;
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      await delay(500);
+
+      await queue.add('test', { foo: 'bar' });
+
+      worker.run();
+
+      await delay(600);
+
+      await completing;
+
+      await worker.close();
+    });
+  });
 });
 
 describe('Sandboxed process using worker threads', () => {
   sandboxProcessTests({ useWorkerThreads: true });
+
+  describe('custom cases', () => {
+    const redisHost = process.env.REDIS_HOST || 'localhost';
+    const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
+    let queue: Queue;
+    let queueEvents: QueueEvents;
+    let queueName: string;
+
+    let connection;
+    before(async function () {
+      connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    });
+
+    beforeEach(async function () {
+      queueName = `test-${v4()}`;
+      queue = new Queue(queueName, { connection, prefix });
+      queueEvents = new QueueEvents(queueName, { connection, prefix });
+      await queueEvents.waitUntilReady();
+    });
+
+    afterEach(async function () {
+      await queue.close();
+      await queueEvents.close();
+      await removeAllQueueData(new IORedis(), queueName);
+    });
+
+    afterAll(async function () {
+      await connection.quit();
+    });
+
+    it('should allow to pass workerThreadsOptions', async () => {
+      const processFile = __dirname + '/fixtures/fixture_processor.js';
+
+      const worker = new Worker(queueName, processFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads: true,
+        workerThreadsOptions: {
+          resourceLimits: {
+            maxOldGenerationSizeMb: 20,
+          },
+        },
+      });
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async (job: Job, value: any) => {
+          try {
+            expect(job.returnvalue).to.be.eql(42);
+            expect(job.data).to.be.eql({ foo: 'bar' });
+            expect(value).to.be.eql(42);
+            expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
+              0,
+            );
+            expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      await queue.add('test', { foo: 'bar' });
+
+      await completing;
+
+      await worker.close();
+    });
+  });
 });
 
 function sandboxProcessTests(
@@ -327,21 +515,25 @@ function sandboxProcessTests(
           'test',
           { foo: 'bar' },
           {
-            attempts: 3,
+            attempts: 5,
             backoff: 1000,
           },
         );
 
-        await new Promise<void>(resolve => {
+        await new Promise<void>((resolve, reject) => {
           worker.on(
             'failed',
             after(2, (job: Job, error) => {
-              const elapse = Date.now() - start;
-              expect(error.name).to.be.eql('UnrecoverableError');
-              expect(error.message).to.be.eql('Unrecoverable');
-              expect(elapse).to.be.greaterThan(1000);
-              expect(job.attemptsMade).to.be.eql(2);
-              resolve();
+              try {
+                const elapse = Date.now() - start;
+                expect(error.name).to.be.eql('UnrecoverableError');
+                expect(error.message).to.be.eql(UNRECOVERABLE_ERROR);
+                expect(elapse).to.be.greaterThan(1000);
+                expect(job.attemptsMade).to.be.eql(2);
+                resolve();
+              } catch (err) {
+                reject(err);
+              }
             }),
           );
         });
@@ -429,7 +621,7 @@ function sandboxProcessTests(
     });
 
     it('should reuse process with single processors', async function () {
-      this.timeout(30000);
+      this.timeout(20000);
 
       const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
       const worker = new Worker(queueName, processFile, {
@@ -545,6 +737,158 @@ function sandboxProcessTests(
       await worker.close();
     });
 
+    it('should process steps and complete', async () => {
+      const processFile = __dirname + '/fixtures/fixture_processor_steps.js';
+
+      const worker = new Worker(queueName, processFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+      });
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async (job: Job) => {
+          try {
+            expect(job.data).to.be.eql({
+              step: 'FINISH',
+              extraDataSecondStep: 'second data',
+              extraDataFinishedStep: 'finish data',
+            });
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      await queue.add('test', { step: 'INITIAL' });
+
+      await completing;
+
+      await worker.close();
+    });
+
+    it('can get children values by calling getChildrenValues', async () => {
+      const childJobId = 'child-job-id';
+      const childProcessFile =
+        __dirname + '/fixtures/fixture_processor_get_children_values_child.js';
+      const parentProcessFile =
+        __dirname + '/fixtures/fixture_processor_get_children_values.js';
+      const parentQueueName = `parent-queue-${v4()}`;
+
+      const parentWorker = new Worker(parentQueueName, parentProcessFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads,
+      });
+
+      const childWorker = new Worker(queueName, childProcessFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads,
+      });
+
+      const parentCompleting = new Promise<void>((resolve, reject) => {
+        parentWorker.on('completed', async (job: Job, value: any) => {
+          try {
+            expect(value).to.be.eql({
+              [`${prefix}:${queueName}:${childJobId}`]: { childResult: 'bar' },
+            });
+            resolve();
+          } catch (err) {
+            await parentWorker.close();
+            reject(err);
+          }
+        });
+
+        parentWorker.on('failed', async (_, error: Error) => {
+          await parentWorker.close();
+          reject(error);
+        });
+      });
+
+      const flow = new FlowProducer({ connection, prefix });
+      await flow.add({
+        name: 'parent-job',
+        queueName: parentQueueName,
+        opts: { jobId: 'job-id' },
+        children: [
+          { name: 'child-job', queueName, opts: { jobId: childJobId } },
+        ],
+      });
+
+      await parentCompleting;
+      await parentWorker.close();
+      await childWorker.close();
+      await flow.close();
+      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+    });
+
+    it('will fail job if calling getChildrenValues is too slow', async () => {
+      // Mockup Job.getChildrenValues to be slow
+      const getChildrenValues = Job.prototype.getChildrenValues;
+      Job.prototype.getChildrenValues = async function () {
+        await delay(50000);
+        return getChildrenValues.call(this);
+      };
+
+      const childJobId = 'child-job-id';
+      const childProcessFile =
+        __dirname + '/fixtures/fixture_processor_get_children_values_child.js';
+      const parentProcessFile =
+        __dirname + '/fixtures/fixture_processor_get_children_values.js';
+      const parentQueueName = `parent-queue-${v4()}`;
+
+      const parentWorker = new Worker(parentQueueName, parentProcessFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads,
+      });
+
+      const childWorker = new Worker(queueName, childProcessFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads,
+      });
+
+      const parentFailing = new Promise<void>((resolve, reject) => {
+        parentWorker.on('failed', async (_, error: Error) => {
+          try {
+            expect(error.message).to.be.eql(
+              'TimeoutError: getChildrenValues timed out in (500ms)',
+            );
+            resolve();
+          } catch (err) {
+            await parentWorker.close();
+            reject(err);
+          }
+        });
+      });
+
+      const flow = new FlowProducer({ connection, prefix });
+      await flow.add({
+        name: 'parent-job',
+        queueName: parentQueueName,
+        opts: { jobId: 'job-id' },
+        children: [
+          { name: 'child-job', queueName, opts: { jobId: childJobId } },
+        ],
+      });
+
+      await parentFailing;
+      await parentWorker.close();
+      await childWorker.close();
+      await flow.close();
+
+      // Restore Job.getChildrenValues
+      Job.prototype.getChildrenValues = getChildrenValues;
+      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+    });
+
     it('should process and move to delayed', async () => {
       const processFile =
         __dirname + '/fixtures/fixture_processor_move_to_delayed.js';
@@ -559,7 +903,7 @@ function sandboxProcessTests(
       const delaying = new Promise<void>((resolve, reject) => {
         queueEvents.on('delayed', async ({ delay }) => {
           try {
-            expect(Number(delay)).to.be.greaterThanOrEqual(2500);
+            expect(Number(delay)).to.be.lessThanOrEqual(Date.now() + 2500);
             expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
               1,
             );
@@ -704,6 +1048,7 @@ function sandboxProcessTests(
 
       await worker.close();
       await flow.close();
+      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
     });
 
     it('should process and fail', async () => {
@@ -723,6 +1068,48 @@ function sandboxProcessTests(
             expect(job.failedReason).eql('Manually failed processor');
             expect(err.message).eql('Manually failed processor');
             expect(err.stack).include('fixture_processor_fail.js');
+            expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
+              0,
+            );
+            expect(worker['childPool'].getAllFree()).to.have.lengthOf(1);
+
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      await queue.add('test', { foo: 'bar' });
+
+      await failing;
+
+      await worker.close();
+    });
+
+    it('should process and fail when circular reference', async () => {
+      const processFile =
+        __dirname +
+        '/fixtures/fixture_processor_fail_with_circular_reference.js';
+
+      const worker = new Worker(queueName, processFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads,
+      });
+
+      const failing = new Promise<void>((resolve, reject) => {
+        worker.on('failed', async (job, err) => {
+          try {
+            expect(job.data).eql({ foo: 'bar' });
+            expect(job.failedReason).eql('error');
+            expect(err.message).eql('error');
+            expect(err.stack).include(
+              'fixture_processor_fail_with_circular_reference.js',
+            );
+            expect(err.reference).to.equal('[Circular]');
+            expect(err.custom).to.deep.equal({ ref: '[Circular]' });
             expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
               0,
             );
@@ -840,6 +1227,39 @@ function sandboxProcessTests(
       );
 
       await worker.close();
+
+      const failedJobs = await queue.getFailed();
+      expect(failedJobs).to.have.lengthOf(1);
+      expect(failedJobs[0].failedReason).to.be.equal(
+        'Unexpected exit code: 1 signal: null',
+      );
+    });
+
+    it('should fail if wrapping with ttl pattern', async () => {
+      const processFile = __dirname + '/fixtures/fixture_processor_ttl.js';
+
+      const worker = new Worker(queueName, processFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads,
+      });
+
+      const job = await queue.add('test', { exitCode: 1 });
+
+      await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith(
+        'Unexpected exit code: 10 signal: null',
+      );
+
+      await worker.close();
+
+      const failedJobs = await queue.getFailed();
+      expect(failedJobs).to.have.lengthOf(1);
+      expect(failedJobs[0].failedReason).to.be.equal(
+        'Unexpected exit code: 10 signal: null',
+      );
+
+      expect(failedJobs[0].progress).to.be.equal(50);
     });
 
     it('should fail if the process file is broken', async () => {
@@ -852,13 +1272,131 @@ function sandboxProcessTests(
         useWorkerThreads,
       });
 
-      const job = await queue.add('test', { exitCode: 1 });
+      const failing = new Promise<void>((resolve, reject) => {
+        worker.on('failed', async (job, error) => {
+          try {
+            expect(error.message).to.be.equal('Broken file processor');
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
 
-      await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith(
-        'Broken file processor',
-      );
+      await queue.add('test', { exitCode: 1 });
 
+      await failing;
       await worker.close();
+    });
+
+    describe('when child process a job and its killed direcly after completing', () => {
+      it('should process the next job in a new child process', async () => {
+        const processFile = __dirname + '/fixtures/fixture_processor.js';
+        const worker = new Worker(queueName, processFile, {
+          connection,
+          prefix,
+          drainDelay: 1,
+          useWorkerThreads,
+        });
+
+        let counter = 0;
+        let completing;
+        const completing2 = new Promise<void>((resolve2, reject2) => {
+          completing = new Promise<void>((resolve, reject) => {
+            worker.on('completed', async (job: Job, value: any) => {
+              try {
+                expect(job.data).to.be.eql({ foo: 'bar' });
+                expect(value).to.be.eql(42);
+                expect(
+                  Object.keys(worker['childPool'].retained),
+                ).to.have.lengthOf(0);
+                expect(worker['childPool'].free[processFile]).to.have.lengthOf(
+                  1,
+                );
+                if (counter == 0) {
+                  counter++;
+                  resolve();
+                } else {
+                  resolve2();
+                }
+              } catch (err) {
+                if (counter == 0) {
+                  return reject(err);
+                }
+                reject2(err);
+              }
+            });
+          });
+        });
+
+        await queue.add('foobar', { foo: 'bar' });
+
+        await completing;
+
+        const child1 = worker['childPool'].free[processFile][0];
+
+        await child1.kill('SIGTERM');
+
+        await queue.add('foobar', { foo: 'bar' });
+
+        await completing2;
+
+        const child2 = worker['childPool'].free[processFile][0];
+
+        expect(child1).to.not.equal(child2);
+
+        await worker.close();
+      });
+    });
+
+    describe('when child process a job and its killed with SIGKILL while processing', () => {
+      it('should fail with an unexpected error', async function () {
+        const processFile = __dirname + '/fixtures/fixture_processor.js';
+
+        const worker = new Worker(queueName, processFile, {
+          autorun: false,
+          connection,
+          prefix,
+          drainDelay: 1,
+        });
+
+        const started = new Promise<void>((resolve, reject) => {
+          worker.on('active', async (job, prev) => {
+            expect(prev).to.be.equal('waiting');
+            resolve();
+          });
+        });
+
+        const failing = new Promise<void>((resolve, reject) => {
+          worker.on('failed', async (job, error) => {
+            try {
+              expect([
+                'Unexpected exit code: null signal: SIGKILL',
+                'Unexpected exit code: 0 signal: null',
+              ]).to.include(error.message);
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          });
+        });
+
+        await queue.add('test', { foo: 'bar' });
+
+        worker.run();
+
+        await started;
+
+        // Need some time to create the child job and start processing
+        await delay(250);
+
+        const retainedChild = Object.values(worker['childPool'].retained)[0];
+        await retainedChild.kill('SIGKILL');
+
+        await failing;
+
+        await worker.close();
+      });
     });
 
     describe('when function is not exported', () => {
@@ -883,7 +1421,7 @@ function sandboxProcessTests(
       });
     });
 
-    it('should remove exited process', async () => {
+    it('should release exited process', async () => {
       const processFile = __dirname + '/fixtures/fixture_processor_exit.js';
 
       const worker = new Worker(queueName, processFile, {
@@ -896,21 +1434,10 @@ function sandboxProcessTests(
       const completing = new Promise<void>((resolve, reject) => {
         worker.on('completed', async job => {
           try {
-            expect(job.returnvalue).to.be.undefined;
-            expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
-              0,
-            );
-            expect(worker['childPool'].getAllFree()).to.have.lengthOf(1);
-            await delay(500);
-            expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
-              0,
-            );
-            expect(worker['childPool'].getAllFree()).to.have.lengthOf(0);
+            expect(job!.returnvalue).to.be.undefined;
             resolve();
           } catch (err) {
             reject(err);
-          } finally {
-            await worker.close();
           }
         });
       });
@@ -918,10 +1445,17 @@ function sandboxProcessTests(
       await queue.add('test', { foo: 'bar' });
 
       await completing;
+
+      await delay(200);
+
+      expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
+      expect(worker['childPool'].getAllFree()).to.have.lengthOf(0);
+
+      await worker.close();
     });
 
     it('should allow the job to complete and then exit on worker close', async function () {
-      this.timeout(1500000);
+      this.timeout(15000);
       const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
       const worker = new Worker(queueName, processFile, {
         connection,
@@ -930,7 +1464,10 @@ function sandboxProcessTests(
       });
 
       // acquire and release a child here so we know it has it's full termination handler setup
-      const initializedChild = await worker['childPool'].retain(processFile);
+      const initializedChild = await worker['childPool'].retain(
+        processFile,
+        () => {},
+      );
       await worker['childPool'].release(initializedChild);
 
       // await this After we've added the job
