@@ -11,7 +11,6 @@
       ARGV[2] remove children
       ARGV[3] queue prefix
 
-
     Events:
       'removed'
 ]]
