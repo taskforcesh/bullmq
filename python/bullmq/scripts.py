@@ -52,7 +52,7 @@ class Scripts:
             "obliterate": self.redisClient.register_script(self.getScript("obliterate-2.lua")),
             "pause": self.redisClient.register_script(self.getScript("pause-7.lua")),
             "promote": self.redisClient.register_script(self.getScript("promote-9.lua")),
-            "removeJob": self.redisClient.register_script(self.getScript("removeJob-3.lua")),
+            "removeJob": self.redisClient.register_script(self.getScript("removeJob-2.lua")),
             "reprocessJob": self.redisClient.register_script(self.getScript("reprocessJob-8.lua")),
             "retryJob": self.redisClient.register_script(self.getScript("retryJob-11.lua")),
             "moveJobsToWait": self.redisClient.register_script(self.getScript("moveJobsToWait-8.lua")),
@@ -310,7 +310,7 @@ class Scripts:
         return None
 
     def remove(self, job_id: str, remove_children: bool):
-        keys = self.getKeys(['', 'meta', 'repeat'])
+        keys = self.getKeys(['', 'repeat'])
         args = [job_id, 1 if remove_children else 0]
 
         return self.commands["removeJob"](keys=keys, args=args)
