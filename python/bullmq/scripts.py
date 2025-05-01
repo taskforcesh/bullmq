@@ -31,10 +31,10 @@ class Scripts:
         self.redisConnection = redisConnection
         self.redisClient = redisConnection.conn
         self.commands = {
-            "addStandardJob": self.redisClient.register_script(self.getScript("addStandardJob-8.lua")),
+            "addStandardJob": self.redisClient.register_script(self.getScript("addStandardJob-9.lua")),
             "addDelayedJob": self.redisClient.register_script(self.getScript("addDelayedJob-6.lua")),
-            "addParentJob": self.redisClient.register_script(self.getScript("addParentJob-4.lua")),
-            "addPrioritizedJob": self.redisClient.register_script(self.getScript("addPrioritizedJob-8.lua")),
+            "addParentJob": self.redisClient.register_script(self.getScript("addParentJob-5.lua")),
+            "addPrioritizedJob": self.redisClient.register_script(self.getScript("addPrioritizedJob-9.lua")),
             "changePriority": self.redisClient.register_script(self.getScript("changePriority-7.lua")),
             "cleanJobsInSet": self.redisClient.register_script(self.getScript("cleanJobsInSet-3.lua")),
             "extendLock": self.redisClient.register_script(self.getScript("extendLock-2.lua")),
@@ -128,7 +128,7 @@ class Scripts:
         """
         Add a standard job to the queue
         """
-        keys = self.getKeys(['wait', 'paused', 'meta', 'id',
+        keys = self.getKeys(['wait', 'paused', 'meta', 'id', 'delayed',
                              'completed', 'active', 'events', 'marker'])
         args = self.addJobArgs(job, None)
         args.append(timestamp)
@@ -150,8 +150,8 @@ class Scripts:
         """
         Add a prioritized job to the queue
         """
-        keys = self.getKeys(['marker', 'meta', 'id',
-                            'prioritized', 'completed', 'active', 'events', 'pc'])
+        keys = self.getKeys(['marker', 'meta', 'id', 'prioritized',
+                             'delayed, ''completed', 'active', 'events', 'pc'])
         args = self.addJobArgs(job, None)
         args.append(timestamp)
 
@@ -161,7 +161,7 @@ class Scripts:
         """
         Add a job to the queue that is a parent
         """
-        keys = self.getKeys(['meta', 'id', 'completed', 'events'])
+        keys = self.getKeys(['meta', 'id', 'delayed', 'completed', 'events'])
         
         args = self.addJobArgs(job, waiting_children_key)
 

@@ -7,8 +7,9 @@
     Input:
       KEYS[1] 'meta'
       KEYS[2] 'id'
-      KEYS[3] 'completed'
-      KEYS[4] events stream key
+      KEYS[3] 'delayed'
+      KEYS[4] 'completed'
+      KEYS[5] events stream key
 
       ARGV[1] msgpacked arguments array
             [1]  key prefix,
@@ -32,8 +33,8 @@
 local metaKey = KEYS[1]
 local idKey = KEYS[2]
 
-local completedKey = KEYS[3]
-local eventsKey = KEYS[4]
+local completedKey = KEYS[4]
+local eventsKey = KEYS[5]
 
 local jobId
 local jobIdKey
@@ -81,8 +82,8 @@ else
     end
 end
 
-local deduplicationJobId = deduplicateJob(opts['de'], jobId,
-  deduplicationKey, eventsKey, maxEvents)
+local deduplicationJobId = deduplicateJob(opts['de'], jobId, KEYS[3],
+  deduplicationKey, eventsKey, maxEvents, args[1])
 if deduplicationJobId then
   return deduplicationJobId
 end

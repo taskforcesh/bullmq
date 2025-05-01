@@ -512,14 +512,14 @@ describe('events', function () {
           expect(debouncedCounter).to.be.equal(2);
         });
 
-        describe('when manual removal on a deduplicated job in finished state', function () {
-          it('does not remove deduplication key', async function () {
+        describe('when manual removal on a debounced job in finished state', function () {
+          it('does not remove debounced key', async function () {
             const testName = 'test';
 
             const job = await queue.add(
               testName,
               { foo: 'bar' },
-              { deduplication: { id: 'a1', ttl: 200 } },
+              { debounce: { id: 'a1', ttl: 200 } },
             );
 
             const worker = new Worker(
@@ -548,7 +548,7 @@ describe('events', function () {
 
             let deduplicatedCounter = 0;
             const deduplication = new Promise<void>(resolve => {
-              queueEvents.on('deduplicated', () => {
+              queueEvents.on('debounced', () => {
                 deduplicatedCounter++;
                 if (deduplicatedCounter == 1) {
                   resolve();
@@ -559,7 +559,7 @@ describe('events', function () {
             await queue.add(
               testName,
               { foo: 'bar' },
-              { deduplication: { id: 'a1', ttl: 200 } },
+              { debounce: { id: 'a1', ttl: 200 } },
             );
 
             await job.remove();
@@ -567,7 +567,7 @@ describe('events', function () {
             await queue.add(
               testName,
               { foo: 'bar' },
-              { deduplication: { id: 'a1', ttl: 200 } },
+              { debounce: { id: 'a1', ttl: 200 } },
             );
 
             await deduplication;
@@ -822,6 +822,70 @@ describe('events', function () {
           await delay(100);
 
           expect(deduplicatedCounter).to.be.equal(2);
+        });
+      });
+
+      describe('when sliding mode is provided', function () {
+        it('resets ttl and remove last job if it is in delayed state', async function () {
+          const testName = 'test';
+
+          const worker = new Worker(
+            queueName,
+            async () => {
+              await delay(100);
+            },
+            {
+              autorun: false,
+              connection,
+              prefix,
+            },
+          );
+          await worker.waitUntilReady();
+
+          let deduplicatedCounter = 0;
+
+          const completing = new Promise<void>(resolve => {
+            worker.once('completed', job => {
+              expect(job.id).to.be.equal('2');
+              expect(job.data.foo).to.be.equal('baz');
+              resolve();
+            });
+
+            queueEvents.on('deduplicated', ({ jobId }) => {
+              deduplicatedCounter++;
+            });
+          });
+
+          worker.run();
+
+          await queue.add(
+            testName,
+            { foo: 'bar' },
+            {
+              deduplication: { id: 'a1', ttl: 2000, mode: 'sliding' },
+              delay: 2000,
+            },
+          );
+
+          await delay(500);
+
+          await queue.add(
+            testName,
+            { foo: 'baz' },
+            {
+              deduplication: { id: 'a1', ttl: 2000, mode: 'sliding' },
+              delay: 2000,
+            },
+          );
+
+          await completing;
+
+          const count = await queue.getJobCountByTypes();
+
+          expect(count).to.be.eql(1);
+
+          expect(deduplicatedCounter).to.be.equal(1);
+          await worker.close();
         });
       });
     });
