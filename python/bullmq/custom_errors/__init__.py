@@ -1,1 +1,2 @@
+from bullmq.custom_errors.unrecoverable_error import UnrecoverableError
 from bullmq.custom_errors.waiting_children_error import WaitingChildrenError

@@ -369,7 +369,9 @@ export class Job<
       job.deduplicationId = json.deid;
     }
 
-    job.failedReason = json.failedReason;
+    if (json.failedReason) {
+      job.failedReason = json.failedReason;
+    }
 
     job.attemptsStarted = parseInt(json.ats || '0');
 
