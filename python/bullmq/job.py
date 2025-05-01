@@ -45,12 +45,14 @@ class Job:
         self.attempts = opts.get("attempts", 1)
         self.attemptsMade = 0
         self.attemptsStarted = 0
+        self.stalledCounter = 0
         self.data = data
         self.removeOnComplete = opts.get("removeOnComplete", True)
         self.removeOnFail = opts.get("removeOnFail", False)
         self.processedOn = 0
         self.finishedOn = 0
         self.returnvalue = None
+        self.deferredFailure = None
         self.failedReason = None
         self.repeatJobKey = None
         self.token: str = None
@@ -246,8 +248,15 @@ class Job:
         if rawData.get("ats"):
             job.attemptsStarted = int(rawData.get("ats"))
 
-        job.failedReason = rawData.get("failedReason")
+        if rawData.get("failedReason"):
+            job.failedReason = rawData.get("failedReason")
+
         job.attemptsMade = int(rawData.get("attemptsMade") or rawData.get("atm") or "0")
+
+        job.stalledCounter = int(rawData.get("stc") or "0")
+
+        if rawData.get("defa"):
+            job.deferredFailure = rawData.get("defa")
 
         returnvalue = rawData.get("returnvalue")
         if type(returnvalue) == str:

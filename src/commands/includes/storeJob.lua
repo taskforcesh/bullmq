@@ -16,7 +16,7 @@ local function storeJob(eventsKey, jobIdKey, jobId, name, data, opts, timestamp,
         table.insert(optionalValues, parentData)
     end
 
-    if repeatJobKey ~= nil then
+    if repeatJobKey then
         table.insert(optionalValues, "rjk")
         table.insert(optionalValues, repeatJobKey)
     end

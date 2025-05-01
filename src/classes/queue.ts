@@ -585,7 +585,6 @@ export class Queue<
   /**
    * Get all repeatable meta jobs.
    *
-   *
    * @deprecated This method is deprecated and will be removed in v6. Use getJobSchedulers instead.
    *
    * @param start - Offset of first job to return.

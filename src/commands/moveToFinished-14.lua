@@ -67,7 +67,7 @@ local rcall = redis.call
 --- @include "includes/moveChildFromDependenciesIfNeeded"
 --- @include "includes/prepareJobForProcessing"
 --- @include "includes/promoteDelayedJobs"
---- @include "includes/removeDeduplicationKeyIfNeeded"
+--- @include "includes/removeDeduplicationKeyIfNeededOnFinalization"
 --- @include "includes/removeJobKeys"
 --- @include "includes/removeJobsByMaxAge"
 --- @include "includes/removeJobsByMaxCount"
@@ -130,7 +130,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
 
     local prefix = ARGV[7]
 
-    removeDeduplicationKeyIfNeeded(prefix, jobAttributes[3])
+    removeDeduplicationKeyIfNeededOnFinalization(prefix, jobAttributes[3], jobId)
 
     -- If job has a parent we need to
     -- 1) remove this job id from parents dependencies

@@ -1,6 +1,6 @@
 from typing import Callable
 from uuid import uuid4
-from bullmq.custom_errors import WaitingChildrenError
+from bullmq.custom_errors import UnrecoverableError, WaitingChildrenError
 from bullmq.scripts import Scripts
 from bullmq.redis_connection import RedisConnection
 from bullmq.event_emitter import EventEmitter
@@ -188,6 +188,11 @@ class Worker(EventEmitter):
 
     async def processJob(self, job: Job, token: str):
         try:
+            if job.deferredFailure:
+                await job.moveToFailed(UnrecoverableError(job.deferredFailure), token)
+                self.emit("failed", job, UnrecoverableError(job.deferredFailure))
+                return
+
             self.jobs.add((job, token))
             result = await self.processor(job, token)
             if not self.forceClosing:

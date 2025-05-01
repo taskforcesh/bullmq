@@ -661,8 +661,8 @@ describe('stalled jobs', function () {
         });
 
         await allFailed;
-        const failedChildrenValues = await parent.getFailedChildrenValues();
-        expect(failedChildrenValues).to.deep.equal({
+        const ignoredChildrenValues = await parent.getIgnoredChildrenFailures();
+        expect(ignoredChildrenValues).to.deep.equal({
           [`${queue.qualifiedName}:${children[0].job.id}`]:
             'job stalled more than allowable limit',
         });
