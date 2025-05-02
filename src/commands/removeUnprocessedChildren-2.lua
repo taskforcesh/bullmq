@@ -28,4 +28,4 @@ local options = {
   ignoreLocked = true
 }
 
-removeJobChildren(prefix, metaKey, jobKey, options) 
+removeJobChildren(prefix, jobKey, options) 

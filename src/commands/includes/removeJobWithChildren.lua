@@ -21,7 +21,7 @@ local rcall = redis.call
 local removeJobChildren
 local removeJobWithChildren
 
-removeJobChildren = function(prefix, meta, jobKey, options)
+removeJobChildren = function(prefix, jobKey, options)
     -- Check if this job has children
     -- If so, we are going to try to remove the children recursively in a depth-first way
     -- because if some job is locked, we must exit with an error.
@@ -32,7 +32,7 @@ removeJobChildren = function(prefix, meta, jobKey, options)
             for i = 1, #processed, 2 do
                 local childJobId = getJobIdFromKey(processed[i])
                 local childJobPrefix = getJobKeyPrefix(processed[i], childJobId)
-                removeJobWithChildren(childJobPrefix, meta, childJobId, jobKey, options)
+                removeJobWithChildren(childJobPrefix, childJobId, jobKey, options)
             end
         end
 
@@ -41,7 +41,7 @@ removeJobChildren = function(prefix, meta, jobKey, options)
             for i = 1, #failed, 2 do
                 local childJobId = getJobIdFromKey(failed[i])
                 local childJobPrefix = getJobKeyPrefix(failed[i], childJobId)
-                removeJobWithChildren(childJobPrefix, meta, childJobId, jobKey, options)
+                removeJobWithChildren(childJobPrefix, childJobId, jobKey, options)
             end
         end
 
@@ -50,7 +50,7 @@ removeJobChildren = function(prefix, meta, jobKey, options)
             for i = 1, #unsuccessful, 1 do
                 local childJobId = getJobIdFromKey(unsuccessful[i])
                 local childJobPrefix = getJobKeyPrefix(unsuccessful[i], childJobId)
-                removeJobWithChildren(childJobPrefix, meta, childJobId, jobKey, options)
+                removeJobWithChildren(childJobPrefix, childJobId, jobKey, options)
             end
         end
     end
@@ -60,12 +60,12 @@ removeJobChildren = function(prefix, meta, jobKey, options)
         for i, childJobKey in ipairs(dependencies) do
             local childJobId = getJobIdFromKey(childJobKey)
             local childJobPrefix = getJobKeyPrefix(childJobKey, childJobId)
-            removeJobWithChildren(childJobPrefix, meta, childJobId, jobKey, options)
+            removeJobWithChildren(childJobPrefix, childJobId, jobKey, options)
         end
     end
 end
 
-removeJobWithChildren = function(prefix, meta, jobId, parentKey, options)
+removeJobWithChildren = function(prefix, jobId, parentKey, options)
     local jobKey = prefix .. jobId
 
     if options.ignoreLocked then
@@ -80,13 +80,14 @@ removeJobWithChildren = function(prefix, meta, jobId, parentKey, options)
         removeParentDependencyKey(jobKey, false, parentKey, nil)
 
         if options.removeChildren then
-            removeJobChildren(prefix, meta, jobKey, options)
+            removeJobChildren(prefix, jobKey, options)
         end
 
         local prev = removeJobFromAnyState(prefix, jobId)
         removeDeduplicationKeyIfNeededOnRemoval(prefix, jobKey, jobId)
         if removeJobKeys(jobKey) > 0 then
-            local maxEvents = getOrSetMaxEvents(meta)
+            local metaKey = prefix .. "meta"
+            local maxEvents = getOrSetMaxEvents(metaKey)
             rcall("XADD", prefix .. "events", "MAXLEN", "~", maxEvents, "*", "event", "removed",
                 "jobId", jobId, "prev", prev)
         end

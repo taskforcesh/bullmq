@@ -476,7 +476,7 @@ export class Scripts {
     jobId: string,
     removeChildren: boolean,
   ): (string | number)[] {
-    const keys: (string | number)[] = [jobId, 'meta', 'repeat'].map(name =>
+    const keys: (string | number)[] = [jobId, 'repeat'].map(name =>
       this.queue.toKey(name),
     );
 
