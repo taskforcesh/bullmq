@@ -2,6 +2,43 @@
 
 <!--next-version-placeholder-->
 
+## v2.14.0 (2025-05-01)
+### Feature
+* **flow:** Support failed children in getFlow and getDependencies methods ([#3243](https://github.com/taskforcesh/bullmq/issues/3243)) ([`d3b1cff`](https://github.com/taskforcesh/bullmq/commit/d3b1cff4cf02aad8ae0812b1d465316a067118d0))
+* **flow:** Support ignored children in getFlow and getDependencies methods (#3238) ref #3213 ([`2927803`](https://github.com/taskforcesh/bullmq/commit/2927803b4b1eaddb77d3690634beb9c071b5adf7))
+* **queue:** Add getIgnoredChildrenFailures method ([#3194](https://github.com/taskforcesh/bullmq/issues/3194)) ([`4affb11`](https://github.com/taskforcesh/bullmq/commit/4affb11be26afad9f867db19a210c361ba64dd4b))
+* **job:** Expose stalledCounter attribute ([#3218](https://github.com/taskforcesh/bullmq/issues/3218)) ([`9456472`](https://github.com/taskforcesh/bullmq/commit/94564724593699d13bc0ac238e23c13737edbbf2))
+* Add removeUnprocessedChildren ([#3190](https://github.com/taskforcesh/bullmq/issues/3190)) ([`4b96266`](https://github.com/taskforcesh/bullmq/commit/4b96266d4a7e2fe4b1b3eba12e9e7cc5a64fc044))
+* **flows:** Add continueParentOnFailure option ([#3181](https://github.com/taskforcesh/bullmq/issues/3181)) ([`738d375`](https://github.com/taskforcesh/bullmq/commit/738d3752934746a347fd04e59e9dcd4726777508))
+* **updateProgress:** Allow more types to be used as progress ([#3187](https://github.com/taskforcesh/bullmq/issues/3187)) ([`f16b748`](https://github.com/taskforcesh/bullmq/commit/f16b748d7e3af2535ccdc54e12500af74874a235))
+* Add deduplicated job id to the deduplicated event ([`0f21c10`](https://github.com/taskforcesh/bullmq/commit/0f21c10bc9fd9a2290e8dde3c9b43bc366fcb15a))
+* **prometheus export:** Expose global variables ([`0325a39`](https://github.com/taskforcesh/bullmq/commit/0325a39f4243f3bea682bcfc20dc43b62d3f9fd9))
+
+### Fix
+* **connection:** Add str type in connection option [python] ([#3212](https://github.com/taskforcesh/bullmq/issues/3212)) ([`72fac42`](https://github.com/taskforcesh/bullmq/commit/72fac4297f5a60e0c2ae0831507cb16ce8baed5f))
+* **queue-events:** Omit telemetry options ([#3239](https://github.com/taskforcesh/bullmq/issues/3239)) ([`e4dac2c`](https://github.com/taskforcesh/bullmq/commit/e4dac2c39fac0c8cce34fbcb98a0c72c1619ed4e))
+* **job-scheduler:** Remove next delayed job if present even if scheduler does not exist (#3203) ref #3197 ([`61395bf`](https://github.com/taskforcesh/bullmq/commit/61395bf0b2fc656d1cdaf094fc62a03920ebe07d))
+* **deduplication:** Remove deduplication key only when jobId matches with the last one being saved ([#3236](https://github.com/taskforcesh/bullmq/issues/3236)) ([`192e82c`](https://github.com/taskforcesh/bullmq/commit/192e82caa0f7f530ed495740ec2ade37fe89b43b))
+* **flow-producer:** Use FlowProducer prefix by defualt when calling getFlow ([#3224](https://github.com/taskforcesh/bullmq/issues/3224)) ([`bd17aad`](https://github.com/taskforcesh/bullmq/commit/bd17aad64ec73917548e1bb45ee611b799363cc0))
+* Made line split more compatible ([#3208](https://github.com/taskforcesh/bullmq/issues/3208)) ([`3c2349a`](https://github.com/taskforcesh/bullmq/commit/3c2349a2936d0c59cfa8d136585a0c0156de3212))
+* **job-scheduler:** Fix endDate presence validation ([#3195](https://github.com/taskforcesh/bullmq/issues/3195)) ([`339f13e`](https://github.com/taskforcesh/bullmq/commit/339f13e277c7c087adc9023f5a433d9a21c661a2))
+* **flow:** Remove job from dependencies when failParentOnFailure or continueParentOnFailure ([#3201](https://github.com/taskforcesh/bullmq/issues/3201)) ([`1fbcbec`](https://github.com/taskforcesh/bullmq/commit/1fbcbec56969fc4aa628f77e4b05d2c6844894ae))
+* **flow-producer:** Fix queueName otel attribute when passing it to addNode ([#3198](https://github.com/taskforcesh/bullmq/issues/3198)) ([`758ea26`](https://github.com/taskforcesh/bullmq/commit/758ea2647b3dad683796351919b0380172fa717f))
+* **queue-events:** Pass right path for JobProgress type (#3192) fixes #3191 ([`33c62e6`](https://github.com/taskforcesh/bullmq/commit/33c62e67268daf24d92653abb5b857ac2241b3aa))
+* **flow:** Validate pending dependencies before removing lock ([#3182](https://github.com/taskforcesh/bullmq/issues/3182)) ([`8d59e3b`](https://github.com/taskforcesh/bullmq/commit/8d59e3b8084c60afad16372b4f7fc22f1b9d3f4e))
+* **job-scheduler:** Emit duplicated event when next delayed job exists ([#3172](https://github.com/taskforcesh/bullmq/issues/3172)) ([`d57698f`](https://github.com/taskforcesh/bullmq/commit/d57698f9af64fd1bb85f571f22b7fd663c3e05ee))
+* **scheduler:** Remove next delayed job when possible ([#3153](https://github.com/taskforcesh/bullmq/issues/3153)) ([`219c0db`](https://github.com/taskforcesh/bullmq/commit/219c0dba7180143b19b4a21dc96db45af941ca7d))
+* **flow:** Only validate pending dependencies when moving to completed ([#3164](https://github.com/taskforcesh/bullmq/issues/3164)) ([`d3c397f`](https://github.com/taskforcesh/bullmq/commit/d3c397fa3f122287026018aaae5ed2c5dfad19aa))
+* **flow:** Consider prioritized state when moving a parent to failed ([#3160](https://github.com/taskforcesh/bullmq/issues/3160)) ([`d91d9f4`](https://github.com/taskforcesh/bullmq/commit/d91d9f4398584506f5af8b46e4d47b769beaa212))
+
+### Documentation
+* **readme:** Fix typo for Job.fromId text ([#3223](https://github.com/taskforcesh/bullmq/issues/3223)) ([`9be6cbb`](https://github.com/taskforcesh/bullmq/commit/9be6cbb3c4733139db3b0a6b9cefc742a2cf911f))
+* **aws-elasticache:** Fix typo ([#3162](https://github.com/taskforcesh/bullmq/issues/3162)) ([`702ab38`](https://github.com/taskforcesh/bullmq/commit/702ab38c6b1cb18566e07894e1cce561fc750f65))
+
+### Performance
+* **flow:** Change parent failure in a lazy way ([#3228](https://github.com/taskforcesh/bullmq/issues/3228)) ([`6b37a37`](https://github.com/taskforcesh/bullmq/commit/6b37a379cc65abe7b4c60ba427065957c9080a08))
+* **flow:** Validate parentKey existence before trying to move it to failed ([#3163](https://github.com/taskforcesh/bullmq/issues/3163)) ([`5a88e47`](https://github.com/taskforcesh/bullmq/commit/5a88e4745d9449e41c5e2c467b5d02ca21357703))
+
 ## v2.13.1 (2025-03-15)
 ### Fix
 * **job-scheduler:** Add marker when upserting job scheduler if needed ([#3145](https://github.com/taskforcesh/bullmq/issues/3145)) ([`0e137b2`](https://github.com/taskforcesh/bullmq/commit/0e137b2e78882b6206b3fa47d4a6babb4fcfc484))

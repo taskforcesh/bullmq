@@ -9,7 +9,11 @@ class QueueBaseOptions(TypedDict, total=False):
     """
 
     prefix: str
-    connection: dict[str, Any] | redis.Redis
     """
     Prefix for all queue keys.
+    """
+
+    connection: dict[str, Any] | redis.Redis | str
+    """
+    Options for connecting to a Redis instance.
     """

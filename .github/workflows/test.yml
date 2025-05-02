@@ -213,7 +213,8 @@ jobs:
       - name: Test with pytest
         run: |
           cd python
-          ./run_tests.sh
+          pip install pytest
+          pytest ./tests
 
   python-dragonflydb:
     runs-on: ubuntu-latest
@@ -267,4 +268,6 @@ jobs:
       - name: Test with pytest
         run: |
           cd python
-          ./run_tests_dragonfly.sh
+          pip install pytest
+          export BULLMQ_TEST_PREFIX="{b}"
+          pytest ./tests
