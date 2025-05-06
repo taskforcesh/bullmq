@@ -2153,6 +2153,18 @@ describe('workers', function () {
     await worker.close();
   });
 
+  it('max stalled count cannot be less than zero', function () {
+    this.timeout(4000);
+    expect(
+      () =>
+        new Worker(queueName, NoopProc, {
+          connection,
+          prefix,
+          maxStalledCount: -1,
+        }),
+    ).to.throw('maxStalledCount must be greater or equal than 0');
+  });
+
   it('stalled interval cannot be zero', function () {
     this.timeout(4000);
     expect(
