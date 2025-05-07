@@ -486,7 +486,7 @@ class Scripts:
     def moveToCompleted(self, job: Job, val: Any, removeOnComplete, token: str, fetchNext=True):
         return self.moveToFinished(job, val, "returnvalue", removeOnComplete, "completed", token, fetchNext)
 
-    def moveToFailed(self, job: Job, failedReason: str, removeOnFailed, token: str, opts: dict, fetchNext=True):
+    def moveToFailed(self, job: Job, failedReason: str, removeOnFailed, token: str, fetchNext=True):
         return self.moveToFinished(job, failedReason, "failedReason", removeOnFailed, "failed", token, fetchNext)
 
     async def updateProgress(self, job_id: str, progress):
@@ -552,10 +552,8 @@ class Scripts:
         return (keys, args)
 
     def moveToFailedArgs(self, job: Job, failed_reason: str, shouldRemove, token: str, fetchNext=True):
-        return self.moveToFinishedArgs(
-            job, failed_reason, 'failedReason', shouldRemove, 'failed',
-            token, fetchNext
-        )
+        return self.moveToFinishedArgs(job, failed_reason, 'failedReason', shouldRemove, 'failed',
+            token, fetchNext)
 
     async def moveToFinished(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str, fetchNext=True) -> list[Any] | None:
         keys, args = self.moveToFinishedArgs(job, val, propVal, shouldRemove, target, token, fetchNext)
