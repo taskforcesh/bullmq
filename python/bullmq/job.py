@@ -137,10 +137,11 @@ class Job:
 
     async def moveToCompleted(self, return_value, token:str, fetchNext:bool = False):
         stringified_return_value = json.dumps(return_value, separators=(',', ':'), allow_nan=False)
+        self.returnvalue = returnValue or None
         result = await self.scripts.moveToCompleted(
                     self, stringified_return_value, self.opts.get("removeOnComplete", False), token,
                     fetchNext)
-
+        self.attemptsMade = self.attemptsMade + 1
         return result
 
     async def moveToFailed(self, err, token:str, fetchNext:bool = False):

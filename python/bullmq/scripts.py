@@ -533,6 +533,7 @@ class Scripts:
 
         keepJobs = getKeepJobs(shouldRemove)
 
+        opts = job.queue.opts
         packedOpts = msgpack.packb({
             "token": token,
             "keepJobs": keepJobs,
@@ -540,7 +541,7 @@ class Scripts:
             "lockDuration": opts.get("lockDuration"),
             "attempts": job.attempts,
             "attemptsMade": job.attemptsMade,
-            "maxMetricsSize": getMetricsSize(job.queue.opts),
+            "maxMetricsSize": getMetricsSize(opts),
             "fpof": opts.get("failParentOnFailure", False),
             "cpof": opts.get("continueParentOnFailure", False),
             "idof": opts.get("ignoreDependencyOnFailure", False)
@@ -556,7 +557,7 @@ class Scripts:
             token, fetchNext
         )
 
-    async def moveToFinished(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str, opts: dict, fetchNext=True) -> list[Any] | None:
+    async def moveToFinished(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str, fetchNext=True) -> list[Any] | None:
         keys, args = self.moveToFinishedArgs(job, val, propVal, shouldRemove, target, token, fetchNext)
 
         result = await self.commands["moveToFinished"](keys=keys, args=args)
