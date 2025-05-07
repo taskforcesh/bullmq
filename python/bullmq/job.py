@@ -135,6 +135,14 @@ class Job:
     def isInList(self, list_name: str):
         return self.scripts.isJobInList(self.scripts.toKey(list_name), self.id)
 
+    async def moveToCompleted(self, return_value, token:str, fetchNext:bool = False):
+        stringified_return_value = json.dumps(return_value, separators=(',', ':'), allow_nan=False)
+        result = await self.scripts.moveToCompleted(
+                    self, stringified_return_value, self.opts.get("removeOnComplete", False), token,
+                    fetchNext)
+
+        return result
+
     async def moveToFailed(self, err, token:str, fetchNext:bool = False):
         error_message = str(err)
         self.failedReason = error_message
@@ -174,7 +182,7 @@ class Job:
             if move_to_failed:
                 keys, args = self.scripts.moveToFailedArgs(
                     self, error_message, self.opts.get("removeOnFail", False),
-                    token, self.opts, fetchNext
+                    token, fetchNext
                 )
                 await self.scripts.commands["moveToFinished"](keys=keys, args=args, client=pipe)
                 finished_on = args[1]
