@@ -217,29 +217,31 @@ export class Worker<
     }
 
     this.opts = {
+      drainDelay: 5,
+      concurrency: 1,
+      lockDuration: 30000,
+      maxStalledCount: 1,
+      stalledInterval: 30000,
       autorun: true,
+      runRetryDelay: 15000,
       ...this.opts,
-      drainDelay: this.opts.drainDelay ? this.opts.drainDelay : 5,
-      concurrency: this.opts.concurrency ? this.opts.concurrency : 1,
-      lockDuration: this.opts.lockDuration ? this.opts.lockDuration : 30000,
-      maxStalledCount: this.opts.maxStalledCount
-        ? this.opts.maxStalledCount
-        : 1,
-      stalledInterval: this.opts.stalledInterval
-        ? this.opts.stalledInterval
-        : 30000,
-      runRetryDelay: this.opts.runRetryDelay ? this.opts.runRetryDelay : 15000,
     };
 
-    if (this.opts.stalledInterval < 0) {
+    if (
+      typeof this.opts.maxStalledCount !== 'number' ||
+      this.opts.maxStalledCount < 0
+    ) {
       throw new Error('maxStalledCount must be greater or equal than 0');
     }
 
-    if (this.opts.stalledInterval <= 0) {
+    if (
+      typeof this.opts.stalledInterval !== 'number' ||
+      this.opts.stalledInterval <= 0
+    ) {
       throw new Error('stalledInterval must be greater than 0');
     }
 
-    if (this.opts.drainDelay <= 0) {
+    if (typeof this.opts.drainDelay !== 'number' || this.opts.drainDelay <= 0) {
       throw new Error('drainDelay must be greater than 0');
     }
 
