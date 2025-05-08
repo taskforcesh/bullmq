@@ -1,4 +1,4 @@
-import { parseExpression } from 'cron-parser';
+import { CronExpressionParser } from 'cron-parser';
 import {
   JobSchedulerJson,
   JobSchedulerTemplateJson,
@@ -453,7 +453,7 @@ export const defaultRepeatStrategy = (
   const { pattern } = opts;
 
   const currentDate = new Date(millis);
-  const interval = parseExpression(pattern, {
+  const interval = CronExpressionParser.parse(pattern, {
     ...opts,
     currentDate,
   });
