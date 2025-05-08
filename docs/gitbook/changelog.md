@@ -1,3 +1,10 @@
+## [5.52.2](https://github.com/taskforcesh/bullmq/compare/v5.52.1...v5.52.2) (2025-05-08)
+
+
+### Bug Fixes
+
+* **worker:** maxStalledCount no less  than 0 ([#3249](https://github.com/taskforcesh/bullmq/issues/3249)) fixes [#3248](https://github.com/taskforcesh/bullmq/issues/3248) ([34dcb8c](https://github.com/taskforcesh/bullmq/commit/34dcb8c3d01a822b07852bc928d882bd6e4049d2))
+
 ## [5.52.1](https://github.com/taskforcesh/bullmq/compare/v5.52.0...v5.52.1) (2025-05-02)
 
 
