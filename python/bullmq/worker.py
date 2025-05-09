@@ -55,8 +55,9 @@ class Worker(EventEmitter):
         self.drained = False
         self.qualifiedName = self.scripts.queue_keys.getQueueQualifiedName(name)
 
-        if opts.get("autorun", True):
-            asyncio.ensure_future(self.run())
+        if processor:
+            if opts.get("autorun", True):
+                asyncio.ensure_future(self.run())
 
     async def run(self):
         if self.running:

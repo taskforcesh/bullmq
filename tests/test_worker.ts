@@ -4165,6 +4165,8 @@ describe('workers', function () {
       const isCompleted = await job.isCompleted();
 
       expect(isCompleted).to.be.equal(true);
+      expect(job.attemptsMade).to.be.equal(1);
+      expect(job.finishedOn).to.be.fulfilled;
 
       await worker.close();
     });
