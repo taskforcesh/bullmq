@@ -559,7 +559,7 @@ class Scripts:
         return self.moveToFinished(job.id, keys, args)
 
     def moveToFailed(self, job: Job, failedReason: str, removeOnFailed, token: str, fetchNext=True):
-        keys, args = self.moveToCompletedArgs(job, failedReason, removeOnFailed, token, fetchNext)
+        keys, args = self.moveToFailedArgs(job, failedReason, removeOnFailed, token, fetchNext)
 
         return self.moveToFinished(job.id, keys, args)
 

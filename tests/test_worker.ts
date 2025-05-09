@@ -4166,7 +4166,7 @@ describe('workers', function () {
 
       expect(isCompleted).to.be.equal(true);
       expect(job.attemptsMade).to.be.equal(1);
-      expect(job.finishedOn).to.be.fulfilled;
+      expect(job.finishedOn).to.be.a('number');
 
       await worker.close();
     });
