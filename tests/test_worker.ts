@@ -4167,6 +4167,7 @@ describe('workers', function () {
       expect(isCompleted).to.be.equal(true);
       expect(job.attemptsMade).to.be.equal(1);
       expect(job.finishedOn).to.be.a('number');
+      expect(job.returnvalue).to.be.a('return value');
 
       await worker.close();
     });
@@ -4517,6 +4518,9 @@ describe('workers', function () {
 
       expect(isCompleted).to.be.equal(false);
       expect(isFailed).to.be.equal(true);
+      expect(job.attemptsMade).to.be.equal(1);
+      expect(job.finishedOn).to.be.a('number');
+      expect(job.failedReason).to.be.a('job failed for some reason');
 
       await worker.close();
     });
