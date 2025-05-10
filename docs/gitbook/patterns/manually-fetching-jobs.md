@@ -23,7 +23,7 @@ if (succeeded) {
 await worker.close();
 ```
 
-There is an important consideration regarding job "locks" when processing manually. Locks prevent workers from fetching the a job that is already being processed by  another worker. The ownership of the lock is determined by the "token" that is sent when getting the job.
+There is an important consideration regarding job "locks" when processing manually. Locks prevent workers from fetching a job that is already being processed by  another worker. The ownership of the lock is determined by the "token" that is sent when getting the job.
 
 {% hint style="info" %}
 the lock duration setting is called "visibility window" in other queue systems.
