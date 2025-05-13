@@ -2,6 +2,17 @@
 
 <!--next-version-placeholder-->
 
+## v2.15.0 (2025-05-13)
+### Feature
+* **job:** Add moveToCompleted method [python] ([#3251](https://github.com/taskforcesh/bullmq/issues/3251)) ([`6a8e3e2`](https://github.com/taskforcesh/bullmq/commit/6a8e3e206384b56063c6f5a46ca030d2b330c712))
+
+### Fix
+* **worker:** MaxStalledCount no less  than 0 (#3249) fixes #3248 ([`34dcb8c`](https://github.com/taskforcesh/bullmq/commit/34dcb8c3d01a822b07852bc928d882bd6e4049d2))
+* **remove:** Pass correct children meta references ([#3245](https://github.com/taskforcesh/bullmq/issues/3245)) ([`01c62ad`](https://github.com/taskforcesh/bullmq/commit/01c62ada0cea80c73ba28d79fd14ea5ba78fdc7d))
+
+### Documentation
+* **manually-fetching:** Fix typo ([#3258](https://github.com/taskforcesh/bullmq/issues/3258)) ([`1bad54a`](https://github.com/taskforcesh/bullmq/commit/1bad54a2c1ac2094a475eaa14af701693047ab3f))
+
 ## v2.14.0 (2025-05-01)
 ### Feature
 * **flow:** Support failed children in getFlow and getDependencies methods ([#3243](https://github.com/taskforcesh/bullmq/issues/3243)) ([`d3b1cff`](https://github.com/taskforcesh/bullmq/commit/d3b1cff4cf02aad8ae0812b1d465316a067118d0))
