@@ -442,7 +442,7 @@ export class ScriptLoader {
     if (luaFiles.length === 0) {
       /**
        * To prevent unclarified runtime error "updateDelayset is not a function
-       * @see https://github.com/OptimalBits/bull/issues/920
+       * @see {@link https://github.com/OptimalBits/bull/issues/920}
        */
       throw new ScriptLoaderError('No .lua files found!', dir, []);
     }

@@ -577,7 +577,6 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
    * @returns - Returns a string with the metrics in the Prometheus format.
    *
    * @see {@link https://prometheus.io/docs/instrumenting/exposition_formats/}
-   *
    **/
   async exportPrometheusMetrics(
     globalVariables?: Record<string, string>,

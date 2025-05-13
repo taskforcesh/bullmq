@@ -1645,7 +1645,7 @@ describe('Job Scheduler', function () {
       const job = await queue.upsertJobScheduler('repeat', {
         pattern: '0 1 * * *',
         endDate: new Date('2017-05-10 13:13:00'),
-        tz: 'Europe/Athens',
+        tz: 'Etc/UTC',
         utc: true,
       });
 
