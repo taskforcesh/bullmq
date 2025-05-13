@@ -6,22 +6,19 @@ export type DeduplicationOptions = {
    * Identifier
    */
   id: string;
-} & (
-  | {
-      /**
-       * ttl in milliseconds
-       */
-      ttl?: number;
+} & {
+  /**
+   * ttl in milliseconds
+   */
+  ttl?: number;
 
-      /**
-       * Modes
-       */
-      mode?: 'fixed' | 'sliding';
-    }
-  | {
-      /**
-       * Modes
-       */
-      mode?: 'simple';
-    }
-);
+  /**
+   * Extend ttl value
+   */
+  extend?: boolean;
+
+  /**
+   * replace job record while it's in delayed state
+   */
+  replace?: boolean;
+};
