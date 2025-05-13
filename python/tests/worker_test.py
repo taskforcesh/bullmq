@@ -55,6 +55,60 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         await worker.close()
         await queue.close()
 
+    async def test_manual_process_jobs(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        data = {"foo": "bar"}
+
+        worker = Worker(queueName, None, {"prefix": prefix})
+        token = 'my-token'
+
+        await queue.add("test", data)
+
+        job = await worker.getNextJob(token)
+
+        is_active = await job.isActive()
+        self.assertEqual(is_active, True)
+
+        await job.moveToCompleted('return value', token)
+
+        is_completed = await job.isCompleted()
+
+        self.assertEqual(is_completed, True)
+        self.assertEqual(job.attemptsMade, 1)
+        self.assertNotEqual(job.finishedOn, None)
+        self.assertEqual(job.returnvalue, 'return value')
+
+        await worker.close(force=True)
+        await queue.close()
+
+    async def test_manual_process_job_failure(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        data = {"foo": "bar"}
+
+        worker = Worker(queueName, None, {"prefix": prefix})
+        token = 'my-token'
+
+        await queue.add("test", data)
+
+        job = await worker.getNextJob(token)
+
+        is_active = await job.isActive()
+        self.assertEqual(is_active, True)
+
+        await job.moveToFailed(Exception('job failed for some reason'), token)
+
+        is_completed = await job.isCompleted()
+        is_failed = await job.isFailed()
+
+        self.assertEqual(is_completed, False)
+        self.assertEqual(is_failed, True)
+        self.assertEqual(job.attemptsMade, 1)
+        self.assertNotEqual(job.finishedOn, None)
+        self.assertEqual(job.failedReason, 'job failed for some reason')
+
+        await worker.close(force=True)
+        await queue.close()
+
     async def test_process_job_with_array_as_return_value(self):
         queue = Queue(queueName, {"prefix": prefix})
         data = {"foo": "bar"}

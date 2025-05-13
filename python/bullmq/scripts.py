@@ -483,12 +483,6 @@ class Scripts:
 
         return raw2NextJobData(result)
 
-    def moveToCompleted(self, job: Job, val: Any, removeOnComplete, token: str, opts: dict, fetchNext=True):
-        return self.moveToFinished(job, val, "returnvalue", removeOnComplete, "completed", token, opts, fetchNext)
-
-    def moveToFailed(self, job: Job, failedReason: str, removeOnFailed, token: str, opts: dict, fetchNext=True):
-        return self.moveToFinished(job, failedReason, "failedReason", removeOnFailed, "failed", token, opts, fetchNext)
-
     async def updateProgress(self, job_id: str, progress):
         keys = [self.toKey(job_id), self.keys['events'], self.keys['meta']]
         progress_json = json.dumps(progress, separators=(',', ':'), allow_nan=False)
@@ -501,7 +495,7 @@ class Scripts:
         return None
 
     def moveToFinishedArgs(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str,
-                           opts: dict, fetchNext=True) -> list[Any] | None:
+        fetchNext=True) -> list[Any] | None:
         transformed_value = json.dumps(val, separators=(',', ':'), allow_nan=False)
         timestamp = round(time.time() * 1000)
         metricsKey = self.toKey('metrics:' + target)
@@ -533,6 +527,7 @@ class Scripts:
 
         keepJobs = getKeepJobs(shouldRemove)
 
+        opts = job.queue.opts
         packedOpts = msgpack.packb({
             "token": token,
             "keepJobs": keepJobs,
@@ -550,20 +545,30 @@ class Scripts:
                 fetchNext and "1" or "", self.keys[''], packedOpts]
         return (keys, args)
 
-    def moveToFailedArgs(self, job: Job, failed_reason: str, shouldRemove, token: str, opts: dict, fetchNext=True):
-        return self.moveToFinishedArgs(
-            job, failed_reason, 'failedReason', shouldRemove, 'failed',
-            token, opts, fetchNext
-        )
+    def moveToCompletedArgs(self, job: Job, return_value: str, shouldRemove, token: str, fetchNext=True):
+        return self.moveToFinishedArgs(job, return_value, 'returnvalue', shouldRemove, 'completed',
+            token, fetchNext)
 
-    async def moveToFinished(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str, opts: dict, fetchNext=True) -> list[Any] | None:
-        keys, args = self.moveToFinishedArgs(job, val, propVal, shouldRemove, target, token, opts, fetchNext)
+    def moveToFailedArgs(self, job: Job, failed_reason: str, shouldRemove, token: str, fetchNext=True):
+        return self.moveToFinishedArgs(job, failed_reason, 'failedReason', shouldRemove, 'failed',
+            token, fetchNext)
 
+    def moveToCompleted(self, job: Job, val: Any, removeOnComplete, token: str, fetchNext=True):
+        keys, args = self.moveToCompletedArgs(job, val, removeOnComplete, token, fetchNext)
+
+        return self.moveToFinished(job.id, keys, args)
+
+    def moveToFailed(self, job: Job, failedReason: str, removeOnFailed, token: str, fetchNext=True):
+        keys, args = self.moveToFailedArgs(job, failedReason, removeOnFailed, token, fetchNext)
+
+        return self.moveToFinished(job.id, keys, args)
+
+    async def moveToFinished(self, id: str, keys, args) -> list[Any] | None:
         result = await self.commands["moveToFinished"](keys=keys, args=args)
 
         if result is not None:
             if type(result) == int and result < 0:
-                raise self.finishedErrors(result, job.id, 'finished', 'active')
+                raise self.finishedErrors(result, id, 'moveToFinished', 'active')
             return raw2NextJobData(result)
         return None
 

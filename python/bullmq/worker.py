@@ -55,8 +55,9 @@ class Worker(EventEmitter):
         self.drained = False
         self.qualifiedName = self.scripts.queue_keys.getQueueQualifiedName(name)
 
-        if opts.get("autorun", True):
-            asyncio.ensure_future(self.run())
+        if processor:
+            if opts.get("autorun", True):
+                asyncio.ensure_future(self.run())
 
     async def run(self):
         if self.running:
@@ -197,8 +198,8 @@ class Worker(EventEmitter):
             result = await self.processor(job, token)
             if not self.forceClosing:
                 # Currently we do not support pre-fetching jobs as in NodeJS version.
-                # nextJob = await self.scripts.moveToCompleted(job, result, job.opts.get("removeOnComplete", False), token, self.opts, fetchNext=not self.closing)
-                await self.scripts.moveToCompleted(job, result, job.opts.get("removeOnComplete", False), token, self.opts, fetchNext=False)
+                # nextJob = await self.scripts.moveToCompleted(job, result, job.opts.get("removeOnComplete", False), token, fetchNext=not self.closing)
+                await self.scripts.moveToCompleted(job, result, job.opts.get("removeOnComplete", False), token, fetchNext=False)
                 job.returnvalue = result
                 job.attemptsMade = job.attemptsMade + 1
             self.emit("completed", job, result)
