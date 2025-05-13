@@ -52,7 +52,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(completedJob.returnvalue, "done")
         self.assertNotEqual(completedJob.finishedOn, None)
 
-        await worker.close(force=True)
+        await worker.close()
         await queue.close()
 
     async def test_process_job_with_array_as_return_value(self):
@@ -79,7 +79,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(completedJob.returnvalue, ['foo'])
         self.assertNotEqual(completedJob.finishedOn, None)
 
-        await worker.close(force=True)
+        await worker.close()
         await queue.close()
 
     async def test_process_job_with_boolean_as_return_value(self):
@@ -106,7 +106,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(completedJob.returnvalue, True)
         self.assertNotEqual(completedJob.finishedOn, None)
 
-        await worker.close(force=True)
+        await worker.close()
         await queue.close()
 
     async def test_process_job_fail_with_nan_as_return_value(self):
@@ -136,7 +136,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(failedJob.returnvalue, None)
         self.assertNotEqual(failedJob.finishedOn, None)
         
-        await worker.close(force=True)
+        await worker.close()
         await queue.close()
 
     async def test_process_jobs_fail(self):
@@ -167,7 +167,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(failedJob.returnvalue, None)
         self.assertNotEqual(failedJob.finishedOn, None)
 
-        await worker.close(force=True)
+        await worker.close()
         await queue.close()
 
     async def test_process_renews_lock(self):
@@ -194,7 +194,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(completedJob.returnvalue, "done")
         self.assertNotEqual(completedJob.finishedOn, None)
 
-        await worker.close(force=True)
+        await worker.close()
         await queue.close()
 
     async def test_process_stalled_jobs(self):
@@ -239,7 +239,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(completedJob.returnvalue, "done2")
         self.assertNotEqual(completedJob.finishedOn, None)
 
-        await worker2.close(force=True)
+        await worker2.close()
         await queue.close()
 
     async def test_retry_job_after_delay_with_fixed_backoff(self):
@@ -453,7 +453,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(completedJob.returnvalue, "done")
         self.assertNotEqual(completedJob.finishedOn, None)
 
-        await worker.close(force=True)
+        await worker.close()
         await queue.close()
 
 if __name__ == '__main__':

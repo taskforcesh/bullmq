@@ -6,6 +6,8 @@ msgpack==1.0.5
 pipenv==2023.7.4
 platformdirs==3.9.1
 pre-commit==3.3.3
+pytest==8.3.5
+pytest-timeout==2.4.0
 python-semantic-release==7.28.1
 redis==4.6.0
 semver==2.13.0
