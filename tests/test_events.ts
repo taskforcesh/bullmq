@@ -825,8 +825,83 @@ describe('events', function () {
         });
       });
 
-      describe('when sliding mode is provided', function () {
-        it('resets ttl and remove last job if it is in delayed state', async function () {
+      describe('when extend is provided as true', function () {
+        it('resets ttl', async function () {
+          const testName = 'test';
+
+          const worker = new Worker(
+            queueName,
+            async () => {
+              await delay(100);
+            },
+            {
+              autorun: false,
+              connection,
+              prefix,
+            },
+          );
+          await worker.waitUntilReady();
+
+          let deduplicatedCounter = 0;
+
+          const completing = new Promise<void>(resolve => {
+            worker.once('completed', job => {
+              expect(job.id).to.be.equal('1');
+              expect(job.data.foo).to.be.equal('bar');
+              resolve();
+            });
+
+            queueEvents.on('deduplicated', ({ jobId }) => {
+              deduplicatedCounter++;
+            });
+          });
+
+          worker.run();
+
+          await queue.add(
+            testName,
+            { foo: 'bar' },
+            {
+              deduplication: { id: 'a1', ttl: 500, extend: true },
+              delay: 500,
+            },
+          );
+
+          await delay(250);
+
+          await queue.add(
+            testName,
+            { foo: 'baz' },
+            {
+              deduplication: { id: 'a1', ttl: 500, extend: true },
+              delay: 500,
+            },
+          );
+
+          await delay(250);
+
+          await queue.add(
+            testName,
+            { foo: 'bax' },
+            {
+              deduplication: { id: 'a1', ttl: 500, extend: true },
+              delay: 500,
+            },
+          );
+
+          await completing;
+
+          const count = await queue.getJobCountByTypes();
+
+          expect(count).to.be.eql(1);
+
+          expect(deduplicatedCounter).to.be.equal(2);
+          await worker.close();
+        });
+      });
+
+      describe('when replace is provided as true', function () {
+        it('removes last job if it is in delayed state', async function () {
           const testName = 'test';
 
           const worker = new Worker(
@@ -862,19 +937,120 @@ describe('events', function () {
             testName,
             { foo: 'bar' },
             {
-              deduplication: { id: 'a1', ttl: 2000, mode: 'sliding' },
-              delay: 2000,
+              deduplication: { id: 'a1', ttl: 500, replace: true },
+              delay: 500,
             },
           );
 
-          await delay(500);
+          await delay(250);
 
           await queue.add(
             testName,
             { foo: 'baz' },
             {
-              deduplication: { id: 'a1', ttl: 2000, mode: 'sliding' },
-              delay: 2000,
+              deduplication: { id: 'a1', ttl: 500, replace: true },
+              delay: 500,
+            },
+          );
+
+          await delay(300);
+
+          await queue.add(
+            testName,
+            { foo: 'bax' },
+            {
+              deduplication: { id: 'a1', ttl: 500, replace: true },
+              delay: 500,
+            },
+          );
+
+          await completing;
+
+          const count = await queue.getJobCountByTypes();
+
+          expect(count).to.be.eql(2);
+
+          expect(deduplicatedCounter).to.be.equal(1);
+          await worker.close();
+        });
+      });
+
+      describe('when extend and replace options are provided as true', function () {
+        it('resets ttl and removes last job if it is in delayed state', async function () {
+          const testName = 'test';
+
+          const worker = new Worker(
+            queueName,
+            async () => {
+              await delay(100);
+            },
+            {
+              autorun: false,
+              connection,
+              prefix,
+            },
+          );
+          await worker.waitUntilReady();
+
+          let deduplicatedCounter = 0;
+
+          const completing = new Promise<void>(resolve => {
+            worker.once('completed', job => {
+              expect(job.id).to.be.equal('3');
+              expect(job.data.foo).to.be.equal('bax');
+              resolve();
+            });
+
+            queueEvents.on('deduplicated', ({ jobId }) => {
+              deduplicatedCounter++;
+            });
+          });
+
+          worker.run();
+
+          await queue.add(
+            testName,
+            { foo: 'bar' },
+            {
+              deduplication: {
+                id: 'a1',
+                ttl: 500,
+                extend: true,
+                replace: true,
+              },
+              delay: 500,
+            },
+          );
+
+          await delay(250);
+
+          await queue.add(
+            testName,
+            { foo: 'baz' },
+            {
+              deduplication: {
+                id: 'a1',
+                ttl: 500,
+                extend: true,
+                replace: true,
+              },
+              delay: 500,
+            },
+          );
+
+          await delay(250);
+
+          await queue.add(
+            testName,
+            { foo: 'bax' },
+            {
+              deduplication: {
+                id: 'a1',
+                ttl: 500,
+                extend: true,
+                replace: true,
+              },
+              delay: 500,
             },
           );
 
@@ -884,7 +1060,7 @@ describe('events', function () {
 
           expect(count).to.be.eql(1);
 
-          expect(deduplicatedCounter).to.be.equal(1);
+          expect(deduplicatedCounter).to.be.equal(2);
           await worker.close();
         });
       });
