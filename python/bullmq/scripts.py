@@ -128,8 +128,8 @@ class Scripts:
         """
         Add a standard job to the queue
         """
-        keys = self.getKeys(['wait', 'paused', 'meta', 'id', 'delayed',
-                             'completed', 'active', 'events', 'marker'])
+        keys = self.getKeys(['wait', 'paused', 'meta', 'id', 'completed',
+                             'delayed', 'active', 'events', 'marker'])
         args = self.addJobArgs(job, None)
         args.append(timestamp)
 
