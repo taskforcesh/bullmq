@@ -38,6 +38,32 @@ await myQueue.add(
 
 In this example, after adding the house painting job with the deduplicated parameters (id and ttl), any subsequent job with the same deduplication ID customValue added within 5 seconds will be ignored. This is useful for scenarios where rapid, repetitive requests are made, such as multiple users or processes attempting to trigger the same job.
 
+## Debounce Mode
+
+In the Debounce Mode, deduplication works by assigning a TTL (Time to Live) to a job upon its creation. If a similar job (identified by a unique deduplication ID) is added during this delay period, it'll replace the previous job while this one is still in delayed state and TTL value will be updated as well. This prevents the queue from being overwhelmed with multiple instances of the same task, keeping job information at to date.
+
+```typescript
+import { Queue } from 'bullmq';
+
+const myQueue = new Queue('Paint');
+
+// Add a job that will be deduplicated for 5 seconds.
+await myQueue.add(
+  'house1',
+  { color: 'white' },
+  { deduplication: { id: 'customValue', ttl: 5000, extend: true, replace: true }, delay: 5000 },
+);
+
+// Replace previous job and set ttl to 5 seconds.
+await myQueue.add(
+  'house1',
+  { color: 'red' },
+  { deduplication: { id: 'customValue', ttl: 5000, extend: true, replace: true }, delay: 5000 },
+);
+```
+
+In this example, after adding the house painting job with the deduplicated parameters (id and ttl) and 5 seconds as delay, any subsequent job with the same deduplication options added within 5 seconds will replace previous job information. This is useful for scenarios where rapid, repetitive requests are made, such as multiple users or processes attempting to trigger the same job but with different payloads, this way you will get the last updated data when processing a job.
+
 Note that you must provide a deduplication id that should represent your job. You can hash your entire job data or a subset of attributes for creating this identifier.
 
 {% hint style="warning" %}
