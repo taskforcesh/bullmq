@@ -151,7 +151,7 @@ class Scripts:
         Add a prioritized job to the queue
         """
         keys = self.getKeys(['marker', 'meta', 'id', 'prioritized',
-                             'delayed, ''completed', 'active', 'events', 'pc'])
+                             'delayed', 'completed', 'active', 'events', 'pc'])
         args = self.addJobArgs(job, None)
         args.append(timestamp)
 
