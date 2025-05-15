@@ -18,7 +18,7 @@ import {
   JobJsonRaw,
   MinimalJob,
   MoveToWaitingChildrenOpts,
-  ParentOpts,
+  ParentKeyOpts,
   RedisClient,
   WorkerOptions,
   KeepJobs,
@@ -93,12 +93,11 @@ export class Scripts {
     return Number.isInteger(result);
   }
 
-  protected addDelayedJob(
-    client: RedisClient,
+  protected addDelayedJobArgs(
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
-  ): Promise<string | number> {
+  ): (string | Buffer)[] {
     const queueKeys = this.queue.keys;
     const keys: (string | Buffer)[] = [
       queueKeys.marker,
@@ -110,15 +109,26 @@ export class Scripts {
     ];
 
     keys.push(pack(args), job.data, encodedOpts);
-    return this.execCommand(client, 'addDelayedJob', keys);
+
+    return keys;
   }
 
-  protected addPrioritizedJob(
+  protected addDelayedJob(
     client: RedisClient,
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
   ): Promise<string | number> {
+    const argsList = this.addDelayedJobArgs(job, encodedOpts, args);
+
+    return this.execCommand(client, 'addDelayedJob', argsList);
+  }
+
+  protected addPrioritizedJobArgs(
+    job: JobJson,
+    encodedOpts: any,
+    args: (string | number | Record<string, any>)[],
+  ): (string | Buffer)[] {
     const queueKeys = this.queue.keys;
     const keys: (string | Buffer)[] = [
       queueKeys.marker,
@@ -132,15 +142,26 @@ export class Scripts {
     ];
 
     keys.push(pack(args), job.data, encodedOpts);
-    return this.execCommand(client, 'addPrioritizedJob', keys);
+
+    return keys;
   }
 
-  protected addParentJob(
+  protected addPrioritizedJob(
     client: RedisClient,
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
   ): Promise<string | number> {
+    const argsList = this.addPrioritizedJobArgs(job, encodedOpts, args);
+
+    return this.execCommand(client, 'addPrioritizedJob', argsList);
+  }
+
+  protected addParentJobArgs(
+    job: JobJson,
+    encodedOpts: any,
+    args: (string | number | Record<string, any>)[],
+  ): (string | Buffer)[] {
     const queueKeys = this.queue.keys;
     const keys: (string | Buffer)[] = [
       queueKeys.meta,
@@ -150,15 +171,26 @@ export class Scripts {
     ];
 
     keys.push(pack(args), job.data, encodedOpts);
-    return this.execCommand(client, 'addParentJob', keys);
+
+    return keys;
   }
 
-  protected addStandardJob(
+  protected addParentJob(
     client: RedisClient,
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
   ): Promise<string | number> {
+    const argsList = this.addParentJobArgs(job, encodedOpts, args);
+
+    return this.execCommand(client, 'addParentJob', argsList);
+  }
+
+  protected addStandardJobArgs(
+    job: JobJson,
+    encodedOpts: any,
+    args: (string | number | Record<string, any>)[],
+  ): (string | Buffer)[] {
     const queueKeys = this.queue.keys;
     const keys: (string | Buffer)[] = [
       queueKeys.wait,
@@ -172,7 +204,19 @@ export class Scripts {
     ];
 
     keys.push(pack(args), job.data, encodedOpts);
-    return this.execCommand(client, 'addStandardJob', keys);
+
+    return keys;
+  }
+
+  protected addStandardJob(
+    client: RedisClient,
+    job: JobJson,
+    encodedOpts: any,
+    args: (string | number | Record<string, any>)[],
+  ): Promise<string | number> {
+    const argsList = this.addStandardJobArgs(job, encodedOpts, args);
+
+    return this.execCommand(client, 'addStandardJob', argsList);
   }
 
   async addJob(
@@ -180,7 +224,7 @@ export class Scripts {
     job: JobJson,
     opts: RedisJobOptions,
     jobId: string,
-    parentOpts: ParentOpts = {},
+    parentKeyOpts: ParentKeyOpts = {},
   ): Promise<string> {
     const queueKeys = this.queue.keys;
 
@@ -200,8 +244,8 @@ export class Scripts {
       job.name,
       job.timestamp,
       job.parentKey || null,
-      parentOpts.waitChildrenKey || null,
-      parentOpts.parentDependenciesKey || null,
+      parentKeyOpts.waitChildrenKey || null,
+      parentKeyOpts.parentDependenciesKey || null,
       parent,
       job.repeatJobKey,
       job.deduplicationId ? `${queueKeys.de}:${job.deduplicationId}` : null,
@@ -230,7 +274,7 @@ export class Scripts {
 
     let result: string | number;
 
-    if (parentOpts.waitChildrenKey) {
+    if (parentKeyOpts.waitChildrenKey) {
       result = await this.addParentJob(client, job, encodedOpts, args);
     } else if (typeof opts.delay == 'number' && opts.delay > 0) {
       result = await this.addDelayedJob(client, job, encodedOpts, args);
@@ -243,7 +287,7 @@ export class Scripts {
     if (<number>result < 0) {
       throw this.finishedErrors({
         code: <number>result,
-        parentKey: parentOpts.parentKey,
+        parentKey: parentKeyOpts.parentKey,
         command: 'addJob',
       });
     }

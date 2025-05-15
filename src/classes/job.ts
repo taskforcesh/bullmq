@@ -8,7 +8,7 @@ import {
   MinimalJob,
   MoveToWaitingChildrenOpts,
   ParentKeys,
-  ParentOpts,
+  ParentKeyOpts,
   RedisClient,
   WorkerOptions,
 } from '../interfaces';
@@ -1396,7 +1396,7 @@ export class Job<
    * @param parentOpts -
    * @returns
    */
-  addJob(client: RedisClient, parentOpts?: ParentOpts): Promise<string> {
+  addJob(client: RedisClient, parentOpts?: ParentKeyOpts): Promise<string> {
     const jobData = this.asJSON();
 
     this.validateOptions(jobData);

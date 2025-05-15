@@ -9,6 +9,7 @@ import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import {
   ChildMessage,
   ContextManager,
+  ParentOptions,
   RedisClient,
   Span,
   Tracer,
@@ -179,10 +180,7 @@ export async function removeAllQueueData(
   await client.quit();
 }
 
-export function getParentKey(opts: {
-  id: string;
-  queue: string;
-}): string | undefined {
+export function getParentKey(opts: ParentOptions): string | undefined {
   if (opts) {
     return `${opts.queue}:${opts.id}`;
   }

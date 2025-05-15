@@ -1,6 +1,7 @@
 import { JobsOptions, JobJsonSandbox, JobProgress } from '../types';
 import { JobJson } from './job-json';
 import { ParentKeys } from './parent';
+import { ParentOptions } from './parent-options';
 
 export type BulkJobOptions = Omit<JobsOptions, 'repeat'>;
 
@@ -14,10 +15,7 @@ export interface RetryJobOpts {
 }
 
 export interface MoveToWaitingChildrenOpts {
-  child?: {
-    id: string;
-    queue: string;
-  };
+  child?: ParentOptions;
 }
 
 export interface DependencyOpts {
