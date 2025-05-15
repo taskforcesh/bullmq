@@ -1242,14 +1242,12 @@ will never work with more accuracy than 1ms. */
       'moveStalledJobsToWait',
       this.name,
       async span => {
-        const chunkSize = 50;
-        const [failed, stalled] = await this.scripts.moveStalledJobsToWait();
+        const [stalled] = await this.scripts.moveStalledJobsToWait();
 
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
           [TelemetryAttributes.WorkerName]: this.opts.name,
           [TelemetryAttributes.WorkerStalledJobs]: stalled,
-          [TelemetryAttributes.WorkerFailedJobs]: failed,
         });
 
         stalled.forEach((jobId: string) => {
@@ -1258,39 +1256,8 @@ will never work with more accuracy than 1ms. */
           });
           this.emit('stalled', jobId, 'active');
         });
-
-        // Todo: check if there any listeners on failed event
-        for (let i = 0; i < failed.length; i += chunkSize) {
-          const chunk: string[] = failed.slice(i, i + chunkSize);
-          const jobs: Job<DataType, ResultType, NameType>[] = await Promise.all(
-            chunk.map((id: string) =>
-              Job.fromId<DataType, ResultType, NameType>(
-                this as MinimalQueue,
-                id,
-              ),
-            ),
-          );
-
-          this.notifyFailedJobs(jobs);
-        }
       },
     );
-  }
-
-  private notifyFailedJobs(
-    failedJobs: Job<DataType, ResultType, NameType>[],
-    span?: Span,
-  ) {
-    const failedReason = 'job stalled more than allowable limit';
-
-    failedJobs.forEach((job: Job<DataType, ResultType, NameType>) => {
-      span?.addEvent('job failed', {
-        [TelemetryAttributes.JobId]: job.id,
-        [TelemetryAttributes.JobName]: job.name,
-        [TelemetryAttributes.JobFailedReason]: failedReason,
-      });
-      this.emit('failed', job, new Error(failedReason), 'active');
-    });
   }
 
   private moveLimitedBackToWait(
