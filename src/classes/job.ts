@@ -230,9 +230,25 @@ export class Job<
 
     this.parentKey = getParentKey(opts.parent);
 
-    this.parent = opts.parent
-      ? { id: opts.parent.id, queueKey: opts.parent.queue }
-      : undefined;
+    if (opts.parent) {
+      this.parent = { id: opts.parent.id, queueKey: opts.parent.queue };
+
+      if (opts.failParentOnFailure) {
+        this.parent.fpof = true;
+      }
+
+      if (opts.removeDependencyOnFailure) {
+        this.parent.rdof = true;
+      }
+
+      if (opts.ignoreDependencyOnFailure) {
+        this.parent.idof = true;
+      }
+
+      if (opts.continueParentOnFailure) {
+        this.parent.cpof = true;
+      }
+    }
 
     this.debounceId = opts.debounce ? opts.debounce.id : undefined;
     this.deduplicationId = opts.deduplication

@@ -228,15 +228,7 @@ export class Scripts {
   ): Promise<string> {
     const queueKeys = this.queue.keys;
 
-    const parent: Record<string, any> = job.parent
-      ? {
-          ...job.parent,
-          fpof: opts.fpof,
-          rdof: opts.rdof,
-          idof: opts.idof,
-          cpof: opts.cpof,
-        }
-      : null;
+    const parent: Record<string, any> = job.parent;
 
     const args = [
       queueKeys[''],

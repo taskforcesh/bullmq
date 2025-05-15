@@ -14,6 +14,10 @@ export interface Parent<T> {
 export interface ParentKeys {
   id: string;
   queueKey: string;
+  fpof?: boolean;
+  rdof?: boolean;
+  idof?: boolean;
+  cpof?: boolean;
 }
 
 export type ParentKeyOpts = {
