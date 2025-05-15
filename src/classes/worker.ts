@@ -1242,7 +1242,7 @@ will never work with more accuracy than 1ms. */
       'moveStalledJobsToWait',
       this.name,
       async span => {
-        const [stalled] = await this.scripts.moveStalledJobsToWait();
+        const stalled = await this.scripts.moveStalledJobsToWait();
 
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,

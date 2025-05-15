@@ -234,10 +234,7 @@ class Worker(EventEmitter):
 
     async def runStalledJobsCheck(self):
         try:
-            failed, stalled = await self.scripts.moveStalledJobsToWait(self.opts.get("maxStalledCount"), self.opts.get("stalledInterval"))
-            for jobId in failed:
-                self.emit("failed", jobId,
-                          "job stalled more than allowable limit")
+            stalled = await self.scripts.moveStalledJobsToWait(self.opts.get("maxStalledCount"), self.opts.get("stalledInterval"))
             for jobId in stalled:
                 self.emit("stalled", jobId)
 

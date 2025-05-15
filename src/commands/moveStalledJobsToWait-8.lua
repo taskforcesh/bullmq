@@ -5,12 +5,11 @@
       KEYS[1] 'stalled' (SET)
       KEYS[2] 'wait',   (LIST)
       KEYS[3] 'active', (LIST)
-      KEYS[4] 'failed', (ZSET)
-      KEYS[5] 'stalled-check', (KEY)
-      KEYS[6] 'meta', (KEY)
-      KEYS[7] 'paused', (LIST)
-      KEYS[8] 'marker'
-      KEYS[9] 'event stream' (STREAM)
+      KEYS[4] 'stalled-check', (KEY)
+      KEYS[5] 'meta', (KEY)
+      KEYS[6] 'paused', (LIST)
+      KEYS[7] 'marker'
+      KEYS[8] 'event stream' (STREAM)
 
       ARGV[1]  Max stalled job count
       ARGV[2]  queue.toKey('')
@@ -31,19 +30,18 @@ local rcall = redis.call
 local stalledKey = KEYS[1]
 local waitKey = KEYS[2]
 local activeKey = KEYS[3]
-local failedKey = KEYS[4] -- TODO: remove it
-local stalledCheckKey = KEYS[5]
-local metaKey = KEYS[6]
-local pausedKey = KEYS[7]
-local markerKey = KEYS[8]
-local eventStreamKey = KEYS[9]
+local stalledCheckKey = KEYS[4]
+local metaKey = KEYS[5]
+local pausedKey = KEYS[6]
+local markerKey = KEYS[7]
+local eventStreamKey = KEYS[8]
 local maxStalledJobCount = tonumber(ARGV[1])
 local queueKeyPrefix = ARGV[2]
 local timestamp = ARGV[3]
 local maxCheckTime = ARGV[4]
 
 if rcall("EXISTS", stalledCheckKey) == 1 then
-    return {{}, {}}
+    return {}
 end
 
 rcall("SET", stalledCheckKey, timestamp, "PX", maxCheckTime)
@@ -108,4 +106,4 @@ if (#active > 0) then
     end
 end
 
-return {stalled}
+return stalled
