@@ -9,4 +9,5 @@ export enum ParentCommand {
   Progress,
   Update,
   GetChildrenValues,
+  GetIgnoredChildrenFailures,
 }

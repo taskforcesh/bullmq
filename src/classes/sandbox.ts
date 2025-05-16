@@ -65,6 +65,16 @@ const sandbox = <T, R, N extends string>(
                       });
                     }
                     break;
+                  case ParentCommand.GetIgnoredChildrenFailures:
+                    {
+                      const value = await job.getIgnoredChildrenFailures();
+                      child.send({
+                        requestId: msg.requestId,
+                        cmd: ChildCommand.GetIgnoredChildrenFailuresResponse,
+                        value,
+                      });
+                    }
+                    break;
                 }
               } catch (err) {
                 reject(err);

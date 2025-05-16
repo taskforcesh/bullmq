@@ -183,6 +183,24 @@ export class ChildProcessor {
           'getChildrenValues',
         );
       },
+
+      /**
+       * Proxy `getIgnoredChildrenFailures` function.
+       */
+      getIgnoredChildrenFailures: async () => {
+        const requestId = Math.random().toString(36).substring(2, 15);
+        await send({
+          requestId,
+          cmd: ParentCommand.GetIgnoredChildrenFailures,
+        });
+
+        return waitResponse(
+          requestId,
+          this.receiver,
+          RESPONSE_TIMEOUT,
+          'getIgnoredChildrenFailures',
+        );
+      },
     };
 
     return wrappedJob;
