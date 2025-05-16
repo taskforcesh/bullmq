@@ -47,7 +47,7 @@ local opts = cmsgpack.unpack(ARGV[3])
 --- @include "includes/getNextDelayedTimestamp"
 --- @include "includes/getRateLimitTTL"
 --- @include "includes/getTargetQueueList"
---- @include "includes/moveJobFromPriorityToActive"
+--- @include "includes/moveJobFromPrioritizedToActive"
 --- @include "includes/prepareJobForProcessing"
 --- @include "includes/promoteDelayedJobs"
 
@@ -80,7 +80,7 @@ if jobId then
     return prepareJobForProcessing(ARGV[1], rateLimiterKey, eventStreamKey, jobId, ARGV[2],
                                    maxJobs, markerKey, opts)
 else
-    jobId = moveJobFromPriorityToActive(KEYS[3], activeKey, KEYS[10])
+    jobId = moveJobFromPrioritizedToActive(KEYS[3], activeKey, KEYS[10])
     if jobId then
         return prepareJobForProcessing(ARGV[1], rateLimiterKey, eventStreamKey, jobId, ARGV[2],
                                        maxJobs, markerKey, opts)
