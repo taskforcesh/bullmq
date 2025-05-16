@@ -12,7 +12,7 @@ export interface Parent<T> {
 }
 
 export interface ParentKeys {
-  id: string;
+  id?: string;
   queueKey: string;
   fpof?: boolean;
   rdof?: boolean;
