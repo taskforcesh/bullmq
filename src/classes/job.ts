@@ -8,7 +8,7 @@ import {
   MinimalJob,
   MoveToWaitingChildrenOpts,
   ParentKeys,
-  ParentOpts,
+  ParentKeyOpts,
   RedisClient,
   WorkerOptions,
 } from '../interfaces';
@@ -60,7 +60,7 @@ export class Job<
 {
   /**
    * It includes the prefix, the namespace separator :, and queue name.
-   * @see https://www.gnu.org/software/gawk/manual/html_node/Qualified-Names.html
+   * @see {@link https://www.gnu.org/software/gawk/manual/html_node/Qualified-Names.html}
    */
   public readonly queueQualifiedName: string;
 
@@ -230,9 +230,25 @@ export class Job<
 
     this.parentKey = getParentKey(opts.parent);
 
-    this.parent = opts.parent
-      ? { id: opts.parent.id, queueKey: opts.parent.queue }
-      : undefined;
+    if (opts.parent) {
+      this.parent = { id: opts.parent.id, queueKey: opts.parent.queue };
+
+      if (opts.failParentOnFailure) {
+        this.parent.fpof = true;
+      }
+
+      if (opts.removeDependencyOnFailure) {
+        this.parent.rdof = true;
+      }
+
+      if (opts.ignoreDependencyOnFailure) {
+        this.parent.idof = true;
+      }
+
+      if (opts.continueParentOnFailure) {
+        this.parent.cpof = true;
+      }
+    }
 
     this.debounceId = opts.debounce ? opts.debounce.id : undefined;
     this.deduplicationId = opts.deduplication
@@ -1396,7 +1412,7 @@ export class Job<
    * @param parentOpts -
    * @returns
    */
-  addJob(client: RedisClient, parentOpts?: ParentOpts): Promise<string> {
+  addJob(client: RedisClient, parentOpts?: ParentKeyOpts): Promise<string> {
     const jobData = this.asJSON();
 
     this.validateOptions(jobData);

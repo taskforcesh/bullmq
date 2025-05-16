@@ -14,6 +14,7 @@ export * from './metrics';
 export * from './minimal-job';
 export * from './parent-message';
 export * from './parent';
+export * from './parent-options';
 export * from './queue-options';
 export * from './rate-limiter-options';
 export * from './redis-options';

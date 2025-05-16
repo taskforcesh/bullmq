@@ -63,7 +63,7 @@ local rcall = redis.call
 --- @include "includes/getNextDelayedTimestamp"
 --- @include "includes/getRateLimitTTL"
 --- @include "includes/getTargetQueueList"
---- @include "includes/moveJobFromPriorityToActive"
+--- @include "includes/moveJobFromPrioritizedToActive"
 --- @include "includes/moveChildFromDependenciesIfNeeded"
 --- @include "includes/prepareJobForProcessing"
 --- @include "includes/promoteDelayedJobs"
@@ -234,7 +234,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
                 -- If jobId is special ID 0:delay (delay greater than 0), then there is no job to process
                 -- but if ID is 0:0, then there is at least 1 prioritized job to process
                 if jobId == "0:0" then
-                    jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2], KEYS[10])
+                    jobId = moveJobFromPrioritizedToActive(KEYS[3], KEYS[2], KEYS[10])
                     return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId, timestamp, maxJobs,
                         markerKey, opts)
                 end
@@ -243,7 +243,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
                     opts)
             end
         else
-            jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2], KEYS[10])
+            jobId = moveJobFromPrioritizedToActive(KEYS[3], KEYS[2], KEYS[10])
             if jobId then
                 return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId, timestamp, maxJobs, markerKey,
                     opts)
