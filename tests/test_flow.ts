@@ -1177,6 +1177,102 @@ describe('flows', () => {
         await queueEvents.close();
         await removeAllQueueData(new IORedis(redisHost), childrenQueueName);
       });
+
+      describe('when parent has pending children to be processed when trying to move it to completed', () => {
+        it('should fail parent with pending dependencies error', async function () {
+          const childrenQueueName = `children-queue-${v4()}`;
+
+          enum Step {
+            Initial,
+            Second,
+            Third,
+            Finish,
+          }
+
+          const flow = new FlowProducer({ connection, prefix });
+
+          const childrenWorker = new Worker(
+            childrenQueueName,
+            () => {
+              throw new Error('failure');
+            },
+            {
+              connection,
+              prefix,
+            },
+          );
+          const worker = new Worker(
+            queueName,
+            async (job: Job, token?: string) => {
+              let step = job.data.step;
+              while (step !== Step.Finish) {
+                switch (step) {
+                  case Step.Initial: {
+                    await flow.add({
+                      name: 'child-job',
+                      queueName: childrenQueueName,
+                      data: {},
+                      opts: {
+                        parent: {
+                          id: job.id!,
+                          queue: job.queueQualifiedName,
+                        },
+                        failParentOnFailure: true,
+                      },
+                    });
+                    await job.updateData({
+                      step: Step.Second,
+                    });
+                    step = Step.Second;
+                    break;
+                  }
+                  case Step.Second: {
+                    await delay(100);
+                    await job.updateData({
+                      step: Step.Finish,
+                    });
+                    step = Step.Finish;
+                    break;
+                  }
+                  default: {
+                    throw new Error('invalid step');
+                  }
+                }
+              }
+            },
+            { autorun: false, connection, prefix },
+          );
+          const queueEvents = new QueueEvents(queueName, {
+            connection,
+            prefix,
+          });
+          await queueEvents.waitUntilReady();
+          await worker.waitUntilReady();
+
+          const job = await queue.add('test', { step: Step.Initial });
+
+          const failed = new Promise<void>(resolve => {
+            queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
+              if (jobId === job.id) {
+                expect(prev).to.be.equal('active');
+                expect(failedReason).to.be.equal(
+                  `Job ${jobId} has failed children. moveToFinished`,
+                );
+                resolve();
+              }
+            });
+          });
+
+          worker.run();
+          await failed;
+
+          await flow.close();
+          await worker.close();
+          await childrenWorker.close();
+          await queueEvents.close();
+          await removeAllQueueData(new IORedis(redisHost), childrenQueueName);
+        });
+      });
     });
 
     describe('when parent is not in waiting-children state when one child with failParentOnFailure failed', () => {

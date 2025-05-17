@@ -50,8 +50,9 @@
       -1 Missing key.
       -2 Missing lock.
       -3 Job not in active set
-      -4 Job has pending dependencies
+      -4 Job has pending children
       -6 Lock is not owned by this client
+      -9 Job has failed children
 
     Events:
       'completed/failed'
@@ -81,10 +82,14 @@ local jobIdKey = KEYS[12]
 if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
     -- Make sure it does not have pending dependencies
     -- It must happen before removing lock
-    if ARGV[5] == "completed" and
-        not rcall("HGET", jobIdKey, "igdp") and -- check if we should ignore this check
-        rcall("SCARD", jobIdKey .. ":dependencies") ~= 0 then
-        return -4
+    if ARGV[5] == "completed" then
+        if rcall("SCARD", jobIdKey .. ":dependencies") ~= 0 then
+            return -4
+        end
+
+        if rcall("ZCARD", jobIdKey .. ":unsuccessful") ~= 0 then
+            return -9
+        end
     end
 
     local opts = cmsgpack.unpack(ARGV[8])

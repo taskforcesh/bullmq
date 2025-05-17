@@ -1688,7 +1688,7 @@ export class Scripts {
         return new Error(
           `Job ${jobId} is not in the ${state} state. ${command}`,
         );
-      case ErrorCode.JobPendingDependencies:
+      case ErrorCode.JobPendingChildren:
         return new Error(`Job ${jobId} has pending dependencies. ${command}`);
       case ErrorCode.ParentJobNotExist:
         return new Error(`Missing key for parent job ${parentKey}. ${command}`);
@@ -1704,6 +1704,8 @@ export class Scripts {
         return new Error(
           `Job ${jobId} belongs to a job scheduler and cannot be removed directly. ${command}`,
         );
+      case ErrorCode.JobFailedChildren:
+        return new Error(`Job ${jobId} has failed children. ${command}`);
       default:
         return new Error(`Unknown code ${code} error for ${jobId}. ${command}`);
     }
