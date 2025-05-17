@@ -8,9 +8,7 @@
 --- @include "moveParentToWait"
 --- @include "removeJobsOnFail"
 
-local moveParentToFailedIfNeeded
-local moveChildFromDependenciesIfNeeded
-moveParentToFailedIfNeeded = function (parentQueueKey, parentKey, parentId, jobIdKey, timestamp)
+local moveParentToFailedIfNeeded = function (parentQueueKey, parentKey, parentId, jobIdKey, timestamp)
   if rcall("EXISTS", parentKey) == 1 then
     local parentWaitingChildrenKey = parentQueueKey .. ":waiting-children"
     local parentDelayedKey = parentQueueKey .. ":delayed"
@@ -42,7 +40,7 @@ moveParentToFailedIfNeeded = function (parentQueueKey, parentKey, parentId, jobI
   end
 end
 
-moveChildFromDependenciesIfNeeded = function (rawParentData, childKey, failedReason, timestamp)
+local moveChildFromDependenciesIfNeeded = function (rawParentData, childKey, failedReason, timestamp)
   if rawParentData then
     local parentData = cjson.decode(rawParentData)
     local parentKey = parentData['queueKey'] .. ':' .. parentData['id']
