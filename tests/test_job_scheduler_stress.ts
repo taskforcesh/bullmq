@@ -67,6 +67,9 @@ describe('Job Scheduler Stress', function () {
     let previousJob;
     for (let i = 0; i < maxIterations; i++) {
       if (previousJob) {
+        // Ensure that there is exactly one delayed job in the queue.
+        // This validates that the upsertJobScheduler method replaces the previous job
+        // and maintains only one delayed job at a time, as expected.
         const count = await queue.getDelayedCount();
         expect(count).to.be.equal(1);
       }
