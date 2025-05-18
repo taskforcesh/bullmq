@@ -1,10 +1,11 @@
 import { expect } from 'chai';
+import { after } from 'lodash';
 import { default as IORedis } from 'ioredis';
 import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 
 import { v4 } from 'uuid';
 import { Queue, QueueEvents, Repeat, Worker } from '../src/classes';
-import { removeAllQueueData } from '../src/utils';
+import { delay, removeAllQueueData } from '../src/utils';
 
 const ONE_SECOND = 1000;
 const ONE_MINUTE = 60 * ONE_SECOND;
@@ -53,25 +54,26 @@ describe('Job Scheduler Stress', function () {
       {
         connection,
         concurrency: 1,
-        autorun: false,
         prefix,
       },
     );
 
-    let completedJobs = 0;
-    worker.on('completed', async job => {
-      completedJobs++;
+    const maxIterations = 10;
+    const completing = new Promise(resolve => {
+      worker.on('completed', after(maxIterations, resolve));
     });
 
-    worker.run();
-
-    const maxIterations = 100;
     const jobSchedulerId = 'test';
+    let previousJob;
     for (let i = 0; i < maxIterations; i++) {
-      await queue.upsertJobScheduler(
+      if (previousJob) {
+        const count = await queue.getDelayedCount();
+        expect(count).to.be.equal(1);
+      }
+      previousJob = await queue.upsertJobScheduler(
         jobSchedulerId,
         {
-          every: ONE_HOUR,
+          every: 200,
         },
         {
           data: {
@@ -79,8 +81,11 @@ describe('Job Scheduler Stress', function () {
           },
         },
       );
+
+      await delay(100);
     }
 
+    await completing;
     await worker.close();
 
     const repeatableJobs = await queue.getJobSchedulers();
@@ -90,7 +95,7 @@ describe('Job Scheduler Stress', function () {
 
     expect(counts).to.be.eql({
       active: 0,
-      completed: 1,
+      completed: maxIterations,
       delayed: 1,
       failed: 0,
       paused: 0,
@@ -98,8 +103,6 @@ describe('Job Scheduler Stress', function () {
       waiting: 0,
       'waiting-children': 0,
     });
-
-    expect(completedJobs).to.be.eql(1);
   });
 
   it('should start processing a job as soon as it is upserted when using every', async () => {
