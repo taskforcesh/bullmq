@@ -186,6 +186,12 @@ export class ChildProcessor {
 
       /**
        * Proxy `getIgnoredChildrenFailures` function.
+       * 
+       * This method sends a request to retrieve the failures of ignored children
+       * and waits for a response from the parent process.
+       * 
+       * @returns {Promise<any>} A promise that resolves with the ignored children failures.
+       * The exact structure of the returned data depends on the parent process implementation.
        */
       getIgnoredChildrenFailures: async () => {
         const requestId = Math.random().toString(36).substring(2, 15);
