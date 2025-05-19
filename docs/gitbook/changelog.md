@@ -1,3 +1,15 @@
+## [5.52.3](https://github.com/taskforcesh/bullmq/compare/v5.52.2...v5.52.3) (2025-05-19)
+
+
+### Bug Fixes
+
+* **flow:** add new error code when parent has failed children ([#3268](https://github.com/taskforcesh/bullmq/issues/3268)) ([b8fba5e](https://github.com/taskforcesh/bullmq/commit/b8fba5e937a41d0c7ddc97443e9fa8d0f0de566b))
+
+
+### Features
+
+* **job:** add moveToCompleted method [python] ([#3251](https://github.com/taskforcesh/bullmq/issues/3251)) ([6a8e3e2](https://github.com/taskforcesh/bullmq/commit/6a8e3e206384b56063c6f5a46ca030d2b330c712))
+
 ## [5.52.2](https://github.com/taskforcesh/bullmq/compare/v5.52.1...v5.52.2) (2025-05-08)
 
 
