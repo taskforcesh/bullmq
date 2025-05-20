@@ -46,27 +46,26 @@ describe('Job Scheduler Stress', function () {
   });
 
   it('should upsert many times respecting the guarantees', async () => {
-    const worker = new Worker(
-      queueName,
-      async job => {
-        return 42;
-      },
-      {
-        connection,
-        concurrency: 1,
-        prefix,
-      },
-    );
+    const worker = new Worker(queueName, async job => {}, {
+      connection,
+      concurrency: 1,
+      prefix,
+    });
 
     const maxIterations = 10;
-    const completing = new Promise(resolve => {
+    const completing = new Promise((resolve, reject) => {
       worker.on('completed', after(maxIterations, resolve));
+
+      queueEvents.on('duplicated', reject);
     });
 
     const jobSchedulerId = 'test';
     let previousJob;
-    for (let i = 0; i < maxIterations; i++) {
+    let every = 800;
+    for (let i = 0; i < 3; i++) {
       if (previousJob) {
+        await delay(200);
+
         // Ensure that there is exactly one delayed job in the queue.
         // This validates that the upsertJobScheduler method replaces the previous job
         // and maintains only one delayed or waiting job at a time, as expected.
@@ -82,16 +81,18 @@ describe('Job Scheduler Stress', function () {
       previousJob = await queue.upsertJobScheduler(
         jobSchedulerId,
         {
-          every: 200,
+          every,
         },
         {
           data: {
             iteration: i,
           },
+          opts: {
+            removeOnComplete: true,
+          },
         },
       );
-
-      await delay(100);
+      every = every / 2;
     }
 
     await completing;
@@ -104,7 +105,7 @@ describe('Job Scheduler Stress', function () {
 
     expect(counts).to.be.eql({
       active: 0,
-      completed: maxIterations,
+      completed: 0,
       delayed: 1,
       failed: 0,
       paused: 0,
