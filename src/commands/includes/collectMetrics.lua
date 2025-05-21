@@ -1,7 +1,7 @@
 --[[
   Functions to collect metrics based on a current and previous count of jobs.
   Granualarity is fixed at 1 minute.
-]] 
+]]
 --- @include "batches"
 local function collectMetrics(metaKey, dataPointsList, maxDataPoints,
                                  timestamp)
