@@ -64,7 +64,7 @@ local maxEvents = getOrSetMaxEvents(metaKey)
 local function removeJobFromScheduler(prefixKey, delayedKey, prioritizedKey, waitKey, pausedKey, jobId,
     metaKey, eventsKey)
     if rcall("ZSCORE", delayedKey, jobId) then
-        removeJob(nextDelayedJobId, true, prefixKey, true --[[remove debounce key]] )
+        removeJob(jobId, true, prefixKey, true --[[remove debounce key]] )
         rcall("ZREM", delayedKey, jobId)
         return true
     elseif rcall("ZSCORE", prioritizedKey, jobId) then
