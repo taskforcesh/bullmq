@@ -1478,7 +1478,6 @@ export class Scripts {
       this.queue.keys.stalled,
       this.queue.keys.wait,
       this.queue.keys.active,
-      this.queue.keys.failed,
       this.queue.keys['stalled-check'],
       this.queue.keys.meta,
       this.queue.keys.paused,
@@ -1504,7 +1503,7 @@ export class Scripts {
    * (e.g. if the job handler keeps crashing),
    * we limit the number stalled job recoveries to settings.maxStalledCount.
    */
-  async moveStalledJobsToWait(): Promise<[string[], string[]]> {
+  async moveStalledJobsToWait(): Promise<string[]> {
     const client = await this.queue.client;
 
     const args = this.moveStalledJobsToWaitArgs();
