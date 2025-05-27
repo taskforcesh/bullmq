@@ -903,6 +903,7 @@ describe('events', function () {
       describe('when replace is provided as true', function () {
         it('removes last job if it is in delayed state', async function () {
           const testName = 'test';
+          const deduplicationId = 'a1';
 
           const worker = new Worker(
             queueName,
@@ -937,32 +938,42 @@ describe('events', function () {
             testName,
             { foo: 'bar' },
             {
-              deduplication: { id: 'a1', ttl: 500, replace: true },
+              deduplication: { id: deduplicationId, replace: true },
               delay: 500,
             },
           );
 
           await delay(250);
 
-          await queue.add(
+          const job2 = await queue.add(
             testName,
             { foo: 'baz' },
             {
-              deduplication: { id: 'a1', ttl: 500, replace: true },
+              deduplication: { id: deduplicationId, replace: true },
               delay: 500,
             },
           );
+
+          const deduplicationJobId = await queue.getDeduplicationJobId(
+            deduplicationId,
+          );
+          expect(deduplicationJobId).to.be.equal(job2.id);
 
           await delay(300);
 
-          await queue.add(
+          const job3 = await queue.add(
             testName,
             { foo: 'bax' },
             {
-              deduplication: { id: 'a1', ttl: 500, replace: true },
+              deduplication: { id: deduplicationId, replace: true },
               delay: 500,
             },
           );
+
+          const deduplicationJobId2 = await queue.getDeduplicationJobId(
+            deduplicationId,
+          );
+          expect(deduplicationJobId2).to.be.equal(job3.id);
 
           await completing;
 
@@ -975,9 +986,105 @@ describe('events', function () {
         });
       });
 
+      describe('when extend is provided as true', function () {
+        it('resets ttl', async function () {
+          const testName = 'test';
+          const deduplicationId = 'a1';
+
+          const worker = new Worker(
+            queueName,
+            async () => {
+              await delay(100);
+            },
+            {
+              autorun: false,
+              connection,
+              prefix,
+            },
+          );
+          await worker.waitUntilReady();
+
+          let deduplicatedCounter = 0;
+
+          const completing = new Promise<void>(resolve => {
+            worker.once('completed', job => {
+              expect(job.id).to.be.equal('1');
+              expect(job.data.foo).to.be.equal('bar');
+              resolve();
+            });
+
+            queueEvents.on('deduplicated', ({ jobId }) => {
+              deduplicatedCounter++;
+            });
+          });
+
+          worker.run();
+
+          const job1 = await queue.add(
+            testName,
+            { foo: 'bar' },
+            {
+              deduplication: {
+                id: deduplicationId,
+                extend: true,
+                ttl: 500,
+              },
+            },
+          );
+
+          await delay(250);
+
+          await queue.add(
+            testName,
+            { foo: 'baz' },
+            {
+              deduplication: {
+                id: deduplicationId,
+                extend: true,
+                ttl: 500,
+              },
+            },
+          );
+
+          const deduplicationJobId = await queue.getDeduplicationJobId(
+            deduplicationId,
+          );
+          expect(deduplicationJobId).to.be.equal(job1.id);
+
+          await delay(250);
+
+          const job3 = await queue.add(
+            testName,
+            { foo: 'bax' },
+            {
+              deduplication: {
+                id: deduplicationId,
+                extend: true,
+                ttl: 500,
+              },
+            },
+          );
+
+          const deduplicationJobId2 = await queue.getDeduplicationJobId(
+            deduplicationId,
+          );
+          expect(deduplicationJobId2).to.be.equal(job3.id);
+
+          await completing;
+
+          const count = await queue.getJobCountByTypes();
+
+          expect(count).to.be.eql(1);
+
+          expect(deduplicatedCounter).to.be.equal(2);
+          await worker.close();
+        });
+      });
+
       describe('when extend and replace options are provided as true', function () {
         it('resets ttl and removes last job if it is in delayed state', async function () {
           const testName = 'test';
+          const deduplicationId = 'a1';
 
           const worker = new Worker(
             queueName,
@@ -1013,8 +1120,7 @@ describe('events', function () {
             { foo: 'bar' },
             {
               deduplication: {
-                id: 'a1',
-                ttl: 500,
+                id: deduplicationId,
                 extend: true,
                 replace: true,
               },
@@ -1024,13 +1130,12 @@ describe('events', function () {
 
           await delay(250);
 
-          await queue.add(
+          const job2 = await queue.add(
             testName,
             { foo: 'baz' },
             {
               deduplication: {
-                id: 'a1',
-                ttl: 500,
+                id: deduplicationId,
                 extend: true,
                 replace: true,
               },
@@ -1038,21 +1143,30 @@ describe('events', function () {
             },
           );
 
+          const deduplicationJobId = await queue.getDeduplicationJobId(
+            deduplicationId,
+          );
+          expect(deduplicationJobId).to.be.equal(job2.id);
+
           await delay(250);
 
-          await queue.add(
+          const job3 = await queue.add(
             testName,
             { foo: 'bax' },
             {
               deduplication: {
-                id: 'a1',
-                ttl: 500,
+                id: deduplicationId,
                 extend: true,
                 replace: true,
               },
               delay: 500,
             },
           );
+
+          const deduplicationJobId2 = await queue.getDeduplicationJobId(
+            deduplicationId,
+          );
+          expect(deduplicationJobId2).to.be.equal(job3.id);
 
           await completing;
 

@@ -90,7 +90,7 @@ else
 end
 
 local deduplicationJobId = deduplicateJob(opts['de'], jobId, delayedKey, deduplicationKey,
-  eventsKey, maxEvents, args[1])
+  eventsKey, maxEvents, args[1], opts['delay'])
 if deduplicationJobId then
   return deduplicationJobId
 end
