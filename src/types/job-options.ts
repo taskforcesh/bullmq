@@ -104,8 +104,7 @@ export type RedisJobOptions = BaseJobOptions & {
   omc?: boolean;
 
   /**
-   * Deduplication identifier.
-   * @deprecated use deid
+   * Deduplication options.
    */
-  de?: string;
+  de?: DeduplicationOptions;
 };
