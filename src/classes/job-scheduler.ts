@@ -93,16 +93,14 @@ export class JobScheduler extends QueueBase {
     }
 
     let nextMillis: number;
-    let newOffset = 0;
-
+    let newOffset = null;
     if (every) {
       const prevSlot = Math.floor(startMillis / every) * every;
-      const nextSlot = prevSlot + every;
-      newOffset = startMillis - prevSlot;
-      // newOffset should always be positive, but we do an extra safety check
-      newOffset = newOffset < 0 ? 0 : newOffset;
 
-      if (prevMillis) {
+      newOffset = typeof offset === 'number' ? offset : startMillis - prevSlot;
+
+      const nextSlot = prevSlot + every;
+      if (prevMillis || offset) {
         nextMillis = nextSlot;
       } else {
         nextMillis = prevSlot;
@@ -162,6 +160,7 @@ export class JobScheduler extends QueueBase {
                 pattern,
                 every,
                 limit,
+                offset: newOffset,
               },
               Job.optsAsJSON(mergedOpts),
               producerId,
@@ -245,6 +244,7 @@ export class JobScheduler extends QueueBase {
 
     mergedOpts.repeat = {
       ...opts.repeat,
+      offset,
       count: currentCount,
       endDate: opts.repeat?.endDate
         ? new Date(opts.repeat.endDate).getTime()
@@ -301,7 +301,11 @@ export class JobScheduler extends QueueBase {
       }
 
       if (jobData.every) {
-        jobSchedulerData.every = jobData.every;
+        jobSchedulerData.every = parseInt(jobData.every);
+      }
+
+      if (jobData.offset) {
+        jobSchedulerData.offset = parseInt(jobData.offset);
       }
 
       if (jobData.data || jobData.opts) {
