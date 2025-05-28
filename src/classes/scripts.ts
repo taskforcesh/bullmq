@@ -419,7 +419,7 @@ export class Scripts {
     nextMillis: number,
     templateData: string,
     delayedJobOpts: JobsOptions,
-    // The job id of the job that produced this next iteration
+    // The job id of the job that produced this next iteration - TODO: remove in next breaking change
     producerId?: string,
   ): Promise<string | null> {
     const client = await this.queue.client;
