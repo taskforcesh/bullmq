@@ -44,7 +44,7 @@ class Scripts:
             "getState": self.redisClient.register_script(self.getScript("getState-8.lua")),
             "getStateV2": self.redisClient.register_script(self.getScript("getStateV2-8.lua")),
             "isJobInList": self.redisClient.register_script(self.getScript("isJobInList-1.lua")),
-            "moveStalledJobsToWait": self.redisClient.register_script(self.getScript("moveStalledJobsToWait-9.lua")),
+            "moveStalledJobsToWait": self.redisClient.register_script(self.getScript("moveStalledJobsToWait-8.lua")),
             "moveToActive": self.redisClient.register_script(self.getScript("moveToActive-11.lua")),
             "moveToDelayed": self.redisClient.register_script(self.getScript("moveToDelayed-8.lua")),
             "moveToFinished": self.redisClient.register_script(self.getScript("moveToFinished-14.lua")),
@@ -578,7 +578,7 @@ class Scripts:
         return self.commands["extendLock"](keys, args, client)
 
     def moveStalledJobsToWait(self, maxStalledCount: int, stalledInterval: int):
-        keys = self.getKeys(['stalled', 'wait', 'active', 'failed',
+        keys = self.getKeys(['stalled', 'wait', 'active',
                             'stalled-check', 'meta', 'paused', 'marker', 'events'])
         args = [maxStalledCount, self.keys[''], round(
             time.time() * 1000), stalledInterval]

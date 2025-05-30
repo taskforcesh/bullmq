@@ -272,7 +272,9 @@ describe('stalled jobs', function () {
         worker2.on(
           'failed',
           after(concurrency, async (job, failedReason, prev) => {
-            expect(job).to.be.undefined;
+            expect(job?.attemptsStarted).to.be.equal(2);
+            expect(job?.attemptsMade).to.be.equal(1);
+            expect(job?.stalledCounter).to.be.equal(1);
             expect(prev).to.be.equal('active');
             expect(failedReason.message).to.be.equal(errorMessage);
             resolve();
@@ -350,7 +352,9 @@ describe('stalled jobs', function () {
             worker.on(
               'failed',
               after(concurrency, async (job, failedReason, prev) => {
-                expect(job).to.be.undefined;
+                expect(job?.attemptsStarted).to.be.equal(4);
+                expect(job?.attemptsMade).to.be.equal(1);
+                expect(job?.stalledCounter).to.be.equal(3);
                 expect(prev).to.be.equal('active');
                 expect(failedReason.message).to.be.equal(errorMessage);
                 resolve();
@@ -819,7 +823,7 @@ describe('stalled jobs', function () {
               const failedCount = await queue.getFailedCount();
               expect(failedCount).to.equal(3);
 
-              expect(job.data.index).to.be.equal(3);
+              expect(job.data.index).to.be.equal(0);
               expect(prev).to.be.equal('active');
               expect(failedReason.message).to.be.equal(errorMessage);
               resolve();
@@ -886,7 +890,9 @@ describe('stalled jobs', function () {
           worker2.on(
             'failed',
             after(concurrency, async (job, failedReason, prev) => {
-              expect(job).to.be.undefined;
+              expect(job?.attemptsStarted).to.be.equal(2);
+              expect(job?.attemptsMade).to.be.equal(1);
+              expect(job?.stalledCounter).to.be.equal(1);
               const failedCount = await queue.getFailedCount();
               expect(failedCount).to.equal(2);
 
