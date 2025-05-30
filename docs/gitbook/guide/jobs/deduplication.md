@@ -38,6 +38,38 @@ await myQueue.add(
 
 In this example, after adding the house painting job with the deduplicated parameters (id and ttl), any subsequent job with the same deduplication ID customValue added within 5 seconds will be ignored. This is useful for scenarios where rapid, repetitive requests are made, such as multiple users or processes attempting to trigger the same job.
 
+## Debounce Mode
+
+In the Debounce Mode, deduplication works by assigning a delay to a job upon its creation. If a similar job (identified by a unique deduplication ID) is added during this delay period, it'll replace the previous job while this one is still in delayed state and TTL value from deduplication key will be updated as well. This prevents the queue from being overwhelmed with multiple instances of the same task, keeping job information up to date.
+
+```typescript
+import { Queue } from 'bullmq';
+
+const myQueue = new Queue('Paint');
+
+// Add a job that will be deduplicated for 5 seconds.
+await myQueue.add(
+  'house1',
+  { color: 'white' },
+  {
+    deduplication: { id: 'customValue', extend: true, replace: true },
+    delay: 5000,
+  },
+);
+
+// Replace previous job and set ttl to 5 seconds.
+await myQueue.add(
+  'house1',
+  { color: 'red' },
+  {
+    deduplication: { id: 'customValue', extend: true, replace: true },
+    delay: 5000,
+  },
+);
+```
+
+In this example, after adding the house painting job with the deduplicated parameters (id and replace) and 5 seconds as delay, any subsequent job with the same deduplication options added within 5 seconds will replace previous job information. This is useful for scenarios where rapid, repetitive requests are made, such as multiple users or processes attempting to trigger the same job but with different payloads, this way you will get the last updated data when processing a job.
+
 Note that you must provide a deduplication id that should represent your job. You can hash your entire job data or a subset of attributes for creating this identifier.
 
 {% hint style="warning" %}
@@ -57,17 +89,20 @@ import { QueueEvents } from 'bullmq';
 
 const queueEvents = new QueueEvents('myQueue');
 
-queueEvents.on('deduplicated', ({ jobId, deduplicationId, deduplicatedJobId }, id) => {
-  console.log(`Job ${deduplicatedJobId} was deduplicated due to existing job ${jobId} 
+queueEvents.on(
+  'deduplicated',
+  ({ jobId, deduplicationId, deduplicatedJobId }, id) => {
+    console.log(`Job ${deduplicatedJobId} was deduplicated due to existing job ${jobId} 
   with deduplication ID ${deduplicationId}`);
-});
+  },
+);
 ```
 
 In this example:
 
-* `jobId`: The Id of the existing job that triggered the deduplication.
-* `deduplicationId`: The deduplication Id that caused the job to be ignored.
-* `deduplicatedJobId`: The Id of the job that was ignored.
+- `jobId`: The Id of the existing job that triggered the deduplication.
+- `deduplicationId`: The deduplication Id that caused the job to be ignored.
+- `deduplicatedJobId`: The Id of the job that was ignored.
 
 ## Get Deduplication Job Id
 
@@ -87,5 +122,5 @@ await myQueue.removeDeduplicationKey('customValue');
 
 ## Read more:
 
-* 💡 [Add Job API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#add)
-* 💡 [Remove Deduplication Key API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removeDeduplicationKey)
+- 💡 [Add Job API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#add)
+- 💡 [Remove Deduplication Key API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removeDeduplicationKey)

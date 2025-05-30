@@ -1,4 +1,5 @@
-import { BaseJobOptions, DebounceOptions } from '../interfaces';
+import { BaseJobOptions } from '../interfaces';
+import { DeduplicationOptions } from '../types';
 
 /**
  * These options will be stored in Redis with smaller
@@ -9,12 +10,12 @@ export type CompressableJobOptions = {
    * Debounce options.
    * @deprecated use deduplication option
    */
-  debounce?: DebounceOptions;
+  debounce?: DeduplicationOptions;
 
   /**
    * Deduplication options.
    */
-  deduplication?: DebounceOptions;
+  deduplication?: DeduplicationOptions;
 
   /**
    * If true, moves parent to failed if any of its children fail.
@@ -103,8 +104,7 @@ export type RedisJobOptions = BaseJobOptions & {
   omc?: boolean;
 
   /**
-   * Deduplication identifier.
-   * @deprecated use deid
+   * Deduplication options.
    */
-  de?: string;
+  de?: DeduplicationOptions;
 };
