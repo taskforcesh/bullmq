@@ -1,10 +1,11 @@
 import { expect } from 'chai';
+import { after } from 'lodash';
 import { default as IORedis } from 'ioredis';
 import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 
 import { v4 } from 'uuid';
 import { Queue, QueueEvents, Repeat, Worker } from '../src/classes';
-import { removeAllQueueData } from '../src/utils';
+import { delay, removeAllQueueData } from '../src/utils';
 
 const ONE_SECOND = 1000;
 const ONE_MINUTE = 60 * ONE_SECOND;
@@ -45,42 +46,56 @@ describe('Job Scheduler Stress', function () {
   });
 
   it('should upsert many times respecting the guarantees', async () => {
-    const worker = new Worker(
-      queueName,
-      async job => {
-        return 42;
-      },
-      {
-        connection,
-        concurrency: 1,
-        autorun: false,
-        prefix,
-      },
-    );
-
-    let completedJobs = 0;
-    worker.on('completed', async job => {
-      completedJobs++;
+    const worker = new Worker(queueName, async job => {}, {
+      connection,
+      concurrency: 1,
+      prefix,
     });
 
-    worker.run();
+    const maxIterations = 10;
+    const completing = new Promise((resolve, reject) => {
+      worker.on('completed', after(maxIterations, resolve));
 
-    const maxIterations = 100;
+      queueEvents.on('duplicated', reject);
+    });
+
     const jobSchedulerId = 'test';
-    for (let i = 0; i < maxIterations; i++) {
-      await queue.upsertJobScheduler(
+    let previousJob;
+    let every = 800;
+    for (let i = 0; i < 3; i++) {
+      if (previousJob) {
+        await delay(200);
+
+        // Ensure that there is exactly one delayed job in the queue.
+        // This validates that the upsertJobScheduler method replaces the previous job
+        // and maintains only one delayed or waiting job at a time, as expected.
+        const count = await queue.getJobCountByTypes(
+          'active',
+          'delayed',
+          'waiting',
+        );
+        expect(count).to.be.gte(1);
+        // previous job can be active while a delayed or waiting job is added
+        expect(count).to.be.lte(2);
+      }
+      previousJob = await queue.upsertJobScheduler(
         jobSchedulerId,
         {
-          every: ONE_HOUR,
+          every,
         },
         {
           data: {
             iteration: i,
           },
+          opts: {
+            removeOnComplete: true,
+          },
         },
       );
+      every = every / 2;
     }
 
+    await completing;
     await worker.close();
 
     const repeatableJobs = await queue.getJobSchedulers();
@@ -90,7 +105,7 @@ describe('Job Scheduler Stress', function () {
 
     expect(counts).to.be.eql({
       active: 0,
-      completed: 1,
+      completed: 0,
       delayed: 1,
       failed: 0,
       paused: 0,
@@ -98,8 +113,6 @@ describe('Job Scheduler Stress', function () {
       waiting: 0,
       'waiting-children': 0,
     });
-
-    expect(completedJobs).to.be.eql(1);
   });
 
   it('should start processing a job as soon as it is upserted when using every', async () => {
