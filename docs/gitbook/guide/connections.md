@@ -27,9 +27,9 @@ const myWorker = new Worker('myqueue', async job => {}, {
 
 ```typescript
 import { Queue } from 'bullmq';
-import IORedis from 'ioredis';
+import { Redis } from 'ioredis';
 
-const connection = new IORedis();
+const connection = new Redis();
 
 // Reuse the ioredis instance in 2 different producers
 const myFirstQueue = new Queue('myFirstQueue', { connection });
@@ -38,9 +38,9 @@ const mySecondQueue = new Queue('mySecondQueue', { connection });
 
 ```typescript
 import { Worker } from 'bullmq';
-import IORedis from 'ioredis';
+import { Redis } from 'ioredis';
 
-const connection = new IORedis({ maxRetriesPerRequest: null });
+const connection = new Redis({ maxRetriesPerRequest: null });
 
 // Reuse the ioredis instance in 2 different consumers
 const myFirstWorker = new Worker('myFirstWorker', async job => {}, {
