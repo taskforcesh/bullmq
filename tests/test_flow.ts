@@ -3423,6 +3423,9 @@ describe('flows', () => {
           `child ${prefix}:${grandChildrenQueueName}:${updatedGrandchildJob.id} failed`,
         );
 
+        const values = await tree.job.getDependencies();
+        expect(Object.keys(values.ignored!).length).to.be.equal(1);
+
         const updatedGrandparentJob = await parentQueue.getJob(job.id);
         const updatedGrandparentState = await updatedGrandparentJob.getState();
 
