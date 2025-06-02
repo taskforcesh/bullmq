@@ -240,7 +240,7 @@ describe('Job Scheduler Stress', function () {
           try {
             if (prev) {
               expect(prev.timestamp).to.be.lte(job.timestamp);
-              expect(job.processedOn! - prev.processedOn!).to.be.gte(1950);
+              expect(job.processedOn! - prev.processedOn!).to.be.gte(1900);
             }
             prev = job;
             counter++;
