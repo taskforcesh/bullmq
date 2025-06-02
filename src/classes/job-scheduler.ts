@@ -93,7 +93,7 @@ export class JobScheduler extends QueueBase {
     }
 
     let nextMillis: number;
-    let newOffset = null;
+    let newOffset: number | null = null;
     if (every) {
       const prevSlot = Math.floor(startMillis / every) * every;
 
