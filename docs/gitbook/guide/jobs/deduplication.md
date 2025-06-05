@@ -52,7 +52,12 @@ await myQueue.add(
   'house1',
   { color: 'white' },
   {
-    deduplication: { id: 'customValue', extend: true, replace: true },
+    deduplication: {
+      id: 'customValue',
+      ttl: 5000,
+      extend: true,
+      replace: true,
+    },
     delay: 5000,
   },
 );
@@ -62,13 +67,18 @@ await myQueue.add(
   'house1',
   { color: 'red' },
   {
-    deduplication: { id: 'customValue', extend: true, replace: true },
+    deduplication: {
+      id: 'customValue',
+      ttl: 5000,
+      extend: true,
+      replace: true,
+    },
     delay: 5000,
   },
 );
 ```
 
-In this example, after adding the house painting job with the deduplicated parameters (id and replace) and 5 seconds as delay, any subsequent job with the same deduplication options added within 5 seconds will replace previous job information. This is useful for scenarios where rapid, repetitive requests are made, such as multiple users or processes attempting to trigger the same job but with different payloads, this way you will get the last updated data when processing a job.
+In this example, after adding the house painting job with the deduplicated parameters (id, ttl and replace) and 5 seconds as delay, any subsequent job with the same deduplication options added within 5 seconds will replace previous job information. This is useful for scenarios where rapid, repetitive requests are made, such as multiple users or processes attempting to trigger the same job but with different payloads, this way you will get the last updated data when processing a job.
 
 Note that you must provide a deduplication id that should represent your job. You can hash your entire job data or a subset of attributes for creating this identifier.
 

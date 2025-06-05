@@ -937,7 +937,7 @@ describe('events', function () {
             testName,
             { foo: 'bar' },
             {
-              deduplication: { id: deduplicationId, replace: true },
+              deduplication: { id: deduplicationId, ttl: 500, replace: true },
               delay: 500,
             },
           );
@@ -948,7 +948,7 @@ describe('events', function () {
             testName,
             { foo: 'baz' },
             {
-              deduplication: { id: deduplicationId, replace: true },
+              deduplication: { id: deduplicationId, ttl: 500, replace: true },
               delay: 500,
             },
           );
@@ -964,7 +964,7 @@ describe('events', function () {
             testName,
             { foo: 'bax' },
             {
-              deduplication: { id: deduplicationId, replace: true },
+              deduplication: { id: deduplicationId, ttl: 500, replace: true },
               delay: 500,
             },
           );
@@ -1120,6 +1120,7 @@ describe('events', function () {
             {
               deduplication: {
                 id: deduplicationId,
+                ttl: 500,
                 extend: true,
                 replace: true,
               },
@@ -1135,6 +1136,7 @@ describe('events', function () {
             {
               deduplication: {
                 id: deduplicationId,
+                ttl: 500,
                 extend: true,
                 replace: true,
               },
@@ -1155,6 +1157,7 @@ describe('events', function () {
             {
               deduplication: {
                 id: deduplicationId,
+                ttl: 500,
                 extend: true,
                 replace: true,
               },
