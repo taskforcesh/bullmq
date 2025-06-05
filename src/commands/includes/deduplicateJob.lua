@@ -4,10 +4,11 @@
 -- Includes
 --- @include "removeJobKeys"
 local function deduplicateJob(deduplicationOpts, jobId, delayedKey, deduplicationKey, eventsKey, maxEvents,
-    prefix, delay)
+    prefix)
     local deduplicationId = deduplicationOpts and deduplicationOpts['id']
     if deduplicationId then
-        if deduplicationOpts['replace'] and delay and delay > 0 then
+        local ttl = deduplicationOpts['ttl']
+        if deduplicationOpts['replace'] and ttl and ttl > 0 then
             local currentDebounceJobId = rcall('GET', deduplicationKey)
             if currentDebounceJobId then
                 if rcall("ZREM", delayedKey, currentDebounceJobId) > 0 then
@@ -16,7 +17,7 @@ local function deduplicateJob(deduplicationOpts, jobId, delayedKey, deduplicatio
                         "prev", "delayed")
 
                     if deduplicationOpts['extend'] then
-                        rcall('SET', deduplicationKey, jobId, 'PX', delay)
+                        rcall('SET', deduplicationKey, jobId, 'PX', ttl)
                     else
                         rcall('SET', deduplicationKey, jobId, 'KEEPTTL')
                     end
@@ -28,7 +29,7 @@ local function deduplicateJob(deduplicationOpts, jobId, delayedKey, deduplicatio
                     return currentDebounceJobId
                 end
             else
-                rcall('SET', deduplicationKey, jobId, 'PX', delay)
+                rcall('SET', deduplicationKey, jobId, 'PX', ttl)
                 return
             end
         else
