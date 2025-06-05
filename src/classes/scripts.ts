@@ -1713,9 +1713,12 @@ export class Scripts {
 
 export function raw2NextJobData(raw: any[]) {
   if (raw) {
-    const result = [null, raw[1], raw[2], raw[3]];
+    const result = [null, raw[1], null, raw[2], raw[3]];
     if (raw[0]) {
       result[0] = array2obj(raw[0]);
+    }
+    if (raw[2]) {
+      result[2] = array2obj(raw[2]);
     }
     return result;
   }

@@ -1,5 +1,6 @@
 import { parseExpression } from 'cron-parser';
 import {
+  JobRepeatOptsRaw,
   JobSchedulerJson,
   JobSchedulerTemplateJson,
   RedisClient,
@@ -33,6 +34,7 @@ export class JobScheduler extends QueueBase {
 
   async upsertJobScheduler<T = any, R = any, N extends string = string>(
     jobSchedulerId: string,
+    rawRepeatOpts: JobRepeatOptsRaw,
     repeatOpts: Omit<RepeatOptions, 'key' | 'prevMillis'>,
     jobName: N,
     jobData: T,

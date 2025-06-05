@@ -11,6 +11,7 @@ import {
   GetNextJobOptions,
   IoredisListener,
   JobJsonRaw,
+  JobRepeatOptsRaw,
   Processor,
   RedisClient,
   Span,
@@ -679,11 +680,11 @@ will never work with more accuracy than 1ms. */
     token: string,
     name?: string,
   ): Promise<Job<DataType, ResultType, NameType>> {
-    const [jobData, id, limitUntil, delayUntil] =
+    const [jobData, id, repeatOpts, limitUntil, delayUntil] =
       await this.scripts.moveToActive(client, token, name);
     this.updateDelays(limitUntil, delayUntil);
 
-    return this.nextJobFromJobData(jobData, id, token);
+    return this.nextJobFromJobData(jobData, id, repeatOpts, token);
   }
 
   private async waitForJob(
@@ -787,6 +788,7 @@ will never work with more accuracy than 1ms. */
   protected async nextJobFromJobData(
     jobData?: JobJsonRaw,
     jobId?: string,
+    repeatOpts?: JobRepeatOptsRaw,
     token?: string,
   ): Promise<Job<DataType, ResultType, NameType>> {
     if (!jobData) {
@@ -806,6 +808,7 @@ will never work with more accuracy than 1ms. */
           const jobScheduler = await this.jobScheduler;
           await jobScheduler.upsertJobScheduler(
             job.repeatJobKey,
+            repeatOpts,
             job.opts.repeat,
             job.name,
             job.data,
@@ -857,10 +860,11 @@ will never work with more accuracy than 1ms. */
               [TelemetryAttributes.JobResult]: JSON.stringify(result),
             });
 
-            const [jobData, jobId, limitUntil, delayUntil] = completed || [];
+            const [jobData, jobId, repeatOpts, limitUntil, delayUntil] =
+              completed || [];
             this.updateDelays(limitUntil, delayUntil);
 
-            return this.nextJobFromJobData(jobData, jobId, token);
+            return this.nextJobFromJobData(jobData, jobId, repeatOpts, token);
           }
         };
 
@@ -896,9 +900,15 @@ will never work with more accuracy than 1ms. */
               });
 
               if (result) {
-                const [jobData, jobId, limitUntil, delayUntil] = result;
+                const [jobData, jobId, repeatOpts, limitUntil, delayUntil] =
+                  result;
                 this.updateDelays(limitUntil, delayUntil);
-                return this.nextJobFromJobData(jobData, jobId, token);
+                return this.nextJobFromJobData(
+                  jobData,
+                  jobId,
+                  repeatOpts,
+                  token,
+                );
               }
             } catch (err) {
               this.emit('error', <Error>err);
