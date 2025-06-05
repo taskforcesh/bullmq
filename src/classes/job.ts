@@ -1064,7 +1064,7 @@ export class Job<
         processed: parseObjectValues(processed),
         unprocessed,
         failed,
-        ignored: parseObjectValues(ignored),
+        ignored,
       };
     } else {
       const defaultOpts = {
