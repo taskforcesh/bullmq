@@ -25,7 +25,7 @@ Retried jobs will respect their priority when they are moved back to waiting sta
 
 ### Built-in backoff strategies
 
-The current built-in backoff functions are **fixed**, **exponential** and **jitter**.
+The current built-in backoff functions are **fixed** and **exponential**.
 
 #### Fixed
 
@@ -73,9 +73,7 @@ await queue.add(
 );
 ```
 
-#### Jitter
-
-With (jitter)[https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/] backoff, it will retry after between `2 ^ (attempts - 1) * delay` and 0 milliseconds by default. Or if you want to apply jitter partially, you can provide a percentage value. For example, with a delay of 3000 milliseconds and a percentage of 0.5, for the 7th attempt, it will retry with a value between `2^6 * 3000` milliseconds = 3.2 minutes and `2^6 * 3000 * 0.5` milliseconds = 1.6 minutes after the previous attempt.
+You can also provide a (jitter)[https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/] option, it generate delays between `2 ^ (attempts - 1) * delay` and 0 milliseconds depending on the percentage of jitter usage. For example, you can provide a jitter value of 0.5 value and a delay of 3000 milliseconds, for the 7th attempt, it will generate a delay between `2^6 * 3000` milliseconds = 3.2 minutes and `2^6 * 3000 * 0.5` milliseconds = 1.6 minutes after the previous attempt.
 
 ```typescript
 import { Queue } from 'bullmq';
@@ -88,9 +86,9 @@ await queue.add(
   {
     attempts: 8,
     backoff: {
-      type: 'jitter',
+      type: 'exponential',
       delay: 3000,
-      percentage: 0.5,
+      jitter: 0.5,
     },
   },
 );
