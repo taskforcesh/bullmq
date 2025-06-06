@@ -2,7 +2,7 @@ import { BackoffOptions, MinimalJob } from '../interfaces';
 import { BackoffStrategy } from '../types';
 
 export interface BuiltInStrategies {
-  [index: string]: (delay: number, percentage?: number) => BackoffStrategy;
+  [index: string]: (delay: number, jitter?: number) => BackoffStrategy;
 }
 
 export class Backoffs {
@@ -13,18 +13,16 @@ export class Backoffs {
       };
     },
 
-    exponential: function (delay: number) {
+    exponential: function (delay: number, jitter = 0) {
       return function (attemptsMade: number): number {
-        return Math.round(Math.pow(2, attemptsMade - 1) * delay);
-      };
-    },
+        if (jitter > 0) {
+          const maxDelay = Math.round(Math.pow(2, attemptsMade - 1) * delay);
+          const minDelay = maxDelay * (1 - jitter);
 
-    jitter: function (delay: number, percentage = 1) {
-      return function (attemptsMade: number): number {
-        const maxDelay = Math.round(Math.pow(2, attemptsMade - 1) * delay);
-        const minDelay = maxDelay * (1 - percentage);
-
-        return Math.floor(Math.random() * maxDelay * percentage + minDelay);
+          return Math.floor(Math.random() * maxDelay * jitter + minDelay);
+        } else {
+          return Math.round(Math.pow(2, attemptsMade - 1) * delay);
+        }
       };
     },
   };
@@ -64,7 +62,7 @@ function lookupStrategy(
   if (backoff.type in Backoffs.builtinStrategies) {
     return Backoffs.builtinStrategies[backoff.type](
       backoff.delay!,
-      backoff.percentage,
+      backoff.jitter,
     );
   } else if (customStrategy) {
     return customStrategy;

@@ -2666,55 +2666,9 @@ describe('workers', function () {
 
         await worker.close();
       });
-    });
 
-    describe('when backoff type is jitter', () => {
-      it("updates job's delay property between 0 and max exponential backoff value", async () => {
-        const worker = new Worker(
-          queueName,
-          async () => {
-            throw new Error('error');
-          },
-          { autorun: false, connection, prefix },
-        );
-        await worker.waitUntilReady();
-
-        await queue.add(
-          'test',
-          { bar: 'baz' },
-          {
-            attempts: 3,
-            backoff: {
-              type: 'jitter',
-              delay: 200,
-            },
-          },
-        );
-
-        const failed = new Promise<void>((resolve, reject) => {
-          worker.on('failed', async job => {
-            try {
-              const attemptsMade = job?.attemptsMade;
-              if (attemptsMade! > 2) {
-                expect(job!.delay).to.be.eql(0);
-                resolve();
-              } else {
-                expect(job?.delay).to.be.lte(2 ** (attemptsMade! - 1) * 200);
-              }
-            } catch (err) {
-              reject(err);
-            }
-          });
-        });
-
-        worker.run();
-        await failed;
-
-        await worker.close();
-      });
-
-      describe('when percentage is provided', () => {
-        it("updates job's delay property only applying jitter in a fixed percentage", async () => {
+      describe('when jitter option is provided', () => {
+        it("updates job's delay property between 0 and max exponential backoff value", async () => {
           const worker = new Worker(
             queueName,
             async () => {
@@ -2730,9 +2684,9 @@ describe('workers', function () {
             {
               attempts: 3,
               backoff: {
-                type: 'jitter',
+                type: 'exponential',
                 delay: 200,
-                percentage: 0.5,
+                jitter: 1,
               },
             },
           );
@@ -2746,9 +2700,6 @@ describe('workers', function () {
                   resolve();
                 } else {
                   expect(job?.delay).to.be.lte(2 ** (attemptsMade! - 1) * 200);
-                  expect(job?.delay).to.be.gte(
-                    2 ** (attemptsMade! - 1) * 200 * 0.5,
-                  );
                 }
               } catch (err) {
                 reject(err);
@@ -2760,6 +2711,58 @@ describe('workers', function () {
           await failed;
 
           await worker.close();
+        });
+
+        describe('when jitter is provided with lower value than 1', () => {
+          it("updates job's delay property only applying jitter in a fixed percentage", async () => {
+            const worker = new Worker(
+              queueName,
+              async () => {
+                throw new Error('error');
+              },
+              { autorun: false, connection, prefix },
+            );
+            await worker.waitUntilReady();
+
+            await queue.add(
+              'test',
+              { bar: 'baz' },
+              {
+                attempts: 3,
+                backoff: {
+                  type: 'exponential',
+                  delay: 200,
+                  jitter: 0.5,
+                },
+              },
+            );
+
+            const failed = new Promise<void>((resolve, reject) => {
+              worker.on('failed', async job => {
+                try {
+                  const attemptsMade = job?.attemptsMade;
+                  if (attemptsMade! > 2) {
+                    expect(job!.delay).to.be.eql(0);
+                    resolve();
+                  } else {
+                    expect(job?.delay).to.be.lte(
+                      2 ** (attemptsMade! - 1) * 200,
+                    );
+                    expect(job?.delay).to.be.gte(
+                      2 ** (attemptsMade! - 1) * 200 * 0.5,
+                    );
+                  }
+                } catch (err) {
+                  reject(err);
+                }
+              });
+            });
+
+            worker.run();
+            await failed;
+
+            await worker.close();
+          });
         });
       });
     });
