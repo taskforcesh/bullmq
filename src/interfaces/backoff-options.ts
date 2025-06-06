@@ -16,6 +16,7 @@ export interface BackoffOptions {
 
   /**
    * Percentage of delay to be affected by jitter.
+   * @defaultValue 1
    */
   percentage?: number;
 }
