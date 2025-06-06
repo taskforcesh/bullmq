@@ -7,9 +7,15 @@ export interface BackoffOptions {
   /**
    * Name of the backoff strategy.
    */
-  type: 'fixed' | 'exponential' | (string & {});
+  type: 'fixed' | 'exponential' | 'jitter' | (string & {});
+
   /**
    * Delay in milliseconds.
    */
   delay?: number;
+
+  /**
+   * Percentage of delay to be affected by jitter.
+   */
+  percentage?: number;
 }
