@@ -49,6 +49,27 @@ await queue.add(
 );
 ```
 
+You can also provide a (jitter)[https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/] option, it will generate delays between `delay` and 0 milliseconds depending on the percentage of jitter usage. For example, you can provide a jitter value of 0.5 value and a delay of 1000 milliseconds, it will generate a delay between `1000` milliseconds = 1 second and `1000 * 0.5` milliseconds = 0.5 seconds.
+
+```typescript
+import { Queue } from 'bullmq';
+
+const myQueue = new Queue('foo');
+
+await queue.add(
+  'test-retry',
+  { foo: 'bar' },
+  {
+    attempts: 8,
+    backoff: {
+      type: 'fixed',
+      delay: 1000,
+      jitter: 0.5,
+    },
+  },
+);
+```
+
 #### Exponential
 
 With exponential backoff, it will retry after `2 ^ (attempts - 1) * delay` milliseconds. For example, with a delay of 3000 milliseconds, for the 7th attempt, it will retry `2^6 * 3000` milliseconds = 3.2 minutes after the previous attempt.
@@ -73,7 +94,7 @@ await queue.add(
 );
 ```
 
-You can also provide a (jitter)[https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/] option, it generate delays between `2 ^ (attempts - 1) * delay` and 0 milliseconds depending on the percentage of jitter usage. For example, you can provide a jitter value of 0.5 value and a delay of 3000 milliseconds, for the 7th attempt, it will generate a delay between `2^6 * 3000` milliseconds = 3.2 minutes and `2^6 * 3000 * 0.5` milliseconds = 1.6 minutes after the previous attempt.
+You can also provide a (jitter)[https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/] option, it will generate delays between `2 ^ (attempts - 1) * delay` and 0 milliseconds depending on the percentage of jitter usage. For example, you can provide a jitter value of 0.5 value and a delay of 3000 milliseconds, for the 7th attempt, it will generate a delay between `2^6 * 3000` milliseconds = 3.2 minutes and `2^6 * 3000 * 0.5` milliseconds = 1.6 minutes after the previous attempt.
 
 ```typescript
 import { Queue } from 'bullmq';
