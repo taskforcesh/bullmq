@@ -2814,6 +2814,101 @@ describe('workers', function () {
 
         await worker.close();
       });
+
+      describe('when jitter option is provided', () => {
+        it("updates job's delay property between 0 and max fixed backoff value", async () => {
+          const worker = new Worker(
+            queueName,
+            async () => {
+              throw new Error('error');
+            },
+            { autorun: false, connection, prefix },
+          );
+          await worker.waitUntilReady();
+
+          await queue.add(
+            'test',
+            { bar: 'baz' },
+            {
+              attempts: 3,
+              backoff: {
+                type: 'fixed',
+                delay: 750,
+                jitter: 1,
+              },
+            },
+          );
+
+          const failed = new Promise<void>((resolve, reject) => {
+            worker.on('failed', async job => {
+              try {
+                const attemptsMade = job?.attemptsMade;
+                if (attemptsMade! > 2) {
+                  expect(job!.delay).to.be.eql(0);
+                  resolve();
+                } else {
+                  expect(job?.delay).to.be.lte(750);
+                }
+              } catch (err) {
+                reject(err);
+              }
+            });
+          });
+
+          worker.run();
+          await failed;
+
+          await worker.close();
+        });
+
+        describe('when jitter is provided with lower value than 1', () => {
+          it("updates job's delay property only applying jitter in a fixed percentage", async () => {
+            const worker = new Worker(
+              queueName,
+              async () => {
+                throw new Error('error');
+              },
+              { autorun: false, connection, prefix },
+            );
+            await worker.waitUntilReady();
+
+            await queue.add(
+              'test',
+              { bar: 'baz' },
+              {
+                attempts: 3,
+                backoff: {
+                  type: 'fixed',
+                  delay: 750,
+                  jitter: 0.5,
+                },
+              },
+            );
+
+            const failed = new Promise<void>((resolve, reject) => {
+              worker.on('failed', async job => {
+                try {
+                  const attemptsMade = job?.attemptsMade;
+                  if (attemptsMade! > 2) {
+                    expect(job!.delay).to.be.eql(0);
+                    resolve();
+                  } else {
+                    expect(job?.delay).to.be.lte(750);
+                    expect(job?.delay).to.be.gte(325);
+                  }
+                } catch (err) {
+                  reject(err);
+                }
+              });
+            });
+
+            worker.run();
+            await failed;
+
+            await worker.close();
+          });
+        });
+      });
     });
 
     describe('when attempts is 1 and job fails', () => {

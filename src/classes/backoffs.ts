@@ -7,9 +7,15 @@ export interface BuiltInStrategies {
 
 export class Backoffs {
   static builtinStrategies: BuiltInStrategies = {
-    fixed: function (delay: number) {
+    fixed: function (delay: number, jitter = 0) {
       return function (): number {
-        return delay;
+        if (jitter > 0) {
+          const minDelay = delay * (1 - jitter);
+
+          return Math.floor(Math.random() * delay * jitter + minDelay);
+        } else {
+          return delay;
+        }
       };
     },
 
