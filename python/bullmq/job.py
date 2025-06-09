@@ -206,7 +206,7 @@ class Job:
                 if code < 0:
                     raise self.scripts.finishedErrors(code, self.id, command, 'active')
 
-        if finished_on and isinstance(finished_on, int):
+        if isinstance(finished_on, int):
             self.finishedOn = finished_on
 
         if delay and isinstance(delay, int):
