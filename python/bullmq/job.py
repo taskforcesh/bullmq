@@ -197,11 +197,11 @@ class Job:
 
             results = await pipe.execute()
             code = results[1]
-
-            # if code < 0:  # code is a list, not an integer. This will fail.
-            if isinstance(code, list) and isinstance(code[0], int):
-                if code[0] < 0:
-                    raise self.scripts.finishedErrors(code, self.id, command, 'active')
+            
+            if isinstance(code, list) and len(code) > 0:
+                if isinstance(code[0], int):
+                    if code[0] < 0:
+                        raise self.scripts.finishedErrors(code, self.id, command, 'active')
 
         if finished_on and isinstance(finished_on, int):
             self.finishedOn = finished_on
