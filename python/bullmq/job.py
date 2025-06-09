@@ -198,13 +198,15 @@ class Job:
             results = await pipe.execute()
             code = results[1]
 
-            if code < 0:
-                raise self.scripts.finishedErrors(code, self.id, command, 'active')
+            # if code < 0:  # code is a list, not an integer. This will fail.
+            if isinstance(code, list) and isinstance(code[0], int):
+                if code[0] < 0:
+                    raise self.scripts.finishedErrors(code, self.id, command, 'active')
 
-        if finished_on and type(finished_on) == int:
+        if finished_on and isinstance(finished_on, int):
             self.finishedOn = finished_on
 
-        if delay and type(delay) == int:
+        if delay and isinstance(delay, int):
             self.delay = delay
 
         self.attemptsMade = self.attemptsMade + 1
@@ -275,7 +277,7 @@ class Job:
             job.deferredFailure = rawData.get("defa")
 
         returnvalue = rawData.get("returnvalue")
-        if type(returnvalue) == str:
+        if isinstance(returnvalue, str):
             job.returnvalue = getReturnValue(returnvalue)
 
         job.stacktrace = json.loads(rawData.get("stacktrace", "[]"))
