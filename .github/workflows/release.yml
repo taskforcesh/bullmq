@@ -61,10 +61,6 @@ jobs:
             git add yarn.lock || true
             git add src/version.ts || true
             git add docs/gitbook/changelog.md || true
-            # Add API docs if they exist
-            if [ -d "docs/gitbook/api" ]; then
-              git add docs/gitbook/api/ || true
-            fi
             
             # Check if there are actually changes to commit after adding
             if [[ -n $(git diff --cached --name-only) ]]; then
