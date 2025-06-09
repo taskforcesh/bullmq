@@ -507,10 +507,10 @@ class Scripts:
         keys.append(self.keys['marker'])
 
         def getKeepJobs(shouldRemove: bool | dict | int | None):
-            if type(shouldRemove) == int:
+            if isinstance(shouldRemove, int):
                 return {"count": shouldRemove}
 
-            if type(shouldRemove) == dict:
+            if isinstance(shouldRemove, dict):
                 return shouldRemove
 
             if shouldRemove:
@@ -567,7 +567,7 @@ class Scripts:
         result = await self.commands["moveToFinished"](keys=keys, args=args)
 
         if result is not None:
-            if type(result) == int and result < 0:
+            if isinstance(result, int) and result < 0:
                 raise self.finishedErrors(result, id, 'moveToFinished', 'active')
             return raw2NextJobData(result)
         return None
