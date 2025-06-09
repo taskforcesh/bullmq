@@ -202,6 +202,9 @@ class Job:
                 if isinstance(code[0], int):
                     if code[0] < 0:
                         raise self.scripts.finishedErrors(code, self.id, command, 'active')
+            elif isinstance(code, int):
+                if code < 0:
+                    raise self.scripts.finishedErrors(code, self.id, command, 'active')
 
         if finished_on and isinstance(finished_on, int):
             self.finishedOn = finished_on
