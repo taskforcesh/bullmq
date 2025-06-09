@@ -209,7 +209,7 @@ class Job:
         if isinstance(finished_on, int):
             self.finishedOn = finished_on
 
-        if delay and isinstance(delay, int):
+        if isinstance(delay, int):
             self.delay = delay
 
         self.attemptsMade = self.attemptsMade + 1
