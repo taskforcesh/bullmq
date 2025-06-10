@@ -580,12 +580,12 @@ class Scripts:
 
         return self.moveToFinished(job.id, keys, args)
 
-    async def moveToFinished(self, id: str, keys, args) -> list[Any] | None:
+    async def moveToFinished(self, job_id: str, keys, args) -> list[Any] | None:
         result = await self.commands["moveToFinished"](keys=keys, args=args)
 
         if result is not None:
             if type(result) == int and result < 0:
-                raise self.finishedErrors(result, id, 'moveToFinished', 'active')
+                raise self.finishedErrors(result, job_id, 'moveToFinished', 'active')
             return raw2NextJobData(result)
         return None
 

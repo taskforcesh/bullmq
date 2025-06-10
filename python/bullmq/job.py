@@ -159,16 +159,15 @@ class Job:
         move_to_failed = False
         finished_on = 0
         delay = 0
-        command = 'moveToFailed'
 
-        self.saveStacktrace()
+        self.updateStacktrace()
         fields_to_update = {
             'failedReason': self.failedReason,
             'stacktrace': json.dumps(self.stacktrace, separators=(',', ':'), allow_nan=False)
         }
 
         result = None
-        if (self.attemptsMade + 1) < self.opts.get('attempts') and not isinstance(err, UnrecoverableError):
+        if (self.attemptsMade + 1) < self.opts.get('attempts') and not self.discarded and not isinstance(err, UnrecoverableError):
             delay = await Backoffs.calculate(
                 self.opts.get('backoff'), self.attemptsMade + 1,
                 err, self, self.queue.opts.get("settings") and self.queue.opts['settings'].get("backoffStrategy")
@@ -176,7 +175,7 @@ class Job:
             if delay == -1:
                 move_to_failed = True
             elif delay:
-                result = async self.scripts.moveToDelayed(
+                result = await self.scripts.moveToDelayed(
                     self.id,
                     round(time.time() * 1000),
                     delay,
@@ -186,7 +185,7 @@ class Job:
                     }
                 )
             else:
-                result = async self.scripts.retryJob(
+                result = await self.scripts.retryJob(
                     self.id,
                     self.opts.get("lifo", False),
                     token,
@@ -212,6 +211,8 @@ class Job:
             self.delay = delay
 
         self.attemptsMade = self.attemptsMade + 1
+
+        return result
 
     def log(self, logRow: str):
         return Job.addJobLog(self.queue, self.id, logRow, self.opts.get("keepLogs", 0))
