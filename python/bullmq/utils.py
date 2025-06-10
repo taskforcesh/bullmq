@@ -22,3 +22,10 @@ def get_parent_key(opts: dict):
 
 def parse_json_string_values(input_dict: dict[str, str]) -> dict[str, dict]:
     return {key: json.loads(value) for key, value in input_dict.items()}
+
+def object_to_flat_array(obj: dict):
+    arr = []
+    for key, value in obj.items():
+        arr.append(key)
+        arr.append(value)
+    return arr

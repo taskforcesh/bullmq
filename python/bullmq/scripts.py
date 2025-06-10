@@ -7,7 +7,7 @@ from __future__ import annotations
 from redis import Redis
 from bullmq.queue_keys import QueueKeys
 from bullmq.error_code import ErrorCode
-from bullmq.utils import isRedisVersionLowerThan, get_parent_key
+from bullmq.utils import isRedisVersionLowerThan, get_parent_key, object_to_flat_array
 from typing import Any, TYPE_CHECKING
 if TYPE_CHECKING:
     from bullmq.job import Job
@@ -262,9 +262,21 @@ class Scripts:
         push_cmd = "RPUSH" if lifo else "LPUSH"
 
         args = [self.keys[''], round(time.time() * 1000), push_cmd,
-                job_id, token, "1" if opts.get("skipAttempt") else "0"]
+                job_id, token]
+        if opts.get("fieldsToUpdate"):
+            args.append(msgpack.packb(object_to_flat_array(opts.get("fieldsToUpdate")), use_bin_type=True))
 
         return (keys, args)
+
+    async def retryJob(self, job_id: str, lifo: bool, token: str = "0", opts = {}):
+        keys, args = self.retryJobArgs(job_id, lifo, token, opts)
+
+        result = await self.commands["retryJob"](keys=keys, args=args)
+
+        if result is not None:
+            if result < 0:
+                raise self.finishedErrors(result, job_id, 'retryJob', 'active')
+        return None
 
     def moveToDelayedArgs(self, job_id: str, timestamp: int, token: str, delay: int = 0, opts: dict = {}):
         keys = self.getKeys(['marker', 'active', 'prioritized', 'delayed'])
@@ -275,6 +287,8 @@ class Scripts:
 
         args = [self.keys[''], str(timestamp),
                 job_id, token, delay, "1" if opts.get("skipAttempt") else "0"]
+        if opts.get("fieldsToUpdate"):
+            args.append(msgpack.packb(object_to_flat_array(opts.get("fieldsToUpdate")), use_bin_type=True))
 
         return (keys, args)
 
@@ -495,7 +509,7 @@ class Scripts:
         return None
 
     def moveToFinishedArgs(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str,
-        fetchNext=True) -> list[Any] | None:
+        fetchNext=True, fields_to_update = None) -> list[Any] | None:
         transformed_value = json.dumps(val, separators=(',', ':'), allow_nan=False)
         timestamp = round(time.time() * 1000)
         metricsKey = self.toKey('metrics:' + target)
@@ -543,6 +557,9 @@ class Scripts:
 
         args = [job.id, timestamp, propVal, transformed_value or "", target,
                 fetchNext and "1" or "", self.keys[''], packedOpts]
+        if fields_to_update:
+            args.append(msgpack.packb(object_to_flat_array(fields_to_update), use_bin_type=True))
+
         return (keys, args)
 
     def moveToCompletedArgs(self, job: Job, return_value: str, shouldRemove, token: str, fetchNext=True):
@@ -551,7 +568,7 @@ class Scripts:
 
     def moveToFailedArgs(self, job: Job, failed_reason: str, shouldRemove, token: str, fetchNext=True):
         return self.moveToFinishedArgs(job, failed_reason, 'failedReason', shouldRemove, 'failed',
-            token, fetchNext)
+            token, fetchNext, fields_to_update)
 
     def moveToCompleted(self, job: Job, val: Any, removeOnComplete, token: str, fetchNext=True):
         keys, args = self.moveToCompletedArgs(job, val, removeOnComplete, token, fetchNext)
