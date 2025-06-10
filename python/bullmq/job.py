@@ -182,7 +182,7 @@ class Job:
                     delay,
                     token,
                     {
-                        'fieldsToUpdate': fields_to_update
+                        "fieldsToUpdate": fields_to_update
                     }
                 )
             else:
@@ -191,7 +191,7 @@ class Job:
                     self.opts.get("lifo", False),
                     token,
                     {
-                        'fieldsToUpdate': fields_to_update
+                        "fieldsToUpdate": fields_to_update
                     }
                 )
         else:

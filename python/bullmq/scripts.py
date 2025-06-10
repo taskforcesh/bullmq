@@ -292,8 +292,8 @@ class Scripts:
 
         return (keys, args)
 
-    async def moveToDelayed(self, job_id: str, timestamp: int, delay: int, token: str = "0"):
-        keys, args = self.moveToDelayedArgs(job_id, timestamp, token, delay)
+    async def moveToDelayed(self, job_id: str, timestamp: int, delay: int, token: str = "0", opts: dict = {}):
+        keys, args = self.moveToDelayedArgs(job_id, timestamp, token, delay, opts)
 
         result = await self.commands["moveToDelayed"](keys=keys, args=args)
 
