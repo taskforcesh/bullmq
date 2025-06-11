@@ -24,10 +24,10 @@
     "circular:references": "madge --circular --extensions ts ./src",
     "clean:scripts": "rimraf rawScripts src/scripts",
     "clean:temp:files": "rimraf dist/cjs/bullmq.d.ts dist/esm/bullmq.d.ts dist/tsdoc-metadata.json",
-    "copy:includes:lua": "cpy \"./src/commands/includes/*.lua\" ./dist/cjs/commands/includes && cpy \"./src/commands/includes/*.lua\" ./dist/esm/commands/includes",
-    "copy:lua": "cpy \"./src/commands/*.lua\" ./dist/cjs/commands && cpy \"./src/commands/*.lua\" ./dist/esm/commands",
-    "copy:lua:python": "cpy \"./rawScripts/*.lua\" ./python/bullmq/commands",
-    "copy:main:type": "cpy \"./dist/esm/classes/main.d.ts\" ./dist/cjs/classes && cpy \"./dist/esm/classes/main-worker.d.ts\" ./dist/cjs/classes",
+    "copy:includes:lua": "cpx \"./src/commands/includes/*.lua\" ./dist/cjs/commands/includes && cpx \"./src/commands/includes/*.lua\" ./dist/esm/commands/includes",
+    "copy:lua": "cpx \"./src/commands/*.lua\" ./dist/cjs/commands && cpx \"./src/commands/*.lua\" ./dist/esm/commands",
+    "copy:lua:python": "cpx \"./rawScripts/*.lua\" ./python/bullmq/commands",
+    "copy:main:type": "cpx \"./dist/esm/classes/main.d.ts\" ./dist/cjs/classes && cpx \"./dist/esm/classes/main-worker.d.ts\" ./dist/cjs/classes",
     "coverage": "nyc --reporter=text --reporter=lcovonly npm run test",
     "cm": "git cz",
     "docs": "typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts",
@@ -87,7 +87,7 @@
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
     "commitizen": "^4.2.5",
-    "cpy-cli": "^5.0.0",
+    "cpx2": "^8.0.0",
     "coveralls-next": "^4.2.1",
     "eslint": "^9.24.0",
     "eslint-config-prettier": "^8.5.0",
@@ -122,8 +122,7 @@
     "cross-spawn": "7.0.6",
     "micromatch": "4.0.8",
     "tar": "7.4.3",
-    "brace-expansion": "4.0.1",
-    "minimatch": "^10.0.1"
+    "brace-expansion": "1.1.12"
   },
   "nyc": {
     "extends": "@istanbuljs/nyc-config-typescript",
