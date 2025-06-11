@@ -857,80 +857,6 @@ will never work with more accuracy than 1ms. */
           [TelemetryAttributes.JobId]: job.id,
         });
 
-        const handleCompleted = async (result: ResultType) => {
-          jobsInProgress.delete(inProgressItem);
-
-          if (!this.connection.closing) {
-            const completed = await job.moveToCompleted(
-              result,
-              token,
-              fetchNextCallback() && !(this.closing || this.paused),
-            );
-            this.emit('completed', job, result, 'active');
-
-            span?.addEvent('job completed', {
-              [TelemetryAttributes.JobResult]: JSON.stringify(result),
-            });
-
-            const [jobData, jobId, rateLimitDelay, delayUntil] =
-              completed || [];
-            this.updateDelays(rateLimitDelay, delayUntil);
-
-            return this.nextJobFromJobData(jobData, jobId, token);
-          }
-        };
-
-        const handleFailed = async (err: Error) => {
-          jobsInProgress.delete(inProgressItem);
-
-          if (!this.connection.closing) {
-            try {
-              // Check if the job was manually rate-limited
-              if (err.message == RATE_LIMIT_ERROR) {
-                const rateLimitTtl = await this.moveLimitedBackToWait(
-                  job,
-                  token,
-                );
-                this.limitUntil =
-                  rateLimitTtl > 0 ? Date.now() + rateLimitTtl : 0;
-                return;
-              }
-
-              if (
-                err instanceof DelayedError ||
-                err.name == 'DelayedError' ||
-                err instanceof WaitingChildrenError ||
-                err.name == 'WaitingChildrenError'
-              ) {
-                return;
-              }
-
-              const result = await job.moveToFailed(
-                err,
-                token,
-                fetchNextCallback() && !(this.closing || this.paused),
-              );
-              this.emit('failed', job, err, 'active');
-
-              span?.addEvent('job failed', {
-                [TelemetryAttributes.JobFailedReason]: err.message,
-              });
-
-              if (result) {
-                const [jobData, jobId, rateLimitDelay, delayUntil] = result;
-                this.updateDelays(rateLimitDelay, delayUntil);
-                return this.nextJobFromJobData(jobData, jobId, token);
-              }
-            } catch (err) {
-              this.emit('error', <Error>err);
-              // It probably means that the job has lost the lock before completion
-              // A worker will (or already has) moved the job back
-              // to the waiting list (as stalled)
-              span?.recordException((<Error>err).message);
-            }
-          }
-        };
-
         this.emit('active', job, 'waiting');
 
         const processedOn = Date.now();
@@ -938,17 +864,39 @@ will never work with more accuracy than 1ms. */
 
         try {
           if (job.deferredFailure) {
-            const failed = await handleFailed(
+            const failed = await this.handleFailed(
               new UnrecoverableError(job.deferredFailure),
+              job,
+              token,
+              fetchNextCallback,
+              jobsInProgress,
+              inProgressItem,
+              span,
             );
             return failed;
           }
           jobsInProgress.add(inProgressItem);
 
           const result = await this.callProcessJob(job, token);
-          return await handleCompleted(result);
+          return await this.handleCompleted(
+            result,
+            job,
+            token,
+            fetchNextCallback,
+            jobsInProgress,
+            inProgressItem,
+            span,
+          );
         } catch (err) {
-          const failed = await handleFailed(<Error>err);
+          const failed = await this.handleFailed(
+            <Error>err,
+            job,
+            token,
+            fetchNextCallback,
+            jobsInProgress,
+            inProgressItem,
+            span,
+          );
           return failed;
         } finally {
           span?.setAttributes({
@@ -959,6 +907,91 @@ will never work with more accuracy than 1ms. */
       },
       srcPropagationMedatada,
     );
+  }
+
+  protected async handleCompleted(
+    result: ResultType,
+    job: Job<DataType, ResultType, NameType>,
+    token: string,
+    fetchNextCallback = () => true,
+    jobsInProgress: Set<{ job: Job; ts: number }>,
+    inProgressItem: { job: Job; ts: number },
+    span?: Span,
+  ) {
+    jobsInProgress.delete(inProgressItem);
+
+    if (!this.connection.closing) {
+      const completed = await job.moveToCompleted(
+        result,
+        token,
+        fetchNextCallback() && !(this.closing || this.paused),
+      );
+      this.emit('completed', job, result, 'active');
+
+      span?.addEvent('job completed', {
+        [TelemetryAttributes.JobResult]: JSON.stringify(result),
+      });
+
+      const [jobData, jobId, rateLimitDelay, delayUntil] = completed || [];
+      this.updateDelays(rateLimitDelay, delayUntil);
+
+      return this.nextJobFromJobData(jobData, jobId, token);
+    }
+  }
+
+  protected async handleFailed(
+    err: Error,
+    job: Job<DataType, ResultType, NameType>,
+    token: string,
+    fetchNextCallback = () => true,
+    jobsInProgress: Set<{ job: Job; ts: number }>,
+    inProgressItem: { job: Job; ts: number },
+    span?: Span,
+  ) {
+    jobsInProgress.delete(inProgressItem);
+
+    if (!this.connection.closing) {
+      try {
+        // Check if the job was manually rate-limited
+        if (err.message == RATE_LIMIT_ERROR) {
+          const rateLimitTtl = await this.moveLimitedBackToWait(job, token);
+          this.limitUntil = rateLimitTtl > 0 ? Date.now() + rateLimitTtl : 0;
+          return;
+        }
+
+        if (
+          err instanceof DelayedError ||
+          err.name == 'DelayedError' ||
+          err instanceof WaitingChildrenError ||
+          err.name == 'WaitingChildrenError'
+        ) {
+          return;
+        }
+
+        const result = await job.moveToFailed(
+          err,
+          token,
+          fetchNextCallback() && !(this.closing || this.paused),
+        );
+        this.emit('failed', job, err, 'active');
+
+        span?.addEvent('job failed', {
+          [TelemetryAttributes.JobFailedReason]: err.message,
+        });
+
+        if (result) {
+          const [jobData, jobId, rateLimitDelay, delayUntil] = result;
+          this.updateDelays(rateLimitDelay, delayUntil);
+          return this.nextJobFromJobData(jobData, jobId, token);
+        }
+      } catch (err) {
+        this.emit('error', <Error>err);
+        // It probably means that the job has lost the lock before completion
+        // A worker will (or already has) moved the job back
+        // to the waiting list (as stalled)
+        span?.recordException((<Error>err).message);
+      }
+    }
   }
 
   /**
