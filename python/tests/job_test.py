@@ -77,8 +77,10 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
     async def test_job_data_json_compliant(self):
         queue = Queue(queueName, {"prefix": prefix})
         job = await queue.add("test", {"foo": "bar"}, {})
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ValueError) as error:
             await job.updateData({"baz": float('nan')})
+
+        self.assertEqual(str(error.exception), "Out of range float values are not JSON compliant")
 
         await queue.close()
 
@@ -86,8 +88,10 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         queue = Queue(queueName, {"prefix": prefix})
         job = await queue.add("test", {"foo": "bar"}, {})
         await job.remove()
-        with self.assertRaises(TypeError):
+        with self.assertRaises(TypeError) as error:
             await job.updateData({"baz": "qux"})
+
+        self.assertEqual(str(error.exception), f"Missing key for job {job.id}. updateData")
 
         await queue.close()
 
@@ -102,6 +106,21 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(isDelayedAfterPromote, False)
         isWaiting = await job.isWaiting()
         self.assertEqual(isWaiting, True)
+
+        await queue.close()
+
+    async def test_when_parent_key_is_missing(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        parent_id = uuid4().hex
+        with self.assertRaises(TypeError) as error:
+            await queue.add("test", {"foo": "bar"}, {
+                "parent": {
+                    "id": parent_id,
+                    "queue": f"{prefix}{queueName}"
+                }
+            })
+
+        self.assertEqual(str(error.exception), f"Missing key for parent job {prefix}{queueName}:{parent_id}. addJob")
 
         await queue.close()
 
