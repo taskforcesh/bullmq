@@ -465,7 +465,7 @@ describe('Delayed jobs', function () {
       await queue.add('my-queue', { foo: 'bar', index }, { delay: delay_ });
       index += 1;
       numJobs -= 1;
-      await delay(50); // Add a small delay to ensure jobs are staggered.}
+      await delay(50); // Add a small delay to ensure jobs are staggered.
     }
     await processing;
     await worker.close();

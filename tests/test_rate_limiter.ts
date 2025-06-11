@@ -170,7 +170,7 @@ describe('Rate Limiter', function () {
         },
       );
 
-      const completting = new Promise<void>((resolve, reject) => {
+      const completing = new Promise<void>((resolve, reject) => {
         worker.on(
           'completed',
           // after every job has been completed except the one that never resolves
@@ -185,10 +185,10 @@ describe('Rate Limiter', function () {
       await queue.add('delay-job', 'delay');
 
       for (let i = 0; i < numJobs; i++) {
-        queue.add('test-job', 'test');
+        await queue.add('test-job', 'test');
       }
 
-      await completting;
+      await completing;
     });
   });
 
