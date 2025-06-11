@@ -958,7 +958,7 @@ describe('Jobs getters', function () {
       });
 
       let completedChildren = 0;
-      const complettingChildren = new Promise<void>(resolve => {
+      const completingChildren = new Promise<void>(resolve => {
         worker.on('completed', async () => {
           completedChildren++;
           if (completedChildren === 4) {
@@ -967,7 +967,7 @@ describe('Jobs getters', function () {
         });
       });
 
-      await complettingChildren;
+      await completingChildren;
 
       const result = await queue.getDependencies(
         flow.job.id!,
