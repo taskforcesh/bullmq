@@ -566,7 +566,7 @@ class Scripts:
         return self.moveToFinishedArgs(job, return_value, 'returnvalue', shouldRemove, 'completed',
             token, fetchNext)
 
-    def moveToFailedArgs(self, job: Job, failed_reason: str, shouldRemove, token: str, fetchNext=True):
+    def moveToFailedArgs(self, job: Job, failed_reason: str, shouldRemove, token: str, fetchNext=True, fields_to_update = None):
         return self.moveToFinishedArgs(job, failed_reason, 'failedReason', shouldRemove, 'failed',
             token, fetchNext, fields_to_update)
 
