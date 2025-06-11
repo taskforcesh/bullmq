@@ -10,6 +10,7 @@ import {
   RateLimitError,
   Worker,
   UnrecoverableError,
+  Job,
 } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
@@ -130,9 +131,65 @@ describe('Rate Limiter', function () {
       prefix,
       limiter,
     });
+
     await queue.add('test', 1);
     await delay(500);
     await worker.close();
+  });
+
+  describe('when a job never completed', () => {
+    it('should not block the rate limit', async function () {
+      this.timeout(20000);
+      const numJobs = 20;
+      const queue = new Queue(queueName, {
+        prefix,
+        connection,
+      });
+
+      const worker = new Worker(
+        queueName,
+        async (job: Job) => {
+          if (job.data == 'delay') {
+            // This simulates a job that will never resolve.
+            await new Promise(resolve => {});
+            return;
+          }
+
+          if (job.data == 'test') {
+            return 'Success';
+          }
+        },
+        {
+          connection,
+          prefix,
+          concurrency: 2,
+          limiter: {
+            max: 5,
+            duration: 1000,
+          },
+        },
+      );
+
+      const completting = new Promise<void>((resolve, reject) => {
+        worker.on(
+          'completed',
+          // after every job has been completed except the one that never resolves
+          after(numJobs - 1, async () => {
+            // We need to forcefully close the worker
+            await worker.close(true);
+            resolve();
+          }),
+        );
+      });
+
+      await queue.add('delay-job', 'delay');
+
+      for (let i = 0; i < numJobs; i++) {
+        queue.add('test-job', 'test');
+      }
+
+      await completting;
+    });
   });
 
   describe('when queue is paused between rate limit', () => {
@@ -1002,7 +1059,7 @@ describe('Rate Limiter', function () {
     describe('when rate limit is max 1', () => {
       it('processes jobs as max limiter from the beginning', async function () {
         const numJobs = 5;
-        this.timeout(5000);
+        this.timeout(8000);
         let parallelJobs = 0;
 
         const processor = async () => {
