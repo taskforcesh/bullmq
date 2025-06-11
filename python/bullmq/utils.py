@@ -1,3 +1,4 @@
+from typing import Any
 import semver
 import traceback
 import json
@@ -16,7 +17,7 @@ def extract_result(job_task, emit_callback):
             traceback.print_exc()
             emit_callback("error", e)
 
-def get_parent_key(opts: dict):
+def get_parent_key(opts: dict[str, str]):
     if opts:
         return f"{opts.get('queue')}:{opts.get('id')}"
 
