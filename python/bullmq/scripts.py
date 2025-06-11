@@ -103,16 +103,26 @@ class Scripts:
         
         return [packedArgs, jsonData, packedOpts]
 
-    def addJob(self, job: Job, pipe = None):
+    async def addJob(self, job: Job, pipe = None):
         """
         Add an item to the queue
         """
+        result = None
         if job.opts.get("delay"):
-            return self.addDelayedJob(job, job.opts.get("delay"), pipe)
+            result = await self.addDelayedJob(job, job.opts.get("delay"), pipe)
         elif job.opts.get("priority"):
-            return self.addPrioritizedJob(job, job.opts.get("priority"), pipe)
+            result = await self.addPrioritizedJob(job, job.opts.get("priority"), pipe)
         else:
-            return self.addStandardJob(job, job.timestamp, pipe)
+            result = await self.addStandardJob(job, job.timestamp, pipe)
+
+        if type(result) == int :
+            if result < 0:
+                raise self.finishedErrors({
+                    "code": result, 
+                    "parentKey": job.parentKey,
+                    "command": 'addJob'
+                    })
+        return result
 
     def addStandardJob(self, job: Job, timestamp: int, pipe = None):
         """
@@ -188,13 +198,18 @@ class Scripts:
         keys, args = self.moveToWaitingChildrenArgs(job_id, token, opts)
         result = await self.commands["moveToWaitingChildren"](keys=keys, args=args)
 
-        if result is not None:
+        if type(result) == int:
             if result == 1:
                 return False
             elif result == 0:
                 return True
             elif result < 0:
-                raise self.finishedErrors(result, job_id, 'moveToWaitingChildren', 'active')
+                raise self.finishedErrors({
+                    "code": result,
+                    "jobId": job_id,
+                    "command": 'moveToWaitingChildren',
+                    "state": 'active'
+                    })
         return None
 
     def getRangesArgs(self, types, start: int = 0, end: int = 1, asc: bool = False):
@@ -273,9 +288,14 @@ class Scripts:
 
         result = await self.commands["retryJob"](keys=keys, args=args)
 
-        if result is not None:
+        if type(result) == int:
             if result < 0:
-                raise self.finishedErrors(result, job_id, 'retryJob', 'active')
+                raise self.finishedErrors({
+                    "code": result,
+                    "jobId": job_id,
+                    "command": 'retryJob',
+                    "state": 'active'
+                    })
         return None
 
     def moveToDelayedArgs(self, job_id: str, timestamp: int, token: str, delay: int = 0, opts: dict = {}):
@@ -297,9 +317,14 @@ class Scripts:
 
         result = await self.commands["moveToDelayed"](keys=keys, args=args)
 
-        if result is not None:
+        if type(result) == int:
             if result < 0:
-                raise self.finishedErrors(result, job_id, 'moveToDelayed', 'active')
+                raise self.finishedErrors({
+                    "code": result,
+                    "jobId": job_id,
+                    "command": 'moveToDelayed',
+                    "state": 'active'
+                    })
         return None
 
     def promoteArgs(self, job_id: str):
@@ -318,9 +343,14 @@ class Scripts:
 
         result = await self.commands["promote"](keys=keys, args=args)
 
-        if result is not None:
+        if type(result) == int:
             if result < 0:
-                raise self.finishedErrors(result, job_id, 'promote', 'delayed')
+                raise self.finishedErrors({
+                    "code": result,
+                    "jobId": job_id,
+                    "command": 'promote',
+                    "state": 'delayed'
+                    })
         return None
 
     def remove(self, job_id: str, remove_children: bool):
@@ -390,9 +420,13 @@ class Scripts:
 
         result = await self.commands["changePriority"](keys=keys, args=args)
 
-        if result is not None:
+        if type(result) == int:
             if result < 0:
-                raise self.finishedErrors(result, job_id, 'changePriority', None)
+                raise self.finishedErrors({
+                    "code": result,
+                    "jobId": job_id,
+                    "command": 'changePriority'
+                    })
         return None
 
     async def updateData(self, job_id: str, data):
@@ -402,9 +436,13 @@ class Scripts:
 
         result = await self.commands["updateData"](keys=keys, args=args)
 
-        if result is not None:
+        if type(result) == int:
             if result < 0:
-                raise self.finishedErrors(result, job_id, 'updateData', None)
+                raise self.finishedErrors({
+                    "code": result,
+                    "jobId": job_id,
+                    "command": 'updateData'
+                    })
         return None
 
     async def reprocessJob(self, job: Job, state: str):
@@ -426,9 +464,14 @@ class Scripts:
 
         result = await self.commands["reprocessJob"](keys=keys, args=args)
 
-        if result is not None:
+        if type(result) == int:
             if result < 0:
-                raise self.finishedErrors(result, job.id, 'reprocessJob', state)
+                raise self.finishedErrors({
+                    "code": result,
+                    "jobId": job.id,
+                    "command": 'reprocessJob',
+                    "state": state
+                    })
         return None
 
     def pause(self, pause: bool = True):
@@ -503,9 +546,13 @@ class Scripts:
         args = [job_id, progress_json]
         result = await self.commands["updateProgress"](keys=keys, args=args)
 
-        if result is not None:
+        if type(result) == int:
             if result < 0:
-                raise self.finishedErrors(result, job_id, 'updateProgress', None)
+                raise self.finishedErrors({
+                    "code": result,
+                    "jobId": job_id,
+                    "command": 'updateProgress'
+                    })
         return None
 
     def moveToFinishedArgs(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str,
@@ -585,7 +632,12 @@ class Scripts:
 
         if result is not None:
             if type(result) == int and result < 0:
-                raise self.finishedErrors(result, job_id, 'moveToFinished', 'active')
+                raise self.finishedErrors({
+                    "code": result,
+                    "jobId": job_id,
+                    "command": 'moveToFinished',
+                    "state": 'active'
+                    })
             return raw2NextJobData(result)
         return None
 
@@ -601,23 +653,26 @@ class Scripts:
             time.time() * 1000), stalledInterval]
         return self.commands["moveStalledJobsToWait"](keys, args)
 
-    def finishedErrors(self, code: int, jobId: str, command: str, state: str) -> TypeError:
+    def finishedErrors(self, opts: dict) -> TypeError:
+        code = opts.get("code")
         if code == ErrorCode.JobNotExist.value:
-            return TypeError(f"Missing key for job {jobId}.{command}")
+            return TypeError(f"Missing key for job {opts.get('jobId')}. {opts.get('command')}")
         elif code == ErrorCode.JobLockNotExist.value:
-            return TypeError(f"Missing lock for job {jobId}.{command}")
+            return TypeError(f"Missing lock for job {opts.get('jobId')}. {opts.get('command')}")
         elif code == ErrorCode.JobNotInState.value:
-            return TypeError(f"Job {jobId} is not in the state {state}.{command}")
+            return TypeError(f"Job {opts.get('jobId')} is not in the {opts.get('state')} state. {opts.get('command')}")
         elif code == ErrorCode.JobPendingDependencies.value:
-            return TypeError(f"Job {jobId} has pending dependencies.{command}")
+            return TypeError(f"Job {opts.get('jobId')} has pending dependencies. {opts.get('command')}")
         elif code == ErrorCode.ParentJobNotExist.value:
-            return TypeError(f"Missing key for parent job {jobId}.{command}")
+            return TypeError(f"Missing key for parent job {opts.get('parentKey')}. {opts.get('command')}")
         elif code == ErrorCode.JobLockMismatch.value:
-            return TypeError(f"Lock mismatch for job {jobId}. Cmd {command} from {state}")
+            return TypeError(f"Lock mismatch for job {opts.get('jobId')}. Cmd {opts.get('command')} from {opts.get('state')}")
         elif code == ErrorCode.ParentJobCannotBeReplaced.value:
-            return TypeError(f"The parent job {jobId} cannot be replaced. {command}")
+            return TypeError(f"The parent job {opts.get('jobId')} cannot be replaced. {opts.get('command')}")
+        elif code == ErrorCode.JobFailedChildren.value:
+            return TypeError(f"Job {opts.get('jobId')} has failed children. {opts.get('command')}")
         else:
-            return TypeError(f"Unknown code {str(code)} error for {jobId}.{command}")
+            return TypeError(f"Unknown code {str(code)} error for {opts.get('jobId')}. {opts.get('command')}")
 
 
 def raw2NextJobData(raw: list[Any]) -> list[Any] | None:
