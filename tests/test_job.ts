@@ -197,6 +197,26 @@ describe('Job', function () {
         );
       });
     });
+
+    describe('when jitter backoff option is provided with a value lesser than 0', () => {
+      it('throws an error', async () => {
+        const data = { foo: 'bar' };
+        const opts = { backoff: { type: 'fixed', jitter: -1 } };
+        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+          'Jitter should be between 0 and 1',
+        );
+      });
+    });
+
+    describe('when jitter backoff option is provided with a value greater than 1', () => {
+      it('throws an error', async () => {
+        const data = { foo: 'bar' };
+        const opts = { backoff: { type: 'fixed', jitter: 5 } };
+        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+          'Jitter should be between 0 and 1',
+        );
+      });
+    });
   });
 
   describe('JSON.stringify', () => {
