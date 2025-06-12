@@ -256,7 +256,7 @@ export class Job<
       : this.debounceId;
 
     this.toKey = queue.toKey.bind(queue);
-    this.setScripts();
+    this.createScripts();
 
     this.queueQualifiedName = queue.qualifiedName;
   }
@@ -424,7 +424,7 @@ export class Job<
     return job;
   }
 
-  protected setScripts() {
+  protected createScripts() {
     this.scripts = new Scripts({
       keys: this.queue.keys,
       client: this.queue.client,

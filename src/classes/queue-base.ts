@@ -78,7 +78,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     this.qualifiedName = queueKeys.getQueueQualifiedName(name);
     this.keys = queueKeys.getKeys(name);
     this.toKey = (type: string) => queueKeys.toKey(name, type);
-    this.setScripts();
+    this.createScripts();
   }
 
   /**
@@ -88,15 +88,11 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     return this.connection.client;
   }
 
-  protected setScripts() {
-    this.scripts = this.createScripts();
-  }
-
   /**
    * Factory method to create a Scripts object.
    */
-  protected createScripts(): Scripts {
-    return new Scripts({
+  protected createScripts() {
+    this.scripts = new Scripts({
       keys: this.keys,
       client: this.client,
       redisVersion: this.redisVersion,
