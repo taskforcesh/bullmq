@@ -425,7 +425,14 @@ export class Job<
   }
 
   protected setScripts() {
-    this.scripts = new Scripts(this.queue);
+    this.scripts = new Scripts({
+      keys: this.queue.keys,
+      client: this.queue.client,
+      redisVersion: this.queue.redisVersion,
+      toKey: this.queue.toKey,
+      opts: this.queue.opts,
+      closing: this.queue.closing,
+    });
   }
 
   static optsFromJSON(
