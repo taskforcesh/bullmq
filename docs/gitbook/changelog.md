@@ -1,3 +1,11 @@
+## [5.53.3](https://github.com/taskforcesh/bullmq/compare/v5.53.2...v5.53.3) (2025-06-13)
+
+
+### Bug Fixes
+
+* **job:** pass stacktrace into scripts on failures [python] ([#3294](https://github.com/taskforcesh/bullmq/issues/3294)) ([97b215d](https://github.com/taskforcesh/bullmq/commit/97b215d5a7aeaf4dceb4543bef1a00e463f12197))
+* **worker:** avoid dangling jobs to hang the queue with rate limit fixes [#3289](https://github.com/taskforcesh/bullmq/issues/3289) ([#3297](https://github.com/taskforcesh/bullmq/issues/3297)) ([263d33d](https://github.com/taskforcesh/bullmq/commit/263d33d536a92daf578c56cbb58765917046e052))
+
 ## [5.53.2](https://github.com/taskforcesh/bullmq/compare/v5.53.1...v5.53.2) (2025-06-02)
 
 
