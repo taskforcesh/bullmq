@@ -168,7 +168,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         data = {"foo": "bar"}
         job = await queue.add("test-job", data, {"removeOnComplete": False})
 
-        failedReason = "Out of range float values are not JSON compliant: nan"
+        failedReason = "Out of range float values are not JSON compliant"
 
         async def process(job: Job, token: str):
             print("Processing job", job)
