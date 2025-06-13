@@ -12,6 +12,7 @@ jobs:
     permissions:
       contents: write # for release publishing
       pull-requests: write # for creating PRs
+      issues: write # additional permission that might be needed
 
     name: Release
     env:
@@ -40,6 +41,7 @@ jobs:
         if: ${{ success() && steps.semantic_release.outcome == 'success' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Check if there are any changes to commit
           if [[ -n $(git status --porcelain) ]]; then
