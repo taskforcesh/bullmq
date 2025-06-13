@@ -425,10 +425,13 @@ export class Job<
   }
 
   protected createScripts() {
+    const queue = this.queue;
     this.scripts = new Scripts({
       keys: this.queue.keys,
       client: this.queue.client,
-      redisVersion: this.queue.redisVersion,
+      get redisVersion() {
+        return queue.redisVersion;
+      },
       toKey: this.queue.toKey,
       opts: this.queue.opts,
       closing: this.queue.closing,

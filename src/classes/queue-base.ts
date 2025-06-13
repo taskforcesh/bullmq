@@ -92,10 +92,13 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
    * Factory method to create a Scripts object.
    */
   protected createScripts() {
+    const queue = this;
     this.scripts = new Scripts({
       keys: this.keys,
       client: this.client,
-      redisVersion: this.redisVersion,
+      get redisVersion() {
+        return queue.redisVersion;
+      },
       toKey: this.toKey,
       opts: this.opts,
       closing: this.closing,
