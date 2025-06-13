@@ -79,7 +79,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     this.qualifiedName = queueKeys.getQueueQualifiedName(name);
     this.keys = queueKeys.getKeys(name);
     this.toKey = (type: string) => queueKeys.toKey(name, type);
-    this.scripts = createScripts(this);
+    this.createScripts();
   }
 
   /**
@@ -87,6 +87,10 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
    */
   get client(): Promise<RedisClient> {
     return this.connection.client;
+  }
+
+  protected createScripts() {
+    this.scripts = createScripts(this);
   }
 
   /**

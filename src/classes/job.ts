@@ -257,7 +257,7 @@ export class Job<
       : this.debounceId;
 
     this.toKey = queue.toKey.bind(queue);
-    this.scripts = createScripts(queue);
+    this.createScripts();
 
     this.queueQualifiedName = queue.qualifiedName;
   }
@@ -423,6 +423,10 @@ export class Job<
     }
 
     return job;
+  }
+
+  protected createScripts() {
+    this.scripts = createScripts(this.queue);
   }
 
   static optsFromJSON(
