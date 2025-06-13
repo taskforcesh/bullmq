@@ -156,6 +156,15 @@ export class ChildProcessor {
         });
       },
       /*
+       * Proxy `moveToWait` function.
+       */
+      moveToWait: async (token?: string) => {
+        await send({
+          cmd: ParentCommand.MoveToWait,
+          value: { token },
+        });
+      },
+      /*
        * Proxy `updateData` function.
        */
       updateData: async (data: any) => {
@@ -186,10 +195,10 @@ export class ChildProcessor {
 
       /**
        * Proxy `getIgnoredChildrenFailures` function.
-       * 
+       *
        * This method sends a request to retrieve the failures of ignored children
        * and waits for a response from the parent process.
-       * 
+       *
        * @returns - A promise that resolves with the ignored children failures.
        * The exact structure of the returned data depends on the parent process implementation.
        */
