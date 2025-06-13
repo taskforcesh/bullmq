@@ -175,7 +175,7 @@ jobs:
       matrix:
         node-version: [lts/*]
         redis-version: [7-alpine]
-        python-version: ['3.10']
+        python-version: ['3.13']
 
     steps:
       - name: Checkout repository
@@ -223,7 +223,7 @@ jobs:
     strategy:
       matrix:
         node-version: [lts/*]
-        python-version: ['3.10']
+        python-version: ['3.13']
 
     services:
       dragonflydb:
