@@ -23,6 +23,7 @@ import {
   JobProgress,
 } from '../types';
 import {
+  createScripts,
   errorObject,
   isEmpty,
   getParentKey,
@@ -256,7 +257,7 @@ export class Job<
       : this.debounceId;
 
     this.toKey = queue.toKey.bind(queue);
-    this.createScripts();
+    this.scripts = createScripts(queue);
 
     this.queueQualifiedName = queue.qualifiedName;
   }
@@ -422,20 +423,6 @@ export class Job<
     }
 
     return job;
-  }
-
-  protected createScripts() {
-    const queue = this.queue;
-    this.scripts = new Scripts({
-      keys: this.queue.keys,
-      client: this.queue.client,
-      get redisVersion() {
-        return queue.redisVersion;
-      },
-      toKey: this.queue.toKey,
-      opts: this.queue.opts,
-      closing: this.queue.closing,
-    });
   }
 
   static optsFromJSON(
