@@ -23,13 +23,56 @@ BullMQ supports retries of failed jobs using back-off functions. It is possible 
 Retried jobs will respect their priority when they are moved back to waiting state.
 {% endhint %}
 
-#### Built-in backoff strategies
+### Built-in backoff strategies
 
-The current built-in backoff functions are "exponential" and "fixed".
+The current built-in backoff functions are **fixed** and **exponential**.
 
-With exponential backoff, it will retry after `2 ^ (attempts - 1) * delay` milliseconds. For example, with a delay of 3000 milliseconds, for the 7th attempt, it will retry `2^6 * 3000` milliseconds = 3.2 minutes after the previous attempt.
+#### Fixed
 
 With a fixed backoff, it will retry after `delay` milliseconds, so with a delay of 3000 milliseconds, it will retry _every_ attempt 3000 milliseconds after the previous attempt.
+
+```typescript
+import { Queue } from 'bullmq';
+
+const myQueue = new Queue('foo');
+
+await queue.add(
+  'test-retry',
+  { foo: 'bar' },
+  {
+    attempts: 3,
+    backoff: {
+      type: 'fixed',
+      delay: 1000,
+    },
+  },
+);
+```
+
+You can also provide a (jitter)[https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/] option, it will generate random delays between `delay` and 0 milliseconds depending on the percentage of jitter usage. For example, you can provide a jitter value of 0.5 value and a delay of 1000 milliseconds, it will generate a delay between `1000` milliseconds = 1 second and `1000 * 0.5` milliseconds = 500ms.
+
+```typescript
+import { Queue } from 'bullmq';
+
+const myQueue = new Queue('foo');
+
+await queue.add(
+  'test-retry',
+  { foo: 'bar' },
+  {
+    attempts: 8,
+    backoff: {
+      type: 'fixed',
+      delay: 1000,
+      jitter: 0.5,
+    },
+  },
+);
+```
+
+#### Exponential
+
+With exponential backoff, it will retry after `2 ^ (attempts - 1) * delay` milliseconds. For example, with a delay of 3000 milliseconds, for the 7th attempt, it will retry `2^6 * 3000` milliseconds = 3.2 minutes after the previous attempt.
 
 The code below shows how to specify the built-in "exponential" backoff function with a 1-second delay as a seed value, so it will retry at most 2 times (after the first attempt, reaching a total 3 attempts) spaced after 1 second, 2 seconds, and 4 seconds respectively:
 
@@ -46,6 +89,27 @@ await queue.add(
     backoff: {
       type: 'exponential',
       delay: 1000,
+    },
+  },
+);
+```
+
+You can also provide a (jitter)[https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/] option, it will generate random delays between `2 ^ (attempts - 1) * delay` and 0 milliseconds depending on the percentage of jitter usage. For example, you can provide a jitter value of 0.5 value and a delay of 3000 milliseconds, for the 7th attempt, it will generate a delay between `2^6 * 3000` milliseconds = 192000ms and `2^6 * 3000 * 0.5` milliseconds = 96000 minutes after the previous attempt.
+
+```typescript
+import { Queue } from 'bullmq';
+
+const myQueue = new Queue('foo');
+
+await queue.add(
+  'test-retry',
+  { foo: 'bar' },
+  {
+    attempts: 8,
+    backoff: {
+      type: 'exponential',
+      delay: 3000,
+      jitter: 0.5,
     },
   },
 );
@@ -69,7 +133,11 @@ const myQueue = new Queue('foo', {
 await queue.add('test-retry', { foo: 'bar' });
 ```
 
-#### Custom back-off strategies
+{% hint style="info" %}
+Jitter percentage option value must be between 0 and 1. 0 percentage means no randomness is applied (default behavior), while 1 means that random delays will be generated beween 0 and max generated value by any of our built-in strategies.
+{% endhint %}
+
+### Custom back-off strategies
 
 If you want to define your custom backoff function, you need to define it in the worker settings:
 

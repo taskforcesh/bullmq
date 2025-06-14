@@ -1472,6 +1472,15 @@ export class Job<
         throw new Error(`Priority should be between 0 and ${PRIORITY_LIMIT}`);
       }
     }
+
+    if (
+      typeof this.opts.backoff === 'object' &&
+      typeof this.opts.backoff.jitter === 'number'
+    ) {
+      if (this.opts.backoff.jitter < 0 || this.opts.backoff.jitter > 1) {
+        throw new Error(`Jitter should be between 0 and 1`);
+      }
+    }
   }
 
   protected updateStacktrace(err: Error) {
