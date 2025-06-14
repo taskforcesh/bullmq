@@ -16,8 +16,3 @@ export type MinimalQueue = Pick<
   | 'redisVersion'
   | 'trace'
 >;
-
-export type MinimalScriptQueue = Pick<
-  QueueBase,
-  'client' | 'toKey' | 'keys' | 'opts' | 'closing' | 'redisVersion'
->;

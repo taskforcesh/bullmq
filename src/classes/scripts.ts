@@ -32,7 +32,7 @@ import {
   JobType,
   FinishedStatus,
   FinishedPropValAttribute,
-  MinimalScriptQueue,
+  ScriptQueueContext,
   RedisJobOptions,
   JobProgress,
 } from '../types';
@@ -52,7 +52,7 @@ export class Scripts {
 
   moveToFinishedKeys: (string | undefined)[];
 
-  constructor(protected queue: MinimalScriptQueue) {
+  constructor(protected queue: ScriptQueueContext) {
     const queueKeys = this.queue.keys;
 
     this.moveToFinishedKeys = [

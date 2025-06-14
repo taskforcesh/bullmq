@@ -7,3 +7,4 @@ export * from './job-scheduler-template-options';
 export * from './job-type';
 export * from './repeat-strategy';
 export * from './job-progress';
+export * from './script-queue-context';
