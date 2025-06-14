@@ -51,7 +51,7 @@ if removed > 0 then
 
   -- Emit waiting event
   rcall("XADD", KEYS[9], "MAXLEN", "~", maxEvents, "*", "event", "waiting",
-    "jobId", jobId)
+    "jobId", jobId, "prev", "active")
 end
 
 local pttl = rcall("PTTL", KEYS[6])

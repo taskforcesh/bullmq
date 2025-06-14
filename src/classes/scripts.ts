@@ -1520,7 +1520,7 @@ export class Scripts {
    * @param jobId - Job id
    * @returns
    */
-  async moveJobFromActiveToWait(jobId: string, token: string) {
+  async moveJobFromActiveToWait(jobId: string, token = '0') {
     const client = await this.queue.client;
 
     const keys: (string | number)[] = [
