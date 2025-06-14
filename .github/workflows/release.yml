@@ -11,6 +11,7 @@ jobs:
   release:
     permissions:
       contents: write # for release publishing
+      pull-requests: write # for creating PRs
 
     name: Release
     env:
@@ -30,10 +31,69 @@ jobs:
         run: yarn install --frozen-lockfile --non-interactive
       - run: yarn build
       - name: Release Node
+        id: semantic_release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npx semantic-release
+      - name: Create PR with release changes
+        if: ${{ success() && steps.semantic_release.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check if there are any changes to commit
+          if [[ -n $(git status --porcelain) ]]; then
+            # Get the version from package.json
+            VERSION=$(node -p "require('./package.json').version")
+            BRANCH_NAME="release/v${VERSION}"
+            
+            echo "Creating PR for release version: ${VERSION}"
+            
+            # Create and switch to new branch
+            git checkout -b $BRANCH_NAME
+            
+            # Configure git
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            
+            # Add and commit changes (only add files that exist)
+            git add package.json || true
+            git add yarn.lock || true
+            git add src/version.ts || true
+            git add docs/gitbook/changelog.md || true
+            
+            # Check if there are actually changes to commit after adding
+            if [[ -n $(git diff --cached --name-only) ]]; then
+              git commit -m "chore(release): ${VERSION} [skip ci]"
+              
+              # Push the branch
+              git push origin $BRANCH_NAME
+              
+              # Create PR using GitHub CLI
+              gh pr create \
+                --title "chore(release): ${VERSION}" \
+                --body "Automated release PR for version ${VERSION}
+
+              This PR contains:
+              - Updated package.json version
+              - Updated yarn.lock (if changed)
+              - Updated src/version.ts
+              - Updated changelog
+              - Updated API documentation (if any)
+
+              Please review and merge to complete the release process." \
+                --head $BRANCH_NAME \
+                --base master
+              
+              echo "Created PR for release ${VERSION}"
+            else
+              echo "No changes to commit after staging files"
+              git checkout master
+              git branch -D $BRANCH_NAME
+            fi
+          else
+            echo "No changes detected after semantic-release"
+          fi
       - run: yarn copy:lua:python
       - name: Setup Python
         uses: actions/setup-python@61a6322f88396a6271a6ee3565807d608ecaddd1 # v4

@@ -2123,7 +2123,7 @@ describe('Job Scheduler', function () {
       expect(waitingCount).to.be.equal(1);
 
       let resolveCompleting: () => void;
-      const complettingJob = new Promise<void>(resolve => {
+      const completingJob = new Promise<void>(resolve => {
         resolveCompleting = resolve;
       });
 
@@ -2133,7 +2133,7 @@ describe('Job Scheduler', function () {
           queueName,
           async () => {
             resolve();
-            return complettingJob;
+            return completingJob;
           },
           {
             connection,
