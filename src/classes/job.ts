@@ -758,7 +758,7 @@ export class Job<
    * @param token - Worker token used to acquire completed job.
    * @returns Returns pttl.
    */
-  moveToWait(token: string): Promise<number> {
+  moveToWait(token?: string): Promise<number> {
     return this.scripts.moveJobFromActiveToWait(this.id, token);
   }
 
