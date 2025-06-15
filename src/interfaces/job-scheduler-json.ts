@@ -14,7 +14,8 @@ export interface JobSchedulerJson<D = any> {
   endDate?: number;
   tz?: string;
   pattern?: string;
-  every?: string;
+  every?: number;
   next?: number;
+  offset?: number;
   template?: JobSchedulerTemplateJson<D>;
 }
