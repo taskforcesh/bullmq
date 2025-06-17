@@ -3506,7 +3506,7 @@ describe('workers', function () {
       });
 
       describe('when moving job to waiting in one step', () => {
-        it('should retry job after right away, keeping the current step', async function () {
+        it('should retry job right away, keeping the current step', async function () {
           this.timeout(1000);
 
           enum Step {
