@@ -288,7 +288,8 @@ describe('Job Scheduler', function () {
         name: 'test',
         next: 1486439520000,
         iterationCount: 1,
-        every: '240000',
+        every: 240000,
+        offset: 120003,
       });
 
       await this.clock.tickAsync(ONE_MINUTE);
@@ -334,7 +335,8 @@ describe('Job Scheduler', function () {
           name: 'test',
           next: 1486439700000,
           iterationCount: 2,
-          every: '60000',
+          every: 60000,
+          offset: 0,
         });
 
         const count = await queue.getJobCountByTypes('delayed');
@@ -1103,9 +1105,16 @@ describe('Job Scheduler', function () {
       this.clock.setSystemTime(date);
       const nextTick = 2 * ONE_SECOND;
 
+      let iterationCount = 0;
       const worker = new Worker(
         queueName,
-        async () => {
+        async job => {
+          if (iterationCount === 0) {
+            expect(job.opts.delay).to.be.eq(0);
+          } else {
+            expect(job.opts.delay).to.be.eq(2000);
+          }
+          iterationCount++;
           this.clock.tick(nextTick);
         },
         { autorun: false, connection, prefix },

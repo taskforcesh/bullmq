@@ -43,7 +43,6 @@ export interface RepeatOptions extends Omit<ParserOptions, 'iterator'> {
 
   /**
    * Offset in milliseconds to affect the next iteration time
-   *
    * */
   offset?: number;
 

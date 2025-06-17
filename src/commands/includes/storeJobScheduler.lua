@@ -31,6 +31,11 @@ local function storeJobScheduler(schedulerId, schedulerKey, repeatKey, nextMilli
     table.insert(optionalValues, opts['every'])
   end
 
+  if opts['offset'] then
+    table.insert(optionalValues, "offset")
+    table.insert(optionalValues, opts['offset'])
+  end
+
   local jsonTemplateOpts = cjson.encode(templateOpts)
   if jsonTemplateOpts and jsonTemplateOpts ~= '{}' then
     table.insert(optionalValues, "opts")
