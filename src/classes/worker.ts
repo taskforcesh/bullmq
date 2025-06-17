@@ -206,6 +206,13 @@ export class Worker<
     super(
       name,
       {
+        drainDelay: 5,
+        concurrency: 1,
+        lockDuration: 30000,
+        maxStalledCount: 1,
+        stalledInterval: 30000,
+        autorun: true,
+        runRetryDelay: 15000,
         ...opts,
         blockingConnection: true,
       },
@@ -215,17 +222,6 @@ export class Worker<
     if (!opts || !opts.connection) {
       throw new Error('Worker requires a connection');
     }
-
-    this.opts = {
-      drainDelay: 5,
-      concurrency: 1,
-      lockDuration: 30000,
-      maxStalledCount: 1,
-      stalledInterval: 30000,
-      autorun: true,
-      runRetryDelay: 15000,
-      ...this.opts,
-    };
 
     if (
       typeof this.opts.maxStalledCount !== 'number' ||

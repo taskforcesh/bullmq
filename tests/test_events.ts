@@ -573,6 +573,7 @@ describe('events', function () {
             await deduplication;
 
             expect(deduplicatedCounter).to.be.equal(1);
+            await worker.close();
           });
         });
       });
@@ -994,6 +995,7 @@ describe('events', function () {
             await deduplication;
 
             expect(deduplicatedCounter).to.be.equal(1);
+            await worker.close();
           });
         });
       });

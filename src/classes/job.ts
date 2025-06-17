@@ -23,6 +23,7 @@ import {
   JobProgress,
 } from '../types';
 import {
+  createScripts,
   errorObject,
   isEmpty,
   getParentKey,
@@ -256,7 +257,7 @@ export class Job<
       : this.debounceId;
 
     this.toKey = queue.toKey.bind(queue);
-    this.setScripts();
+    this.createScripts();
 
     this.queueQualifiedName = queue.qualifiedName;
   }
@@ -424,8 +425,8 @@ export class Job<
     return job;
   }
 
-  protected setScripts() {
-    this.scripts = new Scripts(this.queue);
+  protected createScripts() {
+    this.scripts = createScripts(this.queue);
   }
 
   static optsFromJSON(
