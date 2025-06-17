@@ -222,12 +222,17 @@ describe('Job Scheduler Stress', function () {
       const worker = new Worker(
         queueName,
         async job => {
-          if (iterationCount === 0) {
-            expect(job.opts.delay).to.be.eq(0);
-          } else {
-            expect(job.opts.delay).to.be.gte(1825);
+          try {
+            if (iterationCount === 0) {
+              expect(job.opts.delay).to.be.eq(0);
+            } else {
+              expect(job.opts.delay).to.be.gte(1825);
+            }
+            iterationCount++;
+          } catch (err) {
+            console.log(err);
+            throw err;
           }
-          iterationCount++;
         },
         { autorun: false, connection, prefix },
       );
