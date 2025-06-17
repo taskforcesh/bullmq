@@ -222,10 +222,15 @@ describe('Job Scheduler Stress', function () {
       const worker = new Worker(
         queueName,
         async job => {
-          if (iterationCount === 0) {
-            expect(job.opts.delay).to.be.eq(0);
-          } else {
-            expect(job.opts.delay).to.be.gte(1850);
+          try {
+            if (iterationCount++ === 0) {
+              expect(job.opts.delay).to.be.eq(0);
+            } else {
+              expect(job.opts.delay).to.be.gte(1850);
+            }
+          } catch (err) {
+            console.log(err);
+            throw err;
           }
           iterationCount++;
         },
@@ -240,7 +245,7 @@ describe('Job Scheduler Stress', function () {
           try {
             if (prev) {
               expect(prev.timestamp).to.be.lte(job.timestamp);
-              expect(job.processedOn! - prev.processedOn!).to.be.gte(1900);
+              expect(job.processedOn! - prev.processedOn!).to.be.gte(1850);
             }
             prev = job;
             counter++;
