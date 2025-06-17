@@ -40,7 +40,7 @@ In this example, after adding the house painting job with the deduplicated param
 
 ## Debounce Mode
 
-In the Debounce Mode, deduplication works by assigning a delay to a job upon its creation. If a similar job (identified by a unique deduplication ID) is added during this delay period, it'll replace the previous job while this one is still in delayed state and TTL value from deduplication key will be updated as well. This prevents the queue from being overwhelmed with multiple instances of the same task, keeping job information up to date.
+Debounce Mode works by delaying a job upon creation and providing a TTL. If another job with the same deduplication ID is added during this delay period, it replaces the previous one. The deduplication key’s TTL is refreshed, ensuring only the most recent job is kept. This mechanism avoids flooding the queue with duplicates while maintaining the latest job data.
 
 ```typescript
 import { Queue } from 'bullmq';
