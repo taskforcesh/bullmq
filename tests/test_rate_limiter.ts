@@ -160,6 +160,7 @@ describe('Rate Limiter', function () {
           }
         },
         {
+          autorun: false,
           connection,
           prefix,
           concurrency: 2,
@@ -188,7 +189,11 @@ describe('Rate Limiter', function () {
         await queue.add('test-job', 'test');
       }
 
+      worker.run();
+
       await completing;
+
+      await worker.close(true);
     });
   });
 

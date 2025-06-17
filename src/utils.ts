@@ -14,10 +14,12 @@ import {
   Span,
   Tracer,
 } from './interfaces';
+import { Scripts } from './classes/scripts';
 import { EventEmitter } from 'events';
 import * as semver from 'semver';
 
 import { SpanKind, TelemetryAttributes } from './enums';
+import { MinimalQueue } from './types';
 
 export const errorObject: { [index: string]: any } = { value: null };
 
@@ -231,6 +233,22 @@ export const childSend = (
   proc: NodeJS.Process,
   msg: ChildMessage,
 ): Promise<void> => asyncSend<NodeJS.Process>(proc, msg);
+
+/**
+ * Factory method to create a Scripts object.
+ */
+export const createScripts = (queue: MinimalQueue) => {
+  return new Scripts({
+    keys: queue.keys,
+    client: queue.client,
+    get redisVersion() {
+      return queue.redisVersion;
+    },
+    toKey: queue.toKey,
+    opts: queue.opts,
+    closing: queue.closing,
+  });
+};
 
 export const isRedisVersionLowerThan = (
   currentVersion: string,
