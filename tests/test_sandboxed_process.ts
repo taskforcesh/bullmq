@@ -1002,18 +1002,17 @@ function sandboxProcessTests(
         __dirname + '/fixtures/fixture_processor_move_to_wait.js';
 
       const worker = new Worker(queueName, processFile, {
+        autorun: false,
         connection,
         prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
 
-      let count = 0;
       const waiting = new Promise<void>((resolve, reject) => {
         queueEvents.on('waiting', async ({ prev }) => {
           try {
-            count++;
-            if (count == 2) {
+            if (prev) {
               expect(prev).to.be.equal('active');
               expect(
                 Object.keys(worker['childPool'].retained),
@@ -1022,6 +1021,7 @@ function sandboxProcessTests(
               resolve();
             }
           } catch (err) {
+            console.log(err);
             reject(err);
           }
         });
@@ -1035,6 +1035,8 @@ function sandboxProcessTests(
       });
 
       await queue.add('test', { bar: 'foo' });
+
+      worker.run();
 
       await waiting;
 
