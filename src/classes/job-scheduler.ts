@@ -95,24 +95,16 @@ export class JobScheduler extends QueueBase {
     let nextMillis: number;
     let newOffset: number | null = null;
     if (every) {
-      if (typeof offset === 'number') {
-        const prevSlot = Math.floor((startMillis - offset) / every) * every;
+      const prevSlot =
+        Math.floor((startMillis - (offset || 0)) / every) * every;
 
-        newOffset = offset;
+      newOffset = typeof offset === 'number' ? offset : startMillis - prevSlot;
 
-        const nextSlot = prevSlot + every;
+      const nextSlot = prevSlot + every;
+      if (prevMillis || offset) {
         nextMillis = nextSlot;
       } else {
-        const prevSlot = Math.floor(startMillis / every) * every;
-
-        newOffset = startMillis - prevSlot;
-
-        const nextSlot = prevSlot + every;
-        if (prevMillis) {
-          nextMillis = nextSlot;
-        } else {
-          nextMillis = prevSlot;
-        }
+        nextMillis = prevSlot;
       }
     } else if (pattern) {
       nextMillis = await this.repeatStrategy(now, repeatOpts, jobName);

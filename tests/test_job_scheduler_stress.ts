@@ -219,6 +219,7 @@ describe('Job Scheduler Stress', function () {
   describe("when using 'every' option and jobs are moved to active some time after delay", function () {
     it('should repeat every 2 seconds and start immediately', async function () {
       let iterationCount = 0;
+      const MINIMUM_DELAY_THRESHOLD_MS = 1850;
       const worker = new Worker(
         queueName,
         async job => {
@@ -226,13 +227,12 @@ describe('Job Scheduler Stress', function () {
             if (iterationCount++ === 0) {
               expect(job.opts.delay).to.be.eq(0);
             } else {
-              expect(job.opts.delay).to.be.gte(1850);
+              expect(job.opts.delay).to.be.gte(MINIMUM_DELAY_THRESHOLD_MS);
             }
           } catch (err) {
             console.log(err);
             throw err;
           }
-          iterationCount++;
         },
         { autorun: false, connection, prefix },
       );
@@ -245,7 +245,9 @@ describe('Job Scheduler Stress', function () {
           try {
             if (prev) {
               expect(prev.timestamp).to.be.lte(job.timestamp);
-              expect(job.processedOn! - prev.processedOn!).to.be.gte(1850);
+              expect(job.processedOn! - prev.processedOn!).to.be.gte(
+                MINIMUM_DELAY_THRESHOLD_MS,
+              );
             }
             prev = job;
             counter++;
