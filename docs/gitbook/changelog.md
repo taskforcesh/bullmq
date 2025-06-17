@@ -1,3 +1,10 @@
+## [5.54.1](https://github.com/taskforcesh/bullmq/compare/v5.54.0...v5.54.1) (2025-06-17)
+
+
+### Performance Improvements
+
+* **scheduler:** save offset value when every is provided ([#3142](https://github.com/taskforcesh/bullmq/issues/3142)) ([98f35bc](https://github.com/taskforcesh/bullmq/commit/98f35bc1eabb3ab1010737869c310d2001a84fac))
+
 # [5.54.0](https://github.com/taskforcesh/bullmq/compare/v5.53.3...v5.54.0) (2025-06-15)
 
 
