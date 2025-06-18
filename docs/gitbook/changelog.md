@@ -1,3 +1,10 @@
+## [5.54.2](https://github.com/taskforcesh/bullmq/compare/v5.54.1...v5.54.2) (2025-06-17)
+
+
+### Bug Fixes
+
+* avoid circular reference between scripts and queue ([#3301](https://github.com/taskforcesh/bullmq/issues/3301)) ([fb65677](https://github.com/taskforcesh/bullmq/commit/fb65677f2d636e1aca3cc75cb3b740b8729b3358))
+
 ## [5.54.1](https://github.com/taskforcesh/bullmq/compare/v5.54.0...v5.54.1) (2025-06-17)
 
 
