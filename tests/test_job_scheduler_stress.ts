@@ -224,11 +224,12 @@ describe('Job Scheduler Stress', function () {
         queueName,
         async job => {
           try {
-            if (iterationCount++ === 0) {
+            if (iterationCount === 0) {
               expect(job.opts.delay).to.be.eq(0);
             } else {
               expect(job.opts.delay).to.be.gte(MINIMUM_DELAY_THRESHOLD_MS);
             }
+            iterationCount++;
           } catch (err) {
             console.log(err);
             throw err;
