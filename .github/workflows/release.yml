@@ -66,7 +66,7 @@ jobs:
             
             # Check if there are actually changes to commit after adding
             if [[ -n $(git diff --cached --name-only) ]]; then
-              git commit -m "chore(release): ${VERSION} [skip ci]"
+              git commit -m "chore(release): ${VERSION}"
               
               # Push the branch
               git push origin $BRANCH_NAME
