@@ -1551,6 +1551,61 @@ describe('workers', function () {
     });
   });
 
+  describe('when adding delayed job after standard one when worker is drained', () => {
+    it('pick standard job without delay', async function () {
+      this.timeout(6000);
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          await delay(1000);
+        },
+        {
+          connection,
+          prefix,
+        },
+      );
+      await worker.waitUntilReady();
+
+      // after this event, worker should be drained
+      const completing = new Promise<void>(resolve => {
+        worker.once('completed', async () => {
+          await queue.addBulk([
+            { name: 'test1', data: { idx: 0, foo: 'bar' } },
+            {
+              name: 'test2',
+              data: { idx: 1, foo: 'baz' },
+              opts: { delay: 3000 },
+            },
+          ]);
+
+          resolve();
+        });
+      });
+
+      await Job.create(queue, 'test1', { foo: 'bar' });
+
+      await completing;
+
+      const now = Date.now();
+      const completing2 = new Promise<void>(resolve => {
+        worker.on(
+          'completed',
+          after(2, job => {
+            const timeDiff = Date.now() - now;
+            expect(timeDiff).to.be.greaterThanOrEqual(4000);
+            expect(timeDiff).to.be.lessThan(4500);
+            expect(job.delay).to.be.equal(0);
+            resolve();
+          }),
+        );
+      });
+
+      await completing2;
+      await worker.close();
+    });
+  });
+
   describe('when prioritized jobs are added', () => {
     it('should process jobs by priority', async () => {
       let processor;
