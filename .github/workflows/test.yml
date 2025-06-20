@@ -22,7 +22,7 @@ jobs:
 
     name: coverage for node@lts, redis@7
     env:
-      node-version: lts/*
+      node-version: 18.x
       redis-version: 7-alpine
       allowed_coverage_change: -0.25
 
@@ -91,9 +91,9 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      node-version: lts/*
+      node-version: 18.x
 
-    name: testing node@lts/*, dragonflydb@latest
+    name: testing node@18.x, dragonflydb@latest
 
     services:
       dragonflydb:
@@ -110,7 +110,7 @@ jobs:
       - name: Use Node.js ${{ env.node-version }}
         uses: actions/setup-node@v3 # v3
         with:
-          node-version: lts/*
+          node-version: 18.x
           cache: 'yarn'
       - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
       - run: yarn build
@@ -144,7 +144,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [lts/*]
+        node-version: [18.x]
         redis-version: [7-alpine]
         python-version: ['3.10']
 
