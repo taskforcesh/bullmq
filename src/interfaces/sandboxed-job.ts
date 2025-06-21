@@ -8,6 +8,7 @@ export interface SandboxedJob<T = any, R = any>
   data: T;
   opts: JobsOptions;
   moveToDelayed: (timestamp: number, token?: string) => Promise<void>;
+  moveToWait: (token?: string) => Promise<void>;
   log: (row: any) => void;
   updateData: (data: any) => Promise<void>;
   updateProgress: (value: JobProgress) => Promise<void>;

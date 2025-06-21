@@ -35,6 +35,7 @@ import {
   RateLimitError,
   RATE_LIMIT_ERROR,
   WaitingChildrenError,
+  WaitingError,
   UnrecoverableError,
 } from './errors';
 import { SpanKind, TelemetryAttributes } from '../enums';
@@ -958,6 +959,8 @@ will never work with more accuracy than 1ms. */
         if (
           err instanceof DelayedError ||
           err.name == 'DelayedError' ||
+          err instanceof WaitingError ||
+          err.name == 'WaitingError' ||
           err instanceof WaitingChildrenError ||
           err.name == 'WaitingChildrenError'
         ) {

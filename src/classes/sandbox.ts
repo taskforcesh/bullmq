@@ -52,6 +52,9 @@ const sandbox = <T, R, N extends string>(
                       msg.value?.token,
                     );
                     break;
+                  case ParentCommand.MoveToWait:
+                    await job.moveToWait(msg.value?.token);
+                    break;
                   case ParentCommand.Update:
                     await job.updateData(msg.value);
                     break;

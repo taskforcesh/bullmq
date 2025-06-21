@@ -83,6 +83,7 @@
 * [Flows](patterns/flows.md)
 * [Idempotent jobs](patterns/idempotent-jobs.md)
 * [Throttle jobs](patterns/throttle-jobs.md)
+* [Manual retrying](patterns/manual-retrying.md)
 * [Process Step Jobs](patterns/process-step-jobs.md)
 * [Failing fast when Redis is down](patterns/failing-fast-when-redis-is-down.md)
 * [Stop retrying jobs](patterns/stop-retrying-jobs.md)

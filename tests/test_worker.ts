@@ -12,6 +12,7 @@ import {
   Worker,
   WaitingChildrenError,
   DelayedError,
+  WaitingError,
 } from '../src/classes';
 import { KeepJobs, MinimalJob } from '../src/interfaces';
 import { JobsOptions } from '../src/types';
@@ -3489,6 +3490,67 @@ describe('workers', function () {
             worker.on('completed', job => {
               const elapse = Date.now() - start;
               expect(elapse).to.be.greaterThan(200);
+              expect(job.returnvalue).to.be.eql(Step.Finish);
+              expect(job.attemptsMade).to.be.eql(1);
+              expect(job.attemptsStarted).to.be.eql(2);
+              resolve();
+            });
+
+            worker.on('error', () => {
+              reject();
+            });
+          });
+
+          await worker.close();
+        });
+      });
+
+      describe('when moving job to waiting in one step', () => {
+        it('should retry job right away, keeping the current step', async function () {
+          this.timeout(1000);
+
+          enum Step {
+            Initial,
+            Second,
+            Finish,
+          }
+
+          const worker = new Worker(
+            queueName,
+            async (job, token) => {
+              let step = job.data.step;
+              while (step !== Step.Finish) {
+                switch (step) {
+                  case Step.Initial: {
+                    await job.moveToWait(token);
+                    await job.updateData({
+                      step: Step.Second,
+                    });
+                    throw new WaitingError();
+                  }
+                  case Step.Second: {
+                    await job.updateData({
+                      step: Step.Finish,
+                    });
+                    step = Step.Finish;
+                    return Step.Finish;
+                  }
+                  default: {
+                    throw new Error('invalid step');
+                  }
+                }
+              }
+            },
+            { connection, prefix },
+          );
+
+          await worker.waitUntilReady();
+
+          const start = Date.now();
+          await queue.add('test', { step: Step.Initial });
+
+          await new Promise<void>((resolve, reject) => {
+            worker.on('completed', job => {
               expect(job.returnvalue).to.be.eql(Step.Finish);
               expect(job.attemptsMade).to.be.eql(1);
               expect(job.attemptsStarted).to.be.eql(2);
