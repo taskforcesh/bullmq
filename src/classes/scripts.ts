@@ -135,6 +135,7 @@ export class Scripts {
       queueKeys.meta,
       queueKeys.id,
       queueKeys.prioritized,
+      queueKeys.delayed,
       queueKeys.completed,
       queueKeys.active,
       queueKeys.events,
@@ -166,6 +167,7 @@ export class Scripts {
     const keys: (string | Buffer)[] = [
       queueKeys.meta,
       queueKeys.id,
+      queueKeys.delayed,
       queueKeys.completed,
       queueKeys.events,
     ];
@@ -198,6 +200,7 @@ export class Scripts {
       queueKeys.meta,
       queueKeys.id,
       queueKeys.completed,
+      queueKeys.delayed,
       queueKeys.active,
       queueKeys.events,
       queueKeys.marker,

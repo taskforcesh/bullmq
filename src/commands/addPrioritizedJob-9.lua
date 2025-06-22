@@ -1,28 +1,19 @@
 --[[
-  Adds a job to the queue by doing the following:
+  Adds a priotitized job to the queue by doing the following:
     - Increases the job counter if needed.
     - Creates a new job key with the job data.
-
-    - if delayed:
-      - computes timestamp.
-      - adds to delayed zset.
-      - Emits a global event 'delayed' if the job is delayed.
-    - if not delayed
-      - Adds the jobId to the wait/paused list in one of three ways:
-         - LIFO
-         - FIFO
-         - prioritized.
-      - Adds the job to the "added" list so that workers gets notified.
+    - Adds the job to the "added" list so that workers gets notified.
 
     Input:
-      KEYS[1] 'wait',
-      KEYS[2] 'paused'
-      KEYS[3] 'meta'
-      KEYS[4] 'id'
-      KEYS[5] 'completed'
-      KEYS[6] 'active'
-      KEYS[7] events stream key
-      KEYS[8] marker key
+      KEYS[1] 'marker',
+      KEYS[2] 'meta'
+      KEYS[3] 'id'
+      KEYS[4] 'prioritized'
+      KEYS[5] 'delayed'
+      KEYS[6] 'completed'
+      KEYS[7] 'active'
+      KEYS[8] events stream key
+      KEYS[9] 'pc' priority counter
 
       ARGV[1] msgpacked arguments array
             [1]  key prefix,
@@ -42,8 +33,15 @@
       Output:
         jobId  - OK
         -5     - Missing parent key
-]]
-local eventsKey = KEYS[7]
+]] 
+local metaKey = KEYS[2]
+local idKey = KEYS[3]
+local priorityKey = KEYS[4]
+
+local completedKey = KEYS[6]
+local activeKey = KEYS[7]
+local eventsKey = KEYS[8]
+local priorityCounterKey = KEYS[9]
 
 local jobId
 local jobIdKey
@@ -61,12 +59,12 @@ local deduplicationKey = args[10]
 local parentData
 
 -- Includes
---- @include "includes/addJobInTargetList"
+--- @include "includes/addJobWithPriority"
 --- @include "includes/deduplicateJob"
---- @include "includes/getOrSetMaxEvents"
---- @include "includes/getTargetQueueList"
---- @include "includes/handleDuplicatedJob"
 --- @include "includes/storeJob"
+--- @include "includes/getOrSetMaxEvents"
+--- @include "includes/handleDuplicatedJob"
+--- @include "includes/isQueuePausedOrMaxed"
 
 if parentKey ~= nil then
     if rcall("EXISTS", parentKey) ~= 1 then return -5 end
@@ -74,9 +72,8 @@ if parentKey ~= nil then
     parentData = cjson.encode(parent)
 end
 
-local jobCounter = rcall("INCR", KEYS[4])
+local jobCounter = rcall("INCR", idKey)
 
-local metaKey = KEYS[3]
 local maxEvents = getOrSetMaxEvents(metaKey)
 
 local parentDependenciesKey = args[7]
@@ -89,26 +86,25 @@ else
     jobIdKey = args[1] .. jobId
     if rcall("EXISTS", jobIdKey) == 1 then
         return handleDuplicatedJob(jobIdKey, jobId, parentKey, parent,
-            parentData, parentDependenciesKey, KEYS[5], eventsKey,
+            parentData, parentDependenciesKey, completedKey, eventsKey,
             maxEvents, timestamp)
     end
 end
 
-local deduplicationJobId = deduplicateJob(opts['de'], jobId,
-  deduplicationKey, eventsKey, maxEvents)
+local deduplicationJobId = deduplicateJob(opts['de'], jobId, KEYS[5],
+  deduplicationKey, eventsKey, maxEvents, args[1])
 if deduplicationJobId then
   return deduplicationJobId
 end
 
 -- Store the job.
-storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2], opts, timestamp,
-         parentKey, parentData, repeatJobKey)
+local delay, priority = storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2],
+                                 opts, timestamp, parentKey, parentData,
+                                 repeatJobKey)
 
-local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[6], KEYS[1], KEYS[2])
-
--- LIFO or FIFO
-local pushCmd = opts['lifo'] and 'RPUSH' or 'LPUSH'
-addJobInTargetList(target, KEYS[8], pushCmd, isPausedOrMaxed, jobId)
+-- Add the job to the prioritized set
+local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, activeKey)
+addJobWithPriority( KEYS[1], priorityKey, priority, jobId, priorityCounterKey, isPausedOrMaxed)
 
 -- Emit waiting event
 rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "waiting",
