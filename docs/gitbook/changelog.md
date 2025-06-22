@@ -1,3 +1,10 @@
+# [5.56.0](https://github.com/taskforcesh/bullmq/compare/v5.55.0...v5.56.0) (2025-06-22)
+
+
+### Features
+
+* **deduplication:** add support for replace and extend options ([#3260](https://github.com/taskforcesh/bullmq/issues/3260)) ref [#2767](https://github.com/taskforcesh/bullmq/issues/2767) [#3151](https://github.com/taskforcesh/bullmq/issues/3151) [#3250](https://github.com/taskforcesh/bullmq/issues/3250) ([4a53609](https://github.com/taskforcesh/bullmq/commit/4a5360936c1a543a1ff31ebbb6ab1289cc8ddf07))
+
 # [5.55.0](https://github.com/taskforcesh/bullmq/compare/v5.54.3...v5.55.0) (2025-06-21)
 
 
