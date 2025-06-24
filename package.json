@@ -119,7 +119,6 @@
     "typescript": "^4.7.4"
   },
   "resolutions": {
-    "cross-spawn": "7.0.6",
     "tar": "7.4.3",
     "brace-expansion": "1.1.12"
   },
