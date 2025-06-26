@@ -507,6 +507,7 @@ class Scripts:
         keys.append(self.keys['marker'])
 
         def getKeepJobs(shouldRemove: bool | dict | int | None):
+            # Exclude bool from the int check because bool is a subclass of int in Python.
             if isinstance(shouldRemove, int) and not isinstance(shouldRemove, bool):
                 return {"count": shouldRemove}
 
