@@ -507,7 +507,7 @@ class Scripts:
         keys.append(self.keys['marker'])
 
         def getKeepJobs(shouldRemove: bool | dict | int | None):
-            if isinstance(shouldRemove, int):
+            if isinstance(shouldRemove, int) and not isinstance(shouldRemove, bool):
                 return {"count": shouldRemove}
 
             if isinstance(shouldRemove, dict):
