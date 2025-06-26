@@ -198,13 +198,10 @@ class Job:
             results = await pipe.execute()
             code = results[1]
             
-            if isinstance(code, list) and len(code) > 0:
-                if isinstance(code[0], int):
-                    if code[0] < 0:
-                        raise self.scripts.finishedErrors(code, self.id, command, 'active')
-            elif isinstance(code, int):
-                if code < 0:
-                    raise self.scripts.finishedErrors(code, self.id, command, 'active')
+            if isinstance(code, list) and code and isinstance(code[0], int) and code[0] < 0:
+                raise self.scripts.finishedErrors(code, self.id, command, 'active')
+            elif isinstance(code, int) and code < 0:
+                raise self.scripts.finishedErrors(code, self.id, command, 'active')
 
         if isinstance(finished_on, int):
             self.finishedOn = finished_on
