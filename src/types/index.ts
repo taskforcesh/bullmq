@@ -1,4 +1,5 @@
 export * from './backoff-strategy';
+export * from './deduplication-options';
 export * from './finished-status';
 export * from './minimal-queue';
 export * from './job-json-sandbox';
@@ -7,3 +8,4 @@ export * from './job-scheduler-template-options';
 export * from './job-type';
 export * from './repeat-strategy';
 export * from './job-progress';
+export * from './script-queue-context';

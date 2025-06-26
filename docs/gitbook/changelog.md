@@ -1,3 +1,52 @@
+# [5.56.0](https://github.com/taskforcesh/bullmq/compare/v5.55.0...v5.56.0) (2025-06-22)
+
+
+### Features
+
+* **deduplication:** add support for replace and extend options ([#3260](https://github.com/taskforcesh/bullmq/issues/3260)) ref [#2767](https://github.com/taskforcesh/bullmq/issues/2767) [#3151](https://github.com/taskforcesh/bullmq/issues/3151) [#3250](https://github.com/taskforcesh/bullmq/issues/3250) ([4a53609](https://github.com/taskforcesh/bullmq/commit/4a5360936c1a543a1ff31ebbb6ab1289cc8ddf07))
+
+# [5.55.0](https://github.com/taskforcesh/bullmq/compare/v5.54.3...v5.55.0) (2025-06-21)
+
+
+### Features
+
+* **worker:** allow calling moveToWait when job is processing ([#3302](https://github.com/taskforcesh/bullmq/issues/3302)) ref [#3296](https://github.com/taskforcesh/bullmq/issues/3296) ([e742511](https://github.com/taskforcesh/bullmq/commit/e742511baf35225718c01e621623eab661f37284))
+
+## [5.54.3](https://github.com/taskforcesh/bullmq/compare/v5.54.2...v5.54.3) (2025-06-18)
+
+
+### Bug Fixes
+
+* **scheduler:** fix slot calculation when using every ([#3307](https://github.com/taskforcesh/bullmq/issues/3307)) ([588719e](https://github.com/taskforcesh/bullmq/commit/588719ee49c7615affeb69d3a431025757115c10))
+
+## [5.54.2](https://github.com/taskforcesh/bullmq/compare/v5.54.1...v5.54.2) (2025-06-17)
+
+
+### Bug Fixes
+
+* avoid circular reference between scripts and queue ([#3301](https://github.com/taskforcesh/bullmq/issues/3301)) ([fb65677](https://github.com/taskforcesh/bullmq/commit/fb65677f2d636e1aca3cc75cb3b740b8729b3358))
+
+## [5.54.1](https://github.com/taskforcesh/bullmq/compare/v5.54.0...v5.54.1) (2025-06-17)
+
+
+### Performance Improvements
+
+* **scheduler:** save offset value when every is provided ([#3142](https://github.com/taskforcesh/bullmq/issues/3142)) ([98f35bc](https://github.com/taskforcesh/bullmq/commit/98f35bc1eabb3ab1010737869c310d2001a84fac))
+
+# [5.54.0](https://github.com/taskforcesh/bullmq/compare/v5.53.3...v5.54.0) (2025-06-15)
+
+
+### Features
+
+* **backoff:** add jitter option ([#3291](https://github.com/taskforcesh/bullmq/issues/3291)) ([86c4c6d](https://github.com/taskforcesh/bullmq/commit/86c4c6dd25ef868f1f37c917ab11cb663e330e2f))
+
+## [5.53.3](https://github.com/taskforcesh/bullmq/compare/v5.53.2...v5.53.3) (2025-06-13)
+
+
+### Bug Fixes
+
+* **worker:** avoid dangling jobs to hang the queue with rate limit ([#3297](https://github.com/taskforcesh/bullmq/issues/3297)) fixes [#3289](https://github.com/taskforcesh/bullmq/issues/3289) ([263d33d](https://github.com/taskforcesh/bullmq/commit/263d33d536a92daf578c56cbb58765917046e052))
+
 ## [5.53.2](https://github.com/taskforcesh/bullmq/compare/v5.53.1...v5.53.2) (2025-06-02)
 
 

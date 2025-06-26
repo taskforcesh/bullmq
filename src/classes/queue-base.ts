@@ -3,6 +3,7 @@ import { QueueBaseOptions, RedisClient, Span } from '../interfaces';
 import { MinimalQueue } from '../types';
 
 import {
+  createScripts,
   delay,
   DELAY_TIME_5,
   isNotConnectionError,
@@ -78,7 +79,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     this.qualifiedName = queueKeys.getQueueQualifiedName(name);
     this.keys = queueKeys.getKeys(name);
     this.toKey = (type: string) => queueKeys.toKey(name, type);
-    this.setScripts();
+    this.createScripts();
   }
 
   /**
@@ -88,8 +89,8 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     return this.connection.client;
   }
 
-  protected setScripts() {
-    this.scripts = new Scripts(this);
+  protected createScripts() {
+    this.scripts = createScripts(this);
   }
 
   /**

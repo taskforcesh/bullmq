@@ -23,6 +23,7 @@ import {
   JobProgress,
 } from '../types';
 import {
+  createScripts,
   errorObject,
   isEmpty,
   getParentKey,
@@ -256,7 +257,7 @@ export class Job<
       : this.debounceId;
 
     this.toKey = queue.toKey.bind(queue);
-    this.setScripts();
+    this.createScripts();
 
     this.queueQualifiedName = queue.qualifiedName;
   }
@@ -424,8 +425,8 @@ export class Job<
     return job;
   }
 
-  protected setScripts() {
-    this.scripts = new Scripts(this.queue);
+  protected createScripts() {
+    this.scripts = createScripts(this.queue);
   }
 
   static optsFromJSON(
@@ -757,7 +758,7 @@ export class Job<
    * @param token - Worker token used to acquire completed job.
    * @returns Returns pttl.
    */
-  moveToWait(token: string): Promise<number> {
+  moveToWait(token?: string): Promise<number> {
     return this.scripts.moveJobFromActiveToWait(this.id, token);
   }
 
@@ -1470,6 +1471,15 @@ export class Job<
 
       if (this.opts.priority > PRIORITY_LIMIT) {
         throw new Error(`Priority should be between 0 and ${PRIORITY_LIMIT}`);
+      }
+    }
+
+    if (
+      typeof this.opts.backoff === 'object' &&
+      typeof this.opts.backoff.jitter === 'number'
+    ) {
+      if (this.opts.backoff.jitter < 0 || this.opts.backoff.jitter > 1) {
+        throw new Error(`Jitter should be between 0 and 1`);
       }
     }
   }

@@ -892,7 +892,8 @@ function sandboxProcessTests(
     it('can get children failures by calling getIgnoredChildrenFailures', async () => {
       const childJobId = 'child-job-id';
       const childProcessFile =
-        __dirname + '/fixtures/fixture_processor_get_children_failures_child.js';
+        __dirname +
+        '/fixtures/fixture_processor_get_children_failures_child.js';
       const parentProcessFile =
         __dirname + '/fixtures/fixture_processor_get_children_failures.js';
       const parentQueueName = `parent-queue-${v4()}`;
@@ -936,7 +937,11 @@ function sandboxProcessTests(
         queueName: parentQueueName,
         opts: { jobId: 'job-id' },
         children: [
-          { name: 'child-job', queueName, opts: { jobId: childJobId, ignoreDependencyOnFailure: true },  },
+          {
+            name: 'child-job',
+            queueName,
+            opts: { jobId: childJobId, ignoreDependencyOnFailure: true },
+          },
         ],
       });
 
@@ -987,6 +992,53 @@ function sandboxProcessTests(
       const state = await queue.getJobState(job.id!);
 
       expect(state).to.be.equal('delayed');
+
+      await completing;
+      await worker.close();
+    });
+
+    it('should process and move to wait', async () => {
+      const processFile =
+        __dirname + '/fixtures/fixture_processor_move_to_wait.js';
+
+      const worker = new Worker(queueName, processFile, {
+        autorun: false,
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads,
+      });
+
+      const waiting = new Promise<void>((resolve, reject) => {
+        queueEvents.on('waiting', async ({ prev }) => {
+          try {
+            if (prev) {
+              expect(prev).to.be.equal('active');
+              expect(
+                Object.keys(worker['childPool'].retained),
+              ).to.have.lengthOf(1);
+              expect(worker['childPool'].getAllFree()).to.have.lengthOf(0);
+              resolve();
+            }
+          } catch (err) {
+            console.log(err);
+            reject(err);
+          }
+        });
+      });
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async (job: Job) => {
+          expect(job.data.bar).to.be.equal('foo');
+          resolve();
+        });
+      });
+
+      await queue.add('test', { bar: 'foo' });
+
+      worker.run();
+
+      await waiting;
 
       await completing;
       await worker.close();

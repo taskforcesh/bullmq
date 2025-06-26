@@ -32,7 +32,7 @@ import {
   JobType,
   FinishedStatus,
   FinishedPropValAttribute,
-  MinimalQueue,
+  ScriptQueueContext,
   RedisJobOptions,
   JobProgress,
 } from '../types';
@@ -52,7 +52,7 @@ export class Scripts {
 
   moveToFinishedKeys: (string | undefined)[];
 
-  constructor(protected queue: MinimalQueue) {
+  constructor(protected queue: ScriptQueueContext) {
     const queueKeys = this.queue.keys;
 
     this.moveToFinishedKeys = [
@@ -135,6 +135,7 @@ export class Scripts {
       queueKeys.meta,
       queueKeys.id,
       queueKeys.prioritized,
+      queueKeys.delayed,
       queueKeys.completed,
       queueKeys.active,
       queueKeys.events,
@@ -166,6 +167,7 @@ export class Scripts {
     const keys: (string | Buffer)[] = [
       queueKeys.meta,
       queueKeys.id,
+      queueKeys.delayed,
       queueKeys.completed,
       queueKeys.events,
     ];
@@ -198,6 +200,7 @@ export class Scripts {
       queueKeys.meta,
       queueKeys.id,
       queueKeys.completed,
+      queueKeys.delayed,
       queueKeys.active,
       queueKeys.events,
       queueKeys.marker,
@@ -419,7 +422,7 @@ export class Scripts {
     nextMillis: number,
     templateData: string,
     delayedJobOpts: JobsOptions,
-    // The job id of the job that produced this next iteration
+    // The job id of the job that produced this next iteration - TODO: remove in next breaking change
     producerId?: string,
   ): Promise<string | null> {
     const client = await this.queue.client;
@@ -1520,7 +1523,7 @@ export class Scripts {
    * @param jobId - Job id
    * @returns
    */
-  async moveJobFromActiveToWait(jobId: string, token: string) {
+  async moveJobFromActiveToWait(jobId: string, token = '0') {
     const client = await this.queue.client;
 
     const keys: (string | number)[] = [

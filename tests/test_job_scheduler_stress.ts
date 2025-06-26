@@ -4,7 +4,7 @@ import { default as IORedis } from 'ioredis';
 import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 
 import { v4 } from 'uuid';
-import { Queue, QueueEvents, Repeat, Worker } from '../src/classes';
+import { Job, Queue, QueueEvents, Repeat, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
 const ONE_SECOND = 1000;
@@ -214,5 +214,76 @@ describe('Job Scheduler Stress', function () {
 
     expect(completedJobs).to.be.eql(1);
     await queue.close();
+  });
+
+  describe("when using 'every' option and jobs are moved to active some time after delay", function () {
+    it('should repeat every 2 seconds and start immediately', async function () {
+      let iterationCount = 0;
+      const MINIMUM_DELAY_THRESHOLD_MS = 1850;
+      const worker = new Worker(
+        queueName,
+        async job => {
+          try {
+            if (iterationCount === 0) {
+              expect(job.opts.delay).to.be.eq(0);
+            } else {
+              expect(job.opts.delay).to.be.gte(MINIMUM_DELAY_THRESHOLD_MS);
+            }
+            iterationCount++;
+          } catch (err) {
+            console.log(err);
+            throw err;
+          }
+        },
+        { autorun: false, connection, prefix },
+      );
+
+      let prev: Job;
+      let counter = 0;
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async job => {
+          try {
+            if (prev) {
+              expect(prev.timestamp).to.be.lte(job.timestamp);
+              expect(job.processedOn! - prev.processedOn!).to.be.gte(
+                MINIMUM_DELAY_THRESHOLD_MS,
+              );
+            }
+            prev = job;
+            counter++;
+            if (counter === 5) {
+              resolve();
+            }
+          } catch (err) {
+            console.log(err);
+            reject(err);
+          }
+        });
+      });
+
+      await queue.upsertJobScheduler(
+        'repeat',
+        {
+          every: 2000,
+        },
+        { data: { foo: 'bar' } },
+      );
+
+      const waitingCountBefore = await queue.getWaitingCount();
+      expect(waitingCountBefore).to.be.eq(1);
+
+      worker.run();
+
+      await completing;
+
+      const waitingCount = await queue.getWaitingCount();
+      expect(waitingCount).to.be.eq(0);
+
+      const delayedCountAfter = await queue.getDelayedCount();
+      expect(delayedCountAfter).to.be.eq(1);
+
+      await worker.close();
+    });
   });
 });

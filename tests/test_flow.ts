@@ -4618,12 +4618,17 @@ describe('flows', () => {
       const queueEvents = new QueueEvents(topQueueName, { connection, prefix });
       await queueEvents.waitUntilReady();
 
-      const delayed = new Promise<void>(resolve => {
+      const delayed = new Promise<void>((resolve, reject) => {
         queueEvents.on('delayed', async ({ jobId, delay }) => {
-          const milliseconds = delay - Date.now();
-          expect(milliseconds).to.be.lessThanOrEqual(3000);
-          expect(milliseconds).to.be.greaterThan(2000);
-          resolve();
+          try {
+            const milliseconds = delay - Date.now();
+            expect(milliseconds).to.be.lessThanOrEqual(3000);
+            expect(milliseconds).to.be.greaterThan(2000);
+            resolve();
+          } catch (error) {
+            console.error(error);
+            reject(error);
+          }
         });
       });
 
@@ -4704,7 +4709,7 @@ describe('flows', () => {
       await flow.close();
 
       await removeAllQueueData(new IORedis(redisHost), topQueueName);
-    });
+    }).timeout(4500);
   });
 
   describe('when children have delay', () => {
