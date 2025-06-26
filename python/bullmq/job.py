@@ -198,7 +198,8 @@ class Job:
             results = await pipe.execute()
             code = results[1]
             
-            if isinstance(code, list) and code and isinstance(code[0], int) and code[0] < 0:
+            primaryCode = code[0] if isinstance(code, list) and code else None
+            if isinstance(primaryCode, int) and primaryCode < 0:
                 raise self.scripts.finishedErrors(code, self.id, command, 'active')
             elif isinstance(code, int) and code < 0:
                 raise self.scripts.finishedErrors(code, self.id, command, 'active')
