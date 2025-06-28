@@ -465,7 +465,6 @@ export class Worker<
 
   private async waitForRateLimit(): Promise<void> {
     const limitUntil = this.limitUntil;
-
     if (limitUntil > Date.now()) {
       this.abortDelayController?.abort();
       this.abortDelayController = new AbortController();

@@ -147,21 +147,17 @@ describe('Rate Limiter', function () {
 
     let completedCount = 0;
     const result = new Promise<void>((resolve, reject) => {
-      worker.on(
-        'completed',
-        // after every job has been completed
-        async job => {
-          try {
-            completedCount++;
-            expect(job.finishedOn! - job.processedOn!).to.be.lte(1000);
-            if (completedCount === numJobs) {
-              resolve();
-            }
-          } catch (err) {
-            reject(err);
+      worker.on('completed', async job => {
+        try {
+          completedCount++;
+          expect(job.finishedOn! - job.processedOn!).to.be.lte(1000);
+          if (completedCount === numJobs) {
+            resolve();
           }
-        },
-      );
+        } catch (err) {
+          reject(err);
+        }
+      });
 
       queueEvents.on('failed', async err => {
         await worker.close();
