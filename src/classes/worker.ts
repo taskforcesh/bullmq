@@ -561,7 +561,7 @@ export class Worker<
             this.opts.runRetryDelay,
           ),
         );
-      } else if (this.isRateLimited()) {
+      } else {
         await this.waitForRateLimit();
       }
     }
@@ -635,8 +635,9 @@ export class Worker<
         this.waiting = null;
       }
     } else {
-      await this.waitForRateLimit();
-      return this.moveToActive(client, token, this.opts.name);
+      if (!this.isRateLimited()) {
+        return this.moveToActive(client, token, this.opts.name);
+      }
     }
   }
 
