@@ -465,6 +465,7 @@ export class Worker<
 
   private async waitForRateLimit(): Promise<void> {
     const limitUntil = this.limitUntil;
+
     if (limitUntil > Date.now()) {
       this.abortDelayController?.abort();
       this.abortDelayController = new AbortController();
@@ -561,7 +562,8 @@ export class Worker<
             this.opts.runRetryDelay,
           ),
         );
-      } else {
+      } else if (asyncFifoQueue.numTotal() < 1) {
+        // only when there are no more jobs to be processed
         await this.waitForRateLimit();
       }
     }

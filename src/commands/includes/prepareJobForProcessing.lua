@@ -1,4 +1,3 @@
-
 --[[
   Function to move job from wait state to active.
   Input:
@@ -10,20 +9,31 @@
 -- Includes
 --- @include "addBaseMarkerIfNeeded"
 
-local function prepareJobForProcessing(keyPrefix, rateLimiterKey, eventStreamKey,
-    jobId, processedOn, maxJobs, markerKey, opts)
-  local jobKey = keyPrefix .. jobId
-
+local function getRateLimitDelay(rateLimiterKey, maxJobs, limiterOpts)
   -- Check if we need to perform rate limiting.
   if maxJobs then
     local jobCounter = tonumber(rcall("INCR", rateLimiterKey))
 
+    local limiterDuration = limiterOpts and limiterOpts['duration']
+    local integerDuration = math.floor(math.abs(limiterDuration))
+    
     if jobCounter == 1 then
-      local limiterDuration = opts['limiter'] and opts['limiter']['duration']
-      local integerDuration = math.floor(math.abs(limiterDuration))
       rcall("PEXPIRE", rateLimiterKey, integerDuration)
     end
+
+    if maxJobs <= jobCounter then
+      return integerDuration
+    end
   end
+
+  return 0
+end
+
+local function prepareJobForProcessing(keyPrefix, rateLimiterKey, eventStreamKey,
+    jobId, processedOn, maxJobs, markerKey, opts)
+  local jobKey = keyPrefix .. jobId
+
+  local rateLimitDelay = getRateLimitDelay(rateLimiterKey, maxJobs, opts['limiter'])
 
   local lockKey = jobKey .. ':lock'
 
@@ -46,5 +56,5 @@ local function prepareJobForProcessing(keyPrefix, rateLimiterKey, eventStreamKey
 
   addBaseMarkerIfNeeded(markerKey, false)
 
-  return {rcall("HGETALL", jobKey), jobId, 0, 0} -- get job data
+  return {rcall("HGETALL", jobKey), jobId, rateLimitDelay, 0} -- get job data
 end
