@@ -19,10 +19,22 @@ local function getRateLimitDelay(rateLimiterKey, maxJobs, limiterOpts)
     
     if jobCounter == 1 then
       rcall("PEXPIRE", rateLimiterKey, integerDuration)
+
+      if maxJobs == 1 then
+        return integerDuration
+      end
     end
 
     if maxJobs <= jobCounter then
-      return integerDuration
+      local pttl = rcall("PTTL", rateLimiterKey)
+
+      if pttl == 0 then
+        rcall("DEL", rateLimiterKey)
+      end
+
+      if pttl > 0 then
+        return pttl
+      end
     end
   end
 

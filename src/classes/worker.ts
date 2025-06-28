@@ -561,8 +561,7 @@ export class Worker<
             this.opts.runRetryDelay,
           ),
         );
-      } else if (asyncFifoQueue.numTotal() < 1) {
-        // only when there are no more jobs to be processed
+      } else {
         await this.waitForRateLimit();
       }
     }
