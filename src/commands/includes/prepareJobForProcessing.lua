@@ -16,7 +16,7 @@ local function prepareJobForProcessing(keyPrefix, rateLimiterKey, eventStreamKey
   -- Check if we need to perform rate limiting.
   if maxJobs then
     local jobCounter = tonumber(rcall("INCR", rateLimiterKey))
-    
+
     if jobCounter == 1 then
       local limiterDuration = opts['limiter'] and opts['limiter']['duration']
       local integerDuration = math.floor(math.abs(limiterDuration))
