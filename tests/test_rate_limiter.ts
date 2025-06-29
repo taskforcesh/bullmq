@@ -79,7 +79,7 @@ describe('Rate Limiter', function () {
   });
 
   it('should obey the rate limit', async function () {
-    this.timeout(20000);
+    this.timeout(15000);
 
     const numJobs = 10;
 
@@ -114,6 +114,57 @@ describe('Rate Limiter', function () {
     });
 
     const startTime = new Date().getTime();
+    const jobs = Array.from(Array(numJobs).keys()).map(() => ({
+      name: 'rate test',
+      data: {},
+    }));
+    await queue.addBulk(jobs);
+
+    await result;
+    await worker.close();
+  });
+
+  it('should respect processing time without adding limiter delay', async function () {
+    this.timeout(12000);
+
+    const numJobs = 40;
+
+    const worker = new Worker(
+      queueName,
+      async () => {
+        await delay(Math.floor(1 + Math.random() * 4));
+      },
+      {
+        connection,
+        prefix,
+        concurrency: 5,
+        limiter: {
+          max: 4,
+          duration: 1000,
+        },
+      },
+    );
+
+    let completedCount = 0;
+    const result = new Promise<void>((resolve, reject) => {
+      worker.on('completed', async job => {
+        try {
+          completedCount++;
+          expect(job.finishedOn! - job.processedOn!).to.be.lte(1000);
+          if (completedCount === numJobs) {
+            resolve();
+          }
+        } catch (err) {
+          reject(err);
+        }
+      });
+
+      queueEvents.on('failed', async err => {
+        await worker.close();
+        reject(err);
+      });
+    });
+
     const jobs = Array.from(Array(numJobs).keys()).map(() => ({
       name: 'rate test',
       data: {},
