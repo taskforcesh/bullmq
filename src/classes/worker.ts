@@ -561,7 +561,7 @@ export class Worker<
             this.opts.runRetryDelay,
           ),
         );
-      } else {
+      } else if (asyncFifoQueue.numQueued() < 1) {
         await this.waitForRateLimit();
       }
     }

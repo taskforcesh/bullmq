@@ -150,11 +150,6 @@ describe('Rate Limiter', function () {
       worker.on('completed', async job => {
         try {
           completedCount++;
-          console.log(
-            completedCount,
-            job.id,
-            job.finishedOn! - job.processedOn!,
-          );
           expect(job.finishedOn! - job.processedOn!).to.be.lte(1000);
           if (completedCount === numJobs) {
             resolve();
