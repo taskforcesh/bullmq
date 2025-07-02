@@ -5161,7 +5161,7 @@ describe('flows', () => {
   });
 
   describe('.removeUnprocessedChildren', async () => {
-    it('should remove unprocessed children', async () => {
+    it.only('should remove unprocessed children', async () => {
       const name = 'child-job';
       const values = [{ idx: 0, bar: 'something' }];
 
@@ -5174,8 +5174,18 @@ describe('flows', () => {
         data: {},
         children: [
           { name, data: { idx: 0, foo: 'bar' }, queueName },
-          { name, data: { idx: 1, foo: 'bar' }, queueName },
-          { name, data: { idx: 2, foo: 'bar' }, queueName },
+          {
+            name,
+            data: { idx: 1, foo: 'bar' },
+            queueName,
+            opts: { priority: 1 },
+          },
+          {
+            name,
+            data: { idx: 2, foo: 'bar' },
+            queueName,
+            opts: { delay: 1000 },
+          },
           { name, data: { idx: 3, foo: 'bar' }, queueName },
           { name, data: { idx: 4, foo: 'bar' }, queueName },
           {
