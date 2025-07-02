@@ -5161,7 +5161,7 @@ describe('flows', () => {
   });
 
   describe('.removeUnprocessedChildren', async () => {
-    it.only('should remove unprocessed children', async () => {
+    it('should remove unprocessed children', async () => {
       const name = 'child-job';
       const values = [{ idx: 0, bar: 'something' }];
 
