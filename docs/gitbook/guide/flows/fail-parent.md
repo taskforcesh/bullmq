@@ -57,10 +57,10 @@ const originalTree = await flow.add({
 ```
 
 {% hint style="info" %}
-As soon as a _child_ with this option fails, the parent job will be moved to the failed state. This option will be validated recursively, so a grandparent could be failed and so on.
+As soon as a _child_ with this option fails, the parent job will be marked as failed lazily — a worker must process the parent job before it transitions to the failed state with an _UnrecoverableError_ with the following message **child {childKey} failed**. Also, this option will be validated recursively, so a grandparent could be failed and so on.
 {% endhint %}
 
-How it Works
+### How it Works
 
 * If grandchild-job-1 fails, its parent (child-job-1) will fail because of failParentOnFailure: true. Since child-job-1 also has failParentOnFailure: true, the root job (root-job) will fail as well.
 * If grandchild-job-2 fails, its parent (child-job-1) will not fail because failParentOnFailure is not set on this grandchild.
