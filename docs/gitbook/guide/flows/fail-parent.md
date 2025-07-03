@@ -57,7 +57,7 @@ const originalTree = await flow.add({
 ```
 
 {% hint style="info" %}
-As soon as a _child_ with this option fails, the parent job will be marked as failed lazily — a worker must process the parent job before it transitions to the failed state with an _UnrecoverableError_ with the following message **child {childKey} failed**. Also, this option will be validated recursively, so a grandparent could be failed and so on.
+As soon as a _child_ with this option fails, the parent job will be marked as failed lazily. A worker must process the parent job before it transitions to the failed state. The failure will result in an _UnrecoverableError_ with the message **child {childKey} failed**. Additionally, this option will be validated recursively, meaning a grandparent or higher-level ancestor could also fail depending on the configuration.
 {% endhint %}
 
 ### How it Works
