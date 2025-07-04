@@ -1474,6 +1474,14 @@ export class Job<
       }
     }
 
+    if (this.opts.maxStartAttempts) {
+      if (this.opts.maxStartAttempts < (this.opts.attempts || 1)) {
+        throw new Error(
+          `MaxStartAttempts must be greater or equal than attempts option`,
+        );
+      }
+    }
+
     if (
       typeof this.opts.backoff === 'object' &&
       typeof this.opts.backoff.jitter === 'number'

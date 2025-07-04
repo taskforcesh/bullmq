@@ -27,6 +27,14 @@ export interface DefaultJobOptions {
   delay?: number;
 
   /**
+   * Defines the maximum number of times a job is allowed to start processing,
+   * regardless of whether it completes or fails. Each time a worker picks up the job
+   * and begins processing it, the attemptsStarted counter is incremented.
+   * If this counter reaches maxStartAttempts, the job will be moved to the failed state with an UnrecoverableError.
+   */
+  maxStartAttempts?: number;
+
+  /**
    * The total number of attempts to try the job until it completes.
    * @defaultValue 0
    */
