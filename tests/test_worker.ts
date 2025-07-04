@@ -3558,6 +3558,53 @@ describe('workers', function () {
 
           await worker.close();
         });
+
+        describe('when passing maxStartAttempts', () => {
+          it('should fail job when consuming the max start attempts', async function () {
+            const worker = new Worker(
+              queueName,
+              async (job, token) => {
+                await job.moveToDelayed(Date.now() + 200, token);
+                throw new DelayedError();
+              },
+              { connection, prefix },
+            );
+
+            await worker.waitUntilReady();
+
+            const start = Date.now();
+            await queue.add(
+              'test',
+              {},
+              {
+                maxStartAttempts: 2,
+              },
+            );
+
+            await new Promise<void>((resolve, reject) => {
+              worker.on('failed', job => {
+                try {
+                  const elapse = Date.now() - start;
+                  expect(elapse).to.be.greaterThan(200);
+                  expect(job!.failedReason).to.be.eql(
+                    'job started more than allowable limit',
+                  );
+                  expect(job!.attemptsMade).to.be.eql(1);
+                  expect(job!.attemptsStarted).to.be.eql(3);
+                  resolve();
+                } catch (error) {
+                  reject(error);
+                }
+              });
+
+              worker.on('error', () => {
+                reject();
+              });
+            });
+
+            await worker.close();
+          });
+        });
       });
 
       describe('when moving job to waiting in one step', () => {

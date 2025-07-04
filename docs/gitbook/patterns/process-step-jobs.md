@@ -358,6 +358,10 @@ const worker = new Worker(
 );
 ```
 
+{% hint style="info" %}
+Manually moving jobs using special errors does **not** increment the attemptsMade property, but it does increase the attemptsStarted count. To control how many times a job is allowed to start processing, use the **maxStartAttempts** option.
+{% endhint %}
+
 ## Read more:
 
 - 💡 [Move To Delayed API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#moveToDelayed)
