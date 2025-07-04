@@ -1475,7 +1475,7 @@ export class Job<
     }
 
     if (this.opts.maxStartAttempts) {
-      if (this.opts.maxStartAttempts < (this.opts.attempts || 1)) {
+      if (this.opts.maxStartAttempts < (this.opts.attempts || 0)) {
         throw new Error(
           `MaxStartAttempts must be greater or equal than attempts option`,
         );
