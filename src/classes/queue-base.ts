@@ -1,7 +1,9 @@
 import { EventEmitter } from 'events';
-import { QueueBaseOptions, RedisClient, Span, Tracer } from '../interfaces';
+import { QueueBaseOptions, RedisClient, Span } from '../interfaces';
 import { MinimalQueue } from '../types';
+
 import {
+  createScripts,
   delay,
   DELAY_TIME_5,
   isNotConnectionError,
@@ -15,10 +17,7 @@ import { Scripts } from './scripts';
 import { SpanKind } from '../enums';
 
 /**
- * @class QueueBase
- * @extends EventEmitter
- *
- * @description Base class for all classes that need to interact with queues.
+ * Base class for all classes that need to interact with queues.
  * This class is normally not used directly, but extended by the other classes.
  *
  */
@@ -27,8 +26,8 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
   keys: KeysMap;
   closing: Promise<void> | undefined;
 
-  protected closed: boolean = false;
-  protected hasBlockingConnection: boolean = false;
+  protected closed = false;
+  protected hasBlockingConnection = false;
   protected scripts: Scripts;
   protected connection: RedisConnection;
   public readonly qualifiedName: string;
@@ -62,12 +61,12 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
       throw new Error('Queue name cannot contain :');
     }
 
-    this.connection = new Connection(
-      opts.connection,
-      isRedisInstance(opts.connection),
-      hasBlockingConnection,
-      opts.skipVersionCheck,
-    );
+    this.connection = new Connection(opts.connection, {
+      shared: isRedisInstance(opts.connection),
+      blocking: hasBlockingConnection,
+      skipVersionCheck: opts.skipVersionCheck,
+      skipWaitingForReady: opts.skipWaitingForReady,
+    });
 
     this.connection.on('error', (error: Error) => this.emit('error', error));
     this.connection.on('close', () => {
@@ -80,7 +79,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     this.qualifiedName = queueKeys.getQueueQualifiedName(name);
     this.keys = queueKeys.getKeys(name);
     this.toKey = (type: string) => queueKeys.toKey(name, type);
-    this.setScripts();
+    this.createScripts();
   }
 
   /**
@@ -90,8 +89,8 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     return this.connection.client;
   }
 
-  protected setScripts() {
-    this.scripts = new Scripts(this);
+  protected createScripts() {
+    this.scripts = createScripts(this);
   }
 
   /**

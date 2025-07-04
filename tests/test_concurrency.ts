@@ -105,6 +105,74 @@ describe('Concurrency', () => {
     await queue.close();
   }).timeout(16000);
 
+  it('should run max concurrency for jobs added', async () => {
+    const queue = new Queue(queueName, { connection, prefix });
+    const numJobs = 16;
+    const jobsData: { name: string; data: any }[] = [];
+    for (let j = 0; j < numJobs; j++) {
+      jobsData.push({
+        name: 'test',
+        data: { foo: `bar${j}` },
+      });
+    }
+
+    await queue.addBulk(jobsData);
+    await queue.setGlobalConcurrency(1);
+    await queue.removeGlobalConcurrency();
+    const bar = new ProgressBar(':bar', { total: numJobs });
+
+    let count = 0;
+    let parallelJobs = 0;
+    let lastJobId = 0;
+    let worker: Worker;
+    const processing = new Promise<void>((resolve, reject) => {
+      worker = new Worker(
+        queueName,
+        async job => {
+          try {
+            // Check order is correct
+            expect(job.id).to.be.eq(`${++lastJobId}`);
+            count++;
+            parallelJobs++;
+            await delay(100);
+            expect(parallelJobs).to.be.eql(2);
+            await delay(100);
+            bar.tick();
+            parallelJobs--;
+            if (count == numJobs) {
+              resolve();
+            }
+          } catch (err) {
+            console.log(err);
+            reject(err);
+            throw err;
+          }
+        },
+        {
+          autorun: false,
+          concurrency: 2,
+          drainDelay: 10, // If test hangs, 10 seconds here helps to fail quicker.
+          connection,
+          prefix,
+        },
+      );
+      worker.on('error', err => {
+        console.error(err);
+      });
+    });
+    await worker.waitUntilReady();
+
+    worker.run();
+
+    await processing;
+
+    const globalConcurrency = await queue.getGlobalConcurrency();
+    expect(globalConcurrency).to.be.null;
+
+    await worker.close();
+    await queue.close();
+  }).timeout(4000);
+
   it('emits drained global event only once when worker is idle', async function () {
     const queue = new Queue(queueName, { connection, prefix });
     const worker = new Worker(
@@ -142,6 +210,7 @@ describe('Concurrency', () => {
 
     await worker.close();
     await queue.close();
+    await queueEvents.close();
   }).timeout(6000);
 
   describe('when global dynamic limit is used', () => {
@@ -190,8 +259,6 @@ describe('Concurrency', () => {
           'completed',
           // after every job has been completed
           after(numJobs, async () => {
-            await worker.close();
-
             try {
               const timeDiff = new Date().getTime() - startTime;
               expect(timeDiff).to.be.gte(
@@ -274,8 +341,6 @@ describe('Concurrency', () => {
             'completed',
             // after every job has been completed
             after(numJobs, async () => {
-              await worker.close();
-
               try {
                 const timeDiff = new Date().getTime() - startTime;
                 expect(timeDiff).to.be.gte(numJobs * dynamicLimit);

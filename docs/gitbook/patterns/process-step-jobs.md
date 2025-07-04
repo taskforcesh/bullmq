@@ -357,3 +357,8 @@ const worker = new Worker(
   { connection },
 );
 ```
+
+## Read more:
+
+- 💡 [Move To Delayed API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#moveToDelayed)
+- 💡 [Move To Waiting Children API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#moveToWaitingChildren)

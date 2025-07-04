@@ -1,4 +1,3 @@
-
 --[[
   Function to move job from wait state to active.
   Input:
@@ -46,5 +45,7 @@ local function prepareJobForProcessing(keyPrefix, rateLimiterKey, eventStreamKey
 
   addBaseMarkerIfNeeded(markerKey, false)
 
+  -- rate limit delay must be 0 in this case to prevent adding more delay
+  -- when job that is moved to active needs to be processed
   return {rcall("HGETALL", jobKey), jobId, 0, 0} -- get job data
 end

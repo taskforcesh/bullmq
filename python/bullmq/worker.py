@@ -1,6 +1,6 @@
 from typing import Callable
 from uuid import uuid4
-from bullmq.custom_errors import WaitingChildrenError
+from bullmq.custom_errors import UnrecoverableError, WaitingChildrenError
 from bullmq.scripts import Scripts
 from bullmq.redis_connection import RedisConnection
 from bullmq.event_emitter import EventEmitter
@@ -55,8 +55,9 @@ class Worker(EventEmitter):
         self.drained = False
         self.qualifiedName = self.scripts.queue_keys.getQueueQualifiedName(name)
 
-        if opts.get("autorun", True):
-            asyncio.ensure_future(self.run())
+        if processor:
+            if opts.get("autorun", True):
+                asyncio.ensure_future(self.run())
 
     async def run(self):
         if self.running:
@@ -144,7 +145,7 @@ class Worker(EventEmitter):
                 self.blockUntil = 0
 
         if delay_until:
-            self.blockUntil = max(delay_until, 0) or 0
+            self.blockUntil = max(int(delay_until), 0) or 0
 
         if job_data:
             self.drained = False
@@ -188,12 +189,17 @@ class Worker(EventEmitter):
 
     async def processJob(self, job: Job, token: str):
         try:
+            if job.deferredFailure:
+                await job.moveToFailed(UnrecoverableError(job.deferredFailure), token)
+                self.emit("failed", job, UnrecoverableError(job.deferredFailure))
+                return
+
             self.jobs.add((job, token))
             result = await self.processor(job, token)
             if not self.forceClosing:
                 # Currently we do not support pre-fetching jobs as in NodeJS version.
-                # nextJob = await self.scripts.moveToCompleted(job, result, job.opts.get("removeOnComplete", False), token, self.opts, fetchNext=not self.closing)
-                await self.scripts.moveToCompleted(job, result, job.opts.get("removeOnComplete", False), token, self.opts, fetchNext=False)
+                # nextJob = await self.scripts.moveToCompleted(job, result, job.opts.get("removeOnComplete", False), token, fetchNext=not self.closing)
+                await self.scripts.moveToCompleted(job, result, job.opts.get("removeOnComplete", False), token, fetchNext=False)
                 job.returnvalue = result
                 job.attemptsMade = job.attemptsMade + 1
             self.emit("completed", job, result)
@@ -228,10 +234,7 @@ class Worker(EventEmitter):
 
     async def runStalledJobsCheck(self):
         try:
-            failed, stalled = await self.scripts.moveStalledJobsToWait(self.opts.get("maxStalledCount"), self.opts.get("stalledInterval"))
-            for jobId in failed:
-                self.emit("failed", jobId,
-                          "job stalled more than allowable limit")
+            stalled = await self.scripts.moveStalledJobsToWait(self.opts.get("maxStalledCount"), self.opts.get("stalledInterval"))
             for jobId in stalled:
                 self.emit("stalled", jobId)
 

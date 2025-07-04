@@ -1,29 +1,51 @@
-import { JobsOptions, JobJsonSandbox } from '../types';
+import { JobsOptions, JobJsonSandbox, JobProgress } from '../types';
 import { JobJson } from './job-json';
 import { ParentKeys } from './parent';
+import { ParentOptions } from './parent-options';
 
 export type BulkJobOptions = Omit<JobsOptions, 'repeat'>;
 
 export interface MoveToDelayedOpts {
   skipAttempt?: boolean;
+  fieldsToUpdate?: Record<string, any>;
+}
+
+export interface RetryJobOpts {
+  fieldsToUpdate?: Record<string, any>;
 }
 
 export interface MoveToWaitingChildrenOpts {
-  child?: {
-    id: string;
-    queue: string;
-  };
+  child?: ParentOptions;
+}
+
+export interface DependencyOpts {
+  /**
+   * Cursor value to be passed for pagination
+   */
+  cursor?: number;
+  /**
+   * Max quantity of jobs to be retrieved
+   */
+  count?: number;
 }
 
 export interface DependenciesOpts {
-  processed?: {
-    cursor?: number;
-    count?: number;
-  };
-  unprocessed?: {
-    cursor?: number;
-    count?: number;
-  };
+  /**
+   * Options for failed child pagination
+   */
+  failed?: DependencyOpts;
+  /**
+   * Options for ignored child pagination
+   */
+  ignored?: DependencyOpts;
+  /**
+   * Options for processed child pagination
+   */
+  processed?: DependencyOpts;
+  /**
+   * Options for unprocessed child pagination
+   */
+  unprocessed?: DependencyOpts;
 }
 
 /**
@@ -51,7 +73,7 @@ export interface MinimalJob<
    * The progress a job has performed so far.
    * @defaultValue 0
    */
-  progress: number | object;
+  progress: JobProgress;
   /**
    * The value returned by the processor when processing this job.
    * @defaultValue null
@@ -121,7 +143,7 @@ export interface MinimalJob<
    *
    * @param progress - number or object to be saved as progress.
    */
-  updateProgress(progress: number | object): Promise<void>;
+  updateProgress(progress: JobProgress): Promise<void>;
   /**
    * Logs one row of log data.
    *

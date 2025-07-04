@@ -1,4 +1,7 @@
-import { RepeatOptions, KeepJobs, BackoffOptions } from './';
+import { BackoffOptions } from './backoff-options';
+import { KeepJobs } from './keep-jobs';
+import { ParentOptions } from './parent-options';
+import { RepeatOptions } from './repeat-options';
 
 export interface DefaultJobOptions {
   /**
@@ -96,25 +99,12 @@ export interface BaseJobOptions extends DefaultJobOptions {
   jobId?: string;
 
   /**
-   *
+   * Parent options
    */
-  parent?: {
-    id: string;
-
-    /**
-     * It includes the prefix, the namespace separator :, and queue name.
-     * @see https://www.gnu.org/software/gawk/manual/html_node/Qualified-Names.html
-     */
-    queue: string;
-  };
+  parent?: ParentOptions;
 
   /**
    * Internal property used by repeatable jobs.
    */
   prevMillis?: number;
-
-  /**
-   * TelemetryMetadata, provide for context propagation.
-   */
-  telemetryMetadata?: string;
 }

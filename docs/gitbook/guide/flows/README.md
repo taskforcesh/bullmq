@@ -206,7 +206,70 @@ const dependencies = await job.getDependencies();
 
 it will return all the **direct** **dependencies** (i.e. the children of a given job).
 
-The `Job` class also provides another method that we presented above to get all the values produced by the children of a given job:
+Or if you want to get specific types of children:
+
+```typescript
+// cursors are used in pagination
+const { processed, nextProcessedCursor } = await job.getDependencies({
+  processed: {
+    count: 5,
+    cursor: 0,
+  },
+});
+
+const { unprocessed, nextUnprocessedCursor } = await job.getDependencies({
+  unprocessed: {
+    count: 5,
+    cursor: 0,
+  },
+});
+
+const { failed, nextFailedCursor } = await job.getDependencies({
+  failed: {
+    count: 5,
+    cursor: 0,
+  },
+});
+
+const { ignored, nextIgnoredCursor } = await job.getDependencies({
+  ignored: {
+    count: 5,
+    cursor: 0,
+  },
+});
+```
+
+The `Job` class also provides some other methods that we presented above
+
+## Get Dependencies Count
+
+To get all the different counts of children by type:
+
+```typescript
+const { failed, ignored, processed, unprocessed } =
+  await job.getDependenciesCount();
+```
+
+Or if you want to be specific:
+
+```typescript
+const { failed } = await job.getDependenciesCount({
+  failed: true,
+});
+
+const { ignored, processed } = await job.getDependenciesCount({
+  ignored: true,
+  processed: true,
+});
+
+const { unprocessed } = await job.getDependenciesCount({
+  unprocessed: true,
+});
+```
+
+## Get Children Values
+
+To get all the values produced by the children of a given job:
 
 ```typescript
 const values = await job.getChildrenValues();
@@ -283,3 +346,6 @@ await queue.remove(job.id);
 - 📋 [Divide large jobs using flows](https://blog.taskforce.sh/splitting-heavy-jobs-using-bullmq-flows/)
 - 💡 [FlowProducer API Reference](https://api.docs.bullmq.io/classes/v5.FlowProducer.html)
 - 💡 [Job API Reference](https://api.docs.bullmq.io/classes/v5.Job.html)
+- 💡 [Get Children Values API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#getChildrenValues)
+- 💡 [Get Dependencies API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#getDependencies)
+- 💡 [Get Dependencies Count API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#getDependenciesCount)

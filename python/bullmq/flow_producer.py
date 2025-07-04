@@ -29,6 +29,7 @@ class FlowProducer:
     Instantiate a FlowProducer object
     """
 
+    #TODO: pass only queueOpts, no need 2 parameters in next breaking change
     def __init__(self, redisOpts: dict | str = {}, opts: QueueBaseOptions = {}):
         """
         Initialize a connection
@@ -134,8 +135,8 @@ class FlowProducer:
 
         return result
 
-    def close(self):
+    async def close(self):
         """
         Close the flow instance.
         """
-        return self.redisConnection.close()
+        return await self.redisConnection.close()

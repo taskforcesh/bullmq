@@ -1,6 +1,6 @@
 import { ParentCommand } from '../enums';
-import { SandboxedJob } from '../interfaces';
-import { JobJsonSandbox } from '../types';
+import { SandboxedJob, Receiver } from '../interfaces';
+import { JobJsonSandbox, JobProgress } from '../types';
 import { errorToJSON } from '../utils';
 
 enum ChildStatus {
@@ -9,6 +9,8 @@ enum ChildStatus {
   Terminating,
   Errored,
 }
+
+const RESPONSE_TIMEOUT = process.env.NODE_ENV === 'test' ? 500 : 5_000;
 
 /**
  * ChildProcessor
@@ -22,7 +24,10 @@ export class ChildProcessor {
   public processor: any;
   public currentJobPromise: Promise<unknown> | undefined;
 
-  constructor(private send: (msg: any) => Promise<void>) {}
+  constructor(
+    private send: (msg: any) => Promise<void>,
+    private receiver: Receiver,
+  ) {}
 
   public async init(processorFile: string): Promise<void> {
     let processor;
@@ -120,9 +125,9 @@ export class ChildProcessor {
       opts: job.opts,
       returnValue: JSON.parse(job.returnvalue || '{}'),
       /*
-       * Emulate the real job `updateProgress` function, should works as `progress` function.
+       * Proxy `updateProgress` function, should works as `progress` function.
        */
-      async updateProgress(progress: number | object) {
+      async updateProgress(progress: JobProgress) {
         // Locally store reference to new progress value
         // so that we can return it from this process synchronously.
         this.progress = progress;
@@ -133,7 +138,7 @@ export class ChildProcessor {
         });
       },
       /*
-       * Emulate the real job `log` function.
+       * Proxy job `log` function.
        */
       log: async (row: any) => {
         await send({
@@ -142,7 +147,7 @@ export class ChildProcessor {
         });
       },
       /*
-       * Emulate the real job `moveToDelayed` function.
+       * Proxy `moveToDelayed` function.
        */
       moveToDelayed: async (timestamp: number, token?: string) => {
         await send({
@@ -151,7 +156,16 @@ export class ChildProcessor {
         });
       },
       /*
-       * Emulate the real job `updateData` function.
+       * Proxy `moveToWait` function.
+       */
+      moveToWait: async (token?: string) => {
+        await send({
+          cmd: ParentCommand.MoveToWait,
+          value: { token },
+        });
+      },
+      /*
+       * Proxy `updateData` function.
        */
       updateData: async (data: any) => {
         await send({
@@ -160,8 +174,73 @@ export class ChildProcessor {
         });
         wrappedJob.data = data;
       },
+
+      /**
+       * Proxy `getChildrenValues` function.
+       */
+      getChildrenValues: async () => {
+        const requestId = Math.random().toString(36).substring(2, 15);
+        await send({
+          requestId,
+          cmd: ParentCommand.GetChildrenValues,
+        });
+
+        return waitResponse(
+          requestId,
+          this.receiver,
+          RESPONSE_TIMEOUT,
+          'getChildrenValues',
+        );
+      },
+
+      /**
+       * Proxy `getIgnoredChildrenFailures` function.
+       *
+       * This method sends a request to retrieve the failures of ignored children
+       * and waits for a response from the parent process.
+       *
+       * @returns - A promise that resolves with the ignored children failures.
+       * The exact structure of the returned data depends on the parent process implementation.
+       */
+      getIgnoredChildrenFailures: async () => {
+        const requestId = Math.random().toString(36).substring(2, 15);
+        await send({
+          requestId,
+          cmd: ParentCommand.GetIgnoredChildrenFailures,
+        });
+
+        return waitResponse(
+          requestId,
+          this.receiver,
+          RESPONSE_TIMEOUT,
+          'getIgnoredChildrenFailures',
+        );
+      },
     };
 
     return wrappedJob;
   }
 }
+
+const waitResponse = async (
+  requestId: string,
+  receiver: Receiver,
+  timeout: number,
+  cmd: string,
+) => {
+  return new Promise((resolve, reject) => {
+    const listener = (msg: { requestId: string; value: any }) => {
+      if (msg.requestId === requestId) {
+        resolve(msg.value);
+        receiver.off('message', listener);
+      }
+    };
+    receiver.on('message', listener);
+
+    setTimeout(() => {
+      receiver.off('message', listener);
+
+      reject(new Error(`TimeoutError: ${cmd} timed out in (${timeout}ms)`));
+    }, timeout);
+  });
+};

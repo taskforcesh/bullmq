@@ -1,4 +1,4 @@
-import { QueueBaseOptions } from '../interfaces';
+import { QueueEventsProducerOptions } from '../interfaces';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
 
@@ -8,7 +8,7 @@ import { RedisConnection } from './redis-connection';
 export class QueueEventsProducer extends QueueBase {
   constructor(
     name: string,
-    opts: QueueBaseOptions = {
+    opts: QueueEventsProducerOptions = {
       connection: {},
     },
     Connection?: typeof RedisConnection,

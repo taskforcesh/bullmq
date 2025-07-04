@@ -1,6 +1,6 @@
 
 --[[
-  Removes a repeatable job
+  Removes a job scheduler and its next scheduled job.
   Input:
     KEYS[1] job schedulers key
     KEYS[2] delayed jobs key

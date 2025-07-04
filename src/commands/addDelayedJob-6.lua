@@ -26,7 +26,7 @@
             [8]  parent? {id, queueKey}
             [9]  repeat job key
             [10] deduplication key
-            
+
       ARGV[2] Json stringified job data
       ARGV[3] msgpacked options
 
@@ -56,9 +56,8 @@ local deduplicationKey = args[10]
 local parentData
 
 -- Includes
---- @include "includes/addDelayMarkerIfNeeded"
+--- @include "includes/addDelayedJob"
 --- @include "includes/deduplicateJob"
---- @include "includes/getDelayedScore"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/handleDuplicatedJob"
 --- @include "includes/storeJob"
@@ -90,26 +89,16 @@ else
     end
 end
 
-local deduplicationJobId = deduplicateJob(args[1], opts['de'],
-  jobId, deduplicationKey, eventsKey, maxEvents)
+local deduplicationJobId = deduplicateJob(opts['de'], jobId, delayedKey, deduplicationKey,
+  eventsKey, maxEvents, args[1])
 if deduplicationJobId then
   return deduplicationJobId
 end
 
--- Store the job.
 local delay, priority = storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2],
-                                 opts, timestamp, parentKey, parentData,
-                                 repeatJobKey)
+    opts, timestamp, parentKey, parentData, repeatJobKey)
 
-local score, delayedTimestamp = getDelayedScore(delayedKey, timestamp, tonumber(delay))
-
-rcall("ZADD", delayedKey, score, jobId)
-rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "delayed",
-      "jobId", jobId, "delay", delayedTimestamp)
-
--- mark that a delayed job is available
-local markerKey = KEYS[1]
-addDelayMarkerIfNeeded(markerKey, delayedKey)
+addDelayedJob(jobId, delayedKey, eventsKey, timestamp, maxEvents, KEYS[1], delay)
 
 -- Check if this job is a child of another job, if so add it to the parents dependencies
 if parentDependenciesKey ~= nil then

@@ -8,7 +8,7 @@ class Node<T> {
 }
 
 class LinkedList<T> {
-  length: number = 0;
+  length = 0;
   private head: Node<T> | null;
   private tail: Node<T> | null;
 

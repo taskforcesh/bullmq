@@ -3,11 +3,18 @@ import {
   BaseJobOptions,
   BulkJobOptions,
   IoredisListener,
+  JobSchedulerJson,
   QueueOptions,
   RepeatableJob,
   RepeatOptions,
 } from '../interfaces';
-import { FinishedStatus, JobsOptions, MinimalQueue } from '../types';
+import {
+  FinishedStatus,
+  JobsOptions,
+  JobSchedulerTemplateOptions,
+  MinimalQueue,
+  JobProgress,
+} from '../types';
 import { Job } from './job';
 import { QueueGetters } from './queue-getters';
 import { Repeat } from './repeat';
@@ -118,9 +125,9 @@ type ExtractNameType<
  * This class provides methods to add jobs to a queue and some other high-level
  * administration such as pausing or deleting queues.
  *
- * @template DataType - The type of the data that the job will process.
- * @template ResultType - The type of the result of the job.
- * @template NameType - The type of the name of the job.
+ * @typeParam DataType - The type of the data that the job will process.
+ * @typeParam ResultType - The type of the result of the job.
+ * @typeParam NameType - The type of the name of the job.
  *
  * @example
  *
@@ -152,7 +159,7 @@ export class Queue<
 
   protected libName = 'bullmq';
 
-  private _repeat?: Repeat; // To be deprecated in v6 in favor of JobScheduler
+  protected _repeat?: Repeat; // To be deprecated in v6 in favor of JobScheduler
   protected _jobScheduler?: JobScheduler;
 
   constructor(
@@ -291,6 +298,14 @@ export class Queue<
   }
 
   /**
+   * Remove global concurrency value.
+   */
+  async removeGlobalConcurrency() {
+    const client = await this.client;
+    return client.hdel(this.keys.meta, 'concurrency');
+  }
+
+  /**
    * Adds a new job to the queue.
    *
    * @param name - Name of the job to be added to the queue.
@@ -307,8 +322,11 @@ export class Queue<
       'add',
       `${this.name}.${name}`,
       async (span, srcPropagationMedatada) => {
-        if (srcPropagationMedatada) {
-          opts = { ...opts, telemetryMetadata: srcPropagationMedatada };
+        if (srcPropagationMedatada && !opts?.telemetry?.omitContext) {
+          const telemetry = {
+            metadata: srcPropagationMedatada,
+          };
+          opts = { ...opts, telemetry };
         }
 
         const job = await this.addJob(name, data, opts);
@@ -327,9 +345,9 @@ export class Queue<
    * addJob is a telemetry free version of the add method, useful in order to wrap it
    * with custom telemetry on subclasses.
    *
-   * @param name
-   * @param data
-   * @param opts
+   * @param name - Name of the job to be added to the queue.
+   * @param data - Arbitrary data to append to the job.
+   * @param opts - Job options that affects how the job is going to be processed.
    *
    * @returns Job
    */
@@ -397,16 +415,33 @@ export class Queue<
 
         return await this.Job.createBulk<DataType, ResultType, NameType>(
           this as MinimalQueue,
-          jobs.map(job => ({
-            name: job.name,
-            data: job.data,
-            opts: {
-              ...this.jobsOpts,
-              ...job.opts,
-              jobId: job.opts?.jobId,
-              tm: span && srcPropagationMedatada,
-            },
-          })),
+          jobs.map(job => {
+            let telemetry = job.opts?.telemetry;
+            if (srcPropagationMedatada) {
+              const omitContext = job.opts?.telemetry?.omitContext;
+              const telemetryMetadata =
+                job.opts?.telemetry?.metadata ||
+                (!omitContext && srcPropagationMedatada);
+
+              if (telemetryMetadata || omitContext) {
+                telemetry = {
+                  metadata: telemetryMetadata,
+                  omitContext,
+                };
+              }
+            }
+
+            return {
+              name: job.name,
+              data: job.data,
+              opts: {
+                ...this.jobsOpts,
+                ...job.opts,
+                jobId: job.opts?.jobId,
+                telemetry,
+              },
+            };
+          }),
         );
       },
     );
@@ -432,7 +467,7 @@ export class Queue<
     jobTemplate?: {
       name?: NameType;
       data?: DataType;
-      opts?: Omit<JobsOptions, 'jobId' | 'repeat' | 'delay'>;
+      opts?: JobSchedulerTemplateOptions;
     },
   ) {
     if (repeatOpts.endDate) {
@@ -550,7 +585,6 @@ export class Queue<
   /**
    * Get all repeatable meta jobs.
    *
-   *
    * @deprecated This method is deprecated and will be removed in v6. Use getJobSchedulers instead.
    *
    * @param start - Offset of first job to return.
@@ -571,8 +605,8 @@ export class Queue<
    *
    * @param id - identifier of scheduler.
    */
-  async getJobScheduler(id: string): Promise<RepeatableJob> {
-    return (await this.jobScheduler).getJobScheduler(id);
+  async getJobScheduler(id: string): Promise<JobSchedulerJson<DataType>> {
+    return (await this.jobScheduler).getScheduler<DataType>(id);
   }
 
   /**
@@ -587,8 +621,22 @@ export class Queue<
     start?: number,
     end?: number,
     asc?: boolean,
-  ): Promise<RepeatableJob[]> {
-    return (await this.jobScheduler).getJobSchedulers(start, end, asc);
+  ): Promise<JobSchedulerJson<DataType>[]> {
+    return (await this.jobScheduler).getJobSchedulers<DataType>(
+      start,
+      end,
+      asc,
+    );
+  }
+
+  /**
+   *
+   * Get the number of job schedulers.
+   *
+   * @returns The number of job schedulers.
+   */
+  async getJobSchedulersCount(): Promise<number> {
+    return (await this.jobScheduler).getSchedulersCount();
   }
 
   /**
@@ -602,8 +650,8 @@ export class Queue<
    * @see removeRepeatableByKey
    *
    * @param name - Job name
-   * @param repeatOpts -
-   * @param jobId -
+   * @param repeatOpts - Repeat options
+   * @param jobId - Job id to remove. If not provided, all jobs with the same repeatOpts
    * @returns
    */
   async removeRepeatable(
@@ -633,7 +681,7 @@ export class Queue<
    *
    * Removes a job scheduler.
    *
-   * @param jobSchedulerId
+   * @param jobSchedulerId - identifier of the job scheduler.
    *
    * @returns
    */
@@ -648,7 +696,7 @@ export class Queue<
    * Removes a debounce key.
    * @deprecated use removeDeduplicationKey
    *
-   * @param id - identifier
+   * @param id - debounce identifier
    */
   async removeDebounceKey(id: string): Promise<number> {
     return this.trace<number>(
@@ -760,10 +808,7 @@ export class Queue<
    * @param jobId - The id of the job to update
    * @param progress - Number or object to be saved as progress.
    */
-  async updateJobProgress(
-    jobId: string,
-    progress: number | object,
-  ): Promise<void> {
+  async updateJobProgress(jobId: string, progress: JobProgress): Promise<void> {
     await this.trace<void>(
       SpanKind.INTERNAL,
       'updateJobProgress',
@@ -913,7 +958,7 @@ export class Queue<
   /**
    * Retry all the failed or completed jobs.
    *
-   * @param opts: { count: number; state: FinishedStatus; timestamp: number}
+   * @param opts - An object with the following properties:
    *   - count  number to limit how many jobs will be moved to wait status per iteration,
    *   - state  failed by default or completed.
    *   - timestamp from which timestamp to start moving jobs to wait status, default Date.now().
@@ -947,7 +992,7 @@ export class Queue<
   /**
    * Promote all the delayed jobs.
    *
-   * @param opts: { count: number }
+   * @param opts - An object with the following properties:
    *   - count  number to limit how many jobs will be moved to wait status per iteration
    *
    * @returns

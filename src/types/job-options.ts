@@ -1,21 +1,33 @@
-import { BaseJobOptions, DebounceOptions } from '../interfaces';
+import { BaseJobOptions } from '../interfaces';
+import { DeduplicationOptions } from '../types';
 
-export type JobsOptions = BaseJobOptions & {
+/**
+ * These options will be stored in Redis with smaller
+ * keys for compactness.
+ */
+export type CompressableJobOptions = {
   /**
    * Debounce options.
    * @deprecated use deduplication option
    */
-  debounce?: DebounceOptions;
+  debounce?: DeduplicationOptions;
 
   /**
    * Deduplication options.
    */
-  deduplication?: DebounceOptions;
+  deduplication?: DeduplicationOptions;
 
   /**
-   * If true, moves parent to failed.
+   * If true, moves parent to failed if any of its children fail.
    */
   failParentOnFailure?: boolean;
+
+  /**
+   * If true, starts processing parent job as soon as any
+   * of its children fail.
+   *
+   */
+  continueParentOnFailure?: boolean;
 
   /**
    * If true, moves the jobId from its parent dependencies to failed dependencies when it fails after all attempts.
@@ -26,7 +38,25 @@ export type JobsOptions = BaseJobOptions & {
    * If true, removes the job from its parent dependencies when it fails after all attempts.
    */
   removeDependencyOnFailure?: boolean;
+
+  /**
+   * Telemetry options
+   */
+  telemetry?: {
+    /**
+     * Metadata, used for context propagation.
+     */
+    metadata?: string;
+
+    /**
+     * If `true` telemetry will omit the context propagation
+     * @defaultValue false
+     */
+    omitContext?: boolean;
+  };
 };
+
+export type JobsOptions = BaseJobOptions & CompressableJobOptions;
 
 /**
  * These fields are the ones stored in Redis with smaller keys for compactness.
@@ -41,6 +71,12 @@ export type RedisJobOptions = BaseJobOptions & {
    * If true, moves parent to failed.
    */
   fpof?: boolean;
+
+  /**
+   * If true, starts processing parent job as soon as any
+   * of its children fail.
+   */
+  cpof?: boolean;
 
   /**
    * If true, moves the jobId from its parent dependencies to failed dependencies when it fails after all attempts.
@@ -61,4 +97,14 @@ export type RedisJobOptions = BaseJobOptions & {
    * TelemetryMetadata, provide for context propagation.
    */
   tm?: string;
+
+  /**
+   * Omit Context Propagation
+   */
+  omc?: boolean;
+
+  /**
+   * Deduplication options.
+   */
+  de?: DeduplicationOptions;
 };

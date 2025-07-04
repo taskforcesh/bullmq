@@ -36,7 +36,7 @@ export class Child extends EventEmitter {
 
   private _exitCode: number = null;
   private _signalCode: number = null;
-  private _killed: boolean = false;
+  private _killed = false;
 
   constructor(
     private mainFile: string,
@@ -52,7 +52,9 @@ export class Child extends EventEmitter {
     if (this.childProcess) {
       return this.childProcess.pid;
     } else if (this.worker) {
-      return this.worker.threadId;
+      // Worker threads pids can become negative when they are terminated
+      // so we need to use the absolute value to index the retained object
+      return Math.abs(this.worker.threadId);
     } else {
       throw new Error('No child process or worker thread');
     }

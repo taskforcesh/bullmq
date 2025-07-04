@@ -33,6 +33,7 @@
     opts - token - lock token
     opts - lockDuration
     opts - limiter
+    opts - name - worker name
 ]]
 local rcall = redis.call
 local waitKey = KEYS[1]
@@ -46,7 +47,7 @@ local opts = cmsgpack.unpack(ARGV[3])
 --- @include "includes/getNextDelayedTimestamp"
 --- @include "includes/getRateLimitTTL"
 --- @include "includes/getTargetQueueList"
---- @include "includes/moveJobFromPriorityToActive"
+--- @include "includes/moveJobFromPrioritizedToActive"
 --- @include "includes/prepareJobForProcessing"
 --- @include "includes/promoteDelayedJobs"
 
@@ -79,7 +80,7 @@ if jobId then
     return prepareJobForProcessing(ARGV[1], rateLimiterKey, eventStreamKey, jobId, ARGV[2],
                                    maxJobs, markerKey, opts)
 else
-    jobId = moveJobFromPriorityToActive(KEYS[3], activeKey, KEYS[10])
+    jobId = moveJobFromPrioritizedToActive(KEYS[3], activeKey, KEYS[10])
     if jobId then
         return prepareJobForProcessing(ARGV[1], rateLimiterKey, eventStreamKey, jobId, ARGV[2],
                                        maxJobs, markerKey, opts)
