@@ -89,6 +89,14 @@ export type RedisJobOptions = BaseJobOptions & {
   kl?: number;
 
   /**
+   * Defines the maximum number of times a job is allowed to start processing,
+   * regardless of whether it completes or fails. Each time a worker picks up the job
+   * and begins processing it, the attemptsStarted counter is incremented.
+   * If this counter reaches maxStartAttempts, the job will be moved to the failed state with an UnrecoverableError.
+   */
+  msa?: number;
+
+  /**
    * If true, removes the job from its parent dependencies when it fails after all attempts.
    */
   rdof?: boolean;

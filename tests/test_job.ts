@@ -198,6 +198,16 @@ describe('Job', function () {
       });
     });
 
+    describe('when maxStartAttempts option is provided with a value lower than attempts option', () => {
+      it('throws an error', async () => {
+        const data = { foo: 'bar' };
+        const opts = { attempts: 5, maxStartAttempts: 4 };
+        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+          'MaxStartAttempts must be greater or equal than attempts option',
+        );
+      });
+    });
+
     describe('when jitter backoff option is provided with a value lesser than 0', () => {
       it('throws an error', async () => {
         const data = { foo: 'bar' };
