@@ -2864,7 +2864,7 @@ describe('Job Scheduler', function () {
     };
 
     await queue.upsertJobScheduler('scheduler-test', schedulerConfig);
-    const worker = new Worker(queueName, async () => {}, { connection });
+    const worker = new Worker(queueName, async () => {}, { connection, prefix });
     await worker.waitUntilReady();
 
     await queue.drain(true);
