@@ -2802,28 +2802,77 @@ describe('Job Scheduler', function () {
   });
 
   it('should schedule next repeatable job after promote', async function () {
+    const date = new Date('2017-02-07 9:24:00');
+    this.clock.setSystemTime(date);
+
     await queue.upsertJobScheduler('scheduler-test', { every: 50000 });
+    this.clock.tick(ONE_SECOND + 1000);
+
+    const waitingCountBefore = await queue.getWaitingCount();
+    expect(waitingCountBefore).to.be.equal(1);
+
+    let processor;
+    const processing1 = new Promise<void>(resolve => {
+      processor = async (job: Job) => {
+        resolve();
+      };
+    });
+
+    const worker = new Worker(queueName, processor, { connection, prefix });
+
+    await processing1;
+
+    await worker.close();
+
+    this.clock.tick(ONE_SECOND + 1000);
+
+    const delayedCountBefore = await queue.getDelayedCount();
+    expect(delayedCountBefore).to.be.equal(1);
 
     await queue.promoteJobs();
 
-    const waitingCount = await queue.getWaitingCount();
-    expect(waitingCount).to.be.equal(1);
+    this.clock.tick(ONE_SECOND + 1000);
+
+    const waitingCountAfter = await queue.getWaitingCount();
+    expect(waitingCountAfter).to.be.equal(1);
+
+    const delayedCountAfter = await queue.getDelayedCount();
+    expect(delayedCountAfter).to.be.equal(0);
+
+    const processing2 = new Promise<void>(resolve => {
+      processor = async (job: Job) => {
+        console.log('Processing job:', job.id);
+        resolve();
+      };
+    });
+
+    const worker2 = new Worker(queueName, processor, { connection, prefix });
+
+    await processing2;
+
+    await worker2.close();
+
+    this.clock.tick(ONE_SECOND + 1000);
+
+    console.log(await queue.getJobCounts());
+
+    //const delayedCountAfterProcessing = await queue.getDelayedCount();
+    //expect(delayedCountAfterProcessing).to.be.equal(1);
   });
 
   it('worker should start processing repeatable jobs after drain', async function () {
-    await queue.upsertJobScheduler('scheduler-test', {
+    const schedulerConfig = {
       pattern: '* * * * *',
       immediately: true,
-    });
+    };
+
+    await queue.upsertJobScheduler('scheduler-test', schedulerConfig);
     const worker = new Worker(queueName, async () => {}, { connection });
     await worker.waitUntilReady();
 
     await queue.drain(true);
 
-    await queue.upsertJobScheduler('scheduler-test', {
-      pattern: '* * * * *',
-      immediately: true,
-    });
+    await queue.upsertJobScheduler('scheduler-test', schedulerConfig);
 
     const completing = new Promise<void>((resolve, reject) => {
       worker.once('completed', async job => {
