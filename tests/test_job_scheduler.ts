@@ -2841,7 +2841,6 @@ describe('Job Scheduler', function () {
 
     const processing2 = new Promise<void>(resolve => {
       processor = async (job: Job) => {
-        console.log('Processing job:', job.id);
         resolve();
       };
     });
@@ -2854,10 +2853,8 @@ describe('Job Scheduler', function () {
 
     this.clock.tick(ONE_SECOND + 1000);
 
-    console.log(await queue.getJobCounts());
-
-    //const delayedCountAfterProcessing = await queue.getDelayedCount();
-    //expect(delayedCountAfterProcessing).to.be.equal(1);
+    const delayedCountAfterProcessing = await queue.getDelayedCount();
+    expect(delayedCountAfterProcessing).to.be.equal(1);
   });
 
   it('worker should start processing repeatable jobs after drain', async function () {
