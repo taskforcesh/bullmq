@@ -13,7 +13,6 @@ import {
 } from '../utils';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
-import { EventEmitter } from 'events';
 
 export interface QueueEventsListener extends IoredisListener {
   /**
@@ -339,7 +338,7 @@ export class QueueEvents extends QueueBase {
     if (event === '*') {
       this.wildcardListeners.push(listener as (eventName: string, ...args: any[]) => void);
     } else {
-      EventEmitter.prototype.on.call(this, event, listener as (...args: any[]) => void);
+      super.on(event, listener as (...args: any[]) => void);
     }
     return this;
   }
@@ -360,7 +359,7 @@ export class QueueEvents extends QueueBase {
     if (event === '*') {
       this.wildcardListeners = this.wildcardListeners.filter(l => l !== listener);
     } else {
-      EventEmitter.prototype.off.call(this, event, listener as (...args: any[]) => void);
+      super.off(event, listener as (...args: any[]) => void);
     }
     return this;
   }
@@ -385,7 +384,7 @@ export class QueueEvents extends QueueBase {
       };
       this.on('*', onceListener as (eventName: string, ...args: any[]) => void);
     } else {
-      EventEmitter.prototype.once.call(this, event, listener as (...args: any[]) => void);
+      super.once(event, listener as (...args: any[]) => void);
     }
     return this;
   }

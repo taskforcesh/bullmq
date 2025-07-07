@@ -894,11 +894,11 @@ describe('events', function () {
         prefix,
       });
 
-      await delay(50); // ensure listeners are ready
+      await queueEvents.waitUntilReady(); // ensure listeners are ready
 
       const seenEvents: Array<{ event: string; data: any }> = [];
       const wildcardPromise = new Promise<void>(resolve => {
-        queueEvents.on('*', (event, data, id) => {
+        queueEvents.once('*', (event, data) => {
           seenEvents.push({ event, data });
           // Wait for at least 'waiting' and 'active' events
           if (
