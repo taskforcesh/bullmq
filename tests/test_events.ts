@@ -887,5 +887,79 @@ describe('events', function () {
       await queueEvents2.close();
       await removeAllQueueData(new IORedis(redisHost), queueName2);
     });
+
+    it('should call wildcard listener for all events with event name and data', async function () {
+      const worker = new Worker(queueName, async job => {}, {
+        connection,
+        prefix,
+      });
+
+      await delay(50); // ensure listeners are ready
+
+      const seenEvents: Array<{ event: string; data: any }> = [];
+      const wildcardPromise = new Promise<void>(resolve => {
+        queueEvents.on('*', (event, data, id) => {
+          seenEvents.push({ event, data });
+          // Wait for at least 'waiting' and 'active' events
+          if (
+            seenEvents.some(e => e.event === 'waiting') &&
+            seenEvents.some(e => e.event === 'active')
+          ) {
+            resolve();
+          }
+        });
+      });
+
+      await queue.add('test', {});
+      await wildcardPromise;
+
+      // Check that at least 'waiting' and 'active' events were seen
+      const eventNames = seenEvents.map(e => e.event);
+      expect(eventNames).to.include('waiting');
+      expect(eventNames).to.include('active');
+      // Check that event data contains jobId for these events
+      for (const e of seenEvents) {
+        if (e.event === 'waiting' || e.event === 'active') {
+          expect(e.data).to.have.property('jobId');
+        }
+      }
+
+      await worker.close();
+    });
+
+    it('should call wildcard listener for custom events published by QueueEventsProducer', async function () {
+      const queueName2 = `test-${v4()}`;
+      const queueEventsProducer = new QueueEventsProducer(queueName2, {
+        connection,
+        prefix,
+      });
+      const queueEvents2 = new QueueEvents(queueName2, {
+        autorun: false,
+        connection,
+        prefix,
+        lastEventId: '0-0',
+      });
+      await queueEvents2.waitUntilReady();
+
+      const wildcardPromise = new Promise<void>(resolve => {
+        queueEvents2.on('*', (event, data, id) => {
+          if (event === 'example' && data.custom === 'wildcard') {
+            resolve();
+          }
+        });
+      });
+
+      await queueEventsProducer.publishEvent({
+        eventName: 'example',
+        custom: 'wildcard',
+      });
+
+      queueEvents2.run();
+      await wildcardPromise;
+
+      await queueEventsProducer.close();
+      await queueEvents2.close();
+      await removeAllQueueData(new IORedis(redisHost), queueName2);
+    });
   });
 });

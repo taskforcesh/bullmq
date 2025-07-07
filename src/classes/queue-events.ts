@@ -13,6 +13,7 @@ import {
 } from '../utils';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
+import { EventEmitter } from 'events';
 
 export interface QueueEventsListener extends IoredisListener {
   /**
@@ -274,6 +275,7 @@ type KeyOf<T extends object> = Extract<keyof T, string>;
  */
 export class QueueEvents extends QueueBase {
   private running = false;
+  private wildcardListeners: Array<(eventName: string, ...args: any[]) => void> = [];
 
   constructor(
     name: string,
@@ -310,30 +312,81 @@ export class QueueEvents extends QueueBase {
     QEL extends QueueEventsListener = QueueEventsListener,
     U extends KeyOf<QEL> = KeyOf<QEL>,
   >(event: U, ...args: CustomParameters<QEL[U]>): boolean {
-    return super.emit(event, ...args);
+    // Emit to normal listeners
+    const emitted = super.emit(event, ...args);
+    // Emit to wildcard listeners, except for '*'
+    if (event !== '*' && this.wildcardListeners.length > 0) {
+      for (const listener of this.wildcardListeners) {
+        listener(event as string, ...args);
+      }
+    }
+    return emitted;
   }
 
-  off<
-    QEL extends QueueEventsListener = QueueEventsListener,
-    U extends KeyOf<QEL> = KeyOf<QEL>,
-  >(eventName: U, listener: QEL[U]): this {
-    super.off(eventName, listener as (...args: any[]) => void);
+  // Overloads for 'on'
+  on<U extends KeyOf<QueueEventsListener>>(
+    event: U,
+    listener: QueueEventsListener[U]
+  ): this;
+  on(
+    event: '*',
+    listener: (eventName: string, ...args: any[]) => void
+  ): this;
+  on(
+    event: string,
+    listener: (...args: any[]) => void
+  ): this {
+    if (event === '*') {
+      this.wildcardListeners.push(listener as (eventName: string, ...args: any[]) => void);
+    } else {
+      EventEmitter.prototype.on.call(this, event, listener as (...args: any[]) => void);
+    }
     return this;
   }
 
-  on<
-    QEL extends QueueEventsListener = QueueEventsListener,
-    U extends KeyOf<QEL> = KeyOf<QEL>,
-  >(event: U, listener: QEL[U]): this {
-    super.on(event, listener as (...args: any[]) => void);
+  // Overloads for 'off'
+  off<U extends KeyOf<QueueEventsListener>>(
+    event: U,
+    listener: QueueEventsListener[U]
+  ): this;
+  off(
+    event: '*',
+    listener: (eventName: string, ...args: any[]) => void
+  ): this;
+  off(
+    event: string,
+    listener: (...args: any[]) => void
+  ): this {
+    if (event === '*') {
+      this.wildcardListeners = this.wildcardListeners.filter(l => l !== listener);
+    } else {
+      EventEmitter.prototype.off.call(this, event, listener as (...args: any[]) => void);
+    }
     return this;
   }
 
-  once<
-    QEL extends QueueEventsListener = QueueEventsListener,
-    U extends KeyOf<QEL> = KeyOf<QEL>,
-  >(event: U, listener: QEL[U]): this {
-    super.once(event, listener as (...args: any[]) => void);
+  // Overloads for 'once'
+  once<U extends KeyOf<QueueEventsListener>>(
+    event: U,
+    listener: QueueEventsListener[U]
+  ): this;
+  once(
+    event: '*',
+    listener: (eventName: string, ...args: any[]) => void
+  ): this;
+  once(
+    event: string,
+    listener: (...args: any[]) => void
+  ): this {
+    if (event === '*') {
+      const onceListener = (...args: any[]) => {
+        this.off('*', onceListener as (eventName: string, ...args: any[]) => void);
+        (listener as (...args: any[]) => void)(...args);
+      };
+      this.on('*', onceListener as (eventName: string, ...args: any[]) => void);
+    } else {
+      EventEmitter.prototype.once.call(this, event, listener as (...args: any[]) => void);
+    }
     return this;
   }
 
@@ -418,6 +471,7 @@ export class QueueEvents extends QueueBase {
    * @returns
    */
   close(): Promise<void> {
+    this.wildcardListeners = [];
     if (!this.closing) {
       this.closing = this.disconnect();
     }
