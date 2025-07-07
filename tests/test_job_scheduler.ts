@@ -2858,18 +2858,35 @@ describe('Job Scheduler', function () {
   });
 
   it('worker should start processing repeatable jobs after drain', async function () {
-    const schedulerConfig = {
-      pattern: '* * * * *',
-      immediately: true,
-    };
+    const date = new Date('2017-02-07 9:24:00');
+    this.clock.setSystemTime(date);
 
-    await queue.upsertJobScheduler('scheduler-test', schedulerConfig);
-    const worker = new Worker(queueName, async () => {}, { connection });
-    await worker.waitUntilReady();
+    await queue.upsertJobScheduler(
+      'scheduler-test',
+      {
+        pattern: '* * * * * *',
+      },
+      {
+        data: { foo: 'bar' },
+      },
+    );
+
+    this.clock.tick(ONE_SECOND + 1000);
+
+    const delayedCountBeforeDrain = await queue.getDelayedCount();
+    expect(delayedCountBeforeDrain).to.be.equal(1);
 
     await queue.drain(true);
 
-    await queue.upsertJobScheduler('scheduler-test', schedulerConfig);
+    const delayedCountAfterDrain = await queue.getDelayedCount();
+    expect(delayedCountAfterDrain).to.be.equal(1);
+
+    const worker = new Worker(queueName, async () => {}, {
+      connection,
+      prefix,
+    });
+
+    this.clock.tick(ONE_SECOND + 1000);
 
     const completing = new Promise<void>((resolve, reject) => {
       worker.once('completed', async job => {
@@ -2882,10 +2899,6 @@ describe('Job Scheduler', function () {
         resolve();
       });
     });
-
-    const job = await queue.add('test', { foo: 'bar' });
-    expect(job.id).to.be.ok;
-    expect(job.data.foo).to.be.eql('bar');
 
     await completing;
 
