@@ -728,7 +728,13 @@ will never work with more accuracy than 1ms. */
             const [_key, member, score] = result;
 
             if (member) {
-              return parseInt(score);
+              const newBlockUntil = parseInt(score);
+              // Use by pro version as rate limited groups could generate lower blockUntil values
+              // markers only return delays for delayed jobs
+              if (blockUntil && newBlockUntil > blockUntil) {
+                return blockUntil;
+              }
+              return newBlockUntil;
             }
           }
         }
