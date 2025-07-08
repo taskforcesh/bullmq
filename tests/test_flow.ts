@@ -5174,8 +5174,18 @@ describe('flows', () => {
         data: {},
         children: [
           { name, data: { idx: 0, foo: 'bar' }, queueName },
-          { name, data: { idx: 1, foo: 'bar' }, queueName },
-          { name, data: { idx: 2, foo: 'bar' }, queueName },
+          {
+            name,
+            data: { idx: 1, foo: 'bar' },
+            queueName,
+            opts: { priority: 1 },
+          },
+          {
+            name,
+            data: { idx: 2, foo: 'bar' },
+            queueName,
+            opts: { delay: 1000 },
+          },
           { name, data: { idx: 3, foo: 'bar' }, queueName },
           { name, data: { idx: 4, foo: 'bar' }, queueName },
           {
