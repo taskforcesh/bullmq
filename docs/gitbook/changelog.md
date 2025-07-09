@@ -1,3 +1,10 @@
+## [5.56.2](https://github.com/taskforcesh/bullmq/compare/v5.56.1...v5.56.2) (2025-07-08)
+
+
+### Performance Improvements
+
+* **woker:** keep lower blockTimeout when consuming delayed markers ([#3333](https://github.com/taskforcesh/bullmq/issues/3333)) ([e687d7c](https://github.com/taskforcesh/bullmq/commit/e687d7cf86108138bbd5e911b11ab3c5717fc23c))
+
 ## [5.56.1](https://github.com/taskforcesh/bullmq/compare/v5.56.0...v5.56.1) (2025-07-03)
 
 
