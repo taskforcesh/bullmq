@@ -7,7 +7,8 @@
 ]]
 
 -- Includes
---- @include "addJobWithPriority"
+--- @include "addPriorityMarkerIfNeeded"
+--- @include "getPriorityScore"
 
 -- Try to get as much as 1000 jobs at once
 local function promoteDelayedJobs(delayedKey, waitKey, targetKey, prioritizedKey,
@@ -26,14 +27,18 @@ local function promoteDelayedJobs(delayedKey, waitKey, targetKey, prioritizedKey
                 -- LIFO or FIFO
                 rcall("LPUSH", targetKey, jobId)
             else
-                addJobWithPriority(waitKey, prioritizedKey, priority, paused,
-                  jobId, priorityCounterKey)
+                local score = getPriorityScore(priority, priorityCounterKey)
+                rcall("ZADD", prioritizedKey, score, jobId)
             end
 
             -- Emit waiting event
             rcall("XADD", eventStreamKey, "*", "event", "waiting", "jobId",
                   jobId, "prev", "delayed")
             rcall("HSET", jobKey, "delay", 0)
+        end
+
+        if not paused then
+            addPriorityMarkerIfNeeded(targetKey)
         end
     end
 end

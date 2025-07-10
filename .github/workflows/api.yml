@@ -36,9 +36,9 @@ jobs:
           yarn docs:merge
         env:
           CI: true
-      - name: deploy
-        uses: peaceiris/actions-gh-pages@373f7f263a76c20808c831209c920827a82a2847 # v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs
-          cname: 'api.docs.bullmq.io'
+      #- name: deploy
+      #  uses: peaceiris/actions-gh-pages@373f7f263a76c20808c831209c920827a82a2847 # v3
+      #  with:
+      #    github_token: ${{ secrets.GITHUB_TOKEN }}
+      #    publish_dir: ./docs
+      #    cname: 'api.docs.bullmq.io'
