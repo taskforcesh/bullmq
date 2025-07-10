@@ -22,7 +22,7 @@ jobs:
 
     name: coverage for node@lts, redis@7
     env:
-      node-version: 18.x
+      node-version: lts/*
       redis-version: 7-alpine
       allowed_coverage_change: -0.25
 
