@@ -561,7 +561,7 @@ export class Worker<
             this.opts.runRetryDelay,
           ),
         );
-      } else if (this.isRateLimited()) {
+      } else if (asyncFifoQueue.numQueued() === 0) {
         await this.waitForRateLimit();
       }
     }
@@ -635,8 +635,9 @@ export class Worker<
         this.waiting = null;
       }
     } else {
-      await this.waitForRateLimit();
-      return this.moveToActive(client, token, this.opts.name);
+      if (!this.isRateLimited()) {
+        return this.moveToActive(client, token, this.opts.name);
+      }
     }
   }
 
@@ -727,7 +728,13 @@ will never work with more accuracy than 1ms. */
             const [_key, member, score] = result;
 
             if (member) {
-              return parseInt(score);
+              const newBlockUntil = parseInt(score);
+              // Use by pro version as rate limited groups could generate lower blockUntil values
+              // markers only return delays for delayed jobs
+              if (blockUntil && newBlockUntil > blockUntil) {
+                return blockUntil;
+              }
+              return newBlockUntil;
             }
           }
         }

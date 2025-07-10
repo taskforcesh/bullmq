@@ -1,3 +1,31 @@
+## [5.56.3](https://github.com/taskforcesh/bullmq/compare/v5.56.2...v5.56.3) (2025-07-10)
+
+
+### Bug Fixes
+
+* **scheduler:** take offset into the startMillis calculation ([#2944](https://github.com/taskforcesh/bullmq/issues/2944)) fixes [#247](https://github.com/taskforcesh/bullmq/issues/247) ([1e3f3c5](https://github.com/taskforcesh/bullmq/commit/1e3f3c507a7ceb8d8147941adc9de69367947a5e))
+
+## [5.56.2](https://github.com/taskforcesh/bullmq/compare/v5.56.1...v5.56.2) (2025-07-08)
+
+
+### Performance Improvements
+
+* **woker:** keep lower blockTimeout when consuming delayed markers ([#3333](https://github.com/taskforcesh/bullmq/issues/3333)) ([e687d7c](https://github.com/taskforcesh/bullmq/commit/e687d7cf86108138bbd5e911b11ab3c5717fc23c))
+
+## [5.56.1](https://github.com/taskforcesh/bullmq/compare/v5.56.0...v5.56.1) (2025-07-03)
+
+
+### Performance Improvements
+
+* **worker:** do not wait rate limit when fetching jobs ([#3322](https://github.com/taskforcesh/bullmq/issues/3322)) ([c32e6a0](https://github.com/taskforcesh/bullmq/commit/c32e6a0ff6df8bc34c9c13238c192974a93f7ddb))
+
+# [5.56.0](https://github.com/taskforcesh/bullmq/compare/v5.55.0...v5.56.0) (2025-06-22)
+
+
+### Features
+
+* **deduplication:** add support for replace and extend options ([#3260](https://github.com/taskforcesh/bullmq/issues/3260)) ref [#2767](https://github.com/taskforcesh/bullmq/issues/2767) [#3151](https://github.com/taskforcesh/bullmq/issues/3151) [#3250](https://github.com/taskforcesh/bullmq/issues/3250) ([4a53609](https://github.com/taskforcesh/bullmq/commit/4a5360936c1a543a1ff31ebbb6ab1289cc8ddf07))
+
 # [5.55.0](https://github.com/taskforcesh/bullmq/compare/v5.54.3...v5.55.0) (2025-06-21)
 
 
