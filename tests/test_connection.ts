@@ -43,6 +43,17 @@ describe('RedisConnection', () => {
       const connection = new RedisConnection({}, options);
       expect((connection as any).extraOptions).to.deep.include(options);
     });
+
+    describe('when skipVersionCheck is set as true', () => {
+      it('initializes version as minimum', async () => {
+        const connection = new RedisConnection({
+          skipVersionCheck: true,
+        });
+        await (connection as any).initializing;
+
+        expect((connection as any).redisVersion).to.be.equal('5.0.0');
+      });
+    });
   });
 
   describe('blocking option', () => {

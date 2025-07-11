@@ -360,28 +360,32 @@ export class RedisConnection extends EventEmitter {
   }
 
   private async getRedisVersion() {
-    const doc = await this._client.info();
-    const redisPrefix = 'redis_version:';
-    const maxMemoryPolicyPrefix = 'maxmemory_policy:';
-    const lines = doc.split(/\r?\n/);
-    let redisVersion;
+    if (this.skipVersionCheck) {
+      return RedisConnection.minimumVersion;
+    } else {
+      const doc = await this._client.info();
+      const redisPrefix = 'redis_version:';
+      const maxMemoryPolicyPrefix = 'maxmemory_policy:';
+      const lines = doc.split(/\r?\n/);
+      let redisVersion;
 
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].indexOf(maxMemoryPolicyPrefix) === 0) {
-        const maxMemoryPolicy = lines[i].substr(maxMemoryPolicyPrefix.length);
-        if (maxMemoryPolicy !== 'noeviction') {
-          console.warn(
-            `IMPORTANT! Eviction policy is ${maxMemoryPolicy}. It should be "noeviction"`,
-          );
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].indexOf(maxMemoryPolicyPrefix) === 0) {
+          const maxMemoryPolicy = lines[i].substr(maxMemoryPolicyPrefix.length);
+          if (maxMemoryPolicy !== 'noeviction') {
+            console.warn(
+              `IMPORTANT! Eviction policy is ${maxMemoryPolicy}. It should be "noeviction"`,
+            );
+          }
+        }
+
+        if (lines[i].indexOf(redisPrefix) === 0) {
+          redisVersion = lines[i].substr(redisPrefix.length);
         }
       }
 
-      if (lines[i].indexOf(redisPrefix) === 0) {
-        redisVersion = lines[i].substr(redisPrefix.length);
-      }
+      return redisVersion;
     }
-
-    return redisVersion;
   }
 
   get redisVersion(): string {
