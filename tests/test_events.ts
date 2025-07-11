@@ -925,6 +925,7 @@ describe('events', function () {
       }
 
       await worker.close();
+      await queueEvents.close();
     });
 
     it('should call wildcard listener for custom events published by QueueEventsProducer', async function () {
