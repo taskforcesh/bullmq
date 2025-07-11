@@ -1499,6 +1499,9 @@ export class Job<
 }
 
 function getTraces(stacktrace: string[]) {
+  if (stacktrace === undefined || stacktrace === '') {
+    return []
+  }
   const traces = tryCatch(JSON.parse, JSON, [stacktrace]);
 
   if (traces === errorObject || !(traces instanceof Array)) {
