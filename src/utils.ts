@@ -122,6 +122,7 @@ export const optsDecodeMap = {
   cpof: 'continueParentOnFailure',
   idof: 'ignoreDependencyOnFailure',
   kl: 'keepLogs',
+  msa: 'maxStartAttempts',
   rdof: 'removeDependencyOnFailure',
 } as const;
 

@@ -867,9 +867,11 @@ will never work with more accuracy than 1ms. */
         const inProgressItem = { job, ts: processedOn };
 
         try {
-          if (job.deferredFailure) {
+          const unrecoverableErrorMessage =
+            this.getUnrecoverableErrorMessage(job);
+          if (unrecoverableErrorMessage) {
             const failed = await this.handleFailed(
-              new UnrecoverableError(job.deferredFailure),
+              new UnrecoverableError(unrecoverableErrorMessage),
               job,
               token,
               fetchNextCallback,
@@ -911,6 +913,20 @@ will never work with more accuracy than 1ms. */
       },
       srcPropagationMedatada,
     );
+  }
+
+  private getUnrecoverableErrorMessage(
+    job: Job<DataType, ResultType, NameType>,
+  ) {
+    if (job.deferredFailure) {
+      return job.deferredFailure;
+    }
+    if (
+      job.opts.maxStartAttempts &&
+      job.opts.maxStartAttempts < job.attemptsStarted
+    ) {
+      return 'job started more than allowable limit';
+    }
   }
 
   protected async handleCompleted(
