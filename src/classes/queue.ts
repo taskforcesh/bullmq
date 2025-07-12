@@ -879,6 +879,7 @@ export class Queue<
     type:
       | 'completed'
       | 'wait'
+      | 'waiting'
       | 'active'
       | 'paused'
       | 'prioritized'
@@ -896,14 +897,17 @@ export class Queue<
         let deletedCount = 0;
         const deletedJobsIds: string[] = [];
 
+        // Normalize 'waiting' to 'wait' for consistency with internal Redis keys
+        const normalizedType = type === 'waiting' ? 'wait' : type;
+
         while (deletedCount < maxCount) {
           const jobsIds = await this.scripts.cleanJobsInSet(
-            type,
+            normalizedType,
             timestamp,
             maxCountPerCall,
           );
 
-          this.emit('cleaned', jobsIds, type);
+          this.emit('cleaned', jobsIds, normalizedType);
           deletedCount += jobsIds.length;
           deletedJobsIds.push(...jobsIds);
 
