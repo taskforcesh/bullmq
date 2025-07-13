@@ -2221,6 +2221,18 @@ describe('workers', function () {
     ).to.throw('maxStalledCount must be greater or equal than 0');
   });
 
+  it('max skipped attempt count cannot be less than zero', function () {
+    this.timeout(4000);
+    expect(
+      () =>
+        new Worker(queueName, NoopProc, {
+          connection,
+          prefix,
+          maxSkippedAttemptCount: -1,
+        }),
+    ).to.throw('maxSkippedAttemptCount must be greater or equal than 0');
+  });
+
   it('stalled interval cannot be zero', function () {
     this.timeout(4000);
     expect(
@@ -3559,27 +3571,21 @@ describe('workers', function () {
           await worker.close();
         });
 
-        describe('when passing maxStartAttempts', () => {
-          it('should fail job when consuming the max start attempts', async function () {
+        describe('when passing maxSkippedAttemptCount', () => {
+          it('should fail job when consuming the max skipped attempts', async function () {
             const worker = new Worker(
               queueName,
               async (job, token) => {
                 await job.moveToDelayed(Date.now() + 200, token);
                 throw new DelayedError();
               },
-              { connection, prefix },
+              { connection, maxSkippedAttemptCount: 1, prefix },
             );
 
             await worker.waitUntilReady();
 
             const start = Date.now();
-            await queue.add(
-              'test',
-              {},
-              {
-                maxStartAttempts: 2,
-              },
-            );
+            await queue.add('test', {});
 
             await new Promise<void>((resolve, reject) => {
               worker.on('failed', job => {
@@ -3587,18 +3593,19 @@ describe('workers', function () {
                   const elapse = Date.now() - start;
                   expect(elapse).to.be.greaterThan(200);
                   expect(job!.failedReason).to.be.eql(
-                    'job started more than allowable limit',
+                    'job skipped more than allowable attempts',
                   );
                   expect(job!.attemptsMade).to.be.eql(1);
                   expect(job!.attemptsStarted).to.be.eql(3);
+                  expect(job!.skippedAttemptCounter).to.be.eql(2);
                   resolve();
                 } catch (error) {
                   reject(error);
                 }
               });
 
-              worker.on('error', () => {
-                reject();
+              worker.on('error', error => {
+                reject(error);
               });
             });
 

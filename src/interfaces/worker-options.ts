@@ -52,6 +52,13 @@ export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
   metrics?: MetricsOptions;
 
   /**
+   * Amount of times a job can skip an attempt made.
+   *
+   * @defaultValue undefined
+   */
+  maxSkippedAttemptCount?: number;
+
+  /**
    * Amount of times a job can be recovered from a stalled state
    * to the `wait` state. If this is exceeded, the job is moved
    * to `failed`.

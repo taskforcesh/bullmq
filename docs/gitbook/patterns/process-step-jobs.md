@@ -359,7 +359,7 @@ const worker = new Worker(
 ```
 
 {% hint style="info" %}
-Manually moving jobs using special errors does **not** increment the attemptsMade property, but it does increase the attemptsStarted count. To control how many times a job is allowed to start processing, use the **maxStartAttempts** option.
+Manually moving jobs using special errors does **not** increment the attemptsMade property. This property is incremented on regular job completion or failure (this includes retries using backoff a backoff strategy). To control how many times a job is allowed to skip an attempt made using one of our special errors like: **DelayedError**, **RateLimitError**, **WaitingChildrenError** or **WaitingError**, use the **maxSkippedAttemptCount** option within Worker instances.
 {% endhint %}
 
 ## Read more:

@@ -115,6 +115,13 @@ export class Job<
   attemptsMade = 0;
 
   /**
+   * Number of times where job has skipped an attempt made using an special error like
+   * DelayedError, RateLimitError, WaitingChildrenError or WaitingError.
+   * @defaultValue 0
+   */
+  skippedAttemptCounter = 0;
+
+  /**
    * Number of times where job has stalled.
    * @defaultValue 0
    */
@@ -393,6 +400,8 @@ export class Job<
     job.attemptsStarted = parseInt(json.ats || '0');
 
     job.attemptsMade = parseInt(json.attemptsMade || json.atm || '0');
+
+    job.skippedAttemptCounter = parseInt(json.sac || '0');
 
     job.stalledCounter = parseInt(json.stc || '0');
 
@@ -1471,14 +1480,6 @@ export class Job<
 
       if (this.opts.priority > PRIORITY_LIMIT) {
         throw new Error(`Priority should be between 0 and ${PRIORITY_LIMIT}`);
-      }
-    }
-
-    if (this.opts.maxStartAttempts) {
-      if (this.opts.maxStartAttempts < (this.opts.attempts || 0)) {
-        throw new Error(
-          `MaxStartAttempts must be greater or equal than attempts option`,
-        );
       }
     }
 

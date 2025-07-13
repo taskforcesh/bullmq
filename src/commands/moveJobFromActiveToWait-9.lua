@@ -10,16 +10,18 @@
     KEYS[6]  limiter key
     KEYS[7]  prioritized key
     KEYS[8]  marker key
-    KEYS[9] event key
+    KEYS[9]  event key
 
     ARGV[1] job id
     ARGV[2] lock token
     ARGV[3] job id key
+    ARGV[4] max skipped attempt count
 ]]
 local rcall = redis.call
 
 -- Includes
 --- @include "includes/addJobInTargetList"
+--- @include "includes/checkMaxSkippedAttempts"
 --- @include "includes/pushBackJobWithPriority"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/getTargetQueueList"
@@ -46,6 +48,10 @@ if removed > 0 then
   else
     addJobInTargetList(target, KEYS[8], "RPUSH", isPausedOrMaxed, jobId)
   end
+
+  local maxSkippedAttemptCount = tonumber(ARGV[4])
+
+  checkMaxSkippedAttempts(jobKey, maxSkippedAttemptCount)
 
   local maxEvents = getOrSetMaxEvents(metaKey)
 

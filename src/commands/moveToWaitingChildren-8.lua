@@ -16,6 +16,7 @@
     ARGV[3] timestamp
     ARGV[4] jobId
     ARGV[5] prefix
+    ARGV[6] max skipped attempt count
 
   Output:
     0 - OK
@@ -36,13 +37,14 @@ local timestamp = ARGV[3]
 local jobId = ARGV[4]
 
 --- Includes
+--- @include "includes/checkMaxSkippedAttempts"
 --- @include "includes/moveChildFromDependenciesIfNeeded"
 --- @include "includes/removeDeduplicationKeyIfNeededOnFinalization"
 --- @include "includes/removeJobsOnFail"
 --- @include "includes/removeLock"
 
-local function moveToWaitingChildren(activeKey, waitingChildrenKey, jobId,
-    timestamp)
+local function moveToWaitingChildren(activeKey, waitingChildrenKey, jobKey,
+    jobId, timestamp, maxSkippedAttemptCount)
   local score = tonumber(timestamp)
 
   local numRemovedElements = rcall("LREM", activeKey, -1, jobId)
@@ -52,7 +54,8 @@ local function moveToWaitingChildren(activeKey, waitingChildrenKey, jobId,
   end
 
   rcall("ZADD", waitingChildrenKey, score, jobId)
-
+  rcall("HINCRBY", jobKey, "sac", 1)
+  checkMaxSkippedAttempts(jobKey, maxSkippedAttemptCount)
   return 0
 end
 
@@ -64,7 +67,7 @@ if rcall("EXISTS", jobKey) == 1 then
     removeDeduplicationKeyIfNeededOnFinalization(ARGV[5], jobAttributes[2], jobId)
   
     local failedReason = "children are failed"
-    rcall("ZADD", failedKey, timestamp, jobId)
+    rcall("ZADD", failedKey, timestamp, jobId) -- TODO: use defa attribute
     rcall("HSET", jobKey, "finishedOn", timestamp)
     rcall("XADD", KEYS[8], "*", "event", "failed", "jobId", jobId, "failedReason",
       failedReason, "prev", "active")
@@ -79,13 +82,14 @@ if rcall("EXISTS", jobKey) == 1 then
 
     return 0
   else
+    local maxSkippedAttemptCount = tonumber(ARGV[6])
     if ARGV[2] ~= "" then
       if rcall("SISMEMBER", jobDependenciesKey, ARGV[2]) ~= 0 then
         local errorCode = removeLock(jobKey, stalledKey, ARGV[1], jobId)
         if errorCode < 0 then
           return errorCode
         end
-        return moveToWaitingChildren(activeKey, waitingChildrenKey, jobId, timestamp)
+        return moveToWaitingChildren(activeKey, waitingChildrenKey, jobKey, jobId, timestamp, maxSkippedAttemptCount)
       end
   
       return 1
@@ -95,7 +99,7 @@ if rcall("EXISTS", jobKey) == 1 then
         if errorCode < 0 then
           return errorCode
         end
-        return moveToWaitingChildren(activeKey, waitingChildrenKey, jobId, timestamp)
+        return moveToWaitingChildren(activeKey, waitingChildrenKey, jobKey,jobId, timestamp, maxSkippedAttemptCount)
       end
   
       return 1
