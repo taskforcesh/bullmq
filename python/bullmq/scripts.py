@@ -48,7 +48,7 @@ class Scripts:
             "moveToActive": self.redisClient.register_script(self.getScript("moveToActive-11.lua")),
             "moveToDelayed": self.redisClient.register_script(self.getScript("moveToDelayed-8.lua")),
             "moveToFinished": self.redisClient.register_script(self.getScript("moveToFinished-14.lua")),
-            "moveToWaitingChildren": self.redisClient.register_script(self.getScript("moveToWaitingChildren-8.lua")),
+            "moveToWaitingChildren": self.redisClient.register_script(self.getScript("moveToWaitingChildren-11.lua")),
             "obliterate": self.redisClient.register_script(self.getScript("obliterate-2.lua")),
             "pause": self.redisClient.register_script(self.getScript("pause-7.lua")),
             "promote": self.redisClient.register_script(self.getScript("promote-9.lua")),
@@ -186,7 +186,10 @@ class Scripts:
                 self.toKey(job_id) + ":dependencies",
                 self.toKey(job_id) + ":unsuccessful",
                 self.keys['stalled'],
-                self.keys['failed'],
+                self.keys['meta'],
+                self.keys['wait'],
+                self.keys['paused'],
+                self.keys['marker'],
                 self.keys['events']]
         child_key = opts.get("child") if opts else None
         args = [token, get_parent_key(child_key) or "", round(time.time() * 1000), job_id,
