@@ -1400,6 +1400,14 @@ describe('flows', () => {
           });
         });
 
+        const workerFailedEvent = new Promise<void>(resolve => {
+          worker.on('failed', async job => {
+            expect(job!.failedReason).to.be.equal(`children are failed`);
+            resolve();
+          });
+        });
+
+        await workerFailedEvent;
         await failed;
 
         await flow.close();
