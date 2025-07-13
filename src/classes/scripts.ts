@@ -1117,7 +1117,10 @@ export class Scripts {
       `${jobId}:dependencies`,
       `${jobId}:unsuccessful`,
       'stalled',
-      'failed',
+      'meta',
+      'wait',
+      'paused',
+      'marker',
       'events',
     ].map(name => {
       return this.queue.toKey(name);
