@@ -235,7 +235,6 @@ export class Worker<
       typeof this.opts.maxSkippedAttemptCount === 'number' &&
       this.opts.maxSkippedAttemptCount < 0
     ) {
-      console.log('whut');
       throw new Error('maxSkippedAttemptCount must be greater or equal than 0');
     }
 
