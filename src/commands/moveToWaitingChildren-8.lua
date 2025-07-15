@@ -54,7 +54,6 @@ local function moveToWaitingChildren(activeKey, waitingChildrenKey, jobKey,
   end
 
   rcall("ZADD", waitingChildrenKey, score, jobId)
-  rcall("HINCRBY", jobKey, "sac", 1)
   checkMaxSkippedAttempts(jobKey, maxSkippedAttemptCount)
   return 0
 end
