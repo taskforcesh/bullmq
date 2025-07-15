@@ -1075,8 +1075,10 @@ export class Scripts {
     token: string,
     delay: number,
     opts: MoveToDelayedOpts = {},
+    maxSkippedAttemptCount?: number,
   ): (string | number | Buffer)[] {
     const queueKeys = this.queue.keys;
+
     const keys: (string | number | Buffer)[] = [
       queueKeys.marker,
       queueKeys.active,
@@ -1095,6 +1097,7 @@ export class Scripts {
       token,
       delay,
       opts.skipAttempt ? '1' : '0',
+      typeof maxSkippedAttemptCount === 'number' ? maxSkippedAttemptCount : -1,
       opts.fieldsToUpdate
         ? pack(objectToFlatArray(opts.fieldsToUpdate))
         : void 0,
@@ -1105,6 +1108,7 @@ export class Scripts {
     jobId: string,
     token: string,
     opts?: MoveToWaitingChildrenOpts,
+    maxSkippedAttemptCount?: number,
   ): (string | number)[] {
     const timestamp = Date.now();
 
@@ -1129,6 +1133,7 @@ export class Scripts {
       JSON.stringify(timestamp),
       jobId,
       this.queue.toKey(''),
+      typeof maxSkippedAttemptCount === 'number' ? maxSkippedAttemptCount : -1,
     ]);
   }
 
@@ -1154,8 +1159,16 @@ export class Scripts {
     opts: MoveToDelayedOpts = {},
   ): Promise<void> {
     const client = await this.queue.client;
+    const workerOpts: WorkerOptions = <WorkerOptions>this.queue.opts;
 
-    const args = this.moveToDelayedArgs(jobId, timestamp, token, delay, opts);
+    const args = this.moveToDelayedArgs(
+      jobId,
+      timestamp,
+      token,
+      delay,
+      opts,
+      workerOpts.maxSkippedAttemptCount,
+    );
 
     const result = await this.execCommand(client, 'moveToDelayed', args);
     if (result < 0) {
@@ -1185,8 +1198,14 @@ export class Scripts {
     opts: MoveToWaitingChildrenOpts = {},
   ): Promise<boolean> {
     const client = await this.queue.client;
+    const workerOpts: WorkerOptions = <WorkerOptions>this.queue.opts;
 
-    const args = this.moveToWaitingChildrenArgs(jobId, token, opts);
+    const args = this.moveToWaitingChildrenArgs(
+      jobId,
+      token,
+      opts,
+      workerOpts.maxSkippedAttemptCount,
+    );
     const result = await this.execCommand(
       client,
       'moveToWaitingChildren',
@@ -1525,6 +1544,7 @@ export class Scripts {
    */
   async moveJobFromActiveToWait(jobId: string, token = '0') {
     const client = await this.queue.client;
+    const opts: WorkerOptions = <WorkerOptions>this.queue.opts;
 
     const keys: (string | number)[] = [
       this.queue.keys.active,
@@ -1538,7 +1558,14 @@ export class Scripts {
       this.queue.keys.events,
     ];
 
-    const args = [jobId, token, this.queue.toKey(jobId)];
+    const args = [
+      jobId,
+      token,
+      this.queue.toKey(jobId),
+      typeof opts.maxSkippedAttemptCount === 'number'
+        ? opts.maxSkippedAttemptCount
+        : -1,
+    ];
 
     const result = await this.execCommand(
       client,

@@ -232,6 +232,13 @@ export class Worker<
     }
 
     if (
+      typeof this.opts.maxSkippedAttemptCount === 'number' &&
+      this.opts.maxSkippedAttemptCount < 0
+    ) {
+      throw new Error('maxSkippedAttemptCount must be greater or equal than 0');
+    }
+
+    if (
       typeof this.opts.stalledInterval !== 'number' ||
       this.opts.stalledInterval <= 0
     ) {
