@@ -58,6 +58,17 @@ end
 
 if rcall("EXISTS", jobKey) == 1 then
   if rcall("ZCARD", jobUnsuccessfulKey) ~= 0 then
+    local errorCode = removeLock(jobKey, stalledKey, ARGV[1], jobId)
+    if errorCode < 0 then
+      return errorCode
+    end
+
+    local numRemovedElements = rcall("LREM", activeKey, -1, jobId)
+
+    if numRemovedElements < 1 then
+      return -3
+    end
+
     -- TODO: refactor this logic in an include later
     local jobAttributes = rcall("HMGET", jobKey, "parent", "deid", "opts")
 
