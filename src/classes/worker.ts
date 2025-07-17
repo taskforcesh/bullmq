@@ -1019,7 +1019,6 @@ will never work with more accuracy than 1ms. */
           if (!doNotWaitActive) {
             await this.whenCurrentJobsFinished();
           }
-          //console.log('here', this.name)
           this.stalledCheckStopper?.();
           this.emit('paused');
         }
