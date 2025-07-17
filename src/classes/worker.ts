@@ -491,7 +491,7 @@ export class Worker<
 
     let tokenPostfix = 0;
 
-    while (!(this.closing || this.paused) || asyncFifoQueue.numTotal() > 0) {
+    while ((!this.closing && !this.paused) || asyncFifoQueue.numTotal() > 0) {
       let numTotal = asyncFifoQueue.numTotal();
 
       /**
