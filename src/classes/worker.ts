@@ -491,7 +491,7 @@ export class Worker<
 
     let tokenPostfix = 0;
 
-    while (!this.closing && !this.paused) {
+    while (!(this.closing || this.paused) || asyncFifoQueue.numTotal() > 0) {
       let numTotal = asyncFifoQueue.numTotal();
 
       /**
@@ -565,8 +565,6 @@ export class Worker<
         await this.waitForRateLimit();
       }
     }
-
-    return asyncFifoQueue.waitAll();
   }
 
   /**
@@ -1018,7 +1016,10 @@ will never work with more accuracy than 1ms. */
 
         if (!this.paused) {
           this.paused = true;
-          await (!doNotWaitActive && this.whenCurrentJobsFinished());
+          if (!doNotWaitActive) {
+            await this.whenCurrentJobsFinished();
+          }
+          //console.log('here', this.name)
           this.stalledCheckStopper?.();
           this.emit('paused');
         }

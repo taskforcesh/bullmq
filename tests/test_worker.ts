@@ -2534,68 +2534,110 @@ describe('workers', function () {
       });
     });
 
-    it('should wait for all concurrent processing in case of pause', async function () {
-      let i = 0;
-      let nbJobFinish = 0;
-      // eslint-disable-next-line prefer-const
-      let runExecution: Promise<void>;
+    describe('when pausing', () => {
+      it('should wait for all concurrent processing', async function () {
+        let i = 0;
+        let nbJobFinish = 0;
+        // eslint-disable-next-line prefer-const
+        let runExecution: Promise<void>;
 
-      const worker = new Worker(
-        queueName,
-        async () => {
-          // 100 - i*20 is to force to finish job n°4 before lower jobs that will wait longer
-          await delay(100 - i * 10);
-          nbJobFinish++;
+        const worker = new Worker(
+          queueName,
+          async () => {
+            // 100 - i*20 is to force to finish job n°4 before lower jobs that will wait longer
+            await delay(100 - i * 10);
+            nbJobFinish++;
 
-          // We simulate an error of one processing job.
-          if (i % 7 === 0) {
-            throw new Error();
+            // We simulate an error of one processing job.
+            if (i % 7 === 0) {
+              throw new Error();
+            }
+          },
+          {
+            autorun: false,
+            connection,
+            prefix,
+            concurrency: 4,
+          },
+        );
+        await worker.waitUntilReady();
+
+        worker.on('active', async () => {
+          if (++i === 4) {
+            // Pause when all 4 works are processing
+            await worker.pause();
+            // Wait for all the active jobs to finalize.
+            expect(nbJobFinish).to.be.gte(3);
+            expect(nbJobFinish).to.be.lte(4);
           }
-        },
-        {
-          autorun: false,
-          connection,
-          prefix,
-          concurrency: 4,
-        },
-      );
-      await worker.waitUntilReady();
-
-      worker.on('active', async () => {
-        if (++i === 4) {
-          // Pause when all 4 works are processing
-          await worker.pause();
-          // Wait for all the active jobs to finalize.
-          expect(nbJobFinish).to.be.gte(3);
-          expect(nbJobFinish).to.be.lte(4);
-        }
-      });
-
-      const waiting = new Promise((resolve, reject) => {
-        const cb = after(8, resolve);
-        worker.on('completed', cb);
-        worker.on('failed', cb);
-        worker.on('error', reject);
-      });
-      const pausing = new Promise<void>(resolve => {
-        worker.on('paused', async () => {
-          // test that loop is stopped and worker is actually paused
-          await runExecution;
-          expect(worker.isRunning()).to.be.false;
-
-          worker.resume();
-          resolve();
         });
+
+        const waiting = new Promise((resolve, reject) => {
+          const cb = after(8, resolve);
+          worker.on('completed', cb);
+          worker.on('failed', cb);
+          worker.on('error', reject);
+        });
+        const pausing = new Promise<void>(resolve => {
+          worker.on('paused', async () => {
+            // test that loop is stopped and worker is actually paused
+            await runExecution;
+            expect(worker.isRunning()).to.be.false;
+
+            worker.resume();
+            resolve();
+          });
+        });
+        await Promise.all(times(8, () => queue.add('test', {})));
+
+        runExecution = worker.run();
+
+        await pausing;
+
+        await waiting;
+
+        await worker.close();
       });
-      await Promise.all(times(8, () => queue.add('test', {})));
 
-      runExecution = worker.run();
+      it('should not keep active jobs', async function () {
+        const worker = new Worker(
+          queueName,
+          async () => {
+            await delay(100);
+          },
+          {
+            autorun: false,
+            connection,
+            prefix,
+            concurrency: 4,
+          },
+        );
+        await worker.waitUntilReady();
 
-      await pausing;
+        worker.once('completed', async () => {
+          await worker.pause();
+        });
 
-      await waiting;
+        const pausing = new Promise<void>((resolve, reject) => {
+          worker.on('paused', async () => {
+            try {
+              expect(worker.isRunning()).to.be.false;
+              const activeJobCount = await queue.getActiveCount();
+              expect(activeJobCount).to.be.equal(0);
+              resolve();
+            } catch (error) {
+              reject(error);
+            }
+          });
+        });
+        await Promise.all(times(8, () => queue.add('test', {})));
 
-      await worker.close();
+        worker.run();
+
+        await pausing;
+
+        await worker.close();
+      });
     });
   });
 
