@@ -1,3 +1,10 @@
+## [4.18.3](https://github.com/taskforcesh/bullmq/compare/v4.18.2...v4.18.3) (2025-07-19)
+
+
+### Performance Improvements
+
+* **delayed:** add marker once when promoting delayed jobs ([#3312](https://github.com/taskforcesh/bullmq/issues/3312)) ([c4a4ada](https://github.com/taskforcesh/bullmq/commit/c4a4adaf5db970d042efe0853145974c62aabdfe))
+
 ## [4.18.2](https://github.com/taskforcesh/bullmq/compare/v4.18.1...v4.18.2) (2024-10-24)
 
 
