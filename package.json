@@ -87,9 +87,9 @@
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
     "commitizen": "^4.2.5",
-    "cpx2": "^8.0.0",
     "coveralls-next": "^4.2.1",
-    "eslint": "^9.24.0",
+    "cpx2": "^8.0.0",
+    "eslint": "^9.31.0",
     "eslint-config-prettier": "^8.5.0",
     "eslint-plugin-mocha": "^10.1.0",
     "eslint-plugin-prettier": "4.2.1",
@@ -119,7 +119,8 @@
     "typescript": "^4.7.4"
   },
   "resolutions": {
-    "brace-expansion": "1.1.12"
+    "brace-expansion": "1.1.12",
+    "@eslint/plugin-kit": "0.3.3"
   },
   "nyc": {
     "extends": "@istanbuljs/nyc-config-typescript",
