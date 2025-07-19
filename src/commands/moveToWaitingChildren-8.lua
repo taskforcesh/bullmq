@@ -63,7 +63,7 @@ if rcall("EXISTS", jobKey) == 1 then
       return errorCode
     end
 
-    local numRemovedElements = rcall("LREM", activeKey, -1, jobId)
+    local numRemovedElements = rcall("LREM", activeKey, 1, jobId)
 
     if numRemovedElements < 1 then
       return -3
