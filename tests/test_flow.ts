@@ -1383,19 +1383,25 @@ describe('flows', () => {
           },
         );
 
-        const failed = new Promise<void>(resolve => {
+        const failed = new Promise<void>((resolve, reject) => {
           queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
-            if (jobId === job.id) {
-              expect(prev).to.be.equal('active');
-              expect(failedReason).to.be.equal(`children are failed`);
-              const childrenCounts = await job.getDependenciesCount();
-              expect(childrenCounts).to.deep.equal({
-                processed: 0,
-                unprocessed: 0,
-                ignored: 0,
-                failed: 1,
-              });
-              resolve();
+            try {
+              if (jobId === job.id) {
+                expect(prev).to.be.equal('active');
+                expect(failedReason).to.be.equal(`children are failed`);
+                const activeCount = await queue.getActiveCount();
+                expect(activeCount).to.be.equal(0);
+                const childrenCounts = await job.getDependenciesCount();
+                expect(childrenCounts).to.deep.equal({
+                  processed: 0,
+                  unprocessed: 0,
+                  ignored: 0,
+                  failed: 1,
+                });
+                resolve();
+              }
+            } catch (error) {
+              reject(error);
             }
           });
         });
