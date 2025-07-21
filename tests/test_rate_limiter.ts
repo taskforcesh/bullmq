@@ -5,12 +5,13 @@ import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 import { v4 } from 'uuid';
 import {
   FlowProducer,
+  Job,
   Queue,
   QueueEvents,
   RateLimitError,
   Worker,
   UnrecoverableError,
-  Job,
+  WaitingChildrenError,
 } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
@@ -416,6 +417,141 @@ describe('Rate Limiter', function () {
       await parentWorker.close();
       await parentQueueEvents.close();
       await flow.close();
+    });
+
+    describe('when parent is in waiting-children state', async () => {
+      it('should move parent to failed when child is moved to failed', async () => {
+        const name = 'child-job';
+
+        const parentQueueName = `parent-queue-${v4()}`;
+        const grandChildrenQueueName = `grand-children-queue-${v4()}`;
+
+        const parentQueue = new Queue(parentQueueName, {
+          connection,
+          prefix,
+        });
+        const grandChildrenQueue = new Queue(grandChildrenQueueName, {
+          connection,
+          prefix,
+        });
+        const queueEvents = new QueueEvents(parentQueueName, {
+          connection,
+          prefix,
+        });
+        await queueEvents.waitUntilReady();
+
+        let grandChildrenProcessor,
+          processedGrandChildren = 0;
+        const processingChildren = new Promise<void>(resolve => {
+          grandChildrenProcessor = async () => {
+            processedGrandChildren++;
+
+            if (processedGrandChildren === 2) {
+              return resolve();
+            }
+
+            await delay(200);
+
+            throw new Error('failed');
+          };
+        });
+
+        const grandChildrenWorker = new Worker(
+          grandChildrenQueueName,
+          grandChildrenProcessor,
+          { connection, prefix },
+        );
+        const childrenWorker = new Worker(queueName, async () => {}, {
+          connection,
+          prefix,
+        });
+        const parentWorker = new Worker(parentQueueName, async () => {}, {
+          connection,
+          prefix,
+          limiter: {
+            max: 1,
+            duration: 2000,
+          },
+        });
+
+        await grandChildrenWorker.waitUntilReady();
+        await childrenWorker.waitUntilReady();
+        await parentWorker.waitUntilReady();
+
+        const flow = new FlowProducer({ connection, prefix });
+        const tree = await flow.add({
+          name: 'parent-job',
+          queueName: parentQueueName,
+          data: {},
+          children: [
+            {
+              name,
+              data: { foo: 'bar' },
+              queueName,
+            },
+            {
+              name,
+              data: { foo: 'qux' },
+              queueName,
+              opts: { failParentOnFailure: true },
+              children: [
+                {
+                  name,
+                  data: { foo: 'bar' },
+                  queueName: grandChildrenQueueName,
+                  opts: { failParentOnFailure: true },
+                },
+                {
+                  name,
+                  data: { foo: 'baz' },
+                  queueName: grandChildrenQueueName,
+                },
+              ],
+            },
+          ],
+        });
+
+        const failed = new Promise<void>(resolve => {
+          parentWorker.on('failed', async job => {
+            if (job!.id === tree.job.id) {
+              expect(job!.failedReason).to.be.equal(
+                `child ${prefix}:${queueName}:${
+                  tree.children![1].job.id
+                } failed`,
+              );
+              resolve();
+            }
+          });
+        });
+
+        expect(tree).to.have.property('job');
+        expect(tree).to.have.property('children');
+
+        const { job } = tree;
+        const parentState = await job.getState();
+
+        expect(parentState).to.be.eql('waiting-children');
+
+        await processingChildren;
+        await failed;
+
+        const rateLimitTtl = await parentQueue.getRateLimitTtl(1);
+        expect(rateLimitTtl).to.be.equal(0);
+
+        await parentQueue.close();
+        await grandChildrenQueue.close();
+        await grandChildrenWorker.close();
+        await childrenWorker.close();
+        await parentWorker.close();
+        await flow.close();
+        await queueEvents.close();
+
+        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(
+          new IORedis(redisHost),
+          grandChildrenQueueName,
+        );
+      });
     });
   });
 
