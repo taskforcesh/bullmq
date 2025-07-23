@@ -2,17 +2,13 @@
   Moves job from active to waiting children set.
 
   Input:
-    KEYS[1]  active key
-    KEYS[2]  wait-children key
-    KEYS[3]  job key
-    KEYS[4]  job dependencies key
-    KEYS[5]  job unsuccessful key
-    KEYS[6]  stalled key
-    KEYS[7]  meta key
-    KEYS[8]  wait key
-    KEYS[9]  paused key
-    KEYS[10] marker key
-    KEYS[11] events key
+    KEYS[1] active key
+    KEYS[2] wait-children key
+    KEYS[3] job key
+    KEYS[4] job dependencies key
+    KEYS[5] job unsuccessful key
+    KEYS[6] stalled key
+    KEYS[7] events key
 
     ARGV[1] token
     ARGV[2] child key
@@ -34,11 +30,7 @@ local jobKey = KEYS[3]
 local jobDependenciesKey = KEYS[4]
 local jobUnsuccessfulKey = KEYS[5]
 local stalledKey = KEYS[6]
-local metaKey = KEYS[7]
-local waitKey = KEYS[8]
-local pausedKey = KEYS[9]
-local markerKey = KEYS[10]
-local eventStreamKey = KEYS[11]
+local eventStreamKey = KEYS[7]
 local timestamp = ARGV[3]
 local jobId = ARGV[4]
 
@@ -64,23 +56,7 @@ end
 
 if rcall("EXISTS", jobKey) == 1 then
   if rcall("ZCARD", jobUnsuccessfulKey) ~= 0 then
-    local errorCode = removeLock(jobKey, stalledKey, ARGV[1], jobId)
-    if errorCode < 0 then
-      return errorCode
-    end
-
-    local numRemovedElements = rcall("LREM", activeKey, -1, jobId)
-
-    if numRemovedElements < 1 then
-      return -3
-    end
-
-    local failedReason = "children are failed"
-    rcall("HSET", jobKey, "defa", failedReason)
-    
-    moveJobToWaitImmediately(metaKey, activeKey, waitKey, pausedKey, markerKey, eventStreamKey, jobId)
-
-    return 0
+    return -10
   else
     if ARGV[2] ~= "" then
       if rcall("SISMEMBER", jobDependenciesKey, ARGV[2]) ~= 0 then

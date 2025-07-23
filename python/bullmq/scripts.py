@@ -7,6 +7,7 @@ from __future__ import annotations
 from redis import Redis
 from bullmq.queue_keys import QueueKeys
 from bullmq.error_code import ErrorCode
+from bullmq.custom_errors import UnrecoverableError
 from bullmq.utils import isRedisVersionLowerThan, get_parent_key, object_to_flat_array
 from typing import Any, TYPE_CHECKING
 if TYPE_CHECKING:
@@ -186,10 +187,6 @@ class Scripts:
                 self.toKey(job_id) + ":dependencies",
                 self.toKey(job_id) + ":unsuccessful",
                 self.keys['stalled'],
-                self.keys['meta'],
-                self.keys['wait'],
-                self.keys['paused'],
-                self.keys['marker'],
                 self.keys['events']]
         child_key = opts.get("child") if opts else None
         args = [token, get_parent_key(child_key) or "", round(time.time() * 1000), job_id,
@@ -672,8 +669,10 @@ class Scripts:
             return TypeError(f"Lock mismatch for job {opts.get('jobId')}. Cmd {opts.get('command')} from {opts.get('state')}")
         elif code == ErrorCode.ParentJobCannotBeReplaced.value:
             return TypeError(f"The parent job {opts.get('jobId')} cannot be replaced. {opts.get('command')}")
-        elif code == ErrorCode.JobFailedChildren.value:
+        elif code == ErrorCode.ChildJobFailed.value:
             return TypeError(f"Job {opts.get('jobId')} has failed children. {opts.get('command')}")
+        elif code == ErrorCode.ChildJobsFailed.value:
+            return UnrecoverableError(f"Children are failed. {opts.get('command')}")
         else:
             return TypeError(f"Unknown code {str(code)} error for {opts.get('jobId')}. {opts.get('command')}")
 

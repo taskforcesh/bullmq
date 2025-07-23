@@ -45,6 +45,7 @@ import {
 } from '../utils';
 import { ChainableCommander } from 'ioredis';
 import { version as packageVersion } from '../version';
+import { UnrecoverableError } from './errors';
 export type JobData = [JobJsonRaw | number, string?];
 
 export class Scripts {
@@ -1117,10 +1118,6 @@ export class Scripts {
       `${jobId}:dependencies`,
       `${jobId}:unsuccessful`,
       'stalled',
-      'meta',
-      'wait',
-      'paused',
-      'marker',
       'events',
     ].map(name => {
       return this.queue.toKey(name);
@@ -1709,8 +1706,10 @@ export class Scripts {
         return new Error(
           `Job ${jobId} belongs to a job scheduler and cannot be removed directly. ${command}`,
         );
-      case ErrorCode.JobFailedChildren:
+      case ErrorCode.ChildJobFailed:
         return new Error(`Job ${jobId} has failed children. ${command}`);
+      case ErrorCode.ChildJobsFailed:
+        return new UnrecoverableError(`Children are failed. ${command}`);
       default:
         return new Error(`Unknown code ${code} error for ${jobId}. ${command}`);
     }

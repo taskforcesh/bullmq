@@ -1383,27 +1383,39 @@ describe('flows', () => {
           },
         );
 
-        const failed = new Promise<void>(resolve => {
+        const failed = new Promise<void>((resolve, rejects) => {
           queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
-            if (jobId === job.id) {
-              expect(prev).to.be.equal('active');
-              expect(failedReason).to.be.equal(`children are failed`);
-              const childrenCounts = await job.getDependenciesCount();
-              expect(childrenCounts).to.deep.equal({
-                processed: 0,
-                unprocessed: 0,
-                ignored: 0,
-                failed: 1,
-              });
-              resolve();
+            try {
+              if (jobId === job.id) {
+                expect(prev).to.be.equal('active');
+                expect(failedReason).to.be.equal(
+                  'Children are failed. moveToWaitingChildren',
+                );
+                const childrenCounts = await job.getDependenciesCount();
+                expect(childrenCounts).to.deep.equal({
+                  processed: 0,
+                  unprocessed: 0,
+                  ignored: 0,
+                  failed: 1,
+                });
+                resolve();
+              }
+            } catch (error) {
+              rejects(error);
             }
           });
         });
 
-        const workerFailedEvent = new Promise<void>(resolve => {
+        const workerFailedEvent = new Promise<void>((resolve, rejects) => {
           worker.once('failed', async job => {
-            expect(job!.failedReason).to.be.equal(`children are failed`);
-            resolve();
+            try {
+              expect(job!.failedReason).to.be.equal(
+                'Children are failed. moveToWaitingChildren',
+              );
+              resolve();
+            } catch (error) {
+              rejects(error);
+            }
           });
         });
 
@@ -1556,7 +1568,9 @@ describe('flows', () => {
             queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
               if (jobId === job.id) {
                 expect(prev).to.be.equal('active');
-                expect(failedReason).to.be.equal(`children are failed`);
+                expect(failedReason).to.be.equal(
+                  'Children are failed. moveToWaitingChildren',
+                );
                 const childrenCounts = await job.getDependenciesCount();
                 expect(childrenCounts).to.deep.equal({
                   processed: 0,
@@ -1571,7 +1585,9 @@ describe('flows', () => {
 
           const workerFailedEvent = new Promise<void>(resolve => {
             worker.once('failed', async job => {
-              expect(job!.failedReason).to.be.equal(`children are failed`);
+              expect(job!.failedReason).to.be.equal(
+                'Children are failed. moveToWaitingChildren',
+              );
               resolve();
             });
           });
