@@ -821,7 +821,7 @@ will never work with more accuracy than 1ms. */
       // Add next scheduled job if necessary.
       if (job.opts.repeat && !job.nextRepeatableJobId) {
         // Use new job scheduler if possible
-        if (job.repeatJobKey) {
+        if (job.repeatJobKey && job.repeatJobKey.split(':').length < 5) {
           const jobScheduler = await this.jobScheduler;
           await jobScheduler.upsertJobScheduler(
             job.repeatJobKey,
