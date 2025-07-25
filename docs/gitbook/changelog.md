@@ -1,3 +1,10 @@
+## [5.56.6](https://github.com/taskforcesh/bullmq/compare/v5.56.5...v5.56.6) (2025-07-25)
+
+
+### Bug Fixes
+
+* **repeat:** use legacy updateRepeatableJob script when old format is present ([#3364](https://github.com/taskforcesh/bullmq/issues/3364)) fixes [#3275](https://github.com/taskforcesh/bullmq/issues/3275) ([1e221d5](https://github.com/taskforcesh/bullmq/commit/1e221d5404dcea750a08342c832a682e454135a3))
+
 ## [5.56.5](https://github.com/taskforcesh/bullmq/compare/v5.56.4...v5.56.5) (2025-07-19)
 
 
