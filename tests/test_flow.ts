@@ -1391,6 +1391,8 @@ describe('flows', () => {
                 expect(failedReason).to.be.equal(
                   'Children are failed. moveToWaitingChildren',
                 );
+                const activeCount = await queue.getActiveCount();
+                expect(activeCount).to.be.equal(0);
                 const childrenCounts = await job.getDependenciesCount();
                 expect(childrenCounts).to.deep.equal({
                   processed: 0,

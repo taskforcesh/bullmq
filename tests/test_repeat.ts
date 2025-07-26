@@ -349,6 +349,61 @@ describe('repeat', function () {
     delayStub.restore();
   });
 
+  describe('when using legacy key', function () {
+    it('should repeat every 2 seconds', async function () {
+      this.timeout(10000);
+
+      const nextTick = 2 * ONE_SECOND + 100;
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          this.clock.tick(nextTick);
+        },
+        { autorun: false, connection, prefix },
+      );
+      const delayStub = sinon.stub(worker, 'delay').callsFake(NoopProc);
+
+      const date = new Date('2017-02-07 9:24:00');
+      this.clock.setSystemTime(date);
+
+      await queue.add(
+        'test',
+        { foo: 'bar' },
+        { repeat: { pattern: '*/2 * * * * *', key: 'test::::*/2 * * * * *' } },
+      );
+
+      this.clock.tick(nextTick);
+
+      let prev: any;
+      let counter = 0;
+
+      const completing = new Promise<void>((resolve, rejects) => {
+        worker.on('completed', async job => {
+          try {
+            if (prev) {
+              expect(prev.timestamp).to.be.lt(job.timestamp);
+              expect(job.timestamp - prev.timestamp).to.be.gte(2000);
+            }
+            prev = job;
+            counter++;
+            if (counter == 5) {
+              resolve();
+            }
+          } catch (error) {
+            rejects(error);
+          }
+        });
+      });
+
+      worker.run();
+
+      await completing;
+      await worker.close();
+      delayStub.restore();
+    });
+  });
+
   it('should repeat every 2 seconds with startDate in future', async function () {
     this.timeout(10000);
 
