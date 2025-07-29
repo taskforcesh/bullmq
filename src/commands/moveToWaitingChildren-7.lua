@@ -56,8 +56,8 @@ local function removeJobFromActive(activeKey, stalledKey, jobKey, jobId,
   return 0
 end
 
-local function moveToWaitingChildren(activeKey, waitingChildrenKey, stalledKey, jobKey, jobId,
-    timestamp, token)
+local function moveToWaitingChildren(activeKey, waitingChildrenKey, stalledKey, eventStreamKey,
+    jobKey, jobId, timestamp, token)
   local errorCode = removeJobFromActive(activeKey, stalledKey, jobKey, jobId, token)
   if errorCode < 0 then
     return errorCode
@@ -77,15 +77,15 @@ if rcall("EXISTS", jobKey) == 1 then
   else
     if ARGV[2] ~= "" then
       if rcall("SISMEMBER", jobDependenciesKey, ARGV[2]) ~= 0 then
-        return moveToWaitingChildren(activeKey, waitingChildrenKey, stalledKey, jobKey, jobId,
-          timestamp, token)
+        return moveToWaitingChildren(activeKey, waitingChildrenKey, stalledKey, eventStreamKey,
+          jobKey, jobId, timestamp, token)
       end
   
       return 1
     else
       if rcall("SCARD", jobDependenciesKey) ~= 0 then 
-        return moveToWaitingChildren(activeKey, waitingChildrenKey, stalledKey, jobKey, jobId,
-          timestamp, token)
+        return moveToWaitingChildren(activeKey, waitingChildrenKey, stalledKey, eventStreamKey,
+          jobKey, jobId, timestamp, token)
       end
   
       return 1
