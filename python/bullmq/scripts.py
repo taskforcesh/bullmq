@@ -671,7 +671,7 @@ class Scripts:
             return TypeError(f"The parent job {opts.get('jobId')} cannot be replaced. {opts.get('command')}")
         elif code == ErrorCode.ChildJobFailed.value:
             return TypeError(f"Job {opts.get('jobId')} has failed children. {opts.get('command')}")
-        elif code == ErrorCode.ChildJobsFailed.value:
+        elif code == ErrorCode.JobHasFailedChildren.value:
             return UnrecoverableError(f"Children are failed. {opts.get('command')}")
         else:
             return TypeError(f"Unknown code {str(code)} error for {opts.get('jobId')}. {opts.get('command')}")
