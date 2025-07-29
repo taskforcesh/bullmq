@@ -1159,16 +1159,16 @@ describe('flows', () => {
 
         const failed = new Promise<void>((resolve, rejects) => {
           queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
-            try{
+            try {
               if (jobId === job.id) {
                 expect(prev).to.be.equal('active');
                 expect(failedReason).to.be.equal(
                   `Job ${jobId} has pending dependencies. moveToFinished`,
                 );
                 resolve();
-              } catch(error) {
-                rejects(error);
               }
+            } catch(error) {
+              rejects(error);
             }
           });
         });
