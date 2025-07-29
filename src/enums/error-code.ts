@@ -7,6 +7,5 @@ export enum ErrorCode {
   JobLockMismatch = -6,
   ParentJobCannotBeReplaced = -7,
   JobBelongsToJobScheduler = -8,
-  ChildJobFailed = -9,
-  ChildJobsFailed = -10,
+  JobHasFailedChildren = -9,
 }
