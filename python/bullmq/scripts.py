@@ -669,10 +669,8 @@ class Scripts:
             return TypeError(f"Lock mismatch for job {opts.get('jobId')}. Cmd {opts.get('command')} from {opts.get('state')}")
         elif code == ErrorCode.ParentJobCannotBeReplaced.value:
             return TypeError(f"The parent job {opts.get('jobId')} cannot be replaced. {opts.get('command')}")
-        elif code == ErrorCode.ChildJobFailed.value:
-            return TypeError(f"Job {opts.get('jobId')} has failed children. {opts.get('command')}")
         elif code == ErrorCode.JobHasFailedChildren.value:
-            return UnrecoverableError(f"Children are failed. {opts.get('command')}")
+            return UnrecoverableError(f"Cannot complete job {opts.get('jobId')} because it has at least one failed child. {opts.get('command')}")
         else:
             return TypeError(f"Unknown code {str(code)} error for {opts.get('jobId')}. {opts.get('command')}")
 
