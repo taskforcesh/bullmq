@@ -1251,7 +1251,7 @@ describe('flows', () => {
                 if (jobId === job.id) {
                   expect(prev).to.be.equal('active');
                   expect(failedReason).to.be.equal(
-                    `Job ${jobId} has failed children. moveToFinished`,
+                    `Job ${jobId} has pending dependencies. moveToFinished`,
                   );
                   resolve();
                 }
