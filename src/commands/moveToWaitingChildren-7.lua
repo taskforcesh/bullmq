@@ -22,6 +22,7 @@
    -1 - Missing job.
    -2 - Missing lock
    -3 - Job not in active set
+   -9 - Job has failed children
 ]]
 local rcall = redis.call
 local activeKey = KEYS[1]
@@ -72,7 +73,7 @@ end
 
 if rcall("EXISTS", jobKey) == 1 then
   if rcall("ZCARD", jobUnsuccessfulKey) ~= 0 then
-    return -10
+    return -9
   else
     if ARGV[2] ~= "" then
       if rcall("SISMEMBER", jobDependenciesKey, ARGV[2]) ~= 0 then
