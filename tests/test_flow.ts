@@ -1195,16 +1195,6 @@ describe('flows', () => {
 
           const flow = new FlowProducer({ connection, prefix });
 
-          const childrenWorker = new Worker(
-            childrenQueueName,
-            () => {
-              throw new Error('failure');
-            },
-            {
-              connection,
-              prefix,
-            },
-          );
           const worker = new Worker(
             queueName,
             async (job: Job, token?: string) => {
@@ -1255,14 +1245,18 @@ describe('flows', () => {
 
           const job = await queue.add('test', { step: Step.Initial });
 
-          const failed = new Promise<void>(resolve => {
+          const failed = new Promise<void>((resolve, rejects) => {
             queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
-              if (jobId === job.id) {
-                expect(prev).to.be.equal('active');
-                expect(failedReason).to.be.equal(
-                  `Job ${jobId} has failed children. moveToFinished`,
-                );
-                resolve();
+              try {
+                if (jobId === job.id) {
+                  expect(prev).to.be.equal('active');
+                  expect(failedReason).to.be.equal(
+                    `Job ${jobId} has failed children. moveToFinished`,
+                  );
+                  resolve();
+                }
+              } catch(error) {
+                rejects(error);
               }
             });
           });
@@ -1272,7 +1266,6 @@ describe('flows', () => {
 
           await flow.close();
           await worker.close();
-          await childrenWorker.close();
           await queueEvents.close();
           await removeAllQueueData(new IORedis(redisHost), childrenQueueName);
         });
