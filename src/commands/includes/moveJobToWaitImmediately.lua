@@ -1,5 +1,5 @@
 --[[
-  Function to move job to active to immediately be picked up by a waiting worker.
+  Function to move job to wait to immediately be picked up by a waiting worker.
 ]]
 
 -- Includes
