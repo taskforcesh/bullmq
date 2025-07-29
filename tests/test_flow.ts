@@ -1157,14 +1157,18 @@ describe('flows', () => {
 
         const job = await queue.add('test', { step: Step.Initial });
 
-        const failed = new Promise<void>(resolve => {
+        const failed = new Promise<void>((resolve, rejects) => {
           queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
-            if (jobId === job.id) {
-              expect(prev).to.be.equal('active');
-              expect(failedReason).to.be.equal(
-                `Job ${jobId} has pending dependencies. moveToFinished`,
-              );
-              resolve();
+            try{
+              if (jobId === job.id) {
+                expect(prev).to.be.equal('active');
+                expect(failedReason).to.be.equal(
+                  `Job ${jobId} has pending dependencies. moveToFinished`,
+                );
+                resolve();
+              } catch(error) {
+                rejects(error);
+              }
             }
           });
         });
