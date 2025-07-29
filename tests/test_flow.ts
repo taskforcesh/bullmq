@@ -1389,7 +1389,7 @@ describe('flows', () => {
               if (jobId === job.id) {
                 expect(prev).to.be.equal('active');
                 expect(failedReason).to.be.equal(
-                  'Children are failed. moveToWaitingChildren',
+                  `Cannot complete job ${jobId} because it has at least one failed child. moveToWaitingChildren`,
                 );
                 const activeCount = await queue.getActiveCount();
                 expect(activeCount).to.be.equal(0);
@@ -1412,7 +1412,7 @@ describe('flows', () => {
           worker.once('failed', async job => {
             try {
               expect(job!.failedReason).to.be.equal(
-                'Children are failed. moveToWaitingChildren',
+                `Cannot complete job ${job.id} because it has at least one failed child. moveToWaitingChildren`,
               );
               resolve();
             } catch (error) {
@@ -1571,7 +1571,7 @@ describe('flows', () => {
               if (jobId === job.id) {
                 expect(prev).to.be.equal('active');
                 expect(failedReason).to.be.equal(
-                  'Children are failed. moveToWaitingChildren',
+                  `Cannot complete job ${jobId} because it has at least one failed child. moveToWaitingChildren`,
                 );
                 const childrenCounts = await job.getDependenciesCount();
                 expect(childrenCounts).to.deep.equal({
@@ -1588,7 +1588,7 @@ describe('flows', () => {
           const workerFailedEvent = new Promise<void>(resolve => {
             worker.once('failed', async job => {
               expect(job!.failedReason).to.be.equal(
-                'Children are failed. moveToWaitingChildren',
+                `Cannot complete job ${job.id} because it has at least one failed child. moveToWaitingChildren`,
               );
               resolve();
             });
