@@ -491,9 +491,7 @@ export class Worker<
 
     let tokenPostfix = 0;
 
-    while (!this.closing && !this.paused) {
-      let numTotal = asyncFifoQueue.numTotal();
-
+    while ((!this.closing && !this.paused) || asyncFifoQueue.numTotal() > 0) {
       /**
        * This inner loop tries to fetch jobs concurrently, but if we are waiting for a job
        * to arrive at the queue we should not try to fetch more jobs (as it would be pointless)
@@ -502,7 +500,7 @@ export class Worker<
         !this.closing &&
         !this.paused &&
         !this.waiting &&
-        numTotal < this._concurrency &&
+        asyncFifoQueue.numTotal() < this._concurrency &&
         !this.isRateLimited()
       ) {
         const token = `${this.id}:${tokenPostfix++}`;
@@ -517,9 +515,7 @@ export class Worker<
         );
         asyncFifoQueue.add(fetchedJob);
 
-        numTotal = asyncFifoQueue.numTotal();
-
-        if (this.waiting && numTotal > 1) {
+        if (this.waiting && asyncFifoQueue.numTotal() > 1) {
           // We are waiting for jobs but we have others that we could start processing already
           break;
         }
@@ -529,7 +525,7 @@ export class Worker<
         const job = await fetchedJob;
 
         // No more jobs waiting but we have others that could start processing already
-        if (!job && numTotal > 1) {
+        if (!job && asyncFifoQueue.numTotal() > 1) {
           break;
         }
 
@@ -565,8 +561,6 @@ export class Worker<
         await this.waitForRateLimit();
       }
     }
-
-    return asyncFifoQueue.waitAll();
   }
 
   /**
@@ -821,7 +815,7 @@ will never work with more accuracy than 1ms. */
       // Add next scheduled job if necessary.
       if (job.opts.repeat && !job.nextRepeatableJobId) {
         // Use new job scheduler if possible
-        if (job.repeatJobKey) {
+        if (job.repeatJobKey && job.repeatJobKey.split(':').length < 5) {
           const jobScheduler = await this.jobScheduler;
           await jobScheduler.upsertJobScheduler(
             job.repeatJobKey,
@@ -1018,7 +1012,9 @@ will never work with more accuracy than 1ms. */
 
         if (!this.paused) {
           this.paused = true;
-          await (!doNotWaitActive && this.whenCurrentJobsFinished());
+          if (!doNotWaitActive) {
+            await this.whenCurrentJobsFinished();
+          }
           this.stalledCheckStopper?.();
           this.emit('paused');
         }

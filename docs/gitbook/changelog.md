@@ -1,3 +1,25 @@
+## [5.56.8](https://github.com/taskforcesh/bullmq/compare/v5.56.7...v5.56.8) (2025-07-27)
+
+
+### Bug Fixes
+
+* **queue:** add support for 'waiting' parameter in clean method ([#3338](https://github.com/taskforcesh/bullmq/issues/3338)) fixes [#3125](https://github.com/taskforcesh/bullmq/issues/3125) ([edb7147](https://github.com/taskforcesh/bullmq/commit/edb714764066b06c068c8c8a5140b010f27c3b9a))
+
+## [5.56.7](https://github.com/taskforcesh/bullmq/compare/v5.56.6...v5.56.7) (2025-07-25)
+
+
+### Bug Fixes
+
+* **flow:** remove parent from active when there are unsuccessful children ([#3348](https://github.com/taskforcesh/bullmq/issues/3348)) ([34ee339](https://github.com/taskforcesh/bullmq/commit/34ee33955a660b0696f4b6cff6d8d39fdcd160db))
+* **worker:** do not keep active jobs when pausing or closing ([#3350](https://github.com/taskforcesh/bullmq/issues/3350)) fixes [#3349](https://github.com/taskforcesh/bullmq/issues/3349) ([424d155](https://github.com/taskforcesh/bullmq/commit/424d15508172a028479059920ed6bfcf1c54a389))
+
+## [5.56.6](https://github.com/taskforcesh/bullmq/compare/v5.56.5...v5.56.6) (2025-07-25)
+
+
+### Bug Fixes
+
+* **repeat:** use legacy updateRepeatableJob script when old format is present ([#3364](https://github.com/taskforcesh/bullmq/issues/3364)) fixes [#3275](https://github.com/taskforcesh/bullmq/issues/3275) ([1e221d5](https://github.com/taskforcesh/bullmq/commit/1e221d5404dcea750a08342c832a682e454135a3))
+
 ## [5.56.5](https://github.com/taskforcesh/bullmq/compare/v5.56.4...v5.56.5) (2025-07-19)
 
 
