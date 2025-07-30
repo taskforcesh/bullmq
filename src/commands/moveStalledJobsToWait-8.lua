@@ -25,7 +25,7 @@ local rcall = redis.call
 --- @include "includes/addJobInTargetList"
 --- @include "includes/batches"
 --- @include "includes/getTargetQueueList"
---- @include "includes/moveJobToWaitImmediately"
+--- @include "includes/moveJobToWait"
 --- @include "includes/trimEvents"
 
 local stalledKey = KEYS[1]
@@ -77,7 +77,8 @@ if (#stalling > 0) then
                         local failedReason = "job stalled more than allowable limit"
                         rcall("HSET", jobKey, "defa", failedReason)
                     end
-                    moveJobToWaitImmediately(metaKey, activeKey, waitKey, pausedKey, markerKey, eventStreamKey, jobId)
+                    moveJobToWait(metaKey, activeKey, waitKey, pausedKey, markerKey, eventStreamKey, jobId,
+                        "RPUSH")
 
                     -- Emit the stalled event
                     rcall("XADD", eventStreamKey, "*", "event", "stalled", "jobId", jobId)
