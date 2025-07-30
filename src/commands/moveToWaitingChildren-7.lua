@@ -37,7 +37,6 @@ local timestamp = ARGV[3]
 local jobId = ARGV[4]
 
 --- Includes
---- @include "includes/moveJobToWaitImmediately"
 --- @include "includes/removeLock"
 
 local function removeJobFromActive(activeKey, stalledKey, jobKey, jobId,
