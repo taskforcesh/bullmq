@@ -89,7 +89,7 @@
     "commitizen": "^4.2.5",
     "coveralls-next": "^4.2.1",
     "cpx2": "^8.0.0",
-    "eslint": "^9.31.0",
+    "eslint": "^9.32.0",
     "eslint-config-prettier": "^8.5.0",
     "eslint-plugin-mocha": "^10.1.0",
     "eslint-plugin-prettier": "4.2.1",
