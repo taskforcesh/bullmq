@@ -8,8 +8,7 @@
     KEYS[4] job dependencies key
     KEYS[5] job unsuccessful key
     KEYS[6] stalled key
-    KEYS[7] failed key
-    KEYS[8] events key
+    KEYS[7] events key
 
     ARGV[1] token
     ARGV[2] child key
@@ -32,7 +31,6 @@ local jobKey = KEYS[3]
 local jobDependenciesKey = KEYS[4]
 local jobUnsuccessfulKey = KEYS[5]
 local stalledKey = KEYS[6]
-local failedKey = KEYS[7]
 local timestamp = ARGV[3]
 local jobId = ARGV[4]
 
