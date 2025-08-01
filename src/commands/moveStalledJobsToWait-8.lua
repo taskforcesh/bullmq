@@ -25,6 +25,7 @@ local rcall = redis.call
 --- @include "includes/addJobInTargetList"
 --- @include "includes/batches"
 --- @include "includes/getTargetQueueList"
+--- @include "includes/moveJobToWait"
 --- @include "includes/trimEvents"
 
 local stalledKey = KEYS[1]
@@ -73,20 +74,11 @@ if (#stalling > 0) then
                     -- If this job has been stalled too many times, such as if it crashes the worker, then fail it.
                     local stalledCount = rcall("HINCRBY", jobKey, "stc", 1)
                     if stalledCount > maxStalledJobCount then
-                        local jobAttributes = rcall("HMGET", jobKey, "opts", "parent")
-                        local rawOpts = jobAttributes[1]
-                        local rawParentData = jobAttributes[2]
-                        local opts = cjson.decode(rawOpts)
-
                         local failedReason = "job stalled more than allowable limit"
                         rcall("HSET", jobKey, "defa", failedReason)
                     end
-                    local target, isPausedOrMaxed = getTargetQueueList(metaKey, activeKey, waitKey, pausedKey)
-
-                    -- Move the job back to the wait queue, to immediately be picked up by a waiting worker.
-                    addJobInTargetList(target, markerKey, "RPUSH", isPausedOrMaxed, jobId)
-
-                    rcall("XADD", eventStreamKey, "*", "event", "waiting", "jobId", jobId, 'prev', 'active')
+                    moveJobToWait(metaKey, activeKey, waitKey, pausedKey, markerKey, eventStreamKey, jobId,
+                        "RPUSH")
 
                     -- Emit the stalled event
                     rcall("XADD", eventStreamKey, "*", "event", "stalled", "jobId", jobId)

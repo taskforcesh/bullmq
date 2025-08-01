@@ -7,6 +7,7 @@ from __future__ import annotations
 from redis import Redis
 from bullmq.queue_keys import QueueKeys
 from bullmq.error_code import ErrorCode
+from bullmq.custom_errors import UnrecoverableError
 from bullmq.utils import isRedisVersionLowerThan, get_parent_key, object_to_flat_array
 from typing import Any, TYPE_CHECKING
 if TYPE_CHECKING:
@@ -48,7 +49,7 @@ class Scripts:
             "moveToActive": self.redisClient.register_script(self.getScript("moveToActive-11.lua")),
             "moveToDelayed": self.redisClient.register_script(self.getScript("moveToDelayed-8.lua")),
             "moveToFinished": self.redisClient.register_script(self.getScript("moveToFinished-14.lua")),
-            "moveToWaitingChildren": self.redisClient.register_script(self.getScript("moveToWaitingChildren-8.lua")),
+            "moveToWaitingChildren": self.redisClient.register_script(self.getScript("moveToWaitingChildren-7.lua")),
             "obliterate": self.redisClient.register_script(self.getScript("obliterate-2.lua")),
             "pause": self.redisClient.register_script(self.getScript("pause-7.lua")),
             "promote": self.redisClient.register_script(self.getScript("promote-9.lua")),
@@ -186,7 +187,6 @@ class Scripts:
                 self.toKey(job_id) + ":dependencies",
                 self.toKey(job_id) + ":unsuccessful",
                 self.keys['stalled'],
-                self.keys['failed'],
                 self.keys['events']]
         child_key = opts.get("child") if opts else None
         args = [token, get_parent_key(child_key) or "", round(time.time() * 1000), job_id,
@@ -669,8 +669,8 @@ class Scripts:
             return TypeError(f"Lock mismatch for job {opts.get('jobId')}. Cmd {opts.get('command')} from {opts.get('state')}")
         elif code == ErrorCode.ParentJobCannotBeReplaced.value:
             return TypeError(f"The parent job {opts.get('jobId')} cannot be replaced. {opts.get('command')}")
-        elif code == ErrorCode.JobFailedChildren.value:
-            return TypeError(f"Job {opts.get('jobId')} has failed children. {opts.get('command')}")
+        elif code == ErrorCode.JobHasFailedChildren.value:
+            return UnrecoverableError(f"Cannot complete job {opts.get('jobId')} because it has at least one failed child. {opts.get('command')}")
         else:
             return TypeError(f"Unknown code {str(code)} error for {opts.get('jobId')}. {opts.get('command')}")
 

@@ -23,6 +23,7 @@
    -1 - Missing job.
    -2 - Missing lock
    -3 - Job not in active set
+   -9 - Job has failed children
 ]]
 local rcall = redis.call
 local activeKey = KEYS[1]
@@ -31,72 +32,63 @@ local jobKey = KEYS[3]
 local jobDependenciesKey = KEYS[4]
 local jobUnsuccessfulKey = KEYS[5]
 local stalledKey = KEYS[6]
+local eventStreamKey = KEYS[7]
+local token = ARGV[1]
 local timestamp = ARGV[3]
 local jobId = ARGV[4]
 
 --- Includes
 --- @include "includes/checkMaxSkippedAttempts"
---- @include "includes/moveChildFromDependenciesIfNeeded"
---- @include "includes/removeDeduplicationKeyIfNeededOnFinalization"
---- @include "includes/removeJobsOnFail"
 --- @include "includes/removeLock"
 
-local function moveToWaitingChildren(activeKey, waitingChildrenKey, jobKey,
-    jobId, timestamp, maxSkippedAttemptCount)
-  local score = tonumber(timestamp)
+local function removeJobFromActive(activeKey, stalledKey, jobKey, jobId,
+    token)
+  local errorCode = removeLock(jobKey, stalledKey, token, jobId)
+  if errorCode < 0 then
+    return errorCode
+  end
 
   local numRemovedElements = rcall("LREM", activeKey, -1, jobId)
 
-  if(numRemovedElements < 1) then
+  if numRemovedElements < 1 then
     return -3
   end
 
+  return 0
+end
+
+local function moveToWaitingChildren(activeKey, waitingChildrenKey, stalledKey, eventStreamKey,
+    jobKey, jobId, timestamp, maxSkippedAttemptCount, token)
+  local errorCode = removeJobFromActive(activeKey, stalledKey, jobKey, jobId, token)
+  if errorCode < 0 then
+    return errorCode
+  end
+
+  local score = tonumber(timestamp)
+
   rcall("ZADD", waitingChildrenKey, score, jobId)
   checkMaxSkippedAttempts(jobKey, maxSkippedAttemptCount)
+  rcall("XADD", eventStreamKey, "*", "event", "waiting-children", "jobId", jobId, 'prev', 'active')
+
   return 0
 end
 
 if rcall("EXISTS", jobKey) == 1 then
   if rcall("ZCARD", jobUnsuccessfulKey) ~= 0 then
-    -- TODO: refactor this logic in an include later
-    local jobAttributes = rcall("HMGET", jobKey, "parent", "deid", "opts")
-
-    removeDeduplicationKeyIfNeededOnFinalization(ARGV[5], jobAttributes[2], jobId)
-  
-    local failedReason = "children are failed"
-    rcall("ZADD", failedKey, timestamp, jobId) -- TODO: use defa attribute
-    rcall("HSET", jobKey, "finishedOn", timestamp)
-    rcall("XADD", KEYS[8], "*", "event", "failed", "jobId", jobId, "failedReason",
-      failedReason, "prev", "active")
-
-    local rawParentData = jobAttributes[1]
-    local rawOpts = jobAttributes[3]
-    local opts = cjson.decode(rawOpts)
-
-    moveChildFromDependenciesIfNeeded(rawParentData, jobKey, failedReason, timestamp)
-
-    removeJobsOnFail(ARGV[5], failedKey, jobId, opts, timestamp)
-
-    return 0
+    return -9
   else
     local maxSkippedAttemptCount = tonumber(ARGV[6])
     if ARGV[2] ~= "" then
       if rcall("SISMEMBER", jobDependenciesKey, ARGV[2]) ~= 0 then
-        local errorCode = removeLock(jobKey, stalledKey, ARGV[1], jobId)
-        if errorCode < 0 then
-          return errorCode
-        end
-        return moveToWaitingChildren(activeKey, waitingChildrenKey, jobKey, jobId, timestamp, maxSkippedAttemptCount)
+        return moveToWaitingChildren(activeKey, waitingChildrenKey, stalledKey, eventStreamKey,
+          jobKey, jobId, timestamp, maxSkippedAttemptCount, token)
       end
   
       return 1
     else
       if rcall("SCARD", jobDependenciesKey) ~= 0 then 
-        local errorCode = removeLock(jobKey, stalledKey, ARGV[1], jobId)
-        if errorCode < 0 then
-          return errorCode
-        end
-        return moveToWaitingChildren(activeKey, waitingChildrenKey, jobKey,jobId, timestamp, maxSkippedAttemptCount)
+        return moveToWaitingChildren(activeKey, waitingChildrenKey, stalledKey, eventStreamKey,
+          jobKey, jobId, timestamp, maxSkippedAttemptCount, token)
       end
   
       return 1

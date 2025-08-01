@@ -9,4 +9,4 @@ class ErrorCode(Enum):
     ParentJobNotExist = -5
     JobLockMismatch = -6
     ParentJobCannotBeReplaced = -7
-    JobFailedChildren = -9
+    JobHasFailedChildren = -9
