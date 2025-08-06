@@ -108,7 +108,7 @@ export class JobScheduler extends QueueBase {
         nextMillis = prevSlot;
       }
     } else if (pattern) {
-      nextMillis = await this.repeatStrategy(now, repeatOpts, jobName);
+      nextMillis = await this.repeatStrategy(startMillis, repeatOpts, jobName);
 
       if (nextMillis < now) {
         nextMillis = now;
