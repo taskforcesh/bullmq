@@ -1465,6 +1465,10 @@ export class Job<
       throw new Error('Custom Ids cannot be integers');
     }
 
+    if (this.id.includes(':')) {
+      throw new Error('Custom Id cannot contain :');
+    }
+
     if (this.opts.priority) {
       if (Math.trunc(this.opts.priority) !== this.opts.priority) {
         throw new Error(`Priority should not be float`);

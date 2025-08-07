@@ -88,9 +88,17 @@ describe('queues', function () {
         ).to.be.rejectedWith('Custom Ids cannot be integers');
       });
     });
+
+    describe('when custom job id contains :', () => {
+      it('throws an error', async () => {
+        await expect(
+          queue.add('test', { foo: 1 }, { jobId: '1:0' }),
+        ).to.be.rejectedWith('Custom Id cannot contain :');
+      });
+    });
   });
 
-  describe('when empty name contains :', () => {
+  describe('when queue name contains :', () => {
     it('throws an error', function () {
       expect(
         () =>
