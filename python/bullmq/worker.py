@@ -20,6 +20,8 @@ maximum_block_timeout = 10
 # rate limits will never work with more accuracy than 1ms.
 minimum_block_timeout = 0.001
 
+# 30 seconds is the maximum limit until.
+maximum_rate_limit_delay = 30000
 
 class Worker(EventEmitter):
     def __init__(self, name: str, processor: Callable[[Job, str], asyncio.Future], opts: WorkerOptions = {}):
@@ -73,7 +75,7 @@ class Worker(EventEmitter):
         token_postfix = 0
 
         while not self.closed:
-            while not self.waiting and len(self.processing) < self.opts.get("concurrency") and not self.closing:
+            while not self.waiting and len(self.processing) < self.opts.get("concurrency") and not self.closing and not self.isRateLimited():
                 token_postfix+=1
                 token = f'{self.id}:{token_postfix}'
                 waiting_job = asyncio.ensure_future(self.getNextJob(token))
@@ -97,6 +99,9 @@ class Worker(EventEmitter):
                 traceback.print_exc()
                 return
 
+            if self.isRateLimited():
+                await self.waitForRateLimit()
+
         self.running = False
         self.timer.stop()
         self.stalledCheckTimer.stop()
@@ -107,19 +112,20 @@ class Worker(EventEmitter):
         @param token: worker token to be assigned to retrieved job
         @returns a Job or undefined if no job was available in the queue.
         """
-        if not self.waiting and self.drained:
+        if self.drained and not self.limitUntil and not self.waiting:
             self.waiting = self.waitForJob()
 
             try:
                 self.blockUntil = await self.waiting
                 timestamp = int(time.time() * 1000)
 
-                if self.blockUntil <= 0 or self.blockUntil <= timestamp:
+                if self.blockUntil <= 0 or self.blockUntil - timestamp < 1:
                     job_instance = await self.moveToActive(token)
                     return job_instance
             finally:
                 self.waiting = None
         else:
+            await self.waitForRateLimit()
             job_instance = await self.moveToActive(token)
             return job_instance
 
@@ -240,6 +246,24 @@ class Worker(EventEmitter):
 
         except Exception as e:
             self.emit('error', e)
+
+    async def waitForRateLimit(self):
+        limit_until = self.limitUntil
+        if limit_until > round(time.time() * 1000):
+            delay = self.getRateLimitDelay(limit_until - round(time.time() * 1000))
+            await self.delay(delay)
+
+    def getRateLimitDelay(self, delay):
+        return min(delay, maximum_rate_limit_delay)
+
+    async def delay(self, milliseconds):
+        try:
+            await asyncio.sleep(milliseconds/1000 or 0.1)
+        except asyncio.CancelledError:
+            return None
+
+    def isRateLimited(self):
+        return self.limitUntil > round(time.time() * 1000)
 
     async def close(self, force: bool = False):
         """
