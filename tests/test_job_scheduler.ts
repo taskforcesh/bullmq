@@ -689,7 +689,7 @@ describe('Job Scheduler', function () {
     );
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
-    await queue.upsertJobScheduler(
+    const delayedJob = await queue.upsertJobScheduler(
       'test',
       {
         pattern: '*/2 * * * * *',
@@ -697,6 +697,8 @@ describe('Job Scheduler', function () {
       },
       { data: { foo: 'bar' } },
     );
+
+    expect(delayedJob!.delay).to.be.equal(6000);
 
     this.clock.tick(nextTick + delay);
 
