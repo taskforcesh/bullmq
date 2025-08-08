@@ -1460,8 +1460,12 @@ export class Job<
       );
     }
 
-    if (`${parseInt(this.id, 10)}` === this.id) {
-      throw new Error('Custom Ids cannot be integers');
+    if (`${parseInt(this.opts?.jobId, 10)}` === this.opts?.jobId) {
+      throw new Error('Custom Id cannot be integers');
+    }
+
+    if (this.opts?.jobId?.includes(':')) {
+      throw new Error('Custom Id cannot contain :');
     }
 
     if (this.opts.priority) {
