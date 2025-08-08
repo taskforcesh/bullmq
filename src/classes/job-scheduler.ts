@@ -412,7 +412,10 @@ export const defaultRepeatStrategy = (
 ): number | undefined => {
   const { pattern } = opts;
 
-  const currentDate = new Date(millis);
+  const currentDate =
+    opts.startDate && new Date(opts.startDate) > new Date(millis)
+      ? new Date(opts.startDate)
+      : new Date(millis);
   const interval = parseExpression(pattern, {
     ...opts,
     currentDate,
