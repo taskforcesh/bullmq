@@ -85,7 +85,7 @@ describe('queues', function () {
       it('throws error', async function () {
         await expect(
           queue.add('test', { foo: 1 }, { jobId: '2' }),
-        ).to.be.rejectedWith('Custom Ids cannot be integers');
+        ).to.be.rejectedWith('Custom Id cannot be integers');
       });
     });
 
