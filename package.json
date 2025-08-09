@@ -87,7 +87,7 @@
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
     "commitizen": "^4.2.5",
-    "coveralls-next": "^4.2.1",
+    "coveralls-next": "^5.0.0",
     "cpx2": "^8.0.0",
     "eslint": "^9.32.0",
     "eslint-config-prettier": "^8.5.0",
@@ -119,7 +119,7 @@
     "typescript": "^4.7.4"
   },
   "resolutions": {
-    "coveralls-next/form-data": "4.0.4"
+    "commitizen/inquirer/external-editor/tmp": "0.2.4"
   },
   "nyc": {
     "extends": "@istanbuljs/nyc-config-typescript",
