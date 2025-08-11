@@ -1071,11 +1071,6 @@ function sandboxProcessTests(
         },
       );
       const childQueue = new Queue(childQueueName, { connection, prefix });
-      const childQueueEvents = new QueueEvents(childQueueName, {
-        connection,
-        prefix,
-      });
-      await childQueueEvents.waitUntilReady();
 
       const waitingParent = new Promise<void>((resolve, reject) => {
         queueEvents.on('waiting-children', async ({ jobId }) => {
@@ -1122,7 +1117,6 @@ function sandboxProcessTests(
       await parentWorker.close();
       await childWorker.close();
       await childQueue.close();
-      await childQueueEvents.close();
       await removeAllQueueData(new IORedis(redisHost), childQueueName);
     });
 
