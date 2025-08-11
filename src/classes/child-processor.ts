@@ -125,7 +125,7 @@ export class ChildProcessor {
   ): SandboxedJob {
     const wrappedJob = {
       ...job,
-      queueQualifiedName: job.prefix + ':' + job.queueName,
+      queueQualifiedName: job.queueQualifiedName,
       data: JSON.parse(job.data || '{}'),
       opts: job.opts,
       returnValue: JSON.parse(job.returnvalue || '{}'),
