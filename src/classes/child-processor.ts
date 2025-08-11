@@ -175,7 +175,7 @@ export class ChildProcessor {
        */
       moveToWaitingChildren: async (
         token?: string,
-        opts: MoveToWaitingChildrenOpts = {},
+        opts?: MoveToWaitingChildrenOpts,
       ): Promise<boolean> => {
         const requestId = Math.random().toString(36).substring(2, 15);
         await send({
