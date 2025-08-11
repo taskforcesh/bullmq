@@ -174,7 +174,7 @@ export class ChildProcessor {
        * Proxy `moveToWaitingChildren` function.
        */
       moveToWaitingChildren: async (
-        token: string,
+        token?: string,
         opts: MoveToWaitingChildrenOpts = {},
       ): Promise<boolean> => {
         const requestId = Math.random().toString(36).substring(2, 15);
