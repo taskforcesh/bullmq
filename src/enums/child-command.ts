@@ -4,4 +4,5 @@ export enum ChildCommand {
   Stop,
   GetChildrenValuesResponse,
   GetIgnoredChildrenFailuresResponse,
+  MoveToWaitingChildrenResponse,
 }
