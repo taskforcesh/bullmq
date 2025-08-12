@@ -20,7 +20,7 @@ maximum_block_timeout = 10
 # rate limits will never work with more accuracy than 1ms.
 minimum_block_timeout = 0.001
 
-# 30 seconds is the maximum limit until.
+# 30 seconds is the maximum rate limit delay.
 maximum_rate_limit_delay = 30000
 
 class Worker(EventEmitter):
