@@ -45,7 +45,10 @@ async function addChildJob(job) {
   const connection = new IORedis(job.data.redisHost, {
     maxRetriesPerRequest: null,
   });
-  const queue = new Queue(job.data.queueName, { connection });
+  const queue = new Queue(job.data.queueName, {
+    connection,
+    prefix: job.prefix,
+  });
   await queue.add(
     'child-job',
     { foo: 'bar' },
