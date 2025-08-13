@@ -55,6 +55,19 @@ const sandbox = <T, R, N extends string>(
                   case ParentCommand.MoveToWait:
                     await job.moveToWait(msg.value?.token);
                     break;
+                  case ParentCommand.MoveToWaitingChildren:
+                    {
+                      const value = await job.moveToWaitingChildren(
+                        msg.value?.token,
+                        msg.value?.opts,
+                      );
+                      child.send({
+                        requestId: msg.requestId,
+                        cmd: ChildCommand.MoveToWaitingChildrenResponse,
+                        value,
+                      });
+                    }
+                    break;
                   case ParentCommand.Update:
                     await job.updateData(msg.value);
                     break;
