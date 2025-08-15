@@ -9,21 +9,17 @@
 -- Includes
 --- @include "addBaseMarkerIfNeeded"
 
+local function getDeferredFailure(jobAttributes)
+  for i = 1, #jobAttributes, 2 do
+    if jobAttributes[i] == "defa" then
+      return jobAttributes[i + 1]
+    end
+  end
+end
+
 local function prepareJobForProcessing(keyPrefix, rateLimiterKey, eventStreamKey,
     jobId, processedOn, maxJobs, markerKey, opts)
   local jobKey = keyPrefix .. jobId
-
-  -- Check if we need to perform rate limiting.
-  if maxJobs then
-    local jobCounter = tonumber(rcall("INCR", rateLimiterKey))
-
-    if jobCounter == 1 then
-      local limiterDuration = opts['limiter'] and opts['limiter']['duration']
-      local integerDuration = math.floor(math.abs(limiterDuration))
-      rcall("PEXPIRE", rateLimiterKey, integerDuration)
-    end
-  end
-
   local lockKey = jobKey .. ':lock'
 
   -- get a lock
@@ -45,7 +41,23 @@ local function prepareJobForProcessing(keyPrefix, rateLimiterKey, eventStreamKey
 
   addBaseMarkerIfNeeded(markerKey, false)
 
+  local jobAttributes = rcall("HGETALL", jobKey)
+
+  local deferredFailure = getDeferredFailure(jobAttributes)
+
+  -- Check if we need to perform rate limiting.
+  if not deferredFailure 
+  and maxJobs then
+    local jobCounter = tonumber(rcall("INCR", rateLimiterKey))
+
+    if jobCounter == 1 then
+      local limiterDuration = opts['limiter'] and opts['limiter']['duration']
+      local integerDuration = math.floor(math.abs(limiterDuration))
+      rcall("PEXPIRE", rateLimiterKey, integerDuration)
+    end
+  end
+
   -- rate limit delay must be 0 in this case to prevent adding more delay
   -- when job that is moved to active needs to be processed
-  return {rcall("HGETALL", jobKey), jobId, 0, 0} -- get job data
+  return {jobAttributes, jobId, 0, 0} -- get job data
 end
