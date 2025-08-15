@@ -860,6 +860,8 @@ will never work with more accuracy than 1ms. */
           [TelemetryAttributes.WorkerId]: this.id,
           [TelemetryAttributes.WorkerName]: this.opts.name,
           [TelemetryAttributes.JobId]: job.id,
+          [TelemetryAttributes.JobName]: job.name,
+          [TelemetryAttributes.JobAttemptsMade]: job.attemptsMade
         });
 
         this.emit('active', job, 'waiting');
