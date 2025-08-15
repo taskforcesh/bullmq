@@ -581,6 +581,7 @@ export class Job<
     return {
       ...this.asJSON(),
       queueName: this.queueName,
+      queueQualifiedName: this.queueQualifiedName,
       prefix: this.prefix,
     };
   }

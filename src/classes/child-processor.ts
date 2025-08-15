@@ -1,5 +1,9 @@
 import { ParentCommand } from '../enums';
-import { SandboxedJob, Receiver } from '../interfaces';
+import {
+  MoveToWaitingChildrenOpts,
+  Receiver,
+  SandboxedJob,
+} from '../interfaces';
 import { JobJsonSandbox, JobProgress } from '../types';
 import { errorToJSON } from '../utils';
 
@@ -121,6 +125,7 @@ export class ChildProcessor {
   ): SandboxedJob {
     const wrappedJob = {
       ...job,
+      queueQualifiedName: job.queueQualifiedName,
       data: JSON.parse(job.data || '{}'),
       opts: job.opts,
       returnValue: JSON.parse(job.returnvalue || '{}'),
@@ -164,6 +169,29 @@ export class ChildProcessor {
           value: { token },
         });
       },
+
+      /*
+       * Proxy `moveToWaitingChildren` function.
+       */
+      moveToWaitingChildren: async (
+        token?: string,
+        opts?: MoveToWaitingChildrenOpts,
+      ): Promise<boolean> => {
+        const requestId = Math.random().toString(36).substring(2, 15);
+        await send({
+          requestId,
+          cmd: ParentCommand.MoveToWaitingChildren,
+          value: { token, opts },
+        });
+
+        return waitResponse(
+          requestId,
+          this.receiver,
+          RESPONSE_TIMEOUT,
+          'moveToWaitingChildren',
+        ) as Promise<boolean>;
+      },
+
       /*
        * Proxy `updateData` function.
        */

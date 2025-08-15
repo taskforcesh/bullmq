@@ -11,4 +11,5 @@ export enum ParentCommand {
   Update,
   GetChildrenValues,
   GetIgnoredChildrenFailures,
+  MoveToWaitingChildren,
 }
