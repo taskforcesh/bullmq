@@ -115,6 +115,13 @@ export class Job<
   attemptsMade = 0;
 
   /**
+   * Number of times where job has skipped an attempt made using an special error like
+   * DelayedError, RateLimitError, WaitingChildrenError or WaitingError.
+   * @defaultValue 0
+   */
+  skippedAttemptCounter = 0;
+
+  /**
    * Number of times where job has stalled.
    * @defaultValue 0
    */
@@ -393,6 +400,8 @@ export class Job<
     job.attemptsStarted = parseInt(json.ats || '0');
 
     job.attemptsMade = parseInt(json.attemptsMade || json.atm || '0');
+
+    job.skippedAttemptCounter = parseInt(json.sac || '0');
 
     job.stalledCounter = parseInt(json.stc || '0');
 
