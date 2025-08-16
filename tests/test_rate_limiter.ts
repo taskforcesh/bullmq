@@ -10,6 +10,7 @@ import {
   RateLimitError,
   Worker,
   UnrecoverableError,
+  Job,
 } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
@@ -78,7 +79,7 @@ describe('Rate Limiter', function () {
   });
 
   it('should obey the rate limit', async function () {
-    this.timeout(20000);
+    this.timeout(15000);
 
     const numJobs = 10;
 
@@ -123,6 +124,57 @@ describe('Rate Limiter', function () {
     await worker.close();
   });
 
+  it('should respect processing time without adding limiter delay', async function () {
+    this.timeout(12000);
+
+    const numJobs = 40;
+
+    const worker = new Worker(
+      queueName,
+      async () => {
+        await delay(Math.floor(1 + Math.random() * 4));
+      },
+      {
+        connection,
+        prefix,
+        concurrency: 5,
+        limiter: {
+          max: 4,
+          duration: 1000,
+        },
+      },
+    );
+
+    let completedCount = 0;
+    const result = new Promise<void>((resolve, reject) => {
+      worker.on('completed', async job => {
+        try {
+          completedCount++;
+          expect(job.finishedOn! - job.processedOn!).to.be.lte(1000);
+          if (completedCount === numJobs) {
+            resolve();
+          }
+        } catch (err) {
+          reject(err);
+        }
+      });
+
+      queueEvents.on('failed', async err => {
+        await worker.close();
+        reject(err);
+      });
+    });
+
+    const jobs = Array.from(Array(numJobs).keys()).map(() => ({
+      name: 'rate test',
+      data: {},
+    }));
+    await queue.addBulk(jobs);
+
+    await result;
+    await worker.close();
+  });
+
   it('should quickly close a worker even with slow rate-limit', async function () {
     const limiter = { max: 1, duration: 60 * 1000 };
     const worker = new Worker(queueName, async () => {}, {
@@ -130,9 +182,70 @@ describe('Rate Limiter', function () {
       prefix,
       limiter,
     });
+
     await queue.add('test', 1);
     await delay(500);
     await worker.close();
+  });
+
+  describe('when a job never completed', () => {
+    it('should not block the rate limit', async function () {
+      this.timeout(20000);
+      const numJobs = 20;
+      const queue = new Queue(queueName, {
+        prefix,
+        connection,
+      });
+
+      const worker = new Worker(
+        queueName,
+        async (job: Job) => {
+          if (job.data == 'delay') {
+            // This simulates a job that will never resolve.
+            await new Promise(resolve => {});
+            return;
+          }
+
+          if (job.data == 'test') {
+            return 'Success';
+          }
+        },
+        {
+          autorun: false,
+          connection,
+          prefix,
+          concurrency: 2,
+          limiter: {
+            max: 5,
+            duration: 1000,
+          },
+        },
+      );
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on(
+          'completed',
+          // after every job has been completed except the one that never resolves
+          after(numJobs - 1, async () => {
+            // We need to forcefully close the worker
+            await worker.close(true);
+            resolve();
+          }),
+        );
+      });
+
+      await queue.add('delay-job', 'delay');
+
+      for (let i = 0; i < numJobs; i++) {
+        await queue.add('test-job', 'test');
+      }
+
+      worker.run();
+
+      await completing;
+
+      await worker.close(true);
+    });
   });
 
   describe('when queue is paused between rate limit', () => {
@@ -455,7 +568,7 @@ describe('Rate Limiter', function () {
         const failing = new Promise<void>(resolve => {
           worker.on('error', err => {
             expect(err.message).to.be.equal(
-              `Missing lock for job ${job.id}. moveJobFromActiveToWait`,
+              `Missing key for job ${job.id}. moveJobFromActiveToWait`,
             );
             resolve();
           });
@@ -1002,7 +1115,7 @@ describe('Rate Limiter', function () {
     describe('when rate limit is max 1', () => {
       it('processes jobs as max limiter from the beginning', async function () {
         const numJobs = 5;
-        this.timeout(5000);
+        this.timeout(8000);
         let parallelJobs = 0;
 
         const processor = async () => {

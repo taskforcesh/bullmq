@@ -29,6 +29,10 @@ local jobId = ARGV[1]
 local token = ARGV[2]
 local jobKey = ARGV[3]
 
+if rcall("EXISTS", jobKey) == 0 then
+  return -1
+end
+
 local errorCode = removeLock(jobKey, KEYS[3], token, jobId)
 if errorCode < 0 then
   return errorCode
@@ -51,7 +55,7 @@ if removed > 0 then
 
   -- Emit waiting event
   rcall("XADD", KEYS[9], "MAXLEN", "~", maxEvents, "*", "event", "waiting",
-    "jobId", jobId)
+    "jobId", jobId, "prev", "active")
 end
 
 local pttl = rcall("PTTL", KEYS[6])

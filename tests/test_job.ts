@@ -197,6 +197,26 @@ describe('Job', function () {
         );
       });
     });
+
+    describe('when jitter backoff option is provided with a value lesser than 0', () => {
+      it('throws an error', async () => {
+        const data = { foo: 'bar' };
+        const opts = { backoff: { type: 'fixed', jitter: -1 } };
+        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+          'Jitter should be between 0 and 1',
+        );
+      });
+    });
+
+    describe('when jitter backoff option is provided with a value greater than 1', () => {
+      it('throws an error', async () => {
+        const data = { foo: 'bar' };
+        const opts = { backoff: { type: 'fixed', jitter: 5 } };
+        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+          'Jitter should be between 0 and 1',
+        );
+      });
+    });
   });
 
   describe('JSON.stringify', () => {
@@ -1014,61 +1034,6 @@ describe('Job', function () {
       await expect(job.changeDelay(2000)).to.be.rejectedWith(
         `Job ${job.id} is not in the delayed state. changeDelay`,
       );
-    });
-
-    describe('when adding delayed job after standard one when worker is drained', () => {
-      it('pick standard job without delay', async function () {
-        this.timeout(6000);
-
-        await Job.create(queue, 'test1', { foo: 'bar' });
-
-        const worker = new Worker(
-          queueName,
-          async job => {
-            await delay(1000);
-          },
-          {
-            connection,
-            prefix,
-          },
-        );
-        await worker.waitUntilReady();
-
-        // after this event, worker should be drained
-        const completing = new Promise<void>(resolve => {
-          worker.once('completed', async () => {
-            await queue.addBulk([
-              { name: 'test1', data: { idx: 0, foo: 'bar' } },
-              {
-                name: 'test2',
-                data: { idx: 1, foo: 'baz' },
-                opts: { delay: 3000 },
-              },
-            ]);
-
-            resolve();
-          });
-        });
-
-        await completing;
-
-        const now = Date.now();
-        const completing2 = new Promise<void>(resolve => {
-          worker.on(
-            'completed',
-            after(2, job => {
-              const timeDiff = Date.now() - now;
-              expect(timeDiff).to.be.greaterThanOrEqual(4000);
-              expect(timeDiff).to.be.lessThan(4500);
-              expect(job.delay).to.be.equal(0);
-              resolve();
-            }),
-          );
-        });
-
-        await completing2;
-        await worker.close();
-      });
     });
   });
 

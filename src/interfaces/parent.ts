@@ -12,11 +12,15 @@ export interface Parent<T> {
 }
 
 export interface ParentKeys {
-  id: string;
+  id?: string;
   queueKey: string;
+  fpof?: boolean;
+  rdof?: boolean;
+  idof?: boolean;
+  cpof?: boolean;
 }
 
-export type ParentOpts = {
+export type ParentKeyOpts = {
   waitChildrenKey?: string;
   parentDependenciesKey?: string;
   parentKey?: string;

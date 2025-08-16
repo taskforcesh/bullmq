@@ -12,6 +12,7 @@ import {
   Worker,
   WaitingChildrenError,
   DelayedError,
+  WaitingError,
 } from '../src/classes';
 import { KeepJobs, MinimalJob } from '../src/interfaces';
 import { JobsOptions } from '../src/types';
@@ -1550,6 +1551,61 @@ describe('workers', function () {
     });
   });
 
+  describe('when adding delayed job after standard one when worker is drained', () => {
+    it('pick standard job without delay', async function () {
+      this.timeout(6000);
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          await delay(1000);
+        },
+        {
+          connection,
+          prefix,
+        },
+      );
+      await worker.waitUntilReady();
+
+      // after this event, worker should be drained
+      const completing = new Promise<void>(resolve => {
+        worker.once('completed', async () => {
+          await queue.addBulk([
+            { name: 'test1', data: { idx: 0, foo: 'bar' } },
+            {
+              name: 'test2',
+              data: { idx: 1, foo: 'baz' },
+              opts: { delay: 3000 },
+            },
+          ]);
+
+          resolve();
+        });
+      });
+
+      await Job.create(queue, 'test1', { foo: 'bar' });
+
+      await completing;
+
+      const now = Date.now();
+      const completing2 = new Promise<void>(resolve => {
+        worker.on(
+          'completed',
+          after(2, job => {
+            const timeDiff = Date.now() - now;
+            expect(timeDiff).to.be.greaterThanOrEqual(4000);
+            expect(timeDiff).to.be.lessThan(4500);
+            expect(job.delay).to.be.equal(0);
+            resolve();
+          }),
+        );
+      });
+
+      await completing2;
+      await worker.close();
+    });
+  });
+
   describe('when prioritized jobs are added', () => {
     it('should process jobs by priority', async () => {
       let processor;
@@ -2153,6 +2209,18 @@ describe('workers', function () {
     await worker.close();
   });
 
+  it('max stalled count cannot be less than zero', function () {
+    this.timeout(4000);
+    expect(
+      () =>
+        new Worker(queueName, NoopProc, {
+          connection,
+          prefix,
+          maxStalledCount: -1,
+        }),
+    ).to.throw('maxStalledCount must be greater or equal than 0');
+  });
+
   it('stalled interval cannot be zero', function () {
     this.timeout(4000);
     expect(
@@ -2466,68 +2534,110 @@ describe('workers', function () {
       });
     });
 
-    it('should wait for all concurrent processing in case of pause', async function () {
-      let i = 0;
-      let nbJobFinish = 0;
-      // eslint-disable-next-line prefer-const
-      let runExecution: Promise<void>;
+    describe('when pausing', () => {
+      it('should wait for all concurrent processing', async function () {
+        let i = 0;
+        let nbJobFinish = 0;
+        // eslint-disable-next-line prefer-const
+        let runExecution: Promise<void>;
 
-      const worker = new Worker(
-        queueName,
-        async () => {
-          // 100 - i*20 is to force to finish job n°4 before lower jobs that will wait longer
-          await delay(100 - i * 10);
-          nbJobFinish++;
+        const worker = new Worker(
+          queueName,
+          async () => {
+            // 100 - i*20 is to force to finish job n°4 before lower jobs that will wait longer
+            await delay(100 - i * 10);
+            nbJobFinish++;
 
-          // We simulate an error of one processing job.
-          if (i % 7 === 0) {
-            throw new Error();
+            // We simulate an error of one processing job.
+            if (i % 7 === 0) {
+              throw new Error();
+            }
+          },
+          {
+            autorun: false,
+            connection,
+            prefix,
+            concurrency: 4,
+          },
+        );
+        await worker.waitUntilReady();
+
+        worker.on('active', async () => {
+          if (++i === 4) {
+            // Pause when all 4 works are processing
+            await worker.pause();
+            // Wait for all the active jobs to finalize.
+            expect(nbJobFinish).to.be.gte(3);
+            expect(nbJobFinish).to.be.lte(4);
           }
-        },
-        {
-          autorun: false,
-          connection,
-          prefix,
-          concurrency: 4,
-        },
-      );
-      await worker.waitUntilReady();
-
-      worker.on('active', async () => {
-        if (++i === 4) {
-          // Pause when all 4 works are processing
-          await worker.pause();
-          // Wait for all the active jobs to finalize.
-          expect(nbJobFinish).to.be.gte(3);
-          expect(nbJobFinish).to.be.lte(4);
-        }
-      });
-
-      const waiting = new Promise((resolve, reject) => {
-        const cb = after(8, resolve);
-        worker.on('completed', cb);
-        worker.on('failed', cb);
-        worker.on('error', reject);
-      });
-      const pausing = new Promise<void>(resolve => {
-        worker.on('paused', async () => {
-          // test that loop is stopped and worker is actually paused
-          await runExecution;
-          expect(worker.isRunning()).to.be.false;
-
-          worker.resume();
-          resolve();
         });
+
+        const waiting = new Promise((resolve, reject) => {
+          const cb = after(8, resolve);
+          worker.on('completed', cb);
+          worker.on('failed', cb);
+          worker.on('error', reject);
+        });
+        const pausing = new Promise<void>(resolve => {
+          worker.on('paused', async () => {
+            // test that loop is stopped and worker is actually paused
+            await runExecution;
+            expect(worker.isRunning()).to.be.false;
+
+            worker.resume();
+            resolve();
+          });
+        });
+        await Promise.all(times(8, () => queue.add('test', {})));
+
+        runExecution = worker.run();
+
+        await pausing;
+
+        await waiting;
+
+        await worker.close();
       });
-      await Promise.all(times(8, () => queue.add('test', {})));
 
-      runExecution = worker.run();
+      it('should not keep active jobs', async function () {
+        const worker = new Worker(
+          queueName,
+          async () => {
+            await delay(100);
+          },
+          {
+            autorun: false,
+            connection,
+            prefix,
+            concurrency: 4,
+          },
+        );
+        await worker.waitUntilReady();
 
-      await pausing;
+        worker.once('completed', async () => {
+          await worker.pause();
+        });
 
-      await waiting;
+        const pausing = new Promise<void>((resolve, reject) => {
+          worker.on('paused', async () => {
+            try {
+              expect(worker.isRunning()).to.be.false;
+              const activeJobCount = await queue.getActiveCount();
+              expect(activeJobCount).to.be.equal(0);
+              resolve();
+            } catch (error) {
+              reject(error);
+            }
+          });
+        });
+        await Promise.all(times(8, () => queue.add('test', {})));
 
-      await worker.close();
+        worker.run();
+
+        await pausing;
+
+        await worker.close();
+      });
     });
   });
 
@@ -2613,10 +2723,9 @@ describe('workers', function () {
         const worker = new Worker(
           queueName,
           async () => {
-            await delay(100);
             throw new Error('error');
           },
-          { connection, prefix },
+          { autorun: false, connection, prefix },
         );
         await worker.waitUntilReady();
 
@@ -2641,6 +2750,8 @@ describe('workers', function () {
                 const gotJob = await queue.getJob(job.id!);
                 expect(gotJob!.delay).to.be.eql(0);
                 resolve();
+              } else {
+                expect(job?.delay).to.be.gte(2 ** (attemptsMade! - 1) * 200);
               }
             } catch (err) {
               reject(err);
@@ -2648,9 +2759,109 @@ describe('workers', function () {
           });
         });
 
+        worker.run();
         await failed;
 
         await worker.close();
+      });
+
+      describe('when jitter option is provided', () => {
+        it("updates job's delay property between 0 and max exponential backoff value", async () => {
+          const worker = new Worker(
+            queueName,
+            async () => {
+              throw new Error('error');
+            },
+            { autorun: false, connection, prefix },
+          );
+          await worker.waitUntilReady();
+
+          await queue.add(
+            'test',
+            { bar: 'baz' },
+            {
+              attempts: 3,
+              backoff: {
+                type: 'exponential',
+                delay: 200,
+                jitter: 1,
+              },
+            },
+          );
+
+          const failed = new Promise<void>((resolve, reject) => {
+            worker.on('failed', async job => {
+              try {
+                const attemptsMade = job?.attemptsMade;
+                if (attemptsMade! > 2) {
+                  expect(job!.delay).to.be.eql(0);
+                  resolve();
+                } else {
+                  expect(job?.delay).to.be.lte(2 ** (attemptsMade! - 1) * 200);
+                }
+              } catch (err) {
+                reject(err);
+              }
+            });
+          });
+
+          worker.run();
+          await failed;
+
+          await worker.close();
+        });
+
+        describe('when jitter is provided with lower value than 1', () => {
+          it("updates job's delay property only applying jitter in a fixed percentage", async () => {
+            const worker = new Worker(
+              queueName,
+              async () => {
+                throw new Error('error');
+              },
+              { autorun: false, connection, prefix },
+            );
+            await worker.waitUntilReady();
+
+            await queue.add(
+              'test',
+              { bar: 'baz' },
+              {
+                attempts: 3,
+                backoff: {
+                  type: 'exponential',
+                  delay: 200,
+                  jitter: 0.5,
+                },
+              },
+            );
+
+            const failed = new Promise<void>((resolve, reject) => {
+              worker.on('failed', async job => {
+                try {
+                  const attemptsMade = job?.attemptsMade;
+                  if (attemptsMade! > 2) {
+                    expect(job!.delay).to.be.eql(0);
+                    resolve();
+                  } else {
+                    expect(job?.delay).to.be.lte(
+                      2 ** (attemptsMade! - 1) * 200,
+                    );
+                    expect(job?.delay).to.be.gte(
+                      2 ** (attemptsMade! - 1) * 200 * 0.5,
+                    );
+                  }
+                } catch (err) {
+                  reject(err);
+                }
+              });
+            });
+
+            worker.run();
+            await failed;
+
+            await worker.close();
+          });
+        });
       });
     });
 
@@ -2700,6 +2911,101 @@ describe('workers', function () {
         await failed;
 
         await worker.close();
+      });
+
+      describe('when jitter option is provided', () => {
+        it("updates job's delay property between 0 and max fixed backoff value", async () => {
+          const worker = new Worker(
+            queueName,
+            async () => {
+              throw new Error('error');
+            },
+            { autorun: false, connection, prefix },
+          );
+          await worker.waitUntilReady();
+
+          await queue.add(
+            'test',
+            { bar: 'baz' },
+            {
+              attempts: 3,
+              backoff: {
+                type: 'fixed',
+                delay: 750,
+                jitter: 1,
+              },
+            },
+          );
+
+          const failed = new Promise<void>((resolve, reject) => {
+            worker.on('failed', async job => {
+              try {
+                const attemptsMade = job?.attemptsMade;
+                if (attemptsMade! > 2) {
+                  expect(job!.delay).to.be.eql(0);
+                  resolve();
+                } else {
+                  expect(job?.delay).to.be.lte(750);
+                }
+              } catch (err) {
+                reject(err);
+              }
+            });
+          });
+
+          worker.run();
+          await failed;
+
+          await worker.close();
+        });
+
+        describe('when jitter is provided with lower value than 1', () => {
+          it("updates job's delay property only applying jitter in a fixed percentage", async () => {
+            const worker = new Worker(
+              queueName,
+              async () => {
+                throw new Error('error');
+              },
+              { autorun: false, connection, prefix },
+            );
+            await worker.waitUntilReady();
+
+            await queue.add(
+              'test',
+              { bar: 'baz' },
+              {
+                attempts: 3,
+                backoff: {
+                  type: 'fixed',
+                  delay: 750,
+                  jitter: 0.5,
+                },
+              },
+            );
+
+            const failed = new Promise<void>((resolve, reject) => {
+              worker.on('failed', async job => {
+                try {
+                  const attemptsMade = job?.attemptsMade;
+                  if (attemptsMade! > 2) {
+                    expect(job!.delay).to.be.eql(0);
+                    resolve();
+                  } else {
+                    expect(job?.delay).to.be.lte(750);
+                    expect(job?.delay).to.be.gte(325);
+                  }
+                } catch (err) {
+                  reject(err);
+                }
+              });
+            });
+
+            worker.run();
+            await failed;
+
+            await worker.close();
+          });
+        });
       });
     });
 
@@ -3281,6 +3587,67 @@ describe('workers', function () {
             worker.on('completed', job => {
               const elapse = Date.now() - start;
               expect(elapse).to.be.greaterThan(200);
+              expect(job.returnvalue).to.be.eql(Step.Finish);
+              expect(job.attemptsMade).to.be.eql(1);
+              expect(job.attemptsStarted).to.be.eql(2);
+              resolve();
+            });
+
+            worker.on('error', () => {
+              reject();
+            });
+          });
+
+          await worker.close();
+        });
+      });
+
+      describe('when moving job to waiting in one step', () => {
+        it('should retry job right away, keeping the current step', async function () {
+          this.timeout(1000);
+
+          enum Step {
+            Initial,
+            Second,
+            Finish,
+          }
+
+          const worker = new Worker(
+            queueName,
+            async (job, token) => {
+              let step = job.data.step;
+              while (step !== Step.Finish) {
+                switch (step) {
+                  case Step.Initial: {
+                    await job.moveToWait(token);
+                    await job.updateData({
+                      step: Step.Second,
+                    });
+                    throw new WaitingError();
+                  }
+                  case Step.Second: {
+                    await job.updateData({
+                      step: Step.Finish,
+                    });
+                    step = Step.Finish;
+                    return Step.Finish;
+                  }
+                  default: {
+                    throw new Error('invalid step');
+                  }
+                }
+              }
+            },
+            { connection, prefix },
+          );
+
+          await worker.waitUntilReady();
+
+          const start = Date.now();
+          await queue.add('test', { step: Step.Initial });
+
+          await new Promise<void>((resolve, reject) => {
+            worker.on('completed', job => {
               expect(job.returnvalue).to.be.eql(Step.Finish);
               expect(job.attemptsMade).to.be.eql(1);
               expect(job.attemptsStarted).to.be.eql(2);
@@ -4153,6 +4520,9 @@ describe('workers', function () {
       const isCompleted = await job.isCompleted();
 
       expect(isCompleted).to.be.equal(true);
+      expect(job.attemptsMade).to.be.equal(1);
+      expect(job.finishedOn).to.be.a('number');
+      expect(job.returnvalue).to.be.equal('return value');
 
       await worker.close();
     });
@@ -4503,6 +4873,9 @@ describe('workers', function () {
 
       expect(isCompleted).to.be.equal(false);
       expect(isFailed).to.be.equal(true);
+      expect(job.attemptsMade).to.be.equal(1);
+      expect(job.finishedOn).to.be.a('number');
+      expect(job.failedReason).to.be.equal('job failed for some reason');
 
       await worker.close();
     });

@@ -27,6 +27,12 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.obliterate()
         await queue.close()
 
+    async def test_connection_str(self):
+        queue = Queue(queueName, {"connection": "redis://localhost:6379", "prefix": prefix})
+
+        self.assertIsInstance(queue, Queue)
+        await queue.close()
+
     async def test_add_job(self):
         queue = Queue(queueName, {"prefix": prefix})
         job = await queue.add("test-job", {"foo": "bar"}, {})
@@ -183,7 +189,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
 
         failed_count = await queue.getFailedCount()
 
-        self.assertEqual(failed_count, 8)
+        self.assertEqual(failed_count, job_count)
 
         order = 0
 
@@ -206,7 +212,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         worker.off('completed', completing)
 
         completed_count = await queue.getJobCounts('completed')
-        self.assertEqual(completed_count['completed'], 8)
+        self.assertEqual(completed_count['completed'], job_count)
 
         await queue.close()
         await worker.close()

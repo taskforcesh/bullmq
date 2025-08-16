@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import List, Any, TYPE_CHECKING
+from bullmq.custom_errors import UnrecoverableError
 from bullmq.scripts import Scripts
 from bullmq.backoffs import Backoffs
 if TYPE_CHECKING:
@@ -45,12 +46,14 @@ class Job:
         self.attempts = opts.get("attempts", 1)
         self.attemptsMade = 0
         self.attemptsStarted = 0
+        self.stalledCounter = 0
         self.data = data
         self.removeOnComplete = opts.get("removeOnComplete", True)
         self.removeOnFail = opts.get("removeOnFail", False)
         self.processedOn = 0
         self.finishedOn = 0
         self.returnvalue = None
+        self.deferredFailure = None
         self.failedReason = None
         self.repeatJobKey = None
         self.token: str = None
@@ -133,6 +136,22 @@ class Job:
     def isInList(self, list_name: str):
         return self.scripts.isJobInList(self.scripts.toKey(list_name), self.id)
 
+    async def moveToCompleted(self, return_value, token:str, fetchNext:bool = False):
+        stringified_return_value = json.dumps(return_value, separators=(',', ':'), allow_nan=False)
+        self.returnvalue = return_value or None
+
+        keys, args = self.scripts.moveToCompletedArgs(
+                    self, stringified_return_value, self.opts.get("removeOnFail", False),
+                    token, fetchNext
+                )
+
+        result = await self.scripts.moveToFinished(
+                    self.id, keys, args)
+        self.finishedOn = args[1]
+        self.attemptsMade = self.attemptsMade + 1
+
+        return result
+
     async def moveToFailed(self, err, token:str, fetchNext:bool = False):
         error_message = str(err)
         self.failedReason = error_message
@@ -140,48 +159,50 @@ class Job:
         move_to_failed = False
         finished_on = 0
         delay = 0
-        command = 'moveToFailed'
 
-        async with self.queue.redisConnection.conn.pipeline(transaction=True) as pipe:
-            await self.saveStacktrace(pipe, error_message)
-            if (self.attemptsMade + 1) < self.opts.get('attempts') and not self.discarded:
-                delay = await Backoffs.calculate(
-                    self.opts.get('backoff'), self.attemptsMade + 1,
-                    err, self, self.queue.opts.get("settings") and self.queue.opts['settings'].get("backoffStrategy")
-                    )
-                if delay == -1:
-                    move_to_failed = True
-                elif delay:
-                    keys, args = self.scripts.moveToDelayedArgs(
-                        self.id,
-                        round(time.time() * 1000),
-                        token,
-                        delay
-                    )
+        self.updateStacktrace()
+        fields_to_update = {
+            'failedReason': self.failedReason,
+            'stacktrace': json.dumps(self.stacktrace, separators=(',', ':'), allow_nan=False)
+        }
 
-                    await self.scripts.commands["moveToDelayed"](keys=keys, args=args, client=pipe)
-                    command = 'delayed'
-                else:
-                    keys, args = self.scripts.retryJobArgs(self.id, self.opts.get("lifo", False), token)
-
-                    await self.scripts.commands["retryJob"](keys=keys, args=args, client=pipe)
-                    command = 'retryJob'
-            else:
-                move_to_failed = True
-
-            if move_to_failed:
-                keys, args = self.scripts.moveToFailedArgs(
-                    self, error_message, self.opts.get("removeOnFail", False),
-                    token, self.opts, fetchNext
+        result = None
+        if (self.attemptsMade + 1) < self.opts.get('attempts') and not self.discarded and not isinstance(err, UnrecoverableError):
+            delay = await Backoffs.calculate(
+                self.opts.get('backoff'), self.attemptsMade + 1,
+                err, self, self.queue.opts.get("settings") and self.queue.opts['settings'].get("backoffStrategy")
                 )
-                await self.scripts.commands["moveToFinished"](keys=keys, args=args, client=pipe)
-                finished_on = args[1]
+            if delay == -1:
+                move_to_failed = True
+            elif delay:
+                result = await self.scripts.moveToDelayed(
+                    self.id,
+                    round(time.time() * 1000),
+                    delay,
+                    token,
+                    {
+                        "fieldsToUpdate": fields_to_update
+                    }
+                )
+            else:
+                result = await self.scripts.retryJob(
+                    self.id,
+                    self.opts.get("lifo", False),
+                    token,
+                    {
+                        "fieldsToUpdate": fields_to_update
+                    }
+                )
+        else:
+            move_to_failed = True
 
-            results = await pipe.execute()
-            code = results[1]
-
-            if code < 0:
-                raise self.scripts.finishedErrors(code, self.id, command, 'active')
+        if move_to_failed:
+            keys, args = self.scripts.moveToFailedArgs(
+                self, error_message, self.opts.get("removeOnFail", False),
+                token, fetchNext, fields_to_update
+            )
+            result = await self.scripts.moveToFinished(self.id, keys, args)
+            finished_on = args[1]
 
         if finished_on and type(finished_on) == int:
             self.finishedOn = finished_on
@@ -191,22 +212,21 @@ class Job:
 
         self.attemptsMade = self.attemptsMade + 1
 
+        return result
+
     def log(self, logRow: str):
         return Job.addJobLog(self.queue, self.id, logRow, self.opts.get("keepLogs", 0))
 
-    async def saveStacktrace(self, pipe, err:str):
+    def updateStacktrace(self):
         stacktrace = traceback.format_exc()
         stackTraceLimit = self.opts.get("stackTraceLimit")
 
         if stacktrace:
             self.stacktrace.append(stacktrace)
-            if self.opts.get("stackTraceLimit"):
+            if self.opts.get("stackTraceLimit") == 0:
+                self.stacktrace = []
+            elif self.opts.get("stackTraceLimit"):
                 self.stacktrace = self.stacktrace[-(stackTraceLimit-1):stackTraceLimit]
-
-        keys, args = self.scripts.saveStacktraceArgs(
-            self.id, json.dumps(self.stacktrace, separators=(',', ':'), allow_nan=False), err)
-
-        await self.scripts.commands["saveStacktrace"](keys=keys, args=args, client=pipe)
 
     def moveToWaitingChildren(self, token, opts:dict):
         return self.scripts.moveToWaitingChildren(self.id, token, opts)
@@ -246,8 +266,15 @@ class Job:
         if rawData.get("ats"):
             job.attemptsStarted = int(rawData.get("ats"))
 
-        job.failedReason = rawData.get("failedReason")
+        if rawData.get("failedReason"):
+            job.failedReason = rawData.get("failedReason")
+
         job.attemptsMade = int(rawData.get("attemptsMade") or rawData.get("atm") or "0")
+
+        job.stalledCounter = int(rawData.get("stc") or "0")
+
+        if rawData.get("defa"):
+            job.deferredFailure = rawData.get("defa")
 
         returnvalue = rawData.get("returnvalue")
         if type(returnvalue) == str:

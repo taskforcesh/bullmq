@@ -31,6 +31,11 @@ local function storeJobScheduler(schedulerId, schedulerKey, repeatKey, nextMilli
     table.insert(optionalValues, opts['every'])
   end
 
+  if opts['offset'] then
+    table.insert(optionalValues, "offset")
+    table.insert(optionalValues, opts['offset'])
+  end
+
   local jsonTemplateOpts = cjson.encode(templateOpts)
   if jsonTemplateOpts and jsonTemplateOpts ~= '{}' then
     table.insert(optionalValues, "opts")
@@ -42,5 +47,6 @@ local function storeJobScheduler(schedulerId, schedulerKey, repeatKey, nextMilli
     table.insert(optionalValues, templateData)
   end
 
+  rcall("DEL", schedulerKey) -- remove all attributes and then re-insert new ones
   rcall("HMSET", schedulerKey, "name", opts['name'], "ic", 1, unpack(optionalValues))
 end

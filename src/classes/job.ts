@@ -8,7 +8,7 @@ import {
   MinimalJob,
   MoveToWaitingChildrenOpts,
   ParentKeys,
-  ParentOpts,
+  ParentKeyOpts,
   RedisClient,
   WorkerOptions,
 } from '../interfaces';
@@ -23,6 +23,7 @@ import {
   JobProgress,
 } from '../types';
 import {
+  createScripts,
   errorObject,
   isEmpty,
   getParentKey,
@@ -60,7 +61,7 @@ export class Job<
 {
   /**
    * It includes the prefix, the namespace separator :, and queue name.
-   * @see https://www.gnu.org/software/gawk/manual/html_node/Qualified-Names.html
+   * @see {@link https://www.gnu.org/software/gawk/manual/html_node/Qualified-Names.html}
    */
   public readonly queueQualifiedName: string;
 
@@ -230,9 +231,25 @@ export class Job<
 
     this.parentKey = getParentKey(opts.parent);
 
-    this.parent = opts.parent
-      ? { id: opts.parent.id, queueKey: opts.parent.queue }
-      : undefined;
+    if (opts.parent) {
+      this.parent = { id: opts.parent.id, queueKey: opts.parent.queue };
+
+      if (opts.failParentOnFailure) {
+        this.parent.fpof = true;
+      }
+
+      if (opts.removeDependencyOnFailure) {
+        this.parent.rdof = true;
+      }
+
+      if (opts.ignoreDependencyOnFailure) {
+        this.parent.idof = true;
+      }
+
+      if (opts.continueParentOnFailure) {
+        this.parent.cpof = true;
+      }
+    }
 
     this.debounceId = opts.debounce ? opts.debounce.id : undefined;
     this.deduplicationId = opts.deduplication
@@ -240,7 +257,7 @@ export class Job<
       : this.debounceId;
 
     this.toKey = queue.toKey.bind(queue);
-    this.setScripts();
+    this.createScripts();
 
     this.queueQualifiedName = queue.qualifiedName;
   }
@@ -369,7 +386,9 @@ export class Job<
       job.deduplicationId = json.deid;
     }
 
-    job.failedReason = json.failedReason;
+    if (json.failedReason) {
+      job.failedReason = json.failedReason;
+    }
 
     job.attemptsStarted = parseInt(json.ats || '0');
 
@@ -406,8 +425,8 @@ export class Job<
     return job;
   }
 
-  protected setScripts() {
-    this.scripts = new Scripts(this.queue);
+  protected createScripts() {
+    this.scripts = createScripts(this.queue);
   }
 
   static optsFromJSON(
@@ -562,6 +581,7 @@ export class Job<
     return {
       ...this.asJSON(),
       queueName: this.queueName,
+      queueQualifiedName: this.queueQualifiedName,
       prefix: this.prefix,
     };
   }
@@ -739,7 +759,7 @@ export class Job<
    * @param token - Worker token used to acquire completed job.
    * @returns Returns pttl.
    */
-  moveToWait(token: string): Promise<number> {
+  moveToWait(token?: string): Promise<number> {
     return this.scripts.moveJobFromActiveToWait(this.id, token);
   }
 
@@ -1010,9 +1030,11 @@ export class Job<
    * greater than 127
    * @see {@link https://redis.io/docs/management/optimization/memory-optimization/#redis--72}
    * @see {@link https://docs.bullmq.io/guide/flows#getters}
-   * @returns dependencies separated by processed, unprocessed and ignored.
+   * @returns dependencies separated by processed, unprocessed, ignored and failed.
    */
   async getDependencies(opts: DependenciesOpts = {}): Promise<{
+    nextFailedCursor?: number;
+    failed?: string[];
     nextIgnoredCursor?: number;
     ignored?: Record<string, any>;
     nextProcessedCursor?: number;
@@ -1022,22 +1044,29 @@ export class Job<
   }> {
     const client = await this.queue.client;
     const multi = client.multi();
-    if (!opts.processed && !opts.unprocessed && !opts.ignored) {
+    if (!opts.processed && !opts.unprocessed && !opts.ignored && !opts.failed) {
       multi.hgetall(this.toKey(`${this.id}:processed`));
       multi.smembers(this.toKey(`${this.id}:dependencies`));
       multi.hgetall(this.toKey(`${this.id}:failed`));
+      multi.zrange(this.toKey(`${this.id}:unsuccessful`), 0, -1);
 
-      const [[err1, processed], [err2, unprocessed], [err3, ignored]] =
-        (await multi.exec()) as [
-          [null | Error, { [jobKey: string]: string }],
-          [null | Error, string[]],
-          [null | Error, { [jobKey: string]: string }],
-        ];
+      const [
+        [err1, processed],
+        [err2, unprocessed],
+        [err3, ignored],
+        [err4, failed],
+      ] = (await multi.exec()) as [
+        [null | Error, { [jobKey: string]: string }],
+        [null | Error, string[]],
+        [null | Error, { [jobKey: string]: string }],
+        [null | Error, string[]],
+      ];
 
       return {
         processed: parseObjectValues(processed),
         unprocessed,
-        ignored: parseObjectValues(ignored),
+        failed,
+        ignored,
       };
     } else {
       const defaultOpts = {
@@ -1082,6 +1111,18 @@ export class Job<
         );
       }
 
+      let failedCursor;
+      if (opts.failed) {
+        childrenResultOrder.push('failed');
+        const failedOpts = Object.assign({ ...defaultOpts }, opts.failed);
+        failedCursor = failedOpts.cursor + failedOpts.count;
+        multi.zrange(
+          this.toKey(`${this.id}:unsuccessful`),
+          failedOpts.cursor,
+          failedOpts.count - 1,
+        );
+      }
+
       const results = (await multi.exec()) as [
         Error,
         [number[], string[] | undefined],
@@ -1091,6 +1132,7 @@ export class Job<
         processed,
         unprocessedCursor,
         unprocessed,
+        failed,
         ignoredCursor,
         ignored;
       childrenResultOrder.forEach((key, index) => {
@@ -1108,6 +1150,10 @@ export class Job<
               }
             }
             processed = transformedProcessed;
+            break;
+          }
+          case 'failed': {
+            failed = results[index][1];
             break;
           }
           case 'ignored': {
@@ -1143,6 +1189,12 @@ export class Job<
           ? {
               ignored,
               nextIgnoredCursor: Number(ignoredCursor),
+            }
+          : {}),
+        ...(failedCursor
+          ? {
+              failed,
+              nextFailedCursor: failedCursor,
             }
           : {}),
         ...(unprocessedCursor
@@ -1362,7 +1414,7 @@ export class Job<
    * @param parentOpts -
    * @returns
    */
-  addJob(client: RedisClient, parentOpts?: ParentOpts): Promise<string> {
+  addJob(client: RedisClient, parentOpts?: ParentKeyOpts): Promise<string> {
     const jobData = this.asJSON();
 
     this.validateOptions(jobData);
@@ -1420,6 +1472,15 @@ export class Job<
 
       if (this.opts.priority > PRIORITY_LIMIT) {
         throw new Error(`Priority should be between 0 and ${PRIORITY_LIMIT}`);
+      }
+    }
+
+    if (
+      typeof this.opts.backoff === 'object' &&
+      typeof this.opts.backoff.jitter === 'number'
+    ) {
+      if (this.opts.backoff.jitter < 0 || this.opts.backoff.jitter > 1) {
+        throw new Error(`Jitter should be between 0 and 1`);
       }
     }
   }

@@ -1157,14 +1157,18 @@ describe('flows', () => {
 
         const job = await queue.add('test', { step: Step.Initial });
 
-        const failed = new Promise<void>(resolve => {
+        const failed = new Promise<void>((resolve, rejects) => {
           queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
-            if (jobId === job.id) {
-              expect(prev).to.be.equal('active');
-              expect(failedReason).to.be.equal(
-                `Job ${jobId} has pending dependencies. moveToFinished`,
-              );
-              resolve();
+            try {
+              if (jobId === job.id) {
+                expect(prev).to.be.equal('active');
+                expect(failedReason).to.be.equal(
+                  `Job ${jobId} has pending dependencies. moveToFinished`,
+                );
+                resolve();
+              }
+            } catch(error) {
+              rejects(error);
             }
           });
         });
@@ -1176,6 +1180,95 @@ describe('flows', () => {
         await worker.close();
         await queueEvents.close();
         await removeAllQueueData(new IORedis(redisHost), childrenQueueName);
+      });
+
+      describe('when parent has pending children to be processed when trying to move it to completed', () => {
+        it('should fail parent with pending dependencies error', async function () {
+          const childrenQueueName = `children-queue-${v4()}`;
+
+          enum Step {
+            Initial,
+            Second,
+            Third,
+            Finish,
+          }
+
+          const flow = new FlowProducer({ connection, prefix });
+
+          const worker = new Worker(
+            queueName,
+            async (job: Job, token?: string) => {
+              let step = job.data.step;
+              while (step !== Step.Finish) {
+                switch (step) {
+                  case Step.Initial: {
+                    await flow.add({
+                      name: 'child-job',
+                      queueName: childrenQueueName,
+                      data: {},
+                      opts: {
+                        parent: {
+                          id: job.id!,
+                          queue: job.queueQualifiedName,
+                        },
+                        failParentOnFailure: true,
+                      },
+                    });
+                    await job.updateData({
+                      step: Step.Second,
+                    });
+                    step = Step.Second;
+                    break;
+                  }
+                  case Step.Second: {
+                    await delay(100);
+                    await job.updateData({
+                      step: Step.Finish,
+                    });
+                    step = Step.Finish;
+                    break;
+                  }
+                  default: {
+                    throw new Error('invalid step');
+                  }
+                }
+              }
+            },
+            { autorun: false, connection, prefix },
+          );
+          const queueEvents = new QueueEvents(queueName, {
+            connection,
+            prefix,
+          });
+          await queueEvents.waitUntilReady();
+          await worker.waitUntilReady();
+
+          const job = await queue.add('test', { step: Step.Initial });
+
+          const failed = new Promise<void>((resolve, rejects) => {
+            queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
+              try {
+                if (jobId === job.id) {
+                  expect(prev).to.be.equal('active');
+                  expect(failedReason).to.be.equal(
+                    `Job ${jobId} has pending dependencies. moveToFinished`,
+                  );
+                  resolve();
+                }
+              } catch(error) {
+                rejects(error);
+              }
+            });
+          });
+
+          worker.run();
+          await failed;
+
+          await flow.close();
+          await worker.close();
+          await queueEvents.close();
+          await removeAllQueueData(new IORedis(redisHost), childrenQueueName);
+        });
       });
     });
 
@@ -1287,23 +1380,45 @@ describe('flows', () => {
           },
         );
 
-        const failed = new Promise<void>(resolve => {
+        const failed = new Promise<void>((resolve, rejects) => {
           queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
-            if (jobId === job.id) {
-              expect(prev).to.be.equal('active');
-              expect(failedReason).to.be.equal(`children are failed`);
-              const childrenCounts = await job.getDependenciesCount();
-              expect(childrenCounts).to.deep.equal({
-                processed: 0,
-                unprocessed: 0,
-                ignored: 0,
-                failed: 1,
-              });
-              resolve();
+            try {
+              if (jobId === job.id) {
+                expect(prev).to.be.equal('active');
+                expect(failedReason).to.be.equal(
+                  `Cannot complete job ${jobId} because it has at least one failed child. moveToWaitingChildren`,
+                );
+                const activeCount = await queue.getActiveCount();
+                expect(activeCount).to.be.equal(0);
+                const childrenCounts = await job.getDependenciesCount();
+                expect(childrenCounts).to.deep.equal({
+                  processed: 0,
+                  unprocessed: 0,
+                  ignored: 0,
+                  failed: 1,
+                });
+                resolve();
+              }
+            } catch (error) {
+              rejects(error);
             }
           });
         });
 
+        const workerFailedEvent = new Promise<void>((resolve, rejects) => {
+          worker.once('failed', async job => {
+            try {
+              expect(job!.failedReason).to.be.equal(
+                `Cannot complete job ${job.id} because it has at least one failed child. moveToWaitingChildren`,
+              );
+              resolve();
+            } catch (error) {
+              rejects(error);
+            }
+          });
+        });
+
+        await workerFailedEvent;
         await failed;
 
         await flow.close();
@@ -1311,6 +1426,180 @@ describe('flows', () => {
         await grandchildrenWorker.close();
         await childrenWorker.close();
         await queueEvents.close();
+      });
+
+      describe('when parent has another parent', () => {
+        it('should fail parent and grandparent when trying to move it to waiting children', async function () {
+          const childrenQueueName = `children-queue-${v4()}`;
+          const grandchildrenQueueName = `grandchildren-queue-${v4()}`;
+
+          enum Step {
+            Initial,
+            Second,
+            Finish,
+          }
+
+          const flow = new FlowProducer({ connection, prefix });
+
+          const grandchildrenWorker = new Worker(
+            grandchildrenQueueName,
+            async () => {
+              throw new Error('fail');
+            },
+            { connection, prefix },
+          );
+
+          const childrenWorker = new Worker(
+            childrenQueueName,
+            async (job: Job, token?: string) => {
+              let step = job.data.step;
+              while (step !== Step.Finish) {
+                switch (step) {
+                  case Step.Initial: {
+                    await flow.add({
+                      name: 'grandchild-job',
+                      data: { idx: 0, foo: 'bar' },
+                      queueName: grandchildrenQueueName,
+                      opts: {
+                        parent: {
+                          id: job.id!,
+                          queue: job.queueQualifiedName,
+                        },
+                        failParentOnFailure: true,
+                      },
+                    });
+                    await job.updateData({
+                      step: Step.Second,
+                    });
+                    step = Step.Second;
+                    break;
+                  }
+                  case Step.Second: {
+                    await delay(1000);
+                    const shouldWait = await job.moveToWaitingChildren(token!);
+                    if (!shouldWait) {
+                      await job.updateData({
+                        step: Step.Finish,
+                      });
+                      step = Step.Finish;
+                      return Step.Finish;
+                    } else {
+                      throw new WaitingChildrenError();
+                    }
+                  }
+                  default: {
+                    throw new Error('invalid step');
+                  }
+                }
+              }
+            },
+            {
+              connection,
+              prefix,
+            },
+          );
+
+          const worker = new Worker(
+            queueName,
+            async (job: Job, token?: string) => {
+              let step = job.data.step;
+              while (step !== Step.Finish) {
+                switch (step) {
+                  case Step.Initial: {
+                    await flow.add({
+                      name: 'child-job',
+                      queueName: childrenQueueName,
+                      data: {},
+                      opts: {
+                        parent: {
+                          id: job.id!,
+                          queue: job.queueQualifiedName,
+                        },
+                        failParentOnFailure: true,
+                      },
+                    });
+                    await job.updateData({
+                      step: Step.Second,
+                    });
+                    step = Step.Second;
+                    break;
+                  }
+                  case Step.Second: {
+                    await delay(1000);
+                    const shouldWait = await job.moveToWaitingChildren(token!);
+                    if (!shouldWait) {
+                      await job.updateData({
+                        step: Step.Finish,
+                      });
+                      step = Step.Finish;
+                      return Step.Finish;
+                    } else {
+                      throw new WaitingChildrenError();
+                    }
+                  }
+                  default: {
+                    throw new Error('invalid step');
+                  }
+                }
+              }
+            },
+            { connection, prefix },
+          );
+          const queueEvents = new QueueEvents(queueName, {
+            connection,
+            prefix,
+          });
+          await queueEvents.waitUntilReady();
+          await grandchildrenWorker.waitUntilReady();
+          await childrenWorker.waitUntilReady();
+          await worker.waitUntilReady();
+
+          const job = await queue.add(
+            'test',
+            { step: Step.Initial },
+            {
+              attempts: 3,
+              backoff: 1000,
+            },
+          );
+
+          const failed = new Promise<void>(resolve => {
+            queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
+              if (jobId === job.id) {
+                expect(prev).to.be.equal('active');
+                expect(failedReason).to.be.equal(
+                  `Cannot complete job ${jobId} because it has at least one failed child. moveToWaitingChildren`,
+                );
+                const childrenCounts = await job.getDependenciesCount();
+                expect(childrenCounts).to.deep.equal({
+                  processed: 0,
+                  unprocessed: 0,
+                  ignored: 0,
+                  failed: 1,
+                });
+                resolve();
+              }
+            });
+          });
+
+          const workerFailedEvent = new Promise<void>(resolve => {
+            worker.once('failed', async job => {
+              expect(job!.failedReason).to.be.equal(
+                `Cannot complete job ${job.id} because it has at least one failed child. moveToWaitingChildren`,
+              );
+              resolve();
+            });
+          });
+
+          await workerFailedEvent;
+          await failed;
+
+          await flow.close();
+          await worker.close();
+          await grandchildrenWorker.close();
+          await childrenWorker.close();
+          await queueEvents.close();
+        });
       });
     });
 
@@ -2569,6 +2858,18 @@ describe('flows', () => {
         await processingChildren;
         await failed;
 
+        const { failed: failedCount } = await job.getDependenciesCount({
+          failed: true,
+        });
+
+        expect(failedCount).to.be.equal(1);
+
+        const flowTree = await flow.getFlow({
+          id: job.id!,
+          queueName: parentQueueName,
+        });
+        expect(flowTree.children?.length).to.be.equal(2);
+
         const { children: grandChildren } = children[1];
         const updatedGrandchildJob = await grandChildrenQueue.getJob(
           grandChildren[0].job.id,
@@ -3314,6 +3615,9 @@ describe('flows', () => {
         expect(updatedParentJob.failedReason).to.be.eql(
           `child ${prefix}:${grandChildrenQueueName}:${updatedGrandchildJob.id} failed`,
         );
+
+        const values = await tree.job.getDependencies();
+        expect(Object.keys(values.ignored!).length).to.be.equal(1);
 
         const updatedGrandparentJob = await parentQueue.getJob(job.id);
         const updatedGrandparentState = await updatedGrandparentJob.getState();
@@ -4507,12 +4811,17 @@ describe('flows', () => {
       const queueEvents = new QueueEvents(topQueueName, { connection, prefix });
       await queueEvents.waitUntilReady();
 
-      const delayed = new Promise<void>(resolve => {
+      const delayed = new Promise<void>((resolve, reject) => {
         queueEvents.on('delayed', async ({ jobId, delay }) => {
-          const milliseconds = delay - Date.now();
-          expect(milliseconds).to.be.lessThanOrEqual(3000);
-          expect(milliseconds).to.be.greaterThan(2000);
-          resolve();
+          try {
+            const milliseconds = delay - Date.now();
+            expect(milliseconds).to.be.lessThanOrEqual(3000);
+            expect(milliseconds).to.be.greaterThan(2000);
+            resolve();
+          } catch (error) {
+            console.error(error);
+            reject(error);
+          }
         });
       });
 
@@ -4593,7 +4902,7 @@ describe('flows', () => {
       await flow.close();
 
       await removeAllQueueData(new IORedis(redisHost), topQueueName);
-    });
+    }).timeout(4500);
   });
 
   describe('when children have delay', () => {
@@ -5058,8 +5367,18 @@ describe('flows', () => {
         data: {},
         children: [
           { name, data: { idx: 0, foo: 'bar' }, queueName },
-          { name, data: { idx: 1, foo: 'bar' }, queueName },
-          { name, data: { idx: 2, foo: 'bar' }, queueName },
+          {
+            name,
+            data: { idx: 1, foo: 'bar' },
+            queueName,
+            opts: { priority: 1 },
+          },
+          {
+            name,
+            data: { idx: 2, foo: 'bar' },
+            queueName,
+            opts: { delay: 1000 },
+          },
           { name, data: { idx: 3, foo: 'bar' }, queueName },
           { name, data: { idx: 4, foo: 'bar' }, queueName },
           {

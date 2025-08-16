@@ -86,26 +86,26 @@ export class JobScheduler extends QueueBase {
 
     // Check if we have a start date for the repeatable job
     const { startDate, immediately, ...filteredRepeatOpts } = repeatOpts;
-    let startMillis = now;
+    let startMillis = (now > prevMillis ? now : prevMillis) + (offset || 0);
     if (startDate) {
       startMillis = new Date(startDate).getTime();
       startMillis = startMillis > now ? startMillis : now;
     }
 
     let nextMillis: number;
-    let newOffset = offset || 0;
-
+    let newOffset: number | null = null;
     if (every) {
-      const prevSlot = Math.floor(startMillis / every) * every;
+      const prevSlot =
+        Math.floor((startMillis - (offset || 0)) / every) * every;
+
+      newOffset = typeof offset === 'number' ? offset : startMillis - prevSlot;
+
       const nextSlot = prevSlot + every;
+
       if (prevMillis || offset) {
         nextMillis = nextSlot;
       } else {
         nextMillis = prevSlot;
-        newOffset = startMillis - prevSlot;
-
-        // newOffset should always be positive, but we do an extra safety check
-        newOffset = newOffset < 0 ? 0 : newOffset;
       }
     } else if (pattern) {
       nextMillis = await this.repeatStrategy(now, repeatOpts, jobName);
@@ -162,6 +162,7 @@ export class JobScheduler extends QueueBase {
                 pattern,
                 every,
                 limit,
+                offset: newOffset,
               },
               Job.optsAsJSON(mergedOpts),
               producerId,
@@ -245,59 +246,14 @@ export class JobScheduler extends QueueBase {
 
     mergedOpts.repeat = {
       ...opts.repeat,
-      count: currentCount,
       offset,
+      count: currentCount,
       endDate: opts.repeat?.endDate
         ? new Date(opts.repeat.endDate).getTime()
         : undefined,
     };
 
     return mergedOpts;
-  }
-
-  private createNextJob<T = any, R = any, N extends string = string>(
-    client: RedisClient,
-    name: N,
-    nextMillis: number,
-    offset: number,
-    jobSchedulerId: string,
-    opts: JobsOptions,
-    data: T,
-    currentCount: number,
-    // The job id of the job that produced this next iteration
-    producerId?: string,
-  ) {
-    //
-    // Generate unique job id for this iteration.
-    //
-    const jobId = this.getSchedulerNextJobId({
-      jobSchedulerId,
-      nextMillis,
-    });
-
-    const now = Date.now();
-    const delay = nextMillis + offset - now;
-
-    const mergedOpts = {
-      ...opts,
-      jobId,
-      delay: delay < 0 ? 0 : delay,
-      timestamp: now,
-      prevMillis: nextMillis,
-      repeatJobKey: jobSchedulerId,
-    };
-
-    mergedOpts.repeat = { ...opts.repeat, count: currentCount };
-
-    const job = new this.Job<T, R, N>(this, name, data, mergedOpts, jobId);
-    job.addJob(client);
-
-    if (producerId) {
-      const producerJobKey = this.toKey(producerId);
-      client.hset(producerJobKey, 'nrjid', job.id);
-    }
-
-    return job;
   }
 
   async removeJobScheduler(jobSchedulerId: string): Promise<number> {
@@ -347,7 +303,11 @@ export class JobScheduler extends QueueBase {
       }
 
       if (jobData.every) {
-        jobSchedulerData.every = jobData.every;
+        jobSchedulerData.every = parseInt(jobData.every);
+      }
+
+      if (jobData.offset) {
+        jobSchedulerData.offset = parseInt(jobData.offset);
       }
 
       if (jobData.data || jobData.opts) {
@@ -452,7 +412,9 @@ export const defaultRepeatStrategy = (
 ): number | undefined => {
   const { pattern } = opts;
 
-  const currentDate = new Date(millis);
+  const dateFromMillis = new Date(millis);
+  const startDate = opts.startDate && new Date(opts.startDate);
+  const currentDate = startDate > dateFromMillis ? startDate : dateFromMillis;
   const interval = parseExpression(pattern, {
     ...opts,
     currentDate,

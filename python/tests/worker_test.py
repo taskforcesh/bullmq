@@ -52,6 +52,60 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(completedJob.returnvalue, "done")
         self.assertNotEqual(completedJob.finishedOn, None)
 
+        await worker.close()
+        await queue.close()
+
+    async def test_manual_process_jobs(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        data = {"foo": "bar"}
+
+        worker = Worker(queueName, None, {"prefix": prefix})
+        token = 'my-token'
+
+        await queue.add("test", data)
+
+        job = await worker.getNextJob(token)
+
+        is_active = await job.isActive()
+        self.assertEqual(is_active, True)
+
+        await job.moveToCompleted('return value', token)
+
+        is_completed = await job.isCompleted()
+
+        self.assertEqual(is_completed, True)
+        self.assertEqual(job.attemptsMade, 1)
+        self.assertNotEqual(job.finishedOn, None)
+        self.assertEqual(job.returnvalue, 'return value')
+
+        await worker.close(force=True)
+        await queue.close()
+
+    async def test_manual_process_job_failure(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        data = {"foo": "bar"}
+
+        worker = Worker(queueName, None, {"prefix": prefix})
+        token = 'my-token'
+
+        await queue.add("test", data)
+
+        job = await worker.getNextJob(token)
+
+        is_active = await job.isActive()
+        self.assertEqual(is_active, True)
+
+        await job.moveToFailed(Exception('job failed for some reason'), token)
+
+        is_completed = await job.isCompleted()
+        is_failed = await job.isFailed()
+
+        self.assertEqual(is_completed, False)
+        self.assertEqual(is_failed, True)
+        self.assertEqual(job.attemptsMade, 1)
+        self.assertNotEqual(job.finishedOn, None)
+        self.assertEqual(job.failedReason, 'job failed for some reason')
+
         await worker.close(force=True)
         await queue.close()
 
@@ -79,7 +133,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(completedJob.returnvalue, ['foo'])
         self.assertNotEqual(completedJob.finishedOn, None)
 
-        await worker.close(force=True)
+        await worker.close()
         await queue.close()
 
     async def test_process_job_with_boolean_as_return_value(self):
@@ -106,7 +160,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(completedJob.returnvalue, True)
         self.assertNotEqual(completedJob.finishedOn, None)
 
-        await worker.close(force=True)
+        await worker.close()
         await queue.close()
 
     async def test_process_job_fail_with_nan_as_return_value(self):
@@ -114,7 +168,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         data = {"foo": "bar"}
         job = await queue.add("test-job", data, {"removeOnComplete": False})
 
-        failedReason = "Out of range float values are not JSON compliant"
+        failedReason = "Out of range float values are not JSON compliant: nan"
 
         async def process(job: Job, token: str):
             print("Processing job", job)
@@ -136,7 +190,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(failedJob.returnvalue, None)
         self.assertNotEqual(failedJob.finishedOn, None)
         
-        await worker.close(force=True)
+        await worker.close()
         await queue.close()
 
     async def test_process_jobs_fail(self):
@@ -167,7 +221,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(failedJob.returnvalue, None)
         self.assertNotEqual(failedJob.finishedOn, None)
 
-        await worker.close(force=True)
+        await worker.close()
         await queue.close()
 
     async def test_process_renews_lock(self):
@@ -194,7 +248,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(completedJob.returnvalue, "done")
         self.assertNotEqual(completedJob.finishedOn, None)
 
-        await worker.close(force=True)
+        await worker.close()
         await queue.close()
 
     async def test_process_stalled_jobs(self):
@@ -239,7 +293,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(completedJob.returnvalue, "done2")
         self.assertNotEqual(completedJob.finishedOn, None)
 
-        await worker2.close(force=True)
+        await worker2.close()
         await queue.close()
 
     async def test_retry_job_after_delay_with_fixed_backoff(self):
@@ -453,7 +507,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(completedJob.returnvalue, "done")
         self.assertNotEqual(completedJob.finishedOn, None)
 
-        await worker.close(force=True)
+        await worker.close()
         await queue.close()
 
 if __name__ == '__main__':

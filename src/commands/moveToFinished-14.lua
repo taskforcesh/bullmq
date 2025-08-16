@@ -50,8 +50,9 @@
       -1 Missing key.
       -2 Missing lock.
       -3 Job not in active set
-      -4 Job has pending dependencies
+      -4 Job has pending children
       -6 Lock is not owned by this client
+      -9 Job has failed children
 
     Events:
       'completed/failed'
@@ -63,7 +64,7 @@ local rcall = redis.call
 --- @include "includes/getNextDelayedTimestamp"
 --- @include "includes/getRateLimitTTL"
 --- @include "includes/getTargetQueueList"
---- @include "includes/moveJobFromPriorityToActive"
+--- @include "includes/moveJobFromPrioritizedToActive"
 --- @include "includes/moveChildFromDependenciesIfNeeded"
 --- @include "includes/prepareJobForProcessing"
 --- @include "includes/promoteDelayedJobs"
@@ -81,10 +82,14 @@ local jobIdKey = KEYS[12]
 if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
     -- Make sure it does not have pending dependencies
     -- It must happen before removing lock
-    if ARGV[5] == "completed" and
-        not rcall("HGET", jobIdKey, "igdp") and -- check if we should ignore this check
-        rcall("SCARD", jobIdKey .. ":dependencies") ~= 0 then
-        return -4
+    if ARGV[5] == "completed" then
+        if rcall("SCARD", jobIdKey .. ":dependencies") ~= 0 then
+            return -4
+        end
+
+        if rcall("ZCARD", jobIdKey .. ":unsuccessful") ~= 0 then
+            return -9
+        end
     end
 
     local opts = cmsgpack.unpack(ARGV[8])
@@ -234,7 +239,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
                 -- If jobId is special ID 0:delay (delay greater than 0), then there is no job to process
                 -- but if ID is 0:0, then there is at least 1 prioritized job to process
                 if jobId == "0:0" then
-                    jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2], KEYS[10])
+                    jobId = moveJobFromPrioritizedToActive(KEYS[3], KEYS[2], KEYS[10])
                     return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId, timestamp, maxJobs,
                         markerKey, opts)
                 end
@@ -243,7 +248,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
                     opts)
             end
         else
-            jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2], KEYS[10])
+            jobId = moveJobFromPrioritizedToActive(KEYS[3], KEYS[2], KEYS[10])
             if jobId then
                 return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId, timestamp, maxJobs, markerKey,
                     opts)

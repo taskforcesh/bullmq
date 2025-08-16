@@ -10,7 +10,7 @@ With the token at hand just update or create a `.npmrc` file in your app reposit
 always-auth=true
 ```
 
-where `NPM__TASKFORCESH__TOKEN` is an environment variable pointing to your token.
+where `NPM_TASKFORCESH_TOKEN` is an environment variable pointing to your token.
 
 Then just install the `@taskforcesh/bullmq-pro` package as you would install any other package, with `npm`, `yarn` or `pnpm`:
 
