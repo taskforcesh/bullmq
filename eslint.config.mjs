@@ -36,6 +36,7 @@ export default defineConfig([
     '**/*.sln',
     '**/*.sw*',
     '**/temp',
+    '**/changelogs',
     'docs/gitbook/api',
     'docs/gitbook/changelog.md',
     'docs/gitbook/bullmq-pro/changelog.md',
