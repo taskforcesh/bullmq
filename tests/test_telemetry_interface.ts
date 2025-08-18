@@ -227,7 +227,7 @@ describe('Telemetry', () => {
       } catch (e) {
         assert(recordExceptionSpy.calledOnce);
         const recordedError = recordExceptionSpy.firstCall.args[0];
-        assert.equal(recordedError.message, 'Custom Ids cannot be integers');
+        assert.equal(recordedError.message, 'Custom Id cannot be integers');
       } finally {
         recordExceptionSpy.restore();
       }
