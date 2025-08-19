@@ -38,7 +38,7 @@ export interface JobJsonRaw {
   priority: string;
   timestamp: string;
   failedReason: string;
-  stacktrace: string[];
+  stacktrace?: string;
   returnvalue: string;
   parentKey?: string;
   parent?: string;
