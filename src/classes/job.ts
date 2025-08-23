@@ -1508,7 +1508,11 @@ export class Job<
   }
 }
 
-function getTraces(stacktrace: string[]) {
+function getTraces(stacktrace?: string) {
+  if (!stacktrace) {
+    return [];
+  }
+
   const traces = tryCatch(JSON.parse, JSON, [stacktrace]);
 
   if (traces === errorObject || !(traces instanceof Array)) {

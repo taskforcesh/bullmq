@@ -676,7 +676,7 @@ describe('Job', function () {
       const data = { foo: 'bar' };
       const parent = await Job.create(parentQueue, 'testParent', data);
       const parentKey = getParentKey({
-        id: parent.id,
+        id: parent.id!,
         queue: `${prefix}:${parentQueueName}`,
       });
       const client = await queue.client;
@@ -687,7 +687,7 @@ describe('Job', function () {
       });
       await Job.create(queue, 'testJob2', values[1], {
         parent: {
-          id: parent.id,
+          id: parent.id!,
           queue: `${prefix}:${parentQueueName}`,
         },
       });
@@ -1693,7 +1693,7 @@ describe('Job', function () {
         const completed = new Promise<void>((resolve, reject) => {
           worker.on('completed', async (job: Job) => {
             try {
-              const gotJob = await queue.getJob(job.id);
+              const gotJob = await queue.getJob(job.id!);
               expect(gotJob).to.be.equal(undefined);
               const counts = await queue.getJobCounts('completed');
               expect(counts.completed).to.be.equal(0);
@@ -1713,7 +1713,7 @@ describe('Job', function () {
         await completed;
 
         await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith(
-          `Missing key for job ${queue.toKey(job.id)}. isFinished`,
+          `Missing key for job ${queue.toKey(job.id!)}. isFinished`,
         );
 
         await worker.close();
