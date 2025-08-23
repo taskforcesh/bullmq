@@ -41,12 +41,13 @@ if rcall("EXISTS", jobKey) == 1 then
 
     if parentKey and rcall("EXISTS", parentKey) == 1 then
       if ARGV[4] == "failed" then
-        if rcall("ZREM", parentKey .. ":unsuccessful", jobKey) == 1 or rcall("ZREM", parentKey .. ":failed", jobKey) == 1 then
-          rcall("SADD", parentKey .. "dependencies", jobKey)
+        if rcall("ZREM", parentKey .. ":unsuccessful", jobKey) == 1 or
+          rcall("ZREM", parentKey .. ":failed", jobKey) == 1 then
+          rcall("SADD", parentKey .. ":dependencies", jobKey)
         end
       else
         if rcall("HDEL", parentKey .. ":processed", jobKey) == 1 then
-          rcall("SADD", parentKey .. "dependencies", jobKey)
+          rcall("SADD", parentKey .. ":dependencies", jobKey)
         end
       end
     end
