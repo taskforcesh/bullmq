@@ -75,5 +75,5 @@ if (ttl > 0) {
 
 ## Read more:
 
-* 💡 [Rate Limit Group API Reference](https://api.bullmq.pro/classes/v7.Worker.html#rateLimitGroup)
-- 💡 [Get Group Rate Limit Ttl API Reference](https://api.bullmq.pro/classes/v7.Queue.html#getGroupRateLimitTtl)
+* 💡 [Rate Limit Group API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#ratelimitgroup)
+- 💡 [Get Group Rate Limit Ttl API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#getgroupratelimitttl)

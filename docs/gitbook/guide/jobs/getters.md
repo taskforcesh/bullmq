@@ -77,5 +77,5 @@ completed = await myQueue.getJobs(['completed'], 0, 100, True)
 
 ## Read more:
 
-* 💡 [Get Job Counts API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getJobCounts)
-* 💡 [Get Jobs API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getJobs)
+* 💡 [Get Job Counts API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getjobcounts)
+* 💡 [Get Jobs API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getjobs)
