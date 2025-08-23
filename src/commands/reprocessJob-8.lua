@@ -28,13 +28,29 @@ local rcall = redis.call;
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/getTargetQueueList"
 
-if rcall("EXISTS", KEYS[1]) == 1 then
+local jobKey = KEYS[1]
+if rcall("EXISTS", jobKey) == 1 then
   local jobId = ARGV[1]
   if (rcall("ZREM", KEYS[3], jobId) == 1) then
-    rcall("HDEL", KEYS[1], "finishedOn", "processedOn", ARGV[3])
+    rcall("HDEL", jobKey, "finishedOn", "processedOn", ARGV[3])
 
     local target, isPausedOrMaxed = getTargetQueueList(KEYS[5], KEYS[7], KEYS[4], KEYS[6])
     addJobInTargetList(target, KEYS[8], ARGV[2], isPausedOrMaxed, jobId)
+
+    local parentKey = rcall("HGET", jobKey, "parentKey")
+
+    if parentKey and rcall("EXISTS", parentKey) == 1 then
+      if ARGV[4] == "failed" then
+        if rcall("ZREM", parentKey .. ":unsuccessful", jobKey) == 1 or
+          rcall("ZREM", parentKey .. ":failed", jobKey) == 1 then
+          rcall("SADD", parentKey .. ":dependencies", jobKey)
+        end
+      else
+        if rcall("HDEL", parentKey .. ":processed", jobKey) == 1 then
+          rcall("SADD", parentKey .. ":dependencies", jobKey)
+        end
+      end
+    end
 
     local maxEvents = getOrSetMaxEvents(KEYS[5])
     -- Emit waiting event

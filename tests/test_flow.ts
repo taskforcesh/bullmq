@@ -1167,7 +1167,7 @@ describe('flows', () => {
                 );
                 resolve();
               }
-            } catch(error) {
+            } catch (error) {
               rejects(error);
             }
           });
@@ -1255,7 +1255,7 @@ describe('flows', () => {
                   );
                   resolve();
                 }
-              } catch(error) {
+              } catch (error) {
                 rejects(error);
               }
             });
@@ -6063,19 +6063,141 @@ describe('flows', () => {
       });
 
       expect(await tree.job.getState()).to.be.equal('waiting-children');
-      expect(await tree.children[0].job.getState()).to.be.equal('waiting');
+      expect(await tree.children![0].job.getState()).to.be.equal('waiting');
 
-      await tree.children[0].job.remove();
+      await tree.children![0].job.remove();
 
-      expect(await tree.children[0].job.getState()).to.be.equal('unknown');
+      expect(await tree.children![0].job.getState()).to.be.equal('unknown');
       expect(await tree.job.getState()).to.be.equal('waiting-children');
 
-      await tree.children[1].job.remove();
-      expect(await tree.children[1].job.getState()).to.be.equal('unknown');
+      await tree.children![1].job.remove();
+      expect(await tree.children![1].job.getState()).to.be.equal('unknown');
       expect(await tree.job.getState()).to.be.equal('waiting');
 
       await flow.close();
       await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+    });
+  });
+
+  describe('.retry', () => {
+    describe('when retrying a failed child', () => {
+      it('should update parent dependencies reference', async () => {
+        const parentQueueName = `parent-queue-${v4()}`;
+        const name = 'child-job';
+
+        const flow = new FlowProducer({ connection, prefix });
+        await flow.add({
+          name: 'parent-job',
+          queueName: parentQueueName,
+          data: {},
+          children: [{ name, data: { idx: 0, foo: 'bar' }, queueName }],
+        });
+
+        const parentWorker = new Worker(parentQueueName, async job => {}, {
+          connection,
+          prefix,
+        });
+        const childrenWorker = new Worker(
+          queueName,
+          async job => {
+            await delay(10);
+            if (job.data.idx === 0) {
+              await job.updateData({ idx: 1, foo: 'baz' });
+              throw new Error('error');
+            }
+          },
+          {
+            connection,
+            prefix,
+          },
+        );
+        await parentWorker.waitUntilReady();
+        await childrenWorker.waitUntilReady();
+
+        const failing = new Promise<void>(resolve => {
+          childrenWorker.on('failed', async job => {
+            await job?.retry('failed');
+            resolve();
+          });
+        });
+
+        await failing;
+
+        const completing = new Promise(resolve => {
+          parentWorker.on('completed', resolve);
+        });
+
+        await completing;
+
+        const childrenJobs = await queue.getJobCountByTypes('completed');
+        expect(childrenJobs).to.be.equal(1);
+
+        await flow.close();
+        await childrenWorker.close();
+        await parentWorker.close();
+        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      });
+    });
+
+    describe('when retrying a completed child', () => {
+      it('should update parent dependencies reference', async () => {
+        const parentQueueName = `parent-queue-${v4()}`;
+        const name = 'child-job';
+
+        const flow = new FlowProducer({ connection, prefix });
+        await flow.add({
+          name: 'parent-job',
+          queueName: parentQueueName,
+          data: {},
+          children: [
+            { name, data: { idx: 0 }, queueName },
+            { name, data: { idx: 1 }, queueName },
+          ],
+        });
+
+        const parentWorker = new Worker(parentQueueName, async job => {}, {
+          connection,
+          prefix,
+        });
+        const childrenWorker = new Worker(
+          queueName,
+          async job => {
+            await job.updateData({ idx: job.data.idx + 2 });
+            await delay(200);
+          },
+          {
+            connection,
+            prefix,
+          },
+        );
+        await parentWorker.waitUntilReady();
+        await childrenWorker.waitUntilReady();
+
+        const childCompletion = new Promise<void>(resolve => {
+          childrenWorker.on('completed', async job => {
+            if (job?.data.idx === 2) {
+              await job?.retry('completed');
+              resolve();
+            }
+          });
+        });
+
+        await childCompletion;
+
+        const completing = new Promise(resolve => {
+          parentWorker.on('completed', resolve);
+        });
+
+        await completing;
+
+        const childrenJobs = await queue.getJobCountByTypes('completed');
+        expect(childrenJobs).to.be.equal(2);
+
+        await flow.close();
+        await childrenWorker.close();
+        await parentWorker.close();
+        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      });
     });
   });
 });
