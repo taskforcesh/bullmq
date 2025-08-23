@@ -15,6 +15,7 @@
     ARGV[3] timestamp
     ARGV[4] jobId
     ARGV[5] prefix
+    ARGV[6] max skipped attempt count
 
   Output:
     0 - OK
@@ -37,6 +38,7 @@ local timestamp = ARGV[3]
 local jobId = ARGV[4]
 
 --- Includes
+--- @include "includes/checkMaxSkippedAttempts"
 --- @include "includes/removeLock"
 
 local function removeJobFromActive(activeKey, stalledKey, jobKey, jobId,
@@ -56,7 +58,7 @@ local function removeJobFromActive(activeKey, stalledKey, jobKey, jobId,
 end
 
 local function moveToWaitingChildren(activeKey, waitingChildrenKey, stalledKey, eventStreamKey,
-    jobKey, jobId, timestamp, token)
+    jobKey, jobId, timestamp, maxSkippedAttemptCount, token)
   local errorCode = removeJobFromActive(activeKey, stalledKey, jobKey, jobId, token)
   if errorCode < 0 then
     return errorCode
@@ -65,6 +67,7 @@ local function moveToWaitingChildren(activeKey, waitingChildrenKey, stalledKey, 
   local score = tonumber(timestamp)
 
   rcall("ZADD", waitingChildrenKey, score, jobId)
+  checkMaxSkippedAttempts(jobKey, maxSkippedAttemptCount)
   rcall("XADD", eventStreamKey, "*", "event", "waiting-children", "jobId", jobId, 'prev', 'active')
 
   return 0
@@ -74,17 +77,18 @@ if rcall("EXISTS", jobKey) == 1 then
   if rcall("ZCARD", jobUnsuccessfulKey) ~= 0 then
     return -9
   else
+    local maxSkippedAttemptCount = tonumber(ARGV[6])
     if ARGV[2] ~= "" then
       if rcall("SISMEMBER", jobDependenciesKey, ARGV[2]) ~= 0 then
         return moveToWaitingChildren(activeKey, waitingChildrenKey, stalledKey, eventStreamKey,
-          jobKey, jobId, timestamp, token)
+          jobKey, jobId, timestamp, maxSkippedAttemptCount, token)
       end
   
       return 1
     else
       if rcall("SCARD", jobDependenciesKey) ~= 0 then 
         return moveToWaitingChildren(activeKey, waitingChildrenKey, stalledKey, eventStreamKey,
-          jobKey, jobId, timestamp, token)
+          jobKey, jobId, timestamp, maxSkippedAttemptCount, token)
       end
   
       return 1
