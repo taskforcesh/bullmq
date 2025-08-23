@@ -1,3 +1,10 @@
+## [5.58.1](https://github.com/taskforcesh/bullmq/compare/v5.58.0...v5.58.1) (2025-08-23)
+
+
+### Bug Fixes
+
+* **job:** prevent unnecessary tryCatch calls in getTraces ([#3400](https://github.com/taskforcesh/bullmq/issues/3400)) ([d71b872](https://github.com/taskforcesh/bullmq/commit/d71b87245c8196d19dfeaf82e6ef14c91fb9a7c5))
+
 # [5.58.0](https://github.com/taskforcesh/bullmq/compare/v5.57.0...v5.58.0) (2025-08-15)
 
 
