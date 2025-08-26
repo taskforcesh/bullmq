@@ -72,7 +72,8 @@
   * [Producers](guide/nestjs/producers.md)
   * [Queue Events Listeners](guide/nestjs/queue-events-listeners.md)
 * [Going to production](guide/going-to-production.md)
-* [Migration to newer versions](guide/migration-to-newer-versions.md)
+* [Migrations](guide/migrations/migration-to-newer-versions.md)
+  * [Bull to BullMQ](guide/migrations/bull-to-bullmq.md)
 * [Troubleshooting](guide/troubleshooting.md)
 
 ## Patterns
