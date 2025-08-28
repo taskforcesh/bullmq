@@ -16,7 +16,8 @@ import {
   Span,
   WorkerOptions,
 } from '../interfaces';
-import { JobProgress, Processor } from '../types';
+import { JobProgress } from '../types';
+import { Processor } from '../types/processor';
 import {
   delay,
   DELAY_TIME_1,

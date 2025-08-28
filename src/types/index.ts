@@ -6,5 +6,4 @@ export * from './job-options';
 export * from './job-scheduler-template-options';
 export * from './job-type';
 export * from './job-progress';
-export * from './processor';
 export * from './repeat-strategy';

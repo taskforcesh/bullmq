@@ -23,7 +23,6 @@ import {
   JobProgress,
 } from '../types';
 import {
-  createScripts,
   errorObject,
   isEmpty,
   getParentKey,
@@ -34,6 +33,7 @@ import {
   tryCatch,
   removeUndefinedFields,
 } from '../utils';
+import { createScripts } from '../utils/create-scripts';
 import { Backoffs } from './backoffs';
 import { Scripts } from './scripts';
 import { UnrecoverableError } from './errors/unrecoverable-error';
