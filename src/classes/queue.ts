@@ -4,6 +4,7 @@ import {
   BulkJobOptions,
   IoredisListener,
   JobSchedulerJson,
+  MinimalQueue,
   QueueOptions,
   RepeatableJob,
   RepeatOptions,
@@ -12,7 +13,6 @@ import {
   FinishedStatus,
   JobsOptions,
   JobSchedulerTemplateOptions,
-  MinimalQueue,
   JobProgress,
 } from '../types';
 import { Job } from './job';

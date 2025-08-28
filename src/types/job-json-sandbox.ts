@@ -1,4 +1,4 @@
-import { JobJson } from '../interfaces';
+import { JobJson } from '../interfaces/job-json';
 
 export type JobJsonSandbox = JobJson & {
   queueName: string;

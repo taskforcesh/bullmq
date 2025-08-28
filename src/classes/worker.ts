@@ -11,12 +11,12 @@ import {
   GetNextJobOptions,
   IoredisListener,
   JobJsonRaw,
-  Processor,
+  MinimalQueue,
   RedisClient,
   Span,
   WorkerOptions,
 } from '../interfaces';
-import { JobProgress, MinimalQueue } from '../types';
+import { JobProgress, Processor } from '../types';
 import {
   delay,
   DELAY_TIME_1,
@@ -854,7 +854,7 @@ will never work with more accuracy than 1ms. */
           [TelemetryAttributes.WorkerName]: this.opts.name,
           [TelemetryAttributes.JobId]: job.id,
           [TelemetryAttributes.JobName]: job.name,
-          [TelemetryAttributes.JobAttemptsMade]: job.attemptsMade
+          [TelemetryAttributes.JobAttemptsMade]: job.attemptsMade,
         });
 
         this.emit('active', job, 'waiting');

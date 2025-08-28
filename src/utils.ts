@@ -9,6 +9,7 @@ import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import {
   ChildMessage,
   ContextManager,
+  MinimalQueue,
   ParentOptions,
   RedisClient,
   Span,
@@ -19,7 +20,6 @@ import { EventEmitter } from 'events';
 import * as semver from 'semver';
 
 import { SpanKind, TelemetryAttributes } from './enums';
-import { MinimalQueue } from './types';
 
 export const errorObject: { [index: string]: any } = { value: null };
 

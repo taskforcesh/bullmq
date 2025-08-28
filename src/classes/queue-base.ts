@@ -1,6 +1,10 @@
 import { EventEmitter } from 'events';
-import { QueueBaseOptions, RedisClient, Span } from '../interfaces';
-import { MinimalQueue } from '../types';
+import {
+  MinimalQueue,
+  QueueBaseOptions,
+  RedisClient,
+  Span,
+} from '../interfaces';
 
 import {
   createScripts,

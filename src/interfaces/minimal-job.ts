@@ -1,4 +1,6 @@
-import { JobsOptions, JobJsonSandbox, JobProgress } from '../types';
+import { JobsOptions } from '../types/job-options';
+import { JobProgress } from '../types/job-progress';
+import { JobJsonSandbox } from '../types/job-json-sandbox';
 import { JobJson } from './job-json';
 import { ParentKeys } from './parent';
 import { ParentOptions } from './parent-options';
