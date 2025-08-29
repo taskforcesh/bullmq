@@ -208,6 +208,44 @@ queueEvents.on(
 );
 ```
 
+Adds jobs with parent-child relationship:
+
+```ts
+import { FlowProducer } from 'bullmq';
+
+const flow = new FlowProducer();
+
+const originalTree = await flow.add({
+  name: 'root-job',
+  queueName: 'topQueueName',
+  data: {},
+  children: [
+    {
+      name: 'child-job',
+      data: { idx: 0, foo: 'bar' },
+      queueName: 'childrenQueueName',
+      children: [
+        {
+          name: 'grandchild-job',
+          data: { idx: 1, foo: 'bah' },
+          queueName: 'grandChildrenQueueName'
+        },
+        {
+          name: 'grandchild-job',
+          data: { idx: 2, foo: 'baz' },
+          queueName: 'grandChildrenQueueName'
+        },
+      ],
+    },
+    {
+      name: 'child-job',
+      data: { idx: 3, foo: 'foo' },
+      queueName: 'childrenQueueName'
+    },
+  ],
+});
+```
+
 This is just scratching the surface, check all the features and more in the official <a href="https://docs.bullmq.io">documentation</a>
 
 # Feature Comparison
@@ -222,7 +260,8 @@ Since there are a few job queue solutions, here is a table comparing them:
 | Group Support             |                      ✓                      |                             |                 |       |          |        |
 | Batches Support           |                      ✓                      |                             |                 |       |          |        |
 | Parent/Child Dependencies |                      ✓                      |              ✓              |                 |       |          |        |
-| Debouncing                |                      ✓                      |              ✓              |        ✓        |       |          |        |
+| Deduplication (Debouncing)                |                      ✓                      |              ✓              |        ✓        |       |          |        |
+| Deduplication (Throttling)                |                      ✓                      |              ✓              |        ✓        |       |          |        |
 | Priorities                |                      ✓                      |              ✓              |        ✓        |   ✓   |          | ✓      |
 | Concurrency               |                      ✓                      |              ✓              |        ✓        |   ✓   | ✓        | ✓      |
 | Delayed jobs              |                      ✓                      |              ✓              |        ✓        |   ✓   |          | ✓      |
