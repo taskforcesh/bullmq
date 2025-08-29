@@ -274,7 +274,7 @@ export class JobScheduler extends QueueBase {
     key: string,
     jobData: any,
     next?: number,
-  ): JobSchedulerJson<D> {
+  ): JobSchedulerJson<D> | undefined {
     if (jobData) {
       const jobSchedulerData: JobSchedulerJson<D> = {
         key,
