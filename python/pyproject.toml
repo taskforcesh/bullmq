@@ -22,7 +22,7 @@ keywords = ["python", "bullmq", "queues"]
 dependencies = [
     "redis >= 6.2.0, < 7",
     "msgpack >= 1.0.0, < 2",
-    "semver >= 3.0.4"
+    "semver >= 3.0.4, < 4"
 ]
 
 [project.optional-dependencies]
