@@ -605,7 +605,9 @@ export class Queue<
    *
    * @param id - identifier of scheduler.
    */
-  async getJobScheduler(id: string): Promise<JobSchedulerJson<DataType>> {
+  async getJobScheduler(
+    id: string,
+  ): Promise<JobSchedulerJson<DataType> | undefined> {
     return (await this.jobScheduler).getScheduler<DataType>(id);
   }
 
