@@ -1,5 +1,5 @@
-import { BaseJobOptions } from '../interfaces';
-import { DeduplicationOptions } from '../types';
+import { BaseJobOptions } from '../interfaces/base-job-options';
+import { DeduplicationOptions } from './deduplication-options';
 
 /**
  * These options will be stored in Redis with smaller

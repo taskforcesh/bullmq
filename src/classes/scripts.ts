@@ -25,6 +25,7 @@ import {
   MoveToDelayedOpts,
   RepeatableOptions,
   RetryJobOpts,
+  ScriptQueueContext,
 } from '../interfaces';
 import {
   JobsOptions,
@@ -32,7 +33,6 @@ import {
   JobType,
   FinishedStatus,
   FinishedPropValAttribute,
-  ScriptQueueContext,
   RedisJobOptions,
   JobProgress,
 } from '../types';

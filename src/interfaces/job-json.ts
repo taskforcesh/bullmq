@@ -1,4 +1,5 @@
-import { JobProgress, RedisJobOptions } from '../types';
+import { JobProgress } from '../types/job-progress';
+import { RedisJobOptions } from '../types/job-options';
 import { ParentKeys } from './parent';
 
 export interface JobJson {
