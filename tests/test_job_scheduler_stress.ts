@@ -220,6 +220,7 @@ describe('Job Scheduler Stress', function () {
     it('should repeat every 2 seconds and start immediately', async function () {
       let iterationCount = 0;
       const MINIMUM_DELAY_THRESHOLD_MS = 1850;
+      const DELAY = 2000;
       const worker = new Worker(
         queueName,
         async job => {
@@ -228,6 +229,7 @@ describe('Job Scheduler Stress', function () {
               expect(job.opts.delay).to.be.eq(0);
             } else {
               expect(job.opts.delay).to.be.gte(MINIMUM_DELAY_THRESHOLD_MS);
+              expect(job.opts.delay).to.be.lte(DELAY);
             }
             iterationCount++;
           } catch (err) {
@@ -265,7 +267,7 @@ describe('Job Scheduler Stress', function () {
       await queue.upsertJobScheduler(
         'repeat',
         {
-          every: 2000,
+          every: DELAY,
         },
         { data: { foo: 'bar' } },
       );
