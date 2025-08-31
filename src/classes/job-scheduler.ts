@@ -86,7 +86,7 @@ export class JobScheduler extends QueueBase {
 
     // Check if we have a start date for the repeatable job
     const { startDate, immediately, ...filteredRepeatOpts } = repeatOpts;
-    let startMillis = (now > prevMillis ? now : prevMillis) + (offset || 0);
+    let startMillis = now;
     if (startDate) {
       startMillis = new Date(startDate).getTime();
       startMillis = startMillis > now ? startMillis : now;
