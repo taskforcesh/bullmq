@@ -1,6 +1,6 @@
 {
   "name": "bullmq",
-  "version": "5.58.3",
+  "version": "5.58.4",
   "description": "Queue for messages and jobs based on Redis",
   "homepage": "https://bullmq.io/",
   "main": "./dist/cjs/index.js",
@@ -41,7 +41,7 @@
     "lint:staged": "lint-staged",
     "prepublishOnly": "npm run build",
     "prepare": "husky install",
-    "pretest": "npm run clean:scripts && npm run generate:raw:scripts && npm run transform:commands",
+    "pretest": "npm run clean:scripts && npm run generate:raw:scripts && npm run transform:commands && npm run circular:references",
     "prettier": "prettier --config package.json src/**/*.ts",
     "pretty:quick": "pretty-quick --staged",
     "semantic-release": "semantic-release",
