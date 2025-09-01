@@ -1155,7 +1155,6 @@ export class Scripts {
     opts: MoveToDelayedOpts = {},
   ): Promise<void> {
     const client = await this.queue.client;
-    const workerOpts: WorkerOptions = <WorkerOptions>this.queue.opts;
 
     const args = this.moveToDelayedArgs(jobId, timestamp, token, delay, opts);
 
@@ -1187,7 +1186,6 @@ export class Scripts {
     opts: MoveToWaitingChildrenOpts = {},
   ): Promise<boolean> {
     const client = await this.queue.client;
-    const workerOpts: WorkerOptions = <WorkerOptions>this.queue.opts;
 
     const args = this.moveToWaitingChildrenArgs(jobId, token, opts);
     const result = await this.execCommand(
@@ -1528,7 +1526,6 @@ export class Scripts {
    */
   async moveJobFromActiveToWait(jobId: string, token = '0') {
     const client = await this.queue.client;
-    const opts: WorkerOptions = <WorkerOptions>this.queue.opts;
 
     const keys: (string | number)[] = [
       this.queue.keys.active,
