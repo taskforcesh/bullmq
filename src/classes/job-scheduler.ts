@@ -86,7 +86,10 @@ export class JobScheduler extends QueueBase {
 
     // Check if we have a start date for the repeatable job
     const { startDate, immediately, ...filteredRepeatOpts } = repeatOpts;
-    let startMillis = now;
+    const nexStartMillis: number = prevMillis
+      ? prevMillis + (every || 0)
+      : prevMillis;
+    let startMillis = now > nexStartMillis ? now : nexStartMillis;
     if (startDate) {
       startMillis = new Date(startDate).getTime();
       startMillis = startMillis > now ? startMillis : now;
@@ -96,7 +99,7 @@ export class JobScheduler extends QueueBase {
     let newOffset: number | null = null;
     if (every) {
       const prevSlot =
-        Math.floor((startMillis - (offset || 0)) / every) * every;
+        Math.floor((startMillis - (every - offset || 0)) / every) * every;
 
       newOffset = typeof offset === 'number' ? offset : startMillis - prevSlot;
 
