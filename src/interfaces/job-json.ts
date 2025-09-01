@@ -48,7 +48,6 @@ export interface JobJsonRaw {
   nrjid?: string;
   atm?: string;
   defa?: string;
-  sac?: string; // Skipped attempt counter
   stc?: string;
   ats?: string;
   pb?: string; // Worker name

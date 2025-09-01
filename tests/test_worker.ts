@@ -2221,7 +2221,7 @@ describe('workers', function () {
     ).to.throw('maxStalledCount must be greater or equal than 0');
   });
 
-  it('max skipped attempt count cannot be less than zero', function () {
+  it('max started attempts cannot be less than zero', function () {
     this.timeout(4000);
     expect(
       () =>
