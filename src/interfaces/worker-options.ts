@@ -43,11 +43,13 @@ export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
   metrics?: MetricsOptions;
 
   /**
-   * Amount of times a job can skip an attempt made.
-   *
+   * Defines the maximum number of times a job is allowed to start processing,
+   * regardless of whether it completes or fails. Each time a worker picks up the job
+   * and begins processing it, the attemptsStarted counter is incremented.
+   * If this counter reaches maxStartedAttempts, the job will be moved to the failed state with an UnrecoverableError.
    * @defaultValue undefined
    */
-  maxSkippedAttemptCount?: number;
+  maxStartedAttempts?: number;
 
   /**
    * Amount of times a job can be recovered from a stalled state

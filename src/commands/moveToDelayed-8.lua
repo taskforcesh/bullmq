@@ -17,8 +17,7 @@
     ARGV[4] queue token
     ARGV[5] delay value
     ARGV[6] skip attempt
-    ARGV[7] max skipped attempt count
-    ARGV[8] optional job fields to update
+    ARGV[7] optional job fields to update
 
   Output:
     0 - OK
@@ -32,7 +31,6 @@ local rcall = redis.call
 
 -- Includes
 --- @include "includes/addDelayMarkerIfNeeded"
---- @include "includes/checkMaxSkippedAttempts"
 --- @include "includes/getDelayedScore"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/removeLock"
@@ -47,7 +45,7 @@ if rcall("EXISTS", jobKey) == 1 then
         return errorCode
     end
 
-    updateJobFields(jobKey, ARGV[8])
+    updateJobFields(jobKey, ARGV[7])
     
     local delayedKey = KEYS[4]
     local jobId = ARGV[3]
@@ -60,10 +58,6 @@ if rcall("EXISTS", jobKey) == 1 then
 
     if ARGV[6] == "0" then
         rcall("HINCRBY", jobKey, "atm", 1)
-    else
-        local maxSkippedAttemptCount = tonumber(ARGV[7])
-
-        checkMaxSkippedAttempts(jobKey, maxSkippedAttemptCount)
     end
 
     rcall("HSET", jobKey, "delay", ARGV[5])

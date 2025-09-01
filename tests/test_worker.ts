@@ -2228,9 +2228,9 @@ describe('workers', function () {
         new Worker(queueName, NoopProc, {
           connection,
           prefix,
-          maxSkippedAttemptCount: -1,
+          maxStartedAttempts: -1,
         }),
-    ).to.throw('maxSkippedAttemptCount must be greater or equal than 0');
+    ).to.throw('maxStartedAttempts must be greater or equal than 0');
   });
 
   it('stalled interval cannot be zero', function () {
@@ -3613,15 +3613,15 @@ describe('workers', function () {
           await worker.close();
         });
 
-        describe('when passing maxSkippedAttemptCount', () => {
-          it('should fail job when consuming the max skipped attempts', async function () {
+        describe('when passing maxStartedAttempts', () => {
+          it('should fail job when consuming the max started attempts', async function () {
             const worker = new Worker(
               queueName,
               async (job, token) => {
                 await job.moveToDelayed(Date.now() + 200, token);
                 throw new DelayedError();
               },
-              { connection, maxSkippedAttemptCount: 1, prefix },
+              { connection, maxStartedAttempts: 1, prefix },
             );
 
             await worker.waitUntilReady();
@@ -3635,11 +3635,10 @@ describe('workers', function () {
                   const elapse = Date.now() - start;
                   expect(elapse).to.be.greaterThan(200);
                   expect(job!.failedReason).to.be.eql(
-                    'job skipped more than allowable attempts',
+                    'job started more than allowable limit',
                   );
                   expect(job!.attemptsMade).to.be.eql(1);
-                  expect(job!.attemptsStarted).to.be.eql(3);
-                  expect(job!.skippedAttemptCounter).to.be.eql(2);
+                  expect(job!.attemptsStarted).to.be.eql(2);
                   resolve();
                 } catch (error) {
                   reject(error);
