@@ -5,6 +5,7 @@
   returns:
     boolean
 ]]
+--- @include "destructureJobKey"
 
 local function isLocked( prefix, jobId, removeChildren)
   local jobKey = prefix .. jobId;

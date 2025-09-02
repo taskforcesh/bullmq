@@ -3,4 +3,6 @@ export enum ChildCommand {
   Start,
   Stop,
   GetChildrenValuesResponse,
+  GetIgnoredChildrenFailuresResponse,
+  MoveToWaitingChildrenResponse,
 }

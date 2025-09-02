@@ -52,6 +52,22 @@ const sandbox = <T, R, N extends string>(
                       msg.value?.token,
                     );
                     break;
+                  case ParentCommand.MoveToWait:
+                    await job.moveToWait(msg.value?.token);
+                    break;
+                  case ParentCommand.MoveToWaitingChildren:
+                    {
+                      const value = await job.moveToWaitingChildren(
+                        msg.value?.token,
+                        msg.value?.opts,
+                      );
+                      child.send({
+                        requestId: msg.requestId,
+                        cmd: ChildCommand.MoveToWaitingChildrenResponse,
+                        value,
+                      });
+                    }
+                    break;
                   case ParentCommand.Update:
                     await job.updateData(msg.value);
                     break;
@@ -61,6 +77,16 @@ const sandbox = <T, R, N extends string>(
                       child.send({
                         requestId: msg.requestId,
                         cmd: ChildCommand.GetChildrenValuesResponse,
+                        value,
+                      });
+                    }
+                    break;
+                  case ParentCommand.GetIgnoredChildrenFailures:
+                    {
+                      const value = await job.getIgnoredChildrenFailures();
+                      child.send({
+                        requestId: msg.requestId,
+                        cmd: ChildCommand.GetIgnoredChildrenFailuresResponse,
                         value,
                       });
                     }

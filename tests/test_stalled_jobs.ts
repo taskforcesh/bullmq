@@ -6,6 +6,8 @@ import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 import { v4 } from 'uuid';
 import { expect } from 'chai';
 
+const NoopProc = () => Promise.resolve();
+
 describe('stalled jobs', function () {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
@@ -69,7 +71,7 @@ describe('stalled jobs', function () {
     await allActive;
     await worker.close(true);
 
-    const worker2 = new Worker(queueName, async job => {}, {
+    const worker2 = new Worker(queueName, NoopProc, {
       connection,
       prefix,
       stalledInterval: 100,
@@ -93,8 +95,14 @@ describe('stalled jobs', function () {
     await allStalled;
     await allStalledGlobalEvent;
 
-    const allCompleted = new Promise(resolve => {
-      worker2.on('completed', after(concurrency, resolve));
+    const allCompleted = new Promise<void>(resolve => {
+      worker2.on(
+        'completed',
+        after(concurrency, job => {
+          expect(job.stalledCounter).to.be.equal(1);
+          resolve();
+        }),
+      );
     });
 
     await allCompleted;
@@ -175,7 +183,7 @@ describe('stalled jobs', function () {
 
     await worker.close(true);
 
-    const worker2 = new Worker(queueName, async job => {}, {
+    const worker2 = new Worker(queueName, NoopProc, {
       connection,
       prefix,
       stalledInterval: 100,
@@ -251,7 +259,7 @@ describe('stalled jobs', function () {
 
       await worker.close(true);
 
-      const worker2 = new Worker(queueName, async job => {}, {
+      const worker2 = new Worker(queueName, NoopProc, {
         connection,
         prefix,
         stalledInterval: 100,
@@ -264,7 +272,9 @@ describe('stalled jobs', function () {
         worker2.on(
           'failed',
           after(concurrency, async (job, failedReason, prev) => {
-            expect(job).to.be.undefined;
+            expect(job?.attemptsStarted).to.be.equal(2);
+            expect(job?.attemptsMade).to.be.equal(1);
+            expect(job?.stalledCounter).to.be.equal(1);
             expect(prev).to.be.equal('active');
             expect(failedReason.message).to.be.equal(errorMessage);
             resolve();
@@ -342,7 +352,9 @@ describe('stalled jobs', function () {
             worker.on(
               'failed',
               after(concurrency, async (job, failedReason, prev) => {
-                expect(job).to.be.undefined;
+                expect(job?.attemptsStarted).to.be.equal(4);
+                expect(job?.attemptsMade).to.be.equal(1);
+                expect(job?.stalledCounter).to.be.equal(3);
                 expect(prev).to.be.equal('active');
                 expect(failedReason.message).to.be.equal(errorMessage);
                 resolve();
@@ -405,14 +417,19 @@ describe('stalled jobs', function () {
             concurrency,
           },
         );
+        const parentWorker = new Worker(parentQueueName, async () => {}, {
+          connection,
+          prefix,
+        });
 
         const allActive = new Promise(resolve => {
           worker.on('active', after(concurrency, resolve));
         });
 
         await worker.waitUntilReady();
+        await parentWorker.waitUntilReady();
 
-        const { job: parent } = await flow.add({
+        const { children } = await flow.add({
           name: 'parent-job',
           queueName: parentQueueName,
           data: {},
@@ -435,7 +452,7 @@ describe('stalled jobs', function () {
         await allActive;
         await worker.close(true);
 
-        const worker2 = new Worker(queueName, async job => {}, {
+        const worker2 = new Worker(queueName, NoopProc, {
           connection,
           prefix,
           stalledInterval: 100,
@@ -448,12 +465,112 @@ describe('stalled jobs', function () {
           worker2.on(
             'failed',
             after(concurrency, async (job, failedReason, prev) => {
-              const parentState = await parent.getState();
-
-              expect(parentState).to.be.equal('failed');
               expect(prev).to.be.equal('active');
               expect(failedReason.message).to.be.equal(errorMessage);
               resolve();
+            }),
+          );
+        });
+
+        const parentFailure = new Promise<void>(resolve => {
+          parentWorker.once('failed', async (job, failedReason, prev) => {
+            expect(prev).to.be.equal('active');
+            expect(failedReason.message).to.be.equal(
+              `child ${prefix}:${queueName}:${children[0].job.id!} failed`,
+            );
+            resolve();
+          });
+        });
+        await allFailed;
+        await parentFailure;
+
+        await worker2.close();
+        await parentWorker.close();
+        await parentQueue.close();
+        await flow.close();
+        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      });
+    });
+
+    describe('when continueParentOnFailure is provided as true', function () {
+      it('should start processing parent when child is moved to failed', async function () {
+        this.timeout(6000);
+        const concurrency = 4;
+        const parentQueueName = `parent-queue-${v4()}`;
+
+        const parentQueue = new Queue(parentQueueName, {
+          connection,
+          prefix,
+        });
+
+        const flow = new FlowProducer({ connection, prefix });
+
+        const worker = new Worker(
+          queueName,
+          async () => {
+            return delay(10000);
+          },
+          {
+            connection,
+            prefix,
+            lockDuration: 1000,
+            stalledInterval: 100,
+            maxStalledCount: 0,
+            concurrency,
+          },
+        );
+
+        const allActive = new Promise(resolve => {
+          worker.on('active', after(concurrency, resolve));
+        });
+
+        await worker.waitUntilReady();
+
+        const { job: parent } = await flow.add({
+          name: 'parent-job',
+          queueName: parentQueueName,
+          data: {},
+          children: [
+            {
+              name: 'test',
+              data: { foo: 'bar' },
+              queueName,
+              opts: { continueParentOnFailure: true },
+            },
+          ],
+        });
+
+        const jobs = Array.from(Array(3).keys()).map(index => ({
+          name: 'test',
+          data: { index },
+        }));
+
+        await queue.addBulk(jobs);
+        await allActive;
+        await worker.close(true);
+
+        const worker2 = new Worker(queueName, NoopProc, {
+          connection,
+          prefix,
+          stalledInterval: 100,
+          maxStalledCount: 0,
+          concurrency,
+        });
+
+        const errorMessage = 'job stalled more than allowable limit';
+        const allFailed = new Promise<void>((resolve, reject) => {
+          worker2.on(
+            'failed',
+            after(concurrency, async (job, failedReason, prev) => {
+              try {
+                const parentState = await parent.getState();
+                expect(parentState).to.be.equal('waiting');
+                expect(prev).to.be.equal('active');
+                expect(failedReason.message).to.be.equal(errorMessage);
+                resolve();
+              } catch (err) {
+                reject(err);
+              }
             }),
           );
         });
@@ -524,7 +641,7 @@ describe('stalled jobs', function () {
         await allActive;
         await worker.close(true);
 
-        const worker2 = new Worker(queueName, async job => {}, {
+        const worker2 = new Worker(queueName, NoopProc, {
           connection,
           prefix,
           stalledInterval: 100,
@@ -548,8 +665,8 @@ describe('stalled jobs', function () {
         });
 
         await allFailed;
-        const failedChildrenValues = await parent.getFailedChildrenValues();
-        expect(failedChildrenValues).to.deep.equal({
+        const ignoredChildrenValues = await parent.getIgnoredChildrenFailures();
+        expect(ignoredChildrenValues).to.deep.equal({
           [`${queue.qualifiedName}:${children[0].job.id}`]:
             'job stalled more than allowable limit',
         });
@@ -618,7 +735,7 @@ describe('stalled jobs', function () {
         await allActive;
         await worker.close(true);
 
-        const worker2 = new Worker(queueName, async job => {}, {
+        const worker2 = new Worker(queueName, NoopProc, {
           connection,
           prefix,
           stalledInterval: 100,
@@ -690,7 +807,7 @@ describe('stalled jobs', function () {
 
         await worker.close(true);
 
-        const worker2 = new Worker(queueName, async job => {}, {
+        const worker2 = new Worker(queueName, NoopProc, {
           connection,
           prefix,
           stalledInterval: 100,
@@ -706,7 +823,7 @@ describe('stalled jobs', function () {
               const failedCount = await queue.getFailedCount();
               expect(failedCount).to.equal(3);
 
-              expect(job.data.index).to.be.equal(3);
+              expect(job.data.index).to.be.equal(0);
               expect(prev).to.be.equal('active');
               expect(failedReason.message).to.be.equal(errorMessage);
               resolve();
@@ -760,7 +877,7 @@ describe('stalled jobs', function () {
 
         await worker.close(true);
 
-        const worker2 = new Worker(queueName, async job => {}, {
+        const worker2 = new Worker(queueName, NoopProc, {
           connection,
           prefix,
           stalledInterval: 100,
@@ -773,7 +890,9 @@ describe('stalled jobs', function () {
           worker2.on(
             'failed',
             after(concurrency, async (job, failedReason, prev) => {
-              expect(job).to.be.undefined;
+              expect(job?.attemptsStarted).to.be.equal(2);
+              expect(job?.attemptsMade).to.be.equal(1);
+              expect(job?.stalledCounter).to.be.equal(1);
               const failedCount = await queue.getFailedCount();
               expect(failedCount).to.equal(2);
 
@@ -836,7 +955,7 @@ describe('stalled jobs', function () {
 
         await worker.close(true);
 
-        const worker2 = new Worker(queueName, async job => {}, {
+        const worker2 = new Worker(queueName, NoopProc, {
           connection,
           prefix,
           stalledInterval: 100,
@@ -899,7 +1018,7 @@ describe('stalled jobs', function () {
 
     await allActive;
 
-    const worker2 = new Worker(queueName, async job => {}, {
+    const worker2 = new Worker(queueName, NoopProc, {
       connection,
       prefix,
       stalledInterval: 50,

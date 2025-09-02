@@ -43,10 +43,11 @@ const originalTree = await flow.add({
 As soon as a **child** with this option fails, the parent job will be moved to a waiting state only if there are no more pending children.
 {% endhint %}
 
-Failed children using this option can be retrieved by **getFailedChildrenValues** method:
+Failed children using this option can be retrieved by **getIgnoredChildrenFailures** method:
 
 ```typescript
-const failedChildrenValues = await originalTree.job.getFailedChildrenValues();
+const ignoredChildrenFailures =
+  await originalTree.job.getIgnoredChildrenFailures();
 ```
 
 ## Read more:

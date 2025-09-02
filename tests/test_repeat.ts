@@ -28,7 +28,7 @@ const ONE_MINUTE = 60 * ONE_SECOND;
 const ONE_HOUR = 60 * ONE_MINUTE;
 const ONE_DAY = 24 * ONE_HOUR;
 
-const NoopProc = async (job: Job) => {};
+const NoopProc = () => Promise.resolve();
 
 describe('repeat', function () {
   const redisHost = process.env.REDIS_HOST || 'localhost';
@@ -143,7 +143,7 @@ describe('repeat', function () {
       },
       { autorun: false, connection, prefix },
     );
-    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+    const delayStub = sinon.stub(worker, 'delay').callsFake(NoopProc);
     await worker.waitUntilReady();
 
     let processed = 0;
@@ -312,7 +312,7 @@ describe('repeat', function () {
       },
       { autorun: false, connection, prefix },
     );
-    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+    const delayStub = sinon.stub(worker, 'delay').callsFake(NoopProc);
 
     const date = new Date('2017-02-07 9:24:00');
     this.clock.setSystemTime(date);
@@ -349,6 +349,61 @@ describe('repeat', function () {
     delayStub.restore();
   });
 
+  describe('when using legacy key', function () {
+    it('should repeat every 2 seconds', async function () {
+      this.timeout(10000);
+
+      const nextTick = 2 * ONE_SECOND + 100;
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          this.clock.tick(nextTick);
+        },
+        { autorun: false, connection, prefix },
+      );
+      const delayStub = sinon.stub(worker, 'delay').callsFake(NoopProc);
+
+      const date = new Date('2017-02-07 9:24:00');
+      this.clock.setSystemTime(date);
+
+      await queue.add(
+        'test',
+        { foo: 'bar' },
+        { repeat: { pattern: '*/2 * * * * *', key: 'test::::*/2 * * * * *' } },
+      );
+
+      this.clock.tick(nextTick);
+
+      let prev: any;
+      let counter = 0;
+
+      const completing = new Promise<void>((resolve, rejects) => {
+        worker.on('completed', async job => {
+          try {
+            if (prev) {
+              expect(prev.timestamp).to.be.lt(job.timestamp);
+              expect(job.timestamp - prev.timestamp).to.be.gte(2000);
+            }
+            prev = job;
+            counter++;
+            if (counter == 5) {
+              resolve();
+            }
+          } catch (error) {
+            rejects(error);
+          }
+        });
+      });
+
+      worker.run();
+
+      await completing;
+      await worker.close();
+      delayStub.restore();
+    });
+  });
+
   it('should repeat every 2 seconds with startDate in future', async function () {
     this.timeout(10000);
 
@@ -364,7 +419,7 @@ describe('repeat', function () {
       },
       { autorun: false, connection, prefix },
     );
-    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+    const delayStub = sinon.stub(worker, 'delay').callsFake(NoopProc);
 
     await queue.add(
       'test',
@@ -382,7 +437,7 @@ describe('repeat', function () {
     let prev: Job;
     let counter = 0;
 
-    const completing = new Promise<void>((resolve, reject) => {
+    const completing = new Promise<void>(resolve => {
       worker.on('completed', async job => {
         if (prev) {
           expect(prev.timestamp).to.be.lt(job.timestamp);
@@ -419,7 +474,7 @@ describe('repeat', function () {
       },
       { autorun: false, connection, prefix },
     );
-    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+    const delayStub = sinon.stub(worker, 'delay').callsFake(NoopProc);
 
     await queue.add(
       'repeat',
@@ -437,7 +492,7 @@ describe('repeat', function () {
     let prev: Job;
     let counter = 0;
 
-    const completing = new Promise<void>((resolve, reject) => {
+    const completing = new Promise<void>(resolve => {
       worker.on('completed', async job => {
         if (prev) {
           expect(prev.timestamp).to.be.lt(job.timestamp);
@@ -482,7 +537,7 @@ describe('repeat', function () {
         },
         { autorun: false, connection, prefix },
       );
-      const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+      const delayStub = sinon.stub(worker, 'delay').callsFake(NoopProc);
 
       await queue.add(
         'test',
@@ -500,7 +555,7 @@ describe('repeat', function () {
       let prev: Job;
       let counter = 0;
 
-      const completing = new Promise<void>((resolve, reject) => {
+      const completing = new Promise<void>(resolve => {
         worker.on('completed', async job => {
           if (prev) {
             expect(prev.timestamp).to.be.lt(job.timestamp);
@@ -560,7 +615,7 @@ describe('repeat', function () {
         },
         { connection, prefix, settings },
       );
-      const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+      const delayStub = sinon.stub(worker, 'delay').callsFake(NoopProc);
 
       const date = new Date('2017-02-07 9:24:00');
       this.clock.setSystemTime(date);
@@ -644,7 +699,7 @@ describe('repeat', function () {
           },
           { connection, prefix, settings },
         );
-        const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+        const delayStub = sinon.stub(worker, 'delay').callsFake(NoopProc);
 
         const date = new Date('2017-02-07 9:24:00');
         this.clock.setSystemTime(date);
@@ -740,7 +795,7 @@ describe('repeat', function () {
       prefix,
       settings,
     });
-    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+    const delayStub = sinon.stub(worker, 'delay').callsFake(NoopProc);
     const jobName = 'jobName';
     const jobId = 'jobId';
     const endDate = '';
@@ -803,7 +858,7 @@ describe('repeat', function () {
       },
       { connection, prefix },
     );
-    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+    const delayStub = sinon.stub(worker, 'delay').callsFake(NoopProc);
 
     let prev: Job;
     let counter = 0;
@@ -941,7 +996,7 @@ describe('repeat', function () {
     });
 
     let prev: Job;
-    const completing = new Promise<void>((resolve, reject) => {
+    const completing = new Promise<void>(resolve => {
       worker.on('completed', async job => {
         if (counter === 1) {
           expect(prev.timestamp).to.be.lt(job.timestamp);
@@ -1006,7 +1061,7 @@ describe('repeat', function () {
 
     let prev: Job;
     let counter = 0;
-    const completing = new Promise<void>((resolve, reject) => {
+    const completing = new Promise<void>(resolve => {
       worker.on('completed', async job => {
         try {
           if (prev) {
@@ -1128,7 +1183,7 @@ describe('repeat', function () {
       },
       { autorun: false, connection, prefix },
     );
-    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+    const delayStub = sinon.stub(worker, 'delay').callsFake(NoopProc);
 
     let counter = 25;
     let prev: Job;
@@ -1202,7 +1257,7 @@ describe('repeat', function () {
         },
       };
 
-      const worker = new Worker(queueName, async () => {}, {
+      const worker = new Worker(queueName, NoopProc, {
         connection,
         prefix,
       });
@@ -1264,7 +1319,7 @@ describe('repeat', function () {
     });
 
     const worker = new Worker(queueName, processor, { connection, prefix });
-    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+    const delayStub = sinon.stub(worker, 'delay').callsFake(NoopProc);
 
     await queue.add('remove', { foo: 'bar' }, { repeat });
     this.clock.tick(nextTick);
@@ -1507,7 +1562,7 @@ describe('repeat', function () {
     });
 
     const worker = new Worker(queueName, processor, { connection, prefix });
-    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+    const delayStub = sinon.stub(worker, 'delay').callsFake(NoopProc);
     await worker.waitUntilReady();
 
     worker.on('completed', job => {
@@ -1562,7 +1617,7 @@ describe('repeat', function () {
       });
 
       const worker = new Worker(queueName, processor, { connection, prefix });
-      const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+      const delayStub = sinon.stub(worker, 'delay').callsFake(NoopProc);
       await worker.waitUntilReady();
 
       worker.on('completed', job => {
@@ -1729,7 +1784,7 @@ describe('repeat', function () {
 
     const worker = new Worker(queueName, NoopProc, { connection, prefix });
     await worker.waitUntilReady();
-    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+    const delayStub = sinon.stub(worker, 'delay').callsFake(NoopProc);
 
     await queue.add(
       'myTestJob',
@@ -1790,7 +1845,7 @@ describe('repeat', function () {
     const nextTick = ONE_SECOND + 500;
 
     const worker = new Worker(queueName, NoopProc, { connection, prefix });
-    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+    const delayStub = sinon.stub(worker, 'delay').callsFake(NoopProc);
 
     await queue.add(
       'repeat',
@@ -1868,11 +1923,11 @@ describe('repeat', function () {
     await queue.add('repeat s', { type: 's' }, { repeat: { every: interval } });
     this.clock.tick(nextTick);
 
-    const worker = new Worker(queueName, async () => {}, {
+    const worker = new Worker(queueName, NoopProc, {
       connection,
       prefix,
     });
-    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+    const delayStub = sinon.stub(worker, 'delay').callsFake(NoopProc);
     await worker.waitUntilReady();
 
     let prevType: string;
@@ -1918,7 +1973,7 @@ describe('repeat', function () {
       connection,
       prefix,
     });
-    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+    const delayStub = sinon.stub(worker, 'delay').callsFake(NoopProc);
 
     const waiting = new Promise<void>((resolve, reject) => {
       queueEvents.on('waiting', function ({ jobId }) {

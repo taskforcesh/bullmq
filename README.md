@@ -44,7 +44,7 @@ Do you need to work with BullMQ on platforms other than Node.js? If so, check ou
 
 # Official FrontEnd
 
-[<img src="http://taskforce.sh/assets/logo_square.png" width="150" alt="Taskforce.sh, Inc" style="padding: 200px"/>](https://taskforce.sh)
+[<img src="https://taskforce.sh/assets/logo_square.png" width="150" alt="Taskforce.sh, Inc" style="padding: 200px"/>](https://taskforce.sh)
 
 Supercharge your queues with a professional front end:
 
@@ -208,6 +208,44 @@ queueEvents.on(
 );
 ```
 
+Adds jobs with parent-child relationship:
+
+```ts
+import { FlowProducer } from 'bullmq';
+
+const flow = new FlowProducer();
+
+const originalTree = await flow.add({
+  name: 'root-job',
+  queueName: 'topQueueName',
+  data: {},
+  children: [
+    {
+      name: 'child-job',
+      data: { idx: 0, foo: 'bar' },
+      queueName: 'childrenQueueName',
+      children: [
+        {
+          name: 'grandchild-job',
+          data: { idx: 1, foo: 'bah' },
+          queueName: 'grandChildrenQueueName'
+        },
+        {
+          name: 'grandchild-job',
+          data: { idx: 2, foo: 'baz' },
+          queueName: 'grandChildrenQueueName'
+        },
+      ],
+    },
+    {
+      name: 'child-job',
+      data: { idx: 3, foo: 'foo' },
+      queueName: 'childrenQueueName'
+    },
+  ],
+});
+```
+
 This is just scratching the surface, check all the features and more in the official <a href="https://docs.bullmq.io">documentation</a>
 
 # Feature Comparison
@@ -222,7 +260,8 @@ Since there are a few job queue solutions, here is a table comparing them:
 | Group Support             |                      ✓                      |                             |                 |       |          |        |
 | Batches Support           |                      ✓                      |                             |                 |       |          |        |
 | Parent/Child Dependencies |                      ✓                      |              ✓              |                 |       |          |        |
-| Debouncing                |                      ✓                      |              ✓              |        ✓        |       |          |        |
+| Deduplication (Debouncing)                |                      ✓                      |              ✓              |        ✓        |       |          |        |
+| Deduplication (Throttling)                |                      ✓                      |              ✓              |        ✓        |       |          |        |
 | Priorities                |                      ✓                      |              ✓              |        ✓        |   ✓   |          | ✓      |
 | Concurrency               |                      ✓                      |              ✓              |        ✓        |   ✓   | ✓        | ✓      |
 | Delayed jobs              |                      ✓                      |              ✓              |        ✓        |   ✓   |          | ✓      |
@@ -238,7 +277,7 @@ Since there are a few job queue solutions, here is a table comparing them:
 
 ## Contributing
 
-Fork the repo, make some changes, submit a pull-request! Here is the [contributing](contributing.md) doc that has more details.
+Fork the repo, make some changes, submit a pull-request! Here is the [contributing](https://github.com/taskforcesh/bullmq/blob/master/contributing.md) doc that has more details.
 
 # Thanks
 

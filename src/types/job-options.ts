@@ -1,4 +1,5 @@
-import { BaseJobOptions, DebounceOptions } from '../interfaces';
+import { BaseJobOptions } from '../interfaces/base-job-options';
+import { DeduplicationOptions } from './deduplication-options';
 
 /**
  * These options will be stored in Redis with smaller
@@ -9,17 +10,24 @@ export type CompressableJobOptions = {
    * Debounce options.
    * @deprecated use deduplication option
    */
-  debounce?: DebounceOptions;
+  debounce?: DeduplicationOptions;
 
   /**
    * Deduplication options.
    */
-  deduplication?: DebounceOptions;
+  deduplication?: DeduplicationOptions;
 
   /**
-   * If true, moves parent to failed.
+   * If true, moves parent to failed if any of its children fail.
    */
   failParentOnFailure?: boolean;
+
+  /**
+   * If true, starts processing parent job as soon as any
+   * of its children fail.
+   *
+   */
+  continueParentOnFailure?: boolean;
 
   /**
    * If true, moves the jobId from its parent dependencies to failed dependencies when it fails after all attempts.
@@ -42,7 +50,7 @@ export type CompressableJobOptions = {
 
     /**
      * If `true` telemetry will omit the context propagation
-     * @default false
+     * @defaultValue false
      */
     omitContext?: boolean;
   };
@@ -63,6 +71,12 @@ export type RedisJobOptions = BaseJobOptions & {
    * If true, moves parent to failed.
    */
   fpof?: boolean;
+
+  /**
+   * If true, starts processing parent job as soon as any
+   * of its children fail.
+   */
+  cpof?: boolean;
 
   /**
    * If true, moves the jobId from its parent dependencies to failed dependencies when it fails after all attempts.
@@ -90,8 +104,7 @@ export type RedisJobOptions = BaseJobOptions & {
   omc?: boolean;
 
   /**
-   * Deduplication identifier.
-   * @deprecated use deid
+   * Deduplication options.
    */
-  de?: string;
+  de?: DeduplicationOptions;
 };

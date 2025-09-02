@@ -796,7 +796,6 @@ function sandboxProcessTests(
             expect(value).to.be.eql({
               [`${prefix}:${queueName}:${childJobId}`]: { childResult: 'bar' },
             });
-            await parentWorker.close();
             resolve();
           } catch (err) {
             await parentWorker.close();
@@ -824,6 +823,7 @@ function sandboxProcessTests(
       await parentWorker.close();
       await childWorker.close();
       await flow.close();
+      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
     });
 
     it('will fail job if calling getChildrenValues is too slow', async () => {
@@ -861,7 +861,6 @@ function sandboxProcessTests(
             expect(error.message).to.be.eql(
               'TimeoutError: getChildrenValues timed out in (500ms)',
             );
-            await parentWorker.close();
             resolve();
           } catch (err) {
             await parentWorker.close();
@@ -887,6 +886,70 @@ function sandboxProcessTests(
 
       // Restore Job.getChildrenValues
       Job.prototype.getChildrenValues = getChildrenValues;
+      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+    });
+
+    it('can get children failures by calling getIgnoredChildrenFailures', async () => {
+      const childJobId = 'child-job-id';
+      const childProcessFile =
+        __dirname +
+        '/fixtures/fixture_processor_get_children_failures_child.js';
+      const parentProcessFile =
+        __dirname + '/fixtures/fixture_processor_get_children_failures.js';
+      const parentQueueName = `parent-queue-${v4()}`;
+
+      const parentWorker = new Worker(parentQueueName, parentProcessFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads,
+      });
+
+      const childWorker = new Worker(queueName, childProcessFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads,
+      });
+
+      const parentCompleting = new Promise<void>((resolve, reject) => {
+        parentWorker.on('completed', async (job: Job, value: any) => {
+          try {
+            expect(value).to.be.eql({
+              [`${prefix}:${queueName}:${childJobId}`]: 'child error',
+            });
+            resolve();
+          } catch (err) {
+            await parentWorker.close();
+            reject(err);
+          }
+        });
+
+        parentWorker.on('failed', async (_, error: Error) => {
+          await parentWorker.close();
+          reject(error);
+        });
+      });
+
+      const flow = new FlowProducer({ connection, prefix });
+      await flow.add({
+        name: 'parent-job',
+        queueName: parentQueueName,
+        opts: { jobId: 'job-id' },
+        children: [
+          {
+            name: 'child-job',
+            queueName,
+            opts: { jobId: childJobId, ignoreDependencyOnFailure: true },
+          },
+        ],
+      });
+
+      await parentCompleting;
+      await parentWorker.close();
+      await childWorker.close();
+      await flow.close();
+      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
     });
 
     it('should process and move to delayed', async () => {
@@ -932,6 +995,129 @@ function sandboxProcessTests(
 
       await completing;
       await worker.close();
+    });
+
+    it('should process and move to wait', async () => {
+      const processFile =
+        __dirname + '/fixtures/fixture_processor_move_to_wait.js';
+
+      const worker = new Worker(queueName, processFile, {
+        autorun: false,
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads,
+      });
+
+      const waiting = new Promise<void>((resolve, reject) => {
+        queueEvents.on('waiting', async ({ prev }) => {
+          try {
+            if (prev) {
+              expect(prev).to.be.equal('active');
+              expect(
+                Object.keys(worker['childPool'].retained),
+              ).to.have.lengthOf(1);
+              expect(worker['childPool'].getAllFree()).to.have.lengthOf(0);
+              resolve();
+            }
+          } catch (err) {
+            console.log(err);
+            reject(err);
+          }
+        });
+      });
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async (job: Job) => {
+          expect(job.data.bar).to.be.equal('foo');
+          resolve();
+        });
+      });
+
+      await queue.add('test', { bar: 'foo' });
+
+      worker.run();
+
+      await waiting;
+
+      await completing;
+      await worker.close();
+    });
+
+    it('should process and move to wait for children', async () => {
+      const processFile =
+        __dirname + '/fixtures/fixture_processor_move_to_wait_for_children.js';
+
+      const childQueueName = `test-${v4()}`;
+
+      const parentWorker = new Worker(queueName, processFile, {
+        autorun: false,
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads,
+      });
+
+      const childWorker = new Worker(
+        childQueueName,
+        () => {
+          return delay(250);
+        },
+        {
+          autorun: false,
+          connection,
+          prefix,
+          drainDelay: 1,
+        },
+      );
+      const childQueue = new Queue(childQueueName, { connection, prefix });
+
+      const waitingParent = new Promise<void>((resolve, reject) => {
+        queueEvents.on('waiting-children', async ({ jobId }) => {
+          try {
+            if (jobId) {
+              expect(jobId).to.be.equal('parent-job-id');
+              resolve();
+            }
+          } catch (err) {
+            console.log(err);
+            reject(err);
+          }
+        });
+      });
+
+      const completingParent = new Promise<void>((resolve, reject) => {
+        parentWorker.on('completed', async (job: Job) => {
+          expect(job.data.queueName).to.be.equal(childQueueName);
+          expect(job.data.step).to.be.equal('finish');
+          expect(job.returnvalue).to.be.equal('finished');
+          resolve();
+        });
+      });
+
+      const completingChild = new Promise<void>((resolve, reject) => {
+        childWorker.on('completed', async (job: Job) => {
+          expect(job.data.foo).to.be.equal('bar');
+          resolve();
+        });
+      });
+
+      await queue.add(
+        'test',
+        { redisHost, queueName: childQueueName },
+        { jobId: 'parent-job-id' },
+      );
+
+      parentWorker.run();
+      childWorker.run();
+
+      await waitingParent;
+      await completingChild;
+      await completingParent;
+      await parentWorker.close();
+      await childWorker.close();
+      await childQueue.close();
+      await removeAllQueueData(new IORedis(redisHost), childQueueName);
     });
 
     describe('when env variables are provided', () => {
@@ -1048,6 +1234,7 @@ function sandboxProcessTests(
 
       await worker.close();
       await flow.close();
+      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
     });
 
     it('should process and fail', async () => {

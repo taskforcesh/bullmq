@@ -360,10 +360,14 @@ export class RedisConnection extends EventEmitter {
   }
 
   private async getRedisVersion() {
+    if (this.skipVersionCheck) {
+      return RedisConnection.minimumVersion;
+    }
+
     const doc = await this._client.info();
     const redisPrefix = 'redis_version:';
     const maxMemoryPolicyPrefix = 'maxmemory_policy:';
-    const lines = doc.split('\r\n');
+    const lines = doc.split(/\r?\n/);
     let redisVersion;
 
     for (let i = 0; i < lines.length; i++) {

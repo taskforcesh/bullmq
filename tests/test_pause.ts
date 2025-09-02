@@ -147,6 +147,7 @@ describe('Pause', function () {
   });
 
   it('should pause the queue locally', async () => {
+    // eslint-disable-next-line prefer-const
     let worker: Worker;
     let counter = 2;
     let process;

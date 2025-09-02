@@ -8,11 +8,7 @@ import { JobState, JobType } from '../types';
 import { JobJsonRaw, Metrics } from '../interfaces';
 
 /**
- *
- * @class QueueGetters
- * @extends QueueBase
- *
- * @description Provides different getters for different aspects of a queue.
+ * Provides different getters for different aspects of a queue.
  */
 export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
   getJob(jobId: string): Promise<JobBase | undefined> {
@@ -124,10 +120,10 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
   /**
    * Job counts by type
    *
-   * Queue#getJobCountByTypes('completed') => completed count
-   * Queue#getJobCountByTypes('completed,failed') => completed + failed count
-   * Queue#getJobCountByTypes('completed', 'failed') => completed + failed count
-   * Queue#getJobCountByTypes('completed', 'waiting', 'failed') => completed + waiting + failed count
+   * Queue#getJobCountByTypes('completed') =\> completed count
+   * Queue#getJobCountByTypes('completed,failed') =\> completed + failed count
+   * Queue#getJobCountByTypes('completed', 'failed') =\> completed + failed count
+   * Queue#getJobCountByTypes('completed', 'waiting', 'failed') =\> completed + waiting + failed count
    */
   async getJobCountByTypes(...types: JobType[]): Promise<number> {
     const result = await this.getJobCounts(...types);
@@ -305,11 +301,12 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
    * A qualified job id is a string representing the job id in a given queue,
    * for example: "bull:myqueue:jobid".
    *
-   * @param parentId The id of the parent job
-   * @param type "processed" | "pending"
-   * @param opts
+   * @param parentId - The id of the parent job
+   * @param type - "processed" | "pending"
+   * @param opts - Options for the query.
    *
-   * @returns  { items: { id: string, v?: any, err?: string } [], jobs: JobJsonRaw[], total: number}
+   * @returns an object with the following shape:
+   * `{ items: { id: string, v?: any, err?: string } [], jobs: JobJsonRaw[], total: number}`
    */
   async getDependencies(
     parentId: string,
@@ -551,7 +548,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
   }
 
   private parseClientList(list: string, matcher: (name: string) => boolean) {
-    const lines = list.split('\n');
+    const lines = list.split(/\r?\n/);
     const clients: { [index: string]: string }[] = [];
 
     lines.forEach((line: string) => {
@@ -579,10 +576,12 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
    *
    * @returns - Returns a string with the metrics in the Prometheus format.
    *
-   * @sa {@link https://prometheus.io/docs/instrumenting/exposition_formats/}
+   * @see {@link https://prometheus.io/docs/instrumenting/exposition_formats/}
    *
    **/
-  async exportPrometheusMetrics(): Promise<string> {
+  async exportPrometheusMetrics(
+    globalVariables?: Record<string, string>,
+  ): Promise<string> {
     const counts = await this.getJobCounts();
     const metrics: string[] = [];
 
@@ -592,9 +591,16 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
     );
     metrics.push('# TYPE bullmq_job_count gauge');
 
+    const variables = !globalVariables
+      ? ''
+      : Object.keys(globalVariables).reduce(
+          (acc, curr) => `${acc}, ${curr}="${globalVariables[curr]}"`,
+          '',
+        );
+
     for (const [state, count] of Object.entries(counts)) {
       metrics.push(
-        `bullmq_job_count{queue="${this.name}", state="${state}"} ${count}`,
+        `bullmq_job_count{queue="${this.name}", state="${state}"${variables}} ${count}`,
       );
     }
 

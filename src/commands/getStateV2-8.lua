@@ -23,35 +23,35 @@
 ]]
 local rcall = redis.call
 
-if rcall("ZSCORE", KEYS[1], ARGV[1]) ~= false then
+if rcall("ZSCORE", KEYS[1], ARGV[1]) then
   return "completed"
 end
 
-if rcall("ZSCORE", KEYS[2], ARGV[1]) ~= false then
+if rcall("ZSCORE", KEYS[2], ARGV[1]) then
   return "failed"
 end
 
-if rcall("ZSCORE", KEYS[3], ARGV[1]) ~= false then
+if rcall("ZSCORE", KEYS[3], ARGV[1]) then
   return "delayed"
 end
 
-if rcall("ZSCORE", KEYS[8], ARGV[1]) ~= false then
+if rcall("ZSCORE", KEYS[8], ARGV[1]) then
   return "prioritized"
 end
 
-if rcall("LPOS", KEYS[4] , ARGV[1]) ~= false then
+if rcall("LPOS", KEYS[4] , ARGV[1]) then
   return "active"
 end
 
-if rcall("LPOS", KEYS[5] , ARGV[1]) ~= false then
+if rcall("LPOS", KEYS[5] , ARGV[1]) then
   return "waiting"
 end
 
-if rcall("LPOS", KEYS[6] , ARGV[1]) ~= false then
+if rcall("LPOS", KEYS[6] , ARGV[1]) then
   return "waiting"
 end
 
-if rcall("ZSCORE", KEYS[7] , ARGV[1]) ~= false then
+if rcall("ZSCORE", KEYS[7] , ARGV[1]) then
   return "waiting-children"
 end
 
