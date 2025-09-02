@@ -88,12 +88,12 @@ export interface QueueListener<JobBase extends Job = Job>
   waiting: (job: JobBase) => void;
 }
 
+// Helper to check if a type is 'any'
+type IsAny<T> = 0 extends 1 & T ? true : false;
 // Helper for JobBase type
-type JobBase<T, ResultType, NameType extends string> = T extends Job<
-  any,
-  any,
-  any
->
+type JobBase<T, ResultType, NameType extends string> = IsAny<T> extends true
+  ? Job<T, ResultType, NameType>
+  : T extends Job<any, any, any>
   ? T
   : Job<T, ResultType, NameType>;
 

@@ -50,6 +50,17 @@ describe('queues', function () {
       expect(job2?.data.bar).to.be.eql(1);
       await queue.close();
     });
+
+    it('should resolve Job<any, any, string> when no generics provided', async function () {
+      const defaultQueue = new Queue(queueName, { prefix, connection });
+
+      await defaultQueue.add('test-job', { foo: 'bar', num: 123 });
+      const jobs = await defaultQueue.getJobs(['waiting']);
+      expect(jobs).to.be.an('array');
+      expect(jobs.length).to.be.at.least(1);
+      expect(jobs[0]).to.be.instanceOf(Job);
+      await defaultQueue.close();
+    });
   });
 
   it('should return the queue version', async () => {
