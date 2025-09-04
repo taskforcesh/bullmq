@@ -28,7 +28,7 @@ export interface DefaultJobOptions {
 
   /**
    * The total number of attempts to try the job until it completes.
-   * @defaultValue 0
+   * @defaultValue 1
    */
   attempts?: number;
 

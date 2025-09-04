@@ -2221,6 +2221,18 @@ describe('workers', function () {
     ).to.throw('maxStalledCount must be greater or equal than 0');
   });
 
+  it('max started attempts cannot be less than zero', function () {
+    this.timeout(4000);
+    expect(
+      () =>
+        new Worker(queueName, NoopProc, {
+          connection,
+          prefix,
+          maxStartedAttempts: -1,
+        }),
+    ).to.throw('maxStartedAttempts must be greater or equal than 0');
+  });
+
   it('stalled interval cannot be zero', function () {
     this.timeout(4000);
     expect(
@@ -3599,6 +3611,47 @@ describe('workers', function () {
           });
 
           await worker.close();
+        });
+
+        describe('when passing maxStartedAttempts', () => {
+          it('should fail job when consuming the max started attempts', async function () {
+            const worker = new Worker(
+              queueName,
+              async (job, token) => {
+                await job.moveToDelayed(Date.now() + 200, token);
+                throw new DelayedError();
+              },
+              { connection, maxStartedAttempts: 1, prefix },
+            );
+
+            await worker.waitUntilReady();
+
+            const start = Date.now();
+            await queue.add('test', {});
+
+            await new Promise<void>((resolve, reject) => {
+              worker.on('failed', job => {
+                try {
+                  const elapse = Date.now() - start;
+                  expect(elapse).to.be.greaterThan(200);
+                  expect(job!.failedReason).to.be.eql(
+                    'job started more than allowable limit',
+                  );
+                  expect(job!.attemptsMade).to.be.eql(1);
+                  expect(job!.attemptsStarted).to.be.eql(2);
+                  resolve();
+                } catch (error) {
+                  reject(error);
+                }
+              });
+
+              worker.on('error', error => {
+                reject(error);
+              });
+            });
+
+            await worker.close();
+          });
         });
       });
 
