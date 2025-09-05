@@ -80,7 +80,7 @@ if rcall("EXISTS", jobKey) == 1 then
 
   -- Emit waiting event
   rcall("XADD", KEYS[6], "MAXLEN", "~", maxEvents, "*", "event", "waiting",
-    "jobId", ARGV[4], "prev", "failed")
+    "jobId", ARGV[4], "prev", "active")
 
   return 0
 else
