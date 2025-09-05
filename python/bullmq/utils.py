@@ -1,11 +1,13 @@
-from typing import Any
-import semver
-import traceback
 import json
+import traceback
+from typing import Any
+
+import semver
 
 
 def isRedisVersionLowerThan(current_version, minimum_version):
-    return semver.VersionInfo.parse(current_version).compare(minimum_version) == -1
+    return semver.Version.parse(current_version).compare(minimum_version) == -1
+
 
 def extract_result(job_task, emit_callback):
     try:
