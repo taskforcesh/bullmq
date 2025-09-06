@@ -87,7 +87,7 @@
     "@typescript-eslint/parser": "^8.37.0",
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
-    "commitizen": "^4.2.5",
+    "commitizen": "^4.3.1",
     "coveralls-next": "^5.0.0",
     "cpx2": "^8.0.0",
     "eslint": "^9.32.0",
