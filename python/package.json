@@ -23,15 +23,9 @@
     "@semantic-release/github": "^11.0.1",
     "@semantic-release/npm": "^11.0.3",
     "@semantic-release/release-notes-generator": "^14.1.0",
-    "commitizen": "^4.2.5",
     "conventional-changelog-conventionalcommits": "^9.1.0",
     "semantic-release": "^24.2.7",
     "semantic-release-pypi": "^5.1.1"
-  },
-  "config": {
-    "commitizen": {
-      "path": "node_modules/cz-conventional-changelog"
-    }
   },
   "commitlint": {
     "extends": [
