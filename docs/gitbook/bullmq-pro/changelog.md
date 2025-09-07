@@ -5,9 +5,6 @@
 
 * **includes:** replace missing base includes with pro ([#368](https://github.com/taskforcesh/bullmq-pro/issues/368)) ([e51bb10](https://github.com/taskforcesh/bullmq-pro/commit/e51bb100d02cf420480f97420b9d49fe3086d358))
 
-
-
-
 ## [7.38.4](https://github.com/taskforcesh/bullmq-pro/compare/v7.38.3...v7.38.4) (2025-08-14)
 
 

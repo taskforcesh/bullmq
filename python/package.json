@@ -11,7 +11,8 @@
     "dist"
   ],
   "scripts": {
-    "semantic-release": "semantic-release"
+    "semantic-release": "semantic-release",
+    "semantic-release:debug": "semantic-release --no-ci --dry-run --debug"
   },
   "devDependencies": {
     "@commitlint/cli": "^17.0.3",
