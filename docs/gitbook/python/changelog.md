@@ -1,3 +1,9 @@
+## [2.16.0](https://github.com/taskforcesh/bullmq/compare/vpy2.15.1...vpy2.16.0) (2025-09-07)
+
+### Features
+
+* **queue:** support getWaitingCount method [python] ([#3434](https://github.com/taskforcesh/bullmq/issues/3434)) ([1c75abb](https://github.com/taskforcesh/bullmq/commit/1c75abb4806971a2ac14c47b302c87f86095a2c3))
+
 ## [5.58.5](https://github.com/taskforcesh/bullmq/compare/vpy2.15.0...vpy2.15.1) (2025-09-06)
 
 
