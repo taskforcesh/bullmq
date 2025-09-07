@@ -441,6 +441,10 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         job = await Job.fromId(queue, job.id)
         self.assertIsNone(job)
 
+        waiting_count = await queue.getWaitingCount()
+
+        self.assertEqual(waiting_count, 0)
+
         await queue.close()
 
     async def test_get_counts_per_priority(self):
