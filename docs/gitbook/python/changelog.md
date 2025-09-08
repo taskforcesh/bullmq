@@ -1,3 +1,9 @@
+## [2.16.1](https://github.com/taskforcesh/bullmq/compare/vpy2.16.0...vpy2.16.1) (2025-09-08)
+
+### Bug Fixes
+
+* **deps:** upgrade semver to v3 [python] ([#3414](https://github.com/taskforcesh/bullmq/issues/3414)) ([7dfd251](https://github.com/taskforcesh/bullmq/commit/7dfd2510a7bb03301365a2c24f045a0cd20580ef))
+
 ## [2.16.0](https://github.com/taskforcesh/bullmq/compare/vpy2.15.1...vpy2.16.0) (2025-09-07)
 
 ### Features
