@@ -68,10 +68,6 @@ if prevMillis then
             -- all job-schedulers must save job data
             local templateData = schedulerAttributes[2] or ARGV[3]
 
-            if templateData and templateData ~= '{}' then
-                rcall("HSET", schedulerKey, "data", templateData)
-            end
-
             addJobFromScheduler(nextDelayedJobKey, nextDelayedJobId, ARGV[4], waitKey, pausedKey, 
                 KEYS[12], metaKey, prioritizedKey, KEYS[10], delayedKey, KEYS[7], eventsKey, 
                 schedulerAttributes[1], maxEvents, ARGV[5], templateData or '{}', jobSchedulerId)
