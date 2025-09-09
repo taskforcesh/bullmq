@@ -14,7 +14,7 @@ const ONE_HOUR = 60 * ONE_MINUTE;
 describe('Job Scheduler Stress', function () {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
-  this.timeout(20000);
+  this.timeout(10000);
   let repeat: Repeat;
   let queue: Queue;
   let queueEvents: QueueEvents;
