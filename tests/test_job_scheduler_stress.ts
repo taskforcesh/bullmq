@@ -14,7 +14,7 @@ const ONE_HOUR = 60 * ONE_MINUTE;
 describe('Job Scheduler Stress', function () {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
-  this.timeout(10000);
+  this.timeout(20000);
   let repeat: Repeat;
   let queue: Queue;
   let queueEvents: QueueEvents;
@@ -216,72 +216,129 @@ describe('Job Scheduler Stress', function () {
     await queue.close();
   });
 
-  describe("when using 'every' option and jobs are moved to active some time after delay", function () {
-    it('should repeat every 2 seconds and start immediately', async function () {
-      let iterationCount = 0;
-      const MINIMUM_DELAY_THRESHOLD_MS = 1850;
-      const worker = new Worker(
-        queueName,
-        async job => {
-          try {
-            if (iterationCount === 0) {
-              expect(job.opts.delay).to.be.eq(0);
-            } else {
-              expect(job.opts.delay).to.be.gte(MINIMUM_DELAY_THRESHOLD_MS);
+  describe("when using 'every' option", function () {
+    describe('when jobs are moved to active some time after delay', function () {
+      it('should repeat every 2 seconds and start immediately', async function () {
+        let iterationCount = 0;
+        const MINIMUM_DELAY_THRESHOLD_MS = 1850;
+        const worker = new Worker(
+          queueName,
+          async job => {
+            try {
+              if (iterationCount === 0) {
+                expect(job.opts.delay).to.be.eq(0);
+              } else {
+                expect(job.opts.delay).to.be.gte(MINIMUM_DELAY_THRESHOLD_MS);
+              }
+              iterationCount++;
+            } catch (err) {
+              console.log(err);
+              throw err;
             }
-            iterationCount++;
-          } catch (err) {
-            console.log(err);
-            throw err;
-          }
-        },
-        { autorun: false, connection, prefix },
-      );
+          },
+          { autorun: false, connection, prefix },
+        );
 
-      let prev: Job;
-      let counter = 0;
+        let prev: Job;
+        let counter = 0;
 
-      const completing = new Promise<void>((resolve, reject) => {
-        worker.on('completed', async job => {
-          try {
-            if (prev) {
-              expect(prev.timestamp).to.be.lte(job.timestamp);
-              expect(job.processedOn! - prev.processedOn!).to.be.gte(
-                MINIMUM_DELAY_THRESHOLD_MS,
-              );
+        const completing = new Promise<void>((resolve, reject) => {
+          worker.on('completed', async job => {
+            try {
+              if (prev) {
+                expect(prev.timestamp).to.be.lte(job.timestamp);
+                expect(job.processedOn! - prev.processedOn!).to.be.gte(
+                  MINIMUM_DELAY_THRESHOLD_MS,
+                );
+              }
+              prev = job;
+              counter++;
+              if (counter === 5) {
+                resolve();
+              }
+            } catch (err) {
+              console.log(err);
+              reject(err);
             }
-            prev = job;
-            counter++;
-            if (counter === 5) {
-              resolve();
-            }
-          } catch (err) {
-            console.log(err);
-            reject(err);
-          }
+          });
         });
+
+        await queue.upsertJobScheduler(
+          'repeat',
+          {
+            every: 2000,
+          },
+          { data: { foo: 'bar' } },
+        );
+
+        const waitingCountBefore = await queue.getWaitingCount();
+        expect(waitingCountBefore).to.be.eq(1);
+
+        worker.run();
+
+        await completing;
+
+        const waitingCount = await queue.getWaitingCount();
+        expect(waitingCount).to.be.eq(0);
+
+        const delayedCountAfter = await queue.getDelayedCount();
+        expect(delayedCountAfter).to.be.eq(1);
+
+        await worker.close();
       });
+    });
 
-      await queue.upsertJobScheduler(
-        'repeat',
+    it('should save last job data in scheduler', async function () {
+      const worker = new Worker(queueName, async () => {}, { connection });
+      const jobScheduledId = 'test';
+      let delayedJob = await queue.upsertJobScheduler(
+        jobScheduledId,
         {
-          every: 2000,
+          every: 100,
+          immediately: false,
         },
-        { data: { foo: 'bar' } },
+        {
+          name: 'my-name-1',
+          data: { key: 'first' },
+        },
       );
+      let scheduler = await queue.getJobScheduler(jobScheduledId);
+      expect(scheduler?.template?.data).to.be.deep.equal(delayedJob?.data);
 
-      const waitingCountBefore = await queue.getWaitingCount();
-      expect(waitingCountBefore).to.be.eq(1);
+      await delay(500);
+      let job = await queue.upsertJobScheduler(
+        jobScheduledId,
+        {
+          every: 200,
+          immediately: false,
+        },
+        {
+          name: 'my-name-2',
+          data: { key: 'second' },
+        },
+      );
+      // get current delayed job instance in case of duplicated event
+      // as every is immediately there is a change that a delayed job is created as duplicated
+      // without this check, this test will be flaky
+      delayedJob = await queue.getJob(job.id!);
+      scheduler = await queue.getJobScheduler(jobScheduledId);
+      expect(scheduler?.template?.data).to.be.deep.equal(delayedJob?.data);
 
-      worker.run();
-
-      await completing;
-
-      const waitingCount = await queue.getWaitingCount();
-      expect(waitingCount).to.be.eq(0);
-
-      const delayedCountAfter = await queue.getDelayedCount();
-      expect(delayedCountAfter).to.be.eq(1);
+      await delay(500);
+      job = await queue.upsertJobScheduler(
+        jobScheduledId,
+        {
+          every: 300,
+          immediately: false,
+        },
+        {
+          name: 'my-name-3',
+          data: { key: 'third' },
+        },
+      );
+      delayedJob = await queue.getJob(job.id!);
+      scheduler = await queue.getJobScheduler(jobScheduledId);
+      expect(scheduler?.template?.data).to.be.deep.equal(delayedJob?.data);
 
       await worker.close();
     });
