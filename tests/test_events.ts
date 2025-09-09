@@ -1,7 +1,7 @@
 import { default as IORedis } from 'ioredis';
 import { v4 } from 'uuid';
 import { expect } from 'chai';
-import { after } from 'lodash';
+import { after, reject } from 'lodash';
 import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 import {
   FlowProducer,
@@ -753,10 +753,17 @@ describe('events', function () {
 
         const client = await trimmedQueue.client;
 
-        const waitCompletedEvent = new Promise<void>(resolve => {
+        const waitCompletedEvent = new Promise<void>((resolve, reject) => {
           queueEvents.on('waiting', async ({ jobId, prev }) => {
-            if (prev === 'failed' && jobId === numJobs + '') {
-              resolve();
+            try {
+              if (prev) {
+                expect(prev).to.be.eql('active');
+                if (jobId === numJobs + '') {
+                  resolve();
+                }
+              }
+            } catch (error) {
+              reject(error);
             }
           });
         });
