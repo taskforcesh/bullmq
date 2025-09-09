@@ -318,7 +318,7 @@ describe('Job Scheduler Stress', function () {
         },
       );
       // get current delayed job instance in case of duplicated event
-      // as every is immediately there is a change that a delayed job is created as duplicated
+      // as every is immediately there is a chance that a delayed job is created as duplicated
       // without this check, this test will be flaky
       delayedJob = await queue.getJob(job.id!);
       scheduler = await queue.getJobScheduler(jobScheduledId);
