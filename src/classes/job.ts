@@ -6,6 +6,7 @@ import {
   JobJson,
   JobJsonRaw,
   MinimalJob,
+  MinimalQueue,
   MoveToWaitingChildrenOpts,
   ParentKeys,
   ParentKeyOpts,
@@ -17,13 +18,11 @@ import {
   JobsOptions,
   JobState,
   JobJsonSandbox,
-  MinimalQueue,
   RedisJobOptions,
   CompressableJobOptions,
   JobProgress,
 } from '../types';
 import {
-  createScripts,
   errorObject,
   isEmpty,
   getParentKey,
@@ -34,6 +33,7 @@ import {
   tryCatch,
   removeUndefinedFields,
 } from '../utils';
+import { createScripts } from '../utils/create-scripts';
 import { Backoffs } from './backoffs';
 import { Scripts } from './scripts';
 import { UnrecoverableError } from './errors/unrecoverable-error';
@@ -1499,7 +1499,11 @@ export class Job<
   }
 }
 
-function getTraces(stacktrace: string[]) {
+function getTraces(stacktrace?: string) {
+  if (!stacktrace) {
+    return [];
+  }
+
   const traces = tryCatch(JSON.parse, JSON, [stacktrace]);
 
   if (traces === errorObject || !(traces instanceof Array)) {

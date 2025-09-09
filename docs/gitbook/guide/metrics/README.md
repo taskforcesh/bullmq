@@ -35,7 +35,11 @@ const myQueue = new Queue('Paint', {
   connection,
 });
 
-const metrics = await queue.getMetrics('completed', 0, MetricsTime.ONE_WEEK * 2);
+const metrics = await queue.getMetrics(
+  'completed',
+  0,
+  MetricsTime.ONE_WEEK * 2,
+);
 
 /* Returns a Metrics object:
 {
@@ -52,10 +56,10 @@ const metrics = await queue.getMetrics('completed', 0, MetricsTime.ONE_WEEK * 2)
 
 Let's analyze what data we are getting back. First we have the `meta` field. The `prevTS` and `prevCount` subfields are used internally by the metrics system and should not be used, however you can use the`count` subfield to get a total number for all completed or failed jobs, this counter is not just the number of completed jobs in the given interval, but since the queue started processing jobs.&#x20;
 
-The query also returns a `data` field which is an array where every position in the array represents 1 minute of time and has the total number of jobs that completed (or failed)  in that minute.
+The query also returns a `data` field which is an array where every position in the array represents 1 minute of time and has the total number of jobs that completed (or failed) in that minute.
 
 Note that the `getMetrics` method also accepts a `start` and `end` argument (`0` and `-1` by default), that you can use if you want to implement pagination.
 
 ## Read more:
 
-* 💡 [Get Metrics API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getMetrics)
+- 💡 [Get Metrics API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getmetrics)

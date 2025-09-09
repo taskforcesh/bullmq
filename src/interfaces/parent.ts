@@ -1,4 +1,4 @@
-import { JobsOptions } from '../types';
+import { JobsOptions } from '../types/job-options';
 
 /**
  * Describes the parent for a Job.

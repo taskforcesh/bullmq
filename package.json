@@ -1,6 +1,6 @@
 {
   "name": "bullmq",
-  "version": "5.58.0",
+  "version": "5.58.5",
   "description": "Queue for messages and jobs based on Redis",
   "homepage": "https://bullmq.io/",
   "main": "./dist/cjs/index.js",
@@ -41,10 +41,11 @@
     "lint:staged": "lint-staged",
     "prepublishOnly": "npm run build",
     "prepare": "husky install",
-    "pretest": "npm run clean:scripts && npm run generate:raw:scripts && npm run transform:commands",
+    "pretest": "npm run clean:scripts && npm run generate:raw:scripts && npm run transform:commands && npm run circular:references",
     "prettier": "prettier --config package.json src/**/*.ts",
     "pretty:quick": "pretty-quick --staged",
     "semantic-release": "semantic-release",
+    "semantic-release:debug": "semantic-release --no-ci --dry-run --debug",
     "semantic-release-prepare": "ts-node tools/semantic-release-prepare",
     "test": "NODE_ENV=test ts-mocha -p tsconfig-cjs.json --config ./.mocharc.js",
     "test:watch": "ts-mocha -p tsconfig-cjs.json --paths 'tests/test_*.ts' -w --watch-extensions ts",
@@ -71,7 +72,7 @@
     "@semantic-release/git": "^10.0.1",
     "@semantic-release/github": "^11.0.1",
     "@semantic-release/npm": "^11.0.3",
-    "@semantic-release/release-notes-generator": "^10.0.3",
+    "@semantic-release/release-notes-generator": "^14.1.0",
     "@types/chai": "^4.3.1",
     "@types/chai-as-promised": "^7.1.5",
     "@types/lodash.defaults": "^4.2.7",
@@ -86,7 +87,7 @@
     "@typescript-eslint/parser": "^8.37.0",
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
-    "commitizen": "^4.2.5",
+    "commitizen": "^4.3.1",
     "coveralls-next": "^5.0.0",
     "cpx2": "^8.0.0",
     "eslint": "^9.32.0",
@@ -110,7 +111,7 @@
     "progress": "^2.0.3",
     "rimraf": "^6.0.1",
     "rrule": "^2.6.9",
-    "semantic-release": "^24.2.5",
+    "semantic-release": "^24.2.7",
     "sinon": "^18.0.1",
     "test-console": "^2.0.0",
     "ts-mocha": "^11.1.0",
@@ -184,7 +185,50 @@
           ]
         }
       ],
-      "@semantic-release/release-notes-generator",
+      [
+        "@semantic-release/release-notes-generator",
+        {
+          "preset": "conventionalcommits",
+          "presetConfig": {
+            "ignoreCommits": "\\[python\\]",
+            "types": [
+              {
+                "type": "feat",
+                "section": "Features"
+              },
+              {
+                "type": "fix",
+                "section": "Bug Fixes"
+              },
+              {
+                "type": "chore",
+                "hidden": true
+              },
+              {
+                "type": "docs",
+                "hidden": true
+              },
+              {
+                "type": "style",
+                "hidden": true
+              },
+              {
+                "type": "test",
+                "hidden": true
+              },
+              {
+                "type": "refactor",
+                "hidden": true
+              },
+              {
+                "type": "perf",
+                "section": "Performance Improvements",
+                "hidden": false
+              }
+            ]
+          }
+        }
+      ],
       [
         "@semantic-release/changelog",
         {

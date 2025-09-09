@@ -2,7 +2,7 @@
 
 #### Job Counts
 
-It is often necessary to know how many jobs are in a given group:
+It is often necessary to know how many jobs are in any group:
 
 ```typescript
 import { QueuePro } from '@taskforcesh/bullmq-pro';
@@ -32,6 +32,6 @@ const jobs = await queue.getGroupJobs(groupId, 0, 100);
 
 ## Read more:
 
-* 💡 [Get Groups Jobs Count API Reference](https://api.bullmq.pro/classes/v7.Queue.html#getGroupsJobsCount)
-* 💡 [Get Group Active Count API Reference](https://api.bullmq.pro/classes/v7.Queue.html#getGroupActiveCount)
-* 💡 [Get Group Jobs API Reference](https://api.bullmq.pro/classes/v7.Queue.html#getGroupJobs)
+- 💡 [Get Groups Jobs Count API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#getgroupsjobscount)
+- 💡 [Get Group Active Count API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#getgroupactivecount)
+- 💡 [Get Group Jobs API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#getgroupjobs)

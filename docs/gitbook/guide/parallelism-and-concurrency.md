@@ -16,7 +16,7 @@ In the context of computer science, concurrency refers to the ability of differe
 
 One of the features that makes NodeJS very efficient at dispatching requests in an HTTP server is the fact that it has one single loop and is capable of running a huge amount of microtasks concurrently by exploiting the async nature of IO calls. So for example, if a call is performed to a database for querying some data, that call will not block the entire NodeJS, instead it will go and execute some other piece of code and then at the end of the current event loop, check if any of the async calls have completed so that they can continue running in the next iteration.
 
-This gives the effect of parallel execution, however, it is not the case, and the only reason it is efficient is that the code is IO heavy thus we can better utilize the CPU time by executing code instead of just being idle waiting for and asynchronous call to finish.
+This gives the effect of parallel execution, however, it is not the case, and the only reason it is efficient is that the code is IO heavy thus we can better utilize the CPU time by executing code instead of just being idle waiting for an asynchronous call to finish.
 
 #### BullMQ concurrency
 
@@ -24,7 +24,7 @@ BullMQ allows you to set a concurrency setting on your workers. This setting is 
 
 #### What about threading?
 
-Threads are a mechanism used by the operating system to provide concurrent (and parallel) execution,  by pre-empting a given thread by another one (in the case of threads running in the same CPU), or by running threads in parallel if there are several CPU cores available. In practice however, a modern OS runs hundreds if not thousands of threads at any given time, so actually no guarantee running code in several threads will indeed run in parallel, there is just a chance they will, and this depends a lot on how the given OS has implemented its scheduler, this can be quite complex but as a rule of thumb we can say that if there are 2 threads that consume a lot of CPU, and there are at least 2 cores, then most likely these two threads will run each on its dedicated CPU.
+Threads are a mechanism used by the operating system to provide concurrent (and parallel) execution, by pre-empting a given thread by another one (in the case of threads running in the same CPU), or by running threads in parallel if there are several CPU cores available. In practice however, a modern OS runs hundreds if not thousands of threads at any given time, so actually no guarantee running code in several threads will indeed run in parallel, there is just a chance they will, and this depends a lot on how the given OS has implemented its scheduler, this can be quite complex but as a rule of thumb we can say that if there are 2 threads that consume a lot of CPU, and there are at least 2 cores, then most likely these two threads will run each on its dedicated CPU.
 
 NodeJS has thread support, but it is important to note that these threads are pretty heavy and almost consume the same amount of memory as if they were running in two different OS processes. The reason for this is that every NodeJS thread requires a complete V8 VM, with a lot of built-in libraries, which will add up to several dozens of megabytes.
 

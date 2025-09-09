@@ -1,4 +1,3 @@
-import { Job } from '../classes/job';
 import { AdvancedOptions } from './advanced-options';
 import { QueueBaseOptions } from './queue-options';
 import { RateLimiterOptions } from './rate-limiter-options';
@@ -6,14 +5,6 @@ import { MetricsOptions } from './metrics-options';
 import { KeepJobs } from './keep-jobs';
 import { Telemetry } from './telemetry';
 import { SandboxedOptions } from './sandboxed-options';
-
-/**
- * An async function that receives `Job`s and handles them.
- */
-export type Processor<T = any, R = any, N extends string = string> = (
-  job: Job<T, R, N>,
-  token?: string,
-) => Promise<R>;
 
 export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
   /**

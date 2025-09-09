@@ -11,12 +11,13 @@ import {
   GetNextJobOptions,
   IoredisListener,
   JobJsonRaw,
-  Processor,
+  MinimalQueue,
   RedisClient,
   Span,
   WorkerOptions,
 } from '../interfaces';
-import { JobProgress, MinimalQueue } from '../types';
+import { JobProgress } from '../types';
+import { Processor } from '../types/processor';
 import {
   delay,
   DELAY_TIME_1,

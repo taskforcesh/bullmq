@@ -260,6 +260,9 @@ class Queue(EventEmitter):
     def getFailedCount(self):
         return self.getJobCountByTypes('failed')
 
+    def getWaitingCount(self):
+        return self.getJobCountByTypes('waiting')
+
     def getActive(self, start=0, end=-1):
         return self.getJobs(['active'], start, end, True)
 

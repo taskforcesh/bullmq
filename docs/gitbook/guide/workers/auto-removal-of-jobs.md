@@ -2,7 +2,7 @@
 
 By default, when your queue jobs are completed (or failed), they are stored in two special sets, the "completed" and the "failed" set. This is useful so that you can examine the results of your jobs, particularly in the early stages of development. However, as the solution reaches a production-grade level, we usually need to restrict the number of finished jobs to be kept, so that we do not fill Redis with data that is not particularly useful.
 
-BullMQ supports different strategies for auto-removing finalized jobs. These strategies are configured on the Worker's options [`removeOnComplete`](https://api.docs.bullmq.io/interfaces/v5.WorkerOptions.html#removeOnComplete) and [`removeOnFail`](https://api.docs.bullmq.io/interfaces/v5.WorkerOptions.html#removeOnFail).
+BullMQ supports different strategies for auto-removing finalized jobs. These strategies are configured on the Worker's options [`removeOnComplete`](https://api.docs.bullmq.io/interfaces/v5.WorkerOptions.html#removeoncomplete) and [`removeOnFail`](https://api.docs.bullmq.io/interfaces/v5.WorkerOptions.html#removeonfail).
 
 ### Remove all finalized jobs
 
@@ -16,7 +16,7 @@ const myWorker = new Worker(
   },
   {
     connection,
-    removeOnFail: { count: 0 }
+    removeOnFail: { count: 0 },
   },
 );
 ```
@@ -38,7 +38,7 @@ const myWorker = new Worker(
   {
     connection,
     removeOnComplete: { count: 1000 },
-    removeOnFail: { count: 5000 }
+    removeOnFail: { count: 5000 },
   },
 );
 ```
@@ -61,7 +61,7 @@ const myWorker = new Worker(
     },
     removeOnFail: {
       age: 24 * 3600, // keep up to 24 hours
-    }
+    },
   },
 );
 ```
