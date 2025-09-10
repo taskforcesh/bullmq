@@ -88,12 +88,17 @@ export interface QueueListener<JobBase extends Job = Job>
   waiting: (job: JobBase) => void;
 }
 
+/**
+ * IsAny<T> A type helper to determine if a given type `T` is `any`.
+ * This works by using `any` type with the intersection
+ * operator (`&`). If `T` is `any`, then `1 & T` resolves to `any`, and since `0`
+ * is assignable to `any`, the conditional type returns `true`.
+ */
+type IsAny<T> = 0 extends 1 & T ? true : false;
 // Helper for JobBase type
-type JobBase<T, ResultType, NameType extends string> = T extends Job<
-  any,
-  any,
-  any
->
+type JobBase<T, ResultType, NameType extends string> = IsAny<T> extends true
+  ? Job<T, ResultType, NameType>
+  : T extends Job<any, any, any>
   ? T
   : Job<T, ResultType, NameType>;
 
