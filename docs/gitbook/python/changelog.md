@@ -50,6 +50,7 @@
 
 ### Performance Improvements
 
+* **flow:** change parent failure in a lazy way ([#3228](https://github.com/taskforcesh/bullmq/issues/3228)) ([6b37a37](https://github.com/taskforcesh/bullmq/commit/6b37a379cc65abe7b4c60ba427065957c9080a08))
 * **flow:** validate parentKey existence before trying to move it to failed ([#3163](https://github.com/taskforcesh/bullmq/issues/3163)) ([5a88e47](https://github.com/taskforcesh/bullmq/commit/5a88e4745d9449e41c5e2c467b5d02ca21357703))
 
 ## [2.13.1](https://github.com/taskforcesh/bullmq/compare/vpy2.13.0...vpy2.13.1) (2025-03-15)
@@ -57,79 +58,60 @@
 
 ### Bug Fixes
 
-*  Nothing change
+*  Nothing changed
 
-## v2.13.0 (2025-03-15)
-### Feature
-* **job:** Support ignored and failed counts in getDependenciesCount (#3137) ref #3136 ([`83953db`](https://github.com/taskforcesh/bullmq/commit/83953db54cad80e4ec0a7659f41cb5bc086ccacf))
-* **job:** Add complete span in moveToCompleted method ([#3132](https://github.com/taskforcesh/bullmq/issues/3132)) ([`c37123c`](https://github.com/taskforcesh/bullmq/commit/c37123cc84632328d8c4e251641688eb36ac1a8a))
-
-### Fix
-* **job-scheduler:** Restore iterationCount attribute ([#3134](https://github.com/taskforcesh/bullmq/issues/3134)) ([`eec7114`](https://github.com/taskforcesh/bullmq/commit/eec711468de39ec10da9206d7f8c5ad1eb0df882))
-* **flow:** Consider to fail a parent not in waiting-children when failParentOnFailure is provided ([#3098](https://github.com/taskforcesh/bullmq/issues/3098)) ([`589adb4`](https://github.com/taskforcesh/bullmq/commit/589adb4f89bcb7d7721200333c2d605eb6ba7864))
-* **scheduler:** Remove multi when updating a job scheduler ([#3108](https://github.com/taskforcesh/bullmq/issues/3108)) ([`4b619ca`](https://github.com/taskforcesh/bullmq/commit/4b619cab9a6bf8d25efec83dcdf0adaaa362e12a))
-* **job:** Deserialize priority in fromJSON ([#3126](https://github.com/taskforcesh/bullmq/issues/3126)) ([`c3269b1`](https://github.com/taskforcesh/bullmq/commit/c3269b11e2def4e2acd4eafc02ce7958a8fcf63e))
+## [2.13.0](https://github.com/taskforcesh/bullmq/compare/vpy2.12.1...vpy2.13.0) (2025-03-15)
 
 
-### Performance
-* **worker:** Optimize job retrieval for failed jobs in chunks ([#3127](https://github.com/taskforcesh/bullmq/issues/3127)) ([`e0f02ce`](https://github.com/taskforcesh/bullmq/commit/e0f02ceb00ced5ca00a6c73d96801a040c40d958))
+### Bug Fixes
 
-## v2.12.1 (2025-02-28)
-### Fix
-* **worker:** Cast delay_until to integer [python] ([#3116](https://github.com/taskforcesh/bullmq/issues/3116)) ([`db617e4`](https://github.com/taskforcesh/bullmq/commit/db617e48ef1dd52446bfd73e15f24957df2ca315))
-* **flow:** Consider delayed state when moving a parent to failed ([#3112](https://github.com/taskforcesh/bullmq/issues/3112)) ([`6a28b86`](https://github.com/taskforcesh/bullmq/commit/6a28b861346a3efa89574a78b396954d6c4ed113))
+* **flow:** consider to fail a parent not in waiting-children when failParentOnFailure is provided ([#3098](https://github.com/taskforcesh/bullmq/issues/3098)) ([589adb4](https://github.com/taskforcesh/bullmq/commit/589adb4f89bcb7d7721200333c2d605eb6ba7864))
 
-## v2.12.0 (2025-02-21)
+## [2.12.1](https://github.com/taskforcesh/bullmq/compare/vpy2.12.0...vpy2.12.1) (2025-02-28)
 
-### Feature
 
-- Replace multi by lua scripts in moveToFailed ([#2958](https://github.com/taskforcesh/bullmq/issues/2958)) ([`c19c914`](https://github.com/taskforcesh/bullmq/commit/c19c914969169c660a3e108126044c5152faf0cd))
+### Bug Fixes
 
-### Fix
+* **worker:** cast delay_until to integer [python] ([#3116](https://github.com/taskforcesh/bullmq/issues/3116)) ([db617e4](https://github.com/taskforcesh/bullmq/commit/db617e48ef1dd52446bfd73e15f24957df2ca315))
+* **flow:** consider delayed state when moving a parent to failed ([#3112](https://github.com/taskforcesh/bullmq/issues/3112)) ([6a28b86](https://github.com/taskforcesh/bullmq/commit/6a28b861346a3efa89574a78b396954d6c4ed113))
 
-- **job:** Set processedBy when moving job to active in moveToFinished (#3077) fixes #3073 ([`1aa970c`](https://github.com/taskforcesh/bullmq/commit/1aa970ced3c55949aea6726c4ad29531089f5370))
-- **drain:** Pass delayed key for redis cluster ([#3074](https://github.com/taskforcesh/bullmq/issues/3074)) ([`05ea32b`](https://github.com/taskforcesh/bullmq/commit/05ea32b7e4f0cd4099783fd81d2b3214d7a293d5))
-- **retry-job:** Consider updating failures in job ([#3036](https://github.com/taskforcesh/bullmq/issues/3036)) ([`21e8495`](https://github.com/taskforcesh/bullmq/commit/21e8495b5f2bf5418d86f60b59fad25d306a0298))
-- **dynamic-rate-limit:** Validate job lock cases ([#2975](https://github.com/taskforcesh/bullmq/issues/2975)) ([`8bb27ea`](https://github.com/taskforcesh/bullmq/commit/8bb27ea4438cbd11e85fa4d0aa516bd1c0e7d51b))
-- **scripts:** Make sure jobs fields are not empty before unpack ([`4360572`](https://github.com/taskforcesh/bullmq/commit/4360572745a929c7c4f6266ec03d4eba77a9715c))
-- **flow:** Allow using removeOnFail and failParentOnFailure in parents (#2947) fixes #2229 ([`85f6f6f`](https://github.com/taskforcesh/bullmq/commit/85f6f6f181003fafbf75304a268170f0d271ccc3))
+## [2.12.0](https://github.com/taskforcesh/bullmq/compare/vpy2.11.0...vpy2.12.0) (2025-02-21)
 
-### Performance
 
-- **delayed:** Add marker once when promoting delayed jobs (#3096) (python) ([`38912fb`](https://github.com/taskforcesh/bullmq/commit/38912fba969d614eb44d05517ba2ec8bc418a16e))
-- **add-job:** Add job into wait or prioritized state when delay is provided as 0 ([#3052](https://github.com/taskforcesh/bullmq/issues/3052)) ([`3e990eb`](https://github.com/taskforcesh/bullmq/commit/3e990eb742b3a12065110f33135f282711fdd7b9))
+### Bug Fixes
 
-## v2.11.0 (2024-11-26)
+* **flow:** allow using removeOnFail and failParentOnFailure in parents ([#2947](https://github.com/taskforcesh/bullmq/issues/2947)) fixes [#2229](https://github.com/taskforcesh/bullmq/issues/2229) ([85f6f6f](https://github.com/taskforcesh/bullmq/commit/85f6f6f181003fafbf75304a268170f0d271ccc3))
 
-### Feature
 
-- **queue:** Add getDelayedCount method [python] ([#2934](https://github.com/taskforcesh/bullmq/issues/2934)) ([`71ce75c`](https://github.com/taskforcesh/bullmq/commit/71ce75c04b096b5593da0986c41a771add1a81ce))
+### Performance Improvements
 
-### Performance
+* **delayed:** add marker once when promoting delayed jobs ([#3096](https://github.com/taskforcesh/bullmq/issues/3096)) (python) ([38912fb](https://github.com/taskforcesh/bullmq/commit/38912fba969d614eb44d05517ba2ec8bc418a16e))
+* **add-job:** add job into wait or prioritized state when delay is provided as 0 ([#3052](https://github.com/taskforcesh/bullmq/issues/3052)) ([3e990eb](https://github.com/taskforcesh/bullmq/commit/3e990eb742b3a12065110f33135f282711fdd7b9))
 
-- **marker:** Add base markers while consuming jobs to get workers busy (#2904) fixes #2842 ([`1759c8b`](https://github.com/taskforcesh/bullmq/commit/1759c8bc111cab9e43d5fccb4d8d2dccc9c39fb4))
+## [2.11.0](https://github.com/taskforcesh/bullmq/compare/vpy2.10.1...vpy2.11.0) (2024-11-26)
 
-## v2.10.1 (2024-10-26)
 
-### Fix
+### Features
 
-- **commands:** Add missing build statement when releasing [python] (#2869) fixes #2868 ([`ff2a47b`](https://github.com/taskforcesh/bullmq/commit/ff2a47b37c6b36ee1a725f91de2c6e4bcf8b011a))
+* **queue:** add getDelayedCount method [python] ([#2934](https://github.com/taskforcesh/bullmq/issues/2934)) ([71ce75c](https://github.com/taskforcesh/bullmq/commit/71ce75c04b096b5593da0986c41a771add1a81ce))
 
-## v2.10.0 (2024-10-24)
+### Performance Improvements
 
-### Feature
+* **marker:** add base markers while consuming jobs to get workers busy ([#2904](https://github.com/taskforcesh/bullmq/issues/2904)) fixes [#2842](https://github.com/taskforcesh/bullmq/issues/2842) ([1759c8b](https://github.com/taskforcesh/bullmq/commit/1759c8bc111cab9e43d5fccb4d8d2dccc9c39fb4))
 
-- **job:** Add getChildrenValues method [python] ([#2853](https://github.com/taskforcesh/bullmq/issues/2853)) ([`0f25213`](https://github.com/taskforcesh/bullmq/commit/0f25213b28900a1c35922bd33611701629d83184))
-- **queue:** Add option to skip metas update ([`b7dd925`](https://github.com/taskforcesh/bullmq/commit/b7dd925e7f2a4468c98a05f3a3ca1a476482b6c0))
-- **queue:** Add queue version support ([#2822](https://github.com/taskforcesh/bullmq/issues/2822)) ([`3a4781b`](https://github.com/taskforcesh/bullmq/commit/3a4781bf7cadf04f6a324871654eed8f01cdadae))
-- **job:** Expose priority value ([#2804](https://github.com/taskforcesh/bullmq/issues/2804)) ([`9abec3d`](https://github.com/taskforcesh/bullmq/commit/9abec3dbc4c69f2496c5ff6b5d724f4d1a5ca62f))
-- **job:** Add deduplication logic ([#2796](https://github.com/taskforcesh/bullmq/issues/2796)) ([`0a4982d`](https://github.com/taskforcesh/bullmq/commit/0a4982d05d27c066248290ab9f59349b802d02d5))
-- **queue:** Add getDebounceJobId method ([#2717](https://github.com/taskforcesh/bullmq/issues/2717)) ([`a68ead9`](https://github.com/taskforcesh/bullmq/commit/a68ead95f32a7d9dabba602895d05c22794b2c02))
+## [2.10.1](https://github.com/taskforcesh/bullmq/compare/vpy2.10.0...vpy2.10.1) (2024-10-26)
 
-### Fix
 
-- Proper way to get version ([`b4e25c1`](https://github.com/taskforcesh/bullmq/commit/b4e25c13cafc001748ee6eb590133feb8ee24d7b))
-- **redis:** Use version for naming loaded lua scripts ([`fe73f6d`](https://github.com/taskforcesh/bullmq/commit/fe73f6d4d776dc9f99ad3a094e5c59c5fafc96f1))
+### Bug Fixes
+
+* **commands:** add missing build statement when releasing [python] ([#2869](https://github.com/taskforcesh/bullmq/issues/2869)) fixes [#2868](https://github.com/taskforcesh/bullmq/issues/2868) ([ff2a47b](https://github.com/taskforcesh/bullmq/commit/ff2a47b37c6b36ee1a725f91de2c6e4bcf8b011a))
+
+## [2.10.0](https://github.com/taskforcesh/bullmq/compare/vpy2.9.4...vpy2.10.0) (2024-10-24)
+
+
+### Features
+
+* **job:** add getChildrenValues method [python] ([#2853](https://github.com/taskforcesh/bullmq/issues/2853)) ([0f25213](https://github.com/taskforcesh/bullmq/commit/0f25213b28900a1c35922bd33611701629d83184))
 
 ## v2.9.4 (2024-09-10)
 
@@ -488,7 +470,7 @@
 
 ### Feature
 
-- Nothing change
+- Nothing changed
 
 ## v1.14.0 (2023-09-26)
 

@@ -1343,7 +1343,7 @@
 
 ### Features
 
-* Nothing change, triggered by a python version release
+* Nothing changed, triggered by a python version release
 
 ## [5.5.4](https://github.com/taskforcesh/bullmq/compare/v5.5.3...v5.5.4) (2024-04-07)
 
