@@ -826,6 +826,8 @@ describe('workers', function () {
       worker.once('failed', async (job, err) => {
         try {
           expect(job).to.be.ok;
+          expect(job.attemptsMade).to.be.eql(1);
+          expect(job.attemptsStarted).to.be.eql(1);
           expect(job.data.foo).to.be.eql('bar');
           expect(err).to.be.eql(notEvenErr);
           failedOnce = true;
@@ -837,9 +839,11 @@ describe('workers', function () {
     });
 
     const completing = new Promise<void>((resolve, reject) => {
-      worker.once('completed', () => {
+      worker.once('completed', job => {
         try {
           expect(failedOnce).to.be.eql(true);
+          expect(job.attemptsMade).to.be.eql(1);
+          expect(job.attemptsStarted).to.be.eql(1);
           resolve();
         } catch (err) {
           reject(err);
@@ -873,13 +877,14 @@ describe('workers', function () {
     );
     await worker.waitUntilReady();
 
-    let count = 1;
-    const completing = new Promise<void>((resolve, reject) => {
+    const completing1 = new Promise<void>((resolve, reject) => {
       worker.once('completed', async (job, result) => {
         try {
           expect(job).to.be.ok;
+          expect(job.attemptsMade).to.be.eql(1);
+          expect(job.attemptsStarted).to.be.eql(1);
           expect(job.data.foo).to.be.eql('bar');
-          expect(result).to.be.eql(count++);
+          expect(result).to.be.eql(1);
           completedOnce = true;
         } catch (err) {
           reject(err);
@@ -892,9 +897,25 @@ describe('workers', function () {
     expect(job.id).to.be.ok;
     expect(job.data.foo).to.be.eql('bar');
 
-    await completing;
+    await completing1;
+
+    const completing2 = new Promise<void>((resolve, reject) => {
+      worker.once('completed', async (job, result) => {
+        try {
+          expect(job).to.be.ok;
+          expect(job.attemptsMade).to.be.eql(1);
+          expect(job.attemptsStarted).to.be.eql(1);
+          expect(job.data.foo).to.be.eql('bar');
+          expect(result).to.be.eql(2);
+        } catch (err) {
+          reject(err);
+        }
+        resolve();
+      });
+    });
+
     await job.retry('completed');
-    await completing;
+    await completing2;
 
     await worker.close();
   });

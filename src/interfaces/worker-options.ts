@@ -73,20 +73,20 @@ export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
   removeOnFail?: KeepJobs;
 
   /**
-   *  Skip stalled check for this worker. Note that other workers could still
-   *  perform stalled checkd and move jobs back to wait for jobs being processed
-   *  by this worker.
+   * Skip stalled check for this worker. Note that other workers could still
+   * perform stalled checkd and move jobs back to wait for jobs being processed
+   * by this worker.
    *
-   *  @defaultValue false
+   * @defaultValue false
    */
   skipStalledCheck?: boolean;
 
   /**
-   *  Skip lock renewal for this worker. If set to true, the lock will expire
-   *  after lockDuration and moved back to the wait queue (if the stalled check is
-   *  not disabled)
+   * Skip lock renewal for this worker. If set to true, the lock will expire
+   * after lockDuration and moved back to the wait queue (if the stalled check is
+   * not disabled)
    *
-   *  @defaultValue false
+   * @defaultValue false
    */
   skipLockRenewal?: boolean;
 

@@ -32,7 +32,7 @@ local jobKey = KEYS[1]
 if rcall("EXISTS", jobKey) == 1 then
   local jobId = ARGV[1]
   if (rcall("ZREM", KEYS[3], jobId) == 1) then
-    rcall("HDEL", jobKey, "finishedOn", "processedOn", ARGV[3])
+    rcall("HDEL", jobKey, "finishedOn", "processedOn", "atm", "ats", ARGV[3])
 
     local target, isPausedOrMaxed = getTargetQueueList(KEYS[5], KEYS[7], KEYS[4], KEYS[6])
     addJobInTargetList(target, KEYS[8], ARGV[2], isPausedOrMaxed, jobId)
