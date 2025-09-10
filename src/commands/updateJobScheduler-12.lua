@@ -66,11 +66,11 @@ if prevMillis then
 
             -- TODO: remove this workaround in next breaking change,
             -- all job-schedulers must save job data
-            local templateData = schedulerAttributes[2] or ARGV[3]
+            local templateData = schedulerAttributes[2] or ARGV[3] or '{}'
 
             addJobFromScheduler(nextDelayedJobKey, nextDelayedJobId, ARGV[4], waitKey, pausedKey, 
                 KEYS[12], metaKey, prioritizedKey, KEYS[10], delayedKey, KEYS[7], eventsKey, 
-                schedulerAttributes[1], maxEvents, ARGV[5], templateData or '{}', jobSchedulerId)
+                schedulerAttributes[1], maxEvents, ARGV[5], templateData, jobSchedulerId)
 
             -- TODO: remove this workaround in next breaking change
             if KEYS[11] ~= "" then
