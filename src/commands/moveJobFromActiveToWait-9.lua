@@ -10,7 +10,7 @@
     KEYS[6]  limiter key
     KEYS[7]  prioritized key
     KEYS[8]  marker key
-    KEYS[9] event key
+    KEYS[9]  event key
 
     ARGV[1] job id
     ARGV[2] lock token
