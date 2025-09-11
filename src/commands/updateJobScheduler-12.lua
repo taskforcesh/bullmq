@@ -58,7 +58,7 @@ local now = tonumber(timestamp)
 if every then
     local startDate = schedulerAttributes[4]
     local jobOptsOffset = jobOpts['repeat'] and jobOpts['repeat']['offset'] or 0
-    local offset = schedulerAttributes[5] or jobOptsOffset or 17
+    local offset = schedulerAttributes[5] or jobOptsOffset or 0
     local newOffset
 
     nextMillis, newOffset = getJobSchedulerEveryNextMillis(prevMillis, every, now, offset, startDate)
