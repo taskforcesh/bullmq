@@ -12,7 +12,7 @@ import { Job, Queue, Worker } from 'bullmq';
 const myQueue = new Queue('Paint');
 
 const worker = new Worker('Paint', async (job: Job) => {
-  await queue.removeDeduplicationKey(job.deduplicationId)
+  await myQueue.removeDeduplicationKey(job.deduplicationId)
   console.log('Do something with job');
   return 'some value';
 });
