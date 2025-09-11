@@ -352,7 +352,9 @@ describe('Job Scheduler Stress', function () {
       upsertPromises.push(promise);
 
       // Small delay between upserts to simulate real-world timing
-      if (i < 4) {await delay(50);}
+      if (i < 4) {
+        await delay(50);
+      }
     }
 
     // Wait for all upserts to complete
