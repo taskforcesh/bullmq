@@ -21,7 +21,7 @@ myQueue.add('house', { color: 'white' }, { deduplication: { id: 'house'} });
 ```
 
 {% hint style="info" %}
-Previous example uses __Simple Mode__ but it can be combined with __Throttle Mode__ or __Debounce Mode__.
+Previous example uses [Simple Mode](../guide/jobs/deduplication.md#simple-mode) but it can be combined with [Throttle Mode](../guide/jobs/deduplication.md#throttle-mode) or [Debounce Mode](../guide/jobs/deduplication.md#debounce-mode).
 {% endhint %}
 
 ## Read more:
