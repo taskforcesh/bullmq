@@ -10,10 +10,12 @@
 --- @include "getTargetQueueList"
 --- @include "addJobInTargetList"
 
-local function addJobFromScheduler(jobKey, jobId, rawOpts, waitKey, pausedKey, activeKey, metaKey, 
+local function addJobFromScheduler(jobKey, jobId, opts, waitKey, pausedKey, activeKey, metaKey, 
   prioritizedKey, priorityCounter, delayedKey, markerKey, eventsKey, name, maxEvents, timestamp,
-  data, jobSchedulerId)
-  local opts = cmsgpack.unpack(rawOpts)
+  data, jobSchedulerId, repeatDelay)
+
+  opts['delay'] = repeatDelay
+  opts['jobId'] = jobId
 
   local delay, priority = storeJob(eventsKey, jobKey, jobId, name, data,
     opts, timestamp, nil, nil, jobSchedulerId)

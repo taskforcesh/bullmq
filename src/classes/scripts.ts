@@ -370,7 +370,7 @@ export class Scripts {
     delayedJobOpts: JobsOptions,
     // The job id of the job that produced this next iteration
     producerId?: string,
-  ): Promise<string> {
+  ): Promise<[string, number]> {
     const client = await this.queue.client;
     const queueKeys = this.queue.keys;
 
