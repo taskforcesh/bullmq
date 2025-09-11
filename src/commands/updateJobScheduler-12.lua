@@ -38,17 +38,41 @@ local jobSchedulerId = ARGV[2]
 local timestamp = ARGV[5]
 local prefixKey = ARGV[6]
 local producerId = ARGV[7]
+local jobOpts = cmsgpack.unpack(ARGV[4])
 
 -- Includes
 --- @include "includes/addJobFromScheduler"
 --- @include "includes/getOrSetMaxEvents"
+--- @include "includes/getJobSchedulerEveryNextMillis"
+
+local prevMillis = rcall("ZSCORE", repeatKey, jobSchedulerId)
+if prevMillis then
+    prevMillis = tonumber(prevMillis)
+end
 
 local schedulerKey = repeatKey .. ":" .. jobSchedulerId
+local schedulerAttributes = rcall("HMGET", schedulerKey, "name", "data", "every", "startDate", "offset")
+
+local every = schedulerAttributes[3]
+local now = tonumber(timestamp)
+if every then
+    local startDate = schedulerAttributes[4]
+    local jobOptsOffset = jobOpts['repeat'] and jobOpts['repeat']['offset'] or 0
+    local offset = schedulerAttributes[5] or jobOptsOffset or 17
+    local newOffset
+
+    nextMillis, newOffset = getJobSchedulerEveryNextMillis(prevMillis, every, now, offset, startDate)
+
+    if not offset then
+        rcall("HSET", schedulerKey, "offset", newOffset)
+        jobOpts['repeat']['offset'] = newOffset
+    end
+end
+
 local nextDelayedJobId = "repeat:" .. jobSchedulerId .. ":" .. nextMillis
 local nextDelayedJobKey = schedulerKey .. ":" .. nextMillis
 
 -- Validate that scheduler exists.
-local prevMillis = rcall("ZSCORE", repeatKey, jobSchedulerId)
 if prevMillis then
     local currentDelayedJobId = "repeat:" .. jobSchedulerId .. ":" .. prevMillis
 
@@ -57,7 +81,6 @@ if prevMillis then
         local maxEvents = getOrSetMaxEvents(metaKey)
 
         if rcall("EXISTS", nextDelayedJobKey) ~= 1 then
-            local schedulerAttributes = rcall("HMGET", schedulerKey, "name", "data")
 
             rcall("ZADD", repeatKey, nextMillis, jobSchedulerId)
             rcall("HINCRBY", schedulerKey, "ic", 1)
@@ -72,9 +95,18 @@ if prevMillis then
                 rcall("HSET", schedulerKey, "data", templateData)
             end
 
-            addJobFromScheduler(nextDelayedJobKey, nextDelayedJobId, ARGV[4], waitKey, pausedKey, 
-                KEYS[12], metaKey, prioritizedKey, KEYS[10], delayedKey, KEYS[7], eventsKey, 
-                schedulerAttributes[1], maxEvents, ARGV[5], templateData or '{}', jobSchedulerId)
+            local delay = nextMillis - now
+
+            -- Fast Clamp delay to minimum of 0
+            if delay < 0 then
+                delay = 0
+            end
+
+            jobOpts["delay"] = delay
+
+            addJobFromScheduler(nextDelayedJobKey, nextDelayedJobId, jobOpts, waitKey, pausedKey,
+                KEYS[12], metaKey, prioritizedKey, KEYS[10], delayedKey, KEYS[7], eventsKey,
+                schedulerAttributes[1], maxEvents, ARGV[5], templateData or '{}', jobSchedulerId, delay )
 
             -- TODO: remove this workaround in next breaking change
             if KEYS[11] ~= "" then
