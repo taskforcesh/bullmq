@@ -17,7 +17,7 @@ local function getJobSchedulerEveryNextMillis(prevMillis, every, now, offset, st
         end
     end
 
-    if offset == 0 then
+    if not offset or offset == 0 then
         local timeSlot = math.floor(nextMillis / every) * every;
         offset = nextMillis - timeSlot;
     end
