@@ -159,11 +159,15 @@ export class JobScheduler extends QueueBase {
               producerId,
             );
 
+            // Ensure delay is a number (Dragonflydb may return it as a string)
+            const numericDelay =
+              typeof delay === 'string' ? parseInt(delay, 10) : delay;
+
             const job = new this.Job<T, R, N>(
               this,
               jobName,
               jobData,
-              { ...mergedOpts, delay },
+              { ...mergedOpts, delay: numericDelay },
               jobId,
             );
 
