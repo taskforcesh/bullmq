@@ -198,6 +198,26 @@ describe('Job', function () {
       });
     });
 
+    describe('when deduplication id option is provided as empty string', () => {
+      it('throws an error', async () => {
+        const data = { foo: 'bar' };
+        const opts = { deduplication: { id: '' } };
+        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+          'Deduplication id must be provided',
+        );
+      });
+    });
+
+    describe('when debounce id option is provided as empty string', () => {
+      it('throws an error', async () => {
+        const data = { foo: 'bar' };
+        const opts = { debounce: { id: '' } };
+        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+          'Debounce id must be provided',
+        );
+      });
+    });
+
     describe('when jitter backoff option is provided with a value lesser than 0', () => {
       it('throws an error', async () => {
         const data = { foo: 'bar' };
