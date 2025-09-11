@@ -13,7 +13,7 @@ local function getJobSchedulerEveryNextMillis(prevMillis, every, now, offset, st
         nextMillis = prevMillis + every
         -- check if we may have missed some iterations
         if nextMillis < now then
-            nextMillis = math.floor(now / every) * every + every + offset or 0
+            nextMillis = math.floor(now / every) * every + every + (offset or 0)
         end
     end
 
