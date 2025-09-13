@@ -251,7 +251,7 @@ describe('Job Scheduler', function () {
 
     describe('when next delayed job already exists and it is not in waiting or delayed states', function () {
       describe('when job scheduler is being added', function () {
-        describe('when using pattern', function () {
+        describe('when using every', function () {
           it('emits duplicated event and does not update scheduler', async function () {
             const date = new Date('2017-02-07T09:24:00.000+05:30');
             this.clock.setSystemTime(date);
