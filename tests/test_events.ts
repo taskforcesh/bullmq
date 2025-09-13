@@ -1,7 +1,7 @@
 import { default as IORedis } from 'ioredis';
 import { v4 } from 'uuid';
 import { expect } from 'chai';
-import { after, reject } from 'lodash';
+import { after } from 'lodash';
 import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 import {
   FlowProducer,
