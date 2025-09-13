@@ -28,7 +28,10 @@ describe('metrics', function () {
   });
 
   beforeEach(function () {
-    this.clock = sinon.useFakeTimers({ shouldClearNativeTimers: true });
+    this.clock = sinon.useFakeTimers({
+      shouldClearNativeTimers: true,
+      toFake: ['Date', 'setTimeout', 'clearTimeout'],
+    });
   });
 
   beforeEach(async function () {

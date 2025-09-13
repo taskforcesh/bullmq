@@ -119,4 +119,4 @@ export interface QueueEventsOptions
 /**
  * Options for QueueEventsProducer
  */
-export type QueueEventsProducerOptions = Omit<QueueBaseOptions, 'telemetry'>
+export type QueueEventsProducerOptions = Omit<QueueBaseOptions, 'telemetry'>;

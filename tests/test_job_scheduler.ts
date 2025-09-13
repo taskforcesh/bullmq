@@ -40,7 +40,10 @@ describe('Job Scheduler', function () {
   });
 
   beforeEach(async function () {
-    this.clock = sinon.useFakeTimers({ shouldClearNativeTimers: true });
+    this.clock = sinon.useFakeTimers({
+      shouldClearNativeTimers: true,
+      toFake: ['Date', 'setTimeout', 'clearTimeout'],
+    });
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection, prefix });
     repeat = new Repeat(queueName, { connection, prefix });
