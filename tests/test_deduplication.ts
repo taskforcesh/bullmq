@@ -586,9 +586,8 @@ describe('deduplication', function () {
             },
           );
 
-          const deduplicationJobId = await queue.getDeduplicationJobId(
-            deduplicationId,
-          );
+          const deduplicationJobId =
+            await queue.getDeduplicationJobId(deduplicationId);
           expect(deduplicationJobId).to.be.equal(job2.id);
 
           await delay(300);
@@ -602,9 +601,8 @@ describe('deduplication', function () {
             },
           );
 
-          const deduplicationJobId2 = await queue.getDeduplicationJobId(
-            deduplicationId,
-          );
+          const deduplicationJobId2 =
+            await queue.getDeduplicationJobId(deduplicationId);
           expect(deduplicationJobId2).to.be.equal(job3.id);
 
           await completing;
@@ -678,9 +676,8 @@ describe('deduplication', function () {
             },
           );
 
-          const deduplicationJobId = await queue.getDeduplicationJobId(
-            deduplicationId,
-          );
+          const deduplicationJobId =
+            await queue.getDeduplicationJobId(deduplicationId);
           expect(deduplicationJobId).to.be.equal(job1.id);
 
           await delay(250);
@@ -697,9 +694,8 @@ describe('deduplication', function () {
             },
           );
 
-          const deduplicationJobId2 = await queue.getDeduplicationJobId(
-            deduplicationId,
-          );
+          const deduplicationJobId2 =
+            await queue.getDeduplicationJobId(deduplicationId);
           expect(deduplicationJobId2).to.be.equal(job3.id);
 
           await completing;
@@ -766,9 +762,8 @@ describe('deduplication', function () {
             await delay(25);
           }
 
-          const deduplicationJobId = await queue.getDeduplicationJobId(
-            deduplicationId,
-          );
+          const deduplicationJobId =
+            await queue.getDeduplicationJobId(deduplicationId);
           expect(deduplicationJobId).to.be.equal(jobs[jobs.length - 1].id);
 
           await completing;
