@@ -112,7 +112,7 @@
     "rimraf": "^6.0.1",
     "rrule": "^2.6.9",
     "semantic-release": "^24.2.7",
-    "sinon": "^18.0.1",
+    "sinon": "^21.0.0",
     "test-console": "^2.0.0",
     "ts-mocha": "^11.1.0",
     "ts-node": "^10.7.0",
