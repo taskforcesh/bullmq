@@ -186,36 +186,33 @@
 
 * remove print calls [python] ([#2579](https://github.com/taskforcesh/bullmq/issues/2579)) ([f957186](https://github.com/taskforcesh/bullmq/commit/f95718689864dbaca8a6b4113a6b37727919d6df))
 
-## v2.7.7 (2024-06-04)
+## [2.7.7](https://github.com/taskforcesh/bullmq/compare/vpy2.7.6...vpy2.7.7) (2024-06-04)
 
-### Fix
 
-- **retry-job:** Throw error when job is not in active state ([#2576](https://github.com/taskforcesh/bullmq/issues/2576)) ([`ca207f5`](https://github.com/taskforcesh/bullmq/commit/ca207f593d0ed455ecc59d9e0ef389a9a50d9634))
-- **job:** Validate job existence when adding a log ([#2562](https://github.com/taskforcesh/bullmq/issues/2562)) ([`f87e3fe`](https://github.com/taskforcesh/bullmq/commit/f87e3fe029e48d8964722da762326e531c2256ee))
+### Bug Fixes
 
-### Performance
+* **retry-job:** throw error when job is not in active state ([#2576](https://github.com/taskforcesh/bullmq/issues/2576)) ([ca207f5](https://github.com/taskforcesh/bullmq/commit/ca207f593d0ed455ecc59d9e0ef389a9a50d9634))
 
-- **job:** Set processedBy using hmset (#2592) (python) ([`238680b`](https://github.com/taskforcesh/bullmq/commit/238680b84593690a73d542dbe1120611c3508b47))
+## [2.7.6](https://github.com/taskforcesh/bullmq/compare/vpy2.7.5...vpy2.7.6) (2024-05-09)
 
-## v2.7.6 (2024-05-09)
 
-### Fix
+### Bug Fixes
 
-- **connection:** Use async Retry (#2555) [python] ([`d6dd21d`](https://github.com/taskforcesh/bullmq/commit/d6dd21d3ac28660bbfa7825bba0b586328769709))
-- **worker:** Make sure clearTimeout is always called after bzpopmin ([`782382e`](https://github.com/taskforcesh/bullmq/commit/782382e599218024bb9912ff0572c4aa9b1f22a3))
-- **worker:** Force timeout on bzpopmin command ([#2543](https://github.com/taskforcesh/bullmq/issues/2543)) ([`ae7cb6c`](https://github.com/taskforcesh/bullmq/commit/ae7cb6caefdbfa5ca0d28589cef4b896ffcce2db))
+* **connection:** use async Retry ([#2555](https://github.com/taskforcesh/bullmq/issues/2555)) [python] ([d6dd21d](https://github.com/taskforcesh/bullmq/commit/d6dd21d3ac28660bbfa7825bba0b586328769709))
 
-## v2.7.5 (2024-04-28)
+## [2.7.5](https://github.com/taskforcesh/bullmq/compare/vpy2.7.4...vpy2.7.5) (2024-04-28)
 
-### Fix
 
-- **worker:** Wait for jobs to finalize on close (#2545) [python] ([`d81f210`](https://github.com/taskforcesh/bullmq/commit/d81f210a5f5968fc040e820946fb672deb24bd01))
+### Bug Fixes
 
-## v2.7.4 (2024-04-26)
+* **worker:** wait for jobs to finalize on close ([#2545](https://github.com/taskforcesh/bullmq/issues/2545)) [python] ([d81f210](https://github.com/taskforcesh/bullmq/commit/d81f210a5f5968fc040e820946fb672deb24bd01))
 
-### Fix
+## [2.7.4](https://github.com/taskforcesh/bullmq/compare/vpy2.7.3...vpy2.7.4) (2024-04-26)
 
-- **redis-connection:** Increase redis retry strategy backoff (#2546) [python] ([`6cf7712`](https://github.com/taskforcesh/bullmq/commit/6cf77122da845e5b0afa1607348cf06602679329))
+
+### Bug Fixes
+
+* **redis-connection:** increase redis retry strategy backoff ([#2546](https://github.com/taskforcesh/bullmq/issues/2545)) [python] ([6cf7712](https://github.com/taskforcesh/bullmq/commit/6cf77122da845e5b0afa1607348cf06602679329))
 
 ## v2.7.3 (2024-04-24)
 
