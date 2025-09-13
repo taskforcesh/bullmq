@@ -250,49 +250,110 @@ describe('Job Scheduler', function () {
     });
 
     describe('when next delayed job already exists and it is not in waiting or delayed states', function () {
-      it('emits duplicated event and does not update scheduler', async function () {
-        const date = new Date('2017-02-07T09:24:00.000+05:30');
-        this.clock.setSystemTime(date);
-        const worker = new Worker(queueName, void 0, { connection, prefix });
-        const token = 'my-token';
+      describe('when job scheduler is being added', function () {
+        describe('when using pattern', function () {
+          it('emits duplicated event and does not update scheduler', async function () {
+            const date = new Date('2017-02-07T09:24:00.000+05:30');
+            this.clock.setSystemTime(date);
+            const worker = new Worker(queueName, void 0, {
+              connection,
+              prefix,
+            });
+            const token = 'my-token';
 
-        await worker.waitUntilReady();
+            await worker.waitUntilReady();
 
-        const jobSchedulerId = 'test';
-        await queue.upsertJobScheduler(jobSchedulerId, {
-          every: ONE_MINUTE * 1,
-        });
+            const jobSchedulerId = 'test';
+            await queue.upsertJobScheduler(jobSchedulerId, {
+              every: ONE_MINUTE * 1,
+            });
 
-        const duplicating = new Promise<void>(resolve => {
-          queueEvents.once('duplicated', () => {
-            resolve();
+            const duplicating = new Promise<void>(resolve => {
+              queueEvents.once('duplicated', () => {
+                resolve();
+              });
+            });
+
+            (await worker.getNextJob(token)) as Job;
+
+            await queue.upsertJobScheduler(jobSchedulerId, {
+              every: ONE_MINUTE * 2,
+            });
+
+            await duplicating;
+
+            const repeatableJobs = await queue.getJobSchedulers();
+            expect(repeatableJobs.length).to.be.eql(1);
+
+            expect(repeatableJobs[0]).to.deep.equal({
+              key: 'test',
+              name: 'test',
+              next: 1486439700000,
+              iterationCount: 2,
+              every: 60000,
+              offset: 0,
+            });
+
+            const count = await queue.getJobCountByTypes('delayed');
+            expect(count).to.be.equal(1);
+
+            await worker.close();
           });
         });
 
-        (await worker.getNextJob(token)) as Job;
+        describe('when using pattern', function () {
+          it('emits duplicated event and does not update scheduler', async function () {
+            const date = new Date('2017-02-07T09:24:00.000+05:30');
+            this.clock.setSystemTime(date);
+            const worker = new Worker(queueName, void 0, {
+              connection,
+              prefix,
+            });
+            const token = 'my-token';
 
-        await queue.upsertJobScheduler(jobSchedulerId, {
-          every: ONE_MINUTE * 2,
+            await worker.waitUntilReady();
+
+            const jobSchedulerId = 'test';
+            const job = await queue.upsertJobScheduler(jobSchedulerId, {
+              pattern: '*/2 * * * * *',
+            });
+
+            const duplicating = new Promise<void>(resolve => {
+              queueEvents.once('duplicated', () => {
+                resolve();
+              });
+            });
+            await job!.promote();
+
+            (await worker.getNextJob(token)) as Job;
+
+            await queue.upsertJobScheduler(
+              jobSchedulerId,
+              {
+                pattern: '*/2 * * * * *',
+              },
+              { data: { foo: 'bar' } },
+            );
+
+            await duplicating;
+
+            const repeatableJobs = await queue.getJobSchedulers();
+            expect(repeatableJobs.length).to.be.eql(1);
+
+            expect(repeatableJobs[0]).to.deep.equal({
+              key: 'test',
+              name: 'test',
+              next: 1486439644000,
+              iterationCount: 2,
+              pattern: '*/2 * * * * *',
+            });
+
+            const count = await queue.getJobCountByTypes('delayed');
+            expect(count).to.be.equal(1);
+
+            await worker.close();
+          });
         });
-
-        await duplicating;
-
-        const repeatableJobs = await queue.getJobSchedulers();
-        expect(repeatableJobs.length).to.be.eql(1);
-
-        expect(repeatableJobs[0]).to.deep.equal({
-          key: 'test',
-          name: 'test',
-          next: 1486439700000,
-          iterationCount: 2,
-          every: 60000,
-          offset: 0,
-        });
-
-        const count = await queue.getJobCountByTypes('delayed');
-        expect(count).to.be.equal(1);
-
-        await worker.close();
       });
 
       describe('when job scheduler is being updated', function () {
