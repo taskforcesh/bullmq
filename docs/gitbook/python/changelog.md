@@ -57,7 +57,7 @@
 
 ### Bug Fixes
 
-*  Nothing change
+*  Nothing changed
 
 ## v2.13.0 (2025-03-15)
 ### Feature
@@ -488,7 +488,7 @@
 
 ### Feature
 
-- Nothing change
+- Nothing changed
 
 ## v1.14.0 (2023-09-26)
 
