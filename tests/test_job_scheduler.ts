@@ -1304,6 +1304,66 @@ describe('Job Scheduler', function () {
     });
   });
 
+  describe("when using 'every' and offset plus delay of being picked by a worker is same as delay", function () {
+    it('should repeat every 2 seconds and start immediately', async function () {
+      const offset = 1900;
+      const delayOnBeinPicked = 100;
+      const startTimeMillis = new Date('2017-02-07 9:24:00').getTime() + offset;
+
+      const date = new Date(startTimeMillis);
+      this.clock.setSystemTime(date);
+      const nextTick = 2 * ONE_SECOND + delayOnBeinPicked;
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          expect(job.opts.repeat?.offset).to.be.equal(offset);
+          this.clock.tick(nextTick);
+        },
+        { connection, prefix },
+      );
+
+      let prev: Job;
+      let counter = 0;
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async job => {
+          try {
+            if (prev && counter === 1) {
+              expect(prev.timestamp).to.be.lte(job.timestamp);
+              expect(job.timestamp - prev.timestamp).to.be.lte(1);
+            } else if (prev) {
+              expect(prev.timestamp).to.be.lt(job.timestamp);
+              const diffTime = job.timestamp - prev.timestamp;
+              expect(diffTime).to.be.gte(2000);
+              expect(diffTime).to.be.lte(2100);
+            }
+
+            prev = job;
+            counter++;
+            if (counter === 5) {
+              resolve();
+            }
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      await queue.upsertJobScheduler(
+        'repeat',
+        {
+          every: 2000,
+        },
+        { data: { foo: 'bar' } },
+      );
+
+      await completing;
+
+      await worker.close();
+    });
+  });
+
   it('should start immediately even after removing the job scheduler and adding it again', async function () {
     const date = new Date('2017-02-07 9:24:00');
     this.clock.setSystemTime(date);
@@ -3083,65 +3143,5 @@ describe('Job Scheduler', function () {
     await completing;
 
     await worker.close();
-  });
-
-  describe("when using 'every' and offset plus delay of being picked by a worker is same as delay", function () {
-    it('should repeat every 2 seconds and start immediately', async function () {
-      const offset = 1900;
-      const delayOnBeinPicked = 100;
-      const startTimeMillis = new Date('2017-02-07 9:24:00').getTime() + offset;
-
-      const date = new Date(startTimeMillis);
-      this.clock.setSystemTime(date);
-      const nextTick = 2 * ONE_SECOND + delayOnBeinPicked;
-
-      const worker = new Worker(
-        queueName,
-        async job => {
-          expect(job.opts.repeat?.offset).to.be.equal(offset);
-          this.clock.tick(nextTick);
-        },
-        { connection, prefix },
-      );
-
-      let prev: Job;
-      let counter = 0;
-
-      const completing = new Promise<void>((resolve, reject) => {
-        worker.on('completed', async job => {
-          try {
-            if (prev && counter === 1) {
-              expect(prev.timestamp).to.be.lte(job.timestamp);
-              expect(job.timestamp - prev.timestamp).to.be.lte(1);
-            } else if (prev) {
-              expect(prev.timestamp).to.be.lt(job.timestamp);
-              const diffTime = job.timestamp - prev.timestamp;
-              expect(diffTime).to.be.gte(2000);
-              expect(diffTime).to.be.lte(2100);
-            }
-
-            prev = job;
-            counter++;
-            if (counter === 5) {
-              resolve();
-            }
-          } catch (err) {
-            reject(err);
-          }
-        });
-      });
-
-      await queue.upsertJobScheduler(
-        'repeat',
-        {
-          every: 2000,
-        },
-        { data: { foo: 'bar' } },
-      );
-
-      await completing;
-
-      await worker.close();
-    });
   });
 });
