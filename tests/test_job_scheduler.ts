@@ -314,16 +314,19 @@ describe('Job Scheduler', function () {
             await worker.waitUntilReady();
 
             const jobSchedulerId = 'test';
-            const job = await queue.upsertJobScheduler(jobSchedulerId, {
-              pattern: '*/2 * * * * *',
-            });
+            const schedulerJob = await queue.upsertJobScheduler(
+              jobSchedulerId,
+              {
+                pattern: '*/2 * * * * *',
+              },
+            );
 
             const duplicating = new Promise<void>(resolve => {
               queueEvents.once('duplicated', () => {
                 resolve();
               });
             });
-            await job!.promote();
+            await schedulerJob!.promote();
 
             (await worker.getNextJob(token)) as Job;
 
