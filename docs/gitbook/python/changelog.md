@@ -214,46 +214,47 @@
 
 * **redis-connection:** increase redis retry strategy backoff ([#2546](https://github.com/taskforcesh/bullmq/issues/2545)) [python] ([6cf7712](https://github.com/taskforcesh/bullmq/commit/6cf77122da845e5b0afa1607348cf06602679329))
 
-## v2.7.3 (2024-04-24)
+## [2.7.3](https://github.com/taskforcesh/bullmq/compare/vpy2.7.2...vpy2.7.3) (2024-04-24)
 
-### Fix
 
-- **stalled:** Consider ignoreDependencyOnFailure option (python) (#2540) fixes #2531 ([`0140959`](https://github.com/taskforcesh/bullmq/commit/0140959cabd2613794631e41ebe4c2ddee6f91da))
+### Bug Fixes
 
-## v2.7.2 (2024-04-20)
+* **stalled:** consider ignoreDependencyOnFailure option (python) ([#2540](https://github.com/taskforcesh/bullmq/issues/2540)) fixes [#2531](https://github.com/taskforcesh/bullmq/issues/2531) ([0140959](https://github.com/taskforcesh/bullmq/commit/0140959cabd2613794631e41ebe4c2ddee6f91da))
 
-### Fix
+## [2.7.2](https://github.com/taskforcesh/bullmq/compare/vpy2.7.1...vpy2.7.2) (2024-04-20)
 
-- **worker:** Return minimumBlockTimeout depending on redis version (python) ([#2532](https://github.com/taskforcesh/bullmq/issues/2532)) ([`83dfb63`](https://github.com/taskforcesh/bullmq/commit/83dfb63e72a1a36a4dfc40f122efb54fbb796339))
 
-## v2.7.1 (2024-04-18)
+### Bug Fixes
 
-### Fix
+* **worker:** return minimumBlockTimeout depending on redis version (python) ([#2532](https://github.com/taskforcesh/bullmq/issues/2532)) ([83dfb63](https://github.com/taskforcesh/bullmq/commit/83dfb63e72a1a36a4dfc40f122efb54fbb796339))
 
-- **stalled:** Consider failParentOnFailure when moving child into failed (#2526) fixes #2464 (python) ([`5e31eb0`](https://github.com/taskforcesh/bullmq/commit/5e31eb096169ea57350db591bcebfc2264a6b6dc))
+## [2.7.1](https://github.com/taskforcesh/bullmq/compare/vpy2.7.0...vpy2.7.1) (2024-04-18)
 
-## v2.7.0 (2024-04-13)
 
-### Feature
+### Bug Fixes
 
-- **queue:** Add getJobLogs method [python] (#2523) ref #2472 ([`a24a16e`](https://github.com/taskforcesh/bullmq/commit/a24a16ea2707541ee06ec3c4d636cd30dcdaade5))
+* **stalled:** consider failParentOnFailure when moving child into failed ([#2526](https://github.com/taskforcesh/bullmq/issues/2526)) fixes [#2464](https://github.com/taskforcesh/bullmq/issues/2464) (python) ([5e31eb0](https://github.com/taskforcesh/bullmq/commit/5e31eb096169ea57350db591bcebfc2264a6b6dc))
 
-## v2.6.0 (2024-04-13)
+# [2.7.0](https://github.com/taskforcesh/bullmq/compare/vpy2.6.0...vpy2.7.0) (2024-04-13)
 
-### Feature
 
-- **worker:** Use 0.002 as minimum timeout for redis version lower than 7.0.8 [python] ([#2521](https://github.com/taskforcesh/bullmq/issues/2521)) ([`f3862dd`](https://github.com/taskforcesh/bullmq/commit/f3862dd0c85cf2c2122fb0306c5f4b5eb8ad0bcd))
-- Allow arbitrary large drainDelay ([`9693321`](https://github.com/taskforcesh/bullmq/commit/96933217bf79658e5bb23fd7afe47e0b1150a40d))
+### Features
 
-### Fix
+* **queue:** add getJobLogs method [python] ([#2523](https://github.com/taskforcesh/bullmq/issues/2523)) ref [#2472](https://github.com/taskforcesh/bullmq/issues/2472) ([a24a16e](https://github.com/taskforcesh/bullmq/commit/a24a16ea2707541ee06ec3c4d636cd30dcdaade5))
 
-- **worker:** Use 0.002 as minimum timeout for redis version lower than 7.0.8 (#2515) fixes #2466 ([`44f7d21`](https://github.com/taskforcesh/bullmq/commit/44f7d21850747d9c636c78e08b9e577d684fb885))
+# [2.6.0](https://github.com/taskforcesh/bullmq/compare/vpy2.5.0...vpy2.6.0) (2024-04-13)
 
-## v2.5.0 (2024-04-08)
 
-### Feature
+### Features
 
-- **python:** Support reusable redis connections ([`29ad8c8`](https://github.com/taskforcesh/bullmq/commit/29ad8c83596b14a312ad1cd375e0e34d4fdecc52))
+* **worker:** use 0.002 as minimum timeout for redis version lower than 7.0.8 [python] ([#2521](https://github.com/taskforcesh/bullmq/issues/2521)) ([f3862dd](https://github.com/taskforcesh/bullmq/commit/f3862dd0c85cf2c2122fb0306c5f4b5eb8ad0bcd))
+
+# [2.5.0](https://github.com/taskforcesh/bullmq/compare/vpy2.4.0...vpy2.5.0) (2024-04-08)
+
+
+### Features
+
+* **python:** support reusable redis connections ([29ad8c8](https://github.com/taskforcesh/bullmq/commit/29ad8c83596b14a312ad1cd375e0e34d4fdecc52))
 
 ## v2.4.0 (2024-04-07)
 
