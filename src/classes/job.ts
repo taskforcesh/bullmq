@@ -1468,7 +1468,10 @@ export class Job<
 
       // TODO: replace this check in next breaking check with include(':')
       // By using split we are still keeping compatibility with old repeatable jobs
-      if (this.opts?.jobId?.split(':').length !== 3) {
+      if (
+        this.opts?.jobId.includes(':') &&
+        this.opts?.jobId?.split(':').length !== 3
+      ) {
         throw new Error('Custom Id cannot contain :');
       }
     }
