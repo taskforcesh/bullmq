@@ -813,12 +813,13 @@ will never work with more accuracy than 1ms. */
       const job = this.createJob(jobData, jobId);
       job.token = token;
 
-      // Add next scheduled job if necessary.
-      if (job.opts.repeat && !job.nextRepeatableJobId) {
+      try {
         // Use new job scheduler if possible
         if (job.repeatJobKey && job.repeatJobKey.split(':').length < 5) {
           const jobScheduler = await this.jobScheduler;
           await jobScheduler.upsertJobScheduler(
+            // Most of these arguments are not really needed
+            // anymore as we read them from the job scheduler itself
             job.repeatJobKey,
             job.opts.repeat,
             job.name,
@@ -826,12 +827,16 @@ will never work with more accuracy than 1ms. */
             job.opts,
             { override: false, producerId: job.id },
           );
-        } else {
+        } else if (job.opts.repeat) {
           const repeat = await this.repeat;
           await repeat.updateRepeatableJob(job.name, job.data, job.opts, {
             override: false,
           });
         }
+      } catch (err) {
+        throw new Error(
+          `Failed to add repeatable job for next iteration: ${err}`,
+        );
       }
       return job;
     }

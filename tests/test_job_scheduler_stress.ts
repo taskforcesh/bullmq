@@ -22,7 +22,12 @@ describe('Job Scheduler Stress', function () {
 
   let connection;
   before(async function () {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = new IORedis(redisHost, {
+      maxRetriesPerRequest: null,
+      enableReadyCheck: false,
+      lazyConnect: true,
+      reconnectOnError: () => true,
+    });
   });
 
   beforeEach(async function () {
@@ -35,10 +40,14 @@ describe('Job Scheduler Stress', function () {
   });
 
   afterEach(async function () {
-    await queue.close();
-    await repeat.close();
-    await queueEvents.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    try {
+      await queue.close();
+      await repeat.close();
+      await queueEvents.close();
+      await removeAllQueueData(new IORedis(redisHost), queueName);
+    } catch (error) {
+      // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
+    }
   });
 
   afterAll(async function () {
@@ -96,7 +105,11 @@ describe('Job Scheduler Stress', function () {
     }
 
     await completing;
-    await worker.close();
+    try {
+      await worker.close();
+    } catch (error) {
+      // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
+    }
 
     const repeatableJobs = await queue.getJobSchedulers();
     expect(repeatableJobs).to.have.length(1);
@@ -151,7 +164,11 @@ describe('Job Scheduler Stress', function () {
 
     const diff = Date.now() - timestamp;
     expect(diff).to.be.lessThan(ONE_SECOND);
-    await worker.close();
+    try {
+      await worker.close();
+    } catch (error) {
+      // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
+    }
   });
 
   it.skip('should upsert many times with different settings respecting the guarantees', async () => {
@@ -194,7 +211,11 @@ describe('Job Scheduler Stress', function () {
       );
     }
 
-    await worker.close();
+    try {
+      await worker.close();
+    } catch (error) {
+      // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
+    }
 
     const repeatableJobs = await queue.getJobSchedulers();
     expect(repeatableJobs).to.have.length(1);
@@ -213,7 +234,11 @@ describe('Job Scheduler Stress', function () {
     });
 
     expect(completedJobs).to.be.eql(1);
-    await queue.close();
+    try {
+      await queue.close();
+    } catch (error) {
+      // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
+    }
   });
 
   it('should properly update job data and options when upserting job scheduler multiple times', async function () {
@@ -315,7 +340,11 @@ describe('Job Scheduler Stress', function () {
     expect(delayedJobs[0].data.key).to.equal('second');
     expect(delayedJobs[0].name).to.equal('my-name-2');
 
-    await worker.close();
+    try {
+      await worker.close();
+    } catch (error) {
+      // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
+    }
   });
 
   it('should handle rapid successive upserts without creating duplicate schedulers', async function () {
@@ -386,7 +415,11 @@ describe('Job Scheduler Stress', function () {
     await delay(1000);
     expect(duplicateEventCount).to.equal(0);
 
-    await worker.close();
+    try {
+      await worker.close();
+    } catch (error) {
+      // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
+    }
   });
 
   describe("when using 'every' option and jobs are moved to active some time after delay", function () {
@@ -459,7 +492,11 @@ describe('Job Scheduler Stress', function () {
       const delayedCountAfter = await queue.getDelayedCount();
       expect(delayedCountAfter).to.be.eq(1);
 
-      await worker.close();
+      try {
+        await worker.close();
+      } catch (error) {
+        // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
+      }
     });
   });
 });

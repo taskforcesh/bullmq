@@ -563,8 +563,12 @@ export class Job<
       } else {
         // Handle complex compressable fields separately
         if (attributeName === 'telemetry') {
-          options.tm = value.metadata;
-          options.omc = value.omitContext;
+          if (value.metadata !== undefined) {
+            options.tm = value.metadata;
+          }
+          if (value.omitContext !== undefined) {
+            options.omc = value.omitContext;
+          }
         } else {
           options[attributeName] = value;
         }

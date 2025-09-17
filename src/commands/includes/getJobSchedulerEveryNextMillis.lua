@@ -1,6 +1,7 @@
 
 
 local function getJobSchedulerEveryNextMillis(prevMillis, every, now, offset, startDate)
+    local nextMillis
     if not prevMillis then
         if startDate then
             -- Assuming startDate is passed as milliseconds from JavaScript
@@ -23,5 +24,5 @@ local function getJobSchedulerEveryNextMillis(prevMillis, every, now, offset, st
     end
 
     -- Return a tuple nextMillis, offset
-    return nextMillis, offset
+    return math.floor(nextMillis), math.floor(offset)
 end

@@ -124,7 +124,32 @@ if hadPrevJob then
 else 
     -- Special case where no job was removed, and we need to add the next iteration.
     schedulerOpts['offset'] = newOffset
-    jobOpts['repeat']['offset'] = newOffset
+end
+
+-- Check for job ID collision with existing jobs (in any state)
+local jobId = "repeat:" .. jobSchedulerId .. ":" .. nextMillis
+local jobKey = prefixKey .. jobId
+
+-- If there's already a job with this ID, handle the collision
+if rcall("EXISTS", jobKey) == 1 then
+    if every then
+        -- For 'every' case: try next time slot to avoid collision
+        local nextSlotMillis = nextMillis + every
+        local nextSlotJobId = "repeat:" .. jobSchedulerId .. ":" .. nextSlotMillis
+        local nextSlotJobKey = prefixKey .. nextSlotJobId
+        
+        if rcall("EXISTS", nextSlotJobKey) == 0 then
+            -- Next slot is free, use it
+            nextMillis = nextSlotMillis
+            jobId = nextSlotJobId
+        else
+            -- Next slot also has a job, return error code
+            return -11 -- SchedulerJobSlotsBusy
+        end
+    else
+        -- For 'pattern' case: return error code
+        return -10 -- SchedulerJobIdCollision
+    end
 end
 
 local delay = nextMillis - now
@@ -135,18 +160,18 @@ if delay < 0 then
 end
 
 local nextJobKey = schedulerKey .. ":" .. nextMillis
-local nextJobId = "repeat:" .. jobSchedulerId .. ":" .. nextMillis
+-- jobId already calculated above during collision check
 
 storeJobScheduler(jobSchedulerId, schedulerKey, repeatKey, nextMillis, schedulerOpts, templateData, templateOpts)
 
 rcall("INCR", KEYS[8])
 
-addJobFromScheduler(nextJobKey, nextJobId, jobOpts, waitKey, pausedKey,
+addJobFromScheduler(nextJobKey, jobId, jobOpts, waitKey, pausedKey,
     KEYS[11], metaKey, prioritizedKey, KEYS[10], delayedKey, KEYS[7], eventsKey,
     schedulerOpts['name'], maxEvents, now, templateData, jobSchedulerId, delay)
 
 if ARGV[9] ~= "" then
-    rcall("HSET", ARGV[9], "nrjid", nextJobId)
+    rcall("HSET", ARGV[9], "nrjid", jobId)
 end
 
-return {nextJobId .. "", delay}
+return {jobId .. "", delay}
