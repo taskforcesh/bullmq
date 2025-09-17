@@ -165,6 +165,7 @@ describe('Job Scheduler', function () {
           await this.clock.tickAsync(1);
         },
         {
+          autorun: false,
           connection,
           prefix,
           concurrency: 1,
@@ -177,17 +178,25 @@ describe('Job Scheduler', function () {
         every: ONE_MINUTE * 5,
       });
       await this.clock.tickAsync(1);
-      await queue.upsertJobScheduler(jobSchedulerId, {
-        every: ONE_MINUTE * 5,
-      });
+      worker.run();
 
-      await queue.upsertJobScheduler(jobSchedulerId, {
-        every: ONE_MINUTE * 5,
-      });
+      try {
+        await queue.upsertJobScheduler(jobSchedulerId, {
+          every: ONE_MINUTE * 5,
+        });
 
-      await queue.upsertJobScheduler(jobSchedulerId, {
-        every: ONE_MINUTE * 5,
-      });
+        await queue.upsertJobScheduler(jobSchedulerId, {
+          every: ONE_MINUTE * 5,
+        });
+
+        await queue.upsertJobScheduler(jobSchedulerId, {
+          every: ONE_MINUTE * 5,
+        });
+      } catch (error) {
+        expect(error.message).to.equal(
+          'Cannot add job scheduler while job already existed and it is not in delayed state. addJobScheduler',
+        );
+      }
 
       const repeatableJobs = await queue.getJobSchedulers();
       expect(repeatableJobs.length).to.be.eql(1);
@@ -214,15 +223,23 @@ describe('Job Scheduler', function () {
 
       await this.clock.tickAsync(1);
 
-      await queue.upsertJobScheduler(jobSchedulerId, {
-        every: ONE_MINUTE * 2,
-      });
+      await expect(
+        queue.upsertJobScheduler(jobSchedulerId, {
+          every: ONE_MINUTE * 2,
+        }),
+      ).to.be.rejectedWith(
+        'Cannot add job scheduler while job already existed and it is not in delayed state. addJobScheduler',
+      );
 
       await this.clock.tickAsync(1);
 
-      await queue.upsertJobScheduler(jobSchedulerId, {
-        every: ONE_MINUTE * 3,
-      });
+      await expect(
+        queue.upsertJobScheduler(jobSchedulerId, {
+          every: ONE_MINUTE * 3,
+        }),
+      ).to.be.rejectedWith(
+        'Cannot add job scheduler while job already existed and it is not in delayed state. addJobScheduler',
+      );
 
       await this.clock.tickAsync(1);
 
@@ -252,7 +269,7 @@ describe('Job Scheduler', function () {
     describe('when next delayed job already exists and it is not in waiting or delayed states', function () {
       describe('when job scheduler is being added', function () {
         describe('when using every', function () {
-          it('emits duplicated event and does not update scheduler', async function () {
+          it('throws error and does not update scheduler', async function () {
             const date = new Date('2017-02-07T09:24:00.000+05:30');
             this.clock.setSystemTime(date);
             const worker = new Worker(queueName, void 0, {
@@ -268,19 +285,15 @@ describe('Job Scheduler', function () {
               every: ONE_MINUTE * 1,
             });
 
-            const duplicating = new Promise<void>(resolve => {
-              queueEvents.once('duplicated', () => {
-                resolve();
-              });
-            });
-
             (await worker.getNextJob(token)) as Job;
 
-            await queue.upsertJobScheduler(jobSchedulerId, {
-              every: ONE_MINUTE * 2,
-            });
-
-            await duplicating;
+            await expect(
+              queue.upsertJobScheduler(jobSchedulerId, {
+                every: ONE_MINUTE * 2,
+              }),
+            ).to.be.rejectedWith(
+              'Cannot add job scheduler while job already existed and it is not in delayed state. addJobScheduler',
+            );
 
             const repeatableJobs = await queue.getJobSchedulers();
             expect(repeatableJobs.length).to.be.eql(1);
@@ -321,24 +334,21 @@ describe('Job Scheduler', function () {
               },
             );
 
-            const duplicating = new Promise<void>(resolve => {
-              queueEvents.once('duplicated', () => {
-                resolve();
-              });
-            });
             await schedulerJob!.promote();
 
             (await worker.getNextJob(token)) as Job;
 
-            await queue.upsertJobScheduler(
-              jobSchedulerId,
-              {
-                pattern: '*/2 * * * * *',
-              },
-              { data: { foo: 'bar' } },
+            await expect(
+              queue.upsertJobScheduler(
+                jobSchedulerId,
+                {
+                  pattern: '*/2 * * * * *',
+                },
+                { data: { foo: 'bar' } },
+              ),
+            ).to.be.rejectedWith(
+              'Cannot add job scheduler while job already existed and it is not in delayed state. addJobScheduler',
             );
-
-            await duplicating;
 
             const repeatableJobs = await queue.getJobSchedulers();
             expect(repeatableJobs.length).to.be.eql(1);
@@ -2105,7 +2115,7 @@ describe('Job Scheduler', function () {
       expect(failedJobs.length).to.be.equal(1);
 
       // Retry the failed job
-      const failedJob = await queue.getJob(failedJobs[0].id);
+      const failedJob = await queue.getJob(failedJobs[0].id!);
       await failedJob!.retry();
       const failedCountAfterRetry = await queue.getFailedCount();
       expect(failedCountAfterRetry).to.be.equal(0);
@@ -2493,20 +2503,24 @@ describe('Job Scheduler', function () {
   });
 
   describe('when deleting and upserting a job scheduler', function () {
-    it('should not throw error while processing jobs', async function () {
+    it('should throw error while processing job with same jobId', async function () {
       this.clock.restore();
 
       const worker = new Worker(
         queueName,
         async () => {
           await queue.removeJobScheduler('foo');
-          await queue.upsertJobScheduler(
-            'foo',
-            { every: 50 },
-            {
-              name: 'bruh',
-              data: { something: 'else' },
-            },
+          await expect(
+            queue.upsertJobScheduler(
+              'foo',
+              { every: 50 },
+              {
+                name: 'bruh',
+                data: { something: 'else' },
+              },
+            ),
+          ).to.be.rejectedWith(
+            'Cannot add job scheduler while job already existed and it is not in delayed state. addJobScheduler',
           );
         },
         { autorun: false, concurrency: 2, connection, prefix },

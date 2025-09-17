@@ -88,10 +88,7 @@ end
 if rcall("EXISTS", nextDelayedJobKey) == 1 then
     if not removeJobFromScheduler(prefixKey, delayedKey, prioritizedKey, waitKey, pausedKey,
         nextDelayedJobId, metaKey, eventsKey) then
-        rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
-            "duplicated", "jobId", nextDelayedJobId)
-
-        return nextDelayedJobId .. "" -- convert to string
+        return -10
     end
 end
 

@@ -8,4 +8,5 @@ export enum ErrorCode {
   ParentJobCannotBeReplaced = -7,
   JobBelongsToJobScheduler = -8,
   JobHasFailedChildren = -9,
+  JobSchedulerCannotBeAdded = -10,
 }

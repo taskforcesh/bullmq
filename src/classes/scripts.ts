@@ -400,7 +400,20 @@ export class Scripts {
       producerId ? this.queue.toKey(producerId) : '',
     ];
 
-    return this.execCommand(client, 'addJobScheduler', keys.concat(args));
+    const result = await this.execCommand(
+      client,
+      'addJobScheduler',
+      keys.concat(args),
+    );
+
+    if (result < 0) {
+      throw this.finishedErrors({
+        code: result,
+        command: 'addJobScheduler',
+      });
+    }
+
+    return result;
   }
 
   async updateRepeatableJobMillis(
@@ -1709,6 +1722,10 @@ export class Scripts {
       case ErrorCode.JobHasFailedChildren:
         return new UnrecoverableError(
           `Cannot complete job ${jobId} because it has at least one failed child. ${command}`,
+        );
+      case ErrorCode.JobSchedulerCannotBeAdded:
+        return new Error(
+          `Cannot add job scheduler while job already existed and it is not in delayed state. ${command}`,
         );
       default:
         return new Error(`Unknown code ${code} error for ${jobId}. ${command}`);
