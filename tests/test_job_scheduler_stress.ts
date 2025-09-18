@@ -299,10 +299,11 @@ describe('Job Scheduler Stress', function () {
     }
 
     // Second upsert - update data and timing
+    const every2 = 500;
     currentSequenceIndex = 1;
     await queue.upsertJobScheduler(
       jobSchedulerId,
-      { every: 2000 }, // Change timing
+      { every: every2 }, // Change timing
       {
         name: 'my-name-2',
         data: { key: 'second' },
@@ -328,23 +329,25 @@ describe('Job Scheduler Stress', function () {
       expect(job.name).to.equal('my-name-2');
     }
 
+    // We close the worker first, to avoid a possible edge case where
+    // a job has been exactly moved to active but still not added the next delayed job
+    try {
+      await worker.close();
+    } catch (error) {
+      // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
+    }
+
     // Verify job scheduler metadata was updated correctly
     const schedulers = await queue.getJobSchedulers();
     expect(schedulers).to.have.length(1);
     expect(schedulers[0].key).to.equal(jobSchedulerId);
-    expect(schedulers[0].every).to.equal(2000);
+    expect(schedulers[0].every).to.equal(every2);
 
     // Verify that only one delayed job exists (proper replacement)
     const delayedJobs = await queue.getDelayed();
     expect(delayedJobs).to.have.length(1);
     expect(delayedJobs[0].data.key).to.equal('second');
     expect(delayedJobs[0].name).to.equal('my-name-2');
-
-    try {
-      await worker.close();
-    } catch (error) {
-      // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
-    }
   });
 
   it('should handle rapid successive upserts without creating duplicate schedulers', async function () {
