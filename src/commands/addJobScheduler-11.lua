@@ -72,6 +72,8 @@ local schedulerOpts = cmsgpack.unpack(ARGV[2])
 
 local every = schedulerOpts['every']
 
+-- For backwards compatibility we also check the offset from the job itself.
+-- could be removed in future major versions.
 local jobOffset = jobOpts['repeat'] and jobOpts['repeat']['offset'] or 0
 local offset = schedulerOpts['offset'] or jobOffset or 0
 local newOffset = offset
