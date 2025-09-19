@@ -1,5 +1,6 @@
 export type RepeatableOptions = {
   name: string;
+  startDate?: number;
   endDate?: number;
   tz?: string;
   limit?: number;
