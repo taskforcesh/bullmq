@@ -672,6 +672,73 @@ describe('Job Scheduler', function () {
     delayStub.restore();
   });
 
+  describe('when data does not exist in scheduler from old instances', function () {
+    it('should repeat every 2 seconds reusing data from delayed job', async function () {
+      this.timeout(10000);
+      const client = await queue.client;
+      const nextTick = 2 * ONE_SECOND + 100;
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          this.clock.tick(nextTick);
+        },
+        { autorun: false, connection, prefix },
+      );
+      const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+
+      const date = new Date('2017-02-07T15:24:00.000Z');
+      this.clock.setSystemTime(date);
+
+      await queue.upsertJobScheduler(
+        'test',
+        { pattern: '*/2 * * * * *' },
+        { data: { foo: 'bar' } },
+      );
+      await client!.hdel(`${prefix}:${queue.name}:repeat:test`, 'data');
+
+      const scheduler = await queue.getJobScheduler('test');
+
+      expect(scheduler).to.deep.equal({
+        iterationCount: 1,
+        key: 'test',
+        name: 'test',
+        pattern: '*/2 * * * * *',
+        next: 1486481042000,
+      });
+
+      this.clock.tick(nextTick);
+
+      let prev: any;
+      let counter = 0;
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async job => {
+          try {
+            expect(job.data).to.deep.equal({ foo: 'bar' });
+            if (prev) {
+              expect(prev.timestamp).to.be.lt(job.timestamp);
+              expect(job.timestamp - prev.timestamp).to.be.gte(2000);
+            }
+            prev = job;
+            counter++;
+            if (counter == 5) {
+              resolve();
+            }
+          } catch (error) {
+            reject(error);
+          }
+        });
+      });
+
+      worker.run();
+
+      await completing;
+      await worker.close();
+      delayStub.restore();
+    });
+  });
+
   it('should repeat every 2 seconds with startDate in future', async function () {
     this.timeout(10000);
 
