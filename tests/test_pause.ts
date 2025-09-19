@@ -378,13 +378,18 @@ describe('Pause', function () {
         );
       });
 
-      const waitingEvent = new Promise<void>(resolve => {
+      const waitingEvent = new Promise<void>((resolve, reject) => {
         queueEvents.on('waiting', async ({ prev }) => {
-          if (prev === 'failed') {
-            const count = await queue.getJobCountByTypes('paused');
-            expect(count).to.be.equal(1);
-            await queue.resume();
-            resolve();
+          try {
+            if (prev) {
+              expect(prev).to.be.eql('active');
+              const count = await queue.getJobCountByTypes('paused');
+              expect(count).to.be.equal(1);
+              await queue.resume();
+              resolve();
+            }
+          } catch (error) {
+            reject(error);
           }
         });
       });
