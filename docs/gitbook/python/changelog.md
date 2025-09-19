@@ -256,41 +256,47 @@
 
 * **python:** support reusable redis connections ([29ad8c8](https://github.com/taskforcesh/bullmq/commit/29ad8c83596b14a312ad1cd375e0e34d4fdecc52))
 
-## v2.4.0 (2024-04-07)
+# [2.4.0](https://github.com/taskforcesh/bullmq/compare/vpy2.3.3...vpy2.4.0) (2024-04-07)
 
-### Performance
 
-- **stalled:** Remove jobId from stalled after removing lock when moved from active (#2512) (python) ([`64feec9`](https://github.com/taskforcesh/bullmq/commit/64feec91b0b034fe640a846166bd95b546ff6d71))
+### Performance Improvements
 
-## v2.3.3 (2024-03-24)
+* **stalled:** remove jobId from stalled after removing lock when moved from active ([#2512](https://github.com/taskforcesh/bullmq/issues/2512)) (python) ([64feec9](https://github.com/taskforcesh/bullmq/commit/64feec91b0b034fe640a846166bd95b546ff6d71))
 
-### Fix
+## [2.3.3](https://github.com/taskforcesh/bullmq/compare/vpy2.3.2...vpy2.3.3) (2024-03-24)
 
-- **connection:** Accept all parameters for redis connection [python] ([#2486](https://github.com/taskforcesh/bullmq/issues/2486)) ([`ce30192`](https://github.com/taskforcesh/bullmq/commit/ce30192ad30f66fb0f39c8c9ed669ddd133346c8))
 
-## v2.3.2 (2024-03-23)
+### Bug Fixes
 
-### Fix
+* **connection:** accept all parameters for redis connection [python] ([#2486](https://github.com/taskforcesh/bullmq/issues/2486)) ([ce30192](https://github.com/taskforcesh/bullmq/commit/ce30192ad30f66fb0f39c8c9ed669ddd133346c8))
 
-- **scripts:** Use command name in error message when moving to finished ([#2483](https://github.com/taskforcesh/bullmq/issues/2483)) ([`3c335d4`](https://github.com/taskforcesh/bullmq/commit/3c335d49ba637145648c1ef0864d8e0d297dd890))
+## [2.3.2](https://github.com/taskforcesh/bullmq/compare/vpy2.3.1...vpy2.3.2) (2024-03-23)
 
-## v2.3.1 (2024-03-19)
 
-### Fix
+### Bug Fixes
 
-- **worker:** Set blockTimeout as 0.001 when reach the time to get delayed jobs [python] ([#2478](https://github.com/taskforcesh/bullmq/issues/2478)) ([`b385034`](https://github.com/taskforcesh/bullmq/commit/b385034006ac183a26093f593269349eb78f8b54))
+*  Nothing changed
 
-## v2.3.0 (2024-03-16)
+## [2.3.1](https://github.com/taskforcesh/bullmq/compare/vpy2.3.0...vpy2.3.1) (2024-03-19)
 
-### Feature
 
-- **job:** Add log method [python] (#2476) ref #2472 ([`34946c4`](https://github.com/taskforcesh/bullmq/commit/34946c4b29cc9e7d5ae81f8fd170a2e539ac6279))
+### Bug Fixes
 
-## v2.2.4 (2024-02-13)
+* **worker:** set blockTimeout as 0.001 when reach the time to get delayed jobs [python] ([#2478](https://github.com/taskforcesh/bullmq/issues/2478)) ([b385034](https://github.com/taskforcesh/bullmq/commit/b385034006ac183a26093f593269349eb78f8b54))
 
-### Fix
+# [2.3.0](https://github.com/taskforcesh/bullmq/compare/vpy2.2.4...vpy2.3.0) (2024-03-16)
 
-- **flow:** Parent job cannot be replaced (python) ([#2417](https://github.com/taskforcesh/bullmq/issues/2417)) ([`2696ef8`](https://github.com/taskforcesh/bullmq/commit/2696ef8200058b7f616938c2166a3b0454663b39))
+
+### Features
+
+* **job:** add log method [python] ([#2476](https://github.com/taskforcesh/bullmq/issues/2476)) ref [#2472](https://github.com/taskforcesh/bullmq/issues/2472) ([34946c4](https://github.com/taskforcesh/bullmq/commit/34946c4b29cc9e7d5ae81f8fd170a2e539ac6279))
+
+## [2.2.4](https://github.com/taskforcesh/bullmq/compare/vpy2.2.3...vpy2.2.4) (2024-02-13)
+
+
+### Bug Fixes
+
+* **flow:** parent job cannot be replaced (python) ([#2417](https://github.com/taskforcesh/bullmq/issues/2417)) ([2696ef8](https://github.com/taskforcesh/bullmq/commit/2696ef8200058b7f616938c2166a3b0454663b39))
 
 ## v2.2.3 (2024-02-10)
 

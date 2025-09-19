@@ -5,9 +5,6 @@
 
 * **deps:** upgrade bullmq to v5.58.5 ([#372](https://github.com/taskforcesh/bullmq-pro/issues/372)) ([c9645c5](https://github.com/taskforcesh/bullmq-pro/commit/c9645c53ec7ad49a7e9456e4fc6204c209acff2c))
 
-
-
-
 ## [7.38.5](https://github.com/taskforcesh/bullmq-pro/compare/v7.38.4...v7.38.5) (2025-09-05)
 
 
