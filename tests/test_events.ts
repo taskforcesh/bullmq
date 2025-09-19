@@ -753,10 +753,17 @@ describe('events', function () {
 
         const client = await trimmedQueue.client;
 
-        const waitCompletedEvent = new Promise<void>(resolve => {
+        const waitCompletedEvent = new Promise<void>((resolve, reject) => {
           queueEvents.on('waiting', async ({ jobId, prev }) => {
-            if (prev === 'failed' && jobId === numJobs + '') {
-              resolve();
+            try {
+              if (prev) {
+                expect(prev).to.be.eql('active');
+                if (jobId === numJobs + '') {
+                  resolve();
+                }
+              }
+            } catch (error) {
+              reject(error);
             }
           });
         });

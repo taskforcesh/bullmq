@@ -310,6 +310,7 @@ describe('deduplication', function () {
   describe('when job is deduplicated when added again with same debounce id', function () {
     it('emits deduplicated event', async function () {
       const testName = 'test';
+      const dedupId = 'dedupId';
       const worker = new Worker(
         queueName,
         async () => {
@@ -325,7 +326,7 @@ describe('deduplication', function () {
           ({ jobId, deduplicationId, deduplicatedJobId }) => {
             try {
               expect(jobId).to.be.equal('a1');
-              expect(deduplicationId).to.be.equal('dedupKey');
+              expect(deduplicationId).to.be.equal(dedupId);
               expect(deduplicatedJobId).to.be.equal('a2');
               resolve();
             } catch (error) {
@@ -335,15 +336,15 @@ describe('deduplication', function () {
         );
       });
 
-      const firstJob = await queue.add(
+      await queue.add(
         testName,
         { foo: 'bar' },
-        { jobId: 'a1', deduplication: { id: 'dedupKey' } },
+        { jobId: 'a1', deduplication: { id: dedupId } },
       );
-      const secondJob = await queue.add(
+      await queue.add(
         testName,
         { foo: 'bar' },
-        { jobId: 'a2', deduplication: { id: 'dedupKey' } },
+        { jobId: 'a2', deduplication: { id: dedupId } },
       );
 
       await waitingEvent;
