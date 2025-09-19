@@ -146,4 +146,6 @@
 ## Python
 
 * [Introduction](python/introduction.md)
-* [Changelog](python/changelog.md)
+* [Changelogs](python/changelog.md)
+  * [v1](python/changelogs/changelog-v1.md)
+  * [v0](python/changelogs/changelog-v0.md)
