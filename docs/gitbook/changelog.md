@@ -1,3 +1,9 @@
+## [5.58.7](https://github.com/taskforcesh/bullmq/compare/v5.58.6...v5.58.7) (2025-09-19)
+
+### Bug Fixes
+
+* **job:** add custom jobId validation to prevent : inclusion ([#3384](https://github.com/taskforcesh/bullmq/issues/3384)) fixes [#3382](https://github.com/taskforcesh/bullmq/issues/3382) ([845a6f5](https://github.com/taskforcesh/bullmq/commit/845a6f5fdede9ecf4050e8b5617feb56dbb3c9a1))
+
 ## [5.58.6](https://github.com/taskforcesh/bullmq/compare/v5.58.5...v5.58.6) (2025-09-19)
 
 
