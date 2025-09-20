@@ -523,7 +523,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
         prevTS: parseInt(meta[1] || '0', 10),
         prevCount: parseInt(meta[2] || '0', 10),
       },
-      data: data.map(point => parseInt(point || '0', 10)),
+      data: data.map(point => +point || 0),
       count,
     };
   }
