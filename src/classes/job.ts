@@ -1479,6 +1479,19 @@ export class Job<
       }
     }
 
+    if (this.opts.deduplication) {
+      if (!this.opts.deduplication?.id) {
+        throw new Error('Deduplication id must be provided');
+      }
+    }
+
+    // TODO: remove in v6
+    if (this.opts.debounce) {
+      if (!this.opts.debounce?.id) {
+        throw new Error('Debounce id must be provided');
+      }
+    }
+
     if (
       typeof this.opts.backoff === 'object' &&
       typeof this.opts.backoff.jitter === 'number'
