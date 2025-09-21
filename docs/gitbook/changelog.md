@@ -1,22 +1,17 @@
-## <small>5.58.6 (2025-09-19)</small>
+## [5.58.7](https://github.com/taskforcesh/bullmq/compare/v5.58.6...v5.58.7) (2025-09-19)
 
-* fix(deduplication): validate id option is provided (#3443) fixes #3432 ([533b844](https://github.com/taskforcesh/bullmq/commit/533b844)), closes [#3432](https://github.com/taskforcesh/bullmq/issues/3432)
-* fix(deps): upgrade semver to v3 [python] (#3414) ([7dfd251](https://github.com/taskforcesh/bullmq/commit/7dfd251)), closes [#3414](https://github.com/taskforcesh/bullmq/issues/3414)
-* fix(deps): upgrade uuid to v11 (#3452) ([bd8fbc1](https://github.com/taskforcesh/bullmq/commit/bd8fbc1)), closes [#3452](https://github.com/taskforcesh/bullmq/issues/3452)
-* fix(events): set prev param as active when calling retryJob script (#3426) ([e0ebd15](https://github.com/taskforcesh/bullmq/commit/e0ebd15)), closes [#3426](https://github.com/taskforcesh/bullmq/issues/3426)
-* docs: update bullmq-pro changelog for version v7.38.5 (#3428) ([c8c2b16](https://github.com/taskforcesh/bullmq/commit/c8c2b16)), closes [#3428](https://github.com/taskforcesh/bullmq/issues/3428)
-* docs: update bullmq-pro changelog for version v7.39.0 (#3453) ([ccb1b4d](https://github.com/taskforcesh/bullmq/commit/ccb1b4d)), closes [#3453](https://github.com/taskforcesh/bullmq/issues/3453)
-* docs(changelog): update python changelog to use semantic format (#3441) ([96e9413](https://github.com/taskforcesh/bullmq/commit/96e9413)), closes [#3441](https://github.com/taskforcesh/bullmq/issues/3441)
-* docs(changelog): update python changelogs to nodejs format (#3440) ([f5f13b3](https://github.com/taskforcesh/bullmq/commit/f5f13b3)), closes [#3440](https://github.com/taskforcesh/bullmq/issues/3440)
-* docs(guide): add migration from bull to bullmq section (#3409) ([2d3c380](https://github.com/taskforcesh/bullmq/commit/2d3c380)), closes [#3409](https://github.com/taskforcesh/bullmq/issues/3409)
-* docs(guide): fix jitter link format (#3445) ([61f625f](https://github.com/taskforcesh/bullmq/commit/61f625f)), closes [#3445](https://github.com/taskforcesh/bullmq/issues/3445)
-* docs(guide): fix typo in parallelism-and-concurrency (#3435) ([ab7cfe0](https://github.com/taskforcesh/bullmq/commit/ab7cfe0)), closes [#3435](https://github.com/taskforcesh/bullmq/issues/3435)
-* chore(release): 5.58.5 (#3425) ([4cd20ff](https://github.com/taskforcesh/bullmq/commit/4cd20ff)), closes [#3425](https://github.com/taskforcesh/bullmq/issues/3425)
-* chore(release): vpy2.16.0 (#3436) ([86d4a96](https://github.com/taskforcesh/bullmq/commit/86d4a96)), closes [#3436](https://github.com/taskforcesh/bullmq/issues/3436)
-* chore(release): vpy2.16.1 (#3437) ([0db7cc5](https://github.com/taskforcesh/bullmq/commit/0db7cc5)), closes [#3437](https://github.com/taskforcesh/bullmq/issues/3437)
-* feat(queue): support getWaitingCount method [python] (#3434) ([1c75abb](https://github.com/taskforcesh/bullmq/commit/1c75abb)), closes [#3434](https://github.com/taskforcesh/bullmq/issues/3434)
-* ci: configure semantic-release in python (#3431) ([24a697e](https://github.com/taskforcesh/bullmq/commit/24a697e)), closes [#3431](https://github.com/taskforcesh/bullmq/issues/3431)
-* test: add case when cleaning completed jobs and there are job schedulers (#3429) ([6f6a68d](https://github.com/taskforcesh/bullmq/commit/6f6a68d)), closes [#3429](https://github.com/taskforcesh/bullmq/issues/3429)
+### Bug Fixes
+
+* **job:** add custom jobId validation to prevent : inclusion ([#3384](https://github.com/taskforcesh/bullmq/issues/3384)) fixes [#3382](https://github.com/taskforcesh/bullmq/issues/3382) ([845a6f5](https://github.com/taskforcesh/bullmq/commit/845a6f5fdede9ecf4050e8b5617feb56dbb3c9a1))
+
+## [5.58.6](https://github.com/taskforcesh/bullmq/compare/v5.58.5...v5.58.6) (2025-09-19)
+
+
+### Bug Fixes
+
+* **deps:** upgrade uuid to v11 ([#3452](https://github.com/taskforcesh/bullmq/issues/3452)) ([bd8fbc1](https://github.com/taskforcesh/bullmq/commit/bd8fbc164caaa01f665d0c7e94177d0584d04f8c))
+* **events:** set prev param as active when calling retryJob script ([#3426](https://github.com/taskforcesh/bullmq/issues/3426)) ([e0ebd15](https://github.com/taskforcesh/bullmq/commit/e0ebd15e47b95f9300d6683475ec5d2176f07c95))
+* **deduplication:** validate id option is provided ([#3443](https://github.com/taskforcesh/bullmq/issues/3443)) fixes [#3432](https://github.com/taskforcesh/bullmq/issues/3432) ([533b844](https://github.com/taskforcesh/bullmq/commit/533b84461a908a3d0182002f16e9c0c0a0260014))
 
 ## [5.58.5](https://github.com/taskforcesh/bullmq/compare/v5.58.4...v5.58.5) (2025-09-04)
 
@@ -1600,7 +1595,7 @@
 
 * **connection:** require connection to be passed ([#2335](https://github.com/taskforcesh/bullmq/issues/2335)) ([1867dd1](https://github.com/taskforcesh/bullmq/commit/1867dd107d7edbd417bf6918354ae4656480a544))
 * **job:** revert console warn custom job ids when they represent integers ([#2312](https://github.com/taskforcesh/bullmq/issues/2312)) ([84015ff](https://github.com/taskforcesh/bullmq/commit/84015ffa04216c45d8f3181a7f859b8c0792c80d))
-* **worker:** Markers use now a dedicated key in redis instead of using a special Job ID.
+* **worker:** markers use now a dedicated key in redis instead of using a special Job ID. ([`73cf5fc`](https://github.com/taskforcesh/bullmq/commit/73cf5fc1e6e13d8329e1e4e700a8db92173e0624)) ([`0bac0fb`](https://github.com/taskforcesh/bullmq/commit/0bac0fbb97afa968aa7644f1438b86d7bc18bbc5))
 
 * references:
   - [Better Queue Markers](https://bullmq.io/news/231204/better-queue-markers/)

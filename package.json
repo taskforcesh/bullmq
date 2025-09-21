@@ -1,6 +1,6 @@
 {
   "name": "bullmq",
-  "version": "5.58.6",
+  "version": "5.58.7",
   "description": "Queue for messages and jobs based on Redis",
   "homepage": "https://bullmq.io/",
   "main": "./dist/cjs/index.js",
@@ -88,6 +88,7 @@
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
     "commitizen": "^4.3.1",
+    "conventional-changelog-conventionalcommits": "^9.1.0",
     "coveralls-next": "^5.0.0",
     "cpx2": "^8.0.0",
     "eslint": "^9.32.0",
