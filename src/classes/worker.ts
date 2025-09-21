@@ -834,9 +834,42 @@ will never work with more accuracy than 1ms. */
           });
         }
       } catch (err) {
-        throw new Error(
-          `Failed to add repeatable job for next iteration: ${err}`,
+        // Emit error but don't throw to avoid breaking current job completion
+        // and leaving the new job in stalled state
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        const schedulingError = new Error(
+          `Failed to add repeatable job for next iteration: ${errorMessage}`,
         );
+        this.emit('error', schedulingError);
+
+        // Try to move the job to delayed with backoff to prevent infinite retry loops
+        try {
+          // Calculate backoff delay: base delay of 5 seconds, exponentially increasing with attempts
+          const baseDelay = 1000; // 1 second
+          const maxDelay = 300000; // 5 minutes max
+          const attempt = (job.stalledCounter || 0) + 1;
+          const exponentialDelay = Math.min(
+            baseDelay * Math.pow(2, attempt - 1),
+            maxDelay,
+          );
+
+          await job.moveToDelayed(Date.now() + exponentialDelay, job.token);
+        } catch (moveErr) {
+          // If we can't move it to delayed, emit error and let it become stalled
+          // Stalled jobs will be automatically retried by the stalled checker
+          const moveErrorMessage =
+            moveErr instanceof Error ? moveErr.message : String(moveErr);
+          this.emit(
+            'error',
+            new Error(
+              `Failed to move job ${job.id} to delayed after scheduling error: ${moveErrorMessage}. 
+              Job will become stalled and be retried automatically.`,
+            ),
+          );
+        }
+
+        // Return undefined to indicate no next job is available
+        return undefined;
       }
       return job;
     }

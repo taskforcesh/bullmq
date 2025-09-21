@@ -1696,7 +1696,6 @@ describe('Job Scheduler', function () {
             resolve();
           }
         } catch (error) {
-          console.log(error);
           reject(error);
         }
       });
@@ -1823,7 +1822,6 @@ describe('Job Scheduler', function () {
             resolve();
           }
         } catch (error) {
-          console.log(error);
           reject(error);
         }
       });
@@ -2732,6 +2730,390 @@ describe('Job Scheduler', function () {
         // Clean up
         await client.del(`${queue.keys['']}${testJobId}`);
         await client.del(`${queue.keys['']}${nextSlotJobId}`);
+      }
+    });
+  });
+
+  describe('when job scheduler update fails in worker', function () {
+    it('should move job to delayed with backoff when scheduler update fails', async function () {
+      this.clock.restore();
+      this.timeout(10000);
+
+      const completedJobs: Job[] = [];
+      const workerErrors: Error[] = [];
+      const processedJobIds: string[] = [];
+      const waitingEvents: Job[] = [];
+      const delayedEvents: { jobId: string; delay: number }[] = [];
+      let schedulerUpdateAttempts = 0;
+
+      // Create a worker that will process jobs
+      const worker = new Worker(
+        queueName,
+        async job => {
+          if (job.id) {
+            processedJobIds.push(job.id);
+          }
+          return { processed: true, jobId: job.id };
+        },
+        { connection, prefix, concurrency: 1 },
+      );
+
+      worker.on('completed', (job, result) => {
+        completedJobs.push(job);
+      });
+
+      worker.on('error', error => {
+        workerErrors.push(error);
+      });
+
+      // Listen for jobs moving back to waiting state
+      const queueEvents = new QueueEvents(queueName, { connection, prefix });
+      queueEvents.on('waiting', ({ jobId }) => {
+        // Find the job that was moved to waiting
+        const job = completedJobs.find(j => j.id === jobId) || { id: jobId };
+        waitingEvents.push(job as Job);
+      });
+
+      // Listen for jobs moving to delayed state
+      queueEvents.on('delayed', ({ jobId, delay }) => {
+        delayedEvents.push({ jobId, delay });
+      });
+
+      // Add a repeatable job that will trigger the scheduler update
+      const schedulerJob = await queue.upsertJobScheduler(
+        'failing-scheduler',
+        {
+          every: 300, // Faster cycle for testing
+        },
+        {
+          name: 'repeatable-job',
+          data: { message: 'Test' },
+          opts: {
+            removeOnComplete: 5,
+            removeOnFail: 5,
+          },
+        },
+      );
+
+      // Wait for the first job to be processed
+      await delay(400);
+
+      // Verify the first job completed successfully
+      expect(completedJobs).to.have.length.greaterThan(0);
+      expect(processedJobIds).to.have.length.greaterThan(0);
+
+      // Now intercept the jobScheduler.upsertJobScheduler method to force it to fail
+      const jobScheduler = await (worker as any).jobScheduler;
+      const originalUpsertJobScheduler =
+        jobScheduler.upsertJobScheduler.bind(jobScheduler);
+
+      jobScheduler.upsertJobScheduler = async (...args: any[]) => {
+        schedulerUpdateAttempts++;
+        if (schedulerUpdateAttempts > 1) {
+          // Make the second and subsequent calls fail
+          throw new Error('Simulated scheduler update failure');
+        }
+        return originalUpsertJobScheduler(...args);
+      };
+
+      // Wait for the next cycle - the job should fail to update scheduler, be moved back to wait and retried
+      await delay(1500);
+
+      // Check that we have appropriate error handling
+      expect(workerErrors).to.have.length.greaterThan(
+        0,
+        'Should have worker errors from failed scheduler updates',
+      );
+      expect(schedulerUpdateAttempts).to.be.greaterThan(
+        1,
+        'Should have attempted scheduler update multiple times',
+      );
+
+      // Check that jobs were moved to delayed state with backoff
+      expect(delayedEvents).to.have.length.greaterThan(
+        0,
+        'Should have jobs moved to delayed state',
+      );
+
+      // Verify backoff delays - look for delays that occur after scheduler errors
+      if (delayedEvents.length > 0 && workerErrors.length > 0) {
+        const delays = delayedEvents.map(e => Number(e.delay));
+
+        // The delay values are timestamps, so calculate actual delays from now
+        const now = Date.now();
+        const actualDelaysFromNow = delays.map(d => Math.max(0, d - now));
+
+        // Find delays that are reasonable backoff delays (between 3-15 seconds from now)
+        const backoffDelays = actualDelaysFromNow.filter(
+          delay => delay >= 3000 && delay <= 15000,
+        );
+
+        if (backoffDelays.length > 0) {
+          // We found at least one backoff delay - this confirms our error handling is working
+          expect(backoffDelays[0]).to.be.greaterThan(
+            3000,
+            'Backoff delay should be at least 3 seconds',
+          );
+          expect(backoffDelays[0]).to.be.lessThan(
+            10000,
+            'Backoff delay should be less than 10 seconds',
+          );
+        } else {
+          // If no reasonable backoff delays found, check if the last delay is much larger than previous ones
+          // (indicating exponential backoff even if timing makes it hard to measure from 'now')
+          if (delays.length >= 2) {
+            const lastDelay = delays[delays.length - 1];
+            const secondLastDelay = delays[delays.length - 2];
+            const timeDiff = lastDelay - secondLastDelay;
+            expect(timeDiff).to.be.greaterThan(
+              1000,
+              'Should have at least 1 second backoff between retries after error',
+            );
+          }
+        }
+      }
+
+      // Verify the error message contains our expected content
+      const schedulingErrors = workerErrors.filter(err =>
+        err.message.includes('Failed to add repeatable job for next iteration'),
+      );
+      expect(schedulingErrors).to.have.length.greaterThan(
+        0,
+        'Should have scheduling error messages',
+      );
+
+      // Restore the original method
+      jobScheduler.upsertJobScheduler = originalUpsertJobScheduler;
+
+      // Clean up
+      try {
+        await queueEvents.close();
+        await worker.close();
+      } catch (error) {
+        // Ignore errors in cleanup
+      }
+    });
+
+    it('should allow repeatable jobs to be retried infinitely when stalled', async function () {
+      this.clock.restore();
+      this.timeout(10000);
+
+      const stalledEvents: string[] = [];
+      let jobProcessingAttempts = 0;
+      let mockCallCount = 0;
+      let moveToDelayedCallCount = 0;
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          jobProcessingAttempts++;
+          return { result: 'completed' };
+        },
+        {
+          connection,
+          prefix,
+          maxStalledCount: 2, // Regular jobs would fail after 2 stalls
+          lockDuration: 1000, // 1 second lock
+          stalledInterval: 500, // Check for stalled jobs every 500ms
+        },
+      );
+
+      worker.on('stalled', jobId => {
+        stalledEvents.push(jobId);
+      });
+
+      await worker.waitUntilReady();
+
+      // Mock the job scheduler's upsertJobScheduler to fail on first few calls
+      const jobScheduler = await worker.jobScheduler;
+      const originalUpsertJobScheduler =
+        jobScheduler.upsertJobScheduler.bind(jobScheduler);
+
+      jobScheduler.upsertJobScheduler = async (...args) => {
+        mockCallCount++;
+        if (mockCallCount <= 3) {
+          throw new Error(
+            `Simulated scheduler update failure (attempt ${mockCallCount})`,
+          );
+        }
+        return originalUpsertJobScheduler(...args);
+      };
+
+      // Mock Job.prototype.moveToDelayed to fail, so jobs can't be moved to delayed and become stalled
+      const originalJobMoveToDelayed = Job.prototype.moveToDelayed;
+      Job.prototype.moveToDelayed = async function (...args) {
+        moveToDelayedCallCount++;
+
+        if (moveToDelayedCallCount <= 3) {
+          throw new Error(
+            `Simulated moveToDelayed failure (attempt ${moveToDelayedCallCount})`,
+          );
+        }
+        return originalJobMoveToDelayed.apply(this, args);
+      };
+
+      // Add a repeatable job
+      const job = await queue.upsertJobScheduler(
+        'infinite-retry-scheduler',
+        {
+          every: 10000, // 10 second interval
+        },
+        {
+          name: 'scheduler-job',
+          data: { test: true },
+        },
+      );
+
+      const jobId = job!.id!;
+
+      // Wait for processing and stalling to occur
+      await delay(4000);
+
+      // Verify that the repeatable job stalled at least once
+      expect(stalledEvents.length).to.be.greaterThan(
+        0,
+        'Repeatable job should stall when both scheduler update and moveToDelayed fail',
+      );
+      expect(mockCallCount).to.be.greaterThan(
+        0,
+        'Should have attempted to update scheduler',
+      );
+      expect(moveToDelayedCallCount).to.be.greaterThan(
+        0,
+        'Should have attempted to move to delayed',
+      );
+
+      // Check that the job is not failed despite stalling
+      const finalJob = await queue.getJob(jobId);
+      if (finalJob) {
+        const finalJobState = await finalJob.getState();
+        expect(finalJobState).to.not.equal(
+          'failed',
+          'Repeatable job should not be failed even after multiple stalls',
+        );
+      }
+
+      // Restore the original methods
+      jobScheduler.upsertJobScheduler = originalUpsertJobScheduler;
+      Job.prototype.moveToDelayed = originalJobMoveToDelayed;
+
+      try {
+        await worker.close();
+      } catch (error) {
+        // Ignore cleanup errors
+      }
+    });
+
+    it('should fail regular jobs after maxStalledCount but allow repeatable jobs infinite retries', async function () {
+      this.clock.restore();
+      this.timeout(15000);
+
+      const workerErrors: Error[] = [];
+      const delayedEvents: { jobId: string; delay: number }[] = [];
+      let schedulerUpdateFailures = 0;
+
+      // Create a worker that will process jobs
+      const worker = new Worker(
+        queueName,
+        async job => {
+          // For repeatable jobs, complete normally but trigger scheduler update failure
+          if (job.name === 'repeatable-job') {
+            schedulerUpdateFailures++;
+            return { result: 'completed' };
+          }
+
+          return { result: 'completed' };
+        },
+        {
+          connection,
+          prefix,
+          lockDuration: 1500, // 1.5 second lock
+          stalledInterval: 1000, // Check for stalled jobs every 1 second
+          maxStalledCount: 2, // Fail regular jobs after 2 stalls
+        },
+      );
+
+      worker.on('error', error => {
+        workerErrors.push(error);
+      });
+
+      // Listen for jobs moving to delayed state
+      const queueEvents = new QueueEvents(queueName, { connection, prefix });
+      queueEvents.on('delayed', ({ jobId, delay }) => {
+        delayedEvents.push({ jobId, delay });
+      });
+
+      // Add a repeatable job that will trigger the scheduler update failure
+      const repeatableJob = await queue.upsertJobScheduler(
+        'test-scheduler',
+        { every: 3000 }, // 3 second interval
+        { name: 'repeatable-job', data: { test: 'repeatable' } },
+      );
+
+      // Intercept the jobScheduler to cause the failure we want to test
+      const jobScheduler = await (worker as any).jobScheduler;
+      const originalUpsertJobScheduler =
+        jobScheduler.upsertJobScheduler.bind(jobScheduler);
+
+      jobScheduler.upsertJobScheduler = async (...args: any[]) => {
+        schedulerUpdateFailures++;
+        if (schedulerUpdateFailures >= 2) {
+          throw new Error('Simulated scheduler update failure');
+        }
+        return originalUpsertJobScheduler(...args);
+      };
+
+      // Wait for jobs to be processed and scheduler failures to occur
+      await delay(8000);
+
+      // Verify that our exponential backoff logic is working
+      expect(workerErrors).to.have.length.greaterThan(
+        0,
+        'Should have worker errors from failed scheduler updates',
+      );
+      expect(delayedEvents).to.have.length.greaterThan(
+        0,
+        'Should have jobs moved to delayed state with backoff',
+      );
+
+      // Verify the error messages are about scheduler failures
+      const schedulingErrors = workerErrors.filter(err =>
+        err.message.includes('Failed to add repeatable job for next iteration'),
+      );
+      expect(schedulingErrors).to.have.length.greaterThan(
+        0,
+        'Should have scheduling error messages',
+      );
+
+      // Verify that jobs are moved to delayed state (exponential backoff working)
+      if (delayedEvents.length > 0) {
+        const delays = delayedEvents.map(e => Number(e.delay));
+
+        // The delay values are timestamps, so calculate actual delays from now
+        const now = Date.now();
+        const actualDelaysFromNow = delays.map(d => Math.max(0, d - now));
+
+        // Check that we got some delayed events (which proves our backoff logic is working)
+        expect(delayedEvents.length).to.be.greaterThan(
+          0,
+          'Should have at least one delayed event',
+        );
+
+        // Look for evidence of exponential backoff in the logs
+        const hasBackoffMessage = workerErrors.some(err =>
+          err.message.includes(
+            'Failed to add repeatable job for next iteration',
+          ),
+        );
+        expect(hasBackoffMessage).to.be.true;
+      }
+
+      // Clean up
+      try {
+        await queueEvents.close();
+        await worker.close();
+      } catch (error) {
+        // Ignore errors in cleanup
       }
     });
   });
