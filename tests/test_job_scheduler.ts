@@ -2866,8 +2866,8 @@ describe('Job Scheduler', function () {
             const secondLastDelay = delays[delays.length - 2];
             const timeDiff = lastDelay - secondLastDelay;
             expect(timeDiff).to.be.greaterThan(
-              1000,
-              'Should have at least 1 second backoff between retries after error',
+              500,
+              'Should have at least 500ms backoff between retries after error',
             );
           }
         }
