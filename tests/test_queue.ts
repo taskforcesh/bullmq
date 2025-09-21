@@ -451,6 +451,24 @@ describe('queues', function () {
     });
   });
 
+  describe('.remove', () => {
+    it.only('should emit "removed" event when a job is removed via queue.remove()', async () => {
+      await queue.waitUntilReady();
+
+      const job = await queue.add('test-job', { foo: 'bar' });
+
+      const removedPromise = new Promise<Job>(resolve => {
+        queue.on('removed', job => resolve(job));
+      });
+
+      const result = await queue.remove(job.id!);
+      expect(result).to.equal(1);
+
+      const removedJob = await removedPromise;
+      expect(removedJob.id).to.equal(job.id);
+    });
+  });
+
   describe('.removeDeprecatedPriorityKey', () => {
     it('removes old priority key', async () => {
       const client = await queue.client;

@@ -804,7 +804,14 @@ export class Queue<
           }),
         });
 
-        return await this.scripts.remove(jobId, removeChildren);
+        const job = await this.getJob(jobId);
+        const result = await this.scripts.remove(jobId, removeChildren);
+
+        if (result === 1 && job) {
+          this.emit('removed', job as JobBase<DataType, ResultType, NameType>);
+        }
+
+        return result;
       },
     );
   }
