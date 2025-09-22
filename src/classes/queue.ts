@@ -810,7 +810,12 @@ export class Queue<
           return 0;
         }
 
-        return await job.remove({ removeChildren });
+        try {
+          await job.remove({ removeChildren });
+          return 1;
+        } catch (err) {
+          return 0;
+        }
       },
     );
   }

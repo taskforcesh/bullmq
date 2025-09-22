@@ -660,7 +660,7 @@ export class Job<
    *
    * @param opts - Options to remove a job
    */
-  async remove({ removeChildren = true } = {}): Promise<number> {
+  async remove({ removeChildren = true } = {}): Promise<void> {
     await this.queue.waitUntilReady();
 
     const queue = this.queue;
@@ -669,7 +669,6 @@ export class Job<
     const removed = await this.scripts.remove(job.id, removeChildren);
     if (removed) {
       queue.emit('removed', job);
-      return removed;
     } else {
       throw new Error(
         `Job ${this.id} could not be removed because it is locked by another worker`,
