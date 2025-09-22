@@ -805,13 +805,12 @@ export class Queue<
         });
 
         const job = await this.getJob(jobId);
-        const result = await this.scripts.remove(jobId, removeChildren);
 
-        if (result === 1 && job) {
-          this.emit('removed', job as JobBase<DataType, ResultType, NameType>);
+        if (!job) {
+          return 0;
         }
 
-        return result;
+        return await job.remove({ removeChildren });
       },
     );
   }
