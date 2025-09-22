@@ -452,7 +452,7 @@ describe('queues', function () {
   });
 
   describe('.remove', () => {
-    it.only('should emit "removed" event when a job is removed via queue.remove()', async () => {
+    it('should emit "removed" event when a job is removed via queue.remove()', async () => {
       await queue.waitUntilReady();
 
       const job = await queue.add('test-job', { foo: 'bar' });
