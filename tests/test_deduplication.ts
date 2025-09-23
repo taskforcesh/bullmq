@@ -311,14 +311,6 @@ describe('deduplication', function () {
     it('emits deduplicated event', async function () {
       const testName = 'test';
       const dedupId = 'dedupId';
-      const worker = new Worker(
-        queueName,
-        async () => {
-          await delay(50);
-        },
-        { autorun: false, connection, prefix },
-      );
-      await worker.waitUntilReady();
 
       const waitingEvent = new Promise<void>((resolve, reject) => {
         queueEvents.on(
@@ -348,7 +340,51 @@ describe('deduplication', function () {
       );
 
       await waitingEvent;
-      await worker.close();
+    });
+
+    describe('when removing deduplication key', function () {
+      it('should stop deduplication', async function () {
+        const testName = 'test';
+        const deduplicationId = 'dedupId';
+        const worker = new Worker(
+          queueName,
+          async job => {
+            await queue.removeDeduplicationKey(job.deduplicationId!);
+            await delay(100);
+          },
+          { autorun: false, connection, prefix },
+        );
+        await worker.waitUntilReady();
+
+        const completing = new Promise<void>((resolve, reject) => {
+          worker.on('completed', job => {
+            try {
+              expect(job.deduplicationId).to.be.equal(deduplicationId);
+              if (job.id === 'a2') {
+                resolve();
+              }
+            } catch (error) {
+              reject(error);
+            }
+          });
+        });
+        worker.run();
+
+        await queue.add(
+          testName,
+          { foo: 'bar' },
+          { jobId: 'a1', deduplication: { id: deduplicationId } },
+        );
+        await delay(25);
+        await queue.add(
+          testName,
+          { foo: 'bar' },
+          { jobId: 'a2', deduplication: { id: deduplicationId } },
+        );
+
+        await completing;
+        await worker.close();
+      });
     });
 
     describe('when ttl is provided', function () {
