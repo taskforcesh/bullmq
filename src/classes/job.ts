@@ -1461,8 +1461,19 @@ export class Job<
       );
     }
 
-    if (`${parseInt(this.id, 10)}` === this.id) {
-      throw new Error('Custom Ids cannot be integers');
+    if (this.opts?.jobId) {
+      if (`${parseInt(this.opts.jobId, 10)}` === this.opts?.jobId) {
+        throw new Error('Custom Id cannot be integers');
+      }
+
+      // TODO: replace this check in next breaking check with include(':')
+      // By using split we are still keeping compatibility with old repeatable jobs
+      if (
+        this.opts?.jobId.includes(':') &&
+        this.opts?.jobId?.split(':').length !== 3
+      ) {
+        throw new Error('Custom Id cannot contain :');
+      }
     }
 
     if (this.opts.priority) {
@@ -1472,6 +1483,19 @@ export class Job<
 
       if (this.opts.priority > PRIORITY_LIMIT) {
         throw new Error(`Priority should be between 0 and ${PRIORITY_LIMIT}`);
+      }
+    }
+
+    if (this.opts.deduplication) {
+      if (!this.opts.deduplication?.id) {
+        throw new Error('Deduplication id must be provided');
+      }
+    }
+
+    // TODO: remove in v6
+    if (this.opts.debounce) {
+      if (!this.opts.debounce?.id) {
+        throw new Error('Debounce id must be provided');
       }
     }
 

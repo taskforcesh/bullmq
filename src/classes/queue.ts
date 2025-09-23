@@ -926,7 +926,7 @@ export class Queue<
 
   /**
    * Completely destroys the queue and all of its contents irreversibly.
-   * This method will the *pause* the queue and requires that there are no
+   * This method will *pause* the queue and requires that there are no
    * active jobs. It is possible to bypass this requirement, i.e. not
    * having active jobs using the "force" option.
    *

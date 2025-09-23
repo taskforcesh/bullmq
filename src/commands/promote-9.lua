@@ -50,7 +50,6 @@ if rcall("ZREM", KEYS[1], jobId) == 1 then
         addJobWithPriority(markerKey, KEYS[5], priority, jobId, KEYS[7], isPausedOrMaxed)
     end
 
-    -- Emit waiting event (wait..ing@token)
     rcall("XADD", KEYS[8], "*", "event", "waiting", "jobId", jobId, "prev",
           "delayed");
 

@@ -3295,10 +3295,23 @@ describe('workers', function () {
         worker.on('completed', () => {
           reject(new Error('Failed job was retried more than it should be!'));
         });
+        queueEvents.on('waiting', async ({ prev }) => {
+          try {
+            if (prev) {
+              expect(prev).to.eql('active');
+            }
+          } catch (error) {
+            reject(error);
+          }
+        });
         queueEvents.on('retries-exhausted', async ({ jobId, attemptsMade }) => {
-          expect(jobId).to.eql(job.id);
-          expect(3).to.eql(Number(attemptsMade));
-          resolve();
+          try {
+            expect(jobId).to.eql(job.id);
+            expect(3).to.eql(Number(attemptsMade));
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
         });
       });
 

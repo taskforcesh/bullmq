@@ -52,14 +52,13 @@ describe('queues', function () {
     });
 
     it('should resolve Job<any, any, string> when no generics provided', async function () {
-      const defaultQueue = new Queue(queueName, { prefix, connection });
+      await queue.add('test-job', { foo: 'bar', num: 123 });
 
-      await defaultQueue.add('test-job', { foo: 'bar', num: 123 });
-      const jobs = await defaultQueue.getJobs(['waiting']);
+      const jobs = await queue.getJobs(['waiting']);
+
       expect(jobs).to.be.an('array');
       expect(jobs.length).to.be.at.least(1);
       expect(jobs[0]).to.be.instanceOf(Job);
-      await defaultQueue.close();
     });
   });
 
@@ -85,12 +84,20 @@ describe('queues', function () {
       it('throws error', async function () {
         await expect(
           queue.add('test', { foo: 1 }, { jobId: '2' }),
-        ).to.be.rejectedWith('Custom Ids cannot be integers');
+        ).to.be.rejectedWith('Custom Id cannot be integers');
+      });
+    });
+
+    describe('when custom job id contains :', () => {
+      it('throws an error', async () => {
+        await expect(
+          queue.add('test', { foo: 1 }, { jobId: '1:0' }),
+        ).to.be.rejectedWith('Custom Id cannot contain :');
       });
     });
   });
 
-  describe('when empty name contains :', () => {
+  describe('when queue name contains :', () => {
     it('throws an error', function () {
       expect(
         () =>
