@@ -292,11 +292,11 @@ export class Queue<
   }
 
   /**
-   * Enable and set rate limiter.
+   * Enable and set rate limit.
    * @param max - Max number of jobs to process in the time period specified in `duration`
    * @param duration - Time in milliseconds. During this time, a maximum of `max` jobs will be processed.
    */
-  async setGlobalRateLimiter(max: number, duration: number) {
+  async setGlobalRateLimit(max: number, duration: number) {
     const client = await this.client;
     return client.hset(this.keys.meta, 'max', max, 'duration', duration);
   }
