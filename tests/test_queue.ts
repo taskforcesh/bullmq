@@ -309,14 +309,12 @@ describe('queues', function () {
             const countAfterEmpty = await queue.count();
             expect(countAfterEmpty).to.be.eql(0);
 
-            const childrenFailedCount = await queue.getJobCountByTypes(
-              'failed',
-            );
+            const childrenFailedCount =
+              await queue.getJobCountByTypes('failed');
             expect(childrenFailedCount).to.be.eql(0);
 
-            const parentWaitCount = await parentQueue.getJobCountByTypes(
-              'wait',
-            );
+            const parentWaitCount =
+              await parentQueue.getJobCountByTypes('wait');
             expect(parentWaitCount).to.be.eql(1);
             await parentQueue.close();
             await flow.close();
@@ -363,9 +361,8 @@ describe('queues', function () {
             const failedCount = await queue.getJobCountByTypes('failed');
             expect(failedCount).to.be.eql(0);
 
-            const parentWaitCount = await parentQueue.getJobCountByTypes(
-              'wait',
-            );
+            const parentWaitCount =
+              await parentQueue.getJobCountByTypes('wait');
             expect(parentWaitCount).to.be.eql(1);
             await parentQueue.close();
             await flow.close();

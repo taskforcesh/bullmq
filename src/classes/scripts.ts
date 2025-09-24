@@ -733,8 +733,8 @@ export class Scripts {
     return typeof shouldRemove === 'object'
       ? shouldRemove
       : typeof shouldRemove === 'number'
-      ? { count: shouldRemove }
-      : { count: shouldRemove ? 0 : -1 };
+        ? { count: shouldRemove }
+        : { count: shouldRemove ? 0 : -1 };
   }
 
   async moveToFinished(

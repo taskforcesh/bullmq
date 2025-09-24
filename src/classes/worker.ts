@@ -717,9 +717,12 @@ will never work with more accuracy than 1ms. */
           // We cannot trust that the blocking connection stays blocking forever
           // due to issues in Redis and IORedis, so we will reconnect if we
           // don't get a response in the expected time.
-          timeout = setTimeout(async () => {
-            bclient.disconnect(!this.closing);
-          }, blockTimeout * 1000 + 1000);
+          timeout = setTimeout(
+            async () => {
+              bclient.disconnect(!this.closing);
+            },
+            blockTimeout * 1000 + 1000,
+          );
 
           this.updateDelays(); // reset delays to avoid reusing same values in next iteration
 
