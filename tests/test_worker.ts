@@ -1122,12 +1122,15 @@ describe('workers', function () {
   });
 
   describe('auto job removal', () => {
+    const timerMethodsForFaking = ['Date', 'setTimeout', 'clearTimeout'];
     async function testRemoveOnFinish(
       opts: boolean | number | KeepJobs,
       expectedCount: number,
       fail?: boolean,
     ) {
-      const clock = sinon.useFakeTimers();
+      const clock = sinon.useFakeTimers({
+        toFake: timerMethodsForFaking as any,
+      });
       clock.reset();
 
       const worker = new Worker(
@@ -1203,7 +1206,9 @@ describe('workers', function () {
       expectedCount: number,
       fail?: boolean,
     ) {
-      const clock = sinon.useFakeTimers();
+      const clock = sinon.useFakeTimers({
+        toFake: timerMethodsForFaking as any,
+      });
       clock.reset();
 
       const worker = new Worker(

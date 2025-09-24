@@ -96,33 +96,22 @@ export interface QueueListener<JobBase extends Job = Job>
  */
 type IsAny<T> = 0 extends 1 & T ? true : false;
 // Helper for JobBase type
-type JobBase<T, ResultType, NameType extends string> = IsAny<T> extends true
-  ? Job<T, ResultType, NameType>
-  : T extends Job<any, any, any>
-  ? T
-  : Job<T, ResultType, NameType>;
+type JobBase<T, ResultType, NameType extends string> =
+  IsAny<T> extends true
+    ? Job<T, ResultType, NameType>
+    : T extends Job<any, any, any>
+      ? T
+      : Job<T, ResultType, NameType>;
 
 // Helper types to extract DataType, ResultType, and NameType
-type ExtractDataType<DataTypeOrJob, Default> = DataTypeOrJob extends Job<
-  infer D,
-  any,
-  any
->
-  ? D
-  : Default;
+type ExtractDataType<DataTypeOrJob, Default> =
+  DataTypeOrJob extends Job<infer D, any, any> ? D : Default;
 
-type ExtractResultType<DataTypeOrJob, Default> = DataTypeOrJob extends Job<
-  any,
-  infer R,
-  any
->
-  ? R
-  : Default;
+type ExtractResultType<DataTypeOrJob, Default> =
+  DataTypeOrJob extends Job<any, infer R, any> ? R : Default;
 
-type ExtractNameType<
-  DataTypeOrJob,
-  Default extends string,
-> = DataTypeOrJob extends Job<any, any, infer N> ? N : Default;
+type ExtractNameType<DataTypeOrJob, Default extends string> =
+  DataTypeOrJob extends Job<any, any, infer N> ? N : Default;
 
 /**
  * Queue
