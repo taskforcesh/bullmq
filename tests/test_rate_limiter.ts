@@ -78,7 +78,7 @@ describe('Rate Limiter', function () {
     await worker.close();
   });
 
-  describe('when settting rate limit globally', () => {
+  describe('when setting rate limit globally', () => {
     it('should obey the rate limit', async function () {
       this.timeout(7000);
 
