@@ -3,6 +3,7 @@
 
     Input:
       KEYS[1] 'limiter'
+      KEYS[2] 'meta'
 
       ARGV[1] maxJobs
 ]]
@@ -16,5 +17,6 @@ local rateLimiterKey = KEYS[1]
 if ARGV[1] ~= "0" then
   return getRateLimitTTL(tonumber(ARGV[1]), rateLimiterKey)
 else
-  return rcall("PTTL", rateLimiterKey)
+  local rateLimitMax = rcall("HGET", KEYS[2], "max")
+  return getRateLimitTTL(tonumber(rateLimitMax), rateLimiterKey)
 end

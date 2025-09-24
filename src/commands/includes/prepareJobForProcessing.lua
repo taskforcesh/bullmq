@@ -10,7 +10,7 @@
 --- @include "addBaseMarkerIfNeeded"
 
 local function prepareJobForProcessing(keyPrefix, rateLimiterKey, eventStreamKey,
-    jobId, processedOn, maxJobs, markerKey, opts)
+    jobId, processedOn, maxJobs, limiterDuration, markerKey, opts)
   local jobKey = keyPrefix .. jobId
 
   -- Check if we need to perform rate limiting.
@@ -18,16 +18,14 @@ local function prepareJobForProcessing(keyPrefix, rateLimiterKey, eventStreamKey
     local jobCounter = tonumber(rcall("INCR", rateLimiterKey))
 
     if jobCounter == 1 then
-      local limiterDuration = opts['limiter'] and opts['limiter']['duration']
       local integerDuration = math.floor(math.abs(limiterDuration))
       rcall("PEXPIRE", rateLimiterKey, integerDuration)
     end
   end
 
-  local lockKey = jobKey .. ':lock'
-
   -- get a lock
   if opts['token'] ~= "0" then
+    local lockKey = jobKey .. ':lock'
     rcall("SET", lockKey, opts['token'], "PX", opts['lockDuration'])
   end
 
