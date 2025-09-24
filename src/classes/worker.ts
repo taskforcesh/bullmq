@@ -42,6 +42,8 @@ import {
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { JobScheduler } from './job-scheduler';
 
+const ONE_SECOND = 1000;
+
 // 10 seconds is the maximum time a BZPOPMIN can block.
 const maximumBlockTimeout = 10;
 
@@ -814,25 +816,30 @@ will never work with more accuracy than 1ms. */
       job.token = token;
 
       try {
-        // Use new job scheduler if possible
-        if (job.repeatJobKey && job.repeatJobKey.split(':').length < 5) {
-          const jobScheduler = await this.jobScheduler;
-          await jobScheduler.upsertJobScheduler(
-            // Most of these arguments are not really needed
-            // anymore as we read them from the job scheduler itself
-            job.repeatJobKey,
-            job.opts.repeat,
-            job.name,
-            job.data,
-            job.opts,
-            { override: false, producerId: job.id },
-          );
-        } else if (job.opts.repeat) {
-          const repeat = await this.repeat;
-          await repeat.updateRepeatableJob(job.name, job.data, job.opts, {
-            override: false,
-          });
-        }
+        await this.retryIfFailed(
+          async () => {
+            if (job.repeatJobKey && job.repeatJobKey.split(':').length < 5) {
+              const jobScheduler = await this.jobScheduler;
+              await jobScheduler.upsertJobScheduler(
+                // Most of these arguments are not really needed
+                // anymore as we read them from the job scheduler itself
+                job.repeatJobKey,
+                job.opts.repeat,
+                job.name,
+                job.data,
+                job.opts,
+                { override: false, producerId: job.id },
+              );
+            } else if (job.opts.repeat) {
+              const repeat = await this.repeat;
+              await repeat.updateRepeatableJob(job.name, job.data, job.opts, {
+                override: false,
+              });
+            }
+          },
+          2.5 * ONE_SECOND, // Wait 2.5 seconds between attempts
+          3, // Retry up to 3 times
+        );
       } catch (err) {
         // Emit error but don't throw to avoid breaking current job completion
         // and leaving the new job in stalled state
@@ -845,11 +852,11 @@ will never work with more accuracy than 1ms. */
         // Try to move the job to delayed with backoff to prevent infinite retry loops
         try {
           // Calculate backoff delay: base delay of 5 seconds, exponentially increasing with attempts
-          const baseDelay = 1000; // 1 second
-          const maxDelay = 300000; // 5 minutes max
-          const attempt = (job.stalledCounter || 0) + 1;
+          const baseDelay = ONE_SECOND; // 1 second
+          const maxDelay = 300 * ONE_SECOND; // 5 minutes max
+          const attempt = job.attemptsStarted;
           const exponentialDelay = Math.min(
-            baseDelay * Math.pow(2, attempt - 1),
+            baseDelay * Math.pow(2, attempt),
             maxDelay,
           );
 
@@ -1281,20 +1288,34 @@ will never work with more accuracy than 1ms. */
     reconnect && (await this.blockingConnection.reconnect());
   }
 
-  private async retryIfFailed<T>(fn: () => Promise<T>, delayInMs: number) {
-    const retry = 1;
+  private async retryIfFailed<T>(
+    fn: () => Promise<T>,
+    delayInMs: number,
+    maxRetries = Infinity,
+  ): Promise<T> {
+    let retry = 0;
+    let lastError: Error;
+
     do {
       try {
         return await fn();
       } catch (err) {
-        this.emit('error', <Error>err);
+        lastError = err as Error;
+        this.emit('error', lastError);
+
+        if (retry + 1 >= maxRetries) {
+          // If we've reached max retries, throw the last error
+          throw lastError;
+        }
+
         if (delayInMs) {
           await this.delay(delayInMs);
-        } else {
-          return;
         }
       }
-    } while (retry);
+    } while (++retry < maxRetries);
+
+    // This should never be reached, but just in case
+    throw lastError;
   }
 
   protected async extendLocks(jobs: Job[]) {
