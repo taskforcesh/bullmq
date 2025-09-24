@@ -1,4 +1,4 @@
-# Global Concurrency
+# Global Rate Limit
 
 The global rate limit config is a queue option that determines how many jobs are allowed to be processed in a specific period of time.
 
@@ -6,7 +6,7 @@ The global rate limit config is a queue option that determines how many jobs are
 import { Queue } from 'bullmq';
 
 // 1 job per second
-await queue.setGlobalRateLimiter(1, 1000);
+await queue.setGlobalRateLimit(1, 1000);
 ```
 
 And in order to get this value:
@@ -21,5 +21,5 @@ Note that if you choose a rate limit level in your workers, it won't override th
 
 ## Read more:
 
-- 💡 [Set Global Rate Limiter API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#setglobalratelimiter)
+- 💡 [Set Global Rate Limit API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#setglobalratelimit)
 - 💡 [Get Rate Limit Ttl API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getratelimitttl)

@@ -97,7 +97,7 @@ describe('Rate Limiter', function () {
         },
       );
 
-      await queue.setGlobalRateLimiter(1, 500);
+      await queue.setGlobalRateLimit(1, 500);
 
       const result = new Promise<void>((resolve, reject) => {
         queueEvents.on(
