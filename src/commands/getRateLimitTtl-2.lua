@@ -18,5 +18,9 @@ if ARGV[1] ~= "0" then
   return getRateLimitTTL(tonumber(ARGV[1]), rateLimiterKey)
 else
   local rateLimitMax = rcall("HGET", KEYS[2], "max")
-  return getRateLimitTTL(tonumber(rateLimitMax), rateLimiterKey)
+  if rateLimitMax then
+    return getRateLimitTTL(tonumber(rateLimitMax), rateLimiterKey)
+  end
+
+  return rcall("PTTL", rateLimiterKey)
 end
