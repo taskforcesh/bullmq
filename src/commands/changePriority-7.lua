@@ -50,7 +50,7 @@ if rcall("EXISTS", jobKey) == 1 then
     local prioritizedKey = KEYS[4]
     local priorityCounterKey = KEYS[6]
     local markerKey = KEYS[7]
-    
+
     -- Re-add with the new priority
     if rcall("ZREM", prioritizedKey, jobId) > 0 then
         reAddJobWithNewPriority( prioritizedKey, markerKey, target,

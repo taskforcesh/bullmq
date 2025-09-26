@@ -24,7 +24,6 @@ local rcall = redis.call
 -- Includes
 --- @include "includes/addJobInTargetList"
 --- @include "includes/batches"
---- @include "includes/getTargetQueueList"
 --- @include "includes/moveJobToWait"
 --- @include "includes/trimEvents"
 

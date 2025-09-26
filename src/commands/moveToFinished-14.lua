@@ -209,14 +209,15 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
     -- and not rate limited.
     if (ARGV[6] == "1") then
 
-        local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[2], KEYS[1], KEYS[8])
+        local target, isPausedOrMaxed, rateLimitMax, rateLimitDuration = getTargetQueueList(metaKey, KEYS[2],
+            KEYS[1], KEYS[8])
 
         local markerKey = KEYS[14]
         -- Check if there are delayed jobs that can be promoted
         promoteDelayedJobs(KEYS[7], markerKey, target, KEYS[3], eventStreamKey, prefix, timestamp, KEYS[10],
             isPausedOrMaxed)
 
-        local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
+        local maxJobs = tonumber(rateLimitMax or (opts['limiter'] and opts['limiter']['max']))
         -- Check if we are rate limited first.
         local expireTime = getRateLimitTTL(maxJobs, KEYS[6])
 
@@ -228,6 +229,8 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
         if isPausedOrMaxed then
             return {0, 0, 0, 0}
         end
+
+        local limiterDuration = (opts['limiter'] and opts['limiter']['duration']) or rateLimitDuration
 
         jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
 
@@ -241,17 +244,17 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
                 if jobId == "0:0" then
                     jobId = moveJobFromPrioritizedToActive(KEYS[3], KEYS[2], KEYS[10])
                     return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId, timestamp, maxJobs,
-                        markerKey, opts)
+                        limiterDuration, markerKey, opts)
                 end
             else
-                return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId, timestamp, maxJobs, markerKey,
-                    opts)
+                return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId, timestamp, maxJobs,
+                    limiterDuration, markerKey, opts)
             end
         else
             jobId = moveJobFromPrioritizedToActive(KEYS[3], KEYS[2], KEYS[10])
             if jobId then
-                return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId, timestamp, maxJobs, markerKey,
-                    opts)
+                return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId, timestamp, maxJobs,
+                    limiterDuration, markerKey, opts)
             end
         end
 
