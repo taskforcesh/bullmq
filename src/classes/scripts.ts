@@ -1422,6 +1422,28 @@ export class Scripts {
     }
   }
 
+  async getMetrics(
+    type: 'completed' | 'failed',
+    start = 0,
+    end = -1,
+  ): Promise<[string[], string[], number]> {
+    const client = await this.queue.client;
+
+    const keys: (string | number)[] = [
+      this.queue.toKey(`metrics:${type}`),
+      this.queue.toKey(`metrics:${type}:data`),
+    ];
+    const args = [start, end];
+
+    const result = await this.execCommand(
+      client,
+      'getMetrics',
+      keys.concat(args),
+    );
+
+    return result;
+  }
+
   async moveToActive(client: RedisClient, token: string, name?: string) {
     const opts = this.queue.opts as WorkerOptions;
 
