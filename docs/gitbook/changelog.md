@@ -1,3 +1,9 @@
+## [5.58.9](https://github.com/taskforcesh/bullmq/compare/v5.58.8...v5.58.9) (2025-09-26)
+
+### Performance Improvements
+
+* **metrics:** use lua script when calling getMetrics ([#3459](https://github.com/taskforcesh/bullmq/issues/3459)) ([61987c6](https://github.com/taskforcesh/bullmq/commit/61987c62ca71ec11a84b98e6dd51a6d5ebf1737d))
+
 ## [5.58.8](https://github.com/taskforcesh/bullmq/compare/v5.58.7...v5.58.8) (2025-09-25)
 
 ### Bug Fixes
