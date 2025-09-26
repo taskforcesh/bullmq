@@ -3427,9 +3427,7 @@ describe('flows', () => {
               } else {
                 reject(
                   new Error(
-                    `wrong job (${jobId}) failed instead of ${
-                      tree!.children![0].job.id
-                    }`,
+                    `wrong job (${jobId}) failed instead of ${tree!.children![0].job.id}`,
                   ),
                 );
               }
@@ -3575,9 +3573,7 @@ describe('flows', () => {
               } else {
                 reject(
                   new Error(
-                    `wrong job (${jobId}) failed instead of ${
-                      tree!.children![0].job.id
-                    }`,
+                    `wrong job (${jobId}) failed instead of ${tree!.children![0].job.id}`,
                   ),
                 );
               }

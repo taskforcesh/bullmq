@@ -42,7 +42,7 @@
     "prepublishOnly": "npm run build",
     "prepare": "husky install",
     "pretest": "npm run clean:scripts && npm run generate:raw:scripts && npm run transform:commands && npm run circular:references",
-    "prettier": "prettier --config package.json src/**/*.ts",
+    "prettier": "prettier **/*.ts --write",
     "pretty:quick": "pretty-quick --staged",
     "semantic-release": "semantic-release",
     "semantic-release:debug": "semantic-release --no-ci --dry-run --debug",
