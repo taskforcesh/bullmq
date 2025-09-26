@@ -1213,11 +1213,7 @@ will never work with more accuracy than 1ms. */
 
   private async stalledChecker() {
     while (!(this.closing || this.paused)) {
-      try {
-        await this.checkConnectionError(() => this.moveStalledJobsToWait());
-      } catch (err) {
-        this.emit('error', <Error>err);
-      }
+      await this.checkConnectionError(() => this.moveStalledJobsToWait());
 
       await new Promise<void>(resolve => {
         const timeout = setTimeout(resolve, this.opts.stalledInterval);
@@ -1297,28 +1293,30 @@ will never work with more accuracy than 1ms. */
     maxRetries = Infinity,
   ): Promise<T> {
     let retry = 0;
-    let lastError: Error;
 
     do {
       try {
         return await fn();
       } catch (err) {
-        lastError = err as Error;
-        this.emit('error', lastError);
+        if (isNotConnectionError(err as Error)) {
+          this.emit('error', <Error>err);
+          if (delayInMs) {
+            await this.delay(delayInMs);
+          }
 
-        if (retry + 1 >= maxRetries) {
-          // If we've reached max retries, throw the last error
-          throw lastError;
-        }
+          throw err;
+        } else {
+          if (delayInMs) {
+            await this.delay(delayInMs);
+          }
 
-        if (delayInMs) {
-          await this.delay(delayInMs);
+          if (retry + 1 >= maxRetries) {
+            // If we've reached max retries, throw the last error
+            throw err;
+          }
         }
       }
     } while (++retry < maxRetries);
-
-    // This should never be reached, but just in case
-    throw lastError;
   }
 
   protected async extendLocks(jobs: Job[]) {
