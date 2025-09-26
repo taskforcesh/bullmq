@@ -793,7 +793,18 @@ export class Queue<
           }),
         });
 
-        return await this.scripts.remove(jobId, removeChildren);
+        const job = await this.getJob(jobId);
+
+        if (!job) {
+          return 0;
+        }
+
+        try {
+          await job.remove({ removeChildren });
+          return 1;
+        } catch (err) {
+          return 0;
+        }
       },
     );
   }
