@@ -32,8 +32,8 @@ local function deduplicateJob(deduplicationOpts, jobId, delayedKey, deduplicatio
             if ttl and ttl > 0 then
                 local currentDebounceJobId = rcall('GET', deduplicationKey)
                 if currentDebounceJobId then
-                    local isRemoved = removeDelayedJob(delayedKey, deduplicationKey, eventsKey, maxEvents, currentDebounceJobId,
-                        jobId, deduplicationId, prefix)
+                    local isRemoved = removeDelayedJob(delayedKey, deduplicationKey, eventsKey, maxEvents,
+                        currentDebounceJobId, jobId, deduplicationId, prefix)
                     if isRemoved then
                         if deduplicationOpts['extend'] then
                             rcall('SET', deduplicationKey, jobId, 'PX', ttl)
@@ -51,8 +51,8 @@ local function deduplicateJob(deduplicationOpts, jobId, delayedKey, deduplicatio
             else
                 local currentDebounceJobId = rcall('GET', deduplicationKey)
                 if currentDebounceJobId then
-                    local isRemoved = removeDelayedJob(delayedKey, deduplicationKey, eventsKey, maxEvents, currentDebounceJobId,
-                        jobId, deduplicationId, prefix)
+                    local isRemoved = removeDelayedJob(delayedKey, deduplicationKey, eventsKey, maxEvents,
+                        currentDebounceJobId, jobId, deduplicationId, prefix)
 
                     if isRemoved then
                         rcall('SET', deduplicationKey, jobId)

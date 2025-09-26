@@ -615,10 +615,9 @@ export class Worker<
     if (this.drained && block && !this.limitUntil && !this.waiting) {
       this.waiting = this.waitForJob(bclient, this.blockUntil);
       try {
-        const blockUntil = await this.waiting;
-        this.blockUntil = blockUntil;
+        this.blockUntil = await this.waiting;
 
-        if (blockUntil <= 0 || blockUntil - Date.now() < 1) {
+        if (this.blockUntil <= 0 || this.blockUntil - Date.now() < 1) {
           return await this.moveToActive(client, token, this.opts.name);
         }
       } catch (err) {
