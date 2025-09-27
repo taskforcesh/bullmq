@@ -1036,7 +1036,9 @@ will never work with more accuracy than 1ms. */
           return this.nextJobFromJobData(jobData, jobId, token);
         }
       } catch (err) {
-        this.emit('error', <Error>err);
+        if (isNotConnectionError(err as Error)) {
+          this.emit('error', <Error>err);
+        }
         // It probably means that the job has lost the lock before completion
         // A worker will (or already has) moved the job back
         // to the waiting list (as stalled)
@@ -1255,7 +1257,9 @@ will never work with more accuracy than 1ms. */
               await this.extendLocks(jobsToExtend);
             }
           } catch (err) {
-            this.emit('error', <Error>err);
+            if (isNotConnectionError(err as Error)) {
+              this.emit('error', <Error>err);
+            }
           }
 
           this.startLockExtenderTimer(jobsInProgress);
@@ -1333,23 +1337,19 @@ will never work with more accuracy than 1ms. */
           ),
         });
 
-        try {
-          const erroredJobIds = await this.scripts.extendLocks(
-            jobs.map(job => job.id),
-            jobs.map(job => job.token),
-            this.opts.lockDuration,
+        const erroredJobIds = await this.scripts.extendLocks(
+          jobs.map(job => job.id),
+          jobs.map(job => job.token),
+          this.opts.lockDuration,
+        );
+
+        for (const jobId of erroredJobIds) {
+          // TODO: Send signal to process function that the job has been lost.
+
+          this.emit(
+            'error',
+            new Error(`could not renew lock for job ${jobId}`),
           );
-
-          for (const jobId of erroredJobIds) {
-            // TODO: Send signal to process function that the job has been lost.
-
-            this.emit(
-              'error',
-              new Error(`could not renew lock for job ${jobId}`),
-            );
-          }
-        } catch (err) {
-          this.emit('error', <Error>err);
         }
       },
     );
