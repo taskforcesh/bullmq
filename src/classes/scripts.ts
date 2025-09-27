@@ -1091,6 +1091,7 @@ export class Scripts {
     opts: MoveToDelayedOpts = {},
   ): (string | number | Buffer)[] {
     const queueKeys = this.queue.keys;
+
     const keys: (string | number | Buffer)[] = [
       queueKeys.marker,
       queueKeys.active,
