@@ -26,7 +26,7 @@ describe('Sandboxed process using child processes', () => {
     let queueEvents: QueueEvents;
     let queueName: string;
 
-    let connection;
+    let connection: IORedis;
     before(async function () {
       connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
     });
@@ -142,7 +142,7 @@ describe('Sandboxed process using worker threads', () => {
     let queueEvents: QueueEvents;
     let queueName: string;
 
-    let connection;
+    let connection: IORedis;
     before(async function () {
       connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
     });
@@ -215,7 +215,7 @@ function sandboxProcessTests(
     let queueEvents: QueueEvents;
     let queueName: string;
 
-    let connection;
+    let connection: IORedis;
     before(async function () {
       connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
     });
@@ -381,6 +381,42 @@ function sandboxProcessTests(
     describe('when processor file is .cjs (CommonJS)', () => {
       it('processes and completes', async () => {
         const processFile = __dirname + '/fixtures/fixture_processor.cjs';
+        const worker = new Worker(queueName, processFile, {
+          autorun: false,
+          connection,
+          prefix,
+          drainDelay: 1,
+          useWorkerThreads,
+        });
+
+        const completing = new Promise<void>((resolve, reject) => {
+          worker.on('completed', async (job: Job, value: any) => {
+            try {
+              expect(job.data).to.be.eql({ foo: 'bar' });
+              expect(value).to.be.eql(42);
+              expect(
+                Object.keys(worker['childPool'].retained),
+              ).to.have.lengthOf(0);
+              expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          });
+        });
+
+        worker.run();
+
+        await queue.add('foobar', { foo: 'bar' });
+
+        await completing;
+        await worker.close();
+      });
+    });
+
+    describe('when processor file is .mjs (ESM)', () => {
+      it('processes and completes', async () => {
+        const processFile = __dirname + '/fixtures/fixture_processor.mjs';
         const worker = new Worker(queueName, processFile, {
           autorun: false,
           connection,
