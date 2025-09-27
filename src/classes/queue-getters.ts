@@ -515,35 +515,16 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
     start = 0,
     end = -1,
   ): Promise<Metrics> {
-    const client = await this.client;
-    const metricsKey = this.toKey(`metrics:${type}`);
-    const dataKey = `${metricsKey}:data`;
-
-    const multi = client.multi();
-    multi.hmget(metricsKey, 'count', 'prevTS', 'prevCount');
-    multi.lrange(dataKey, start, end);
-    multi.llen(dataKey);
-
-    const [hmget, range, len] = (await multi.exec()) as [
-      [Error, [string, string, string]],
-      [Error, []],
-      [Error, number],
-    ];
-    const [err, [count, prevTS, prevCount]] = hmget;
-    const [err2, data] = range;
-    const [err3, numPoints] = len;
-    if (err || err2) {
-      throw err || err2 || err3;
-    }
+    const [meta, data, count] = await this.scripts.getMetrics(type, start, end);
 
     return {
       meta: {
-        count: parseInt(count || '0', 10),
-        prevTS: parseInt(prevTS || '0', 10),
-        prevCount: parseInt(prevCount || '0', 10),
+        count: parseInt(meta[0] || '0', 10),
+        prevTS: parseInt(meta[1] || '0', 10),
+        prevCount: parseInt(meta[2] || '0', 10),
       },
-      data,
-      count: numPoints,
+      data: data.map(point => +point || 0),
+      count,
     };
   }
 

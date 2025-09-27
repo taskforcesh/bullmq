@@ -300,7 +300,9 @@ describe('Job', function () {
       const job = await Job.create<{ foo?: string; baz?: string }>(
         queue,
         'test',
-        { foo: 'bar' },
+        {
+          foo: 'bar',
+        },
       );
       await job.updateData({ baz: 'qux' });
 
