@@ -8,7 +8,7 @@ interface ChildPoolOpts extends SandboxedOptions {
   mainFile?: string;
 }
 
-const isCJS = () => {
+const supportCJS = () => {
   return (
     typeof require === 'function' &&
     typeof module === 'object' &&
@@ -22,14 +22,13 @@ export class ChildPool {
   private opts: ChildPoolOpts;
 
   constructor({
-    mainFile = isCJS()
+    mainFile = supportCJS()
       ? path.join(process.cwd(), 'dist/cjs/classes/main.js')
       : path.join(process.cwd(), 'dist/esm/classes/main.js'),
     useWorkerThreads,
     workerForkOptions,
     workerThreadsOptions,
   }: ChildPoolOpts) {
-    console.log('isCJS()', isCJS());
     this.opts = {
       mainFile,
       useWorkerThreads,

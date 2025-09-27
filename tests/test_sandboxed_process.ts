@@ -414,8 +414,7 @@ function sandboxProcessTests(
       });
     });
 
-    // unskip this test when cjs support is dropped
-    describe.skip('when processor file is .mjs (ESM)', () => {
+    describe('when processor file is .mjs (ESM)', () => {
       it('processes and completes', async () => {
         const processFile = __dirname + '/fixtures/fixture_processor.mjs';
         const worker = new Worker(queueName, processFile, {
