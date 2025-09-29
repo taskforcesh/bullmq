@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
-import { after, times } from 'lodash';
+import { after, reject, times } from 'lodash';
 import { describe, beforeEach, it, before, after as afterAll } from 'mocha';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
@@ -2226,6 +2226,18 @@ describe('workers', function () {
     ).to.throw('maxStalledCount must be greater or equal than 0');
   });
 
+  it('max started attempts cannot be less than zero', function () {
+    this.timeout(4000);
+    expect(
+      () =>
+        new Worker(queueName, NoopProc, {
+          connection,
+          prefix,
+          maxStartedAttempts: -1,
+        }),
+    ).to.throw('maxStartedAttempts must be greater or equal than 0');
+  });
+
   it('stalled interval cannot be zero', function () {
     this.timeout(4000);
     expect(
@@ -3617,6 +3629,112 @@ describe('workers', function () {
           });
 
           await worker.close();
+        });
+
+        describe('when passing maxStartedAttempts', () => {
+          it('should fail job when consuming the max started attempts', async function () {
+            const worker = new Worker(
+              queueName,
+              async (job, token) => {
+                await job.moveToDelayed(Date.now() + 200, token);
+                throw new DelayedError();
+              },
+              { connection, maxStartedAttempts: 1, prefix },
+            );
+
+            await worker.waitUntilReady();
+
+            const start = Date.now();
+            await queue.add('test', {});
+
+            await new Promise<void>((resolve, reject) => {
+              worker.on('failed', job => {
+                try {
+                  const elapse = Date.now() - start;
+                  expect(elapse).to.be.greaterThan(200);
+                  expect(job!.failedReason).to.be.eql(
+                    'job started more than allowable limit',
+                  );
+                  expect(job!.attemptsMade).to.be.eql(1);
+                  expect(job!.attemptsStarted).to.be.eql(2);
+                  resolve();
+                } catch (error) {
+                  reject(error);
+                }
+              });
+
+              worker.on('error', error => {
+                reject(error);
+              });
+            });
+
+            await worker.close();
+          });
+
+          it('should allow only retry a job once after it has reached the max attemptsStarted', async () => {
+            let attempts = 0;
+            const failedError = new Error('failed');
+
+            const worker = new Worker(
+              queueName,
+              async () => {
+                if (attempts < 3) {
+                  attempts++;
+                  throw failedError;
+                }
+              },
+              { connection, maxStartedAttempts: 1, prefix },
+            );
+
+            await worker.waitUntilReady();
+
+            const failing = new Promise<void>((resolve, reject) => {
+              worker.on('failed', async (job, err) => {
+                try {
+                  expect(job.data.foo).to.equal('bar');
+                  if (job.attemptsMade === 2) {
+                    expect(err.message).to.equal(
+                      'job started more than allowable limit',
+                    );
+                    expect(job?.attemptsStarted).to.equal(2);
+                    await job.retry();
+                    resolve();
+                  }
+                } catch (error) {
+                  reject(error);
+                }
+              });
+            });
+
+            const failedAgain = new Promise<void>((resolve, reject) => {
+              worker.on('failed', async (job, err) => {
+                try {
+                  if (job.attemptsMade === 3) {
+                    expect(err.message).to.equal(
+                      'job started more than allowable limit',
+                    );
+                    expect(job?.attemptsStarted).to.equal(3);
+                    resolve();
+                  }
+                } catch (error) {
+                  reject(error);
+                }
+              });
+            });
+
+            await queue.add('test', { foo: 'bar' }, { attempts: 2 });
+
+            await failing;
+            await failedAgain;
+
+            const failedCount = await queue.getFailedCount();
+            expect(failedCount).to.equal(1);
+
+            const completedCount = await queue.getCompletedCount();
+            expect(completedCount).to.equal(0);
+
+            await worker.close();
+          });
         });
       });
 
