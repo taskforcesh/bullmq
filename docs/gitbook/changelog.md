@@ -1,3 +1,15 @@
+## [5.59.0](https://github.com/taskforcesh/bullmq/compare/v5.58.9...v5.59.0) (2025-09-29)
+
+### Features
+
+* **deduplication:** support replace option in single mode ([#3472](https://github.com/taskforcesh/bullmq/issues/3472)) ([eea35b7](https://github.com/taskforcesh/bullmq/commit/eea35b763c0965e129cf0ef4a104d05aa1f65f74))
+* **sandbox:** support mjs files ([#3476](https://github.com/taskforcesh/bullmq/issues/3476)) ref [#3474](https://github.com/taskforcesh/bullmq/issues/3474) ([2e2b214](https://github.com/taskforcesh/bullmq/commit/2e2b21454cc6125fcf3abfec939d6d6d8d02c40b))
+* **worker:** support maxStartedAttempts option ([#3331](https://github.com/taskforcesh/bullmq/issues/3331)) ([9384a64](https://github.com/taskforcesh/bullmq/commit/9384a64d6d48718220e472c26d0c03e7b7e8e555))
+
+### Performance Improvements
+
+* **worker:** only consider infinity retry on connection errors ([#3473](https://github.com/taskforcesh/bullmq/issues/3473)) ([9d5a678](https://github.com/taskforcesh/bullmq/commit/9d5a678660f6bb927ad375d7de58814d392dbe9d))
+
 ## [5.58.9](https://github.com/taskforcesh/bullmq/compare/v5.58.8...v5.58.9) (2025-09-26)
 
 ### Performance Improvements
