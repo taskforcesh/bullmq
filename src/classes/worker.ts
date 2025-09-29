@@ -272,7 +272,7 @@ export class Worker<
           }
           processor = processor.href;
         } else {
-          const supportedFileTypes = ['.js', '.ts', '.flow', '.cjs'];
+          const supportedFileTypes = ['.js', '.ts', '.flow', '.cjs', '.mjs'];
           const processorFile =
             processor +
             (supportedFileTypes.includes(path.extname(processor)) ? '' : '.js');
