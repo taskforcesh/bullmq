@@ -20,7 +20,7 @@ describe('Job Scheduler Stress', function () {
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  let connection;
+  let connection: IORedis;
   before(async function () {
     connection = new IORedis(redisHost, {
       maxRetriesPerRequest: null,
@@ -500,6 +500,78 @@ describe('Job Scheduler Stress', function () {
       } catch (error) {
         // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
       }
+    });
+  });
+
+  describe('when disconnection happens', function () {
+    it('should retry to update job scheduler', async function () {
+      let iterationCount = 0;
+      const DELAY = 500;
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          try {
+            await delay(100);
+            iterationCount++;
+          } catch (err) {
+            console.log(err);
+            throw err;
+          }
+        },
+        { autorun: false, connection, prefix, runRetryDelay: 50 },
+      );
+
+      let counter = 0;
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async () => {
+          try {
+            counter++;
+            if (counter === 5) {
+              resolve();
+            }
+          } catch (err) {
+            console.log(err);
+            reject(err);
+          }
+        });
+        worker.on('error', err => {
+          reject(err);
+        });
+      });
+
+      await queue.upsertJobScheduler(
+        'repeat',
+        {
+          every: DELAY,
+        },
+        { data: { foo: 'bar' } },
+      );
+
+      const waitingCountBefore = await queue.getWaitingCount();
+      expect(waitingCountBefore).to.be.eq(1);
+
+      worker.run();
+      await delay(100);
+      await connection.disconnect();
+      await delay(100);
+      await connection.connect();
+
+      await delay(100);
+      await connection.disconnect();
+      await delay(100);
+      await connection.connect();
+
+      await completing;
+
+      const waitingCount = await queue.getWaitingCount();
+      expect(waitingCount).to.be.eq(0);
+
+      const delayedCountAfter = await queue.getDelayedCount();
+      expect(delayedCountAfter).to.be.eq(1);
+
+      await worker.close();
     });
   });
 });
