@@ -11,6 +11,7 @@ import { RedisClient } from '../src/interfaces';
 
 describe('scriptLoader', () => {
   let loader: ScriptLoader;
+  const basePath = __dirname + '/../src/commands';
 
   function getRootPath() {
     return path.resolve(path.join(__dirname, '../'));
@@ -34,7 +35,9 @@ describe('scriptLoader', () => {
   }
 
   beforeEach(() => {
-    loader = new ScriptLoader();
+    loader = new ScriptLoader({
+      base: basePath,
+    });
   });
 
   describe('when using path mappings', () => {
@@ -299,7 +302,9 @@ describe('scriptLoader', () => {
     });
 
     it('caches loadScripts calls per directory', async () => {
-      const loader = new ScriptLoader();
+      const loader = new ScriptLoader({
+        base: basePath,
+      });
       const loadScriptSpy = sinon.spy(loader, 'loadScripts');
 
       const dirname = __dirname + '/fixtures/scripts/dir-test';
@@ -377,7 +382,9 @@ describe('scriptLoader', () => {
 
   describe('.clearCache', () => {
     it('can clear the command cache', async () => {
-      const loader = new ScriptLoader();
+      const loader = new ScriptLoader({
+        base: basePath,
+      });
       const loadScriptSpy = sinon.spy(loader, 'loadScripts');
 
       const dirname = __dirname + '/fixtures/scripts/dir-test';

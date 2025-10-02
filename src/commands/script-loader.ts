@@ -102,7 +102,6 @@ export class ScriptLoader {
     this.rootPath = getPkgJsonDir();
     this.pathMapper.set('~', this.rootPath);
     this.pathMapper.set('rootDir', this.rootPath);
-    this.pathMapper.set('base', __dirname);
 
     if (extraMappings) {
       for (const [key, value] of Object.entries(extraMappings)) {
