@@ -1223,7 +1223,10 @@ export class Scripts {
   }
 
   getRateLimitTtlArgs(maxJobs?: number): (string | number)[] {
-    const keys: (string | number)[] = [this.queue.keys.limiter];
+    const keys: (string | number)[] = [
+      this.queue.keys.limiter,
+      this.queue.keys.meta,
+    ];
 
     return keys.concat([maxJobs ?? '0']);
   }
