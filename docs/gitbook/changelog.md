@@ -1,3 +1,9 @@
+## [5.60.0](https://github.com/taskforcesh/bullmq/compare/v5.59.0...v5.60.0) (2025-10-03)
+
+### Features
+
+* **queue:** support global rate limit ([#3468](https://github.com/taskforcesh/bullmq/issues/3468)) ref [#3019](https://github.com/taskforcesh/bullmq/issues/3019) ([bef57a0](https://github.com/taskforcesh/bullmq/commit/bef57a0e252a5d8bd0bf319d0bca3b1ad0e6519f))
+
 ## [5.59.0](https://github.com/taskforcesh/bullmq/compare/v5.58.9...v5.59.0) (2025-09-29)
 
 ### Features
