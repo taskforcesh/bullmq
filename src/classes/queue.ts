@@ -310,6 +310,14 @@ export class Queue<
   }
 
   /**
+   * Remove global rate limit values.
+   */
+  async removeGlobalRateLimit() {
+    const client = await this.client;
+    return client.hdel(this.keys.meta, 'max', 'duration');
+  }
+
+  /**
    * Adds a new job to the queue.
    *
    * @param name - Name of the job to be added to the queue.
