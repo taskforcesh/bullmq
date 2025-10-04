@@ -19,7 +19,16 @@ const globalConcurrency = await queue.getRateLimitTtl();
 Note that if you choose a rate limit level in your workers, it won't override the global one.
 {% endhint %}
 
+### Remove Global Rate Limit
+
+It can be done using the following method:
+
+```typescript
+await queue.removeGlobalRateLimit();
+```
+
 ## Read more:
 
 - 💡 [Set Global Rate Limit API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#setglobalratelimit)
 - 💡 [Get Rate Limit Ttl API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getratelimitttl)
+- 💡 [Remove Global Rate Limit API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removeglobalratelimit)
