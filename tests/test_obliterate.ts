@@ -373,14 +373,14 @@ describe('Obliterate', function () {
     let first = true;
     const worker = new Worker(
       queue.name,
-      async job => {
+      async () => {
         if (first) {
           first = false;
           throw new Error('failed first');
         }
         return delay(250);
       },
-      { connection, prefix, runRetryDelay: 100 },
+      { connection, prefix },
     );
     await worker.waitUntilReady();
 
