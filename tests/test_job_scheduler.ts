@@ -2256,6 +2256,7 @@ describe('Job Scheduler', function () {
           },
         );
       });
+      const delayStub = sinon.stub(worker!, 'delay').callsFake(async () => {});
 
       await processing;
 
@@ -2317,6 +2318,7 @@ describe('Job Scheduler', function () {
 
       const delayedCount3 = await queue.getDelayedCount();
       expect(delayedCount3).to.be.equal(1);
+      delayStub.restore();
     });
   });
 

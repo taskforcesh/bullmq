@@ -1350,7 +1350,7 @@ will never work with more accuracy than 1ms. */
 
           throw err;
         } else {
-          if (delayInMs) {
+          if (delayInMs && !this.closing && !this.closed) {
             await this.delay(delayInMs);
           }
 
