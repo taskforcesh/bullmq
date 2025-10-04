@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
-import { after, reject, times } from 'lodash';
+import { after, times } from 'lodash';
 import { describe, beforeEach, it, before, after as afterAll } from 'mocha';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
@@ -2115,7 +2115,6 @@ describe('workers', function () {
       {
         connection,
         prefix,
-        runRetryDelay: 100,
         lockDuration: 1000,
         lockRenewTime: 3000, // The lock will not be updated in time
       },
@@ -2156,7 +2155,6 @@ describe('workers', function () {
         return delay(2000);
       },
       {
-        runRetryDelay: 100,
         connection,
         prefix,
       },
@@ -2200,7 +2198,6 @@ describe('workers', function () {
         prefix,
         lockDuration: 1000,
         lockRenewTime: 3000, // The lock will not be updated
-        runRetryDelay: 100,
         stalledInterval: 100,
       },
     );

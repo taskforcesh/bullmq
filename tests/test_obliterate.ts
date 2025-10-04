@@ -380,7 +380,7 @@ describe('Obliterate', function () {
         }
         return delay(250);
       },
-      { connection, prefix },
+      { connection, prefix, runRetryDelay: 100 },
     );
     await worker.waitUntilReady();
 

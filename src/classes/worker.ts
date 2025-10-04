@@ -1344,9 +1344,6 @@ will never work with more accuracy than 1ms. */
       } catch (err) {
         if (isNotConnectionError(err as Error)) {
           this.emit('error', <Error>err);
-          if (delayInMs) {
-            await this.delay(delayInMs);
-          }
 
           throw err;
         } else {
