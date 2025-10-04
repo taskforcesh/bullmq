@@ -173,11 +173,11 @@ describe('Rate Limiter', function () {
           });
         });
 
-        const startTime = new Date().getTime();
         const jobs = Array.from(Array(numJobs).keys()).map(() => ({
           name: 'rate test',
           data: {},
         }));
+        const startTime = new Date().getTime();
         await queue.addBulk(jobs);
 
         await result;
