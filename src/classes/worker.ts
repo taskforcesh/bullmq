@@ -556,15 +556,11 @@ export class Worker<
       if (job) {
         const token = job.token;
         asyncFifoQueue.add(
-          this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
-            () =>
-              this.processJob(
-                <Job<DataType, ResultType, NameType>>job,
-                token,
-                () => asyncFifoQueue.numTotal() <= this._concurrency,
-                jobsInProgress,
-              ),
-            this.opts.runRetryDelay,
+          this.processJob(
+            <Job<DataType, ResultType, NameType>>job,
+            token,
+            () => asyncFifoQueue.numTotal() <= this._concurrency,
+            jobsInProgress,
           ),
         );
       } else if (asyncFifoQueue.numQueued() === 0) {
@@ -719,12 +715,9 @@ will never work with more accuracy than 1ms. */
           // We cannot trust that the blocking connection stays blocking forever
           // due to issues in Redis and IORedis, so we will reconnect if we
           // don't get a response in the expected time.
-          timeout = setTimeout(
-            async () => {
-              bclient.disconnect(!this.closing);
-            },
-            blockTimeout * 1000 + 1000,
-          );
+          timeout = setTimeout(async () => {
+            bclient.disconnect(!this.closing);
+          }, blockTimeout * 1000 + 1000);
 
           this.updateDelays(); // reset delays to avoid reusing same values in next iteration
 
@@ -922,38 +915,62 @@ will never work with more accuracy than 1ms. */
           const unrecoverableErrorMessage =
             this.getUnrecoverableErrorMessage(job);
           if (unrecoverableErrorMessage) {
-            const failed = await this.handleFailed(
-              new UnrecoverableError(unrecoverableErrorMessage),
-              job,
-              token,
-              fetchNextCallback,
-              jobsInProgress,
-              inProgressItem,
-              span,
+            const failed = await this.retryIfFailed<void | Job<
+              DataType,
+              ResultType,
+              NameType
+            >>(
+              () =>
+                this.handleFailed(
+                  new UnrecoverableError(unrecoverableErrorMessage),
+                  job,
+                  token,
+                  fetchNextCallback,
+                  jobsInProgress,
+                  inProgressItem,
+                  span,
+                ),
+              this.opts.runRetryDelay,
             );
             return failed;
           }
           jobsInProgress.add(inProgressItem);
 
           const result = await this.callProcessJob(job, token);
-          return await this.handleCompleted(
-            result,
-            job,
-            token,
-            fetchNextCallback,
-            jobsInProgress,
-            inProgressItem,
-            span,
+          return await this.retryIfFailed<void | Job<
+            DataType,
+            ResultType,
+            NameType
+          >>(
+            () =>
+              this.handleCompleted(
+                result,
+                job,
+                token,
+                fetchNextCallback,
+                jobsInProgress,
+                inProgressItem,
+                span,
+              ),
+            this.opts.runRetryDelay,
           );
         } catch (err) {
-          const failed = await this.handleFailed(
-            <Error>err,
-            job,
-            token,
-            fetchNextCallback,
-            jobsInProgress,
-            inProgressItem,
-            span,
+          const failed = await this.retryIfFailed<void | Job<
+            DataType,
+            ResultType,
+            NameType
+          >>(
+            () =>
+              this.handleFailed(
+                <Error>err,
+                job,
+                token,
+                fetchNextCallback,
+                jobsInProgress,
+                inProgressItem,
+                span,
+              ),
+            this.opts.runRetryDelay,
           );
           return failed;
         } finally {
@@ -1327,13 +1344,10 @@ will never work with more accuracy than 1ms. */
       } catch (err) {
         if (isNotConnectionError(err as Error)) {
           this.emit('error', <Error>err);
-          if (delayInMs) {
-            await this.delay(delayInMs);
-          }
 
           throw err;
         } else {
-          if (delayInMs) {
+          if (delayInMs && !this.closing && !this.closed) {
             await this.delay(delayInMs);
           }
 
