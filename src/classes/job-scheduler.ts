@@ -18,7 +18,7 @@ import { SpanKind, TelemetryAttributes } from '../enums';
 import { array2obj } from '../utils';
 
 export class JobScheduler extends QueueBase {
-  private repeatStrategy: RepeatStrategy;
+  public repeatStrategy: RepeatStrategy;
 
   constructor(
     name: string,

@@ -854,16 +854,27 @@ will never work with more accuracy than 1ms. */
 
         // Try to move the job to delayed with backoff to prevent infinite retry loops
         try {
-          // Calculate backoff delay: base delay of 5 seconds, exponentially increasing with attempts
-          const baseDelay = ONE_SECOND; // 1 second
-          const maxDelay = 300 * ONE_SECOND; // 5 minutes max
-          const attempt = job.attemptsStarted;
-          const exponentialDelay = Math.min(
-            baseDelay * Math.pow(2, attempt),
-            maxDelay,
-          );
+          if (job.opts.repeat?.pattern) {
+            const jobScheduler = await this.jobScheduler;
+            const delay = await jobScheduler.repeatStrategy(
+              Date.now(),
+              job.opts.repeat,
+              job.name,
+            );
 
-          await job.moveToDelayed(Date.now() + exponentialDelay, job.token);
+            await job.moveToDelayed(delay, job.token);
+          } else {
+            // Calculate backoff delay: base delay of 5 seconds, exponentially increasing with attempts
+            const baseDelay = ONE_SECOND; // 1 second
+            const maxDelay = 300 * ONE_SECOND; // 5 minutes max
+            const attempt = job.attemptsStarted;
+            const exponentialDelay = Math.min(
+              baseDelay * Math.pow(2, attempt),
+              maxDelay,
+            );
+
+            await job.moveToDelayed(Date.now() + exponentialDelay, job.token);
+          }
         } catch (moveErr) {
           // If we can't move it to delayed, emit error and let it become stalled
           // Stalled jobs will be automatically retried by the stalled checker
