@@ -1373,15 +1373,15 @@ export class Scripts {
   /**
    * Attempts to reprocess a job
    *
-   * @param job -
+   * @param job - The job to reprocess
    * @param state - The expected job state. If the job is not found
    * on the provided state, then it's not reprocessed. Supported states: 'failed', 'completed'
    *
-   * @returns Returns a promise that evaluates to a return code:
-   * 1 means the operation was a success
-   * 0 means the job does not exist
-   * -1 means the job is currently locked and can't be retried.
-   * -2 means the job was not found in the expected set
+   * @returns A promise that resolves when the job has been successfully moved to the wait queue.
+   * @throws Will throw an error with a code property indicating the failure reason:
+   *   - code 0: Job does not exist
+   *   - code -1: Job is currently locked and can't be retried
+   *   - code -2: Job was not found in the expected set
    */
   async reprocessJob<T = any, R = any, N extends string = string>(
     job: MinimalJob<T, R, N>,
