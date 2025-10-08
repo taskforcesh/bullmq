@@ -34,7 +34,7 @@ describe('Job Scheduler', function () {
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  let connection;
+  let connection: IORedis;
   before(async function () {
     connection = new IORedis(redisHost, {
       maxRetriesPerRequest: null,
@@ -304,14 +304,14 @@ describe('Job Scheduler', function () {
         await worker.close();
       });
 
-      describe('when job scheduler is being updated', function () {
-        it('emits duplicated event and does not update scheduler', async function () {
+      describe('when job scheduler is being updated with upsertJobScheduler method', function () {
+        it('updates scheduler and creates next iteration', async function () {
           const date = new Date('2017-02-07T09:24:00.000+05:30');
           this.clock.setSystemTime(date);
 
           const initialNow = Date.now();
 
-          let worker;
+          let worker: Worker;
           const processing = new Promise<void>((resolve, reject) => {
             worker = new Worker(
               queueName,
@@ -321,7 +321,7 @@ describe('Job Scheduler', function () {
                     await queue.upsertJobScheduler(
                       jobSchedulerId,
                       {
-                        pattern: '*/2 * * * * *',
+                        pattern: '*/10 * * * * *',
                       },
                       {
                         data: {
@@ -346,7 +346,7 @@ describe('Job Scheduler', function () {
             );
           });
 
-          await worker.waitUntilReady();
+          await worker!.waitUntilReady();
 
           const jobSchedulerId = 'test';
           const delayedJob = await queue.upsertJobScheduler(
@@ -362,7 +362,7 @@ describe('Job Scheduler', function () {
           );
 
           await delayedJob!.promote();
-          worker.run();
+          worker!.run();
 
           await processing;
 
@@ -375,7 +375,7 @@ describe('Job Scheduler', function () {
             next: initialNow + 2 * 10 * ONE_SECOND,
             iterationCount: 2,
             offset: 0,
-            pattern: '*/2 * * * * *',
+            pattern: '*/10 * * * * *',
             template: {
               data: {
                 foo: 'baz',
@@ -386,7 +386,154 @@ describe('Job Scheduler', function () {
           const count = await queue.getJobCountByTypes('delayed');
           expect(count).to.be.equal(1);
 
-          await worker.close();
+          await worker!.close();
+        });
+
+        describe('when job scheduler is removed and upserted', function () {
+          it('throws error and does not add job scheduler', async function () {
+            const date = new Date('2017-02-07T09:24:00.000+05:30');
+            this.clock.setSystemTime(date);
+
+            let worker: Worker;
+            const processing = new Promise<void>((resolve, reject) => {
+              worker = new Worker(
+                queueName,
+                async job => {
+                  try {
+                    if (job.data.foo === 'bar') {
+                      try {
+                        await queue.removeJobScheduler(jobSchedulerId);
+                        await queue.upsertJobScheduler(
+                          jobSchedulerId,
+                          {
+                            pattern: '*/10 * * * * *',
+                          },
+                          {
+                            data: {
+                              foo: 'baz',
+                            },
+                          },
+                        );
+                      } catch (error) {
+                        expect((<Error>error).message).to.equal(
+                          'Cannot create job scheduler iteration - job ID already exists. addJobScheduler',
+                        );
+                        resolve();
+                      }
+                    }
+                  } catch (err) {
+                    reject(err);
+                  }
+                },
+                { autorun: false, connection, prefix },
+              );
+            });
+
+            await worker!.waitUntilReady();
+
+            const jobSchedulerId = 'test';
+            const delayedJob = await queue.upsertJobScheduler(
+              jobSchedulerId,
+              {
+                pattern: '*/10 * * * * *',
+              },
+              {
+                data: {
+                  foo: 'bar',
+                },
+              },
+            );
+
+            await delayedJob!.promote();
+            worker!.run();
+
+            await processing;
+
+            const repeatableJobs = await queue.getJobSchedulers();
+            expect(repeatableJobs.length).to.be.eql(0);
+
+            const count = await queue.getJobCountByTypes('delayed');
+            expect(count).to.be.equal(0);
+
+            await worker!.close();
+          });
+        });
+
+        describe('when job scheduler is removed and updated', function () {
+          it('emits duplicated event and does not add job scheduler', async function () {
+            const date = new Date('2017-02-07T09:24:00.000+05:30');
+            this.clock.setSystemTime(date);
+
+            let worker: Worker;
+            const processing = new Promise<void>((resolve, reject) => {
+              worker = new Worker(
+                queueName,
+                async job => {
+                  try {
+                    this.clock.tick(5000);
+                    if (job.data.foo === 'baz') {
+                      resolve();
+                    }
+                  } catch (err) {
+                    reject(err);
+                  }
+                },
+                { autorun: false, connection, prefix },
+              );
+            });
+
+            const duplicated = new Promise<void>(async (resolve, reject) => {
+              queueEvents.on('duplicated', async ({ jobId }) => {
+                try {
+                  expect(jobId).to.be.equal('repeat:test:1486439650000');
+                  resolve();
+                } catch (err) {
+                  reject(err);
+                }
+              });
+            });
+            await worker!.waitUntilReady();
+
+            const jobSchedulerId = 'test';
+            const delayedJob = await queue.upsertJobScheduler(
+              jobSchedulerId,
+              {
+                pattern: '*/10 * * * * *',
+              },
+              {
+                data: {
+                  foo: 'bar',
+                },
+              },
+            );
+
+            await delayedJob!.promote();
+            await queue.removeJobScheduler(jobSchedulerId);
+            await queue.upsertJobScheduler(
+              jobSchedulerId,
+              {
+                pattern: '*/5 * * * * *',
+              },
+              {
+                data: {
+                  foo: 'baz',
+                },
+              },
+            );
+
+            worker!.run();
+
+            await processing;
+            await duplicated;
+
+            const repeatableJobs = await queue.getJobSchedulers();
+            expect(repeatableJobs.length).to.be.eql(1);
+
+            const count = await queue.getJobCountByTypes('delayed');
+            expect(count).to.be.equal(0);
+
+            await worker!.close();
+          });
         });
       });
     });
