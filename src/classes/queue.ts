@@ -71,7 +71,7 @@ export interface QueueListener<JobBase extends Job = Job>
    *
    * This event is triggered when a job is removed.
    */
-  removed: (job: JobBase) => void;
+  removed: (jobId: string) => void;
 
   /**
    * Listen to 'resumed' event.
@@ -96,22 +96,33 @@ export interface QueueListener<JobBase extends Job = Job>
  */
 type IsAny<T> = 0 extends 1 & T ? true : false;
 // Helper for JobBase type
-type JobBase<T, ResultType, NameType extends string> =
-  IsAny<T> extends true
-    ? Job<T, ResultType, NameType>
-    : T extends Job<any, any, any>
-      ? T
-      : Job<T, ResultType, NameType>;
+type JobBase<T, ResultType, NameType extends string> = IsAny<T> extends true
+  ? Job<T, ResultType, NameType>
+  : T extends Job<any, any, any>
+  ? T
+  : Job<T, ResultType, NameType>;
 
 // Helper types to extract DataType, ResultType, and NameType
-type ExtractDataType<DataTypeOrJob, Default> =
-  DataTypeOrJob extends Job<infer D, any, any> ? D : Default;
+type ExtractDataType<DataTypeOrJob, Default> = DataTypeOrJob extends Job<
+  infer D,
+  any,
+  any
+>
+  ? D
+  : Default;
 
-type ExtractResultType<DataTypeOrJob, Default> =
-  DataTypeOrJob extends Job<any, infer R, any> ? R : Default;
+type ExtractResultType<DataTypeOrJob, Default> = DataTypeOrJob extends Job<
+  any,
+  infer R,
+  any
+>
+  ? R
+  : Default;
 
-type ExtractNameType<DataTypeOrJob, Default extends string> =
-  DataTypeOrJob extends Job<any, any, infer N> ? N : Default;
+type ExtractNameType<
+  DataTypeOrJob,
+  Default extends string,
+> = DataTypeOrJob extends Job<any, any, infer N> ? N : Default;
 
 /**
  * Queue
@@ -811,7 +822,13 @@ export class Queue<
           }),
         });
 
-        return await this.scripts.remove(jobId, removeChildren);
+        const code = await this.scripts.remove(jobId, removeChildren);
+
+        if (code === 1) {
+          this.emit('removed', jobId);
+        }
+
+        return code;
       },
     );
   }

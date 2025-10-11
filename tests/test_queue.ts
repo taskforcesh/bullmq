@@ -16,7 +16,7 @@ describe('queues', function () {
   let queue: Queue;
   let queueName: string;
 
-  let connection;
+  let connection: IORedis;
   before(async function () {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
@@ -59,6 +59,26 @@ describe('queues', function () {
       expect(jobs).to.be.an('array');
       expect(jobs.length).to.be.at.least(1);
       expect(jobs[0]).to.be.instanceOf(Job);
+    });
+  });
+
+  describe('when removing a job', function () {
+    it('should emit removed event', async function () {
+      const queue = new Queue<{ foo: string; bar: number }>(queueName, {
+        prefix,
+        connection,
+      });
+
+      const job = await queue.add(queueName, { foo: 'bar', bar: 1 });
+      const removed = new Promise<void>(resolve => {
+        queue.on('removed', (jobId: string) => {
+          expect(jobId).to.be.eql(job.id);
+          resolve();
+        });
+      });
+      queue.remove(job.id!);
+      await removed;
+      await queue.close();
     });
   });
 
@@ -309,12 +329,14 @@ describe('queues', function () {
             const countAfterEmpty = await queue.count();
             expect(countAfterEmpty).to.be.eql(0);
 
-            const childrenFailedCount =
-              await queue.getJobCountByTypes('failed');
+            const childrenFailedCount = await queue.getJobCountByTypes(
+              'failed',
+            );
             expect(childrenFailedCount).to.be.eql(0);
 
-            const parentWaitCount =
-              await parentQueue.getJobCountByTypes('wait');
+            const parentWaitCount = await parentQueue.getJobCountByTypes(
+              'wait',
+            );
             expect(parentWaitCount).to.be.eql(1);
             await parentQueue.close();
             await flow.close();
@@ -361,8 +383,9 @@ describe('queues', function () {
             const failedCount = await queue.getJobCountByTypes('failed');
             expect(failedCount).to.be.eql(0);
 
-            const parentWaitCount =
-              await parentQueue.getJobCountByTypes('wait');
+            const parentWaitCount = await parentQueue.getJobCountByTypes(
+              'wait',
+            );
             expect(parentWaitCount).to.be.eql(1);
             await parentQueue.close();
             await flow.close();
@@ -376,8 +399,8 @@ describe('queues', function () {
       it('clean queue without delayed jobs', async () => {
         const maxJobs = 50;
         const maxDelayedJobs = 50;
-        const added = [];
-        const delayed = [];
+        const added: Promise<Job>[] = [];
+        const delayed: Promise<Job>[] = [];
 
         for (let i = 1; i <= maxJobs; i++) {
           added.push(queue.add('test', { foo: 'bar', num: i }));
@@ -403,8 +426,8 @@ describe('queues', function () {
       it('clean queue including delayed jobs', async () => {
         const maxJobs = 50;
         const maxDelayedJobs = 50;
-        const added = [];
-        const delayed = [];
+        const added: Promise<Job>[] = [];
+        const delayed: Promise<Job>[] = [];
 
         for (let i = 1; i <= maxJobs; i++) {
           added.push(queue.add('test', { foo: 'bar', num: i }));
@@ -429,7 +452,7 @@ describe('queues', function () {
     describe('when queue is paused', () => {
       it('clean queue including paused jobs', async () => {
         const maxJobs = 50;
-        const added = [];
+        const added: Promise<Job>[] = [];
 
         await queue.pause();
         for (let i = 1; i <= maxJobs; i++) {
