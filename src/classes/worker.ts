@@ -841,6 +841,7 @@ will never work with more accuracy than 1ms. */
         }, this.opts.runRetryDelay);
       } catch (err) {
         // Emit error but don't throw to avoid breaking current job completion
+        // Note: This means the next repeatable job will not be scheduled
         const errorMessage = err instanceof Error ? err.message : String(err);
         const schedulingError = new Error(
           `Failed to add repeatable job for next iteration: ${errorMessage}`,
