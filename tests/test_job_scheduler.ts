@@ -2845,137 +2845,6 @@ describe('Job Scheduler', function () {
       }
     });
 
-    it('should allow repeatable jobs to be retried infinitely when stalled', async function () {
-      this.clock.restore(); // Use real timers with mocked delay
-      this.timeout(8000); // Increased timeout for CI environments
-
-      const stalledEvents: string[] = [];
-      let jobProcessingAttempts = 0;
-      let mockCallCount = 0;
-      let moveToDelayedCallCount = 0;
-
-      const worker = new Worker(
-        queueName,
-        async job => {
-          jobProcessingAttempts++;
-          return { result: 'completed' };
-        },
-        {
-          connection,
-          prefix,
-          maxStalledCount: 2, // Regular jobs would fail after 2 stalls
-          lockDuration: 1000, // 1 second lock
-          stalledInterval: 500, // Check for stalled jobs every 500ms
-        },
-      );
-
-      // Mock the worker's delay method to make retryIfFailed much faster
-      const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {
-        // Make retryIfFailed delays instant for testing
-        return Promise.resolve();
-      });
-
-      worker.on('stalled', jobId => {
-        stalledEvents.push(jobId);
-      });
-
-      await worker.waitUntilReady();
-
-      // Mock the job scheduler's upsertJobScheduler to fail more times than retryIfFailed limit (3)
-      const jobScheduler = await worker.jobScheduler;
-      const originalUpsertJobScheduler =
-        jobScheduler.upsertJobScheduler.bind(jobScheduler);
-
-      jobScheduler.upsertJobScheduler = async (...args) => {
-        mockCallCount++;
-        if (mockCallCount <= 10) {
-          // Fail many times to ensure we reach moveToDelayed fallback
-          throw new Error(
-            `Simulated scheduler update failure (attempt ${mockCallCount})`,
-          );
-        }
-        return originalUpsertJobScheduler(...args);
-      };
-
-      // Mock Job.prototype.moveToDelayed to track calls but eventually succeed
-      const originalJobMoveToDelayed = Job.prototype.moveToDelayed;
-      Job.prototype.moveToDelayed = async function (...args) {
-        moveToDelayedCallCount++;
-
-        if (moveToDelayedCallCount <= 2) {
-          // Fail first couple attempts to trigger stalling
-          throw new Error(
-            `Simulated moveToDelayed failure (attempt ${moveToDelayedCallCount})`,
-          );
-        }
-        // Eventually succeed to avoid infinite stalling
-        return originalJobMoveToDelayed.apply(this, args);
-      };
-
-      // Add a repeatable job
-      const job = await queue.upsertJobScheduler(
-        'infinite-retry-scheduler',
-        {
-          every: 1000, // 1 second for fake timer testing
-        },
-        {
-          name: 'scheduler-job',
-          data: { test: true },
-        },
-      );
-
-      // Ensure the worker is ready and starts processing
-      await worker.waitUntilReady();
-
-      const jobId = job!.id!;
-
-      // Wait for processing and stalling to occur with mocked delays
-      // Use a polling approach to wait for the expected conditions
-      let attempts = 0;
-      const maxAttempts = 20; // 20 attempts * 200ms = 4 seconds max
-
-      while (attempts < maxAttempts && mockCallCount === 0) {
-        await delay(200);
-        attempts++;
-      }
-
-      // Give a bit more time for the full retry cycle to complete
-      await delay(1000);
-
-      // Verify that the repeatable job attempted scheduler updates (retryIfFailed working)
-      expect(mockCallCount).to.be.greaterThan(
-        0,
-        `Should have attempted scheduler update at least once, got ${mockCallCount}`,
-      );
-
-      // Verify that moveToDelayed was called as fallback after retryIfFailed exhausted
-      expect(moveToDelayedCallCount).to.be.greaterThan(
-        0,
-        'Should have attempted to move to delayed',
-      );
-
-      // Check that the job may have stalled but wasn't permanently failed
-      const finalJob = await queue.getJob(jobId);
-      if (finalJob) {
-        const finalJobState = await finalJob.getState();
-        expect(finalJobState).to.not.equal(
-          'failed',
-          'Repeatable job should not be failed even after multiple stalls',
-        );
-      }
-
-      // Restore the original methods
-      jobScheduler.upsertJobScheduler = originalUpsertJobScheduler;
-      Job.prototype.moveToDelayed = originalJobMoveToDelayed;
-
-      try {
-        delayStub.restore(); // Restore the delay stub
-        await worker.close();
-      } catch (error) {
-        // Ignore cleanup errors
-      }
-    });
-
     it('should fail regular jobs after maxStalledCount but allow repeatable jobs infinite retries', async function () {
       this.clock.restore(); // Use real timers with mocked delay
       this.timeout(8000); // Reduced timeout since delay will be mocked
@@ -3022,7 +2891,7 @@ describe('Job Scheduler', function () {
       });
 
       // Add a repeatable job that will trigger the scheduler update failure
-      const repeatableJob = await queue.upsertJobScheduler(
+      await queue.upsertJobScheduler(
         'test-scheduler',
         { every: 800 }, // Fast interval for quicker testing
         { name: 'repeatable-job', data: { test: 'repeatable' } },
