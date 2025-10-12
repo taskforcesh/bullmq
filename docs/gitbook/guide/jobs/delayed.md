@@ -28,11 +28,12 @@ await myQueue.add('house', { color: 'white' }, { delay });
 
 ## Change delay
 
-If you want to change the delay _after_ inserting a delayed job, use **`changeDelay`** method. For example, let's say you want to change the delay from 2000 to 4000 milliseconds:
+If you want to reschedule a delayed job _after_ inserting it, use the **`changeDelay`** method. This method reschedules the job to execute after the specified number of milliseconds from the current time, regardless of the original delay. For example:
 
 ```typescript
 const job = await Job.create(queue, 'test', { foo: 'bar' }, { delay: 2000 });
 
+// Reschedule the job to execute 4000ms (4 seconds) from now
 await job.changeDelay(4000);
 ```
 
