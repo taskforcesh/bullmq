@@ -1056,7 +1056,8 @@ will never work with more accuracy than 1ms. */
           err instanceof WaitingChildrenError ||
           err.name == 'WaitingChildrenError'
         ) {
-          return;
+          const client = await this.client;
+          return this.moveToActive(client, token, this.opts.name);
         }
 
         const result = await job.moveToFailed(

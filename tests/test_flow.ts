@@ -22,7 +22,7 @@ describe('flows', () => {
   let queue: Queue;
   let queueName: string;
 
-  let connection;
+  let connection: IORedis;
   before(async function () {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
@@ -268,8 +268,9 @@ describe('flows', () => {
           async job => {
             await delay(100);
 
-            const jobIdFromDebounceKey =
-              await queue.getDebounceJobId('debounce_id');
+            const jobIdFromDebounceKey = await queue.getDebounceJobId(
+              'debounce_id',
+            );
             expect(jobIdFromDebounceKey).to.be.equal(job.id);
 
             await flow.add({
@@ -335,8 +336,9 @@ describe('flows', () => {
 
         await completing;
 
-        const jobIdFromDebounceKey =
-          await queue.getDebounceJobId('debounce_id');
+        const jobIdFromDebounceKey = await queue.getDebounceJobId(
+          'debounce_id',
+        );
         expect(jobIdFromDebounceKey).to.be.null;
 
         expect(debouncedCounter).to.be.equal(1);
@@ -3427,7 +3429,9 @@ describe('flows', () => {
               } else {
                 reject(
                   new Error(
-                    `wrong job (${jobId}) failed instead of ${tree!.children![0].job.id}`,
+                    `wrong job (${jobId}) failed instead of ${
+                      tree!.children![0].job.id
+                    }`,
                   ),
                 );
               }
@@ -3573,7 +3577,9 @@ describe('flows', () => {
               } else {
                 reject(
                   new Error(
-                    `wrong job (${jobId}) failed instead of ${tree!.children![0].job.id}`,
+                    `wrong job (${jobId}) failed instead of ${
+                      tree!.children![0].job.id
+                    }`,
                   ),
                 );
               }
