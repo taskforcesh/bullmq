@@ -928,7 +928,7 @@ will never work with more accuracy than 1ms. */
                   inProgressItem,
                   span,
                 ),
-              { delayInMs: this.opts.runRetryDelay },
+              { delayInMs: this.opts.runRetryDelay, span },
             );
             return failed;
           }
@@ -950,7 +950,7 @@ will never work with more accuracy than 1ms. */
                 inProgressItem,
                 span,
               ),
-            { delayInMs: this.opts.runRetryDelay },
+            { delayInMs: this.opts.runRetryDelay, span },
           );
         } catch (err) {
           const failed = await this.retryIfFailed<void | Job<
@@ -968,7 +968,7 @@ will never work with more accuracy than 1ms. */
                 inProgressItem,
                 span,
               ),
-            { delayInMs: this.opts.runRetryDelay },
+            { delayInMs: this.opts.runRetryDelay, span },
           );
           return failed;
         } finally {
