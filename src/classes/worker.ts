@@ -519,10 +519,9 @@ export class Worker<
           DataType,
           ResultType,
           NameType
-        >>(
-          () => this._getNextJob(client, bclient, token, { block: true }),
-          this.opts.runRetryDelay,
-        );
+        >>(() => this._getNextJob(client, bclient, token, { block: true }), {
+          delayInMs: this.opts.runRetryDelay,
+        });
         asyncFifoQueue.add(fetchedJob);
 
         if (this.waiting && asyncFifoQueue.numTotal() > 1) {
@@ -840,8 +839,7 @@ will never work with more accuracy than 1ms. */
               });
             }
           },
-          2.5 * ONE_SECOND, // Wait 2.5 seconds between attempts
-          3, // Retry up to 3 times
+          { delayInMs: 2.5 * ONE_SECOND, maxRetries: 3 },
         );
       } catch (err) {
         // Emit error but don't throw to avoid breaking current job completion
@@ -930,7 +928,7 @@ will never work with more accuracy than 1ms. */
                   inProgressItem,
                   span,
                 ),
-              this.opts.runRetryDelay,
+              { delayInMs: this.opts.runRetryDelay },
             );
             return failed;
           }
@@ -952,7 +950,7 @@ will never work with more accuracy than 1ms. */
                 inProgressItem,
                 span,
               ),
-            this.opts.runRetryDelay,
+            { delayInMs: this.opts.runRetryDelay },
           );
         } catch (err) {
           const failed = await this.retryIfFailed<void | Job<
@@ -970,7 +968,7 @@ will never work with more accuracy than 1ms. */
                 inProgressItem,
                 span,
               ),
-            this.opts.runRetryDelay,
+            { delayInMs: this.opts.runRetryDelay },
           );
           return failed;
         } finally {
@@ -1040,49 +1038,39 @@ will never work with more accuracy than 1ms. */
     jobsInProgress.delete(inProgressItem);
 
     if (!this.connection.closing) {
-      try {
-        // Check if the job was manually rate-limited
-        if (err.message == RATE_LIMIT_ERROR) {
-          const rateLimitTtl = await this.moveLimitedBackToWait(job, token);
-          this.limitUntil = rateLimitTtl > 0 ? Date.now() + rateLimitTtl : 0;
-          return;
-        }
+      // Check if the job was manually rate-limited
+      if (err.message == RATE_LIMIT_ERROR) {
+        const rateLimitTtl = await this.moveLimitedBackToWait(job, token);
+        this.limitUntil = rateLimitTtl > 0 ? Date.now() + rateLimitTtl : 0;
+        return;
+      }
 
-        if (
-          err instanceof DelayedError ||
-          err.name == 'DelayedError' ||
-          err instanceof WaitingError ||
-          err.name == 'WaitingError' ||
-          err instanceof WaitingChildrenError ||
-          err.name == 'WaitingChildrenError'
-        ) {
-          return;
-        }
+      if (
+        err instanceof DelayedError ||
+        err.name == 'DelayedError' ||
+        err instanceof WaitingError ||
+        err.name == 'WaitingError' ||
+        err instanceof WaitingChildrenError ||
+        err.name == 'WaitingChildrenError'
+      ) {
+        return;
+      }
 
-        const result = await job.moveToFailed(
-          err,
-          token,
-          fetchNextCallback() && !(this.closing || this.paused),
-        );
-        this.emit('failed', job, err, 'active');
+      const result = await job.moveToFailed(
+        err,
+        token,
+        fetchNextCallback() && !(this.closing || this.paused),
+      );
+      this.emit('failed', job, err, 'active');
 
-        span?.addEvent('job failed', {
-          [TelemetryAttributes.JobFailedReason]: err.message,
-        });
+      span?.addEvent('job failed', {
+        [TelemetryAttributes.JobFailedReason]: err.message,
+      });
 
-        if (result) {
-          const [jobData, jobId, rateLimitDelay, delayUntil] = result;
-          this.updateDelays(rateLimitDelay, delayUntil);
-          return this.nextJobFromJobData(jobData, jobId, token);
-        }
-      } catch (err) {
-        if (isNotConnectionError(err as Error)) {
-          this.emit('error', <Error>err);
-        }
-        // It probably means that the job has lost the lock before completion
-        // A worker will (or already has) moved the job back
-        // to the waiting list (as stalled)
-        span?.recordException((<Error>err).message);
+      if (result) {
+        const [jobData, jobId, rateLimitDelay, delayUntil] = result;
+        this.updateDelays(rateLimitDelay, delayUntil);
+        return this.nextJobFromJobData(jobData, jobId, token);
       }
     }
   }
@@ -1333,22 +1321,27 @@ will never work with more accuracy than 1ms. */
 
   private async retryIfFailed<T>(
     fn: () => Promise<T>,
-    delayInMs: number,
-    maxRetries = Infinity,
+    opts: {
+      delayInMs: number;
+      span?: Span;
+      maxRetries?: number;
+    },
   ): Promise<T> {
     let retry = 0;
+    const maxRetries = opts.maxRetries || Infinity;
 
     do {
       try {
         return await fn();
       } catch (err) {
+        opts.span?.recordException((<Error>err).message);
         if (isNotConnectionError(err as Error)) {
           this.emit('error', <Error>err);
 
           throw err;
         } else {
-          if (delayInMs && !this.closing && !this.closed) {
-            await this.delay(delayInMs);
+          if (opts.delayInMs && !this.closing && !this.closed) {
+            await this.delay(opts.delayInMs);
           }
 
           if (retry + 1 >= maxRetries) {
