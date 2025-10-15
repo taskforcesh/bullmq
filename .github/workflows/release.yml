@@ -10,7 +10,8 @@ env:
 jobs:
   release:
     permissions:
-      contents: write # for release publishing
+      id-token: write # Required for OIDC
+      contents: read
       pull-requests: write # for creating PRs
       issues: write # additional permission that might be needed
 
