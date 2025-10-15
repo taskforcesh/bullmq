@@ -968,7 +968,7 @@ will never work with more accuracy than 1ms. */
                 inProgressItem,
                 span,
               ),
-            { delayInMs: this.opts.runRetryDelay, span },
+            { delayInMs: this.opts.runRetryDelay, span, onlyEmitError: true },
           );
           return failed;
         } finally {
@@ -1325,6 +1325,7 @@ will never work with more accuracy than 1ms. */
       delayInMs: number;
       span?: Span;
       maxRetries?: number;
+      onlyEmitError?: boolean;
     },
   ): Promise<T> {
     let retry = 0;
@@ -1338,10 +1339,14 @@ will never work with more accuracy than 1ms. */
         if (isNotConnectionError(err as Error)) {
           this.emit('error', <Error>err);
 
-          break;
+          if (opts.onlyEmitError) {
+            return;
+          } else {
+            throw err;
+          }
         } else {
           if (opts.delayInMs && !this.closing && !this.closed) {
-            await this.delay(opts.delayInMs);
+            await this.delay(opts.delayInMs, this.abortDelayController);
           }
 
           if (retry + 1 >= maxRetries) {
