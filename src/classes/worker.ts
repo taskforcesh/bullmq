@@ -1338,7 +1338,7 @@ will never work with more accuracy than 1ms. */
         if (isNotConnectionError(err as Error)) {
           this.emit('error', <Error>err);
 
-          throw err;
+          break;
         } else {
           if (opts.delayInMs && !this.closing && !this.closed) {
             await this.delay(opts.delayInMs);
