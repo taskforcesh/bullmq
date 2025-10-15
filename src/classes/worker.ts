@@ -1039,7 +1039,7 @@ will never work with more accuracy than 1ms. */
 
     if (!this.connection.closing) {
       // Check if the job was manually rate-limited
-      if (err.message == RATE_LIMIT_ERROR) {
+      if (err.message === RATE_LIMIT_ERROR) {
         const rateLimitTtl = await this.moveLimitedBackToWait(job, token);
         this.limitUntil = rateLimitTtl > 0 ? Date.now() + rateLimitTtl : 0;
         return;
