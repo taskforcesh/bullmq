@@ -1379,9 +1379,9 @@ export class Job<
    * Attempts to retry the job. Only a job that has failed or completed can be retried.
    *
    * @param state - completed / failed
-   * @returns If resolved and return code is 1, then the queue emits a waiting event
-   * otherwise the operation was not a success and throw the corresponding error. If the promise
-   * rejects, it indicates that the script failed to execute
+   * @returns A promise that resolves when the job has been successfully moved to the wait queue.
+   * The queue emits a waiting event when the job is successfully moved.
+   * @throws Will throw an error if the job does not exist, is locked, or is not in the expected state.
    */
   retry(state: FinishedStatus = 'failed'): Promise<void> {
     this.failedReason = null;
