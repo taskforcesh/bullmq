@@ -11,7 +11,7 @@ jobs:
   release:
     permissions:
       id-token: write # Required for OIDC
-      contents: read
+      contents: write
       pull-requests: write # for creating PRs
       issues: write # additional permission that might be needed
 
