@@ -714,8 +714,14 @@ will never work with more accuracy than 1ms. */
           // We cannot trust that the blocking connection stays blocking forever
           // due to issues in Redis and IORedis, so we will reconnect if we
           // don't get a response in the expected time.
-          timeout = setTimeout(async () => {
-            bclient.disconnect(!this.closing);
+          timeout = setTimeout(() => {
+            // If the event-loop was stuck for more than 1s at the time of completion,
+            // leading this setTimeout and the bzpopmin below to execute at the same time,
+            // this function is going to run first. The next setTimeout is there to give
+            // a bit of room to bzpopmin to resolve if it can.
+            timeout = setTimeout(() => {
+              bclient.disconnect(!this.closing);
+            }, 0);
           }, blockTimeout * 1000 + 1000);
 
           this.updateDelays(); // reset delays to avoid reusing same values in next iteration
