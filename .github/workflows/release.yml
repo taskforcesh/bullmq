@@ -36,7 +36,6 @@ jobs:
         id: semantic_release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npx semantic-release
       - name: Create PR with release changes
         if: ${{ success() && steps.semantic_release.outcome == 'success' }}
