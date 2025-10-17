@@ -818,63 +818,34 @@ will never work with more accuracy than 1ms. */
       job.token = token;
 
       try {
-        await this.retryIfFailed(
-          async () => {
-            if (job.repeatJobKey && job.repeatJobKey.split(':').length < 5) {
-              const jobScheduler = await this.jobScheduler;
-              await jobScheduler.upsertJobScheduler(
-                // Most of these arguments are not really needed
-                // anymore as we read them from the job scheduler itself
-                job.repeatJobKey,
-                job.opts.repeat,
-                job.name,
-                job.data,
-                job.opts,
-                { override: false, producerId: job.id },
-              );
-            } else if (job.opts.repeat) {
-              const repeat = await this.repeat;
-              await repeat.updateRepeatableJob(job.name, job.data, job.opts, {
-                override: false,
-              });
-            }
-          },
-          { delayInMs: 2.5 * ONE_SECOND, maxRetries: 3 },
-        );
+        await this.retryIfFailed(async () => {
+          if (job.repeatJobKey && job.repeatJobKey.split(':').length < 5) {
+            const jobScheduler = await this.jobScheduler;
+            await jobScheduler.upsertJobScheduler(
+              // Most of these arguments are not really needed
+              // anymore as we read them from the job scheduler itself
+              job.repeatJobKey,
+              job.opts.repeat,
+              job.name,
+              job.data,
+              job.opts,
+              { override: false, producerId: job.id },
+            );
+          } else if (job.opts.repeat) {
+            const repeat = await this.repeat;
+            await repeat.updateRepeatableJob(job.name, job.data, job.opts, {
+              override: false,
+            });
+          }
+        }, { delayInMs: this.opts.runRetryDelay });
       } catch (err) {
         // Emit error but don't throw to avoid breaking current job completion
-        // and leaving the new job in stalled state
+        // Note: This means the next repeatable job will not be scheduled
         const errorMessage = err instanceof Error ? err.message : String(err);
         const schedulingError = new Error(
           `Failed to add repeatable job for next iteration: ${errorMessage}`,
         );
         this.emit('error', schedulingError);
-
-        // Try to move the job to delayed with backoff to prevent infinite retry loops
-        try {
-          // Calculate backoff delay: base delay of 5 seconds, exponentially increasing with attempts
-          const baseDelay = ONE_SECOND; // 1 second
-          const maxDelay = 300 * ONE_SECOND; // 5 minutes max
-          const attempt = job.attemptsStarted;
-          const exponentialDelay = Math.min(
-            baseDelay * Math.pow(2, attempt),
-            maxDelay,
-          );
-
-          await job.moveToDelayed(Date.now() + exponentialDelay, job.token);
-        } catch (moveErr) {
-          // If we can't move it to delayed, emit error and let it become stalled
-          // Stalled jobs will be automatically retried by the stalled checker
-          const moveErrorMessage =
-            moveErr instanceof Error ? moveErr.message : String(moveErr);
-          this.emit(
-            'error',
-            new Error(
-              `Failed to move job ${job.id} to delayed after scheduling error: ${moveErrorMessage}. 
-              Job will become stalled and be retried automatically.`,
-            ),
-          );
-        }
 
         // Return undefined to indicate no next job is available
         return undefined;
