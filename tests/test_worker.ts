@@ -355,8 +355,8 @@ describe('workers', function () {
           expect(job).to.be.ok;
           expect(data).to.be.eql(37);
 
-          const gotJob = await queue.getJob(job.id);
-          expect(gotJob.returnvalue).to.be.eql(37);
+          const gotJob = await queue.getJob(job.id!);
+          expect(gotJob!.returnvalue).to.be.eql(37);
           resolve();
         } catch (err) {
           reject(err);
