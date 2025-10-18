@@ -1331,7 +1331,7 @@ will never work with more accuracy than 1ms. */
         opts.span?.recordException((<Error>err).message);
 
         if (isNotConnectionError(<Error>err)) {
-          // Swallow error if locally not paused or not closing since we did not force a disconnection
+          // Emit error when not paused or closing; optionally swallow (no throw) when opts.onlyEmitError is set.
           if (!(this.paused || this.closing)) {
             this.emit('error', <Error>err);
           }
