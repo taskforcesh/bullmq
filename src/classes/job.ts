@@ -960,7 +960,11 @@ export class Job<
   /**
    * Change delay of a delayed job.
    *
-   * @param delay - milliseconds to be added to current time.
+   * Reschedules a delayed job by setting a new delay from the current time.
+   * For example, calling changeDelay(5000) will reschedule the job to execute
+   * 5000 milliseconds (5 seconds) from now, regardless of the original delay.
+   *
+   * @param delay - milliseconds from now when the job should be processed.
    * @returns void
    */
   async changeDelay(delay: number): Promise<void> {
