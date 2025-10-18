@@ -1332,7 +1332,7 @@ will never work with more accuracy than 1ms. */
 
         if (isNotConnectionError(<Error>err)) {
           // Emit error when not paused or closing; optionally swallow (no throw) when opts.onlyEmitError is set.
-          if (!(this.paused || this.closing)) {
+          if (!this.paused && !this.closing) {
             this.emit('error', <Error>err);
           }
 
