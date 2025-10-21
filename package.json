@@ -88,7 +88,6 @@
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
     "commitizen": "^4.3.1",
-    "conventional-changelog-conventionalcommits": "^9.1.0",
     "coveralls-next": "^5.0.0",
     "cpx2": "^8.0.0",
     "eslint": "^9.32.0",
@@ -121,6 +120,8 @@
     "typescript": "^5.9.2"
   },
   "resolutions": {
+    "@semantic-release/commit-analyzer/conventional-changelog-angular": "8.1.0",
+    "@semantic-release/release-notes-generator/conventional-changelog-angular": "8.1.0",
     "commitizen/inquirer/external-editor/tmp": "0.2.4"
   },
   "nyc": {
@@ -189,44 +190,9 @@
       [
         "@semantic-release/release-notes-generator",
         {
-          "preset": "conventionalcommits",
+          "preset": "angular",
           "presetConfig": {
-            "ignoreCommits": "\\[python\\]",
-            "types": [
-              {
-                "type": "feat",
-                "section": "Features"
-              },
-              {
-                "type": "fix",
-                "section": "Bug Fixes"
-              },
-              {
-                "type": "chore",
-                "hidden": true
-              },
-              {
-                "type": "docs",
-                "hidden": true
-              },
-              {
-                "type": "style",
-                "hidden": true
-              },
-              {
-                "type": "test",
-                "hidden": true
-              },
-              {
-                "type": "refactor",
-                "hidden": true
-              },
-              {
-                "type": "perf",
-                "section": "Performance Improvements",
-                "hidden": false
-              }
-            ]
+            "ignoreCommits": "\\[python\\]"
           }
         }
       ],
