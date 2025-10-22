@@ -218,5 +218,8 @@
       "@semantic-release/github"
     ]
   },
-  "packageManager": "yarn@1.22.22"
+  "packageManager": "yarn@1.22.22",
+  "publishConfig": {
+    "provenance": true
+  }
 }
