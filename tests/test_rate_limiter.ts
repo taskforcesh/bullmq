@@ -157,7 +157,7 @@ describe('Rate Limiter', function () {
 
         const globalRateLimit = await queue.getGlobalRateLimit();
 
-        expect(globalRateLimit).to.be.equal(null);
+        expect(globalRateLimit).to.be.null;
 
         const result = new Promise<void>((resolve, reject) => {
           queueEvents.on(
