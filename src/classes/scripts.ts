@@ -26,6 +26,7 @@ import {
   RepeatableOptions,
   RetryJobOpts,
   ScriptQueueContext,
+  JobSearchRawResponse,
 } from '../interfaces';
 import {
   JobsOptions,
@@ -46,6 +47,7 @@ import {
 import { ChainableCommander } from 'ioredis';
 import { version as packageVersion } from '../version';
 import { UnrecoverableError } from './errors';
+import { v4 } from 'uuid';
 export type JobData = [JobJsonRaw | number, string?];
 
 export class Scripts {
@@ -863,6 +865,114 @@ export class Scripts {
     const args = this.getRangesArgs(types, start, end, asc);
 
     return await this.execCommand(client, 'getRanges', args);
+  }
+
+  /**
+   * Retrieve jobs by a user-defined mongo-compatible filter object
+   * @param type  - type of job
+   * @param filter - mongo-like filter
+   * @param cursor  - cursor position
+   * @param count - count of jobs to return per iteration
+   */
+  async getJobsByFilter(
+    type: JobType,
+    filter: Record<string, unknown>,
+    cursor: number,
+    count = 20,
+  ): Promise<FilteredJobsResult> {
+    const client = await this.queue.client;
+    type = type === 'waiting' ? 'wait' : type; // alias
+    const key = type ? this.queue.toKey(type) : '';
+    const prefix = this.queue.toKey('');
+    const criteria = JSON.stringify(filter);
+
+    const response = await (<any>client).getJobsByFilter(
+      key,
+      prefix,
+      criteria,
+      cursor,
+      count,
+    );
+
+    const newCursor = response[0] === '0' ? null : Number(response[0]);
+    const jobs: Job[] = [];
+
+    let currentJob: Record<string, any> = {};
+    let jobId: string = null;
+
+    const queue: MinimalQueue = this.queue;
+
+    function addJobIfNeeded() {
+      if (currentJob && !isEmpty(currentJob) && jobId) {
+        // TODO: verify this
+        const trace = currentJob['stacktrace'];
+        if (!Array.isArray(trace)) {
+          if (typeof trace === 'string') {
+            currentJob['stacktrace'] = JSON.parse(trace);
+          } else {
+            currentJob['stacktrace'] = [];
+          }
+        }
+        const raw = currentJob as JobJsonRaw;
+        const job = Job.fromJSON(queue, raw, jobId);
+        const ts = currentJob['timestamp'];
+        job.timestamp = ts ? parseInt(ts) : Date.now();
+        jobs.push(job);
+      }
+    }
+
+    for (let i = 1; i < response.length; i += 2) {
+      const key = response[i];
+      const value = response[i + 1];
+
+      if (key === 'jobId') {
+        addJobIfNeeded();
+        jobId = value;
+        currentJob = {};
+      } else {
+        currentJob[key] = value;
+      }
+    }
+
+    addJobIfNeeded();
+
+    return {
+      cursor: newCursor,
+      jobs,
+    };
+  }
+
+  private getJobsByFilterArgs(
+    type: JobType,
+    query: object,
+    count: number,
+    asc: boolean,
+    cursorId: string,
+  ): (string | number)[] {
+    const queueKeys = this.queue.keys;
+    const transformedType = type == 'waiting' ? 'wait' : type;
+    const key = queueKeys[transformedType];
+    const cursorKey = this.queue.toKey(`search-cursor:${cursorId}`);
+
+    const keys: (string | number)[] = [key, cursorKey];
+    const queryValue = JSON.stringify(query);
+    const args = [queryValue, count, asc ? '1' : '0'];
+
+    return keys.concat(args);
+  }
+
+  async getJobsByFilter(
+    type: JobType,
+    query: object,
+    count = 10,
+    asc = false,
+    cursorId: string = null,
+  ): Promise<JobSearchRawResponse> {
+    const client = await this.queue.client;
+    cursorId = cursorId || v4();
+    const args = this.getJobsByFilterArgs(type, query, count, asc, cursorId);
+
+    return await this.execCommand(client, 'getJobsByFilter', args);
   }
 
   private getCountsArgs(types: JobType[]): (string | number)[] {

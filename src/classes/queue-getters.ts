@@ -3,9 +3,11 @@
 
 import { QueueBase } from './queue-base';
 import { Job } from './job';
-import { clientCommandMessageReg, QUEUE_EVENT_SUFFIX } from '../utils';
+import { clientCommandMessageReg, isEmpty, QUEUE_EVENT_SUFFIX } from '../utils';
 import { JobState, JobType } from '../types';
-import { JobJsonRaw, Metrics } from '../interfaces';
+import { JobJsonRaw, Metrics, MinimalQueue } from '../interfaces';
+import { parseSearchQuery } from './search-query-parser';
+import { v4 } from 'uuid';
 
 /**
  * Provides different getters for different aspects of a queue.
@@ -405,6 +407,62 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
     });
 
     return [...new Set(results)];
+  }
+
+  async getJobsByFilter(
+    type: JobType,
+    query: string | object,
+    count = 10,
+    asc = false,
+    cursorId: string = null,
+  ): Promise<{
+    cursor: number;
+    total: number;
+    cursorId: string;
+    jobs: Job[];
+  }> {
+    if (typeof query === 'string') {
+      // parse and convert to object
+      query = parseSearchQuery(query);
+    }
+    cursorId = cursorId || v4();
+
+    const response = await this.scripts.getJobsByFilter(
+      type,
+      query,
+      count,
+      asc,
+      cursorId,
+    );
+
+    const cursor = response[0] === 0 ? null : Number(response[0]);
+    const total = Number(response[1]);
+
+    const jobs: Job[] = [];
+    const queue = this as MinimalQueue;
+    for (let i = 2; i < response.length; i++) {
+      const value = response[i];
+      const jobJson = JSON.parse(value) as JobJsonRaw;
+      const trace = jobJson['stacktrace'];
+      const job = Job.fromJSON(queue, jobJson);
+
+      if (!Array.isArray(trace)) {
+        if (typeof trace === 'string') {
+          job['stacktrace'] = JSON.parse(trace);
+        } else {
+          job['stacktrace'] = [];
+        }
+      }
+
+      jobs.push(job);
+    }
+
+    return {
+      cursor,
+      cursorId,
+      total,
+      jobs,
+    };
   }
 
   /**
