@@ -99,7 +99,7 @@ describe('queues', function () {
     await removeAllQueueData(new IORedis(redisHost), exQueueName);
   });
 
-  describe.only('.getGlobalConfig', function () {
+  describe('.getGlobalConfig', function () {
     it('should return global concurrency', async function () {
       await queue.setGlobalConcurrency(1);
       const config = await queue.getGlobalConfig();
