@@ -202,7 +202,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
    *
    * @returns Returns the global queue configuration.
    */
-  async getGlobalConfig(): Promise<QueueGlobalConfig | null> {
+  async getGlobalConfig(): Promise<QueueGlobalConfig> {
     const client = await this.client;
     const config = await client.hgetall(this.keys.meta);
 
