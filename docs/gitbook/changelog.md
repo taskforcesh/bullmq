@@ -1,3 +1,10 @@
+## [5.61.2](https://github.com/taskforcesh/bullmq/compare/v5.61.1...v5.61.2) (2025-10-23)
+
+
+### Bug Fixes
+
+* **worker:** only emit error when moveToActive failed ([0aa7cc5](https://github.com/taskforcesh/bullmq/commit/0aa7cc57db27a4e7b9fe3c5f52600abba749b053))
+
 ## [5.61.0](https://github.com/taskforcesh/bullmq/compare/v5.60.0...v5.61.0) (2025-10-06)
 
 ### Features
