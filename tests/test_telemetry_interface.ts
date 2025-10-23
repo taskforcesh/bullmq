@@ -44,7 +44,7 @@ describe('Telemetry', () => {
   class MockContextManager<Context = any> implements ContextManager<Context> {
     private activeContext: Context = {} as Context;
 
-    with<A extends(...args: any[]) => any>(
+    with<A extends (...args: any[]) => any>(
       context: Context,
       fn: A,
     ): ReturnType<A> {

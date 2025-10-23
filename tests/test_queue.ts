@@ -99,6 +99,50 @@ describe('queues', function () {
     await removeAllQueueData(new IORedis(redisHost), exQueueName);
   });
 
+  describe.only('.getGlobalConfig', function () {
+    it('should return global concurrency', async function () {
+      await queue.setGlobalConcurrency(1);
+      const config = await queue.getGlobalConfig();
+
+      expect(config).to.be.deep.equal({
+        maxLenEvents: 10000,
+        paused: false,
+        version: `bullmq:${currentPackageVersion}`,
+        concurrency: 1,
+      });
+
+      await queue.close();
+    });
+
+    it('should return global rate limit', async function () {
+      await queue.setGlobalRateLimit(1, 500);
+      const config = await queue.getGlobalConfig();
+
+      expect(config).to.be.deep.equal({
+        maxLenEvents: 10000,
+        paused: false,
+        version: `bullmq:${currentPackageVersion}`,
+        max: 1,
+        duration: 500,
+      });
+
+      await queue.close();
+    });
+
+    it('should return paused', async function () {
+      await queue.pause();
+      const config = await queue.getGlobalConfig();
+
+      expect(config).to.be.deep.equal({
+        maxLenEvents: 10000,
+        version: `bullmq:${currentPackageVersion}`,
+        paused: true,
+      });
+
+      await queue.close();
+    });
+  });
+
   describe('.add', () => {
     describe('when jobId is provided as integer', () => {
       it('throws error', async function () {
@@ -329,14 +373,12 @@ describe('queues', function () {
             const countAfterEmpty = await queue.count();
             expect(countAfterEmpty).to.be.eql(0);
 
-            const childrenFailedCount = await queue.getJobCountByTypes(
-              'failed',
-            );
+            const childrenFailedCount =
+              await queue.getJobCountByTypes('failed');
             expect(childrenFailedCount).to.be.eql(0);
 
-            const parentWaitCount = await parentQueue.getJobCountByTypes(
-              'wait',
-            );
+            const parentWaitCount =
+              await parentQueue.getJobCountByTypes('wait');
             expect(parentWaitCount).to.be.eql(1);
             await parentQueue.close();
             await flow.close();
@@ -383,9 +425,8 @@ describe('queues', function () {
             const failedCount = await queue.getJobCountByTypes('failed');
             expect(failedCount).to.be.eql(0);
 
-            const parentWaitCount = await parentQueue.getJobCountByTypes(
-              'wait',
-            );
+            const parentWaitCount =
+              await parentQueue.getJobCountByTypes('wait');
             expect(parentWaitCount).to.be.eql(1);
             await parentQueue.close();
             await flow.close();
