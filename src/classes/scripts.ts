@@ -169,6 +169,7 @@ export class Scripts {
       queueKeys.meta,
       queueKeys.id,
       queueKeys.delayed,
+      queueKeys['waiting-children'],
       queueKeys.completed,
       queueKeys.events,
     ];
