@@ -130,7 +130,7 @@ class Scripts:
         """
         keys = self.getKeys(['wait', 'paused', 'meta', 'id', 'completed',
                              'delayed', 'active', 'events', 'marker'])
-        args = self.addJobArgs(job, None)
+        args = self.addJobArgs(job)
         args.append(timestamp)
 
         return self.commands["addStandardJob"](keys=keys, args=args, client=pipe)
@@ -141,7 +141,7 @@ class Scripts:
         """
         keys = self.getKeys(['marker', 'meta', 'id',
                             'delayed', 'completed', 'events'])
-        args = self.addJobArgs(job, None)
+        args = self.addJobArgs(job)
         args.append(timestamp)
 
         return self.commands["addDelayedJob"](keys=keys, args=args, client=pipe)
@@ -152,7 +152,7 @@ class Scripts:
         """
         keys = self.getKeys(['marker', 'meta', 'id', 'prioritized',
                              'delayed', 'completed', 'active', 'events', 'pc'])
-        args = self.addJobArgs(job, None)
+        args = self.addJobArgs(job)
         args.append(timestamp)
 
         return self.commands["addPrioritizedJob"](keys=keys, args=args, client=pipe)
