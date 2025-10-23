@@ -8,8 +8,9 @@
       KEYS[1] 'meta'
       KEYS[2] 'id'
       KEYS[3] 'delayed'
-      KEYS[4] 'completed'
-      KEYS[5] events stream key
+      KEYS[4] 'waiting-children'
+      KEYS[5] 'completed'
+      KEYS[6] events stream key
 
       ARGV[1] msgpacked arguments array
             [1]  key prefix,
@@ -17,11 +18,10 @@
             [3]  name
             [4]  timestamp
             [5]  parentKey?
-            [6]  waitChildrenKey key.
-            [7]  parent dependencies key.
-            [8]  parent? {id, queueKey}
-            [9]  repeat job key
-            [10] deduplication key
+            [6]  parent dependencies key.
+            [7]  parent? {id, queueKey}
+            [8]  repeat job key
+            [9] deduplication key
 
       ARGV[2] Json stringified job data
       ARGV[3] msgpacked options
@@ -33,8 +33,8 @@
 local metaKey = KEYS[1]
 local idKey = KEYS[2]
 
-local completedKey = KEYS[4]
-local eventsKey = KEYS[5]
+local completedKey = KEYS[5]
+local eventsKey = KEYS[6]
 
 local jobId
 local jobIdKey
@@ -46,9 +46,9 @@ local data = ARGV[2]
 local opts = cmsgpack.unpack(ARGV[3])
 
 local parentKey = args[5]
-local parent = args[8]
-local repeatJobKey = args[9]
-local deduplicationKey = args[10]
+local parent = args[7]
+local repeatJobKey = args[8]
+local deduplicationKey = args[9]
 local parentData
 
 -- Includes
@@ -67,7 +67,7 @@ local jobCounter = rcall("INCR", idKey)
 
 local maxEvents = getOrSetMaxEvents(metaKey)
 
-local parentDependenciesKey = args[7]
+local parentDependenciesKey = args[6]
 local timestamp = args[4]
 if args[2] == "" then
     jobId = jobCounter
@@ -92,7 +92,7 @@ end
 storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2], opts, timestamp,
          parentKey, parentData, repeatJobKey)
 
-local waitChildrenKey = args[6]
+local waitChildrenKey = KEYS[4]
 rcall("ZADD", waitChildrenKey, timestamp, jobId)
 rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
       "waiting-children", "jobId", jobId)

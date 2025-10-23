@@ -34,7 +34,7 @@ class Scripts:
         self.commands = {
             "addStandardJob": self.redisClient.register_script(self.getScript("addStandardJob-9.lua")),
             "addDelayedJob": self.redisClient.register_script(self.getScript("addDelayedJob-6.lua")),
-            "addParentJob": self.redisClient.register_script(self.getScript("addParentJob-5.lua")),
+            "addParentJob": self.redisClient.register_script(self.getScript("addParentJob-6.lua")),
             "addPrioritizedJob": self.redisClient.register_script(self.getScript("addPrioritizedJob-9.lua")),
             "changePriority": self.redisClient.register_script(self.getScript("changePriority-7.lua")),
             "cleanJobsInSet": self.redisClient.register_script(self.getScript("cleanJobsInSet-3.lua")),
@@ -86,7 +86,7 @@ class Scripts:
             return self.keys[key]
         return list(map(mapKey, keys))
 
-    def addJobArgs(self, job: Job, waiting_children_key: str|None):
+    def addJobArgs(self, job: Job):
         #  We are still lacking some arguments here:
         #  ARGV[1] msgpacked arguments array
         #         [9]  repeat job key
@@ -99,7 +99,6 @@ class Scripts:
 
         packedArgs = msgpack.packb(
             [self.keys[""], job.id or "", job.name, job.timestamp, job.parentKey,
-                waiting_children_key,
                 f"{parentKey}:dependencies" if parentKey else None, parent],use_bin_type=True)
         
         return [packedArgs, jsonData, packedOpts]
@@ -158,13 +157,13 @@ class Scripts:
 
         return self.commands["addPrioritizedJob"](keys=keys, args=args, client=pipe)
 
-    def addParentJob(self, job: Job, waiting_children_key: str, pipe = None):
+    def addParentJob(self, job: Job, pipe = None):
         """
         Add a job to the queue that is a parent
         """
-        keys = self.getKeys(['meta', 'id', 'delayed', 'completed', 'events'])
-        
-        args = self.addJobArgs(job, waiting_children_key)
+        keys = self.getKeys(['meta', 'id', 'delayed', 'waiting-children', 'completed', 'events'])
+
+        args = self.addJobArgs(job)
 
         return self.commands["addParentJob"](keys=keys, args=args, client=pipe)
 
