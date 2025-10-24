@@ -1,8 +1,9 @@
 // lucene-to-mongo.test.ts
-import { parseSearchQuery, translateRegexToLuaPattern } from '../src';
+import { parseSearchQuery } from '../src';
 import { describe, it } from 'mocha';
 import { expect } from 'chai';
 
+ 
 describe('parseSearchQuery', () => {
   describe('Empty and invalid queries', () => {
     it('should return empty object for empty query', () => {
@@ -64,6 +65,13 @@ describe('parseSearchQuery', () => {
       });
     });
 
+    it('should handle | operator', () => {
+      const result = parseSearchQuery('status:active | status:pending');
+      expect(result).to.be.eql({
+        $or: [{ status: 'active' }, { status: 'pending' }],
+      });
+    });
+
     it('should handle NOT operator', () => {
       const result = parseSearchQuery('NOT status:cancelled');
       expect(result).to.be.eql({
@@ -71,26 +79,32 @@ describe('parseSearchQuery', () => {
       });
     });
 
+    it('should handle - as the NOT operator', () => {
+      const result = parseSearchQuery('-status:cancelled');
+      expect(result).to.be.eql({
+        $not: { status: 'cancelled' },
+      });
+    });
+
     it('should handle multiple AND operators', () => {
       const result = parseSearchQuery('name:John AND age:25 AND status:active');
-      console.log(JSON.stringify(result));
       expect(result).to.be.eql({
         $and: [{ name: 'John' }, { age: 25 }, { status: 'active' }],
       });
     });
+  });
 
-    it('should handle mixed AND and OR operators', () => {
-      const result = parseSearchQuery(
-        'name:John AND (status:active OR status:pending)',
-      );
-      expect(result).to.be.eql({
-        $and: [
-          { name: 'John' },
-          {
-            $or: [{ status: 'active' }, { status: 'pending' }],
-          },
-        ],
-      });
+  it('should handle mixed AND and OR operators', () => {
+    const result = parseSearchQuery(
+      'name:John AND (status:active OR status:pending)',
+    );
+    expect(result).to.be.eql({
+      $and: [
+        { name: 'John' },
+        {
+          $or: [{ status: 'active' }, { status: 'pending' }],
+        },
+      ],
     });
   });
 
@@ -156,6 +170,24 @@ describe('parseSearchQuery', () => {
         ],
       });
     });
+
+    it('should handle grouping with fields', () => {
+      const result = parseSearchQuery('name:(John OR Jane) AND age:(25 OR 30)');
+      expect(result).to.be.eql({
+        $and: [
+          {
+            $or: [{ name: { $eq: 'John' } }, { name: { $eq: 'Jane' } }],
+          },
+          {
+            $or: [{ age: { $eq: 25 } }, { age: { $eq: 30 } }],
+          },
+        ],
+      });
+    });
+
+    it('should disallow specifying fields when creating a field with a grouping', () => {
+      expect(() => parseSearchQuery('name:(John OR last:majors)')).to.throw();
+    });
   });
 
   describe('Range queries', () => {
@@ -216,6 +248,258 @@ describe('parseSearchQuery', () => {
         name: { $regex: '^J.hn$' },
       });
     });
+
+    it('should handle wildcard only (star)', () => {
+      const result = parseSearchQuery('name:*');
+      expect(result).to.be.eql({
+        name: { $regex: '.*' },
+      });
+    });
+
+    it('should handle multiple question marks', () => {
+      const result = parseSearchQuery('code:A??C');
+      expect(result).to.be.eql({
+        code: { $regex: '^A..C$' },
+      });
+    });
+
+    it('should handle wildcard at the beginning only', () => {
+      const result = parseSearchQuery('email:*@example.com');
+      expect(result).to.be.eql({
+        email: { $regex: '.*@example.com$' },
+      });
+    });
+
+    it('should handle wildcard at the end only', () => {
+      const result = parseSearchQuery('email:user@*');
+      expect(result).to.be.eql({
+        email: { $regex: '^user@.*' },
+      });
+    });
+
+    it('should handle wildcards in the middle', () => {
+      const result = parseSearchQuery('filename:test*.txt');
+      expect(result).to.be.eql({
+        filename: { $regex: '^test.*.txt$' },
+      });
+    });
+
+    it('should handle mixed wildcards (star and question mark)', () => {
+      const result = parseSearchQuery('pattern:a?b*c');
+      expect(result).to.be.eql({
+        pattern: { $regex: '^a.b.*c$' },
+      });
+    });
+
+    it('should handle wildcard with special regex characters', () => {
+      const result = parseSearchQuery('path:src/*.js');
+      expect(result).to.be.eql({
+        path: { $regex: '^src/.*.js$' },
+      });
+    });
+
+    it('should handle multiple fields with wildcards', () => {
+      const result = parseSearchQuery('firstName:Jo* AND lastName:*son');
+      expect(result).to.be.eql({
+        $and: [
+          { firstName: { $regex: '^Jo.*' } },
+          { lastName: { $regex: '.*son$' } },
+        ],
+      });
+    });
+
+    it('should handle wildcards with OR operator', () => {
+      const result = parseSearchQuery('status:pend* OR status:wait*');
+      expect(result).to.be.eql({
+        $or: [
+          { status: { $regex: '^pend.*' } },
+          { status: { $regex: '^wait.*' } },
+        ],
+      });
+    });
+
+    it('should handle wildcards with NOT operator', () => {
+      const result = parseSearchQuery('NOT status:fail*');
+      expect(result).to.be.eql({
+        $not: { status: { $regex: '^fail.*' } },
+      });
+    });
+
+    it('should handle wildcards in grouped expressions', () => {
+      const result = parseSearchQuery(
+        '(name:Jo* OR name:Jane*) AND status:active',
+      );
+      expect(result).to.be.eql({
+        $and: [
+          {
+            $or: [
+              { name: { $regex: '^Jo.*' } },
+              { name: { $regex: '^Jane.*' } },
+            ],
+          },
+          { status: 'active' },
+        ],
+      });
+    });
+
+    it('should handle wildcards with nested groups', () => {
+      const result = parseSearchQuery(
+        '((firstName:J* OR firstName:K*) AND lastName:*son) OR email:*@test.com',
+      );
+      expect(result).to.be.eql({
+        $or: [
+          {
+            $and: [
+              {
+                $or: [
+                  { firstName: { $regex: '^J.*' } },
+                  { firstName: { $regex: '^K.*' } },
+                ],
+              },
+              { lastName: { $regex: '.*son$' } },
+            ],
+          },
+          { email: { $regex: '.*@test.com$' } },
+        ],
+      });
+    });
+
+    it('should handle consecutive wildcards', () => {
+      const result = parseSearchQuery('name:a**b');
+      expect(result).to.be.eql({
+        name: { $regex: '^a.*.*b$' },
+      });
+    });
+
+    it('should handle consecutive question marks', () => {
+      const result = parseSearchQuery('code:???');
+      expect(result).to.be.eql({
+        code: { $regex: '^...$' },
+      });
+    });
+
+    it('should handle wildcard with empty string before star', () => {
+      const result = parseSearchQuery('tag:*tag');
+      expect(result).to.be.eql({
+        tag: { $regex: '.*tag$' },
+      });
+    });
+
+    it('should handle wildcard with empty string after star', () => {
+      const result = parseSearchQuery('tag:tag*');
+      expect(result).to.be.eql({
+        tag: { $regex: '^tag.*' },
+      });
+    });
+
+    it('should handle complex wildcard patterns', () => {
+      const result = parseSearchQuery('filename:test_*_??.log');
+      expect(result).to.be.eql({
+        filename: { $regex: '^test_.*_...log$' },
+      });
+    });
+
+    it('should handle wildcards combined with range queries', () => {
+      const result = parseSearchQuery('name:Jo* AND age:[25 TO 35]');
+      expect(result).to.be.eql({
+        $and: [{ name: { $regex: '^Jo.*' } }, { age: { $gte: 25, $lte: 35 } }],
+      });
+    });
+
+    it('should handle wildcards combined with exact matches', () => {
+      const result = parseSearchQuery('department:eng* AND status:active');
+      expect(result).to.be.eql({
+        $and: [{ department: { $regex: '^eng.*' } }, { status: 'active' }],
+      });
+    });
+
+    it('should handle wildcards with numeric field names', () => {
+      const result = parseSearchQuery('id:user_*');
+      expect(result).to.be.eql({
+        id: { $regex: '^user_.*' },
+      });
+    });
+
+    it('should handle wildcards with dots in field names', () => {
+      const result = parseSearchQuery('data.name:test*');
+      expect(result).to.be.eql({
+        'data.name': { $regex: '^test.*' },
+      });
+    });
+
+    it('should handle wildcards without field (text search)', () => {
+      const result = parseSearchQuery('test*');
+      expect(result).to.be.eql({
+        fullText: { $regex: '^test.*' },
+      });
+    });
+
+    it('should handle multiple wildcards without field', () => {
+      const result = parseSearchQuery('foo* bar?');
+      expect(result).to.be.eql({
+        $and: [
+          { fullText: { $regex: '^foo.*' } },
+          { fullText: { $regex: '^bar.$' } },
+        ],
+      });
+    });
+
+    it('should handle wildcard-only pattern', () => {
+      const result = parseSearchQuery('field:*');
+      expect(result).to.be.eql({
+        field: { $regex: '.*' },
+      });
+    });
+
+    it('should handle question mark-only pattern', () => {
+      const result = parseSearchQuery('field:?');
+      expect(result).to.be.eql({
+        field: { $regex: '^.$' },
+      });
+    });
+
+    it('should handle wildcards in complex boolean expressions', () => {
+      const result = parseSearchQuery(
+        '(name:John* AND status:act*) OR (name:Jane* AND status:pend*)',
+      );
+      expect(result).to.be.eql({
+        $or: [
+          {
+            $and: [
+              { name: { $regex: '^John.*' } },
+              { status: { $regex: '^act.*' } },
+            ],
+          },
+          {
+            $and: [
+              { name: { $regex: '^Jane.*' } },
+              { status: { $regex: '^pend.*' } },
+            ],
+          },
+        ],
+      });
+    });
+
+    it('should handle wildcards with numeric values', () => {
+      const result = parseSearchQuery('code:123*');
+      expect(result).to.be.eql({
+        code: { $regex: '^123.*' },
+      });
+    });
+
+    it('should handle wildcards at both ends', () => {
+      const result = parseSearchQuery('tag:*important*');
+      expect(result).to.be.eql({
+        tag: { $regex: '.*important.*' },
+      });
+    });
+
+    it('should handle single character wildcard in complex pattern', () => {
+      const result = parseSearchQuery('code:A?-B?-C?');
+      expect(result).to.be.eql({
+        code: { $regex: '^A.-B.-C.$' },
+      });
+    });
   });
 
   describe('Regex queries', () => {
@@ -239,14 +523,18 @@ describe('parseSearchQuery', () => {
     it('should handle simple text search', () => {
       const result = parseSearchQuery('quick brown fox');
       expect(result).to.be.eql({
-        $text: { $search: ['quick', 'brown', 'fox'] },
+        $and: [
+          { fullText: { $contains: 'quick' } },
+          { fullText: { $contains: 'brown' } },
+          { fullText: { $contains: 'fox' } },
+        ],
       });
     });
 
     it('should handle quoted phrase without field', () => {
       const result = parseSearchQuery('"quick brown fox"');
       expect(result).to.be.eql({
-        $text: { $search: '"quick brown fox"' },
+        fullText: { $contains: 'quick brown fox' },
       });
     });
   });
@@ -320,13 +608,15 @@ describe('parseSearchQuery', () => {
   describe('Operator precedence', () => {
     it('should respect AND over OR precedence without parentheses', () => {
       const result = parseSearchQuery('A OR B AND C');
-      console.log('result: ', JSON.stringify(result));
       // AND has higher precedence than OR, so this should be: A OR (B AND C)
       expect(result).to.be.eql({
         $or: [
-          { $text: { $search: 'A' } },
+          { fullText: { $contains: 'A' } },
           {
-            $and: [{ $text: { $search: 'B' } }, { $text: { $search: 'C' } }],
+            $and: [
+              { fullText: { $contains: 'B' } },
+              { fullText: { $contains: 'C' } },
+            ],
           },
         ],
       });
@@ -337,9 +627,12 @@ describe('parseSearchQuery', () => {
       expect(result).to.be.eql({
         $and: [
           {
-            $or: [{ $text: { $search: 'A' } }, { $text: { $search: 'B' } }],
+            $or: [
+              { fullText: { $contains: 'A' } },
+              { fullText: { $contains: 'B' } },
+            ],
           },
-          { $text: { $search: 'C' } },
+          { fullText: { $contains: 'C' } },
         ],
       });
     });

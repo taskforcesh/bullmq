@@ -19,6 +19,22 @@ type RangeValue = {
 type SimpleValue = {
   type: 'simple_value';
   value: string;
+  quoted?: boolean;
+};
+
+type TermValue = {
+  type: 'term';
+  value: string;
+};
+
+type PhraseValue = {
+  type: 'phrase';
+  value: string;
+};
+
+type WildcardValue = {
+  type: 'wildcard';
+  value: string;
 };
 
 interface OperatorToken {
@@ -28,6 +44,7 @@ interface OperatorToken {
 
 type GroupStartToken = 'GROUP_START';
 type GroupEndToken = 'GROUP_END';
+type ColonToken = ':';
 
 interface FieldToken {
   type: 'field';
@@ -39,9 +56,15 @@ type Token =
   | FieldToken
   | GroupStartToken
   | GroupEndToken
+  | ColonToken
+  | TermValue
+  | PhraseValue
+  | WildcardValue
   | RegexValue
   | RangeValue
   | SimpleValue;
+
+const IDENTIFIER_REGEX = /^[a-zA-Z_][a-zA-Z0-9_.]*$/;
 
 function isField(candidate: Token): candidate is FieldToken {
   return (candidate as FieldToken).type == 'field';
@@ -67,8 +90,16 @@ function isRangeValue(candidate: Token): candidate is RangeValue {
   return (candidate as RangeValue).type == 'range_value';
 }
 
-function isSimpleValue(candidate: Token): candidate is SimpleValue {
-  return (candidate as SimpleValue).type == 'simple_value';
+function isTermValue(candidate: Token): candidate is TermValue {
+  return (candidate as TermValue).type == 'term';
+}
+
+function isPhraseValue(candidate: Token): candidate is PhraseValue {
+  return (candidate as PhraseValue).type == 'phrase';
+}
+
+function isWildcardValue(candidate: Token): candidate is WildcardValue {
+  return (candidate as WildcardValue).type == 'wildcard';
 }
 
 function getTokenType(candidate: Token): string {
@@ -94,6 +125,7 @@ function getTokenValue(candidate: Token): string {
   }
   return getTokenType(candidate);
 }
+
 /**
  * Translates a Lucene-style query string into a MongoDB-style query document
  * @param luceneQuery - The Lucene query string to translate
@@ -106,8 +138,9 @@ export function parseSearchQuery(luceneQuery: string): ServerQuery {
 
   const tokens = tokenizeQuery(luceneQuery.trim());
   const parsedQuery = parseTokens(tokens);
+  const optimized = optimizeQuery(parsedQuery);
 
-  return simplifyQuery(parsedQuery);
+  return optimized;
 }
 
 /**
@@ -116,14 +149,14 @@ export function parseSearchQuery(luceneQuery: string): ServerQuery {
 function tokenizeQuery(query: string): Token[] {
   const tokens: Token[] = [];
   let currentToken = '';
-  let inQuotes = false;
-  let quoteChar = '';
-  let inRange = false;
-  let inRegex = false;
-  let regexIgnoreCase = false;
 
-  const isIdentifierStart = (ch: string) => /[A-Za-z$_]/.test(ch);
-  const isIdentifierPart = (ch: string) => /[A-Za-z0-9$_.]/.test(ch);
+  function isValidTermStart(ch: string): boolean {
+    return /[A-Za-z0-9_*?"']/.test(ch);
+  }
+
+  function isIdentifier(str: string): boolean {
+    return str && str.length && IDENTIFIER_REGEX.test(str);
+  }
 
   function flushCurrentToken() {
     if (currentToken) {
@@ -134,91 +167,42 @@ function tokenizeQuery(query: string): Token[] {
 
   for (let i = 0; i < query.length; i++) {
     const char = query[i];
-
     // Possible field:value
-    if (!inQuotes && !inRange && !inRegex) {
-      // If the currentToken is empty, and we see an identifier start, peek ahead for identifier: pattern
-      if (currentToken === '' && isIdentifierStart(char)) {
-        // Try to read a full identifier without committing to the currentToken yet
-        let j = i;
-        let ident = query[j++];
-        while (j < query.length && isIdentifierPart(query[j])) {
-          ident += query[j++];
+    if (isValidTermStart(char)) {
+      const term = lexValue(query, i);
+      if (term) {
+        const token = term.token;
+        // If we see an identifier start, peek ahead for identifier: pattern
+        // see if the next char is ':', if so it's a field
+        if (term.nextIndex < query.length && query[term.nextIndex] === ':') {
+          if (isTermValue(token) && isIdentifier(token.value)) {
+            tokens.push({ type: 'field', name: token.value });
+            i = term.nextIndex; // move to the colon
+            continue;
+          }
+          const val = getTokenValue(token);
+          throw new Error(`Invalid field name: "${val}" at position ${i}`);
+        } else {
+          tokens.push(token);
+          i = term.nextIndex - 1; // -1 because loop will increment
         }
-        if (j < query.length && query[j] === ':') {
-          // It's a FIELD
-          tokens.push({ type: 'field', name: ident });
-          i = j; // position on ':'
-          continue; // skip adding ':' to any token; value parsing continues next loop
-        }
-        // Not a field, fall through and build as part of value
-      }
+        continue;
+      } // else fall through to normal processing
     }
 
     // Enter regex mode only when not in quotes/range, and the token is empty (start of a value)
-    if (
-      char === '/' &&
-      !inQuotes &&
-      !inRange &&
-      !inRegex &&
-      currentToken === ''
-    ) {
-      inRegex = true;
-      currentToken += char;
-      continue;
-    }
-
-    if (inRegex) {
-      if (char === '\\') {
-        // Include escape and the next character if present
-        if (i + 1 >= query.length) {
-          throw new Error('Unterminated regex: trailing backslash');
-        }
-        currentToken += char + query[i + 1];
-        i++;
+    if (char === '/') {
+      const regexResult = lexRegexValue(query, i);
+      if (regexResult) {
+        tokens.push(regexResult.regex);
+        i = regexResult.nextIndex - 1; // -1 because loop will increment
         continue;
       }
-      if (char === '/') {
-        // Potential end of regex. Look ahead for an optional `i` flag
-        let endChars = 1;
-        if (i + 1 < query.length && query[i + 1] === 'i') {
-          regexIgnoreCase = true;
-          currentToken += '/i';
-          i++; // consume 'i'
-          endChars += 1;
-        } else {
-          currentToken += '/';
-        }
-
-        const inner = currentToken.substring(1, currentToken.length - endChars);
-        currentToken = '';
-
-        // Validate: ensure regex metacharacters are escaped where required
-        validateRegexToken(inner);
-        const token: Token = {
-          type: 'regex_value',
-          value: inner,
-          ignoreCase: regexIgnoreCase,
-        };
-
-        tokens.push(token);
-        inRegex = false;
-        regexIgnoreCase = false;
-        continue;
-      }
-      // Inside regex body
-      currentToken += char;
-      continue;
     }
 
     // Handle + and - prefixes before non-quoted values (Lucene semantics)
     // + means required (AND), - means exclusion (NOT)
-    if (
-      (char === '+' || char === '-') &&
-      !inQuotes &&
-      !inRange &&
-      currentToken === ''
-    ) {
+    if (char === '+' || char === '-') {
       // Look ahead to see if this is a prefix to a value (not just a standalone operator)
       if (i + 1 < query.length && query[i + 1] !== ' ') {
         // This is a prefix operator
@@ -231,47 +215,34 @@ function tokenizeQuery(query: string): Token[] {
       }
     }
 
-    // Handle range brackets - keep everything between [ and ] together
-    if ((char === '[' || char == '{') && !inQuotes) {
-      inRange = true;
-      currentToken += char;
+    if (char === '|') {
+      tokens.push({ type: 'operator', name: 'OR' });
       continue;
     }
 
-    if ((char === ']' || char == '}') && !inQuotes && inRange) {
-      inRange = false;
-      currentToken += char;
-      const token = parseRangeQuery(currentToken);
-      tokens.push(token);
-      currentToken = '';
-      continue;
+    // Handle range brackets - keep everything between [ and ] together
+    if (char === '[' || char == '{') {
+      const rangeResult = lexRangeValue(query, i);
+      if (rangeResult) {
+        tokens.push(rangeResult.range);
+        i = rangeResult.nextIndex - 1; // -1 because loop will increment
+        currentToken = '';
+        continue;
+      }
     }
 
     // Handle parentheses as separate tokens
-    if ((char === '(' || char === ')') && !inQuotes && !inRange) {
-      flushCurrentToken();
+    if (char === '(' || char === ')') {
       tokens.push(char === '(' ? 'GROUP_START' : 'GROUP_END');
       continue;
     }
 
-    // Handle quotes
-    if ((char === '"' || char === "'") && !inQuotes && !inRange) {
-      inQuotes = true;
-      quoteChar = char;
-      currentToken += char;
-    } else if (char === quoteChar && inQuotes) {
-      inQuotes = false;
-      currentToken += char;
+    if (char === ' ') {
       flushCurrentToken();
-    } else if (char === ' ' && !inQuotes && !inRange) {
-      flushCurrentToken();
+      i = skipWhitespace(query, i) - 1; // -1 because loop will increment
     } else {
       currentToken += char;
     }
-  }
-
-  if (inRegex) {
-    throw new Error('Unterminated regex: missing closing delimiter "/"');
   }
 
   if (currentToken) {
@@ -282,22 +253,20 @@ function tokenizeQuery(query: string): Token[] {
 }
 
 /**
- * Lexer for SimpleValue tokens
- * Handles naked strings (no spaces), single-quoted, and double-quoted strings
+ * Lexer for term tokens
+ * Handles naked strings (possibly field names), single-quoted, and double-quoted strings
  * @param query - The query string to lex
  * @param startIndex - Starting position in the query
  * @returns Object containing the parsed value and the next index, or null if no valid token found
  */
-function lexSimpleValue(
+function lexValue(
   query: string,
   startIndex: number,
-): { value: string; nextIndex: number } | null {
+): { token: Token; nextIndex: number } | null {
   let i = startIndex;
 
   // Skip leading whitespace
-  while (i < query.length && query[i] === ' ') {
-    i++;
-  }
+  i = skipWhitespace(query, i);
 
   if (i >= query.length) {
     return null;
@@ -308,7 +277,7 @@ function lexSimpleValue(
   // Handle quoted strings (single or double quotes)
   if (char === '"' || char === "'") {
     const quoteChar = char;
-    let value = quoteChar;
+    let value = '';
     i++; // Move past the opening quote
 
     while (i < query.length) {
@@ -323,9 +292,13 @@ function lexSimpleValue(
 
       // Check for closing quote
       if (currentChar === quoteChar) {
-        value += currentChar;
         i++;
-        return { value, nextIndex: i };
+        const token: PhraseValue = {
+          type: 'phrase',
+          value,
+        };
+
+        return { nextIndex: i, token };
       }
 
       value += currentChar;
@@ -340,7 +313,19 @@ function lexSimpleValue(
 
   // Handle naked strings (no quotes, no spaces)
   // Stop at: space, parentheses, quotes, or special query characters
-  const stopChars = new Set([' ', '(', ')', '"', "'", '[', ']', '{', '}']);
+  const stopChars = new Set([
+    ' ',
+    '(',
+    ')',
+    '"',
+    "'",
+    '[',
+    ']',
+    '{',
+    '}',
+    ':',
+    '|',
+  ]);
   let value = '';
 
   while (i < query.length) {
@@ -360,7 +345,255 @@ function lexSimpleValue(
     return null;
   }
 
-  return { value, nextIndex: i };
+  const token = createToken(value);
+
+  return { nextIndex: i, token };
+}
+
+/**
+ * Lexer for RangeValue tokens
+ * Handles range queries in format [lower TO upper] or `{lower TO upper}`
+ * Square brackets [] indicate inclusive bounds, curly braces `{}` indicate exclusive bounds
+ * @param query - The query string to lex
+ * @param startIndex - Starting position in the query
+ * @returns Object containing the parsed range value and the next index, or null if no valid token found
+ */
+function lexRangeValue(
+  query: string,
+  startIndex: number,
+): { range: RangeValue; nextIndex: number } | null {
+  let i = startIndex;
+
+  // Skip leading whitespace
+  i = skipWhitespace(query, i);
+  if (i >= query.length) {
+    return null;
+  }
+
+  const openChar = query[i];
+
+  // Must start with [ or {
+  if (openChar !== '[' && openChar !== '{') {
+    return null;
+  }
+
+  const lowerInclusive = openChar === '[';
+  i++; // Move past the opening bracket
+
+  // Parse lower bound value
+  const lowerResult = parseRangeValueComponent(query, i);
+  if (!lowerResult) {
+    throw new Error(
+      `Invalid range query: expected lower bound value at position ${i}`,
+    );
+  }
+
+  const lower = lowerResult.value;
+
+  // Skip whitespace before TO
+  i = skipWhitespace(query, lowerResult.nextIndex);
+
+  // Expect TO keyword
+  if (
+    i + 2 > query.length ||
+    query.substring(i, i + 2).toUpperCase() !== 'TO'
+  ) {
+    throw new Error(
+      `Invalid range query: expected 'TO' keyword at position ${i}`,
+    );
+  }
+  i += 2;
+
+  // Skip whitespace after TO
+  i = skipWhitespace(query, i);
+
+  // Parse upper bound value
+  const upperResult = parseRangeValueComponent(query, i);
+  if (!upperResult) {
+    throw new Error(
+      `Invalid range query: expected upper bound value at position ${i}`,
+    );
+  }
+
+  const upper = upperResult.value;
+
+  // Skip whitespace before the closing bracket
+  i = skipWhitespace(query, upperResult.nextIndex);
+
+  // Expect closing bracket
+  if (i >= query.length) {
+    throw new Error(
+      `Invalid range query: missing closing bracket at position ${i}`,
+    );
+  }
+
+  const closeChar = query[i];
+  if (closeChar !== ']' && closeChar !== '}') {
+    throw new Error(
+      `Invalid range query: expected ']' or '}' at position ${i}, found '${closeChar}'`,
+    );
+  }
+
+  const upperInclusive = closeChar === ']';
+  i++; // Move past the closing bracket
+
+  const range: RangeValue = {
+    type: 'range_value',
+    lower: lower === '*' ? undefined : lower,
+    upper: upper === '*' ? undefined : upper,
+    lowerInclusive,
+    upperInclusive,
+  };
+
+  return { range, nextIndex: i };
+}
+
+/**
+ * Helper function to parse a single component of a range value (lower or upper bound)
+ * Handles: quoted strings, naked strings, wildcards (*), and numbers
+ */
+function parseRangeValueComponent(
+  query: string,
+  startIndex: number,
+): { value: string; nextIndex: number } | null {
+  let i = startIndex;
+
+  // Skip leading whitespace
+  i = skipWhitespace(query, i);
+
+  if (i >= query.length) {
+    return null;
+  }
+
+  const char = query[i];
+
+  // Handle wildcard
+  if (char === '*') {
+    return { value: '*', nextIndex: i + 1 };
+  }
+
+  // Handle quoted strings or naked values
+  const val = lexValue(query, i);
+  if (val == null) {
+    return null;
+  }
+
+  const token = val.token;
+  const value = getTokenValue(token);
+  if (isTermValue(token) || isPhraseValue(val.token) || isOperator(token)) {
+    return {
+      value,
+      nextIndex: val.nextIndex,
+    };
+  }
+
+  throw new Error(`Invalid token "${value}" for range value component`);
+}
+
+/**
+ * Lexer for RegexValue tokens
+ * Handles regex patterns in format /pattern/ or /pattern/i
+ * @param query - The query string to lex
+ * @param startIndex - Starting position in the query
+ * @returns Object containing the parsed regex value and the next index, or null if no valid token found
+ */
+function lexRegexValue(
+  query: string,
+  startIndex: number,
+): { regex: RegexValue; nextIndex: number } | null {
+  let i = startIndex;
+
+  // Skip leading whitespace
+  i = skipWhitespace(query, i);
+
+  if (i >= query.length) {
+    return null;
+  }
+
+  // Must start with /
+  if (query[i] !== '/') {
+    return null;
+  }
+
+  i++; // Move past opening /
+
+  let pattern = '';
+  let escaped = false;
+
+  // Parse the regex pattern body
+  while (i < query.length) {
+    const char = query[i];
+
+    // Handle escape sequences
+    if (escaped) {
+      pattern += char;
+      escaped = false;
+      i++;
+      continue;
+    }
+
+    // Check for escape character
+    if (char === '\\') {
+      pattern += char;
+      escaped = true;
+      i++;
+      continue;
+    }
+
+    // Check for closing delimiter
+    if (char === '/') {
+      i++; // Move past closing /
+
+      // Check for optional flags (currently only 'i' for case-insensitive)
+      let ignoreCase = false;
+      if (i < query.length && query[i] === 'i') {
+        ignoreCase = true;
+        i++; // Move past the 'i' flag
+      }
+
+      // Validate the regex pattern
+      validateRegexPattern(pattern);
+
+      const regex: RegexValue = {
+        type: 'regex_value',
+        value: pattern,
+        ignoreCase,
+      };
+
+      return { regex, nextIndex: i };
+    }
+
+    pattern += char;
+    i++;
+  }
+
+  // If we reach here, the regex was not properly closed
+  throw new Error(
+    `Unterminated regex pattern starting at position ${startIndex}`,
+  );
+}
+
+/**
+ * Validates that a regex pattern is syntactically correct
+ * @param pattern - The regex pattern to validate
+ * @throws Error if the pattern is invalid
+ */
+function validateRegexPattern(pattern: string): void {
+  try {
+    new RegExp(pattern);
+  } catch (e) {
+    if (e instanceof SyntaxError) {
+      throw new Error(`Invalid regex pattern: "${pattern}" - ${e.message}`);
+    }
+    throw e;
+  }
+}
+
+function skipWhitespace(query: string, index: number): number {
+  while (index < query.length && query[index] === ' ') {
+    index++;
+  }
+  return index;
 }
 
 /**
@@ -374,22 +607,49 @@ function createToken(tokenStr: string): Token {
   } else if (tokenStr === '(' || tokenStr === ')') {
     return tokenStr === '(' ? 'GROUP_START' : 'GROUP_END';
   } else {
-    return { type: 'simple_value', value: tokenStr };
+    if (SimpleRegexPattern.test(tokenStr)) {
+      return {
+        type: 'wildcard',
+        value: tokenStr,
+      };
+    }
+    return { type: 'term', value: tokenStr };
   }
 }
 
 /**
- * Parses tokens into an AST-like structure
+ * Parses an array of tokens into a structured query object (AST-like structure)
+ * Supports:
+ * - Field-value pairs (field:value)
+ * - Logical operators (AND, OR, NOT)
+ * - Grouped expressions with parentheses
+ * - Range queries ([min TO max])
+ * - Regex patterns (/pattern/i)
+ * - Wildcard queries (*, ?)
+ *
+ * @param tokens - Array of tokens to parse
+ * @returns Parsed query structure
  */
 function parseTokens(tokens: Token[]): any {
   let index = 0;
+  let inFieldGroup = false;
+  let groupDepth = 0;
+  let groupedFieldName: string | null = null;
 
+  // Validate parentheses before parsing
+  validateParentheses(tokens);
+
+  /**
+   * Parses an expression with operator precedence handling
+   * @param minPrecedence - Minimum precedence level for operators to process
+   */
   function parseExpression(minPrecedence = 0): any {
     let left = parsePrimary();
 
     while (index < tokens.length) {
       const token = tokens[index];
 
+      // Stop at the group end
       if (isGroupEnd(token)) {
         break;
       }
@@ -402,15 +662,15 @@ function parseTokens(tokens: Token[]): any {
           break;
         }
 
-        const name = token.name;
+        const operatorName = token.name;
         index++;
 
         // For left-associative operators, we need to parse the right side with higher precedence
         const right = parseExpression(precedence + 1);
 
-        if (name === 'AND') {
+        if (operatorName === 'AND') {
           left = { $and: [left, right] };
-        } else if (name === 'OR') {
+        } else if (operatorName === 'OR') {
           left = { $or: [left, right] };
         } else {
           // NOT as a binary operator (shouldn't happen in correct Lucene syntax)
@@ -432,97 +692,236 @@ function parseTokens(tokens: Token[]): any {
     return left;
   }
 
+  /**
+   * Parses primary expressions:
+   * - Grouped expressions: (expression)
+   * - Unary NOT: NOT expression
+   * - Field expressions: field:value or field:(grouped values)
+   * - Simple values: text search terms
+   */
   function parsePrimary(): any {
+    if (index >= tokens.length) {
+      throw new Error('Unexpected end of query');
+    }
     const token = tokens[index++];
 
+    // Handle grouped expressions
     if (isGroupStart(token)) {
-      const expression = parseExpression(0);
-      // Skip the closing parenthesis
-      if (index < tokens.length && isGroupEnd(tokens[index])) {
-        index++;
+      if (inFieldGroup) {
+        throw new Error('Nested groups are not allowed within field groups');
       }
+
+      const startDepth = groupDepth;
+      groupDepth++;
+
+      const expression = parseExpression(0);
+
+      // Expect a closing parenthesis
+      if (index >= tokens.length || !isGroupEnd(tokens[index])) {
+        throw new Error(
+          `Missing closing parenthesis for group at depth ${startDepth + 1}`,
+        );
+      }
+
+      groupDepth--;
+      if (groupDepth === 0 && inFieldGroup) {
+        inFieldGroup = false;
+      }
+      index++;
+
       return expression;
     }
 
+    // Handle unary NOT operator
     if (isOperator(token) && token.name === 'NOT') {
       const expression = parsePrimary();
+
+      // Avoid double negation
       if (expression.$not) {
         return expression;
       }
+
       return { $not: expression };
     }
 
     if (isField(token)) {
-      const identifier = token.name;
-      if (index > tokens.length - 1) {
-        throw new Error(`Unexpected end of query after field: ${identifier}`);
+      const fieldName = token.name;
+
+      if (index >= tokens.length) {
+        throw new Error(`Unexpected end of query after field: ${fieldName}`);
       }
+
+      if (inFieldGroup) {
+        const msg = `Field groups cannot contain sub-fields: found field "${fieldName}"`;
+        throw new Error(msg);
+      }
+
       const valueToken = tokens[index++];
-      // handle regex, range, simple value
-      if (isSimpleValue(valueToken)) {
-        return parseTokenValue(identifier, valueToken.value);
-      } else if (isRangeValue(valueToken)) {
-        return getRangeFilter(identifier, valueToken);
-      } else if (isRegexValue(valueToken)) {
-        return getRegexFilter(
-          identifier,
+
+      // handle simple values
+      if (isTermValue(valueToken)) {
+        return parseTokenValue(fieldName, valueToken.value);
+      }
+
+      if (isPhraseValue(valueToken)) {
+        return { [fieldName]: valueToken.value };
+      }
+
+      if (isWildcardValue(valueToken)) {
+        return buildWildcardFilter(fieldName, valueToken.value);
+      }
+
+      // Handle range values: field:[min TO max]
+      if (isRangeValue(valueToken)) {
+        return buildRangeFilter(fieldName, valueToken);
+      }
+
+      // Handle regex values: field:/pattern/i
+      if (isRegexValue(valueToken)) {
+        return buildRegexFilter(
+          fieldName,
           valueToken.value,
           valueToken.ignoreCase,
         );
       }
+
+      if (isGroupStart(valueToken)) {
+        // we should only accept simple values or regexes inside field groups
+        const prevInFieldGroup = inFieldGroup;
+        inFieldGroup = true;
+        groupedFieldName = fieldName;
+        groupDepth++;
+
+        const groupExpression = parseExpression(0);
+
+        // Expect closing parenthesis
+        if (index >= tokens.length || !isGroupEnd(tokens[index])) {
+          throw new Error(
+            `Missing closing parenthesis for field group: ${fieldName}`,
+          );
+        }
+
+        groupDepth--;
+        inFieldGroup = prevInFieldGroup;
+        groupedFieldName = null;
+        index++;
+
+        // console.log('Optimized group expression:', JSON.stringify(node));
+        return groupExpression;
+      }
+
+      throw new Error(
+        `Invalid value token after field: ${fieldName}, ${getTokenType(valueToken)}`,
+      );
     }
 
     // Handle simple values (something like "quick brown fox")
-    if (!isSimpleValue(token)) {
-      const tokenType = getTokenType(token);
-      const tokenValue = getTokenValue(token);
-      throw new Error(`Unexpected token: ${tokenType} - ${tokenValue}`);
-    } else {
-      const plain = [];
-      const regexes = [];
-      index--;
-      while (index < tokens.length) {
-        const t = tokens[index];
-        if (isSimpleValue(t)) {
-          const value = t.value;
-          if (!isQuoted(value) && containsRegexMetaChars(value)) {
-            const regexFilter = getRegexFilter('dummy', value, false);
-            const inner = regexFilter?.dummy?.$regex;
-            console.log('regex inner', inner);
-            regexes.push(inner);
+    // Collect consecutive simple values for text search
+    const searchTerms: any[] = [];
+    const regexPatterns: string[] = [];
+
+    index--; // Rewind to process the current token
+    let first = true;
+
+    while (index < tokens.length) {
+      const token = tokens[index];
+
+      // Stop at group boundaries
+      if (isGroupStart(token) || isGroupEnd(token)) {
+        break;
+      }
+
+      if (isWildcardValue(token)) {
+        const pattern = translateWildcards(token.value);
+        regexPatterns.push(pattern);
+        first = false;
+        index++;
+        continue;
+      }
+      if (isTermValue(token)) {
+        const value = possiblyConvertValue(token.value);
+        searchTerms.push(value);
+        first = false;
+        index++;
+        continue;
+      }
+      if (isTermValue(token) || isPhraseValue(token)) {
+        searchTerms.push(token.value);
+        first = false;
+        index++;
+        continue;
+      }
+      if (first) {
+        const tokenType = getTokenType(token);
+        const tokenValue = getTokenValue(token);
+        throw new Error(`Unexpected token: ${tokenType} - ${tokenValue}`);
+      }
+      break;
+    }
+
+    // NOTE: here we build a combined filter for all collected search terms and regex patterns
+    // The (implicit) connection between them is AND, so we can't consolidate them into a single $contains or $regex
+    // Build combined text search filter
+    const filters: any[] = [];
+    const fieldName = groupedFieldName || 'fullText';
+
+    if (searchTerms.length > 0) {
+      const contains = fieldName === 'fullText' || fieldName === 'logs';
+      if (contains) {
+        for (const term of searchTerms) {
+          if (typeof term === 'string') {
+            filters.push({ [fieldName]: { $contains: term } });
           } else {
-            plain.push(value);
+            filters.push({ [fieldName]: { $eq: term } });
           }
-          index++;
-        } else {
-          break;
+        }
+      } else {
+        for (const term of searchTerms) {
+          filters.push({ [fieldName]: { $eq: term } });
         }
       }
+    }
 
-      let plainFilter: ServerQuery | undefined = undefined;
-      let regexFilter: ServerQuery | undefined = undefined;
-
-      if (plain.length > 0) {
-        const val = plain.length == 1 ? plain[0] : plain;
-        plainFilter = { $text: { $search: val } };
-      }
-
-      if (regexes.length > 0) {
-        const subFilters = { $regex: regexes };
-        regexFilter = { $text: subFilters };
-      }
-
-      if (plainFilter && regexFilter) {
-        return { $and: [plainFilter, regexFilter] };
-      } else if (plainFilter) {
-        return plainFilter;
-      } else {
-        return regexFilter;
+    if (regexPatterns.length > 0) {
+      for (const pattern of regexPatterns) {
+        filters.push({ [fieldName]: { $regex: pattern } });
       }
     }
+
+    return filters.length === 1 ? filters[0] : { $and: filters };
   }
 
   return parseExpression(0);
+}
+
+/**
+ * Validates that parentheses are properly balanced and matched
+ * @param tokens - Array of tokens to validate
+ * @throws Error if parentheses are unbalanced or mismatched
+ */
+function validateParentheses(tokens: Token[]): void {
+  let depth = 0;
+  const positions: number[] = [];
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+
+    if (isGroupStart(token)) {
+      depth++;
+      positions.push(i);
+    } else if (isGroupEnd(token)) {
+      depth--;
+      if (depth < 0) {
+        throw new Error(`Unexpected closing parenthesis at position ${i}`);
+      }
+      positions.pop();
+    }
+  }
+
+  if (depth > 0) {
+    const unclosedPosition = positions[positions.length - 1];
+    throw new Error(`Unclosed parenthesis at position ${unclosedPosition}`);
+  }
 }
 
 /**
@@ -543,139 +942,109 @@ function getOperatorPrecedence(operator: 'AND' | 'OR' | 'NOT'): number {
   }
 }
 
-function isQuoted(v: string): boolean {
-  if (v.length < 2) {
-    return false;
-  }
-  const first = v[0];
-  const last = v[v.length - 1];
-  return first == last && (first === "'" || first == `"`);
-}
-
-const RangeRegex =
-  /^(?:([a-zA-Z_][a-zA-Z0-9_.]*)\s*:\s*)?([[{])([^}]+)\s+TO\s+([^}\]]+)\s*([\]}])$/;
-
-function parseRangeQuery(token: string): RangeValue {
-  // Handle range queries [value TO value]
-  const match = token.match(RangeRegex);
-  if (match) {
-    const lowerInclusive = token[0] == '[';
-    const upperInclusive = token[token.length - 1] == ']';
-    const [_, lowValue, highValue] = match;
-    const lower = isQuoted(lowValue)
-      ? lowValue.substring(1, lowValue.length - 1)
-      : lowValue;
-    const upper = isQuoted(highValue)
-      ? highValue.substring(1, highValue.length - 1)
-      : highValue;
-    return {
-      type: 'range_value',
-      lower,
-      upper,
-      upperInclusive,
-      lowerInclusive,
-    };
-  } else {
-    // throw an error
-    throw new Error('Invalid range query format: expected [value TO value]');
-  }
-}
-
 /**
  * Parses a single token value into a MongoDB condition
  */
 function parseTokenValue(field: string, token: string): any {
   // Handle quoted values
-  let value = token;
-  let exact = false;
-
-  if (isQuoted(token)) {
-    exact = true;
-    value = token.substring(1, token.length - 1);
-  }
+  const value = possiblyConvertValue(token);
 
   // Check if it's a field:value pair
   if (!field?.length) {
     // No field specified, search in all fields (text search)
-    return { $text: { $search: value } };
-  }
-
-  if (!exact) {
-    // Handle wildcard queries
-    if (containsRegexMetaChars(value)) {
-      return getRegexFilter(field, value);
-    }
-
-    // Handle numeric values
-    const numericValue = parseFloat(value);
-    if (!isNaN(numericValue) && value.trim() !== '') {
-      return { [field]: numericValue };
-    }
-
-    // Handle boolean values
-    const lowerValue = value.toLowerCase();
-    if (lowerValue === 'true' || lowerValue === 'false') {
-      return { [field]: value.toLowerCase() === 'true' };
-    }
+    return { fullText: { $contains: value } };
   }
 
   // Default: treat as string
   return { [field]: value };
 }
 
+const NUMBER_REGEX = /^[+-]?(\d+(\.\d*)?|\.\d+)$/;
+
+function parsePossibleNumber(value: string): string | number {
+  // check that value has only valid number characters (for example we can have something like 2023-01-01)
+  if (NUMBER_REGEX.test(value)) {
+    const lowerNum = parseFloat(value);
+    return isNaN(lowerNum) ? value : lowerNum;
+  }
+  return value;
+}
+
+function parsePossibleBoolean(value: string): string | boolean {
+  const lowerValue = value.toLowerCase();
+  if (lowerValue === 'true') {
+    return true;
+  }
+  if (lowerValue === 'false') {
+    return false;
+  }
+  return value;
+}
+
+function possiblyConvertValue(value: string): string | number | boolean {
+  const numValue = parsePossibleNumber(value);
+  if (typeof numValue === 'string') {
+    return parsePossibleBoolean(numValue);
+  }
+  return numValue;
+}
+
 /**
  * Parses range queries like [value1 TO value2]
  */
-function getRangeFilter(field: string, value: RangeValue): any {
-  const rangeQuery: any = {};
+function buildRangeFilter(field: string, range: RangeValue): any {
+  const rangeQuery: Record<string, any> = {};
 
-  const lower = value.lower;
-  const upper = value.upper;
-
-  const parseValue = (value: string): string | number => {
-    const lowerNum = parseFloat(value);
-    if (isNaN(lowerNum)) {
-      return value;
-    }
-    return lowerNum;
-  };
-
-  if (lower !== '*') {
-    const lowerNum = parseValue(lower);
-    if (value.lowerInclusive) {
-      rangeQuery.$gte = lowerNum;
-    } else {
-      rangeQuery.$gt = lowerNum;
-    }
+  if (range.lower && range.lower !== '*') {
+    rangeQuery[range.lowerInclusive ? '$gte' : '$gt'] = parsePossibleNumber(
+      range.lower,
+    );
   }
 
-  if (upper !== '*') {
-    const upperNum = parseValue(upper);
-    if (value.upperInclusive) {
-      rangeQuery.$lte = upperNum;
-    } else {
-      rangeQuery.$lt = upperNum;
-    }
+  if (range.upper && range.upper !== '*') {
+    rangeQuery[range.upperInclusive ? '$lte' : '$lt'] = parsePossibleNumber(
+      range.upper,
+    );
+  }
+
+  if (Object.keys(rangeQuery).length === 0) {
+    return { [field]: { $exists: true } };
   }
 
   return { [field]: rangeQuery };
 }
 
-/**
- * Validates that regex metacharacters are escaped inside a delimited regex.
- * Raises an error if unescaped metacharacters are found.
- */
-function validateRegexToken(body: string): void {
-  if (!isValidRegex(body)) {
-    throw new Error(`Invalid regex pattern: "${body}"`);
+function translateWildcards(value: string): string {
+  // Convert wildcards to regex patterns
+  let pattern = value.replace(/\?/g, '.').replace(/\*/g, '.*');
+
+  // Add anchors if not already present
+  if (!pattern.startsWith('.*')) {
+    pattern = '^' + pattern;
   }
+
+  if (!pattern.endsWith('.*')) {
+    pattern = pattern + '$';
+  }
+
+  return pattern;
+}
+
+function buildWildcardFilter(field: string, value: string): any {
+  // Convert wildcards to regex patterns
+  const pattern = translateWildcards(value);
+  return { [field]: { $regex: pattern } };
 }
 
 /**
- * Parses regex queries (between / .. /)
+ * Build regex queries (between / .. /)
  */
-function getRegexFilter(field: string, value: string, ignoreCase = false): any {
-  // Convert Lucene wildcards to MongoDB regex
+function buildRegexFilter(
+  field: string,
+  value: string,
+  ignoreCase = false,
+): any {
+  // Convert Lucene wildcards to lua regex
   let regexPattern = value.replace(/\*/g, '.*').replace(/\?/g, '.');
 
   // Ensure the pattern is anchored if it doesn't start with wildcard
@@ -697,105 +1066,79 @@ function getRegexFilter(field: string, value: string, ignoreCase = false): any {
 }
 
 /**
- * Builds MongoDB query from the parsed AST
+ * Optimizes MongoDB-style queries by coalescing nested operators and simplifying conditions
+ * @param query - The query object to optimize
+ * @returns Optimized query object
  */
-function simplifyQuery(node: any): ServerQuery {
-  if (!node || typeof node !== 'object') {
-    return node;
+export function optimizeQuery(query: any): any {
+  if (!query || typeof query !== 'object') {
+    return query;
   }
 
-  if (node.$and) {
-    const values = node.$and || [];
-    const left = simplifyQuery(values[0]);
-    const right = simplifyQuery(values[1]);
-
-    // console.log(`${JSON.stringify(left)} AND ${JSON.stringify(right)}`);
-
-    const rightConnector = getConnector(right);
-    const leftConnector = getConnector(left);
-    if (!leftConnector && !rightConnector) {
-      // e.g. {name:"John"} AND {age:25} => {$and:[{name:"John"},{age:25}]}
-      return { $and: [left, right] };
-    } else if (leftConnector && rightConnector && rightConnector === '$and') {
-      // eslint-disable-next-line max-len
-      // eg.{$and:[{name:"John"},{age:25}]} AND {$and: {status:"active"}} => {$and:[{name:"John"},{age:25},{status:"active"}]}
-      return { $and: [...left.$and, ...right.$and] };
-    } else if (!leftConnector && rightConnector === '$and') {
-      // e.g. {name:"John"} AND {$and: {status:"active"}} => {$and:[{name:"John"},{status:"active"}]}
-      right.$and = [left, ...right.$and];
-      return right;
-    } else if (leftConnector === '$and') {
-      // e.g. {$and:[{name:"John"},{age:25}]} AND {status:"active"} => {$and:[{name:"John"},{age:25},{status:"active"}]}
-      if (!Array.isArray(left.$and)) {
-        left.$and = [left.$and];
-      }
-      left.$and.push(right);
-      return left;
-    }
-
-    return { $and: [left, right] };
+  // Handle $or operator
+  if (query.$or) {
+    return optimizeOrCondition(query.$or);
   }
 
-  if (node.$or) {
-    const values = node.$or || [];
-    const left = simplifyQuery(values[0]);
-    const right = simplifyQuery(values[1]);
-
-    const rightConn = getConnector(right);
-    const leftConn = getConnector(left);
-
-    // console.log(`${JSON.stringify(left)} OR ${JSON.stringify(right)}`);
-    if (!leftConn && !rightConn) {
-      return { $or: [left, right] };
-    } else if (leftConn && rightConn && rightConn === '$or') {
-      left.$or.push(right.$or);
-      return left;
-    } else if (right.$or) {
-      right.$or = [left, ...right.$or];
-      return right;
-    } else if (left.$or) {
-      if (!Array.isArray(left.$or)) {
-        left.$or = [left.$or];
-      }
-      left.$or.push(right);
-    }
-
-    return { $or: [left, right] };
+  // Handle $and operator
+  if (query.$and) {
+    return optimizeAndCondition(query.$and);
   }
 
-  if (node.$not) {
-    const expression = simplifyQuery(node.$not);
-    if (expression) {
-      return { $not: expression };
-    }
-    return {};
+  // Handle $not operator
+  if (query.$not) {
+    return { $not: optimizeQuery(query.$not) };
   }
 
-  // Leaf node (field condition)
-  // console.log(`Leaf node: ${JSON.stringify(node)}`);
-  return node;
+  return query;
 }
 
-function getConnector(
-  node: ServerQuery,
-  defaultConnector: '$or' | '$and' | undefined = undefined,
-): '$or' | '$and' | undefined {
-  if (typeof node !== 'object') {
-    return defaultConnector;
+/**
+ * Optimizes conditions by flattening nested values for a given connector ($and or $or)
+ */
+function coalesceCondition(
+  conditions: any[],
+  connector: '$and' | '$or' = '$and',
+): ServerQuery {
+  const flattened: any[] = [];
+
+  // Flatten nested $and
+  for (const condition of conditions) {
+    const optimized = optimizeQuery(condition);
+
+    // Flatten nested connectors
+    if (optimized[connector]) {
+      flattened.push(...optimized[connector]);
+    } else {
+      flattened.push(optimized);
+    }
   }
-  if (node.$and) {
-    return '$and';
-  } else if (node.$or) {
-    return '$or';
-  } else {
-    return defaultConnector;
+
+  // handle $and
+
+  if (flattened.length === 1) {
+    return flattened[0];
   }
+
+  return { [connector]: flattened };
 }
 
-const regexMetaChars = /[.*+?^${}()|[\]\\]/;
-function containsRegexMetaChars(str: string): boolean {
-  return regexMetaChars.test(str);
+/**
+ * Optimizes $and conditions by flattening nested $and
+ */
+function optimizeAndCondition(conditions: any[]): ServerQuery {
+  return coalesceCondition(conditions, '$and');
 }
+
+/**
+ * Optimizes $or conditions by flattening nested $or and coalescing $text searches
+ */
+function optimizeOrCondition(conditions: any[]): ServerQuery {
+  return coalesceCondition(conditions, '$or');
+}
+
+// Simple regex pattern to identify wildcard characters
+const SimpleRegexPattern = /[+*?]/;
 
 /**
  * Translates standard regex character classes into equivalent Lua patterns
@@ -815,9 +1158,11 @@ function translateRegexClassToLua(regexClass: string): string {
     // Character class equivalents using sets
     '[0-9]': '%d',
     '[a-zA-Z]': '%a',
+    '[A-Za-z]': '%a',
     '[a-zA-Z0-9]': '%a',
     '[^0-9]': '%D',
     '[^a-zA-Z]': '%A',
+    '[^A-Za-z]': '%A',
     '[^a-zA-Z0-9]': '%A',
 
     // Common character ranges
@@ -908,16 +1253,4 @@ export function translateRegexToLuaPattern(regexPattern: string): string {
   luaPattern = luaPattern.replace(/([%.%+%*%?%^%$%(%)%[%]%{%}])/g, '%%$1');
 
   return luaPattern;
-}
-
-function isValidRegex(pattern: string): boolean {
-  try {
-    new RegExp(pattern);
-    return true;
-  } catch (e) {
-    if (e instanceof SyntaxError) {
-      return false; // The pattern is not a valid regular expression
-    }
-    throw e; // Re-throw other types of errors
-  }
 }

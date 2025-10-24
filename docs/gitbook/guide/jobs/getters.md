@@ -39,6 +39,7 @@ counts = await myQueue.getJobCounts('wait', 'completed', 'failed')
 {% endtabs %}
 
 The available status are:
+
 - _completed_,
 - _failed_,
 - _delayed_,
@@ -75,7 +76,37 @@ completed = await myQueue.getJobs(['completed'], 0, 100, True)
 {% endtab %}
 {% endtabs %}
 
+#### Search For Jobs
+
+The `Queue.search` method provides a powerful way to search for jobs using a Lucene-like query syntax. This allows
+for complex, text-based searches on job data and metadata.
+
+{% tabs %}
+
+{% tab title="TypeScript" %}
+
+```typescript
+const { jobs } = await queue.search(
+  'completed',
+  'data.user.id:123 AND priority:2',
+);
+```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+result = await queue.get_jobs_by_filter('completed', 'data.user.id:123 AND priority:2')
+jobs = result['jobs']
+```
+
+{% endtab %}
+{% endtabs %}
+
+In this example, we are searching for completed jobs where the user ID in the job data is `123` and the job priority is `2`.
+
 ## Read more:
 
-* 💡 [Get Job Counts API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getjobcounts)
-* 💡 [Get Jobs API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getjobs)
+- 💡 [Get Job Counts API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getjobcounts)
+- 💡 [Get Jobs API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getjobs)

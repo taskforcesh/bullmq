@@ -3,12 +3,7 @@
 
 import { QueueBase } from './queue-base';
 import { Job } from './job';
-import {
-  clientCommandMessageReg,
-  delay,
-  isObject,
-  QUEUE_EVENT_SUFFIX,
-} from '../utils';
+import { clientCommandMessageReg, delay, QUEUE_EVENT_SUFFIX } from '../utils';
 import { JobState, JobType } from '../types';
 import { JobJsonRaw, Metrics, MinimalQueue } from '../interfaces';
 import { parseSearchQuery } from './search-query-parser';
@@ -415,7 +410,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
   }
 
   /**
-   * Retrieve jobs by a user-defined mongo-compatible filter object
+   * Retrieve jobs by a user-defined Lucene-style string, or mongo-compatible filter object
    * @param type  - type of job
    * @param query - mongo-like filter or Lucene style query string
    * @param count - count of jobs to return per iteration
@@ -423,7 +418,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
    * @param cursorId - cursor identifier used to maintain iteration state across invocations
    * @param batchSize - the number of jobs searched per iteration
    */
-  async getJobsByFilter(
+  async search(
     type: JobType,
     query: string | object,
     count = 10,
@@ -452,7 +447,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
     let done = false;
 
     while (remaining > 0 && !done) {
-      const response = await this.scripts.getJobsByFilter(
+      const response = await this.scripts.search(
         type,
         query,
         remaining,

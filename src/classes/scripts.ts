@@ -867,7 +867,7 @@ export class Scripts {
     return await this.execCommand(client, 'getRanges', args);
   }
 
-  private getJobsByFilterArgs(
+  private searchArgs(
     type: JobType,
     query: object,
     count: number,
@@ -887,7 +887,7 @@ export class Scripts {
     return keys.concat(args);
   }
 
-  async getJobsByFilter(
+  async search(
     type: JobType,
     query: object,
     count = 10,
@@ -897,16 +897,9 @@ export class Scripts {
   ): Promise<JobSearchRawResponse> {
     const client = await this.queue.client;
     cursorId = cursorId || v4();
-    const args = this.getJobsByFilterArgs(
-      type,
-      query,
-      count,
-      asc,
-      cursorId,
-      batchSize,
-    );
+    const args = this.searchArgs(type, query, count, asc, cursorId, batchSize);
 
-    return await this.execCommand(client, 'getJobsByFilter', args);
+    return await this.execCommand(client, 'search', args);
   }
 
   private getCountsArgs(types: JobType[]): (string | number)[] {
