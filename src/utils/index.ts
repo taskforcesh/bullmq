@@ -52,6 +52,10 @@ export function isEmpty(obj: object): boolean {
   return true;
 }
 
+export function isObject(obj: any): obj is Record<string, any> {
+  return typeof obj === 'object' && !Array.isArray(obj) && obj !== null;
+}
+
 export function array2obj(arr: string[]): Record<string, string> {
   const obj: { [index: string]: string } = {};
   for (let i = 0; i < arr.length; i += 2) {

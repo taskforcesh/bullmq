@@ -7,6 +7,7 @@
         ARGV[1] filter criteria as a Mongo styled query as a json encoded string
         ARGV[2] count
         ARGV[3] asc
+        ARGV[4] batch size - the max number of jobs to process per iteration
 
   The cursor mechanism is to allow iteration through the dataset with state stored on the server.
 ]]
@@ -14,7 +15,23 @@
 local rcall = redis.call
 local stateKey = ""
 local cursorKey = ""
+local currentJobKey = nil
+local currentJob = {}
+
+local isDebugging = true
+local responseMeta = {
+    ["debug"] = {},
+    ['progress'] = 0,
+}
+
+local MIN_BATCH_SIZE = 20
+--- Even though Count is passed in, remember that we're filtering through all jobs in a particular state.
+--- IOW, we can legitimately return 0 results in an iteration. To compensate, we iterate up to MAX_ITERATION
+--- attempting to get up to Count results
+local MAX_BATCH_SIZE = 1000
 local CURSOR_EXPIRATION = 30 -- seconds
+
+local batchSize = 30
 
 local NUMERIC_FIELDS = {
     ['timestamp'] = 1,
@@ -50,10 +67,9 @@ local JS_SIMPLE_TYPES = {
   ['string'] = true,
 }
 
---- Even though Count is passed in, remember that we're filtering through all jobs in a particular state.
---- IOW, we can legitimately return 0 results in an iteration. To compensate, we iterate up to MAX_ITERATION
---- attempting to get up to Count results
-local MAX_ITERATIONS = 40
+
+--- Forward declaration
+local createFullTextMatcher
 
 --- https://lua.programmingpedia.net/en/tutorial/5829/pattern-matching
 local IDENTIFIER_PATTERN = "[%a_]+[%a%d_]*"
@@ -223,9 +239,15 @@ local function slice(array, start, stop)
 end
 
 local function startsWith(haystack, needle)
-  return isString(haystack) and
-          isString(needle) and
-          string.sub(haystack, 1, #needle) == needle
+    return isString(haystack) and
+        isString(needle) and
+        string.sub(haystack, 1, #needle) == needle
+end
+
+local function constant(value)
+  return function()
+    return value
+  end
 end
 ---- Casting --------------------------------------------------
 
@@ -236,9 +258,9 @@ local function toBool(val, ...)
     if (val == true or val == false) then return val end
     if (t == "number") then return val ~= 0 end
     if (t == "string") then
-      if (val == 'true') then return true end
-      if (val == 'false') then return false end
-      return #val > 0
+        if (val == 'true' or val == "1") then return true end
+        if (val == 'false' or val == "0") then return false end
+        return #val > 0
     end
     if t == 'function' then
         bool = bool(val(...))
@@ -284,7 +306,9 @@ local function tostr(value, ...)
 end
 
 local function debug(msg)
-  redis.call('rpush', 'search-debug', tostr(msg))
+    if isDebugging then
+        table.insert(responseMeta["debug"], msg)
+    end
 end
 
 -- raw value should be a kv table [name, value, name, value ...]
@@ -414,12 +438,6 @@ local function join_OR(predicates)
       if func(s) then return true end
     end
     return false
-  end
-end
-
-local function constant(value)
-  return function()
-    return value
   end
 end
 
@@ -651,7 +669,16 @@ local function compileQuery(criteria)
 
   local function processOperator(field, operator, value)
     local operatorFn = QueryOperators[operator]
-    assert(operatorFn ~= nil, 'invalid query operator "' .. operator .. '" found');
+    -- special case handling of $text
+    if operatorFn == nil then
+        if (field == '$text') then
+            local handler = createFullTextMatcher(value)
+              compiled[#compiled + 1] = handler
+            return
+        end
+    end
+    assert(operatorFn ~= nil,
+        'invalid query operator "' .. operator .. '" found (field: '..field ..", value = " .. tostr(value) .. ")");
     compiled[#compiled + 1] = operatorFn(field, value)
   end
 
@@ -703,7 +730,7 @@ QueryOperators['$and'] = function(_selector, value)
   return join_AND(queries)
 end
 
-QueryOperators['$nor'] = function(selector, value)
+QueryOperators['$nor'] = function(_selector, value)
   local fn = QueryOperators['$or']('$or', value);
   return function(obj)
     return not fn(obj)
@@ -738,8 +765,7 @@ end
 
 local function getJobFullText(obj)
     local values = {}
-    for i = 1, #FULL_TEXT_FIELDS, 1 do
-        local key = FULL_TEXT_FIELDS[i]
+    for _, key in ipairs(FULL_TEXT_FIELDS) do
         local value = obj[key]
         if value ~= nil then
             values[#values + 1] = value
@@ -759,11 +785,101 @@ local function resolveFullText(obj)
 end
 
 local function resolveLogs(obj)
-    local logs = cachedValues["$text.logs"] or ""
-    if #logs == 0 then
-        -- todo
+    local logKey = currentJobKey .. ":logs"
+    local logs = cachedValues[logKey]
+    if logs ~= nil then
+        return logs
     end
+    logs = ""
+    local lines = rcall("LRANGE", logKey, 0, -1)
+    if lines ~= nil and #lines > 0 then
+        for _, line in ipairs(lines) do
+            if line ~= nil then
+                logs = logs .. '|' .. line
+            end
+        end
+    end
+    cachedValues[logKey] = logs
     return logs
+end
+
+local function resolveFullTextAndLogs(obj)
+    local text = resolveFullText(obj)
+    local logs = resolveLogs() or ""
+    if #logs > 0 then
+        text = text .. '|' .. logs
+    end
+    return text
+end
+
+local function isFulltextMatch(needle, caseSensitive)
+    local haystack = resolveFullText(currentJob)
+    if haystack ~= nil then
+        if not caseSensitive then
+            haystack = string.lower(haystack)
+        end
+        if string.find(haystack, needle) then
+            return true
+        end
+    end
+    local logs = resolveLogs(currentJob)
+    if logs == nil then
+        return false
+    end
+    if not caseSensitive then
+        logs = string.lower(logs)
+    end
+    return string.find(logs, needle)
+end
+
+--- { $text: value }  or { $text: { $search: value, $caseSensitive: sensitive } }
+createFullTextMatcher = function(expr)
+
+    local needle = ""
+    local caseSensitive = true
+
+    local type_ = type(expr)
+    if type_ == "table" then
+        needle = expr["$search"] or expr
+        caseSensitive = toBool(expr['$caseSensitive'] or true)
+    elseif type_ == "string" then
+        needle = expr
+    end
+
+    if not caseSensitive then
+      needle = string.lower(needle)
+    end
+
+    local valueType = type(needle)
+    if valueType == "string" then
+        return function(obj)
+            return isFulltextMatch(needle, caseSensitive)
+        end
+    end
+
+    assert(isArray(needle) and #needle > 0, 'search expression must be a string or string array')
+
+    local function matchAny(needles, caseSensitive)
+        return some(needles, function(needle)
+            if not caseSensitive then
+                needle = string.lower(needle)
+            end
+            return isFulltextMatch(needle, caseSensitive)
+        end)
+    end
+
+    --- check if all items are strings
+    if every(needle, function (val) return isString(val) end) then
+        return function()
+            return matchAny(needle, caseSensitive)
+        end
+    end
+
+    local exec = parseExpression(needle)
+    return function(obj)
+        local needles = exec(obj)
+        return matchAny(needles, caseSensitive)
+    end
 end
 
 local function latencyResolver(obj)
@@ -793,9 +909,13 @@ local function getFieldResolver(field)
     local isnum = NUMERIC_FIELDS[segment]
 
     if (segment == 'latency') then
-      handler = latencyResolver
+        handler = latencyResolver
     elseif segment == 'waitTime' then
-      handler = waitTimeResolver
+        handler = waitTimeResolver
+    elseif segment == 'logs' then
+        handler = resolveLogs
+    elseif segment == 'fullText' then
+        handler = resolveFullTextAndLogs
     else
       handler = function(obj)
         local val = resolve(obj, path)
@@ -901,7 +1021,7 @@ end
 -- @returns {Function}
 --
 QueryOperators['$expr'] = function(_selector, value)
-  return parseExpression(value)
+    return parseExpression(value)
 end
 
 --------------- Conditional Operators --------------------------------------------------------------
@@ -1022,61 +1142,52 @@ ExprOperators['$between'] = function(expr)
 end
 
 ExprOperators['$cmp'] = function(expr)
+    local exec = parseExpression(expr)
+
+    return function(obj)
+        local args = exec(obj)
+        assert(isArray(args) and #args == 2, '$cmp expects an array of 2 arguments')
+        local a, b = args[1], args[2]
+        if (a < b) then return -1 end
+        if (a > b) then return 1 end
+        return 0
+    end
+end
+
+ExprOperators['$strcasecmp'] = function(expr)
   local exec = parseExpression(expr)
 
   return function(obj)
     local args = exec(obj)
-    assert(isArray(args) and #args == 2, '$cmp expects an array of 2 arguments')
-    local a, b = args[1], args[2]
-    if (a < b) then return -1 end
+    assert(isArray(args), '$strcasecmp must resolve to array(2)')
+    if (isEqual(args[1], args[2])) then return 0 end
+    assert(isString(args[1]) and isString(args[2]),
+            '$strcasecmp must resolve to array(2) of strings')
+
+    local a = args[1]:upper()
+    local b = args[2]:upper()
+
     if (a > b) then return 1 end
+    if (a < b) then return -1 end
     return 0
   end
 end
 
 -- s "sensible" toBool
 ExprOperators['$toBool'] = function(expr)
-  local exec = parseExpression(expr)
-  return function(obj)
+    local exec = parseExpression(expr)
+    return function(obj)
         local val = exec(obj)
         return toBool(val)
-  end
+    end
 end
 
---- { $text: value }  or { $text: { $search: value } }
-ExprOperators['$text'] = function(expr)
-
-    local function isMatch(obj, needle)
-        local haystack = resolveFullText(obj)
-        if string.find(needle, haystack) then
-            return true
-        end
-        local logs = resolveLogs(obj)
-        if string.find(needle, logs) then
-            return true
-        end
-        return false
-    end
-
-    local needle = expr["$search"] or expr
-    local valueType = type(needle)
-    if valueType == "string" then
-        return function(obj)
-            return isMatch(obj, needle)
-        end
-    end
-
-    assert(isArray(needle) and #needle > 0, 'search expression must be a string or string array')
-    local exec = parseExpression(needle)
-    return function(obj)
-        local args = exec(obj)
-        for _, v in ipairs(args) do
-            if isMatch(v) then
-                return true
-            end
-        end
-        return false
-    end
+ExprOperators['$toString'] = function(expr)
+  local exec = parseExpression(expr)
+  return function(obj)
+    local value = exec(obj)
+    return tostr(value)
+  end
 end
 
 local function createComparison(name)
@@ -1084,10 +1195,12 @@ local function createComparison(name)
   ExprOperators[name] = function(expr)
     local exec = parseExpression(expr)
     return function(obj)
-      local args = exec(obj)
-      assert(isArray(args) and #args == 2, name .. ': comparison expects 2 arguments. Got ' .. tostr(args))
-      local val = fn(args[1], args[2])
-      debug('Comparison: ' .. tostr(args[1]) .. ' ' .. name .. ' ' .. tostr(args[2]) .. ' = ' .. tostr(val))
+        local args = exec(obj)
+        assert(isArray(args) and #args == 2, name .. ': comparison expects 2 arguments. Got ' .. tostr(args))
+        local val = fn(args[1], args[2])
+        if isDebugging then
+            debug('Comparison: ' .. tostr(args[1]) .. ' ' .. name .. ' ' .. tostr(args[2]) .. ' = ' .. tostr(val))
+        end
       return val
     end
   end
@@ -1102,7 +1215,11 @@ local function initOperators()
         -- value of field must be fully resolved.
         local lhs = resolveFn(obj)
         local val = predicate(lhs, value)
-        debug('Predicate: ' .. tostr(lhs) .. ' ' .. name .. ' ' .. tostr(value) .. ' = ' .. tostr(val))
+
+        if isDebugging then
+            debug('Predicate: ' .. tostr(lhs) .. ' ' .. name .. ' ' .. tostr(value) .. ' = ' .. tostr(val))
+        end
+
         return val
       end
     end
@@ -1146,13 +1263,16 @@ local function prepJsonField(job, name)
 end
 
 local function prepareJobHash(id, jobHash)
-  local job = to_hash(jobHash)
+    local job = to_hash(jobHash)
+  -- on the client side, these are expected to be string, so save the value
+  local data = job['data'] or "{}"
+  local opts = job['opts']
   job['id'] = id
   prepJsonField(job, 'data')
   prepJsonField(job, 'opts')
   prepJsonField(job, 'stackTrace')
   prepProgress(job)
-  return job
+  return job, data, opts
 end
 
 
@@ -1226,9 +1346,18 @@ local function getJobsFromCursor(count)
     local total = 0
     local done = true
 
+    local meta = {
+        ['cursor'] = cursor,
+        ['total'] = total,
+        ['progress'] = 0,
+        ['done'] = done,
+        ['found'] = false
+    }
+
     if len == 0 then
-        return result, cursor, total
+        return result, meta
     end
+
     if count >= len then
         count = len - 1
     else
@@ -1238,9 +1367,12 @@ local function getJobsFromCursor(count)
     if foundMeta then
         local success, res = pcall(cjson.decode, meta)
         if success then
-            local meta = res["__meta__"]
-            cursor = toNumber(meta["cursor"] or 0)
-            total = toNumber(meta["total"] or 0)
+            local _meta = res["__meta__"]
+            meta['cursor'] = tonumber(_meta["cursor"] or 0)
+            meta['total'] = tonumber(_meta["total"] or 0)
+            meta['progress'] = tonumber(_meta["progress"] or 0)
+            meta['done'] = toBool(_meta["done"] or false)
+            meta['found'] = true
         end
     end
     --- the last element of the list contains meta
@@ -1250,15 +1382,16 @@ local function getJobsFromCursor(count)
         if not isCursorMeta(item) then
             local success, res = pcall(cjson.decode, item)
             if success then
-                result[#result+1] = res
+                result[#result + 1] = res
             end
         end
     end
-    return result, cursor, total, done
+    return result, meta
 end
 
-local function writeCursorMeta(cursor, total, lastId)
-    local str = "{ __meta__: { cursor:" .. cursor .. ', total:' .. total .. ", lastId: " .. lastId  .. "}}"
+local function writeCursorMeta(cursor, progress, total, lastId)
+    local str = '{ __meta__: { cursor:' .. cursor .. ', progress:' .. progress .. ', total:' .. total
+    str = str .. ', lastId:' .. lastId  .. '}}'
     if #cursorKey == 0 then return end
     local lastItem = rcall("RPOP", cursorKey)
     if lastItem ~= nil then
@@ -1269,14 +1402,14 @@ local function writeCursorMeta(cursor, total, lastId)
     rcall("RPUSH", cursorKey, str)
 end
 
-local function storeRemainders(items, cursor, total, lastId)
+local function storeRemainders(items, cursor, progress, total, lastId)
     if #cursorKey == 0 then
         return
     end
     for _, item in ipairs(items) do
         redis.pcall("LPUSH", cursorKey, item)
     end
-    writeCursorMeta(cursor, total, lastId)
+    writeCursorMeta(cursor, progress, total, lastId)
     rcall("EXPIRE", cursorKey, CURSOR_EXPIRATION)
 end
 
@@ -1286,57 +1419,69 @@ local function search(stateKey, criteria, count, asc)
     fieldHandlers = {}
     referencedFields = {}
     local predicate = compileQuery(criteria)
-    local cursor = 0
 
     local found = 0
-    --- cursor, total
-    local result = {cursor, 0}
 
-    local jobs, savedCursor, savedTotal, finished = getJobsFromCursor(count)
-    if savedCursor ~= nil then
+    --- cursor, total
+    local result = {'{ "cursor" : 0, "total": 0, "done": true }'}
+
+    local jobs, meta = getJobsFromCursor(count)
+    local total = meta['total']
+    local cursor = meta['cursor']
+    local progress = meta['progress']
+
+    --- local done = meta['done'] or cursor > total
+    responseMeta['total'] = total
+    responseMeta['progress'] = progress
+
+    if meta['found'] == true then
         found = #jobs
         for _, job in jobs do
             table.insert(result, job)
         end
-        result[1] = savedCursor + found
-        result[2] = savedTotal
+
         if found == count then
+            result[1] = cjson.encode(responseMeta)
             return result
         end
     else
         cursor = 0
     end
 
-    if finished and savedCursor ~= nil then
-        cursor = savedCursor
-    end
-
     local rangeStart = cursor
-    local rangeEnd = cursor + count - 1
-    local newCursor = rangeEnd + 1
+    local rangeEnd = cursor + batchSize - 1
+    cursor = rangeEnd + 1
 
     local keyPrefix, status = splitKey(stateKey)
 
     local scannedJobIds, total = getKeysForState(stateKey, status, rangeStart, rangeEnd, asc)
-    if #scannedJobIds == 0 then
-        return { total, total }
-    end
+    progress = progress + #scannedJobIds
 
     local lastId = ""
     local remainder = {}
-    local result = { newCursor, total }
+
+    local done = #scannedJobIds == 0 or progress >= total
+    if done then
+        progress = total
+    end
 
     for _, jobId in pairs(scannedJobIds) do
 
-        local jobIdKey = keyPrefix .. jobId
-        local jobHash = redis.pcall('HGETALL', jobIdKey)
+        currentJobKey = keyPrefix .. jobId
+        local jobHash = redis.pcall('HGETALL', currentJobKey)
 
         if (isObject(jobHash) and #jobHash) then
             clearCachedValues()
-            local job = prepareJobHash(jobId, jobHash)
+
+            local job, data, opts = prepareJobHash(jobId, jobHash)
+            --- set global job to support $text
+            currentJob = job
             if (predicate(job)) then
-                jobHash["id"] = jobId
-                local success, serialized = pcall(cjson.encode, jobHash)
+                --- these are expected to be string on the caller side
+                job['data'] = data
+                job['opts'] = opts
+
+                local success, serialized = pcall(cjson.encode, job)
                 if success then
                     found = found + 1
                     if found > count then
@@ -1352,9 +1497,19 @@ local function search(stateKey, criteria, count, asc)
     end
 
     if #remainder > 0 then
-        storeRemainders(remainder, newCursor, total, lastId)
+        done = false
+        storeRemainders(remainder, cursor, progress, total, lastId)
     end
 
+    responseMeta["total"] = total
+    responseMeta['done'] = done
+    if done then
+        responseMeta['progress'] = total
+    else
+        responseMeta['progress'] = progress
+    end
+
+    result[1] = cjson.encode(responseMeta)
     return result
 end
 
@@ -1363,6 +1518,7 @@ cursorKey = KEYS[2]
 local criteria = assert(cjson.decode(ARGV[1]), 'Invalid filter criteria. Expected a JSON encoded string')
 local count = tonumber(ARGV[2] or 10)
 local asc = toBool(ARGV[3] or true)
+batchSize = math.max(tonumber(ARGV[4] or MIN_BATCH_SIZE), MAX_BATCH_SIZE)
 
 initOperators()
 return search(stateKey, criteria, count, asc)

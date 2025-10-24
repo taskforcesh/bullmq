@@ -3,7 +3,12 @@
 
 import { QueueBase } from './queue-base';
 import { Job } from './job';
-import { clientCommandMessageReg, isEmpty, QUEUE_EVENT_SUFFIX } from '../utils';
+import {
+  clientCommandMessageReg,
+  delay,
+  isObject,
+  QUEUE_EVENT_SUFFIX,
+} from '../utils';
 import { JobState, JobType } from '../types';
 import { JobJsonRaw, Metrics, MinimalQueue } from '../interfaces';
 import { parseSearchQuery } from './search-query-parser';
@@ -409,16 +414,27 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
     return [...new Set(results)];
   }
 
+  /**
+   * Retrieve jobs by a user-defined mongo-compatible filter object
+   * @param type  - type of job
+   * @param query - mongo-like filter or Lucene style query string
+   * @param count - count of jobs to return per iteration
+   * @param asc - sort order
+   * @param cursorId - cursor identifier used to maintain iteration state across invocations
+   * @param batchSize - the number of jobs searched per iteration
+   */
   async getJobsByFilter(
     type: JobType,
     query: string | object,
     count = 10,
     asc = false,
     cursorId: string = null,
+    batchSize = 50,
   ): Promise<{
-    cursor: number;
     total: number;
+    progress: number;
     cursorId: string;
+    done: boolean;
     jobs: Job[];
   }> {
     if (typeof query === 'string') {
@@ -427,39 +443,50 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
     }
     cursorId = cursorId || v4();
 
-    const response = await this.scripts.getJobsByFilter(
-      type,
-      query,
-      count,
-      asc,
-      cursorId,
-    );
-
-    const cursor = response[0] === 0 ? null : Number(response[0]);
-    const total = Number(response[1]);
-
     const jobs: Job[] = [];
     const queue = this as MinimalQueue;
-    for (let i = 2; i < response.length; i++) {
-      const value = response[i];
-      const jobJson = JSON.parse(value) as JobJsonRaw;
-      const trace = jobJson['stacktrace'];
-      const job = Job.fromJSON(queue, jobJson);
 
-      if (!Array.isArray(trace)) {
-        if (typeof trace === 'string') {
-          job['stacktrace'] = JSON.parse(trace);
-        } else {
-          job['stacktrace'] = [];
-        }
+    let progress = 0;
+    let total = 0;
+    let remaining = count;
+    let done = false;
+
+    while (remaining > 0 && !done) {
+      const response = await this.scripts.getJobsByFilter(
+        type,
+        query,
+        remaining,
+        asc,
+        cursorId,
+        batchSize,
+      );
+
+      const meta = response[0]
+        ? JSON.parse(response[0])
+        : { total: 0, cursor: 0, progress: 0 };
+      total = meta.total;
+      done = meta.done;
+      progress = meta.progress;
+
+      for (let i = 1; i < response.length; i++) {
+        const value = response[i];
+        const jobJson = JSON.parse(value) as JobJsonRaw;
+        const job = Job.fromJSON(queue, jobJson);
+        jobs.push(job);
       }
 
-      jobs.push(job);
+      if (done) {
+        break;
+      }
+
+      remaining -= jobs.length;
+      await delay(5);
     }
 
     return {
-      cursor,
       cursorId,
+      done,
+      progress,
       total,
       jobs,
     };

@@ -107,16 +107,9 @@ export function parseSearchQuery(luceneQuery: string): ServerQuery {
   const tokens = tokenizeQuery(luceneQuery.trim());
   const parsedQuery = parseTokens(tokens);
 
-  const temp = simplifyQuery(parsedQuery);
-  if (!luceneQuery.includes(':')) {
-    console.log('parsed query', temp);
-  }
-  return temp;
+  return simplifyQuery(parsedQuery);
 }
 
-/**
- * Tokenizes the query string, respecting quoted values and parentheses
- */
 /**
  * Tokenizes the query string, respecting quoted values and parentheses
  */
@@ -130,7 +123,7 @@ function tokenizeQuery(query: string): Token[] {
   let regexIgnoreCase = false;
 
   const isIdentifierStart = (ch: string) => /[A-Za-z$_]/.test(ch);
-  const isIdentifierPart = (ch: string) => /[A-Za-z0-9$_]/.test(ch);
+  const isIdentifierPart = (ch: string) => /[A-Za-z0-9$_.]/.test(ch);
 
   function flushCurrentToken() {
     if (currentToken) {
@@ -239,13 +232,13 @@ function tokenizeQuery(query: string): Token[] {
     }
 
     // Handle range brackets - keep everything between [ and ] together
-    if (char === '[' && !inQuotes) {
+    if ((char === '[' || char == '{') && !inQuotes) {
       inRange = true;
       currentToken += char;
       continue;
     }
 
-    if (char === ']' && !inQuotes && inRange) {
+    if ((char === ']' || char == '}') && !inQuotes && inRange) {
       inRange = false;
       currentToken += char;
       const token = parseRangeQuery(currentToken);
@@ -289,6 +282,88 @@ function tokenizeQuery(query: string): Token[] {
 }
 
 /**
+ * Lexer for SimpleValue tokens
+ * Handles naked strings (no spaces), single-quoted, and double-quoted strings
+ * @param query - The query string to lex
+ * @param startIndex - Starting position in the query
+ * @returns Object containing the parsed value and the next index, or null if no valid token found
+ */
+function lexSimpleValue(
+  query: string,
+  startIndex: number,
+): { value: string; nextIndex: number } | null {
+  let i = startIndex;
+
+  // Skip leading whitespace
+  while (i < query.length && query[i] === ' ') {
+    i++;
+  }
+
+  if (i >= query.length) {
+    return null;
+  }
+
+  const char = query[i];
+
+  // Handle quoted strings (single or double quotes)
+  if (char === '"' || char === "'") {
+    const quoteChar = char;
+    let value = quoteChar;
+    i++; // Move past the opening quote
+
+    while (i < query.length) {
+      const currentChar = query[i];
+
+      // Handle escape sequences
+      if (currentChar === '\\' && i + 1 < query.length) {
+        value += currentChar + query[i + 1];
+        i += 2;
+        continue;
+      }
+
+      // Check for closing quote
+      if (currentChar === quoteChar) {
+        value += currentChar;
+        i++;
+        return { value, nextIndex: i };
+      }
+
+      value += currentChar;
+      i++;
+    }
+
+    // Unterminated quoted string
+    throw new Error(
+      `Unterminated quoted string starting at position ${startIndex}`,
+    );
+  }
+
+  // Handle naked strings (no quotes, no spaces)
+  // Stop at: space, parentheses, quotes, or special query characters
+  const stopChars = new Set([' ', '(', ')', '"', "'", '[', ']', '{', '}']);
+  let value = '';
+
+  while (i < query.length) {
+    const currentChar = query[i];
+
+    // Stop at any terminator character
+    if (stopChars.has(currentChar)) {
+      break;
+    }
+
+    value += currentChar;
+    i++;
+  }
+
+  // Return null if no value was captured
+  if (value.length === 0) {
+    return null;
+  }
+
+  return { value, nextIndex: i };
+}
+
+/**
  * Creates a token with the appropriate type
  */
 function createToken(tokenStr: string): Token {
@@ -309,28 +384,48 @@ function createToken(tokenStr: string): Token {
 function parseTokens(tokens: Token[]): any {
   let index = 0;
 
-  function parseExpression(): any {
+  function parseExpression(minPrecedence = 0): any {
     let left = parsePrimary();
 
     while (index < tokens.length) {
       const token = tokens[index];
 
+      if (isGroupEnd(token)) {
+        break;
+      }
+
       if (isOperator(token)) {
+        const precedence = getOperatorPrecedence(token.name);
+
+        // Check if this operator should be processed at this precedence level
+        if (precedence < minPrecedence) {
+          break;
+        }
+
         const name = token.name;
         index++;
-        const right = parsePrimary();
+
+        // For left-associative operators, we need to parse the right side with higher precedence
+        const right = parseExpression(precedence + 1);
 
         if (name === 'AND') {
           left = { $and: [left, right] };
-        } else {
+        } else if (name === 'OR') {
           left = { $or: [left, right] };
+        } else {
+          // NOT as a binary operator (shouldn't happen in correct Lucene syntax)
+          left = { $and: [left, { $not: right }] };
         }
-      } else if (isGroupEnd(token)) {
-        break;
-      } else {
+      } else if (
+        !isGroupStart(token) &&
+        !isField(token) &&
+        !isOperator(token)
+      ) {
         // Implicit AND for adjacent terms
-        const right = parsePrimary();
+        const right = parseExpression(getOperatorPrecedence('AND') + 1);
         left = { $and: [left, right] };
+      } else {
+        break;
       }
     }
 
@@ -341,7 +436,7 @@ function parseTokens(tokens: Token[]): any {
     const token = tokens[index++];
 
     if (isGroupStart(token)) {
-      const expression = parseExpression();
+      const expression = parseExpression(0);
       // Skip the closing parenthesis
       if (index < tokens.length && isGroupEnd(tokens[index])) {
         index++;
@@ -367,7 +462,7 @@ function parseTokens(tokens: Token[]): any {
       if (isSimpleValue(valueToken)) {
         return parseTokenValue(identifier, valueToken.value);
       } else if (isRangeValue(valueToken)) {
-        return getRangeFilter(identifier, valueToken.lower, valueToken.upper);
+        return getRangeFilter(identifier, valueToken);
       } else if (isRegexValue(valueToken)) {
         return getRegexFilter(
           identifier,
@@ -427,7 +522,25 @@ function parseTokens(tokens: Token[]): any {
     }
   }
 
-  return parseExpression();
+  return parseExpression(0);
+}
+
+/**
+ * Returns operator precedence levels for Lucene semantics
+ * Higher number = higher precedence
+ * NOT (unary) is handled in parsePrimary, not here
+ */
+function getOperatorPrecedence(operator: 'AND' | 'OR' | 'NOT'): number {
+  switch (operator) {
+    case 'OR':
+      return 1;
+    case 'AND':
+      return 2;
+    case 'NOT':
+      return 3; // NOT as a binary operator (rare)
+    default:
+      return 0;
+  }
 }
 
 function isQuoted(v: string): boolean {
@@ -439,12 +552,15 @@ function isQuoted(v: string): boolean {
   return first == last && (first === "'" || first == `"`);
 }
 
-const RangeRegex = /^\[\s*([^\]\s]*)\s+TO\s+([^\]\s]*)\s*]$/i;
+const RangeRegex =
+  /^(?:([a-zA-Z_][a-zA-Z0-9_.]*)\s*:\s*)?([[{])([^}]+)\s+TO\s+([^}\]]+)\s*([\]}])$/;
 
 function parseRangeQuery(token: string): RangeValue {
   // Handle range queries [value TO value]
   const match = token.match(RangeRegex);
   if (match) {
+    const lowerInclusive = token[0] == '[';
+    const upperInclusive = token[token.length - 1] == ']';
     const [_, lowValue, highValue] = match;
     const lower = isQuoted(lowValue)
       ? lowValue.substring(1, lowValue.length - 1)
@@ -456,6 +572,8 @@ function parseRangeQuery(token: string): RangeValue {
       type: 'range_value',
       lower,
       upper,
+      upperInclusive,
+      lowerInclusive,
     };
   } else {
     // throw an error
@@ -508,17 +626,36 @@ function parseTokenValue(field: string, token: string): any {
 /**
  * Parses range queries like [value1 TO value2]
  */
-function getRangeFilter(field: string, lower: string, upper: string): any {
+function getRangeFilter(field: string, value: RangeValue): any {
   const rangeQuery: any = {};
 
+  const lower = value.lower;
+  const upper = value.upper;
+
+  const parseValue = (value: string): string | number => {
+    const lowerNum = parseFloat(value);
+    if (isNaN(lowerNum)) {
+      return value;
+    }
+    return lowerNum;
+  };
+
   if (lower !== '*') {
-    const lowerNum = parseFloat(lower);
-    rangeQuery.$gte = isNaN(lowerNum) ? lower : lowerNum;
+    const lowerNum = parseValue(lower);
+    if (value.lowerInclusive) {
+      rangeQuery.$gte = lowerNum;
+    } else {
+      rangeQuery.$gt = lowerNum;
+    }
   }
 
   if (upper !== '*') {
-    const upperNum = parseFloat(upper);
-    rangeQuery.$lte = isNaN(upperNum) ? upper : upperNum;
+    const upperNum = parseValue(upper);
+    if (value.upperInclusive) {
+      rangeQuery.$lte = upperNum;
+    } else {
+      rangeQuery.$lt = upperNum;
+    }
   }
 
   return { [field]: rangeQuery };

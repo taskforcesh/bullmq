@@ -3,7 +3,6 @@ export * from './backoff-options';
 export * from './base-job-options';
 export * from './child-message';
 export * from './connection';
-export * from './filtered-jobs';
 export * from './job-search-results';
 export * from './flow-job';
 export * from './ioredis-events';
