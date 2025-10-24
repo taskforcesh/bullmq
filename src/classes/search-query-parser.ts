@@ -39,12 +39,14 @@ type WildcardValue = {
 
 interface OperatorToken {
   type: 'operator';
-  name: 'AND' | 'OR' | 'NOT';
+  name: 'AND' | 'OR' | 'NOT' | 'XOR';
 }
 
 type GroupStartToken = 'GROUP_START';
 type GroupEndToken = 'GROUP_END';
 type ColonToken = ':';
+
+const EXISTS_FIELD = '_exists_';
 
 interface FieldToken {
   type: 'field';
@@ -102,6 +104,16 @@ function isWildcardValue(candidate: Token): candidate is WildcardValue {
   return (candidate as WildcardValue).type == 'wildcard';
 }
 
+function isValueToken(candidate: Token): boolean {
+  return (
+    isTermValue(candidate) ||
+    isPhraseValue(candidate) ||
+    isWildcardValue(candidate) ||
+    isRegexValue(candidate) ||
+    isRangeValue(candidate)
+  );
+}
+
 function getTokenType(candidate: Token): string {
   if (typeof candidate === 'string') {
     return candidate;
@@ -138,9 +150,7 @@ export function parseSearchQuery(luceneQuery: string): ServerQuery {
 
   const tokens = tokenizeQuery(luceneQuery.trim());
   const parsedQuery = parseTokens(tokens);
-  const optimized = optimizeQuery(parsedQuery);
-
-  return optimized;
+  return optimizeQuery(parsedQuery);
 }
 
 /**
@@ -148,7 +158,6 @@ export function parseSearchQuery(luceneQuery: string): ServerQuery {
  */
 function tokenizeQuery(query: string): Token[] {
   const tokens: Token[] = [];
-  let currentToken = '';
 
   function isValidTermStart(ch: string): boolean {
     return /[A-Za-z0-9_*?"']/.test(ch);
@@ -156,13 +165,6 @@ function tokenizeQuery(query: string): Token[] {
 
   function isIdentifier(str: string): boolean {
     return str && str.length && IDENTIFIER_REGEX.test(str);
-  }
-
-  function flushCurrentToken() {
-    if (currentToken) {
-      tokens.push(createToken(currentToken));
-      currentToken = '';
-    }
   }
 
   for (let i = 0; i < query.length; i++) {
@@ -173,7 +175,7 @@ function tokenizeQuery(query: string): Token[] {
       if (term) {
         const token = term.token;
         // If we see an identifier start, peek ahead for identifier: pattern
-        // see if the next char is ':', if so it's a field
+        // see if the next char is ':', if so, it's a field
         if (term.nextIndex < query.length && query[term.nextIndex] === ':') {
           if (isTermValue(token) && isIdentifier(token.value)) {
             tokens.push({ type: 'field', name: token.value });
@@ -183,6 +185,23 @@ function tokenizeQuery(query: string): Token[] {
           const val = getTokenValue(token);
           throw new Error(`Invalid field name: "${val}" at position ${i}`);
         } else {
+          // check to see if we need to insert an implicit AND
+          if (tokens.length > 0) {
+            const prevToken = tokens[tokens.length - 1];
+            if (isValueToken(prevToken)) {
+              let shouldInsertAnd = false;
+              if (isValueToken(token)) {
+                shouldInsertAnd = true;
+              } else if (isOperator(token)) {
+                if (token.name === 'NOT') {
+                  shouldInsertAnd = true;
+                }
+              }
+              if (shouldInsertAnd) {
+                tokens.push({ type: 'operator', name: 'AND' }); // insert AND
+              }
+            }
+          }
           tokens.push(token);
           i = term.nextIndex - 1; // -1 because loop will increment
         }
@@ -200,15 +219,14 @@ function tokenizeQuery(query: string): Token[] {
       }
     }
 
-    // Handle + and - prefixes before non-quoted values (Lucene semantics)
+    // Handle - prefixes before non-quoted values (Lucene semantics)
     // + means required (AND), - means exclusion (NOT)
     if (char === '+' || char === '-') {
       // Look ahead to see if this is a prefix to a value (not just a standalone operator)
       if (i + 1 < query.length && query[i + 1] !== ' ') {
         // This is a prefix operator
-        if (char === '+') {
-          tokens.push({ type: 'operator', name: 'AND' });
-        } else {
+        if (char === '-') {
+          // + is ignored since the default connector is AND
           tokens.push({ type: 'operator', name: 'NOT' });
         }
         continue;
@@ -220,13 +238,17 @@ function tokenizeQuery(query: string): Token[] {
       continue;
     }
 
+    if (char == '^') {
+      tokens.push({ type: 'operator', name: 'XOR' });
+      continue;
+    }
+
     // Handle range brackets - keep everything between [ and ] together
     if (char === '[' || char == '{') {
       const rangeResult = lexRangeValue(query, i);
       if (rangeResult) {
         tokens.push(rangeResult.range);
         i = rangeResult.nextIndex - 1; // -1 because loop will increment
-        currentToken = '';
         continue;
       }
     }
@@ -238,15 +260,10 @@ function tokenizeQuery(query: string): Token[] {
     }
 
     if (char === ' ') {
-      flushCurrentToken();
       i = skipWhitespace(query, i) - 1; // -1 because loop will increment
     } else {
-      currentToken += char;
+      throw new Error(`Unrecognized character '${char}' at position ${i}`);
     }
-  }
-
-  if (currentToken) {
-    tokens.push(createToken(currentToken));
   }
 
   return tokens;
@@ -602,7 +619,12 @@ function skipWhitespace(query: string, index: number): number {
 function createToken(tokenStr: string): Token {
   const upperToken = tokenStr.toUpperCase();
 
-  if (upperToken === 'AND' || upperToken === 'OR' || upperToken === 'NOT') {
+  if (
+    upperToken === 'AND' ||
+    upperToken === 'OR' ||
+    upperToken === 'NOT' ||
+    upperToken === 'XOR'
+  ) {
     return { type: 'operator', name: upperToken };
   } else if (tokenStr === '(' || tokenStr === ')') {
     return tokenStr === '(' ? 'GROUP_START' : 'GROUP_END';
@@ -665,6 +687,13 @@ function parseTokens(tokens: Token[]): any {
         const operatorName = token.name;
         index++;
 
+        // make sure we don't have two operators in a row
+        if (index >= tokens.length) {
+          throw new Error(
+            `Unexpected end of query after operator: ${operatorName}`,
+          );
+        }
+
         // For left-associative operators, we need to parse the right side with higher precedence
         const right = parseExpression(precedence + 1);
 
@@ -672,20 +701,20 @@ function parseTokens(tokens: Token[]): any {
           left = { $and: [left, right] };
         } else if (operatorName === 'OR') {
           left = { $or: [left, right] };
+        } else if (operatorName === 'XOR') {
+          left = { $xor: [left, right] };
         } else {
           // NOT as a binary operator (shouldn't happen in correct Lucene syntax)
           left = { $and: [left, { $not: right }] };
         }
-      } else if (
-        !isGroupStart(token) &&
-        !isField(token) &&
-        !isOperator(token)
-      ) {
+      } else if (!isGroupEnd(token)) {
         // Implicit AND for adjacent terms
         const right = parseExpression(getOperatorPrecedence('AND') + 1);
         left = { $and: [left, right] };
       } else {
-        break;
+        throw new Error(
+          `Unexpected token in expression: ${getTokenType(token)}`,
+        );
       }
     }
 
@@ -757,6 +786,18 @@ function parseTokens(tokens: Token[]): any {
       }
 
       const valueToken = tokens[index++];
+
+      if (fieldName === EXISTS_FIELD) {
+        // special case for existence check
+        if (isTermValue(valueToken)) {
+          const path = valueToken.value;
+          return { [path]: { $exists: true } };
+        } else {
+          throw new Error(
+            `Expected identifier for existence check: ${getTokenType(valueToken)}`,
+          );
+        }
+      }
 
       // handle simple values
       if (isTermValue(valueToken)) {
@@ -832,7 +873,7 @@ function parseTokens(tokens: Token[]): any {
       }
 
       if (isWildcardValue(token)) {
-        const pattern = translateWildcards(token.value);
+        const pattern = translateWildcards(token.value, 'fullText');
         regexPatterns.push(pattern);
         first = false;
         index++;
@@ -851,6 +892,13 @@ function parseTokens(tokens: Token[]): any {
         index++;
         continue;
       }
+      if (isRegexValue(token)) {
+        const pattern = translateRegexToLuaPattern(token.value);
+        regexPatterns.push(pattern);
+        first = false;
+        index++;
+        continue;
+      }
       if (first) {
         const tokenType = getTokenType(token);
         const tokenValue = getTokenValue(token);
@@ -864,27 +912,20 @@ function parseTokens(tokens: Token[]): any {
     // Build combined text search filter
     const filters: any[] = [];
     const fieldName = groupedFieldName || 'fullText';
+    const contains = fieldName === 'fullText' || fieldName === 'logs';
 
     if (searchTerms.length > 0) {
-      const contains = fieldName === 'fullText' || fieldName === 'logs';
-      if (contains) {
-        for (const term of searchTerms) {
-          if (typeof term === 'string') {
-            filters.push({ [fieldName]: { $contains: term } });
-          } else {
-            filters.push({ [fieldName]: { $eq: term } });
-          }
-        }
-      } else {
-        for (const term of searchTerms) {
-          filters.push({ [fieldName]: { $eq: term } });
-        }
+      const operator = contains ? '$contains' : '$eq';
+      for (const term of searchTerms) {
+        const value = contains ? term.toString() : term;
+        filters.push({ [fieldName]: { [operator]: value } });
       }
     }
 
     if (regexPatterns.length > 0) {
       for (const pattern of regexPatterns) {
-        filters.push({ [fieldName]: { $regex: pattern } });
+        const value = pattern.toString();
+        filters.push({ [fieldName]: { $regex: value } });
       }
     }
 
@@ -929,9 +970,10 @@ function validateParentheses(tokens: Token[]): void {
  * Higher number = higher precedence
  * NOT (unary) is handled in parsePrimary, not here
  */
-function getOperatorPrecedence(operator: 'AND' | 'OR' | 'NOT'): number {
+function getOperatorPrecedence(operator: 'AND' | 'OR' | 'NOT' | 'XOR'): number {
   switch (operator) {
     case 'OR':
+    case 'XOR':
       return 1;
     case 'AND':
       return 2;
@@ -952,7 +994,7 @@ function parseTokenValue(field: string, token: string): any {
   // Check if it's a field:value pair
   if (!field?.length) {
     // No field specified, search in all fields (text search)
-    return { fullText: { $contains: value } };
+    return { fullText: { $contains: value.toString() } };
   }
 
   // Default: treat as string
@@ -962,7 +1004,7 @@ function parseTokenValue(field: string, token: string): any {
 const NUMBER_REGEX = /^[+-]?(\d+(\.\d*)?|\.\d+)$/;
 
 function parsePossibleNumber(value: string): string | number {
-  // check that value has only valid number characters (for example we can have something like 2023-01-01)
+  // check that value has only valid number characters (for example, we can have something like 2023-01-01)
   if (NUMBER_REGEX.test(value)) {
     const lowerNum = parseFloat(value);
     return isNaN(lowerNum) ? value : lowerNum;
@@ -981,9 +1023,12 @@ function parsePossibleBoolean(value: string): string | boolean {
   return value;
 }
 
-function possiblyConvertValue(value: string): string | number | boolean {
+function possiblyConvertValue(value: string): string | number | boolean | null {
   const numValue = parsePossibleNumber(value);
   if (typeof numValue === 'string') {
+    if (numValue === 'null') {
+      return null;
+    }
     return parsePossibleBoolean(numValue);
   }
   return numValue;
@@ -1014,17 +1059,23 @@ function buildRangeFilter(field: string, range: RangeValue): any {
   return { [field]: rangeQuery };
 }
 
-function translateWildcards(value: string): string {
+function translateWildcards(
+  value: string,
+  field: string | undefined = undefined,
+): string {
   // Convert wildcards to regex patterns
   let pattern = value.replace(/\?/g, '.').replace(/\*/g, '.*');
 
-  // Add anchors if not already present
-  if (!pattern.startsWith('.*')) {
-    pattern = '^' + pattern;
-  }
+  // For fullText and logs fields, do not anchor the pattern
+  if (field !== 'fullText' && field !== 'logs') {
+    // Add anchors if not already present
+    if (!pattern.startsWith('.*')) {
+      pattern = '^' + pattern;
+    }
 
-  if (!pattern.endsWith('.*')) {
-    pattern = pattern + '$';
+    if (!pattern.endsWith('.*')) {
+      pattern = pattern + '$';
+    }
   }
 
   return pattern;
@@ -1032,7 +1083,7 @@ function translateWildcards(value: string): string {
 
 function buildWildcardFilter(field: string, value: string): any {
   // Convert wildcards to regex patterns
-  const pattern = translateWildcards(value);
+  const pattern = translateWildcards(value, field);
   return { [field]: { $regex: pattern } };
 }
 
@@ -1045,24 +1096,26 @@ function buildRegexFilter(
   ignoreCase = false,
 ): any {
   // Convert Lucene wildcards to lua regex
-  let regexPattern = value.replace(/\*/g, '.*').replace(/\?/g, '.');
+  let regexPattern = translateRegexToLuaPattern(value);
 
-  // Ensure the pattern is anchored if it doesn't start with wildcard
-  if (!regexPattern.startsWith('.*')) {
-    regexPattern = '^' + regexPattern;
+  // Do not anchor the pattern for log or fullText searches, since that would make not practical sense
+  if (field !== 'fullText' && field !== 'logs') {
+    // Ensure the pattern is anchored if it doesn't start with wildcard
+    if (!regexPattern.startsWith('.*')) {
+      regexPattern = '^' + regexPattern;
+    }
+
+    if (!regexPattern.endsWith('.*')) {
+      regexPattern = regexPattern + '$';
+    }
   }
 
-  if (!regexPattern.endsWith('.*')) {
-    regexPattern = regexPattern + '$';
-  }
-
-  const luaPattern = translateRegexToLuaPattern(regexPattern);
-  const doc: ServerQuery = { $regex: luaPattern };
-  if (ignoreCase) {
-    doc.$options = 'i';
-  }
-
-  return { [field]: doc };
+  return {
+    [field]: {
+      $regex: regexPattern,
+      ...(ignoreCase && { $options: 'i' }),
+    },
+  };
 }
 
 /**
@@ -1140,70 +1193,40 @@ function optimizeOrCondition(conditions: any[]): ServerQuery {
 // Simple regex pattern to identify wildcard characters
 const SimpleRegexPattern = /[+*?]/;
 
+const JS_RANGE_TO_LUA_MAP: Record<string, string> = {
+  'a-zA-Z0-9': '%w',
+  'A-Za-z0-9': '%w',
+  '0-9a-zA-Z': '%w',
+  '0-9A-Za-z': '%w',
+  '0-9a-fA-F': '%x',
+  'a-fA-F0-9': '%x',
+  'a-zA-Z': '%a',
+  'A-Za-z': '%a',
+  '0-9': '%d',
+  'a-z': '%l',
+  'A-Z': '%u',
+};
+
 /**
  * Translates standard regex character classes into equivalent Lua patterns
- * @param regexClass - The regex character class to translate (e.g., '\\d', '\\w', '\\s')
  * @returns The equivalent Lua pattern character class
  */
 function translateRegexClassToLua(regexClass: string): string {
-  const translationMap: { [key: string]: string } = {
-    // Character classes
-    '\\d': '%d', // digits
-    '\\D': '%D', // non-digits
-    '\\w': '%a', // alphanumeric characters (letters and digits)
-    '\\W': '%A', // non-alphanumeric characters
-    '\\s': '%s', // whitespace characters
-    '\\S': '%S', // non-whitespace characters
-
-    // Character class equivalents using sets
-    '[0-9]': '%d',
-    '[a-zA-Z]': '%a',
-    '[A-Za-z]': '%a',
-    '[a-zA-Z0-9]': '%a',
-    '[^0-9]': '%D',
-    '[^a-zA-Z]': '%A',
-    '[^A-Za-z]': '%A',
-    '[^a-zA-Z0-9]': '%A',
-
-    // Common character ranges
-    '[a-z]': '[a-z]', // Lua supports this directly
-    '[A-Z]': '[A-Z]', // Lua supports this directly
-    '[0-9a-fA-F]': '[0-9a-fA-F]', // Lua supports hex ranges directly
-  };
-
-  // Direct translation for simple character classes
-  if (translationMap[regexClass]) {
-    return translationMap[regexClass];
+  // Translate character classes using the mapping
+  for (const [clazz, luaClass] of Object.entries(JS_RANGE_TO_LUA_MAP)) {
+    const regex = new RegExp(clazz, 'g');
+    regexClass = regexClass.replace(regex, luaClass);
   }
 
-  // Handle custom character sets
-  if (regexClass.startsWith('[') && regexClass.endsWith(']')) {
-    return translateCustomCharacterSet(regexClass);
+  // Translate character classes using the mapping
+  for (const [clazz, luaClass] of Object.entries(
+    REGEX_TO_LUA_CHARACTER_CLASSES,
+  )) {
+    const regex = new RegExp(clazz.replace(/\\/g, '\\\\'), 'g');
+    regexClass = regexClass.replace(regex, luaClass);
   }
 
-  // Return original if no translation found
   return regexClass;
-}
-
-/**
- * Translates custom character sets from regex to Lua pattern syntax
- */
-function translateCustomCharacterSet(charSet: string): string {
-  let luaSet = charSet;
-
-  // Replace common regex shorthand within character sets
-  luaSet = luaSet.replace(/\\d/g, '0-9');
-  luaSet = luaSet.replace(/\\w/g, 'a-zA-Z0-9');
-  luaSet = luaSet.replace(/\\s/g, ' \\t\\r\\n'); // space, tab, carriage return, newline
-
-  // Handle negated character sets (convert from regex [^abc] to Lua [^abc])
-  // Note: Lua uses the same [^abc] syntax for negated sets
-  if (luaSet.startsWith('[^') && luaSet.endsWith(']')) {
-    // Lua supports the same negated set syntax
-    return luaSet;
-  }
-
-  return luaSet;
 }
 
 const REGEX_TO_LUA_CHARACTER_CLASSES: Record<string, string> = {
@@ -1231,7 +1254,7 @@ export function translateRegexToLuaPattern(regexPattern: string): string {
     }
   }
 
-  let luaPattern = regexPattern;
+  let luaPattern = regexPattern.replace(/\*/g, '.*').replace(/\?/g, '.');
 
   // Translate character classes using the mapping
   for (const [regexClass, luaClass] of Object.entries(
@@ -1244,8 +1267,8 @@ export function translateRegexToLuaPattern(regexPattern: string): string {
   // Recursively translate nested character sets
   luaPattern = luaPattern.replace(
     /\[([^\]]+)]/g,
-    function (_match, innerContent: string) {
-      return translateRegexToLuaPattern(innerContent);
+    function (match, _innerContent: string) {
+      return translateRegexClassToLua(match);
     },
   );
 

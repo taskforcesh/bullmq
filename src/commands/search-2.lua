@@ -321,7 +321,33 @@ local function constant(value)
         return value
     end
 end
+
 ---- Casting --------------------------------------------------
+local function isTruthy(value)
+    -- Check falsy values by JS semantics
+    if value == false or value == nil or value == cjson.null then
+        return false
+    end
+    if value == 0 then
+        return false
+    end
+    if value == "" then
+        return false
+    end
+    local t = type(value)
+    -- Check for NaN: NaN is not equal to itself in Lua and JS
+    if t == "number" then
+        if value ~= value then
+            return false
+        end
+    elseif t == "table" then
+        if next(t) == nil then
+            return false
+        end
+    end
+    -- Everything else is truthy
+    return true
+end
 
 local function toBool(val, ...)
     local bool = false
@@ -338,6 +364,15 @@ local function toBool(val, ...)
         bool = bool(val(...))
     end
     return bool
+end
+
+local function xor(a, b)
+    a = isTruthy(a)
+    b = isTruthy(b)
+    if (a == b) then
+        return false
+    end
+    return a or b
 end
 
 local dblQuote = function(v)
@@ -580,27 +615,19 @@ Predicates['$nin'] = function(a, b)
 end
 
 Predicates['$lt'] = function(a, b)
-    return compare(a, b, function(x, y)
-        return x < y
-    end)
+    return compare(a, b, function(x, y) return x < y end)
 end
 
 Predicates['$lte'] = function(a, b)
-    return compare(a, b, function(x, y)
-        return x <= y
-    end)
+    return compare(a, b, function(x, y) return x <= y end)
 end
 
 Predicates['$gt'] = function(a, b)
-    return compare(a, b, function(x, y)
-        return x > y
-    end)
+    return compare(a, b, function(x, y) return x > y end)
 end
 
 Predicates['$gte'] = function(a, b)
-    return compare(a, b, function(x, y)
-        return x >= y
-    end)
+    return compare(a, b, function(x, y) return x >= y end)
 end
 
 Predicates['$contains'] = function(haystack, pattern)
@@ -614,7 +641,6 @@ Predicates['$contains'] = function(haystack, pattern)
 end
 
 local function compileRegex(pattern, ignoreCase)
-
     local function stringMatch(haystack, needle)
         return isString(haystack) and string.match(haystack, needle) ~= nil
     end
@@ -680,7 +706,8 @@ local function compileContains(pattern, ignoreCase)
         local needle = string.lower(needle)
         if t == "string" then
             return function(haystack)
-                return some(needle, function(pat)
+                local needle_ = needle
+                return some(needle_, function(pat)
                     if not isString(haystack) then
                         return false
                     end
@@ -690,7 +717,8 @@ local function compileContains(pattern, ignoreCase)
         end
         if t == "table" then
             return function(haystack)
-                return some(needle, function(pat)
+                local needle_ = needle
+                return some(needle_, function(pat)
                     if not isString(haystack) then
                         return false
                     end
@@ -737,10 +765,17 @@ Predicates['$all'] = function(a, b)
 end
 
 Predicates['$exists'] = function(a, b)
-    local non_existent = isNil(a)
+    local non_existent = false
+    if a == cjson.null or a == nil then
+        non_existent = true
+    elseif type(a) == "table" then
+        -- for tables, we consider non-existent only if the table is empty
+        non_existent = next(a) == nil
+    end
+    local v = isTruthy(b)
     return
-        ((b == false or b == 0) and non_existent) or
-        ((b == true or b == 1) and (not non_existent))
+        ((v == false) and non_existent) or
+        (v and (not non_existent))
 end
 
 Predicates['$startsWith'] = function(haystack, needle)
@@ -790,17 +825,11 @@ local function normalize(expr)
 
     -- normalize object expression
     if (isObject(expr)) then
-        local hasOperator = false
-        for k, _ in pairs(expr) do
-            if (isOperator(k)) then
-                hasOperator = true
-                break
+        for k, v in pairs(expr) do
+            t = type(v)
+            if not isOperator(k) then  -- skip something like { $gt: null }
+               expr[k] = normalize(v)
             end
-        end
-
-        -- no valid query operator found, so we do simple comparison
-        if (not hasOperator) then
-            return { ['$eq'] = expr }
         end
     end
 
@@ -835,11 +864,23 @@ local function compileQuery(criteria)
 
     local function parse(crit)
         for field, expr in pairs(criteria) do
-            if (field == '$and' or field == '$or' or field == '$nor' or field == '$expr') then
+            if (field == '$and' or field == '$or' or field == '$nor' or field == '$expr' or field == '$xor') then
                 processOperator(field, field, expr)
+            elseif field == '$not' then
+                assert(isObject(expr),
+                    '$not operator requires an object expression for field: ' .. field)
+                local expr1 = normalize(expr)
+                local predicateFn = compileQuery(expr1)
+                local fn = function(obj)
+                    --- capture locally to avoid upvalue lookups
+                    local predicate = predicateFn
+                    return not predicate(obj)
+                end
+                table.insert(compiled, fn)
             else
                 --- normalize expression
                 local expr1 = normalize(expr)
+                debug("Expr for field '" .. field .. "': " .. tostr(expr1))
 
                 for op, val in pairs(expr1) do
                     assert(isOperator(op), 'unknown top level operator: "' .. op .. '"')
@@ -853,6 +894,20 @@ local function compileQuery(criteria)
     end
 
     return parse(criteria)
+end
+
+QueryOperators['$xor'] = function(_selector, value)
+    assert(isArray(value) and #value == 2,
+        'Invalid expression. $xor expects value to be an array with 2 items')
+    local leftFn = compileQuery(value[1])
+    local rightFn = compileQuery(value[2])
+
+    return function(obj)
+        --- capture locally to avoid upvalue lookups
+        local left = leftFn
+        local right = rightFn
+        return xor(left(obj), right(obj))
+    end
 end
 
 QueryOperators['$or'] = function(_selector, value)
@@ -882,8 +937,9 @@ end
 QueryOperators['$not'] = function(selector, value)
     local criteria = {}
     criteria[selector] = normalize(value)
-    local predicate = compileQuery(criteria)
+    local fn = compileQuery(criteria)
     return function(obj)
+        local predicate = fn
         return not predicate(obj)
     end
 end
@@ -910,10 +966,13 @@ QueryOperators['$regex'] = function(selector, value)
     end
 
     local resolveFn = getFieldResolver(selector)
-    local predicate = compileRegex(pattern, ignoreCase)
+    local predicateFn = compileRegex(pattern, ignoreCase)
 
     return function(obj)
-        local lhs = resolveFn(obj)
+        local resolve = resolveFn
+        local predicate = predicateFn
+
+        local lhs = resolve(obj)
         local val = predicate(lhs)
 
         if not isDebugging then
@@ -929,20 +988,28 @@ end
 
 QueryOperators['$contains'] = function(selector, value)
     local resolveFn = getFieldResolver(selector)
-    local predicate = compileContains(value, false)
+    local predicateFn = compileContains(value, false)
 
     return function(obj)
-        local lhs = resolveFn(obj)
+        -- capture values locally to avoid upvalue lookups
+        local resolve = resolveFn
+        local predicate = predicateFn
+
+        local lhs = resolve(obj)
         return predicate(lhs)
     end
 end
 
 QueryOperators['$icontains'] = function(selector, value)
     local resolveFn = getFieldResolver(selector)
-    local predicate = compileContains(value, true)
+    local predicateFn = compileContains(value, true)
 
     return function(obj)
-        local lhs = resolveFn(obj)
+        -- capture values locally to avoid upvalue lookups
+        local resolve = resolveFn
+        local predicate = predicateFn
+
+        local lhs = resolve(obj)
         return predicate(lhs)
     end
 end
@@ -994,7 +1061,7 @@ local function resolveLogs(obj)
     if lines ~= nil and #lines > 0 then
         for _, line in ipairs(lines) do
             if line ~= nil then
-                logs = logs .. '|' .. line
+                logs = logs .. line
             end
         end
     end
@@ -1006,7 +1073,7 @@ local function resolveFullTextAndLogs(obj)
     local text = resolveFullText(obj)
     local logs = resolveLogs() or ""
     if #logs > 0 then
-        text = text .. '|' .. logs
+        text = text .. logs
     end
     return text
 end
@@ -1157,8 +1224,9 @@ local function parseExpression(expr, operator)
     -- debug('parsing ' .. tostr(expr))
 
     local function parseArray()
-        local compiled = map(expr, parseExpression)
+        local compiledFn = map(expr, parseExpression)
         return function(obj)
+            local compiled = compiledFn
             local result = map(compiled, function(fn)
                 local v = fn(obj)
                 return (v == nil) and cjson.null or v
@@ -1187,8 +1255,10 @@ local function parseExpression(expr, operator)
         end
 
         return function(obj)
+            local compiledList = compiled
+
             local result = {}
-            for key, fn in pairs(compiled) do
+            for key, fn in pairs(compiledList) do
                 local v = fn(obj)
                 result[key] = (v == nil) and cjson.null or v
             end
@@ -1277,7 +1347,7 @@ ExprOperators['$and'] = function(expr)
     local compute = parseExpression(expr)
     return function(obj)
         local args = compute(obj)
-        return every(args, toBool)
+        return every(args, isTruthy)
     end
 end
 
@@ -1285,7 +1355,24 @@ ExprOperators['$or'] = function(expr)
     local exec = parseExpression(expr)
     return function(obj)
         local args = exec(obj)
-        return every(args, toBool)
+        return some(args, isTruthy)
+    end
+end
+
+ExprOperators['$xor'] = function(expr)
+    local exec = parseExpression(expr)
+    return function(obj)
+        local args = ensureArray(exec(obj))
+        local truthyCount = 0
+        for _, v in ipairs(args) do
+            if isTruthy(v) then
+                truthyCount = truthyCount + 1
+                if truthyCount > 1 then
+                    return false
+                end
+            end
+        end
+        return truthyCount == 1
     end
 end
 
@@ -1294,7 +1381,7 @@ ExprOperators['$not'] = function(expr)
     -- todo: make sure its a single value
     return function(obj)
         local value = exec(obj)
-        return not toBool(value)
+        return not isTruthy(value)
     end
 end
 
@@ -1409,8 +1496,9 @@ end
 local function createComparison(name)
     local fn = Predicates[name]
     ExprOperators[name] = function(expr)
-        local exec = parseExpression(expr)
+        local exec_ = parseExpression(expr)
         return function(obj)
+            local exec = exec_ -- capture to spare an upvalue lookup
             local args = exec(obj)
             assert(isArray(args) and #args == 2, name .. ': comparison expects 2 arguments. Got ' .. tostr(args))
             local val = fn(args[1], args[2])
@@ -1423,14 +1511,18 @@ local function createComparison(name)
 end
 
 local function initOperators()
-    for name, predicate in pairs(Predicates) do
+    for name, predicateFn in pairs(Predicates) do
         if QueryOperators[name] == nil then
             QueryOperators[name] = function(selector, value)
                 local resolveFn = getFieldResolver(selector)
 
                 return function(obj)
+                    -- capture locally to avoid upvalue lookups
+                    local resolve = resolveFn
+                    local predicate = predicateFn
+
                     -- value of field must be fully resolved.
-                    local lhs = resolveFn(obj)
+                    local lhs = resolve(obj)
                     local val = predicate(lhs, value)
 
                     if isDebugging then

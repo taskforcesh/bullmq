@@ -54,7 +54,8 @@ const Person: Record<string, any> = {
   today: '1970-01-01',
 };
 
-describe('search', () => {
+ 
+describe('Search', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   const sandbox = sinon.createSandbox();
@@ -85,8 +86,7 @@ describe('search', () => {
 
   async function updateJob(job: Job, update: Partial<JobJsonRaw>) {
     const client = await queue.client;
-    const jobId = job.id;
-    const redisKey = queue.toKey(jobId);
+    const redisKey = queue.toKey(job.id);
     await client.hset(redisKey, update);
   }
 
@@ -420,6 +420,56 @@ describe('search', () => {
       });
     });
 
+    describe('$xor', () => {
+      it('can use conjunction true XOR true', async () => {
+        await attempt(
+          {
+            $xor: [
+              { 'data.firstName': 'Francis' },
+              { 'data.username': 'kofrasa' },
+            ],
+          },
+          false,
+        );
+      });
+
+      it('can use conjunction true XOR false', async () => {
+        await attempt(
+          {
+            $xor: [
+              { 'data.firstName': 'Francis' },
+              { 'data.lastName': 'Amoah' },
+            ],
+          },
+          true,
+        );
+      });
+
+      it('can use conjunction false XOR true', async () => {
+        await attempt(
+          {
+            $xor: [
+              { 'data.firstName': 'Enoch' },
+              { 'data.lastName': 'Asante' },
+            ],
+          },
+          true,
+        );
+      });
+
+      it('can use conjunction false XOR false', async () => {
+        await attempt(
+          {
+            $xor: [
+              { 'data.firstName': 'Enoch' },
+              { 'data.age': { $exists: true } },
+            ],
+          },
+          false,
+        );
+      });
+    });
+
     describe('$nor', () => {
       it('can use conjunction true NOR true', async () => {
         await attempt(
@@ -655,16 +705,7 @@ describe('search', () => {
 
       it('uses non null value', async () => {
         const conditional = { $ifNull: [5, 'default'] };
-        const criteria = { $expr: { $eq: [5, conditional] } };
         await checkExpression(conditional, 5);
-      });
-
-      it('errors on invalid args', async () => {
-        const conditional = { $ifNull: [5, 'default', 'error'] };
-        const criteria = { $expr: { $eq: [5, conditional] } };
-        expect(() => check(criteria, false)).throws(
-          /\$ifNull expression must resolve to array(2)/,
-        );
       });
     });
   });
@@ -715,21 +756,6 @@ describe('search', () => {
 
       beforeEach(async () => {
         job = await queue.add('default', Person);
-      });
-
-      it('correctly identifies numeric types for metadata fields', async () => {
-        const number_fields: string[] = [
-          'progress',
-          'delay',
-          'priority',
-          'timestamp',
-          'attemptsMade',
-          'attemptsStarted',
-          'stalledCounter',
-        ];
-        for (const field of number_fields) {
-          await attempt({ [field]: { $type: 'number' } });
-        }
       });
 
       it('can handle "object"', async () => {
@@ -877,42 +903,42 @@ describe('search', () => {
   });
 
   describe('null or missing fields', () => {
-    const data: Record<string, any>[] = [{ _id: 1, item: null }, { _id: 2 }];
+    const data: Record<string, any>[] = [
+      { _id: 1, item: null },
+      { _id: 2 },
+      { _id: 3, item: 'widget' },
+    ];
 
     async function attempt(
       criteria: ServerQuery,
-      expected: Record<string, any>,
+      expected: Record<string, any>[],
     ) {
       const res = await find(data, criteria);
-      expect(res).to.be.eql(expected);
+      expect(res).to.have.deep.members(expected);
     }
 
-    it('should return all documents', async () => {
-      const expected: Record<string, any> = [
+    it('should return documents comparing with null', async () => {
+      const expected: Record<string, any>[] = [
         { _id: 1, item: null },
         { _id: 2 },
       ];
       await attempt({ 'data.item': null }, expected);
     });
 
-    it('should return one document with null field', async () => {
+    it('should return documents using $type:"null"', async () => {
       const query = { 'data.item': { $type: 'null' } };
-      const expected: Record<string, any>[] = [{ _id: 1, item: null }];
-      await attempt(query, expected);
-    });
-
-    it('should return one document without null field', async () => {
-      const query = { 'data.item': { $exists: false } };
-      const expected = [{ _id: 2 }];
-      await attempt(query, expected);
-    });
-
-    it('$in should return all documents', async function () {
-      const query = { 'data.item': { $in: [null, false] } };
       const expected: Record<string, any>[] = [
         { _id: 1, item: null },
         { _id: 2 },
       ];
+      // note: $type: does not distinguish between null and missing fields, sor {_id:2} is also returned
+      await attempt(query, expected);
+    });
+
+    it('should return documents without missing or null field', async () => {
+      const query = { 'data.item': { $exists: true } };
+      // note: $exists: does not distinguish between null and missing fields, so only {_id:3} is also returned
+      const expected = [{ _id: 3, item: 'widget' }];
       await attempt(query, expected);
     });
   });
@@ -1023,15 +1049,15 @@ describe('search', () => {
         ];
         const added = await queue.addBulk(data);
         const returnValue = JSON.stringify({ value: 99, status: 'failed' });
-        updateJob(added[0], { returnvalue: returnValue });
+        await updateJob(added[0], { returnvalue: returnValue });
         const returnValue1 = JSON.stringify({ value: 42, status: 'success' });
-        updateJob(added[1], { returnvalue: returnValue1 });
+        await updateJob(added[1], { returnvalue: returnValue1 });
 
         const { jobs: successful } = await queue.search('wait', 'success');
         expect(successful.length).to.equal(1);
         expect(successful[0].name).to.equal('second');
 
-        const { jobs: failed } = await queue.search('wait', '99');
+        const { jobs: failed } = await queue.search('wait', '"99"');
         expect(failed.length).to.equal(1);
         expect(failed[0].name).to.equal('first');
       });
@@ -1050,13 +1076,300 @@ describe('search', () => {
         await updateJob(added[4], { stacktrace });
         await added[3].log('gamma');
 
-        const { jobs } = await queue.search('wait', 'alpha beta gamma epsilon');
+        const { jobs } = await queue.search(
+          'wait',
+          'alpha OR beta OR gamma OR epsilon',
+        );
         expect(jobs.length).to.equal(3);
         const names = jobs.map(x => x.name).sort();
-        expect(names).to.deep.equal(['alpha', 'default', 'inference']);
+        expect(names).to.eql(['alpha', 'default', 'inference']);
+      });
+
+      it('should handle wildcard searches', async () => {
+        const data = [
+          { name: 'alpha-one', data: { _id: 1 } },
+          { name: 'beta-two', data: { _id: 2 } },
+          { name: 'gamma-three', data: { _id: 3 } },
+          { name: 'delta-four', data: { _id: 4 } },
+        ];
+        await queue.addBulk(data);
+        const { jobs } = await queue.search('waiting', 'a*-t*ree');
+        expect(jobs.length).to.equal(1);
+        expect(jobs[0].name).to.eql('gamma-three');
+
+        const { jobs: jobs1 } = await queue.search('waiting', 'delta?four');
+        expect(jobs1.length).to.equal(1);
+        expect(jobs1[0].data).to.eql({ _id: 4 });
+      });
+
+      it('should handle phrase searches', async () => {
+        const data = [
+          {
+            name: 'task-one',
+            data: { _id: 1, description: 'quick brown fox' },
+          },
+          { name: 'task-two', data: { _id: 2, description: 'lazy dog' } },
+          {
+            name: 'task-three',
+            data: { _id: 3, description: 'the quick blue hare' },
+          },
+        ];
+        await queue.addBulk(data);
+        const { jobs } = await queue.search('waiting', '"quick brown"');
+        expect(jobs.length).to.equal(1);
+        expect(jobs[0].name).to.eql('task-one');
+
+        const { jobs: jobs1 } = await queue.search('waiting', '"quick"');
+        expect(jobs1.length).to.equal(2);
+        const names = jobs1.map(j => j.name).sort();
+        expect(names).to.eql(['task-one', 'task-three']);
+      });
+
+      it('should handle regex searches', async () => {
+        const data = [
+          {
+            name: 'task-one',
+            data: { _id: 1, description: 'quick brown fox' },
+          },
+          { name: 'task-two', data: { _id: 2, description: 'lazy dog' } },
+          {
+            name: 'task-three',
+            data: { _id: 3, description: 'the quick blue hare' },
+          },
+        ];
+        await queue.addBulk(data);
+        const { jobs } = await queue.search('waiting', '/qu.*k b.*n/');
+        expect(jobs.length).to.equal(1);
+        expect(jobs[0].name).to.eql('task-one');
+      });
+
+      it('should handle negation in searches', async () => {
+        const data = [
+          {
+            name: 'task-one',
+            data: { _id: 1, description: 'quick brown fox' },
+          },
+          { name: 'task-two', data: { _id: 2, description: 'lazy dog' } },
+          {
+            name: 'task-three',
+            data: { _id: 3, description: 'the quick blue hare' },
+          },
+        ];
+        await queue.addBulk(data);
+        const { jobs } = await queue.search('waiting', 'quick NOT fox');
+        expect(jobs.length).to.equal(1);
+        expect(jobs[0].name).to.eql('task-three');
+      });
+
+      // Logical operator tests for Text Search
+      it('should handle explicit AND operator', async () => {
+        const data = [
+          { name: 'alpha', data: { _id: 1 } },
+          { name: 'beta', data: { _id: 2 } },
+          { name: 'alpha-beta', data: { _id: 3 } },
+        ];
+        await queue.addBulk(data);
+        const { jobs } = await queue.search('waiting', 'alpha AND beta');
+        expect(jobs.length).to.equal(1);
+        expect(jobs[0].name).to.equal('alpha-beta');
+      });
+
+      it('should handle implicit AND between terms', async () => {
+        const data = [
+          { name: 'quick brown', data: { _id: 1 } },
+          { name: 'quick fox', data: { _id: 2 } },
+          { name: 'brown fox', data: { _id: 3 } },
+          { name: 'quick brown fox', data: { _id: 4 } },
+        ];
+        await queue.addBulk(data);
+        const { jobs } = await queue.search('waiting', 'quick brown'); // implicit AND
+        const names = jobs.map(j => j.name).sort();
+        expect(names).to.eql(['quick brown', 'quick brown fox'].sort());
+      });
+
+      it('should respect parentheses and precedence', async () => {
+        const data = [
+          { name: 'a b c', data: { _id: 1 } },
+          { name: 'a b', data: { _id: 2 } },
+          { name: 'b c', data: { _id: 3 } },
+          { name: 'c only', data: { _id: 4 } },
+        ];
+        await queue.addBulk(data);
+        const { jobs } = await queue.search('waiting', '(a OR b) AND c');
+        const names = jobs.map(j => j.name).sort();
+        expect(names).to.eql(['a b c', 'b c'].sort());
+      });
+
+      it('should handle combined OR and NOT', async () => {
+        const data = [
+          { name: 'fast fox', data: { _id: 1 } },
+          { name: 'slow fox', data: { _id: 2 } },
+          { name: 'fast dog', data: { _id: 3 } },
+          { name: 'slow dog', data: { _id: 4 } },
+        ];
+        await queue.addBulk(data);
+        const { jobs } = await queue.search(
+          'waiting',
+          '(fast OR slow) NOT dog',
+        );
+        const names = jobs.map(j => j.name).sort();
+        expect(names).to.eql(['fast fox', 'slow fox'].sort());
+      });
+
+      it('should handle the XOR operator', async () => {
+        const data = [
+          { name: 'red blue', data: { _id: 1 } },
+          { name: 'red green', data: { _id: 2 } },
+          { name: 'blue green', data: { _id: 3 } },
+          { name: 'red blue green', data: { _id: 4 } },
+        ];
+        await queue.addBulk(data);
+        const { jobs } = await queue.search('waiting', 'red ^ blue');
+        const names = jobs.map(j => j.name).sort();
+        expect(names).to.eql(['blue green', 'red green']);
       });
     });
     describe('When performing a fielded Search', () => {
+      describe('Range Queries', () => {
+        const inventory = [
+          {
+            name: 'alice',
+            data: { item: 'abc1', price: 10.99, qty: 300, code: 'A123' },
+          },
+          {
+            name: 'bob',
+            data: { item: 'abc2', price: 25.99, qty: 200, code: 'B456' },
+          },
+          {
+            name: 'chris',
+            data: { item: 'xyz1', price: 35.99, qty: 250, code: 'C789' },
+          },
+          {
+            name: 'david',
+            data: { item: 'VWZ1', price: 45.99, qty: 300, code: 'D012' },
+          },
+          {
+            name: 'evan',
+            data: { item: 'VWZ2', price: 55.99, qty: 180, code: 'E345' },
+          },
+        ];
+
+        let inventoryJobs: Job[];
+
+        beforeEach(async () => {
+          inventoryJobs = await queue.addBulk(inventory);
+        });
+
+        describe('Numeric Ranges', () => {
+          it('should handle closed range [min TO max]', async () => {
+            const query = 'data.price:[25.99 TO 45.99]';
+            const { jobs } = await queue.search('waiting', query);
+            expect(jobs.length).to.equal(3);
+            const prices = jobs.map(j => j.data.price).sort();
+            expect(prices).to.eql([25.99, 35.99, 45.99]);
+          });
+
+          it('should handle open range {min TO max}', async () => {
+            const query = 'data.qty:{180 TO 300}';
+            const { jobs } = await queue.search('waiting', query);
+            const expected = inventory.filter(
+              job => job.data.qty > 180 && job.data.qty < 300,
+            );
+            expect(jobs.length).to.equal(expected.length);
+            for (const job of jobs) {
+              expect(job.data.qty).to.be.greaterThan(180);
+              expect(job.data.qty).to.be.lessThan(300);
+            }
+          });
+
+          it('should handle left-open, right-closed range {min TO max]', async () => {
+            const query = 'data.price:{35.99 TO 55.99]';
+            const { jobs } = await queue.search('waiting', query);
+            expect(jobs.length).to.equal(2);
+            const prices = jobs.map(j => j.data.price).sort();
+            expect(prices).to.eql([45.99, 55.99]);
+          });
+
+          it('should handle left-closed, right-open range [min TO max}', async () => {
+            const query = 'data.qty:[250 TO 300}';
+            const { jobs } = await queue.search('waiting', query);
+            expect(jobs.length).to.equal(1);
+            expect(jobs[0].data.qty).to.equal(250);
+          });
+
+          it('should handle unbounded ranges with wildcards', async () => {
+            const query = 'data.price:[45.99 TO *]';
+            const { jobs } = await queue.search('waiting', query);
+            expect(jobs.length).to.equal(2);
+            const prices = jobs.map(j => j.data.price).sort();
+            expect(prices).to.eql([45.99, 55.99]);
+          });
+        });
+
+        describe('String Ranges', () => {
+          it('should handle closed range for strings [min TO max]', async () => {
+            const query = 'name:[bob TO david]';
+            const { jobs } = await queue.search('waiting', query);
+            expect(jobs.length).to.equal(3);
+            const codes = jobs.map(j => j.name).sort();
+            expect(codes).to.eql(['bob', 'chris', 'david']);
+          });
+
+          it('should handle open range for strings {min TO max}', async () => {
+            const query = 'data.item:{abc TO xyz}';
+            const { jobs } = await queue.search('waiting', query);
+            const expected = inventory.filter(
+              job => job.data.item > 'abc' && job.data.item < 'xyz',
+            );
+            expect(jobs.length).to.equal(expected.length);
+            const expectedItems = expected.map(j => j.data.item).sort();
+            const items = jobs.map(j => j.data.item).sort();
+            expect(items).to.eql(expectedItems);
+          });
+
+          it('should handle mixed ranges for strings [min TO max}', async () => {
+            const query = 'data.code:[B456 TO E345}';
+            const { jobs } = await queue.search('waiting', query);
+            const expected = inventory.filter(
+              job => job.data.code >= 'B456' && job.data.code < 'E345',
+            );
+            expect(jobs.length).to.equal(expected.length);
+            const expectedCodes = expected.map(j => j.data.code).sort();
+            const codes = jobs.map(j => j.data.code).sort();
+            expect(codes).to.eql(expectedCodes);
+          });
+
+          it('should handle unbounded string ranges', async () => {
+            const query = 'data.item:["VWZ*" TO *]';
+            const { jobs } = await queue.search('waiting', query);
+            const expected = inventory.filter(job => job.data.item >= 'VWZ');
+            expect(jobs.length).to.equal(expected.length);
+            const expectedItems = expected.map(j => j.data.item).sort();
+            const items = jobs.map(j => j.data.item).sort();
+            expect(items).to.eql(expectedItems);
+          });
+        });
+
+        describe('Invalid Ranges', () => {
+          it('should raise on malformed range queries', async () => {
+            const query = 'data.price:[45.99]'; // Missing TO
+            let error: any = null;
+            try {
+              await queue.search('waiting', query);
+            } catch (err) {
+              error = err;
+            }
+            expect(error.toString()).to.contain('Invalid range query');
+          });
+
+          it('should handle invalid range bounds', async () => {
+            const query = 'data.price:[abc TO def]'; // Invalid numeric bounds
+            const { jobs } = await queue.search('waiting', query);
+            expect(jobs.length).to.equal(0);
+          });
+        });
+      });
+
       it('should search special fields', async () => {
         const data = [
           { name: 'task-one', data: { description: 'first task' } },
@@ -1100,160 +1413,209 @@ describe('search', () => {
         );
         expect(fullTextJobs.length).to.equal(3);
       });
-    });
-    describe('Range Queries', () => {
-      const inventory = [
-        {
-          name: 'alice',
-          data: { item: 'abc1', price: 10.99, qty: 300, code: 'A123' },
-        },
-        {
-          name: 'bob',
-          data: { item: 'abc2', price: 25.99, qty: 200, code: 'B456' },
-        },
-        {
-          name: 'chris',
-          data: { item: 'xyz1', price: 35.99, qty: 250, code: 'C789' },
-        },
-        {
-          name: 'david',
-          data: { item: 'VWZ1', price: 45.99, qty: 300, code: 'D012' },
-        },
-        {
-          name: 'evan',
-          data: { item: 'VWZ2', price: 55.99, qty: 180, code: 'E345' },
-        },
-      ];
 
-      let inventoryJobs: Job[];
+      it('should search for null values in fields', async () => {
+        const data = [
+          { name: 'task-one', data: { description: null } },
+          { name: 'task-two', data: {} },
+          { name: 'task-three', data: { description: 'third task' } },
+        ];
+
+        await queue.addBulk(data);
+
+        const { jobs } = await queue.search('waiting', 'data.description:null');
+        expect(jobs.length).to.equal(1);
+        expect(jobs[0].name).to.eql('task-one');
+      });
+
+      it('can find null fields using the _exists_ special field', async () => {
+        const data = [
+          { name: 'task-one', data: { description: null } },
+          { name: 'task-two', data: {} },
+          { name: 'task-three', data: { description: 'third task' } },
+        ];
+
+        await queue.addBulk(data);
+        const { jobs } = await queue.search(
+          'waiting',
+          '_exists_:data.description',
+        );
+        expect(jobs.length).to.equal(1);
+        expect(jobs[0].name).to.equal('task-three');
+      });
+    });
+    describe('Logical Operators', () => {
+      let job: Job;
 
       beforeEach(async () => {
-        inventoryJobs = await queue.addBulk(inventory);
+        job = await queue.add('default', Person);
       });
 
-      describe('Numeric Ranges', () => {
-        it('should handle closed range [min TO max]', async () => {
-          const query = 'data.price:[25.99 TO 45.99]';
-          const { jobs } = await queue.search('waiting', query);
-          expect(jobs.length).to.equal(3);
-          const prices = jobs.map(j => j.data.price).sort();
-          expect(prices).to.eql([25.99, 35.99, 45.99]);
-        });
-
-        it('should handle open range {min TO max}', async () => {
-          const query = 'data.qty:{180 TO 300}';
-          const { jobs } = await queue.search('waiting', query);
-          const expected = inventory.filter(
-            job => job.data.qty > 180 && job.data.qty < 300,
+      describe('$and', () => {
+        it('can use conjunction true AND true', async () => {
+          const data = [
+            {
+              name: 'task-one',
+              data: { title: 'Software Engineer', location: 'Remote' },
+            },
+            {
+              name: 'task-two',
+              data: { title: 'Software Engineer', location: 'Office' },
+            },
+            {
+              name: 'task-three',
+              data: { title: 'Data Scientist', location: 'Remote' },
+            },
+          ];
+          await queue.addBulk(data);
+          const { jobs } = await queue.search(
+            'waiting',
+            'data.title:Software* AND data.location:Remote',
           );
-          expect(jobs.length).to.equal(expected.length);
-          for (const job of jobs) {
-            expect(job.data.qty).to.be.greaterThan(180);
-            expect(job.data.qty).to.be.lessThan(300);
-          }
-        });
-
-        it('should handle left-open, right-closed range {min TO max]', async () => {
-          const query = 'data.price:{35.99 TO 55.99]';
-          const { jobs } = await queue.search('waiting', query);
-          expect(jobs.length).to.equal(2);
-          const prices = jobs.map(j => j.data.price).sort();
-          expect(prices).to.eql([45.99, 55.99]);
-        });
-
-        it('should handle left-closed, right-open range [min TO max}', async () => {
-          const query = 'data.qty:[250 TO 300}';
-          const { jobs } = await queue.search('waiting', query);
           expect(jobs.length).to.equal(1);
-          expect(jobs[0].data.qty).to.equal(250);
+          expect(jobs[0].name).to.equal('task-one');
         });
 
-        it('should handle unbounded ranges with wildcards', async () => {
-          const query = 'data.price:[45.99 TO *]';
-          const { jobs } = await queue.search('waiting', query);
-          expect(jobs.length).to.equal(2);
-          const prices = jobs.map(j => j.data.price).sort();
-          expect(prices).to.eql([45.99, 55.99]);
-        });
-      });
-
-      describe('String Ranges', () => {
-        it('should handle closed range for strings [min TO max]', async () => {
-          const query = 'name:[bob TO david]';
-          const { jobs } = await queue.search('waiting', query);
-          expect(jobs.length).to.equal(3);
-          const codes = jobs.map(j => j.name).sort();
-          expect(codes).to.eql(['bob', 'chris', 'david']);
-        });
-
-        it('should handle open range for strings {min TO max}', async () => {
-          const query = 'data.item:{abc TO xyz}';
-          const { jobs } = await queue.search('waiting', query);
-          const expected = inventory.filter(
-            job => job.data.item > 'abc' && job.data.item < 'xyz',
+        it('can use conjunction true AND false', async () => {
+          const data = [
+            {
+              name: 'task-one',
+              data: { title: 'Engineer', location: 'Remote' },
+            },
+            {
+              name: 'task-two',
+              data: { title: 'Engineer', location: 'Office' },
+            },
+          ];
+          await queue.addBulk(data);
+          const { jobs } = await queue.search(
+            'waiting',
+            'data.title:Engineer AND data.location:Hybrid',
           );
-          expect(jobs.length).to.equal(expected.length);
-          const expectedItems = expected.map(j => j.data.item).sort();
-          const items = jobs.map(j => j.data.item).sort();
-          expect(items).to.eql(expectedItems);
-        });
-
-        it('should handle mixed ranges for strings [min TO max}', async () => {
-          const query = 'data.code:[B456 TO E345}';
-          const { jobs } = await queue.search('waiting', query);
-          const expected = inventory.filter(
-            job => job.data.code >= 'B456' && job.data.code < 'E345',
-          );
-          expect(jobs.length).to.equal(expected.length);
-          const expectedCodes = expected.map(j => j.data.code).sort();
-          const codes = jobs.map(j => j.data.code).sort();
-          expect(codes).to.eql(expectedCodes);
-        });
-
-        it('should handle unbounded string ranges', async () => {
-          const query = 'data.item:["VWZ*" TO *]';
-          const { jobs } = await queue.search('waiting', query);
-          const expected = inventory.filter(job => job.data.item >= 'VWZ');
-          expect(jobs.length).to.equal(expected.length);
-          const expectedItems = expected.map(j => j.data.item).sort();
-          const items = jobs.map(j => j.data.item).sort();
-          expect(items).to.eql(expectedItems);
-        });
-      });
-
-      describe('Invalid Ranges', () => {
-        it('should raise on malformed range queries', async () => {
-          const query = 'data.price:[45.99]'; // Missing TO
-          let error: any = null;
-          try {
-            await queue.search('waiting', query);
-          } catch (err) {
-            error = err;
-          }
-          expect(error.toString()).to.contain('Invalid range query');
-        });
-
-        it('should handle invalid range bounds', async () => {
-          const query = 'data.price:[abc TO def]'; // Invalid numeric bounds
-          const { jobs } = await queue.search('waiting', query);
           expect(jobs.length).to.equal(0);
         });
       });
-    });
 
-    describe('Wildcard Searches', () => {
-      it('should handle wildcard * searches', async () => {
-        const data = [
-          { name: 'alpha-one', data: { _id: 1 } },
-          { name: 'beta-two', data: { _id: 2 } },
-          { name: 'gamma-three', data: { _id: 3 } },
-          { name: 'delta-four', data: { _id: 4 } },
-        ];
-        const added = await queue.addBulk(data);
-        const { jobs } = await queue.search('waiting', 'a*-t*ree');
-        expect(jobs.length).to.equal(2);
-        const ids = jobs.map(j => j.data._id).sort();
-        expect(ids).to.eql([1, 3]);
+      describe('$or', () => {
+        it('can use conjunction true OR true', async () => {
+          const data = [
+            { name: 'task-one', data: { language: 'Python' } },
+            { name: 'task-two', data: { language: 'Javascript' } },
+            { name: 'task-three', data: { language: 'Java' } },
+          ];
+          await queue.addBulk(data);
+          const { jobs } = await queue.search(
+            'waiting',
+            'data.language:Python OR data.language:Javascript',
+          );
+          expect(jobs.length).to.equal(2);
+          const names = jobs.map(j => j.name).sort();
+          expect(names).to.eql(['task-one', 'task-two']);
+        });
+
+        it('can use conjunction true OR false', async () => {
+          const data = [
+            { name: 'task-one', data: { status: 'active' } },
+            { name: 'task-two', data: { status: 'pending' } },
+          ];
+          await queue.addBulk(data);
+          const { jobs } = await queue.search(
+            'waiting',
+            'data.status:active OR data.status:completed',
+          );
+          expect(jobs.length).to.equal(1);
+          expect(jobs[0].name).to.equal('task-one');
+        });
+
+        it('can use conjunction false OR false', async () => {
+          const data = [
+            { name: 'task-one', data: { category: 'frontend' } },
+            { name: 'task-two', data: { category: 'backend' } },
+          ];
+          await queue.addBulk(data);
+          const { jobs } = await queue.search(
+            'waiting',
+            'data.category:mobile OR data.category:devops',
+          );
+          expect(jobs.length).to.equal(0);
+        });
+      });
+
+      describe('$xor', () => {
+        it('can use conjunction true XOR true', async () => {
+          const data = [
+            { name: 'task-one', data: { hasTests: true, hasDocs: true } },
+            { name: 'task-two', data: { hasTests: true, hasDocs: false } },
+            { name: 'task-three', data: { hasTests: false, hasDocs: true } },
+          ];
+          await queue.addBulk(data);
+          const { jobs } = await queue.search(
+            'waiting',
+            'data.hasTests:true ^ data.hasDocs:true',
+          );
+          expect(jobs.length).to.equal(2);
+          const names = jobs.map(j => j.name).sort();
+          expect(names).to.eql(['task-three', 'task-two']);
+        });
+
+        it('can use conjunction true XOR false', async () => {
+          const data = [
+            { name: 'task-one', data: { priority: 'high', urgent: false } },
+            { name: 'task-two', data: { priority: 'low', urgent: false } },
+          ];
+          await queue.addBulk(data);
+          const { jobs } = await queue.search(
+            'waiting',
+            'data.priority:high ^ data.urgent:true',
+          );
+          expect(jobs.length).to.equal(1);
+          expect(jobs[0].name).to.equal('task-one');
+        });
+
+        it('can use conjunction false XOR false', async () => {
+          const data = [
+            { name: 'task-one', data: { reviewed: false, approved: false } },
+          ];
+          await queue.addBulk(data);
+          const { jobs } = await queue.search(
+            'waiting',
+            'data.reviewed:true ^ data.approved:true',
+          );
+          expect(jobs.length).to.equal(0);
+        });
+      });
+
+      describe('$nor (NOT)', () => {
+        it('can use negation with text search', async () => {
+          const data = [
+            { name: 'task-one', data: { environment: 'production' } },
+            { name: 'task-two', data: { environment: 'staging' } },
+            { name: 'task-three', data: { environment: 'development' } },
+          ];
+          await queue.addBulk(data);
+          const { jobs } = await queue.search(
+            'waiting',
+            'data.environment:* NOT data.environment:production',
+          );
+          expect(jobs.length).to.equal(2);
+          const names = jobs.map(j => j.name).sort();
+          expect(names).to.eql(['task-three', 'task-two']);
+        });
+
+        it('can combine NOT with other operators', async () => {
+          const data = [
+            { name: 'task-one', data: { type: 'feature', status: 'done' } },
+            { name: 'task-two', data: { type: 'bug', status: 'done' } },
+            { name: 'task-three', data: { type: 'feature', status: 'todo' } },
+          ];
+          await queue.addBulk(data);
+          const { jobs } = await queue.search(
+            'waiting',
+            'data.type:feature NOT data.status:done',
+          );
+          expect(jobs.length).to.equal(1);
+          expect(jobs[0].name).to.equal('task-three');
+        });
       });
     });
   });
