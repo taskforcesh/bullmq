@@ -98,6 +98,9 @@ describe('Rate Limiter', function () {
       );
 
       await queue.setGlobalRateLimit(1, 500);
+      const globalRateLimit = await queue.getGlobalRateLimit();
+
+      expect(globalRateLimit).to.deep.equal({ max: 1, duration: 500 });
 
       const result = new Promise<void>((resolve, reject) => {
         queueEvents.on(
@@ -151,6 +154,10 @@ describe('Rate Limiter', function () {
 
         await queue.setGlobalRateLimit(1, 500);
         await queue.removeGlobalRateLimit();
+
+        const globalRateLimit = await queue.getGlobalRateLimit();
+
+        expect(globalRateLimit).to.be.null;
 
         const result = new Promise<void>((resolve, reject) => {
           queueEvents.on(

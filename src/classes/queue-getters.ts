@@ -118,6 +118,42 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
   }
 
   /**
+   * Get global concurrency value.
+   * Returns null in case no value is set.
+   */
+  async getGlobalConcurrency(): Promise<number | null> {
+    const client = await this.client;
+    const concurrency = await client.hget(this.keys.meta, 'concurrency');
+    if (concurrency) {
+      return Number(concurrency);
+    }
+    return null;
+  }
+
+  /**
+   * Get global rate limit values.
+   * Returns null in case no value is set.
+   */
+  async getGlobalRateLimit(): Promise<{
+    max: number;
+    duration: number;
+  } | null> {
+    const client = await this.client;
+    const [max, duration] = await client.hmget(
+      this.keys.meta,
+      'max',
+      'duration',
+    );
+    if (max && duration) {
+      return {
+        max: Number(max),
+        duration: Number(duration),
+      };
+    }
+    return null;
+  }
+
+  /**
    * Job counts by type
    *
    * Queue#getJobCountByTypes('completed') =\> completed count

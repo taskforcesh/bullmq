@@ -9,10 +9,16 @@ import { Queue } from 'bullmq';
 await queue.setGlobalRateLimit(1, 1000);
 ```
 
-And in order to get this value:
+In order to get these values:
 
 ```typescript
-const globalConcurrency = await queue.getRateLimitTtl();
+const { max, duration } = await queue.getGlobalRateLimit();
+```
+
+And in order to get current ttl:
+
+```typescript
+const ttl = await queue.getRateLimitTtl();
 ```
 
 {% hint style="info" %}
@@ -30,5 +36,6 @@ await queue.removeGlobalRateLimit();
 ## Read more:
 
 - 💡 [Set Global Rate Limit API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#setglobalratelimit)
+- 💡 [Get Global Rate Limit API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getglobalratelimit)
 - 💡 [Get Rate Limit Ttl API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getratelimitttl)
 - 💡 [Remove Global Rate Limit API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removeglobalratelimit)
