@@ -1,3 +1,10 @@
+# [5.62.0](https://github.com/taskforcesh/bullmq/compare/v5.61.2...v5.62.0) (2025-10-28)
+
+
+### Features
+
+* **queue:** support getGlobalRateLimit method ([#3511](https://github.com/taskforcesh/bullmq/issues/3511)) ([6a31e0a](https://github.com/taskforcesh/bullmq/commit/6a31e0aeab1311d7d089811ede7e11a98b6dd408))
+
 ## [5.61.2](https://github.com/taskforcesh/bullmq/compare/v5.61.0...v5.61.2) (2025-10-23)
 
 
