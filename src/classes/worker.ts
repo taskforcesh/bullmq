@@ -707,9 +707,12 @@ will never work with more accuracy than 1ms. */
           // We cannot trust that the blocking connection stays blocking forever
           // due to issues in Redis and IORedis, so we will reconnect if we
           // don't get a response in the expected time.
-          timeout = setTimeout(async () => {
-            bclient.disconnect(!this.closing);
-          }, blockTimeout * 1000 + 1000);
+          timeout = setTimeout(
+            async () => {
+              bclient.disconnect(!this.closing);
+            },
+            blockTimeout * 1000 + 1000,
+          );
 
           this.updateDelays(); // reset delays to avoid reusing same values in next iteration
 
@@ -811,26 +814,29 @@ will never work with more accuracy than 1ms. */
       job.token = token;
 
       try {
-        await this.retryIfFailed(async () => {
-          if (job.repeatJobKey && job.repeatJobKey.split(':').length < 5) {
-            const jobScheduler = await this.jobScheduler;
-            await jobScheduler.upsertJobScheduler(
-              // Most of these arguments are not really needed
-              // anymore as we read them from the job scheduler itself
-              job.repeatJobKey,
-              job.opts.repeat,
-              job.name,
-              job.data,
-              job.opts,
-              { override: false, producerId: job.id },
-            );
-          } else if (job.opts.repeat) {
-            const repeat = await this.repeat;
-            await repeat.updateRepeatableJob(job.name, job.data, job.opts, {
-              override: false,
-            });
-          }
-        }, { delayInMs: this.opts.runRetryDelay });
+        await this.retryIfFailed(
+          async () => {
+            if (job.repeatJobKey && job.repeatJobKey.split(':').length < 5) {
+              const jobScheduler = await this.jobScheduler;
+              await jobScheduler.upsertJobScheduler(
+                // Most of these arguments are not really needed
+                // anymore as we read them from the job scheduler itself
+                job.repeatJobKey,
+                job.opts.repeat,
+                job.name,
+                job.data,
+                job.opts,
+                { override: false, producerId: job.id },
+              );
+            } else if (job.opts.repeat) {
+              const repeat = await this.repeat;
+              await repeat.updateRepeatableJob(job.name, job.data, job.opts, {
+                override: false,
+              });
+            }
+          },
+          { delayInMs: this.opts.runRetryDelay },
+        );
       } catch (err) {
         // Emit error but don't throw to avoid breaking current job completion
         // Note: This means the next repeatable job will not be scheduled
