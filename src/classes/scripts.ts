@@ -169,6 +169,7 @@ export class Scripts {
       queueKeys.meta,
       queueKeys.id,
       queueKeys.delayed,
+      queueKeys['waiting-children'],
       queueKeys.completed,
       queueKeys.events,
     ];
@@ -240,7 +241,6 @@ export class Scripts {
       job.name,
       job.timestamp,
       job.parentKey || null,
-      parentKeyOpts.waitChildrenKey || null,
       parentKeyOpts.parentDependenciesKey || null,
       parent,
       job.repeatJobKey,
@@ -270,7 +270,7 @@ export class Scripts {
 
     let result: string | number;
 
-    if (parentKeyOpts.waitChildrenKey) {
+    if (parentKeyOpts.addToWaitingChildren) {
       result = await this.addParentJob(client, job, encodedOpts, args);
     } else if (typeof opts.delay == 'number' && opts.delay > 0) {
       result = await this.addDelayedJob(client, job, encodedOpts, args);
@@ -746,8 +746,8 @@ export class Scripts {
     return typeof shouldRemove === 'object'
       ? shouldRemove
       : typeof shouldRemove === 'number'
-      ? { count: shouldRemove }
-      : { count: shouldRemove ? 0 : -1 };
+        ? { count: shouldRemove }
+        : { count: shouldRemove ? 0 : -1 };
   }
 
   async moveToFinished(
