@@ -2181,6 +2181,76 @@ describe('workers', function () {
     await connection.quit();
   });
 
+  it('emits error and continues running when _getNextJob fails', async function () {
+    this.timeout(10000);
+
+    const worker = new Worker(
+      queueName,
+      async () => {
+        return { result: 'success' };
+      },
+      {
+        autorun: false,
+        connection,
+        prefix,
+      },
+    );
+    await worker.waitUntilReady();
+
+    // Add a job to the queue to ensure there's something to process
+    await queue.add('test', { data: 'test' });
+
+    let errorEmitted = false;
+    let jobProcessed = false;
+
+    // Listen for error events
+    const errorPromise = new Promise<void>(resolve => {
+      worker.once('error', error => {
+        errorEmitted = true;
+        expect(error).to.be.instanceOf(Error);
+        resolve();
+      });
+    });
+
+    // Listen for completed events to verify worker continues processing
+    const completedPromise = new Promise<void>(resolve => {
+      worker.once('completed', () => {
+        jobProcessed = true;
+        resolve();
+      });
+    });
+
+    // Stub the _getNextJob method to throw an error on first call, then restore
+    let callCount = 0;
+    const originalGetNextJob = (worker as any)._getNextJob;
+    const stub = sandbox
+      .stub(worker as any, '_getNextJob')
+      .callsFake(async function (...args) {
+        callCount++;
+        if (callCount === 1) {
+          // First call throws an error
+          throw new Error('Simulated _getNextJob failure');
+        } else {
+          // Subsequent calls work normally
+          return originalGetNextJob.apply(this, args);
+        }
+      });
+
+    worker.run();
+
+    await errorPromise;
+    await completedPromise;
+
+    // Verify that error was emitted and worker continued running
+    expect(errorEmitted).to.be.true;
+    expect(jobProcessed).to.be.true;
+    expect(worker.isRunning()).to.be.true;
+
+    // Clean up
+    stub.restore();
+    await worker.close();
+  });
+
   it('continues processing after a worker has stalled', async function () {
     let first = true;
     this.timeout(10000);

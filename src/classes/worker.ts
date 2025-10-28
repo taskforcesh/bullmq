@@ -521,6 +521,7 @@ export class Worker<
           NameType
         >>(() => this._getNextJob(client, bclient, token, { block: true }), {
           delayInMs: this.opts.runRetryDelay,
+          onlyEmitError: true,
         });
         asyncFifoQueue.add(fetchedJob);
 
@@ -621,14 +622,6 @@ export class Worker<
 
         if (this.blockUntil <= 0 || this.blockUntil - Date.now() < 1) {
           return await this.moveToActive(client, token, this.opts.name);
-        }
-      } catch (err) {
-        // Swallow error if locally not paused or not closing since we did not force a disconnection
-        if (
-          !(this.paused || this.closing) &&
-          isNotConnectionError(<Error>err)
-        ) {
-          throw err;
         }
       } finally {
         this.waiting = null;
@@ -1337,8 +1330,12 @@ will never work with more accuracy than 1ms. */
         return await fn();
       } catch (err) {
         opts.span?.recordException((<Error>err).message);
-        if (isNotConnectionError(err as Error)) {
-          this.emit('error', <Error>err);
+
+        if (isNotConnectionError(<Error>err)) {
+          // Emit error when not paused or closing; optionally swallow (no throw) when opts.onlyEmitError is set.
+          if (!this.paused && !this.closing) {
+            this.emit('error', <Error>err);
+          }
 
           if (opts.onlyEmitError) {
             return;
