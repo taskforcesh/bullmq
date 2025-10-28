@@ -1013,6 +1013,21 @@ export class Scripts {
     return this.execCommand(client, 'getStateV2', keys.concat([jobId]));
   }
 
+  /**
+   * Change delay of a delayed job.
+   *
+   * Reschedules a delayed job by setting a new delay from the current time.
+   * For example, calling changeDelay(5000) will reschedule the job to execute
+   * 5000 milliseconds (5 seconds) from now, regardless of the original delay.
+   *
+   * @param jobId - the ID of the job to change the delay for.
+   * @param delay - milliseconds from now when the job should be processed.
+   * @returns delay in milliseconds.
+   * @throws JobNotExist
+   * This exception is thrown if jobId is missing.
+   * @throws JobNotInState
+   * This exception is thrown if job is not in delayed state.
+   */
   async changeDelay(jobId: string, delay: number): Promise<void> {
     const client = await this.queue.client;
 

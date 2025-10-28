@@ -966,6 +966,10 @@ export class Job<
    *
    * @param delay - milliseconds from now when the job should be processed.
    * @returns void
+   * @throws JobNotExist
+   * This exception is thrown if jobId is missing.
+   * @throws JobNotInState
+   * This exception is thrown if job is not in delayed state.
    */
   async changeDelay(delay: number): Promise<void> {
     await this.scripts.changeDelay(this.id, delay);
