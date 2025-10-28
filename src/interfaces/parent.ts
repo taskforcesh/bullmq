@@ -21,7 +21,7 @@ export interface ParentKeys {
 }
 
 export type ParentKeyOpts = {
-  waitChildrenKey?: string;
+  addToWaitingChildren?: boolean;
   parentDependenciesKey?: string;
   parentKey?: string;
 };

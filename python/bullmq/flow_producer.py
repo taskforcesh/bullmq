@@ -91,7 +91,6 @@ class FlowProducer:
 
             await self.scripts.addParentJob(
                 job,
-                wait_children_key,
                 pipe
             )
 
