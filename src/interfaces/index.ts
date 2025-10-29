@@ -15,7 +15,7 @@ export * from './minimal-queue';
 export * from './parent-message';
 export * from './parent';
 export * from './parent-options';
-export * from './queue-global-config';
+export * from './queue-global-meta';
 export * from './queue-options';
 export * from './rate-limiter-options';
 export * from './redis-options';
