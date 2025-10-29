@@ -185,7 +185,6 @@ class Worker(EventEmitter):
     @property
     def minimumBlockTimeout(self):
         return minimum_block_timeout if self.blockingRedisConnection.capabilities.get("canBlockFor1Ms", True) else 0.002
-        
 
     async def processJob(self, job: Job, token: str):
         try:
@@ -215,6 +214,35 @@ class Worker(EventEmitter):
                 self.emit("error", err, job)
         finally:
             self.jobs.remove((job, token))
+
+    async def retry_if_failed(self, fn, opts=None):
+        """
+        Retry a coroutine function if it fails, with delay and max retries.
+        :param fn: Coroutine function to execute.
+        :param opts: Dictionary with options:
+            - delay_in_ms: Delay between retries in milliseconds.
+            - max_retries: Maximum number of retries.
+            - only_emit_error: If True, only emit error and do not raise.
+        """
+        if opts is None:
+            opts = {}
+        delay_in_ms = opts.get("delay_in_ms", 15000)
+        max_retries = opts.get("max_retries", float('inf'))
+        only_emit_error = opts.get("only_emit_error", False)
+
+        retry = 0
+        while retry < max_retries:
+            try:
+                return await fn()
+            except Exception as err:
+                if not self.paused and not self.closing:
+                    self.emit("error", err)
+                if only_emit_error:
+                    return
+                retry += 1
+                if retry >= max_retries:
+                    raise err
+                await asyncio.sleep(delay_in_ms / 1000.0)
 
     async def extendLocks(self):
         # Renew all the locks for the jobs that are still active
@@ -257,6 +285,20 @@ class Worker(EventEmitter):
 
         await self.blockingRedisConnection.close()
         await self.redisConnection.close()
+        self.closed = True
+        self.emit('closed')
+
+    async def pause(self, do_not_wait_active: bool = False):
+        """
+        Pauses the worker, preventing it from processing new jobs.
+
+        This method waits for current jobs to finalize before returning.
+        """
+        if not self.paused:
+            self.paused = True
+            if not do_not_wait_active and len(self.processing) > 0:
+                await asyncio.wait(self.processing, return_when=asyncio.ALL_COMPLETED)
+        self.emit('paused')
 
     def cancelProcessing(self):
         for job in self.processing:
