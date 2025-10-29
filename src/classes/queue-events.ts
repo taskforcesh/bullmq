@@ -87,12 +87,13 @@ export interface QueueEventsListener extends IoredisListener {
    * Listen to 'deduplicated' event.
    *
    * This event is triggered when a job is not added to the queue because a job with the same deduplicationId
-   * already exists.
+   * already exists. It is also triggered when an existing job is discarded from the queue because a new job
+   * with the same deduplicationId is about to replace it.
    *
    * @param args - An object containing details about the deduplicated job.
-   *  - `jobId` - The unique identifier of the job that was attempted to be added.
+   *  - `jobId` - The unique identifier of the job that will be retained.
    *  - `deduplicationId` - The deduplication identifier that caused the job to be deduplicated.
-   *  - `deduplicatedJobId` - The unique identifier of the existing job that caused the deduplication.
+   *  - `deduplicatedJobId` - The unique identifier of the job that will be discarded.
    * @param id - The identifier of the event.
    */
   deduplicated: (
