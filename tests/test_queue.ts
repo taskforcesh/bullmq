@@ -99,10 +99,10 @@ describe('queues', function () {
     await removeAllQueueData(new IORedis(redisHost), exQueueName);
   });
 
-  describe('.getGlobalMeta', function () {
+  describe('.getMeta', function () {
     it('should return global concurrency', async function () {
       await queue.setGlobalConcurrency(1);
-      const config = await queue.getGlobalMeta();
+      const config = await queue.getMeta();
 
       expect(config).to.be.deep.equal({
         maxLenEvents: 10000,
@@ -116,7 +116,7 @@ describe('queues', function () {
 
     it('should return global rate limit', async function () {
       await queue.setGlobalRateLimit(1, 500);
-      const config = await queue.getGlobalMeta();
+      const config = await queue.getMeta();
 
       expect(config).to.be.deep.equal({
         maxLenEvents: 10000,
@@ -131,7 +131,7 @@ describe('queues', function () {
 
     it('should return paused', async function () {
       await queue.pause();
-      const config = await queue.getGlobalMeta();
+      const config = await queue.getMeta();
 
       expect(config).to.be.deep.equal({
         maxLenEvents: 10000,

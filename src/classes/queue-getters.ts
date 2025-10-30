@@ -5,7 +5,7 @@ import { QueueBase } from './queue-base';
 import { Job } from './job';
 import { clientCommandMessageReg, QUEUE_EVENT_SUFFIX } from '../utils';
 import { JobState, JobType } from '../types';
-import { JobJsonRaw, Metrics, QueueGlobalMeta } from '../interfaces';
+import { JobJsonRaw, Metrics, QueueMeta } from '../interfaces';
 
 /**
  * Provides different getters for different aspects of a queue.
@@ -202,7 +202,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
    *
    * @returns Returns the global queue configuration.
    */
-  async getGlobalMeta(): Promise<QueueGlobalMeta> {
+  async getMeta(): Promise<QueueMeta> {
     const client = await this.client;
     const config = await client.hgetall(this.keys.meta);
 

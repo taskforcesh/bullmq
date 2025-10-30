@@ -1,4 +1,4 @@
-export interface QueueGlobalMeta {
+export interface QueueMeta {
   concurrency?: number;
   max?: number;
   duration?: number;
