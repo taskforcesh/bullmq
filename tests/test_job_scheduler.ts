@@ -2568,11 +2568,10 @@ describe('Job Scheduler', function () {
 
       let delayedJobs = await queue.getDelayed();
       expect(delayedJobs).to.have.length(1);
-      const firstJobId = delayedJobs[0].id;
       const firstDelay = delayedJobs[0].delay;
 
       // The first job should be scheduled for :10 seconds
-      expect(firstDelay).to.be.greaterThan(0);
+      expect(firstDelay).to.be.equal(10000);
 
       // Now upsert with a different pattern (runs at 30 seconds past the minute)
       await queue.upsertJobScheduler(
@@ -2593,6 +2592,7 @@ describe('Job Scheduler', function () {
       // The new delay should be different (for :30 instead of :10)
       const secondDelay = delayedJobs[0].delay;
       expect(secondDelay).to.not.equal(firstDelay);
+      expect(secondDelay).to.be.equal(30000);
 
       // Verify the job scheduler was updated
       const schedulers = await queue.getJobSchedulers();
