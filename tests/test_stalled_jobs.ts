@@ -256,7 +256,7 @@ describe('stalled jobs', function () {
           },
         );
 
-        const allActive = new Promise(resolve => {
+        const allActive = new Promise<void>(resolve => {
           worker.on('active', after(concurrency, resolve));
         });
 
