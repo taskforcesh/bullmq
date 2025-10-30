@@ -215,7 +215,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
       ...rest
     } = config;
 
-    const parsedConfig: QueueGlobalMeta = rest;
+    const parsedConfig: QueueMeta = rest;
     if (concurrency) {
       parsedConfig['concurrency'] = Number(concurrency);
     }
