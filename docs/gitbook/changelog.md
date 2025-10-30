@@ -1,3 +1,10 @@
+## [5.62.1](https://github.com/taskforcesh/bullmq/compare/v5.62.0...v5.62.1) (2025-10-30)
+
+
+### Performance Improvements
+
+* **worker:** call moveToActive after special errors ([#3497](https://github.com/taskforcesh/bullmq/issues/3497)) ([37e9db5](https://github.com/taskforcesh/bullmq/commit/37e9db52a67b4e120139c1d2620cc0f73a08c006))
+
 # [5.62.0](https://github.com/taskforcesh/bullmq/compare/v5.61.2...v5.62.0) (2025-10-28)
 
 

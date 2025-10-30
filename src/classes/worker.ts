@@ -707,9 +707,12 @@ will never work with more accuracy than 1ms. */
           // We cannot trust that the blocking connection stays blocking forever
           // due to issues in Redis and IORedis, so we will reconnect if we
           // don't get a response in the expected time.
-          timeout = setTimeout(async () => {
-            bclient.disconnect(!this.closing);
-          }, blockTimeout * 1000 + 1000);
+          timeout = setTimeout(
+            async () => {
+              bclient.disconnect(!this.closing);
+            },
+            blockTimeout * 1000 + 1000,
+          );
 
           this.updateDelays(); // reset delays to avoid reusing same values in next iteration
 
@@ -832,42 +835,16 @@ will never work with more accuracy than 1ms. */
               });
             }
           },
-          { delayInMs: 2.5 * ONE_SECOND, maxRetries: 3 },
+          { delayInMs: this.opts.runRetryDelay },
         );
       } catch (err) {
         // Emit error but don't throw to avoid breaking current job completion
-        // and leaving the new job in stalled state
+        // Note: This means the next repeatable job will not be scheduled
         const errorMessage = err instanceof Error ? err.message : String(err);
         const schedulingError = new Error(
           `Failed to add repeatable job for next iteration: ${errorMessage}`,
         );
         this.emit('error', schedulingError);
-
-        // Try to move the job to delayed with backoff to prevent infinite retry loops
-        try {
-          // Calculate backoff delay: base delay of 5 seconds, exponentially increasing with attempts
-          const baseDelay = ONE_SECOND; // 1 second
-          const maxDelay = 300 * ONE_SECOND; // 5 minutes max
-          const attempt = job.attemptsStarted;
-          const exponentialDelay = Math.min(
-            baseDelay * Math.pow(2, attempt),
-            maxDelay,
-          );
-
-          await job.moveToDelayed(Date.now() + exponentialDelay, job.token);
-        } catch (moveErr) {
-          // If we can't move it to delayed, emit error and let it become stalled
-          // Stalled jobs will be automatically retried by the stalled checker
-          const moveErrorMessage =
-            moveErr instanceof Error ? moveErr.message : String(moveErr);
-          this.emit(
-            'error',
-            new Error(
-              `Failed to move job ${job.id} to delayed after scheduling error: ${moveErrorMessage}. 
-              Job will become stalled and be retried automatically.`,
-            ),
-          );
-        }
 
         // Return undefined to indicate no next job is available
         return undefined;
@@ -1046,7 +1023,8 @@ will never work with more accuracy than 1ms. */
         err instanceof WaitingChildrenError ||
         err.name == 'WaitingChildrenError'
       ) {
-        return;
+        const client = await this.client;
+        return this.moveToActive(client, token, this.opts.name);
       }
 
       const result = await job.moveToFailed(
