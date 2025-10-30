@@ -31,8 +31,7 @@
 
       Output:
         repeatableKey  - OK
-]]
-local rcall = redis.call
+]] local rcall = redis.call
 local repeatKey = KEYS[1]
 local delayedKey = KEYS[2]
 local waitKey = KEYS[3]
@@ -143,7 +142,7 @@ if rcall("EXISTS", jobKey) == 1 then
         local nextSlotMillis = nextMillis + every
         local nextSlotJobId = "repeat:" .. jobSchedulerId .. ":" .. nextSlotMillis
         local nextSlotJobKey = prefixKey .. nextSlotJobId
-        
+
         if rcall("EXISTS", nextSlotJobKey) == 0 then
             -- Next slot is free, use it
             nextMillis = nextSlotMillis
@@ -153,7 +152,6 @@ if rcall("EXISTS", jobKey) == 1 then
             return -11 -- SchedulerJobSlotsBusy
         end
     else
-        -- For 'pattern' case: return error code
         hasCollision = true
     end
 end
@@ -177,6 +175,7 @@ if not hasCollision or removedPrevJob then
     addJobFromScheduler(nextJobKey, jobId, jobOpts, waitKey, pausedKey, KEYS[11], metaKey, prioritizedKey, KEYS[10],
         delayedKey, KEYS[7], eventsKey, schedulerOpts['name'], maxEvents, now, templateData, jobSchedulerId, delay)
 elseif hasCollision then
+    -- For 'pattern' case: return error code
     return -10 -- SchedulerJobIdCollision
 end
 
