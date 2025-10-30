@@ -333,8 +333,9 @@ describe('Job Scheduler', function () {
                     const delayedJobs = await queue.getDelayed();
                     expect(delayedJobs.length).to.be.equal(1);
                     expect(delayedJobs[0].data.foo).to.be.equal('baz');
-                    // As we promoted a job, the delay will be 10s + 10s = 20s
-                    expect(delayedJobs[0].delay).to.be.equal(20000);
+                    // As we promoted a job, and time has not been increased at all
+                    // the delay will be 10s
+                    expect(delayedJobs[0].delay).to.be.equal(10000);
 
                     resolve();
                   }
@@ -372,7 +373,7 @@ describe('Job Scheduler', function () {
           expect(repeatableJobs[0]).to.deep.equal({
             key: 'test',
             name: 'test',
-            next: initialNow + 2 * 10 * ONE_SECOND,
+            next: initialNow + 10 * ONE_SECOND,
             iterationCount: 2,
             offset: 0,
             pattern: '*/10 * * * * *',
@@ -2548,6 +2549,55 @@ describe('Job Scheduler', function () {
       expect(delayedJobs[0].opts).to.deep.include({
         priority: 2,
       });
+    });
+
+    it('should update delayed job timestamp when upserting with different pattern', async function () {
+      const date = new Date('2017-02-07 9:24:00');
+      const key = 'mykey';
+
+      this.clock.setSystemTime(date);
+
+      // Create first scheduler with a pattern that runs at 10 seconds past the minute
+      await queue.upsertJobScheduler(
+        key,
+        {
+          pattern: '10 * * * * *', // At 10 seconds past every minute
+        },
+        { name: 'test1', data: { foo: 'bar' } },
+      );
+
+      let delayedJobs = await queue.getDelayed();
+      expect(delayedJobs).to.have.length(1);
+      const firstDelay = delayedJobs[0].delay;
+
+      // The first job should be scheduled for :10 seconds
+      expect(firstDelay).to.be.equal(10000);
+
+      // Now upsert with a different pattern (runs at 30 seconds past the minute)
+      await queue.upsertJobScheduler(
+        key,
+        {
+          pattern: '30 * * * * *', // At 30 seconds past every minute
+        },
+        { name: 'test2', data: { foo: 'baz' } },
+      );
+
+      delayedJobs = await queue.getDelayed();
+      expect(delayedJobs).to.have.length(1);
+
+      // Verify the delayed job was updated
+      expect(delayedJobs[0].name).to.be.equal('test2');
+      expect(delayedJobs[0].data).to.deep.equal({ foo: 'baz' });
+
+      // The new delay should be different (for :30 instead of :10)
+      const secondDelay = delayedJobs[0].delay;
+      expect(secondDelay).to.not.equal(firstDelay);
+      expect(secondDelay).to.be.equal(30000);
+
+      // Verify the job scheduler was updated
+      const schedulers = await queue.getJobSchedulers();
+      expect(schedulers).to.have.length(1);
+      expect(schedulers[0].pattern).to.equal('30 * * * * *');
     });
   });
 
