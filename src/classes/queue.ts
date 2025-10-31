@@ -64,7 +64,7 @@ export interface QueueListener<JobBase extends Job = Job>
    *
    * This event is triggered when the job updates its progress.
    */
-  progress: (job: JobBase, progress: number | object) => void;
+  progress: (jobId: string, progress: JobProgress) => void;
 
   /**
    * Listen to 'removed' event.
@@ -827,6 +827,8 @@ export class Queue<
         });
 
         await this.scripts.updateProgress(jobId, progress);
+
+        this.emit('progress', jobId, progress);
       },
     );
   }
