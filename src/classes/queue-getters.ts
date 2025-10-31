@@ -5,7 +5,7 @@ import { QueueBase } from './queue-base';
 import { Job } from './job';
 import { clientCommandMessageReg, QUEUE_EVENT_SUFFIX } from '../utils';
 import { JobState, JobType } from '../types';
-import { JobJsonRaw, Metrics } from '../interfaces';
+import { JobJsonRaw, Metrics, QueueMeta } from '../interfaces';
 
 /**
  * Provides different getters for different aspects of a queue.
@@ -198,7 +198,47 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
   }
 
   /**
-   * Returns the number of jobs in completed status.
+   * Get global queue configuration.
+   *
+   * @returns Returns the global queue configuration.
+   */
+  async getMeta(): Promise<QueueMeta> {
+    const client = await this.client;
+    const config = await client.hgetall(this.keys.meta);
+
+    const {
+      concurrency,
+      max,
+      duration,
+      paused,
+      'opts.maxLenEvents': maxLenEvents,
+      ...rest
+    } = config;
+
+    const parsedConfig: QueueMeta = rest;
+    if (concurrency) {
+      parsedConfig['concurrency'] = Number(concurrency);
+    }
+
+    if (maxLenEvents) {
+      parsedConfig['maxLenEvents'] = Number(maxLenEvents);
+    }
+
+    if (max) {
+      parsedConfig['max'] = Number(max);
+    }
+
+    if (duration) {
+      parsedConfig['duration'] = Number(duration);
+    }
+
+    parsedConfig['paused'] = paused === '1';
+
+    return parsedConfig;
+  }
+
+  /**
+   * @returns Returns the number of jobs in completed status.
    */
   getCompletedCount(): Promise<number> {
     return this.getJobCountByTypes('completed');
