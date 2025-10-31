@@ -1,3 +1,15 @@
+# [5.63.0](https://github.com/taskforcesh/bullmq/compare/v5.62.2...v5.63.0) (2025-10-31)
+
+
+### Bug Fixes
+
+* **queue:** emit progress event when calling updateJobProgress ([#3528](https://github.com/taskforcesh/bullmq/issues/3528)) ([c82df83](https://github.com/taskforcesh/bullmq/commit/c82df834dc83b3cf889b6a1aba9d18ec8b5eaf70))
+
+
+### Features
+
+* **queue:** support getMeta method ([#3513](https://github.com/taskforcesh/bullmq/issues/3513)) ([e212d1c](https://github.com/taskforcesh/bullmq/commit/e212d1c8f0945dbff2d95309afe1376366910482))
+
 ## [5.62.2](https://github.com/taskforcesh/bullmq/compare/v5.62.1...v5.62.2) (2025-10-30)
 
 
