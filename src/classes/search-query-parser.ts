@@ -282,9 +282,6 @@ function lexValue(
 ): { token: Token; nextIndex: number } | null {
   let i = startIndex;
 
-  // Skip leading whitespace
-  i = skipWhitespace(query, i);
-
   if (i >= query.length) {
     return null;
   }
@@ -381,8 +378,6 @@ function lexRangeValue(
 ): { range: RangeValue; nextIndex: number } | null {
   let i = startIndex;
 
-  // Skip leading whitespace
-  i = skipWhitespace(query, i);
   if (i >= query.length) {
     return null;
   }
@@ -473,10 +468,7 @@ function parseRangeValueComponent(
   query: string,
   startIndex: number,
 ): { value: string; nextIndex: number } | null {
-  let i = startIndex;
-
-  // Skip leading whitespace
-  i = skipWhitespace(query, i);
+  const i = startIndex;
 
   if (i >= query.length) {
     return null;
@@ -519,9 +511,6 @@ function lexRegexValue(
   startIndex: number,
 ): { regex: RegexValue; nextIndex: number } | null {
   let i = startIndex;
-
-  // Skip leading whitespace
-  i = skipWhitespace(query, i);
 
   if (i >= query.length) {
     return null;
