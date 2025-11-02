@@ -54,7 +54,6 @@ const Person: Record<string, any> = {
   today: '1970-01-01',
 };
 
- 
 describe('Search', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
@@ -1586,7 +1585,7 @@ describe('Search', () => {
       });
 
       describe('$nor (NOT)', () => {
-        it('can use negation with text search', async () => {
+        it('can use negation', async () => {
           const data = [
             { name: 'task-one', data: { environment: 'production' } },
             { name: 'task-two', data: { environment: 'staging' } },
@@ -1617,6 +1616,116 @@ describe('Search', () => {
           expect(jobs[0].name).to.equal('task-three');
         });
       });
+    });
+  });
+
+  describe('Cursor-Based Iteration', function () {
+    beforeEach(async function () {
+      // Add jobs to the queue for testing cursor iteration
+      const jobs = Array.from({ length: 50 }, (_, i) => ({
+        name: `job-${i}`,
+        data: { index: i, type: i % 2 === 0 ? 'even' : 'odd' },
+      }));
+      await queue.addBulk(jobs);
+    });
+
+    it('should iterate through jobs in batches using cursor', async function () {
+      const query = { 'data.type': 'even' }; // Search for jobs with type 'even'
+      const batchSize = 10;
+      let cursorId: string | null = null;
+      let done = false;
+      const allJobs: Job[] = [];
+
+      while (!done) {
+        // Perform the search with pagination
+        const {
+          jobs,
+          cursorId: newCursorId,
+          done: searchDone,
+          total,
+        } = await queue.search(
+          'waiting',
+          query,
+          batchSize,
+          true,
+          cursorId,
+          batchSize,
+        );
+
+        // Add the jobs to the cumulative result set
+        allJobs.push(...jobs);
+
+        // Update cursor and done flag
+        cursorId = newCursorId;
+        done = searchDone;
+
+        // Validate progress and ensure jobs size is <= batchSize for this iteration
+        expect(jobs.length).to.be.at.most(batchSize);
+      }
+
+      // Validate the total jobs retrieved match the expected count
+      expect(allJobs).to.have.length(25); // 50 jobs, half are 'even'
+
+      // Validate each retrieved job matches the search query
+      allJobs.forEach(job => {
+        expect(job.data.type).to.equal('even');
+      });
+    });
+
+    it('should handle large result sets with multiple iterations', async function () {
+      const query = { 'data.type': { $exists: true } }; // Fetch all jobs
+      const batchSize = 15; // Different batch size for testing
+      let cursorId: string | null = null;
+      let done = false;
+      const retrievedJobs: Job[] = [];
+
+      while (!done) {
+        const {
+          jobs,
+          cursorId: newCursorId,
+          done: searchDone,
+        } = await queue.search(
+          'waiting',
+          query,
+          batchSize,
+          true,
+          cursorId,
+          batchSize,
+        );
+
+        retrievedJobs.push(...jobs);
+        cursorId = newCursorId;
+        done = searchDone;
+
+        // Ensure batch size is respected
+        expect(jobs.length).to.be.at.most(batchSize);
+      }
+
+      // Validate total jobs retrieved matches the queue total
+      expect(retrievedJobs).to.have.length(50);
+
+      // Validate that data order matches ascending (ensured by `asc` sorting)
+      const indices = retrievedJobs.map(job => job.data.index);
+      expect(indices).to.deep.equal([...indices].sort((a, b) => a - b));
+    });
+
+    it('should respect cursor expiration', async function () {
+      // Set up the initial search iteration
+      const query = { 'data.index': { $lt: 10 } };
+      const batchSize = 5;
+
+      // Begin search and get initial cursor
+      const { cursorId } = await queue.search('waiting', query, batchSize);
+
+      // Simulate expiration (e.g., cursor expires after inactivity, like 30 seconds)
+      await new Promise(resolve => setTimeout(resolve, 31000)); // 31 seconds
+
+      try {
+        await queue.search('waiting', query, batchSize, false, cursorId);
+        throw new Error('Expected cursor to have expired');
+      } catch (err: any) {
+        expect(err.message).to.match(/Cursor expired/); // Error message indicating expiration
+      }
     });
   });
 });

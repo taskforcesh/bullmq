@@ -28,7 +28,7 @@ Here are some simple examples:
 | `finishedOn:[1622505600000 TO *]`            | Jobs finished after a specific timestamp.        |
 | `name:"emailJob"`                            | Jobs with the name `emailJob`.                   |
 | `id:42`                                      | Job with ID `42`.                                |
-| `stacktrace:/authorization/I`                | Jobs which failed with an authorization error.   |
+| `stacktrace:/*authorization*/i`              | Jobs which failed with an authorization error.   |
 | `returnvalue:"Success"`                      | Jobs that returned `Success`.                    |
 | `logs:*peripheral*`                          | Jobs with logs containing the text `peripheral`. |
 | `opts.backoff.type:"exponential"`            | Jobs with exponential backoff strategy.          |
@@ -68,6 +68,8 @@ We also support special `virtual` fields that are not part of the job object but
 - `runtime`: The time taken by the worker to process the job. Essentially `finishedOn` - `processedOn`.
 - `waitTime`: The time the job spent waiting to be processed. Essentially `processedOn` - `timestamp`.
 - `queueTime`: The total time the job spent in the queue from creation to execution. Essentially `finishedOn` - `timestamp`.
+- `fullText`: A full-text search across multiple job fields (see Full-Text Search section).
+- 'logs': Search within job logs.
 
 ### 2. Data Types
 
@@ -76,6 +78,7 @@ The parser automatically handles different data types:
 - **Strings**: `name:my-job`
 - **Numbers**: `priority:3`
 - **Booleans**: `opts.lifo:true`
+- **Null**: `data.user.phone:null`
 
 ### 3. Phrases
 
@@ -87,7 +90,8 @@ data.title:"A Job with a long title"
 
 ### 4. Logical Operators
 
-You can combine multiple conditions using logical operators `AND`, `OR`, and `NOT`. `AND` has higher precedence than `OR`.
+You can combine multiple conditions using logical operators `AND`, `OR`, `XOR`, and `NOT`. `AND` has higher precedence
+than `OR` and `XOR`.
 
 - **AND**: Both conditions must be true.
 
@@ -105,6 +109,12 @@ attemptsMade:[2 TO *] priority:1
 
 ```
 name:job1 OR name:job2
+```
+
+- **XOR**: One condition must be true, but not both.
+
+```
+"home-user" AND (broadband ^ fiber)
 ```
 
 - **NOT**: Excludes jobs that match the condition.
@@ -163,7 +173,7 @@ finds jobs with which ran for more than 2 seconds.
 attemptsMade:[* TO 3]
 ```
 
-finds jobs with 3 or fewer attempts.
+finds jobs with three or fewer attempts.
 
 ### 7. Wildcard Searches
 
@@ -215,6 +225,9 @@ If you provide a query string without any field specifiers, BullMQ performs a fu
 - `returnvalue` (the stringified JSON)
 - `stacktrace` (the stringified JSON)
 - `logs`
+
+The full-text search matches any job containing the specified terms in any of these fields. It is _not_ anchored, in
+contrast with the other fields.
 
 **Examples:**
 

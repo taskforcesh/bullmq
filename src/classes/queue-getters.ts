@@ -413,10 +413,13 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
    * Retrieve jobs by a user-defined Lucene-style string, or mongo-compatible filter object
    * @param type  - type of job
    * @param query - mongo-like filter or Lucene style query string
-   * @param count - count of jobs to return per iteration
+   * @param count - count of jobs to return per call to this method
    * @param asc - sort order
    * @param cursorId - cursor identifier used to maintain iteration state across invocations
-   * @param batchSize - the number of jobs searched per iteration
+   * @param batchSize - the number of jobs searched per iteration. Since we may need to scan
+   * multiple times to find sufficient jobs matching the query, this parameter controls how many
+   * jobs are scanned per iteration. It amortizes the cost of searching over multiple iterations
+   * and reduces the number of round-trips to Redis.
    */
   async search(
     type: JobType,
@@ -474,7 +477,11 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
         break;
       }
 
-      remaining -= jobs.length;
+      remaining -= response.length - 1;
+      if (remaining <= 0) {
+        break;
+      }
+
       await delay(5);
     }
 

@@ -46,9 +46,11 @@ local currentJob = {}
 local cachedValues = {}
 
 local isDebugging = true
+--- Response metadata
 local responseMeta = {
-    ["debug"] = {},
     ['progress'] = 0,
+    ["cursor"] = 0,
+    ["total"] = 0
 }
 
 local MIN_BATCH_SIZE = 20
@@ -56,7 +58,9 @@ local MIN_BATCH_SIZE = 20
 --- IOW, we can legitimately return 0 results in an iteration. To compensate, we iterate up to MAX_ITERATION
 --- attempting to get up to Count results
 local MAX_BATCH_SIZE = 1000
-local CURSOR_EXPIRATION = 30 -- seconds
+
+--- Cursor expiration time in seconds
+local CURSOR_EXPIRATION = 30
 
 local batchSize = 30
 
@@ -121,6 +125,12 @@ Predicates.__index = Predicates
 local ExprOperators = {}
 ExprOperators.__index = ExprOperators
 
+local function debug(msg)
+    if isDebugging then
+        responseMeta['debug'] = responseMeta['debug'] or {}
+        table.insert(responseMeta["debug"], msg)
+    end
+end
 
 --- https://lua.programmingpedia.net/en/tutorial/5829/pattern-matching
 local IDENTIFIER_PATTERN = "[%a_]+[%a%d_]*"
@@ -323,17 +333,18 @@ local function constant(value)
 end
 
 ---- Casting --------------------------------------------------
+
+--- does a js compatible truthy check
 local function isTruthy(value)
     -- Check falsy values by JS semantics
     if value == false or value == nil or value == cjson.null then
         return false
     end
-    if value == 0 then
+
+    if value == 0 or value == "" then
         return false
     end
-    if value == "" then
-        return false
-    end
+
     local t = type(value)
     -- Check for NaN: NaN is not equal to itself in Lua and JS
     if t == "number" then
@@ -341,7 +352,7 @@ local function isTruthy(value)
             return false
         end
     elseif t == "table" then
-        if next(t) == nil then
+        if next(value) == nil then
             return false
         end
     end
@@ -412,13 +423,6 @@ local function tostr(value, ...)
     return str
 end
 
-local function debug(msg)
-    if isDebugging then
-        table.insert(responseMeta["debug"], msg)
-        rcall("LPUSH", "bullmq::search::debug", msg)
-    end
-end
-
 -- raw value should be a kv table [name, value, name, value ...]
 -- convert to an associative array
 local function to_hash(value)
@@ -431,6 +435,7 @@ end
 
 --[[
 Resolve the value of the field (dot separated) on the given object
+
 @param obj {Object} the object context
 @param selector {String} dot separated path to field
 @param {ResolveOptions} options
@@ -456,13 +461,18 @@ local function resolve(obj, segments, unwrapArray)
     end
 
     local function resolve2(o, path)
-        local v = cachedValues[path]
+        local v = cachedValues[path] --- check cache first
         if v ~= nil then
             return v
         end
         local value = o
         local index = 1
         -- debug('resolving path ' .. tostr(path) .. ' in object ' .. tostr(o))
+
+        local slice = slice
+        local tonumber = tonumber
+        local isNil = isNil
+        local isArray = isArray
 
         while (index <= #path) do
             local field = path[index]
@@ -510,13 +520,14 @@ local function resolve(obj, segments, unwrapArray)
             end
         end
 
+        --- cache resolved value
         cachedValues[path] = value
         return value
     end
 
     local t = type(obj)
     if (t == 'table') then
-        obj = resolve2(obj, segments, 1)
+        obj = resolve2(obj, segments)
         if (unwrapArray) then
             obj = unwrap(obj, depth)
         end
@@ -532,10 +543,9 @@ local function join_AND(predicates)
         return predicates[1]
     end
     return function(s)
-        for _, func in ipairs(predicates) do
-            if not func(s) then
-                return false
-            end
+        local preds = predicates
+        for _, func in ipairs(preds) do
+            if not func(s) then return false end
         end
         return true
     end
@@ -548,7 +558,8 @@ local function join_OR(predicates)
         return predicates[1]
     end
     return function(s)
-        for _, func in ipairs(predicates) do
+        local preds = predicates
+        for _, func in ipairs(preds) do
             if func(s) then return true end
         end
         return false
@@ -640,6 +651,13 @@ Predicates['$contains'] = function(haystack, pattern)
     end)
 end
 
+--[[
+Compile a regex pattern into a predicate function.
+
+@param pattern {String|Array} the regex pattern/array of patterns
+@param ignoreCase {Boolean} ignore case when matching
+@returns {Function} the compiled predicate function
+]]
 local function compileRegex(pattern, ignoreCase)
     local function stringMatch(haystack, needle)
         return isString(haystack) and string.match(haystack, needle) ~= nil
@@ -671,70 +689,92 @@ local function compileRegex(pattern, ignoreCase)
             pattern = string.lower(pattern)
             return function(val)
                 return some(val, function(v)
-                    return isString(v) and string.find(string.lower(v), pattern) ~= nil
+                    local compareTo = pattern
+                    local isString = isString
+                    return isString(v) and string.find(string.lower(v), compareTo) ~= nil
                 end)
             end
         end
         if t == "table" then
             return function(val)
-                some(pattern, function(pat) return isMatchInsensitive(val, pat) end)
+                local compareTo = pattern
+                local some = some
+                local isMatchInsensitive = isMatchInsensitive
+                return some(compareTo, function(pat) return isMatchInsensitive(val, pat) end)
             end
         end
     else
         if t == "string" then
             return function(val)
-                return isMatch(val, pattern)
+                local compareTo = pattern
+                local isMatch = isMatch
+                return isMatch(val, compareTo)
             end
         end
         if t == "table" then
             return function(val)
-                some(pattern, function(pat)
-                    return isMatch(val, pat)
-                end)
+                local compareTo = pattern
+                local isMatch = isMatch
+                return some(compareTo, function(pat) return isMatch(val, pat) end)
             end
         end
     end
     error("$regex: invalid pattern type: " .. t)
 end
 
-
--- this differs from compileRegex in that it does non-regex matches, i.e. it escapes pattern meta-characters
+-- Compile a contains pattern into a predicate function.
+--
+-- This differs from compileRegex in that it does non-regex matches, i.e. it escapes pattern meta-characters
 -- before matching
 local function compileContains(pattern, ignoreCase)
     local t = type(pattern)
     if ignoreCase then
-        local needle = string.lower(needle)
+        local needle = string.lower(pattern)
         if t == "string" then
             return function(haystack)
-                local needle_ = needle
-                return some(needle_, function(pat)
+                local compareTo = needle
+
+                return some(compareTo, function(pat)
+                    local contains = stringContains
+                    local isString = isString
+
                     if not isString(haystack) then
                         return false
                     end
-                    return stringContains(string.lower(haystack), pat)
+                    return contains(string.lower(haystack), pat)
                 end)
             end
         end
         if t == "table" then
             return function(haystack)
-                local needle_ = needle
-                return some(needle_, function(pat)
+                local compareTo = needle
+
+                return some(compareTo, function(pat)
+                    local isString = isString
+                    local contains = stringContains
+
                     if not isString(haystack) then
                         return false
                     end
-                    return stringContains(string.lower(haystack), string.lower(pat))
+                    return contains(string.lower(haystack), string.lower(pat))
                 end)
             end
         end
     else
         if t == "string" then
             return function(val)
-                return stringContains(val, pattern)
+                local compareTo = pattern
+                local contains = stringContains
+                return contains(val, compareTo)
             end
         end
         if t == "table" then
             return function(val)
-                some(pattern, function(pat) return stringContains(val, pat) end)
+                local compareTo = pattern
+                some(compareTo, function(pat)
+                    local contains = stringContains
+                    return contains(val, pat)
+                end)
             end
         end
     end
@@ -812,7 +852,7 @@ Predicates['$size'] = function(a, b)
 end
 
 ---- QUERY OPERATORS -------------------------------------------------------------------
---
+
 -- Simplify expression for easy evaluation with query operators map
 -- @param expr
 -- @returns {*}
@@ -839,6 +879,7 @@ end
 --[[
 Compile the given query criteria into a predicate function. The function returns true
 if the given job object matches the criteria, false otherwise.
+
 @param {Object} criteria the query criteria
 @returns {Function} the compiled predicate function
 ]]
@@ -880,7 +921,7 @@ local function compileQuery(criteria)
             else
                 --- normalize expression
                 local expr1 = normalize(expr)
-                debug("Expr for field '" .. field .. "': " .. tostr(expr1))
+                -- debug("Expr for field '" .. field .. "': " .. tostr(expr1))
 
                 for op, val in pairs(expr1) do
                     assert(isOperator(op), 'unknown top level operator: "' .. op .. '"')
@@ -973,16 +1014,7 @@ QueryOperators['$regex'] = function(selector, value)
         local predicate = predicateFn
 
         local lhs = resolve(obj)
-        local val = predicate(lhs)
-
-        if not isDebugging then
-            debug('Predicate: ' .. tostr(lhs) .. ' ' .. selector .. ' $regex ' .. tostr(value) .. ' = ' .. tostr(val))
-            if val == false then
-                debug('  -- obj: ' .. tostr(obj))
-            end
-        end
-
-        return val
+        return predicate(lhs)
     end
 end
 
@@ -1038,7 +1070,7 @@ local function getJobFullText(obj)
             values[#values + 1] = value
         end
     end
-    return table.concat(values, "|")
+    return table.concat(values, "")
 end
 
 local function resolveFullText(obj)
@@ -1050,7 +1082,7 @@ local function resolveFullText(obj)
     return text
 end
 
-local function resolveLogs(obj)
+local function resolveLogs()
     local logKey = currentJobKey .. ":logs"
     local logs = cachedValues[logKey]
     if logs ~= nil then
@@ -1137,7 +1169,8 @@ createFullTextMatcher = function(expr)
     --- check if all items are strings
     if every(needle, function(val) return isString(val) end) then
         return function()
-            return matchAny(needle, caseSensitive)
+            local compareTo = needle
+            return matchAny(compareTo, caseSensitive)
         end
     end
 
@@ -1200,10 +1233,21 @@ getFieldResolver = function(field)
                 -- handle field aliases
                 path = FIELD_ALIASES[segment] or path
             end
-            handler = function(obj)
-                local val = resolve(obj, path)
-                -- debug('value: ' .. tostr(val))
-                return isnum and tonumber(val) or val
+            if isnum then
+                handler = function(obj)
+                    local resolve = resolve
+                    local lpath = path
+
+                    local val = resolve(obj, lpath)
+                    -- debug('value: ' .. tostr(val))
+                    return tonumber(val)
+                end
+            else
+                handler = function(obj)
+                    local resolve = resolve
+                    local lpath = path
+                    return resolve(obj, lpath)
+                end
             end
         end
     end
@@ -1212,7 +1256,7 @@ getFieldResolver = function(field)
 end
 
 --- EXPRESSION OPERATORS -------------------------------------------------------------
---
+
 -- Parses an expression and returns a function which returns
 -- the actual value of the expression using a given object as context
 --
@@ -1406,7 +1450,6 @@ end
 
 ExprOperators['$nin'] = function(expr)
     local pred = ExprOperators['$in'](expr);
-
     return function(obj)
         return not pred(obj)
     end
@@ -1496,9 +1539,9 @@ end
 local function createComparison(name)
     local fn = Predicates[name]
     ExprOperators[name] = function(expr)
-        local exec_ = parseExpression(expr)
+        local execFn = parseExpression(expr)
         return function(obj)
-            local exec = exec_ -- capture to spare an upvalue lookup
+            local exec = execFn -- capture to spare an upvalue lookup
             local args = exec(obj)
             assert(isArray(args) and #args == 2, name .. ': comparison expects 2 arguments. Got ' .. tostr(args))
             local val = fn(args[1], args[2])
@@ -1521,11 +1564,10 @@ local function initOperators()
                     local resolve = resolveFn
                     local predicate = predicateFn
 
-                    -- value of field must be fully resolved.
                     local lhs = resolve(obj)
                     local val = predicate(lhs, value)
 
-                    if isDebugging then
+                    if not isDebugging then
                         debug('Predicate: ' .. tostr(lhs) .. ' ' .. name .. ' ' .. tostr(value) .. ' = ' .. tostr(val))
                     end
 
@@ -1548,12 +1590,9 @@ end
 
 local function prepProgress(job)
     if referencedFields['progress'] then
-        local v = job['progress']
-        if (v ~= nil) then
-            local num = tonumber(v)
-            if (num ~= nil) then
-                job['progress'] = num
-            end
+        local success, num = pcall(tonumber, job['progress'])
+        if success then
+            job['progress'] = num
             -- todo: handle json
         end
     end
@@ -1561,14 +1600,10 @@ end
 
 local function prepJsonField(job, name)
     if referencedFields[name] then
-        local saved = job[name]
-        local success, res = pcall(cjson.decode, saved)
+        local success, res = pcall(cjson.decode, job[name])
         if (success) then
             job[name] = res
-        else
-            -- todo: throw
         end
-        return saved
     end
 end
 
@@ -1642,83 +1677,73 @@ local function getKeysForState(stateKey, status, rangeStart, rangeEnd, asc)
 end
 
 --------[[ Cursor Management ]]--------
-local function isCursorMeta(item)
-    return string.match(item, "__meta__")
+local function getCursorState()
+    local temp = rcall("GET", cursorKey) or ''
+    local success, meta = pcall(cjson.decode, temp)
+    if not success then
+        meta = {
+            ['cursor'] = 0,
+            ['total'] = 0,
+            ['iteration'] = 0,
+            ['progress'] = 0,
+            ['done'] = true,
+            ['found'] = false,
+            ['jobCount'] = 0,
+            ['jobs'] = {}
+        }
+    end
+    return meta
 end
 
 -- attempt to read "count" jobs filtered fron previous iterations
 local function getJobsFromCursor(count)
-    if #cursorKey == 0 or count == 0 then return {} end
-    local len = rcall("LLEN", cursorKey)
+    local meta = getCursorState()
     local result = {}
-    local cursor = nil
-    local total = 0
-    local done = true
 
-    local meta = {
-        ['cursor'] = cursor,
-        ['total'] = total,
-        ['progress'] = 0,
-        ['done'] = done,
-        ['found'] = false
-    }
-
-    if len == 0 then
-        return result, meta
-    end
-
-    if count >= len then
-        count = len - 1
-    else
-        done = false
-    end
-    local foundMeta = rcall("LINDEX", cursorKey, -1)
-    if foundMeta then
-        local success, res = pcall(cjson.decode, meta)
-        if success then
-            local _meta = res["__meta__"]
-            meta['cursor'] = tonumber(_meta["cursor"] or 0)
-            meta['total'] = tonumber(_meta["total"] or 0)
-            meta['progress'] = tonumber(_meta["progress"] or 0)
-            meta['done'] = toBool(_meta["done"] or false)
-            meta['found'] = true
-        end
-    end
-    --- the last element of the list contains meta
-    local items = rcall("LPOP", cursorKey, count)
-    for _, item in ipairs(items) do
-        -- check for meta
-        if not isCursorMeta(item) then
-            local success, res = pcall(cjson.decode, item)
-            if success then
-                result[#result + 1] = res
+    if count > 0 then
+        local jobs = meta["jobs"] or "[]"
+        local success, parsedJobs = pcall(cjson.decode, jobs)
+        -- collect jobs from the stored list
+        if success and isArray(parsedJobs) then
+            local remainder = {}
+            local progress = meta['progress'] or 0
+            for i, job in ipairs(parsedJobs) do
+                if i > count then
+                    table.insert(remainder, job)
+                else
+                    table.insert(result, job)
+                end
             end
+
+            meta["progress"] = progress + #result
+            meta['jobs'] = remainder
+            meta['jobCount'] = #remainder
+
+            local serialized = cjson.encode(remainder)
+            rcall("SET", cursorKey, serialized)
+            -- set expirations
+            rcall("EXPIRE", cursorKey, CURSOR_EXPIRATION)
         end
     end
+
     return result, meta
 end
 
-local function writeCursorMeta(cursor, progress, total, lastId)
-    local str = '{ __meta__: { cursor:' .. cursor .. ', progress:' .. progress .. ', total:' .. total
-    str = str .. ', lastId:' .. lastId .. '}}'
-    if #cursorKey == 0 then return end
-    local lastItem = rcall("RPOP", cursorKey)
-    if lastItem ~= nil then
-        if not isCursorMeta(lastItem) then
-            rcall("RPUSH", cursorKey, lastItem)
-        end
-    end
-    rcall("RPUSH", cursorKey, str)
-end
-
-local function storeRemainders(items, cursor, progress, total, lastId)
-    if #cursorKey == 0 then
-        return
-    end
-    for _, item in ipairs(items) do
-        redis.pcall("LPUSH", cursorKey, item)
-    end
-    writeCursorMeta(cursor, progress, total, lastId)
+local function writeCursorMeta(cursor, iteration, progress, total, items)
+    local jobCount = items ~= nil and #items or 0
+    items = items or {}
+    local metaKV = {
+        ['cursor'] = cursor,
+        ['progress'] = progress,
+        ['total'] = total,
+        ['iteration'] = tonumber(iteration or 0),
+        ['jobCount'] = jobCount,
+        ['jobs'] = items,
+        ['done'] = (progress >= total)
+    }
+    local serialized = cjson.encode(metaKV)
+    rcall("SET", cursorKey, serialized)
+    -- set expirations
     rcall("EXPIRE", cursorKey, CURSOR_EXPIRATION)
 end
 
@@ -1733,26 +1758,30 @@ local function search(stateKey, criteria, count, asc)
     local result = { '{ "cursor" : 0, "total": 0, "done": true }' }
 
     local jobs, meta = getJobsFromCursor(count)
-    local total = meta['total']
-    local cursor = meta['cursor']
-    local progress = meta['progress']
+    local total = meta["total"]
+    local cursor = meta["cursor"]
+    local progress = meta["progress"]
+    local iteration = (meta["iteration"] or 0) + 1
 
-    --- local done = meta['done'] or cursor > total
+    -- debug("Here1: cursor=" .. cursor .. ", total=" .. total .. ", progress=" .. progress .. ", found=" .. found)
+
     responseMeta['total'] = total
     responseMeta['progress'] = progress
+    responseMeta["cursor"] = cursor
 
-    if meta['found'] == true then
+    if #jobs > 0 then
         found = #jobs
+
         for _, job in jobs do
             table.insert(result, job)
         end
 
         if found == count then
+            responseMeta['done'] = total == progress
+            ressponseMeta['remainder'] = meta['jobCount'] or 0
             result[1] = cjson.encode(responseMeta)
             return result
         end
-    else
-        cursor = 0
     end
 
     local predicate = compileQuery(criteria)
@@ -1763,15 +1792,9 @@ local function search(stateKey, criteria, count, asc)
     local keyPrefix, status = splitKey(stateKey)
 
     local scannedJobIds, total = getKeysForState(stateKey, status, rangeStart, rangeEnd, asc)
-    progress = progress + #scannedJobIds
+    local scannedCount = #scannedJobIds
 
-    local lastId = ""
     local remainder = {}
-
-    local done = #scannedJobIds == 0 or progress >= total
-    if done then
-        progress = total
-    end
 
     for _, jobId in pairs(scannedJobIds) do
         currentJobKey = keyPrefix .. jobId
@@ -1788,9 +1811,9 @@ local function search(stateKey, criteria, count, asc)
                 job['data'] = data
                 job['opts'] = opts
 
+                found = found + 1
                 local success, serialized = pcall(cjson.encode, job)
                 if success then
-                    found = found + 1
                     if found > count then
                         table.insert(remainder, serialized)
                     else
@@ -1799,34 +1822,38 @@ local function search(stateKey, criteria, count, asc)
                 end
             end
         end
-
-        lastId = jobId
     end
 
-    if #remainder > 0 then
-        done = false
-        storeRemainders(remainder, cursor, progress, total, lastId)
+    local remCount = #remainder
+
+    progress = math.min(progress + scannedCount, total)
+    local done = ((scannedCount == 0) or (progress == total)) and (remCount == 0)
+
+    writeCursorMeta(cursor, iteration, progress, total, remainder)
+
+    if isDebugging then
+        responseMeta["cursor"] = cursor
+        responseMeta['batchSize'] = batchSize
     end
 
     responseMeta["total"] = total
     responseMeta['done'] = done
-
-    if done then
-        responseMeta['progress'] = total
-    else
-        responseMeta['progress'] = progress
-    end
+    responseMeta['iteration'] = iteration
+    responseMeta['progress'] = progress
+    responseMeta['remainder'] = remCount
 
     result[1] = cjson.encode(responseMeta)
+
     return result
 end
 
 stateKey = KEYS[1]
 cursorKey = KEYS[2]
+
 local criteria = assert(cjson.decode(ARGV[1]), 'Invalid filter criteria. Expected a JSON encoded string')
 local count = tonumber(ARGV[2] or 10)
 local asc = toBool(ARGV[3] or true)
-batchSize = math.max(tonumber(ARGV[4] or MIN_BATCH_SIZE), MAX_BATCH_SIZE)
+batchSize = tonumber(ARGV[4] or MIN_BATCH_SIZE)
 
 initOperators()
 return search(stateKey, criteria, count, asc)

@@ -79,7 +79,7 @@ completed = await myQueue.getJobs(['completed'], 0, 100, True)
 #### Search For Jobs
 
 The `Queue.search` method provides a powerful way to search for jobs using a Lucene-like query syntax. This allows
-for complex, text-based searches on job data and metadata.
+for complex, text-based searches on job fields and metadata.
 
 {% tabs %}
 
@@ -88,7 +88,7 @@ for complex, text-based searches on job data and metadata.
 ```typescript
 const { jobs } = await queue.search(
   'completed',
-  'data.user.id:123 AND priority:2',
+  'name:encoding and runtime:[5000 TO *] AND data.tags:*tiktok*',
 );
 ```
 
@@ -97,14 +97,15 @@ const { jobs } = await queue.search(
 {% tab title="Python" %}
 
 ```python
-result = await queue.get_jobs_by_filter('completed', 'data.user.id:123 AND priority:2')
+result = await queue.get_jobs_by_filter('completed', 'name:encoding and runtime:[5000 TO *] AND data.tags:*tiktok*')
 jobs = result['jobs']
 ```
 
 {% endtab %}
 {% endtabs %}
 
-In this example, we are searching for completed jobs where the user ID in the job data is `123` and the job priority is `2`.
+In this example, we are searching for completed encoding jobs which ran for more than 5 seconds, and whose `tags` data
+field contains the term "tiktok".
 
 ## Read more:
 
