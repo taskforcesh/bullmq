@@ -69,7 +69,7 @@ We also support special `virtual` fields that are not part of the job object but
 - `waitTime`: The time the job spent waiting to be processed. Essentially `processedOn` - `timestamp`.
 - `queueTime`: The total time the job spent in the queue from creation to execution. Essentially `finishedOn` - `timestamp`.
 - `fullText`: A full-text search across multiple job fields (see Full-Text Search section).
-- 'logs': Search within job logs.
+- `logs`: Search within job logs.
 
 ### 2. Data Types
 
@@ -213,6 +213,10 @@ data.username:/^user-[0-9]+$/
 ```
 data.username:/john/i
 ```
+
+**NOTE**: The regexes that search supports are only a subset of full regular expressions. For example, lookarounds, alternation
+and some other advanced features are not supported. For example, complex quantifiers (using `{n,m}` style syntax) are not
+supported. As a general rule of thumb, the regexes should be fairly simple.
 
 ### 9. Full-Text Search
 
