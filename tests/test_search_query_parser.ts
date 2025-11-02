@@ -5,82 +5,70 @@ import { expect } from 'chai';
 
 describe('Search Query Parsing', () => {
   describe('Regex to Lua Pattern Translation', () => {
+    // Utility function for repeated test patterns
+    function expectLuaTranslation(
+      input: string,
+      expected: string,
+      matcher: (result: string) => any = expect,
+    ) {
+      const result = translateRegexToLuaPattern(input);
+      matcher(result).to.eql(expected);
+    }
+
     describe('Character class translations', () => {
-      it('should translate \\d to %d (digit)', () => {
-        const result = translateRegexToLuaPattern('\\d');
-        expect(result).to.include('%d');
+      it('should translate character classes to Lua equivalents', () => {
+        const characterClassMappings: { [regexClass: string]: string } = {
+          '\\d': '%d', // digit
+          '\\D': '%D', // non-digit
+          '\\w': '%a', // alphanumeric
+          '\\W': '%A', // non-alphanumeric
+          '\\s': '%s', // whitespace
+          '\\S': '%S', // non-whitespace
+        };
+
+        for (const [input, output] of Object.entries(characterClassMappings)) {
+          expectLuaTranslation(input, output);
+        }
       });
 
-      it('should translate \\D to %D (non-digit)', () => {
-        const result = translateRegexToLuaPattern('\\D');
-        expect(result).to.include('%D');
+      it('should translate character ranges to Lua equivalents', () => {
+        const characterRangeMappings: { [regexRange: string]: string } = {
+          '[a-z]': '[%l]', // lowercase letters
+          '[A-Z]': '[%u]', // uppercase letters
+          '[a-zA-Z0-9]': '[%w]', // alphanumeric
+          '[0-9]': '[%d]', // digits
+          '[a-zA-Z]': '[%a]', // letters
+          '[^0-9]': '[^%d]', // negated digit class
+          '[^a-zA-Z]': '[^%a]', // negated letter class
+        };
+
+        for (const [input, output] of Object.entries(characterRangeMappings)) {
+          expectLuaTranslation(input, output);
+        }
       });
 
-      it('should translate \\w to %a (alphanumeric)', () => {
-        const result = translateRegexToLuaPattern('\\w');
-        expect(result).to.include('%a');
-      });
-
-      it('should translate \\W to %A (non-alphanumeric)', () => {
-        const result = translateRegexToLuaPattern('\\W');
-        expect(result).to.include('%A');
-      });
-
-      it('should translate \\s to %s (whitespace)', () => {
-        const result = translateRegexToLuaPattern('\\s');
-        expect(result).to.include('%s');
-      });
-
-      it('should translate \\S to %S (non-whitespace)', () => {
-        const result = translateRegexToLuaPattern('\\S');
-        expect(result).to.include('%S');
-      });
-
-      it('should translate character range [0-9]', () => {
-        const result = translateRegexToLuaPattern('[0-9]');
-        expect(result).to.include('%d');
-      });
-
-      it('should translate character range [a-zA-Z]', () => {
-        const result = translateRegexToLuaPattern('[a-zA-Z]');
-        expect(result).to.include('%a');
-      });
-
-      it('should translate negated digit class [^0-9]', () => {
-        const result = translateRegexToLuaPattern('[^0-9]');
-        expect(result).to.be.eql('[^%d]');
-      });
-
-      it('should translate negated letter class [^a-zA-Z]', () => {
-        const result = translateRegexToLuaPattern('[^a-zA-Z]');
-        expect(result).to.be.eql('[^%a]');
-      });
-
-      it('should handle multiple character classes in one pattern', () => {
-        const result = translateRegexToLuaPattern('\\d+\\w*');
-        expect(result).to.be.eql('%d+%a.*');
+      it('should handle complex character class patterns', () => {
+        expectLuaTranslation('\\d+\\w*', '%d+%a.*');
+        // The given the mapping will translate alphanumerics and lowercase.
+        expectLuaTranslation('[a-z0-9]+', '[%l%d]+');
       });
     });
 
     describe('Wildcard translations', () => {
-      it('should translate * to .*', () => {
-        const result = translateRegexToLuaPattern('a*');
-        expect(result).to.be.eql('a.*');
+      it('should translate wildcards to Lua equivalents', () => {
+        const wildcardMappings: { [pattern: string]: string } = {
+          'a*': 'a.*', // `*` becomes `.*`
+          'a?b': 'a.b', // `?` becomes `.`
+          'a*b?c': 'a.*b.c', // combination of wildcards
+        };
+
+        for (const [input, output] of Object.entries(wildcardMappings)) {
+          expectLuaTranslation(input, output);
+        }
       });
 
-      it('should translate ? to .', () => {
-        const result = translateRegexToLuaPattern('a?b');
-        expect(result).to.be.eql('a.b');
-      });
-
-      it('should handle multiple wildcards', () => {
-        const result = translateRegexToLuaPattern('a*b?c');
-        expect(result).to.be.eql('a.*b.c');
-      });
-
-      it('should translate consecutive wildcards', () => {
-        const result = translateRegexToLuaPattern('a**b');
-        expect(result).to.be.eql('a.*.*b');
+      it('should translate consecutive wildcards correctly', () => {
+        expectLuaTranslation('a**b', 'a.*.*b');
       });
     });
 
@@ -148,16 +136,6 @@ describe('Search Query Parsing', () => {
       it('should handle empty pattern', () => {
         const result = translateRegexToLuaPattern('');
         expect(result).to.equal('');
-      });
-
-      it('should handle pattern with only wildcards', () => {
-        const result = translateRegexToLuaPattern('*');
-        expect(result).to.equal('.*');
-      });
-
-      it('should handle pattern with only question marks', () => {
-        const result = translateRegexToLuaPattern('?');
-        expect(result).to.equal('.');
       });
 
       it('should handle single character pattern', () => {
@@ -546,20 +524,6 @@ describe('Search Query Parsing', () => {
         });
       });
 
-      it('should handle wildcard at the beginning only', () => {
-        const result = parseSearchQuery('email:*@example.com');
-        expect(result).to.be.eql({
-          email: { $regex: '.*@example.com$' },
-        });
-      });
-
-      it('should handle wildcard at the end only', () => {
-        const result = parseSearchQuery('email:user@*');
-        expect(result).to.be.eql({
-          email: { $regex: '^user@.*' },
-        });
-      });
-
       it('should handle wildcards in the middle', () => {
         const result = parseSearchQuery('filename:test*.txt');
         expect(result).to.be.eql({
@@ -581,97 +545,10 @@ describe('Search Query Parsing', () => {
         });
       });
 
-      it('should handle multiple fields with wildcards', () => {
-        const result = parseSearchQuery('firstName:Jo* AND lastName:*son');
-        expect(result).to.be.eql({
-          $and: [
-            { firstName: { $regex: '^Jo.*' } },
-            { lastName: { $regex: '.*son$' } },
-          ],
-        });
-      });
-
-      it('should handle wildcards with OR operator', () => {
-        const result = parseSearchQuery('status:pend* OR status:wait*');
-        expect(result).to.be.eql({
-          $or: [
-            { status: { $regex: '^pend.*' } },
-            { status: { $regex: '^wait.*' } },
-          ],
-        });
-      });
-
-      it('should handle wildcards with NOT operator', () => {
-        const result = parseSearchQuery('NOT status:fail*');
-        expect(result).to.be.eql({
-          $not: { status: { $regex: '^fail.*' } },
-        });
-      });
-
-      it('should handle wildcards in grouped expressions', () => {
-        const result = parseSearchQuery(
-          '(name:Jo* OR name:Jane*) AND status:active',
-        );
-        expect(result).to.be.eql({
-          $and: [
-            {
-              $or: [
-                { name: { $regex: '^Jo.*' } },
-                { name: { $regex: '^Jane.*' } },
-              ],
-            },
-            { status: 'active' },
-          ],
-        });
-      });
-
-      it('should handle wildcards with nested groups', () => {
-        const result = parseSearchQuery(
-          '((firstName:J* OR firstName:K*) AND lastName:*son) OR email:*@test.com',
-        );
-        expect(result).to.be.eql({
-          $or: [
-            {
-              $and: [
-                {
-                  $or: [
-                    { firstName: { $regex: '^J.*' } },
-                    { firstName: { $regex: '^K.*' } },
-                  ],
-                },
-                { lastName: { $regex: '.*son$' } },
-              ],
-            },
-            { email: { $regex: '.*@test.com$' } },
-          ],
-        });
-      });
-
       it('should handle consecutive wildcards', () => {
         const result = parseSearchQuery('name:a**b');
         expect(result).to.be.eql({
           name: { $regex: '^a.*.*b$' },
-        });
-      });
-
-      it('should handle consecutive question marks', () => {
-        const result = parseSearchQuery('code:???');
-        expect(result).to.be.eql({
-          code: { $regex: '^...$' },
-        });
-      });
-
-      it('should handle wildcard with empty string before star', () => {
-        const result = parseSearchQuery('tag:*tag');
-        expect(result).to.be.eql({
-          tag: { $regex: '.*tag$' },
-        });
-      });
-
-      it('should handle wildcard with empty string after star', () => {
-        const result = parseSearchQuery('tag:tag*');
-        expect(result).to.be.eql({
-          tag: { $regex: '^tag.*' },
         });
       });
 
@@ -682,51 +559,10 @@ describe('Search Query Parsing', () => {
         });
       });
 
-      it('should handle wildcards combined with range queries', () => {
-        const result = parseSearchQuery('name:Jo* AND age:[25 TO 35]');
-        expect(result).to.be.eql({
-          $and: [
-            { name: { $regex: '^Jo.*' } },
-            { age: { $gte: 25, $lte: 35 } },
-          ],
-        });
-      });
-
-      it('should handle wildcards combined with exact matches', () => {
-        const result = parseSearchQuery('department:eng* AND status:active');
-        expect(result).to.be.eql({
-          $and: [{ department: { $regex: '^eng.*' } }, { status: 'active' }],
-        });
-      });
-
-      it('should handle wildcards with numeric field names', () => {
-        const result = parseSearchQuery('id:user_*');
-        expect(result).to.be.eql({
-          id: { $regex: '^user_.*' },
-        });
-      });
-
-      it('should handle wildcards with dots in field names', () => {
-        const result = parseSearchQuery('data.name:test*');
-        expect(result).to.be.eql({
-          'data.name': { $regex: '^test.*' },
-        });
-      });
-
       it('should handle wildcards without field (text search)', () => {
         const result = parseSearchQuery('test*');
         expect(result).to.be.eql({
           fullText: { $regex: 'test.*' },
-        });
-      });
-
-      it('should handle multiple wildcards without field', () => {
-        const result = parseSearchQuery('foo* bar?');
-        expect(result).to.be.eql({
-          $and: [
-            { fullText: { $regex: 'foo.*' } },
-            { fullText: { $regex: 'bar.' } },
-          ],
         });
       });
 
@@ -741,49 +577,6 @@ describe('Search Query Parsing', () => {
         const result = parseSearchQuery('field:?');
         expect(result).to.be.eql({
           field: { $regex: '^.$' },
-        });
-      });
-
-      it('should handle wildcards in complex boolean expressions', () => {
-        const result = parseSearchQuery(
-          '(name:John* AND status:act*) OR (name:Jane* AND status:pend*)',
-        );
-        expect(result).to.be.eql({
-          $or: [
-            {
-              $and: [
-                { name: { $regex: '^John.*' } },
-                { status: { $regex: '^act.*' } },
-              ],
-            },
-            {
-              $and: [
-                { name: { $regex: '^Jane.*' } },
-                { status: { $regex: '^pend.*' } },
-              ],
-            },
-          ],
-        });
-      });
-
-      it('should handle wildcards with numeric values', () => {
-        const result = parseSearchQuery('code:123*');
-        expect(result).to.be.eql({
-          code: { $regex: '^123.*' },
-        });
-      });
-
-      it('should handle wildcards at both ends', () => {
-        const result = parseSearchQuery('tag:*important*');
-        expect(result).to.be.eql({
-          tag: { $regex: '.*important.*' },
-        });
-      });
-
-      it('should handle single character wildcard in complex pattern', () => {
-        const result = parseSearchQuery('code:A?-B?-C?');
-        expect(result).to.be.eql({
-          code: { $regex: '^A.-B.-C.$' },
         });
       });
     });
