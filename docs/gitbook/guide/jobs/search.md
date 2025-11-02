@@ -168,6 +168,58 @@ const jobs = await searchWithProgress(
    - Adjusting the `batchSize` enables control over the number of items processed per call based on memory or performance
      constraints.
 
+An alternative approach is to use an asynchronous generator function to yield jobs as they are found:
+
+```typescript
+async *searchGenerator(
+  queue: Queue,
+  type: JobType,         // Type of jobs to search for
+  query: string | object, // Search query (Lucene-based or object filter)
+  count = 10,            // Max number of jobs to yield per iteration
+  asc = false,           // Order of results
+  batchSize = 50         // Batch size for each internal search iteration
+): AsyncGenerator<Job[], void, unknown> {
+  // Cursor state for paginated search
+  let cursorId: string | null = null;
+  let done = false;
+
+  while (!done) {
+    const {
+      jobs,
+      cursorId: newCursorId,
+      done: searchDone,
+    } = await queue.search(type, query, count, asc, cursorId, batchSize);
+
+    // Yield fetched jobs to the consumer of the generator
+    yield jobs;
+
+    // Update state of the generator
+    cursorId = newCursorId;
+    done = searchDone;
+    // optionally add a delay to avoid overwhelming the server
+    await Promise(resolve => setTimeout(resolve, 5));
+  }
+}
+```
+
+Usage of the generator:
+
+```typescript
+for await (const jobsBatch of searchGenerator(
+  queue,
+  'failed',
+  'priority:[1 TO 3]',
+  20,
+  true,
+  100,
+)) {
+  for (const job of jobsBatch) {
+    console.log(`Processing failed job ID: ${job.id}`);
+    // Perform processing on each job
+  }
+}
+```
+
 ### Performance Considerations
 
 **Batch Size Trade-offs:**
