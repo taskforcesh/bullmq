@@ -886,7 +886,7 @@ function parseTokens(tokens: Token[]): any {
         index++;
         continue;
       }
-      if (isTermValue(token) || isPhraseValue(token)) {
+      if (isPhraseValue(token)) {
         searchTerms.push(token.value);
         first = false;
         index++;
