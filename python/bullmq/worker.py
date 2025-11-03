@@ -13,12 +13,15 @@ import asyncio
 import traceback
 import time
 import math
+import redis
 
 maximum_block_timeout = 10
 # 1 millisecond is chosen because the granularity of our timestamps are milliseconds.
 # Obviously we can still process much faster than 1 job per millisecond but delays and
 # rate limits will never work with more accuracy than 1ms.
 minimum_block_timeout = 0.001
+# Avoid hot loop reconnection, as this floods error logs
+reconnect_cooldown = 1.0
 
 
 class Worker(EventEmitter):
@@ -120,7 +123,11 @@ class Worker(EventEmitter):
             finally:
                 self.waiting = None
         else:
-            job_instance = await self.moveToActive(token)
+            try:
+                job_instance = await self.moveToActive(token)
+            except redis.exceptions.ConnectionError:
+                await asyncio.sleep(reconnect_cooldown)
+                raise
             return job_instance
 
     async def moveToActive(self, token: str):
