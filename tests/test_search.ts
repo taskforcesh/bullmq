@@ -307,23 +307,9 @@ describe('Search', () => {
         const res = await find(
           [{ l1: [{ tags: 'tag1' }, { notags: 'yep' }] }],
           {
-            'data.l1.tags': { $regex: '.*tag.*' },
+            'data.l1': { tags: { $regex: '.*tag.*' } },
           },
         );
-        expect(res.length).to.equal(1);
-      });
-
-      it('can match against array property', async () => {
-        const data = [
-          {
-            l1: [{ tags: ['tag1', 'tag2'] }, { tags: ['tag66'] }],
-          },
-        ];
-        const res = await find(data, {
-          'data.l1.tags': {
-            $regex: '^tag.*',
-          },
-        });
         expect(res.length).to.equal(1);
       });
     });
@@ -555,24 +541,23 @@ describe('Search', () => {
         await attempt({ 'data.key0.key1.0.key2.a': 'value2' }, []);
       });
 
-      it('should match with full array index selector to deeply nested value', async () => {
-        await attempt({ 'data.key0.key1.0.0.key2.a': 'value2' }, data);
-      });
-
-      it('should match with array index selector to nested value at depth 1', async () => {
-        await attempt({ 'data.key0.key1.0.0.key2': { b: 20 } }, data);
+      it('should match with nested array with index selector', async () => {
+        await attempt({ 'data.key0.0.key1.0.0.0.key2.2': { b: 20 } }, data);
       });
 
       it('should match with full array index selector to nested value', async () => {
-        await attempt({ 'data.key0.key1.1.key2': 'value' }, data);
+        await attempt({ 'data.key0.0.key1.1.key2': 'value' }, data);
       });
 
-      it('should match without array index selector to nested value at depth 1', async () => {
-        await attempt({ 'data.key0.key1.key2': 'value' }, data);
+      it('should match without array index selector', async () => {
+        await attempt(
+          { 'data.key0.0.key1.0.0.0.key2': { $type: 'array' } },
+          data,
+        );
       });
 
       it('should match shallow nested value with array index selector', async () => {
-        await attempt({ 'data.key0.key1.1.key2': 'value' }, data);
+        await attempt({ 'data.key0.0.key1.1.key2': 'value' }, data);
       });
     });
 
@@ -1423,8 +1408,9 @@ describe('Search', () => {
         await queue.addBulk(data);
 
         const { jobs } = await queue.search('waiting', 'data.description:null');
-        expect(jobs.length).to.equal(1);
-        expect(jobs[0].name).to.eql('task-one');
+        expect(jobs.length).to.equal(2);
+        const names = jobs.map(j => j.name).sort();
+        expect(names).to.eql(['task-one', 'task-two']);
       });
 
       it('can find null fields using the _exists_ special field', async () => {

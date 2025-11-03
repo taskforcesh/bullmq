@@ -16,10 +16,7 @@
         $startsWith, $endsWith, $contains
 
     Logical Query Operators
-        $and, $or, $nor, $not
-
-    Element Query Operators
-        $text
+        $and, $or, $nor, $not, $xor
 
     Evaluation Query Operators
         $expr
@@ -27,20 +24,45 @@
     Conditional Operators
         $ifNull
 
-  It is compiled into a predicate function which is applied to up to batchSize jobs in this call. Given that
+  The criteria is compiled into a predicate function which is applied to up to batchSize jobs in this call. Given that
   matching jobs are sparse with respect to the dataset, we want a batch size which allows
    1. minimizing overall latency while scanning the data.
    2. amortized cost of multiple calls to get the desired number of results.
    3. amortized cost of compiling the optimized filter.
 
   The cursor mechanism is to allow iteration through the dataset with state stored on the server.
+
+    Output:
+        An array with the following structure:
+        [meta, job...]
+
+        Where:
+            meta - response metadata as a json encoded string with the following fields:
+                - progress: the number of jobs scanned thus far
+                - total: total number of jobs in the selected state
+                - done: whether the end of the dataset has been reached
+                - debug: array of debug messages (if debugging is enabled)
+                - iterations: number of iterations performed to get the results
+                - remainder: number of jobs which match the criteria but were not returned due to count limit
+            job - the matching job objects as json encoded strings
 ]]
+local MIN_BATCH_SIZE = 20
+--- Cursor expiration time in seconds
+local CURSOR_EXPIRATION = 30
+
+--- INPUTS
+local stateKey = KEYS[1]
+local cursorKey = KEYS[2]
+local criteria = assert(cjson.decode(ARGV[1]), 'Invalid filter criteria. Expected a JSON encoded string')
+local batchSize = tonumber(ARGV[4] or MIN_BATCH_SIZE)
+local count = tonumber(ARGV[2] or 10)
+local asc = (ARGV[3] == "1" or ARGV[3] == "true")
+
 
 local rcall = redis.call
-local stateKey = ""
-local cursorKey = ""
 local currentJobKey = nil
-local currentJob = {}
+
+
 --- Cache resolved field values for the current job. Helpful when multiple predicates refer to the same field
 --- eg { $and: [ { 'data.request.priority': { $gt: 5 } }, { 'data.request.priority': { $lt: 10 } } ] }
 local cachedValues = {}
@@ -53,17 +75,7 @@ local responseMeta = {
     ["total"] = 0
 }
 
-local MIN_BATCH_SIZE = 20
---- Even though Count is passed in, remember that we're filtering through all jobs in a particular state.
---- IOW, we can legitimately return 0 results in an iteration. To compensate, we iterate up to MAX_ITERATION
---- attempting to get up to Count results
-local MAX_BATCH_SIZE = 1000
-
---- Cursor expiration time in seconds
-local CURSOR_EXPIRATION = 30
-
-local batchSize = 30
-
+--- Fields which are numeric and should be compared as numbers
 local NUMERIC_FIELDS = {
     ['timestamp'] = 1,
     ['processedOn'] = 1,
@@ -80,6 +92,7 @@ local NUMERIC_FIELDS = {
     ['stalledCounter'] = 1,
 }
 
+--- Fields to include in full text search
 local FULL_TEXT_FIELDS = { 'name', 'data', 'stacktrace', 'failedReason', 'returnvalue', 'id' }
 
 local JsType = {
@@ -113,7 +126,6 @@ local FIELD_ALIASES = {
 }
 
 --- Forward declarations
-local createFullTextMatcher
 local getFieldResolver
 
 local QueryOperators = {}
@@ -125,6 +137,7 @@ Predicates.__index = Predicates
 local ExprOperators = {}
 ExprOperators.__index = ExprOperators
 
+--- Log debug message. Sends to response metadata if debugging is enabled
 local function debug(msg)
     if isDebugging then
         responseMeta['debug'] = responseMeta['debug'] or {}
@@ -162,7 +175,7 @@ local function isString(val)
 end
 
 local function isNil(val)
-    return type(val) == 'nil' or val == cjson.null
+    return val == cjson.null or val == nil
 end
 
 local function isNumber(val)
@@ -211,7 +224,7 @@ local function isArray(t)
     return true
 end
 
-local function isEqual(o1, o2, ignore_mt)
+local function isEqual(o1, o2)
     local ty1 = type(o1)
     local ty2 = type(o2)
     if ty1 ~= ty2 then
@@ -228,17 +241,9 @@ local function isEqual(o1, o2, ignore_mt)
         return o1 == o2
     end
 
-    -- as well as tables which have the metamethod __eq
-    if not ignore_mt then
-        local mt = getmetatable(o1)
-        if mt and mt.__eq then
-            return o1 == o2
-        end
-    end
-
     for k1, v1 in pairs(o1) do
         local v2 = o2[k1]
-        if isNil(v2) or not isEqual(v1, v2, ignore_mt) then
+        if isNil(v2) or not isEqual(v1, v2) then
             return false
         end
     end
@@ -302,16 +307,6 @@ local function keys(obj)
         res[#res + 1] = k
     end
     return res
-end
-
-local function slice(array, start, stop)
-    start = start or 1
-    stop = stop or #array
-    local t = {}
-    for i = start, stop do
-        t[i - start + 1] = array[i]
-    end
-    return t
 end
 
 local function startsWith(haystack, needle)
@@ -380,10 +375,7 @@ end
 local function xor(a, b)
     a = isTruthy(a)
     b = isTruthy(b)
-    if (a == b) then
-        return false
-    end
-    return a or b
+    return a ~= b
 end
 
 local dblQuote = function(v)
@@ -433,6 +425,16 @@ local function to_hash(value)
     return result
 end
 
+local function simpleResolve(value, key)
+    if type(value) == "table" then
+        local v = value[key]
+        if v ~= nil then
+            return v
+        end
+    end
+    return cjson.null
+end
+
 --[[
 Resolve the value of the field (dot separated) on the given object
 
@@ -441,99 +443,30 @@ Resolve the value of the field (dot separated) on the given object
 @param {ResolveOptions} options
 @returns {function} a function which when called with an object returns the resolved field value
 ]]
-local function resolve(obj, segments, unwrapArray)
-    local depth = 0
+local function resolve(obj, segments)
+    local tonumber = tonumber
 
-    --
-    -- Unwrap a single element array to specified depth
-    -- @param {Array} arr
-    -- @param {Number} depth
-    --
-    local function unwrap(arr, unwrapDepth)
-        if (unwrapDepth < 1) then
-            return arr
+    -- Traverse through the table using the path segments
+    local current = obj
+
+    for _, segment in ipairs(segments) do
+        if type(current) ~= "table" then
+            return cjson.null
         end
-        while (unwrapDepth > 0 and #arr == 1) do
-            arr = arr[1]
-            unwrapDepth = unwrapDepth - 1
+
+        local num = tonumber(segment)
+        -- Use numeric index if it's a valid positive integer
+        if num and num >= 0 and math.floor(num) == num then
+            -- convert 0-based index to 1-based
+            current = current[num + 1]
+        else
+            current = current[segment]
         end
-        return arr
+
+        debug("current after segment '" .. segment .. "': " .. tostr(current))
     end
 
-    local function resolve2(o, path)
-        local v = cachedValues[path] --- check cache first
-        if v ~= nil then
-            return v
-        end
-        local value = o
-        local index = 1
-        -- debug('resolving path ' .. tostr(path) .. ' in object ' .. tostr(o))
-
-        local slice = slice
-        local tonumber = tonumber
-        local isNil = isNil
-        local isArray = isArray
-
-        while (index <= #path) do
-            local field = path[index]
-
-            if (type(value) == 'table') then
-                local numIndex = tonumber(field)
-
-                if (isArray(value)) then
-                    -- handle instances like
-                    -- value: { grades: [ { score: 10, max: 100 }, { score:5, max: 10 } ] }
-                    -- path: 'score'
-                    if (numIndex == nil) then
-                        -- On the first iteration, we check if we received a stop flag.
-                        -- If so, we stop to prevent iterating over a nested array value
-                        -- on consecutive object keys in the selector.
-                        if (index == 1 and depth > 0) then
-                            break
-                        end
-                        depth = depth + 1
-
-                        path = slice(path, index)
-                        local acc = {}
-                        for _, item in ipairs(value) do
-                            local v = resolve2(item, path)
-                            if not isNil(v) then
-                                acc[#acc + 1] = v
-                            end
-                        end
-                        value = acc
-                        break
-                    else
-                        field = (numIndex + 1)
-                    end
-                end
-                value = value[field]
-            else
-                value = nil
-            end
-
-            -- debug(field .. ':' .. tostr(value) .. ', ' .. tostr(index) .. '/' .. tostr(#path))
-
-            index = index + 1
-            if isNil(value) then
-                break
-            end
-        end
-
-        --- cache resolved value
-        cachedValues[path] = value
-        return value
-    end
-
-    local t = type(obj)
-    if (t == 'table') then
-        obj = resolve2(obj, segments)
-        if (unwrapArray) then
-            obj = unwrap(obj, depth)
-        end
-    end
-
-    return obj
+    return current
 end
 
 -- Returns a predicate function that matches
@@ -664,12 +597,14 @@ local function compileRegex(pattern, ignoreCase)
     end
 
     local function isMatch(haystack, needle)
+        debug("Regex matching haystack: " .. tostr(haystack) .. " with needle: " .. tostr(needle))
         local t = type(haystack)
         if t == "string" then
             return stringMatch(haystack, needle)
         end
         if t == "table" then
-            return some(haystack, function(val) return stringMatch(val, needle) end)
+            local matchFn = stringMatch
+            return some(haystack, function(val) return matchFn(val, needle) end)
         end
         return false
     end
@@ -890,28 +825,64 @@ local function compileQuery(criteria)
 
     local function processOperator(field, operator, value)
         local operatorFn = QueryOperators[operator]
-        -- special case handling of $text
-        if operatorFn == nil then
-            if (field == '$text') then
-                local handler = createFullTextMatcher(value)
-                compiled[#compiled + 1] = handler
-                return
-            end
-        end
         assert(operatorFn ~= nil,
             'invalid op: "' .. operator .. '" - (field: ' .. field .. ", value: " .. tostr(value) .. ")");
         compiled[#compiled + 1] = operatorFn(field, value)
     end
 
+    local function parse2(field, expr)
+        local compiled = {}
+        local t = type(expr)
+        local fieldResolver = getFieldResolver(field)
+
+        if JS_SIMPLE_TYPES[t] then
+            -- $eq operator for primitive values
+            if isNil(expr) then
+                return function(obj)
+                    local resolve = fieldResolver
+                    local lhs = resolve(obj)
+                    return isNil(lhs)
+                end
+            else
+                return function(obj)
+                    local resolve = fieldResolver
+                    local lhs = resolve(obj)
+                    return lhs == expr
+                end
+            end
+        end
+        -- see if all keys are operators, IOW, something like { $gt: value, $lt: value }
+        local predicateFn = constant(false)
+
+        for key, val in pairs(expr) do
+            if isOperator(key) then
+                --- something like { $gt: value }. Transform to field:{ $gt: value } and process
+                local newValue = { [key] = val }
+                local newExpr = { [field] = newValue }
+                predicateFn = compileQuery(newExpr)
+            else
+                local subField = field .. '.' .. key
+                debug("Processing subfield '" .. subField .. "' with value: " .. tostr(val))
+                predicateFn = parse2(subField, val)
+            end
+            compiled[#compiled+1] = predicateFn
+        end
+
+        return join_AND(compiled)
+    end
+
     local function parse(crit)
         for field, expr in pairs(criteria) do
-            if (field == '$and' or field == '$or' or field == '$nor' or field == '$expr' or field == '$xor') then
+            if (field == '$and' or
+                field == '$or' or
+                field == '$nor' or
+                field == '$expr' or
+                field == '$xor') then
                 processOperator(field, field, expr)
             elseif field == '$not' then
                 assert(isObject(expr),
                     '$not operator requires an object expression for field: ' .. field)
-                local expr1 = normalize(expr)
-                local predicateFn = compileQuery(expr1)
+                local predicateFn = compileQuery(expr)
                 local fn = function(obj)
                     --- capture locally to avoid upvalue lookups
                     local predicate = predicateFn
@@ -921,11 +892,15 @@ local function compileQuery(criteria)
             else
                 --- normalize expression
                 local expr1 = normalize(expr)
-                -- debug("Expr for field '" .. field .. "': " .. tostr(expr1))
 
                 for op, val in pairs(expr1) do
-                    assert(isOperator(op), 'unknown top level operator: "' .. op .. '"')
-                    processOperator(field, op, val)
+                    if isOperator(op) then
+                        processOperator(field, op, val)
+                    else
+                        -- something like { field: { subfield: value } }
+                        local pred = parse2(field, val)
+                        table.insert(compiled, pred)
+                    end
                 end
             end
         end
@@ -989,11 +964,10 @@ QueryOperators['$regex'] = function(selector, value)
     local pattern = value
     local ignoreCase = false
 
-    local type_ = type(value)
-    assert(type_ == "string" or type_ == "table",
-        '$regex: pattern should be a string or array of strings')
+    local t = type(value)
+    assert(t == "string" or t == "table", '$regex: pattern should be a string or array of strings')
 
-    if type_ == "table" then
+    if t == "table" then
         --- could be a list of patterns, e.g. { $regex: [ "err", "fail" ] },
         --- or could be an object with $pattern and $options, e.g. { $regex: { $pattern: "err", $options: "i" } }
         local pat = value["$pattern"]
@@ -1043,6 +1017,33 @@ QueryOperators['$icontains'] = function(selector, value)
 
         local lhs = resolve(obj)
         return predicate(lhs)
+    end
+end
+
+QueryOperators['$eq'] = function(selector, value)
+    local resolveFn = getFieldResolver(selector)
+    if isNil(value) then
+        return function(obj)
+            -- capture values locally to avoid upvalue lookups
+            local resolve = resolveFn
+            local lhs = resolve(obj)
+            return isNil(lhs)
+        end
+    end
+    local t = type(value)
+    if JS_SIMPLE_TYPES[t] then
+        return function(obj)
+            -- capture values locally to avoid upvalue lookups
+            local resolve = resolveFn
+            local lhs = resolve(obj)
+            return lhs == value
+        end
+    end
+    return function(obj)
+        -- capture values locally to avoid upvalue lookups
+        local resolve = resolveFn
+        local lhs = resolve(obj)
+        return isEqual(lhs, value)
     end
 end
 
@@ -1110,77 +1111,6 @@ local function resolveFullTextAndLogs(obj)
     return text
 end
 
-local function isFulltextMatch(needle, caseSensitive)
-    local haystack = resolveFullText(currentJob)
-    if haystack ~= nil then
-        if not caseSensitive then
-            haystack = string.lower(haystack)
-        end
-        if string.find(haystack, needle) then
-            return true
-        end
-    end
-    local logs = resolveLogs(currentJob)
-    if logs == nil then
-        return false
-    end
-    if not caseSensitive then
-        logs = string.lower(logs)
-    end
-    return string.find(logs, needle)
-end
-
---- { $text: value }  or { $text: { $search: value, $caseSensitive: sensitive } }
-createFullTextMatcher = function(expr)
-    local needle = ""
-    local caseSensitive = true
-
-    local type_ = type(expr)
-    if type_ == "table" then
-        needle = expr["$search"] or expr
-        caseSensitive = toBool(expr['$caseSensitive'] or true)
-    elseif type_ == "string" then
-        needle = expr
-    end
-
-    if not caseSensitive then
-        needle = string.lower(needle)
-    end
-
-    local valueType = type(needle)
-    if valueType == "string" then
-        return function(obj)
-            return isFulltextMatch(needle, caseSensitive)
-        end
-    end
-
-    assert(valueType == "table",
-        'search expression must be a string or string array: t = ' .. valueType)
-
-    local function matchAny(needles, caseSensitive)
-        return some(needles, function(needle)
-            if not caseSensitive then
-                needle = string.lower(needle)
-            end
-            return isFulltextMatch(needle, caseSensitive)
-        end)
-    end
-
-    --- check if all items are strings
-    if every(needle, function(val) return isString(val) end) then
-        return function()
-            local compareTo = needle
-            return matchAny(compareTo, caseSensitive)
-        end
-    end
-
-    local exec = parseExpression(needle)
-    return function(obj)
-        local needles = exec(obj)
-        return matchAny(needles, caseSensitive)
-    end
-end
-
 local function latencyResolver(obj)
     local processedOn = tonumber(obj['processedOn'])
     local finishedOn = tonumber(obj['finishedOn'])
@@ -1216,7 +1146,6 @@ getFieldResolver = function(field)
         local segmentCount = #path
         local segment = segmentCount > 0 and path[1] or field
         referencedFields[segment] = true
-        local isnum = NUMERIC_FIELDS[segment]
 
         if (segment == 'runtime') then
             handler = latencyResolver
@@ -1230,23 +1159,31 @@ getFieldResolver = function(field)
             handler = resolveFullTextAndLogs
         else
             if segmentCount == 1 then
+                -- Simple field access
                 -- handle field aliases
-                path = FIELD_ALIASES[segment] or path
-            end
-            if isnum then
-                handler = function(obj)
-                    local resolve = resolve
-                    local lpath = path
+                segment = FIELD_ALIASES[segment] or segment
 
-                    local val = resolve(obj, lpath)
-                    -- debug('value: ' .. tostr(val))
-                    return tonumber(val)
+                if NUMERIC_FIELDS[segment] then
+                    handler = function(obj)
+                        local resolve = simpleResolve
+                        local path = segment
+                        local val = resolve(obj, path)
+                        return tonumber(val) or cjson.null
+                    end
+                else
+                    handler = function(obj)
+                        local resolve = simpleResolve
+                        local path = segment
+                        return resolve(obj, path)
+                    end
                 end
             else
                 handler = function(obj)
                     local resolve = resolve
                     local lpath = path
-                    return resolve(obj, lpath)
+                    local val = resolve(obj, lpath)
+                    debug('Resolved field "' .. field .. '" to value: ' .. tostr(val))
+                    return val
                 end
             end
         end
@@ -1265,7 +1202,6 @@ end
 -- @returns {function}
 --
 local function parseExpression(expr, operator)
-    -- debug('parsing ' .. tostr(expr))
 
     local function parseArray()
         local compiledFn = map(expr, parseExpression)
@@ -1545,7 +1481,7 @@ local function createComparison(name)
             local args = exec(obj)
             assert(isArray(args) and #args == 2, name .. ': comparison expects 2 arguments. Got ' .. tostr(args))
             local val = fn(args[1], args[2])
-            if not isDebugging then
+            if isDebugging then
                 debug('Comparison: ' .. tostr(args[1]) .. ' ' .. name .. ' ' .. tostr(args[2]) .. ' = ' .. tostr(val))
             end
             return val
@@ -1567,7 +1503,7 @@ local function initOperators()
                     local lhs = resolve(obj)
                     local val = predicate(lhs, value)
 
-                    if not isDebugging then
+                    if isDebugging then
                         debug('Predicate: ' .. tostr(lhs) .. ' ' .. name .. ' ' .. tostr(value) .. ' = ' .. tostr(val))
                     end
 
@@ -1619,7 +1555,6 @@ local function prepareJobHash(id, jobHash)
     prepProgress(job)
     return job, data, opts
 end
-
 
 local function getKeysForState(stateKey, status, rangeStart, rangeEnd, asc)
     local function getRangeInList(listKey)
@@ -1676,7 +1611,7 @@ local function getKeysForState(stateKey, status, rangeStart, rangeEnd, asc)
     end
 end
 
---------[[ Cursor Management ]]--------
+--[[ Cursor Management ------------------------------------------------------------]]
 local function getCursorState()
     local temp = rcall("GET", cursorKey) or ''
     local success, meta = pcall(cjson.decode, temp)
@@ -1706,7 +1641,6 @@ local function getJobsFromCursor(count)
         -- collect jobs from the stored list
         if success and isArray(parsedJobs) then
             local remainder = {}
-            local progress = meta['progress'] or 0
             for i, job in ipairs(parsedJobs) do
                 if i > count then
                     table.insert(remainder, job)
@@ -1715,7 +1649,6 @@ local function getJobsFromCursor(count)
                 end
             end
 
-            meta["progress"] = progress + #result
             meta['jobs'] = remainder
             meta['jobCount'] = #remainder
 
@@ -1747,6 +1680,7 @@ local function writeCursorMeta(cursor, iteration, progress, total, items)
     rcall("EXPIRE", cursorKey, CURSOR_EXPIRATION)
 end
 
+
 --------[[ Main ]]--------
 local function search(stateKey, criteria, count, asc)
     count = count or 100
@@ -1767,7 +1701,6 @@ local function search(stateKey, criteria, count, asc)
 
     responseMeta['total'] = total
     responseMeta['progress'] = progress
-    responseMeta["cursor"] = cursor
 
     if #jobs > 0 then
         found = #jobs
@@ -1784,6 +1717,7 @@ local function search(stateKey, criteria, count, asc)
         end
     end
 
+    initOperators()
     local predicate = compileQuery(criteria)
     local rangeStart = cursor
     local rangeEnd = cursor + batchSize - 1
@@ -1804,8 +1738,7 @@ local function search(stateKey, criteria, count, asc)
             clearCachedValues()
 
             local job, data, opts = prepareJobHash(jobId, jobHash)
-            --- set global job to support $text
-            currentJob = job
+
             if (predicate(job)) then
                 --- these are expected to be string on the caller side
                 job['data'] = data
@@ -1831,11 +1764,6 @@ local function search(stateKey, criteria, count, asc)
 
     writeCursorMeta(cursor, iteration, progress, total, remainder)
 
-    if isDebugging then
-        responseMeta["cursor"] = cursor
-        responseMeta['batchSize'] = batchSize
-    end
-
     responseMeta["total"] = total
     responseMeta['done'] = done
     responseMeta['iteration'] = iteration
@@ -1847,13 +1775,4 @@ local function search(stateKey, criteria, count, asc)
     return result
 end
 
-stateKey = KEYS[1]
-cursorKey = KEYS[2]
-
-local criteria = assert(cjson.decode(ARGV[1]), 'Invalid filter criteria. Expected a JSON encoded string')
-local count = tonumber(ARGV[2] or 10)
-local asc = toBool(ARGV[3] or true)
-batchSize = tonumber(ARGV[4] or MIN_BATCH_SIZE)
-
-initOperators()
 return search(stateKey, criteria, count, asc)
