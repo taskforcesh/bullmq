@@ -1,3 +1,13 @@
+# [7.40.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.39.3...v7.40.0) (2025-11-04)
+
+
+### Features
+
+* **deps:** upgrade bullmq to v5.63.0 ([#382](https://github.com/taskforcesh/bullmq-pro/issues/382)) ([4e5fc31](https://github.com/taskforcesh/bullmq-pro/commit/4e5fc31b1ec69808f8c3be9a2bb7cfa665b1e94f))
+
+
+
+
 ## [7.39.3](https://github.com/taskforcesh/bullmq-pro/compare/v7.39.2...v7.39.3) (2025-10-08)
 
 
