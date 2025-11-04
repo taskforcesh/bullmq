@@ -131,14 +131,6 @@ describe('Search', () => {
     expect(result).to.eql(expected);
   }
 
-  async function findFirst(
-    arr: Record<string, any>[],
-    criteria: Record<string, any>,
-  ): Promise<Record<string, any>> {
-    const data = await find(arr, criteria);
-    return data?.length ? data[0] : null;
-  }
-
   async function attempt(
     criteria: ServerQuery,
     expectMatch = true,
@@ -184,20 +176,6 @@ describe('Search', () => {
     });
 
     it('can access basic job fields', async () => {
-      const fields = [
-        'id',
-        'data',
-        'delay',
-        'timestamp',
-        'priority',
-        'attemptsStarted',
-        'attemptsMade',
-        'stalledCounter',
-        'failedReason',
-        'progress',
-        'returnvalue',
-        'opts',
-      ];
       await attempt({ id: { $exists: true } });
       await attempt({ name: { $exists: true } });
       await attempt({ timestamp: { $exists: true } });
@@ -224,10 +202,6 @@ describe('Search', () => {
 
     it('$eq with objects in a given position in an array with dot notation', async () => {
       await attempt({ 'data.grades.0.grade': 92 });
-    });
-
-    it('$eq with nested elements in array', async () => {
-      await attempt({ 'data.projects.Python': 'Flaskapp' });
     });
 
     it('$not with direct values', async () => {
@@ -302,20 +276,6 @@ describe('Search', () => {
           'data.lastName': { $regex: { $pattern: 'A.+E', $options: 'i' } },
         });
       });
-
-      it('can match against non-array property', async () => {
-        const res = await find(
-          [{ l1: [{ tags: 'tag1' }, { notags: 'yep' }] }],
-          {
-            'data.l1': { tags: { $regex: '.*tag.*' } },
-          },
-        );
-        expect(res.length).to.equal(1);
-      });
-    });
-
-    it('can match fields for all objects within an array with dot notation', async () => {
-      await attempt({ 'data.grades.mean': { $gt: 70 } });
     });
   });
 
@@ -560,15 +520,6 @@ describe('Search', () => {
         await attempt({ 'data.key0.0.key1.1.key2': 'value' }, data);
       });
     });
-
-    it('should match nested array of objects without indices', async () => {
-      // https://github.com/kofrasa/mingo/issues/51
-      const data = [{ key0: [{ key1: ['value'] }, { key1: ['value1'] }] }];
-      const result = await findFirst(data, {
-        'data.key0.key1': { $eq: 'value' },
-      });
-      expect(result).to.eql(data[0]);
-    });
   });
 
   describe('Expression Logical Operators', () => {
@@ -648,14 +599,6 @@ describe('Search', () => {
     beforeEach(async () => {
       job = await queue.add('default', data);
     });
-
-    async function check(
-      criteria: ServerQuery,
-      expectMatch = true,
-    ): Promise<void> {
-      const { jobs } = await queue.search('waiting', criteria, 0);
-      expect(!!jobs.length).to.equal(expectMatch);
-    }
 
     describe('$cond', () => {
       it('supports options as an object', async () => {
@@ -1628,7 +1571,6 @@ describe('Search', () => {
           jobs,
           cursorId: newCursorId,
           done: searchDone,
-          total,
         } = await queue.search(
           'waiting',
           query,

@@ -32,7 +32,7 @@
 
   The cursor mechanism is to allow iteration through the dataset with state stored on the server.
 
-    Output:
+  Output:
         An array with the following structure:
         [meta, job...]
 
@@ -71,7 +71,7 @@ local isDebugging = true
 --- Response metadata
 local responseMeta = {
     ['progress'] = 0,
-    ["cursor"] = 0,
+    ['done'] = false,
     ["total"] = 0
 }
 
@@ -170,6 +170,10 @@ local function isOperator(name)
     return string.match(name, OPERATOR_NAME_PATTERN) ~= nil
 end
 
+local function isLogicalOperator(name)
+    return (name == '$and' or name == '$or' or name == '$nor' or name == '$not' or name == '$xor')
+end
+
 local function isString(val)
     return type(val) == 'string'
 end
@@ -254,17 +258,6 @@ local function isEqual(o1, o2)
         end
     end
     return true
-end
-
-local function getType(val)
-    if (val == cjson.null) then
-        return JsType.NULL
-    end
-    local t = type(val)
-    if (t == 'table') then
-        return isArray(val) and JsType.ARRAY or JsType.OBJECT
-    end
-    return t
 end
 
 local function ensureArray(x)
@@ -372,12 +365,6 @@ local function toBool(val, ...)
     return bool
 end
 
-local function xor(a, b)
-    a = isTruthy(a)
-    b = isTruthy(b)
-    return a ~= b
-end
-
 local dblQuote = function(v)
     return '"' .. v .. '"'
 end
@@ -427,10 +414,7 @@ end
 
 local function simpleResolve(value, key)
     if type(value) == "table" then
-        local v = value[key]
-        if v ~= nil then
-            return v
-        end
+        return value[key] or cjson.null
     end
     return cjson.null
 end
@@ -462,8 +446,6 @@ local function resolve(obj, segments)
         else
             current = current[segment]
         end
-
-        debug("current after segment '" .. segment .. "': " .. tostr(current))
     end
 
     return current
@@ -515,6 +497,12 @@ local function intersection(first, second)
 end
 
 ---- PREDICATES ------------------------------------------------------------------------
+
+local function xor(a, b)
+    a = isTruthy(a)
+    b = isTruthy(b)
+    return a ~= b
+end
 
 local function compare(a, b, fn)
     local btype = type(b)
@@ -597,7 +585,6 @@ local function compileRegex(pattern, ignoreCase)
     end
 
     local function isMatch(haystack, needle)
-        debug("Regex matching haystack: " .. tostr(haystack) .. " with needle: " .. tostr(needle))
         local t = type(haystack)
         if t == "string" then
             return stringMatch(haystack, needle)
@@ -788,29 +775,6 @@ end
 
 ---- QUERY OPERATORS -------------------------------------------------------------------
 
--- Simplify expression for easy evaluation with query operators map
--- @param expr
--- @returns {*}
-local function normalize(expr)
-    -- normalized primitives
-    local t = getType(expr)
-    if (JS_SIMPLE_TYPES[t]) then
-        return { ['$eq'] = expr }
-    end
-
-    -- normalize object expression
-    if (isObject(expr)) then
-        for k, v in pairs(expr) do
-            t = type(v)
-            if not isOperator(k) then  -- skip something like { $gt: null }
-               expr[k] = normalize(v)
-            end
-        end
-    end
-
-    return expr
-end
-
 --[[
 Compile the given query criteria into a predicate function. The function returns true
 if the given job object matches the criteria, false otherwise.
@@ -819,7 +783,7 @@ if the given job object matches the criteria, false otherwise.
 @returns {Function} the compiled predicate function
 ]]
 local function compileQuery(criteria)
-    assert(type(criteria) == 'table', 'query criteria must be an object')
+    assert(type(criteria) == 'table', 'query criteria must be an object. Found: ' .. tostr(criteria))
 
     local compiled = {}
 
@@ -830,42 +794,40 @@ local function compileQuery(criteria)
         compiled[#compiled + 1] = operatorFn(field, value)
     end
 
-    local function parse2(field, expr)
+    local function compileNested(field, expr)
         local compiled = {}
-        local t = type(expr)
-        local fieldResolver = getFieldResolver(field)
 
-        if JS_SIMPLE_TYPES[t] then
-            -- $eq operator for primitive values
-            if isNil(expr) then
-                return function(obj)
-                    local resolve = fieldResolver
-                    local lhs = resolve(obj)
-                    return isNil(lhs)
-                end
-            else
-                return function(obj)
-                    local resolve = fieldResolver
-                    local lhs = resolve(obj)
-                    return lhs == expr
-                end
-            end
-        end
-        -- see if all keys are operators, IOW, something like { $gt: value, $lt: value }
+        local fieldResolver = getFieldResolver(field)
         local predicateFn = constant(false)
 
+        -- foreach key, we create a sub-filter. These are fed by the main resolved field value, then they will
+        -- resolve their own sub-fields as needed
         for key, val in pairs(expr) do
             if isOperator(key) then
-                --- something like { $gt: value }. Transform to field:{ $gt: value } and process
+                --- we only support the non-logical operators here. Error out if we see logical operators
+                assert(not isLogicalOperator(key),
+                    'Logical operators are not supported in nested expressions: ' .. tostr(expr))
+
+               --- something like { $gt: value }. Transform to key:{ $gt: value } and process
                 local newValue = { [key] = val }
                 local newExpr = { [field] = newValue }
                 predicateFn = compileQuery(newExpr)
+            elseif type(val) == "table" then
+                --- something like { subfield: { $regex: "c*b" } }
+                local subExpr = { [key] = val }
+                predicateFn = compileQuery(subExpr)
             else
-                local subField = field .. '.' .. key
-                debug("Processing subfield '" .. subField .. "' with value: " .. tostr(val))
-                predicateFn = parse2(subField, val)
+                --- something like { subfield: value }
+                predicateFn = QueryOperators['$eq'](key, val)
             end
-            compiled[#compiled+1] = predicateFn
+            local subFilter = function(obj)
+                local resolve = fieldResolver
+                local predicate = predicateFn
+
+                local lhs = resolve(obj)
+                return predicate(lhs)
+            end
+            compiled[#compiled+1] = subFilter
         end
 
         return join_AND(compiled)
@@ -890,16 +852,21 @@ local function compileQuery(criteria)
                 end
                 table.insert(compiled, fn)
             else
-                --- normalize expression
-                local expr1 = normalize(expr)
-
-                for op, val in pairs(expr1) do
-                    if isOperator(op) then
-                        processOperator(field, op, val)
-                    else
-                        -- something like { field: { subfield: value } }
-                        local pred = parse2(field, val)
-                        table.insert(compiled, pred)
+                local t = type(expr)
+                if t ~= "table" then
+                    -- simple equality check
+                    processOperator(field, '$eq', expr)
+                else
+                    for op, val in pairs(expr) do
+                        if isOperator(op) then
+                            processOperator(field, op, val)
+                        else
+                            -- something like { field: { subfield: value } }
+                            -- or { field: { $gt: value, $lt: other } }
+                            local subExpr = { [op] = val }
+                            local pred = compileNested(field, subExpr)
+                            table.insert(compiled, pred)
+                        end
                     end
                 end
             end
@@ -951,8 +918,7 @@ QueryOperators['$nor'] = function(_selector, value)
 end
 
 QueryOperators['$not'] = function(selector, value)
-    local criteria = {}
-    criteria[selector] = normalize(value)
+    local criteria = { [selector] = value }
     local fn = compileQuery(criteria)
     return function(obj)
         local predicate = fn
@@ -1044,6 +1010,14 @@ QueryOperators['$eq'] = function(selector, value)
         local resolve = resolveFn
         local lhs = resolve(obj)
         return isEqual(lhs, value)
+    end
+end
+
+QueryOperators['$ne'] = function(selector, value)
+    local eqFn = QueryOperators['$eq'](selector, value)
+    return function(obj)
+        local eq = eqFn
+        return not eq(obj)
     end
 end
 
@@ -1182,7 +1156,7 @@ getFieldResolver = function(field)
                     local resolve = resolve
                     local lpath = path
                     local val = resolve(obj, lpath)
-                    debug('Resolved field "' .. field .. '" to value: ' .. tostr(val))
+                    --- debug('Resolved field "' .. field .. '" to value: ' .. tostr(val))
                     return val
                 end
             end
@@ -1433,10 +1407,13 @@ ExprOperators['$strcasecmp'] = function(expr)
 
     return function(obj)
         local args = exec(obj)
-        assert(isArray(args), '$strcasecmp must resolve to array(2)')
-        if (isEqual(args[1], args[2])) then return 0 end
-        assert(isString(args[1]) and isString(args[2]),
-            '$strcasecmp must resolve to array(2) of strings')
+        assert(type(args) == "table", '$strcasecmp must resolve to array(2)')
+        local left = args[1]
+        local right = args[2]
+        if (isNil(left) and isNil(right)) then
+            return 0
+        end
+        assert(isString(left) and isString(right), '$strcasecmp must resolve to array(2) of strings')
 
         local a = args[1]:upper()
         local b = args[2]:upper()
