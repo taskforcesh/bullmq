@@ -171,19 +171,19 @@ describe('Search Query Parsing', () => {
   describe('parseSearchQuery', () => {
     describe('Empty and invalid queries', () => {
       it('should return empty object for empty query', () => {
-        expect(parseSearchQuery('')).to.eql({});
+        expect(() => parseSearchQuery('')).to.throw();
       });
 
       it('should return empty object for whitespace-only query', () => {
-        expect(parseSearchQuery('   ')).to.eql({});
+        expect(() => parseSearchQuery(' ')).to.throw();
       });
 
       it('should return empty object for null query', () => {
-        expect(parseSearchQuery(null as any)).to.eql({});
+        expect(() => parseSearchQuery(null as any)).to.throw();
       });
 
       it('should return empty object for undefined query', () => {
-        expect(parseSearchQuery(undefined as any)).to.eql({});
+        expect(() => parseSearchQuery(undefined as any)).to.throw();
       });
     });
 

@@ -145,7 +145,7 @@ function getTokenValue(candidate: Token): string {
  */
 export function parseSearchQuery(luceneQuery: string): ServerQuery {
   if (!luceneQuery || luceneQuery.trim() === '') {
-    return {};
+    throw new Error(`Empty query string`);
   }
 
   const tokens = tokenizeQuery(luceneQuery.trim());
