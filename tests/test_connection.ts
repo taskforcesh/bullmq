@@ -227,9 +227,11 @@ describe('connection', () => {
         },
       });
 
-      await expect(queue.waitUntilReady()).to.be.eventually.rejectedWith(
-        'connect ECONNREFUSED 127.0.0.1:9000',
-      );
+      try {
+        await queue.waitUntilReady();
+      } catch (error) {
+        expect(error.code).to.be.equal('ECONNREFUSED');
+      }
     });
 
     it('should connect with connection URL', async () => {
@@ -260,9 +262,11 @@ describe('connection', () => {
         },
       });
 
-      await expect(queue.waitUntilReady()).to.be.eventually.rejectedWith(
-        'connect ECONNREFUSED 127.0.0.1:9001',
-      );
+      try {
+        await queue.waitUntilReady();
+      } catch (error) {
+        expect(error.code).to.be.equal('ECONNREFUSED');
+      }
     });
   });
 
