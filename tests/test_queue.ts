@@ -99,6 +99,50 @@ describe('queues', function () {
     await removeAllQueueData(new IORedis(redisHost), exQueueName);
   });
 
+  describe('.getMeta', function () {
+    it('should return global concurrency', async function () {
+      await queue.setGlobalConcurrency(1);
+      const config = await queue.getMeta();
+
+      expect(config).to.be.deep.equal({
+        maxLenEvents: 10000,
+        paused: false,
+        version: `bullmq:${currentPackageVersion}`,
+        concurrency: 1,
+      });
+
+      await queue.close();
+    });
+
+    it('should return global rate limit', async function () {
+      await queue.setGlobalRateLimit(1, 500);
+      const config = await queue.getMeta();
+
+      expect(config).to.be.deep.equal({
+        maxLenEvents: 10000,
+        paused: false,
+        version: `bullmq:${currentPackageVersion}`,
+        max: 1,
+        duration: 500,
+      });
+
+      await queue.close();
+    });
+
+    it('should return paused', async function () {
+      await queue.pause();
+      const config = await queue.getMeta();
+
+      expect(config).to.be.deep.equal({
+        maxLenEvents: 10000,
+        version: `bullmq:${currentPackageVersion}`,
+        paused: true,
+      });
+
+      await queue.close();
+    });
+  });
+
   describe('.add', () => {
     describe('when jobId is provided as integer', () => {
       it('throws error', async function () {
@@ -509,7 +553,7 @@ describe('queues', function () {
       let order = 0;
       const failing = new Promise<void>(resolve => {
         worker.on('failed', job => {
-          expect(order).to.be.eql(job.data.idx);
+          expect(order).to.be.eql(job!.data.idx);
           if (order === jobCount - 1) {
             resolve();
           }
@@ -617,8 +661,8 @@ describe('queues', function () {
         let timestamp;
         const failing = new Promise<void>(resolve => {
           worker.on('failed', job => {
-            expect(order).to.be.eql(job.data.idx);
-            if (job.data.idx === jobCount / 2 - 1) {
+            expect(order).to.be.eql(job!.data.idx);
+            if (job!.data.idx === jobCount / 2 - 1) {
               timestamp = Date.now();
             }
             if (order === jobCount - 1) {
@@ -682,7 +726,7 @@ describe('queues', function () {
         let order = 0;
         const failing = new Promise<void>(resolve => {
           worker.on('failed', job => {
-            expect(order).to.be.eql(job.data.idx);
+            expect(order).to.be.eql(job!.data.idx);
             if (order === jobCount - 1) {
               resolve();
             }

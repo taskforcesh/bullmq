@@ -18,6 +18,7 @@
   * [Adding jobs in bulk](guide/queues/adding-bulks.md)
   * [Global Concurrency](guide/queues/global-concurrency.md)
   * [Global Rate Limit](guide/queues/global-rate-limit.md)
+  * [Meta](guide/queues/meta.md)
   * [Removing Jobs](guide/queues/removing-jobs.md)
 * [Workers](guide/workers/README.md)
   * [Auto-removal of jobs](guide/workers/auto-removal-of-jobs.md)

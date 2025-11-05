@@ -453,7 +453,15 @@ describe('Job', function () {
     it('can set progress as number using the Queue instance', async () => {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
 
-      await queue.updateJobProgress(job.id!, 42);
+      const progress = new Promise<void>(resolve => {
+        queue.on('progress', (jobId: string, progress: string | boolean | number | object) => {
+          expect(jobId).to.be.eql(job.id);
+          expect(progress).to.be.eql(42);
+          resolve();
+        });
+      });
+      queue.updateJobProgress(job.id!, 42);
+      await progress;
 
       const storedJob = await Job.fromId(queue, job.id!);
       expect(storedJob!.progress).to.be.equal(42);
