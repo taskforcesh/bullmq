@@ -66,7 +66,7 @@ local currentJobKey = nil
 --- eg { $and: [ { 'data.request.priority': { $gt: 5 } }, { 'data.request.priority': { $lt: 10 } } ] }
 local cachedValues = {}
 
-local isDebugging = true
+local isDebugging = false
 --- Response metadata
 local responseMeta = {
     ['progress'] = 0,
