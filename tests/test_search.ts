@@ -10,7 +10,7 @@ const Person: Record<string, any> = {
   _id: '100',
   firstName: 'Francis',
   lastName: 'Asante',
-  username: 'kofrasa',
+  username: 'master_ace',
   title: 'Software Engineer',
   degree: 'Computer Science',
   jobs: 6,
@@ -169,10 +169,8 @@ describe('Search', () => {
   }
 
   describe('Basic field access', () => {
-    let job;
-
     beforeEach(async () => {
-      job = await queue.add('default', Person);
+      await queue.add('default', Person);
     });
 
     it('can access basic job fields', async () => {
@@ -185,10 +183,8 @@ describe('Search', () => {
   });
 
   describe('Comparison, Evaluation, and Element Operators', () => {
-    let job: Job;
-
     beforeEach(async () => {
-      job = await queue.add('default', Person);
+      await queue.add('default', Person);
     });
 
     it('$eq', async () => {
@@ -209,7 +205,7 @@ describe('Search', () => {
     });
 
     it('$not with sub queries', async () => {
-      await attempt({ 'data.username': { $not: { $ne: 'kofrasa' } } });
+      await attempt({ 'data.username': { $not: { $ne: 'master_ace' } } });
     });
 
     it('$gt', async () => {
@@ -280,10 +276,8 @@ describe('Search', () => {
   });
 
   describe('Query Logical Operators', function () {
-    let job: Job;
-
     beforeEach(async () => {
-      job = await queue.add('default', Person);
+      await queue.add('default', Person);
     });
 
     describe('$and', () => {
@@ -371,7 +365,7 @@ describe('Search', () => {
           {
             $xor: [
               { 'data.firstName': 'Francis' },
-              { 'data.username': 'kofrasa' },
+              { 'data.username': 'master_ace' },
             ],
           },
           false,
@@ -587,8 +581,6 @@ describe('Search', () => {
   });
 
   describe('Conditional Operators', () => {
-    let job: Job;
-
     const data: Record<string, any> = {
       lowScore: 100,
       highScore: 200,
@@ -597,7 +589,7 @@ describe('Search', () => {
     };
 
     beforeEach(async () => {
-      job = await queue.add('default', data);
+      await queue.add('default', data);
     });
 
     describe('$cond', () => {
@@ -679,10 +671,8 @@ describe('Search', () => {
 
   describe('Type Operators', () => {
     describe('$type', () => {
-      let job: Job;
-
       beforeEach(async () => {
-        job = await queue.add('default', Person);
+        await queue.add('default', Person);
       });
 
       it('can handle "object"', async () => {
@@ -888,8 +878,7 @@ describe('Search', () => {
 
         const { jobs: jobs1 } = await queue.search('wait', 'inference');
         expect(jobs1.length).to.equal(1);
-        const jobData = jobs1[0].data;
-        expect(jobData).to.be.eql({ _id: 4 });
+        expect(jobs1[0].data).to.be.eql({ _id: 4 });
       });
 
       it('should search job data', async () => {
@@ -1181,10 +1170,8 @@ describe('Search', () => {
           },
         ];
 
-        let inventoryJobs: Job[];
-
         beforeEach(async () => {
-          inventoryJobs = await queue.addBulk(inventory);
+          await queue.addBulk(inventory);
         });
 
         describe('Numeric Ranges', () => {
@@ -1372,11 +1359,10 @@ describe('Search', () => {
         expect(jobs[0].name).to.equal('task-three');
       });
     });
-    describe('Logical Operators', () => {
-      let job: Job;
 
+    describe('Logical Operators', () => {
       beforeEach(async () => {
-        job = await queue.add('default', Person);
+        await queue.add('default', Person);
       });
 
       describe('$and', () => {
@@ -1549,21 +1535,19 @@ describe('Search', () => {
   });
 
   describe('Cursor-Based Iteration', function () {
-    beforeEach(async function () {
+    it('should iterate through jobs in batches using cursor', async function () {
+      const query = { 'data.type': 'even' }; // Search for jobs with the type 'even'
+      const batchSize = 10;
+      let cursorId: string | null = null;
+      let done = false;
+      const allJobs: Job[] = [];
+
       // Add jobs to the queue for testing cursor iteration
       const jobs = Array.from({ length: 50 }, (_, i) => ({
         name: `job-${i}`,
         data: { index: i, type: i % 2 === 0 ? 'even' : 'odd' },
       }));
       await queue.addBulk(jobs);
-    });
-
-    it('should iterate through jobs in batches using cursor', async function () {
-      const query = { 'data.type': 'even' }; // Search for jobs with type 'even'
-      const batchSize = 10;
-      let cursorId: string | null = null;
-      let done = false;
-      const allJobs: Job[] = [];
 
       while (!done) {
         // Perform the search with pagination
@@ -1607,6 +1591,13 @@ describe('Search', () => {
       let done = false;
       const retrievedJobs: Job[] = [];
 
+      // Add jobs to the queue for testing cursor iteration
+      const jobs = Array.from({ length: 50 }, (_, i) => ({
+        name: `job-${i}`,
+        data: { index: i, type: i % 2 === 0 ? 'even' : 'odd', foo: 'bar' },
+      }));
+      await queue.addBulk(jobs);
+
       while (!done) {
         const {
           jobs,
@@ -1637,23 +1628,54 @@ describe('Search', () => {
       expect(indices).to.deep.equal([...indices].sort((a, b) => a - b));
     });
 
-    it('should respect cursor expiration', async function () {
-      // Set up the initial search iteration
-      const query = { 'data.index': { $lt: 10 } };
+    it('should return jobs from cursor cache', async () => {
+      const jobName = 'test';
+      const totalJobs = 20;
       const batchSize = 5;
-
-      // Begin search and get initial cursor
-      const { cursorId } = await queue.search('waiting', query, batchSize);
-
-      // Simulate expiration (e.g., cursor expires after inactivity, like 30 seconds)
-      await new Promise(resolve => setTimeout(resolve, 31000)); // 31 seconds
-
-      try {
-        await queue.search('waiting', query, batchSize, false, cursorId);
-        throw new Error('Expected cursor to have expired');
-      } catch (err: any) {
-        expect(err.message).to.match(/Cursor expired/); // Error message indicating expiration
+      const countPerCall = 7;
+      const jobs = [];
+      for (let i = 0; i < totalJobs; i++) {
+        jobs.push({
+          name: jobName,
+          data: {
+            id: i,
+            name: `test-job-${i}`,
+            sort: i,
+          },
+        });
       }
+
+      await queue.addBulk(jobs);
+
+      const query = 'data.id:[0 TO *]';
+
+      const firstResult = await queue.search(
+        'waiting',
+        query,
+        countPerCall,
+        false,
+        null,
+        batchSize,
+      );
+
+      expect(firstResult.jobs.length).to.be.equal(countPerCall);
+      expect(firstResult.done).to.be.false;
+      expect(firstResult.total).to.be.equal(totalJobs);
+
+      const secondResult = await queue.search(
+        'waiting',
+        query,
+        countPerCall,
+        false,
+        firstResult.cursorId,
+        batchSize,
+      );
+
+      const expectedCount = Math.min(
+        countPerCall,
+        totalJobs - firstResult.jobs.length,
+      );
+      expect(secondResult.jobs.length).to.be.equal(expectedCount);
     });
   });
 });
