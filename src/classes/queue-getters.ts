@@ -5,7 +5,7 @@ import { QueueBase } from './queue-base';
 import { Job } from './job';
 import { clientCommandMessageReg, delay, QUEUE_EVENT_SUFFIX } from '../utils';
 import { JobState, JobType } from '../types';
-import { JobJsonRaw, Metrics, MinimalQueue } from '../interfaces';
+import { JobJsonRaw, Metrics, MinimalQueue, QueueMeta } from '../interfaces';
 import { parseSearchQuery } from './search-query-parser';
 import { v4 } from 'uuid';
 
