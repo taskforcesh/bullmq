@@ -1254,8 +1254,9 @@ export function translateRegexToLuaPattern(regexPattern: string): string {
   }
 
   // Recursively translate nested character sets
+  // Limit the content to reasonable lengths and use atomic grouping concept
   luaPattern = luaPattern.replace(
-    /\[([^\]]+)]/g,
+    /\[([^\]]{0,100}?)]/g,
     function (match, _innerContent: string) {
       return translateRegexClassToLua(match);
     },
