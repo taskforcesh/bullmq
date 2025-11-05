@@ -3,8 +3,6 @@
 ## Overview
 
 The `search` method accepts a `Lucene` style query string that is parsed and converted into a filter to be executed on the server.
-Lucene heavily inspires the query syntax. It supports various operators and field types, allowing for flexible searches.
-
 It allows for complex, text-based searches on job data and metadata. Consider the following example:
 
 ```typescript
