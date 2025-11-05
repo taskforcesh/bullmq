@@ -1694,7 +1694,7 @@ local function search(stateKey, criteria, count, asc)
 
         if found == count then
             responseMeta['done'] = total == progress
-            ressponseMeta['remainder'] = meta['jobCount'] or 0
+            responseMeta['remainder'] = meta['jobCount'] or 0
             result[1] = cjson.encode(responseMeta)
             return result
         end
