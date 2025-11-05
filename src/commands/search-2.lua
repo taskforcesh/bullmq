@@ -5,15 +5,15 @@
         KEYS[1] key for jobs in a given status
         KEYS[2] key for cursor
         ARGV[1] filter criteria as a Mongo styled query as a json encoded string
-        ARGV[2] count
-        ARGV[3] asc
+        ARGV[2] count - the max number of jobs to return
+        ARGV[3] asc - whether to scan jobs in ascending order
         ARGV[4] batchSize - the max number of jobs to process per iteration
 
   The filter expression supports the following operators:
 
     Comparison Query Operators
         $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin, $regex, $iregex, $exists, $type, $size,
-        $startsWith, $endsWith, $contains
+        $startsWith, $endsWith, $contains, $icontains
 
     Logical Query Operators
         $and, $or, $nor, $not, $xor
@@ -42,7 +42,6 @@
                 - total: total number of jobs in the selected state
                 - done: whether the end of the dataset has been reached
                 - debug: array of debug messages (if debugging is enabled)
-                - iterations: number of iterations performed to get the results
                 - remainder: number of jobs which match the criteria but were not returned due to count limit
             job - the matching job objects as json encoded strings
 ]]
@@ -506,9 +505,7 @@ end
 
 local function compare(a, b, fn)
     local btype = type(b)
-    return some(a, function(x)
-        return (btype == type(x)) and fn(x, b)
-    end)
+    return some(a, function(x) return (btype == type(x)) and fn(x, b) end)
 end
 
 Predicates['$eq'] = function(a, b)
@@ -537,9 +534,7 @@ Predicates['$in'] = function(a, b)
     if (isNil(a)) then
         return some(b, isNil)
     end
-    return some(a, function(v)
-        return inArray(b, v)
-    end)
+    return some(a, function(v) return inArray(b, v) end)
 end
 
 Predicates['$nin'] = function(a, b)
@@ -1152,12 +1147,33 @@ getFieldResolver = function(field)
                     end
                 end
             else
-                handler = function(obj)
-                    local resolve = resolve
-                    local lpath = path
-                    local val = resolve(obj, lpath)
-                    --- debug('Resolved field "' .. field .. '" to value: ' .. tostr(val))
-                    return val
+                --- for complex paths, use the general resolver. If we have longer paths, cache the resolved
+                --- segments for performance. Imagine a query like the following:
+                --- { "data.user.details.discount": { $gt: 10, $lt: 20 } }
+                --- this would cause the path to be resolved twice per job (once for $gt, once for $lt).
+                if segmentCount >= 3 then
+                    -- build a cache key for the resolved path
+                    local cacheKey = '&' .. field
+                    handler = function(obj)
+                        local resolve = resolve
+                        local key = cacheKey
+                        local cache = cachedValues
+                        local cachedVal = cache[key]
+                        if cachedVal ~= nil then
+                            return cachedVal
+                        end
+                        local val = resolve(obj, path)
+                        cache[key] = val
+                        return val
+                    end
+                else
+                    handler = function(obj)
+                        local resolve = resolve
+                        local lpath = path
+                        local val = resolve(obj, lpath)
+                        --- debug('Resolved field "' .. field .. '" to value: ' .. tostr(val))
+                        return val
+                    end
                 end
             end
         end
@@ -1457,11 +1473,7 @@ local function createComparison(name)
             local exec = execFn -- capture to spare an upvalue lookup
             local args = exec(obj)
             assert(isArray(args) and #args == 2, name .. ': comparison expects 2 arguments. Got ' .. tostr(args))
-            local val = fn(args[1], args[2])
-            if isDebugging then
-                debug('Comparison: ' .. tostr(args[1]) .. ' ' .. name .. ' ' .. tostr(args[2]) .. ' = ' .. tostr(val))
-            end
-            return val
+            return fn(args[1], args[2])
         end
     end
 end
@@ -1478,13 +1490,7 @@ local function initOperators()
                     local predicate = predicateFn
 
                     local lhs = resolve(obj)
-                    local val = predicate(lhs, value)
-
-                    if isDebugging then
-                        debug('Predicate: ' .. tostr(lhs) .. ' ' .. name .. ' ' .. tostr(value) .. ' = ' .. tostr(val))
-                    end
-
-                    return val
+                    return predicate(lhs, value)
                 end
             end
         end
@@ -1552,8 +1558,10 @@ local function getKeysForState(stateKey, status, rangeStart, rangeEnd, asc)
                 modifiedRangeEnd = -(rangeEnd + 1)
             end
 
-
             items = rcall("LRANGE", listKey, modifiedRangeEnd, modifiedRangeStart)
+            table.sort(items, function(x, y)
+                return tonumber(x) < tonumber(y)
+            end)
         else
             items = rcall("LRANGE", listKey, rangeStart, rangeEnd)
         end
@@ -1629,7 +1637,7 @@ local function getJobsFromCursor(count)
             meta['jobs'] = remainder
             meta['jobCount'] = #remainder
 
-            local serialized = cjson.encode(remainder)
+            local serialized = cjson.encode(meta)
             rcall("SET", cursorKey, serialized)
             -- set expirations
             rcall("EXPIRE", cursorKey, CURSOR_EXPIRATION)
@@ -1673,8 +1681,6 @@ local function search(stateKey, criteria, count, asc)
     local cursor = meta["cursor"]
     local progress = meta["progress"]
     local iteration = (meta["iteration"] or 0) + 1
-
-    -- debug("Here1: cursor=" .. cursor .. ", total=" .. total .. ", progress=" .. progress .. ", found=" .. found)
 
     responseMeta['total'] = total
     responseMeta['progress'] = progress
@@ -1743,7 +1749,6 @@ local function search(stateKey, criteria, count, asc)
 
     responseMeta["total"] = total
     responseMeta['done'] = done
-    responseMeta['iteration'] = iteration
     responseMeta['progress'] = progress
     responseMeta['remainder'] = remCount
 
