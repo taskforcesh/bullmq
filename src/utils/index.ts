@@ -1,4 +1,4 @@
-import { Cluster, Redis, ReplyError } from 'ioredis';
+import { Cluster, Redis } from 'ioredis';
 
 // Note: this Polyfill is only needed for Node versions < 15.4.0
 import { AbortController } from 'node-abort-controller';
