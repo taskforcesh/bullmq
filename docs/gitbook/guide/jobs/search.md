@@ -1,7 +1,6 @@
 # Job Search
 
-The `Queue.search` method provides a powerful way to search for jobs using a Lucene-like query syntax. This allows
-for complex, text-based searches on job data and metadata.
+The `Queue.search` method provides a powerful way to search for jobs using a Lucene-like query syntax.
 
 ## Overview
 
@@ -67,8 +66,6 @@ When searching through large numbers of jobs, retrieving all results at once can
 memory. The `search` method supports cursor-based iteration, allowing you to retrieve results in smaller batches while
 maintaining state between calls.
 
-This technique is particularly useful for paginating through large result sets or performing partial processing.
-
 ### How It Works
 
 The cursor mechanism stores intermediate search state on the Redis server, allowing you to:
@@ -109,7 +106,7 @@ async function searchWithProgress(
     } = await queue.search(
       jobType,
       query,
-      25, // retrieve 25 jobs per call
+      25, // retrieve up to 25 jobs per call
       true, // ascending order
       cursorId, // Cursor ID for continuation
       75, // batchSize: scan 75 jobs per iteration

@@ -63,10 +63,10 @@ data.user.email:test@example.com
 
 We also support special `virtual` fields that are not part of the job object but are commonly used:
 
-- `runtime`: The time taken by the worker to process the job. Essentially `finishedOn` - `processedOn`.
-- `waitTime`: The time the job spent waiting to be processed. Essentially `processedOn` - `timestamp`.
-- `queueTime`: The total time the job spent in the queue from creation to execution. Essentially `finishedOn` - `timestamp`.
-- `fullText`: A full-text search across multiple job fields (see Full-Text Search section).
+- `runtime`: The time taken by the worker to process the job (`finishedOn` - `processedOn`).
+- `waitTime`: The time the job spent waiting to be processed (`processedOn` - `timestamp`).
+- `queueTime`: The total time the job spent in the queue from creation to execution (`finishedOn` - `timestamp`).
+- `fullText`: A full-text search across multiple job fields (see the Full-Text Search section).
 - `logs`: Search within job logs.
 
 ### 2. Data Types
@@ -112,13 +112,19 @@ name:job1 OR name:job2
 - **XOR**: One condition must be true, but not both.
 
 ```
-"home-user" AND (broadband ^ fiber)
+residential AND (broadband ^ fiber)
 ```
 
 - **NOT**: Excludes jobs that match the condition.
 
 ```
 NOT returnvalue:failed
+```
+
+We can also use the `-` symbol as shorthand for `NOT`:
+
+```
+-returnvalue:failed
 ```
 
 ### 5. Grouping
@@ -212,9 +218,10 @@ data.username:/^user-[0-9]+$/
 data.username:/john/i
 ```
 
-**NOTE**: The regexes that search supports are only a subset of full regular expressions. For example, lookarounds, alternation
-and some other advanced features are not supported. For example, complex quantifiers (using `{n,m}` style syntax) are not
-supported. As a general rule of thumb, the regexes should be fairly simple.
+**NOTE**: The regexes that search supports are only a subset of full regular expressions. They are translated to
+`lua` patterns, which have different syntax and capabilities compared to standard regex engines. Lookarounds,
+alternation and other advanced features are not supported (like complex quantifiers using `{n,m}` style syntax).
+As a general rule, the regexes should be kept simple.
 
 ### 9. Full-Text Search
 
@@ -251,4 +258,16 @@ user profile
 
 ```
 "user profile"
+```
+
+Full-text search also supports logical operators, phrases, wildcards, and regexes as described in the previous sections.
+
+```
+("auth error" ^ timeout*) -expired
+```
+
+It can be combined with field-specific queries.
+
+```
+name:/^encode-/i AND mp4 AND ("transcoding error" OR logs:*timeout*)
 ```
