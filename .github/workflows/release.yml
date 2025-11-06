@@ -10,7 +10,8 @@ env:
 jobs:
   release:
     permissions:
-      contents: write # for release publishing
+      id-token: write # Required for OIDC
+      contents: write
       pull-requests: write # for creating PRs
       issues: write # additional permission that might be needed
 
@@ -26,7 +27,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v3
         with:
-          node-version: lts/*
+          node-version: '22.14.0'
           cache: 'yarn'
       - name: Install dependencies Node
         run: yarn install --frozen-lockfile --non-interactive
@@ -35,7 +36,8 @@ jobs:
         id: semantic_release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
         run: npx semantic-release
       - name: Create PR with release changes
         if: ${{ success() && steps.semantic_release.outcome == 'success' }}

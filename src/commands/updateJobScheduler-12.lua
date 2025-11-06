@@ -25,31 +25,60 @@
 
     Output:
       next delayed job id  - OK
-]]
-local rcall = redis.call
+]] local rcall = redis.call
 local repeatKey = KEYS[1]
 local delayedKey = KEYS[2]
 local waitKey = KEYS[3]
 local pausedKey = KEYS[4]
 local metaKey = KEYS[5]
 local prioritizedKey = KEYS[6]
-local nextMillis = ARGV[1]
+local nextMillis = tonumber(ARGV[1])
 local jobSchedulerId = ARGV[2]
-local timestamp = ARGV[5]
+local timestamp = tonumber(ARGV[5])
 local prefixKey = ARGV[6]
 local producerId = ARGV[7]
+local jobOpts = cmsgpack.unpack(ARGV[4])
 
 -- Includes
 --- @include "includes/addJobFromScheduler"
 --- @include "includes/getOrSetMaxEvents"
+--- @include "includes/getJobSchedulerEveryNextMillis"
 
-local schedulerKey = repeatKey .. ":" .. jobSchedulerId
-local nextDelayedJobId = "repeat:" .. jobSchedulerId .. ":" .. nextMillis
-local nextDelayedJobKey = schedulerKey .. ":" .. nextMillis
+local prevMillis = rcall("ZSCORE", repeatKey, jobSchedulerId)
 
 -- Validate that scheduler exists.
-local prevMillis = rcall("ZSCORE", repeatKey, jobSchedulerId)
+-- If it does not exist we should not iterate anymore.
 if prevMillis then
+    prevMillis = tonumber(prevMillis)
+
+    local schedulerKey = repeatKey .. ":" .. jobSchedulerId
+    local schedulerAttributes = rcall("HMGET", schedulerKey, "name", "data", "every", "startDate", "offset")
+
+    local every = tonumber(schedulerAttributes[3])
+    local now = tonumber(timestamp)
+
+    -- If every is not found in scheduler attributes, try to get it from job options
+    if not every and jobOpts['repeat'] and jobOpts['repeat']['every'] then
+        every = tonumber(jobOpts['repeat']['every'])
+    end
+
+    if every then
+        local startDate = schedulerAttributes[4]
+        local jobOptsOffset = jobOpts['repeat'] and jobOpts['repeat']['offset'] or 0
+        local offset = schedulerAttributes[5] or jobOptsOffset or 0
+        local newOffset
+
+        nextMillis, newOffset = getJobSchedulerEveryNextMillis(prevMillis, every, now, offset, startDate)
+
+        if not offset then
+            rcall("HSET", schedulerKey, "offset", newOffset)
+            jobOpts['repeat']['offset'] = newOffset
+        end
+    end
+
+    local nextDelayedJobId = "repeat:" .. jobSchedulerId .. ":" .. nextMillis
+    local nextDelayedJobKey = schedulerKey .. ":" .. nextMillis
+
     local currentDelayedJobId = "repeat:" .. jobSchedulerId .. ":" .. prevMillis
 
     if producerId == currentDelayedJobId then
@@ -57,7 +86,6 @@ if prevMillis then
         local maxEvents = getOrSetMaxEvents(metaKey)
 
         if rcall("EXISTS", nextDelayedJobKey) ~= 1 then
-            local schedulerAttributes = rcall("HMGET", schedulerKey, "name", "data")
 
             rcall("ZADD", repeatKey, nextMillis, jobSchedulerId)
             rcall("HINCRBY", schedulerKey, "ic", 1)
@@ -72,9 +100,18 @@ if prevMillis then
                 rcall("HSET", schedulerKey, "data", templateData)
             end
 
-            addJobFromScheduler(nextDelayedJobKey, nextDelayedJobId, ARGV[4], waitKey, pausedKey, 
-                KEYS[12], metaKey, prioritizedKey, KEYS[10], delayedKey, KEYS[7], eventsKey, 
-                schedulerAttributes[1], maxEvents, ARGV[5], templateData or '{}', jobSchedulerId)
+            local delay = nextMillis - now
+
+            -- Fast Clamp delay to minimum of 0
+            if delay < 0 then
+                delay = 0
+            end
+
+            jobOpts["delay"] = delay
+
+            addJobFromScheduler(nextDelayedJobKey, nextDelayedJobId, jobOpts, waitKey, pausedKey, KEYS[12], metaKey,
+                prioritizedKey, KEYS[10], delayedKey, KEYS[7], eventsKey, schedulerAttributes[1], maxEvents, ARGV[5],
+                templateData or '{}', jobSchedulerId, delay)
 
             -- TODO: remove this workaround in next breaking change
             if KEYS[11] ~= "" then
@@ -83,8 +120,7 @@ if prevMillis then
 
             return nextDelayedJobId .. "" -- convert to string
         else
-            rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
-                "duplicated", "jobId", nextDelayedJobId)
+            rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "duplicated", "jobId", nextDelayedJobId)
         end
     end
 end

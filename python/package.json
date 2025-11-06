@@ -24,9 +24,12 @@
     "@semantic-release/github": "^11.0.1",
     "@semantic-release/npm": "^11.0.3",
     "@semantic-release/release-notes-generator": "^14.1.0",
-    "conventional-changelog-conventionalcommits": "^9.1.0",
     "semantic-release": "^24.2.7",
     "semantic-release-pypi": "^5.1.1"
+  },
+  "resolutions": {
+    "@semantic-release/commit-analyzer/conventional-changelog-angular": "8.1.0",
+    "@semantic-release/release-notes-generator/conventional-changelog-angular": "8.1.0"
   },
   "commitlint": {
     "extends": [
@@ -50,46 +53,9 @@
       [
         "@semantic-release/release-notes-generator",
         {
-          "preset": "conventionalcommits",
+          "preset": "angular",
           "presetConfig": {
-            "ignoreCommits": "^(?![^]*\\(python\\))(?![^]*\\[python\\]).*$",
-            "types": [
-              {
-                "type": "feat",
-                "section": "Features",
-                "hidden": false
-              },
-              {
-                "type": "fix",
-                "section": "Bug Fixes",
-                "hidden": false
-              },
-              {
-                "type": "chore",
-                "hidden": true
-              },
-              {
-                "type": "docs",
-                "hidden": true
-              },
-              {
-                "type": "style",
-                "hidden": true
-              },
-              {
-                "type": "test",
-                "hidden": true
-              },
-              {
-                "type": "refactor",
-                "hidden": true
-              },
-              {
-                "type": "perf",
-                "section": "Performance Improvements",
-                "hidden": false
-              }
-            ]
+            "ignoreCommits": "^(?![^]*\\(python\\))(?![^]*\\[python\\]).*$"
           }
         }
       ],

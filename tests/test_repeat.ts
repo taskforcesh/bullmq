@@ -45,7 +45,10 @@ describe('repeat', function () {
   });
 
   beforeEach(async function () {
-    this.clock = sinon.useFakeTimers({ shouldClearNativeTimers: true });
+    this.clock = sinon.useFakeTimers({
+      shouldClearNativeTimers: true,
+      toFake: ['Date', 'setTimeout', 'clearTimeout'],
+    });
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection, prefix });
     repeat = new Repeat(queueName, { connection, prefix });
@@ -1979,9 +1982,7 @@ describe('repeat', function () {
       queueEvents.on('waiting', function ({ jobId }) {
         try {
           expect(jobId).to.be.equal(
-            `repeat:16db7a9b166154f5c636abf3c8fe3364:${
-              date.getTime() + 1 * ONE_SECOND
-            }`,
+            `repeat:16db7a9b166154f5c636abf3c8fe3364:${date.getTime() + 1 * ONE_SECOND}`,
           );
           resolve();
         } catch (err) {

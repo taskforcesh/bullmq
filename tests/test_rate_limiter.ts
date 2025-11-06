@@ -21,7 +21,7 @@ describe('Rate Limiter', function () {
   let queueName: string;
   let queueEvents: QueueEvents;
 
-  let connection;
+  let connection: IORedis;
   before(async function () {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
@@ -76,6 +76,121 @@ describe('Rate Limiter', function () {
     const delayedCount = await queue.getDelayedCount();
     expect(delayedCount).to.equal(0);
     await worker.close();
+  });
+
+  describe('when setting rate limit globally', () => {
+    it('should obey the rate limit', async function () {
+      this.timeout(7000);
+
+      const numJobs = 10;
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          const currentTtl = await queue.getRateLimitTtl();
+          expect(currentTtl).to.be.lessThanOrEqual(500);
+          expect(currentTtl).to.be.greaterThan(200);
+        },
+        {
+          connection,
+          prefix,
+        },
+      );
+
+      await queue.setGlobalRateLimit(1, 500);
+      const globalRateLimit = await queue.getGlobalRateLimit();
+
+      expect(globalRateLimit).to.deep.equal({ max: 1, duration: 500 });
+
+      const result = new Promise<void>((resolve, reject) => {
+        queueEvents.on(
+          'completed',
+          // after every job has been completed
+          after(numJobs, async () => {
+            try {
+              const timeDiff = new Date().getTime() - startTime;
+              expect(timeDiff).to.be.gte((numJobs - 1) * 500);
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          }),
+        );
+
+        queueEvents.on('failed', async err => {
+          await worker.close();
+          reject(err);
+        });
+      });
+
+      const startTime = new Date().getTime();
+      const jobs = Array.from(Array(numJobs).keys()).map(() => ({
+        name: 'rate test',
+        data: {},
+      }));
+      await queue.addBulk(jobs);
+
+      await result;
+      await worker.close();
+    });
+
+    describe('when rate limit is removed', () => {
+      it('should execute jobs without rate limit', async function () {
+        this.timeout(2000);
+
+        const numJobs = 10;
+
+        const worker = new Worker(
+          queueName,
+          async () => {
+            const currentTtl = await queue.getRateLimitTtl();
+            expect(currentTtl).to.be.equal(-2); // -2 means no rate limit
+          },
+          {
+            connection,
+            prefix,
+          },
+        );
+
+        await queue.setGlobalRateLimit(1, 500);
+        await queue.removeGlobalRateLimit();
+
+        const globalRateLimit = await queue.getGlobalRateLimit();
+
+        expect(globalRateLimit).to.be.null;
+
+        const result = new Promise<void>((resolve, reject) => {
+          queueEvents.on(
+            'completed',
+            // after every job has been completed
+            after(numJobs, async () => {
+              try {
+                const timeDiff = new Date().getTime() - startTime;
+                expect(timeDiff).to.be.lte(150);
+                resolve();
+              } catch (err) {
+                reject(err);
+              }
+            }),
+          );
+
+          queueEvents.on('failed', async err => {
+            await worker.close();
+            reject(err);
+          });
+        });
+
+        const jobs = Array.from(Array(numJobs).keys()).map(() => ({
+          name: 'rate test',
+          data: {},
+        }));
+        const startTime = new Date().getTime();
+        await queue.addBulk(jobs);
+
+        await result;
+        await worker.close();
+      });
+    });
   });
 
   it('should obey the rate limit', async function () {

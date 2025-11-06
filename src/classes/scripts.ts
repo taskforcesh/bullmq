@@ -169,6 +169,7 @@ export class Scripts {
       queueKeys.meta,
       queueKeys.id,
       queueKeys.delayed,
+      queueKeys['waiting-children'],
       queueKeys.completed,
       queueKeys.events,
     ];
@@ -240,7 +241,6 @@ export class Scripts {
       job.name,
       job.timestamp,
       job.parentKey || null,
-      parentKeyOpts.waitChildrenKey || null,
       parentKeyOpts.parentDependenciesKey || null,
       parent,
       job.repeatJobKey,
@@ -270,7 +270,7 @@ export class Scripts {
 
     let result: string | number;
 
-    if (parentKeyOpts.waitChildrenKey) {
+    if (parentKeyOpts.addToWaitingChildren) {
       result = await this.addParentJob(client, job, encodedOpts, args);
     } else if (typeof opts.delay == 'number' && opts.delay > 0) {
       result = await this.addDelayedJob(client, job, encodedOpts, args);
@@ -370,7 +370,7 @@ export class Scripts {
     delayedJobOpts: JobsOptions,
     // The job id of the job that produced this next iteration
     producerId?: string,
-  ): Promise<string> {
+  ): Promise<[string, number]> {
     const client = await this.queue.client;
     const queueKeys = this.queue.keys;
 
@@ -400,7 +400,20 @@ export class Scripts {
       producerId ? this.queue.toKey(producerId) : '',
     ];
 
-    return this.execCommand(client, 'addJobScheduler', keys.concat(args));
+    const result = await this.execCommand(
+      client,
+      'addJobScheduler',
+      keys.concat(args),
+    );
+
+    if (typeof result === 'number' && result < 0) {
+      throw this.finishedErrors({
+        code: result,
+        command: 'addJobScheduler',
+      });
+    }
+
+    return result;
   }
 
   async updateRepeatableJobMillis(
@@ -733,8 +746,8 @@ export class Scripts {
     return typeof shouldRemove === 'object'
       ? shouldRemove
       : typeof shouldRemove === 'number'
-      ? { count: shouldRemove }
-      : { count: shouldRemove ? 0 : -1 };
+        ? { count: shouldRemove }
+        : { count: shouldRemove ? 0 : -1 };
   }
 
   async moveToFinished(
@@ -1000,6 +1013,21 @@ export class Scripts {
     return this.execCommand(client, 'getStateV2', keys.concat([jobId]));
   }
 
+  /**
+   * Change delay of a delayed job.
+   *
+   * Reschedules a delayed job by setting a new delay from the current time.
+   * For example, calling changeDelay(5000) will reschedule the job to execute
+   * 5000 milliseconds (5 seconds) from now, regardless of the original delay.
+   *
+   * @param jobId - the ID of the job to change the delay for.
+   * @param delay - milliseconds from now when the job should be processed.
+   * @returns delay in milliseconds.
+   * @throws JobNotExist
+   * This exception is thrown if jobId is missing.
+   * @throws JobNotInState
+   * This exception is thrown if job is not in delayed state.
+   */
   async changeDelay(jobId: string, delay: number): Promise<void> {
     const client = await this.queue.client;
 
@@ -1078,6 +1106,7 @@ export class Scripts {
     opts: MoveToDelayedOpts = {},
   ): (string | number | Buffer)[] {
     const queueKeys = this.queue.keys;
+
     const keys: (string | number | Buffer)[] = [
       queueKeys.marker,
       queueKeys.active,
@@ -1209,7 +1238,10 @@ export class Scripts {
   }
 
   getRateLimitTtlArgs(maxJobs?: number): (string | number)[] {
-    const keys: (string | number)[] = [this.queue.keys.limiter];
+    const keys: (string | number)[] = [
+      this.queue.keys.limiter,
+      this.queue.keys.meta,
+    ];
 
     return keys.concat([maxJobs ?? '0']);
   }
@@ -1356,15 +1388,15 @@ export class Scripts {
   /**
    * Attempts to reprocess a job
    *
-   * @param job -
+   * @param job - The job to reprocess
    * @param state - The expected job state. If the job is not found
    * on the provided state, then it's not reprocessed. Supported states: 'failed', 'completed'
    *
-   * @returns Returns a promise that evaluates to a return code:
-   * 1 means the operation was a success
-   * 0 means the job does not exist
-   * -1 means the job is currently locked and can't be retried.
-   * -2 means the job was not found in the expected set
+   * @returns A promise that resolves when the job has been successfully moved to the wait queue.
+   * @throws Will throw an error with a code property indicating the failure reason:
+   *   - code 0: Job does not exist
+   *   - code -1: Job is currently locked and can't be retried
+   *   - code -2: Job was not found in the expected set
    */
   async reprocessJob<T = any, R = any, N extends string = string>(
     job: MinimalJob<T, R, N>,
@@ -1407,6 +1439,28 @@ export class Scripts {
           state,
         });
     }
+  }
+
+  async getMetrics(
+    type: 'completed' | 'failed',
+    start = 0,
+    end = -1,
+  ): Promise<[string[], string[], number]> {
+    const client = await this.queue.client;
+
+    const keys: (string | number)[] = [
+      this.queue.toKey(`metrics:${type}`),
+      this.queue.toKey(`metrics:${type}:data`),
+    ];
+    const args = [start, end];
+
+    const result = await this.execCommand(
+      client,
+      'getMetrics',
+      keys.concat(args),
+    );
+
+    return result;
   }
 
   async moveToActive(client: RedisClient, token: string, name?: string) {
@@ -1681,38 +1735,66 @@ export class Scripts {
     command: string;
     state?: string;
   }): Error {
+    let error: Error;
     switch (code) {
       case ErrorCode.JobNotExist:
-        return new Error(`Missing key for job ${jobId}. ${command}`);
+        error = new Error(`Missing key for job ${jobId}. ${command}`);
+        break;
       case ErrorCode.JobLockNotExist:
-        return new Error(`Missing lock for job ${jobId}. ${command}`);
+        error = new Error(`Missing lock for job ${jobId}. ${command}`);
+        break;
       case ErrorCode.JobNotInState:
-        return new Error(
+        error = new Error(
           `Job ${jobId} is not in the ${state} state. ${command}`,
         );
+        break;
       case ErrorCode.JobPendingChildren:
-        return new Error(`Job ${jobId} has pending dependencies. ${command}`);
+        error = new Error(`Job ${jobId} has pending dependencies. ${command}`);
+        break;
       case ErrorCode.ParentJobNotExist:
-        return new Error(`Missing key for parent job ${parentKey}. ${command}`);
+        error = new Error(
+          `Missing key for parent job ${parentKey}. ${command}`,
+        );
+        break;
       case ErrorCode.JobLockMismatch:
-        return new Error(
+        error = new Error(
           `Lock mismatch for job ${jobId}. Cmd ${command} from ${state}`,
         );
+        break;
       case ErrorCode.ParentJobCannotBeReplaced:
-        return new Error(
+        error = new Error(
           `The parent job ${parentKey} cannot be replaced. ${command}`,
         );
+        break;
       case ErrorCode.JobBelongsToJobScheduler:
-        return new Error(
+        error = new Error(
           `Job ${jobId} belongs to a job scheduler and cannot be removed directly. ${command}`,
         );
+        break;
       case ErrorCode.JobHasFailedChildren:
-        return new UnrecoverableError(
+        error = new UnrecoverableError(
           `Cannot complete job ${jobId} because it has at least one failed child. ${command}`,
         );
+        break;
+      case ErrorCode.SchedulerJobIdCollision:
+        error = new Error(
+          `Cannot create job scheduler iteration - job ID already exists. ${command}`,
+        );
+        break;
+      case ErrorCode.SchedulerJobSlotsBusy:
+        error = new Error(
+          `Cannot create job scheduler iteration - current and next time slots already have jobs. ${command}`,
+        );
+        break;
       default:
-        return new Error(`Unknown code ${code} error for ${jobId}. ${command}`);
+        error = new Error(
+          `Unknown code ${code} error for ${jobId}. ${command}`,
+        );
     }
+
+    // Add the code property to the error object
+    (error as any).code = code;
+    return error;
   }
 }
 

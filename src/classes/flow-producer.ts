@@ -371,14 +371,10 @@ export class FlowProducer extends EventEmitter {
           const queueKeysParent = new QueueKeys(
             node.prefix || this.opts.prefix,
           );
-          const waitChildrenKey = queueKeysParent.toKey(
-            node.queueName,
-            'waiting-children',
-          );
 
           await job.addJob(<Redis>(multi as unknown), {
             parentDependenciesKey: parent?.parentDependenciesKey,
-            waitChildrenKey,
+            addToWaitingChildren: true,
             parentKey,
           });
 

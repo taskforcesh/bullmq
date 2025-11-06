@@ -198,6 +198,26 @@ describe('Job', function () {
       });
     });
 
+    describe('when deduplication id option is provided as empty string', () => {
+      it('throws an error', async () => {
+        const data = { foo: 'bar' };
+        const opts = { deduplication: { id: '' } };
+        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+          'Deduplication id must be provided',
+        );
+      });
+    });
+
+    describe('when debounce id option is provided as empty string', () => {
+      it('throws an error', async () => {
+        const data = { foo: 'bar' };
+        const opts = { debounce: { id: '' } };
+        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+          'Debounce id must be provided',
+        );
+      });
+    });
+
     describe('when jitter backoff option is provided with a value lesser than 0', () => {
       it('throws an error', async () => {
         const data = { foo: 'bar' };
@@ -280,7 +300,9 @@ describe('Job', function () {
       const job = await Job.create<{ foo?: string; baz?: string }>(
         queue,
         'test',
-        { foo: 'bar' },
+        {
+          foo: 'bar',
+        },
       );
       await job.updateData({ baz: 'qux' });
 
@@ -431,7 +453,18 @@ describe('Job', function () {
     it('can set progress as number using the Queue instance', async () => {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
 
-      await queue.updateJobProgress(job.id!, 42);
+      const progress = new Promise<void>(resolve => {
+        queue.on(
+          'progress',
+          (jobId: string, progress: string | boolean | number | object) => {
+            expect(jobId).to.be.eql(job.id);
+            expect(progress).to.be.eql(42);
+            resolve();
+          },
+        );
+      });
+      queue.updateJobProgress(job.id!, 42);
+      await progress;
 
       const storedJob = await Job.fromId(queue, job.id!);
       expect(storedJob!.progress).to.be.equal(42);

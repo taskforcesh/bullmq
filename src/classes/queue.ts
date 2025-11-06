@@ -64,14 +64,14 @@ export interface QueueListener<JobBase extends Job = Job>
    *
    * This event is triggered when the job updates its progress.
    */
-  progress: (job: JobBase, progress: number | object) => void;
+  progress: (jobId: string, progress: JobProgress) => void;
 
   /**
    * Listen to 'removed' event.
    *
    * This event is triggered when a job is removed.
    */
-  removed: (job: JobBase) => void;
+  removed: (jobId: string) => void;
 
   /**
    * Listen to 'resumed' event.
@@ -96,33 +96,22 @@ export interface QueueListener<JobBase extends Job = Job>
  */
 type IsAny<T> = 0 extends 1 & T ? true : false;
 // Helper for JobBase type
-type JobBase<T, ResultType, NameType extends string> = IsAny<T> extends true
-  ? Job<T, ResultType, NameType>
-  : T extends Job<any, any, any>
-  ? T
-  : Job<T, ResultType, NameType>;
+type JobBase<T, ResultType, NameType extends string> =
+  IsAny<T> extends true
+    ? Job<T, ResultType, NameType>
+    : T extends Job<any, any, any>
+      ? T
+      : Job<T, ResultType, NameType>;
 
 // Helper types to extract DataType, ResultType, and NameType
-type ExtractDataType<DataTypeOrJob, Default> = DataTypeOrJob extends Job<
-  infer D,
-  any,
-  any
->
-  ? D
-  : Default;
+type ExtractDataType<DataTypeOrJob, Default> =
+  DataTypeOrJob extends Job<infer D, any, any> ? D : Default;
 
-type ExtractResultType<DataTypeOrJob, Default> = DataTypeOrJob extends Job<
-  any,
-  infer R,
-  any
->
-  ? R
-  : Default;
+type ExtractResultType<DataTypeOrJob, Default> =
+  DataTypeOrJob extends Job<any, infer R, any> ? R : Default;
 
-type ExtractNameType<
-  DataTypeOrJob,
-  Default extends string,
-> = DataTypeOrJob extends Job<any, any, infer N> ? N : Default;
+type ExtractNameType<DataTypeOrJob, Default extends string> =
+  DataTypeOrJob extends Job<any, any, infer N> ? N : Default;
 
 /**
  * Queue
@@ -278,19 +267,6 @@ export class Queue<
   }
 
   /**
-   * Get global concurrency value.
-   * Returns null in case no value is set.
-   */
-  async getGlobalConcurrency(): Promise<number | null> {
-    const client = await this.client;
-    const concurrency = await client.hget(this.keys.meta, 'concurrency');
-    if (concurrency) {
-      return Number(concurrency);
-    }
-    return null;
-  }
-
-  /**
    * Enable and set global concurrency value.
    * @param concurrency - Maximum number of simultaneous jobs that the workers can handle.
    * For instance, setting this value to 1 ensures that no more than one job
@@ -303,11 +279,29 @@ export class Queue<
   }
 
   /**
+   * Enable and set rate limit.
+   * @param max - Max number of jobs to process in the time period specified in `duration`
+   * @param duration - Time in milliseconds. During this time, a maximum of `max` jobs will be processed.
+   */
+  async setGlobalRateLimit(max: number, duration: number) {
+    const client = await this.client;
+    return client.hset(this.keys.meta, 'max', max, 'duration', duration);
+  }
+
+  /**
    * Remove global concurrency value.
    */
   async removeGlobalConcurrency() {
     const client = await this.client;
     return client.hdel(this.keys.meta, 'concurrency');
+  }
+
+  /**
+   * Remove global rate limit values.
+   */
+  async removeGlobalRateLimit() {
+    const client = await this.client;
+    return client.hdel(this.keys.meta, 'max', 'duration');
   }
 
   /**
@@ -804,7 +798,13 @@ export class Queue<
           }),
         });
 
-        return await this.scripts.remove(jobId, removeChildren);
+        const code = await this.scripts.remove(jobId, removeChildren);
+
+        if (code === 1) {
+          this.emit('removed', jobId);
+        }
+
+        return code;
       },
     );
   }
@@ -827,6 +827,8 @@ export class Queue<
         });
 
         await this.scripts.updateProgress(jobId, progress);
+
+        this.emit('progress', jobId, progress);
       },
     );
   }
@@ -937,7 +939,7 @@ export class Queue<
 
   /**
    * Completely destroys the queue and all of its contents irreversibly.
-   * This method will the *pause* the queue and requires that there are no
+   * This method will *pause* the queue and requires that there are no
    * active jobs. It is possible to bypass this requirement, i.e. not
    * having active jobs using the "force" option.
    *

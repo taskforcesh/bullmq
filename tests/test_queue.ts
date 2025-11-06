@@ -16,7 +16,7 @@ describe('queues', function () {
   let queue: Queue;
   let queueName: string;
 
-  let connection;
+  let connection: IORedis;
   before(async function () {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
@@ -52,14 +52,33 @@ describe('queues', function () {
     });
 
     it('should resolve Job<any, any, string> when no generics provided', async function () {
-      const defaultQueue = new Queue(queueName, { prefix, connection });
+      await queue.add('test-job', { foo: 'bar', num: 123 });
 
-      await defaultQueue.add('test-job', { foo: 'bar', num: 123 });
-      const jobs = await defaultQueue.getJobs(['waiting']);
+      const jobs = await queue.getJobs(['waiting']);
+
       expect(jobs).to.be.an('array');
       expect(jobs.length).to.be.at.least(1);
       expect(jobs[0]).to.be.instanceOf(Job);
-      await defaultQueue.close();
+    });
+  });
+
+  describe('when removing a job', function () {
+    it('should emit removed event', async function () {
+      const queue = new Queue<{ foo: string; bar: number }>(queueName, {
+        prefix,
+        connection,
+      });
+
+      const job = await queue.add(queueName, { foo: 'bar', bar: 1 });
+      const removed = new Promise<void>(resolve => {
+        queue.on('removed', (jobId: string) => {
+          expect(jobId).to.be.eql(job.id);
+          resolve();
+        });
+      });
+      queue.remove(job.id!);
+      await removed;
+      await queue.close();
     });
   });
 
@@ -80,17 +99,69 @@ describe('queues', function () {
     await removeAllQueueData(new IORedis(redisHost), exQueueName);
   });
 
+  describe('.getMeta', function () {
+    it('should return global concurrency', async function () {
+      await queue.setGlobalConcurrency(1);
+      const config = await queue.getMeta();
+
+      expect(config).to.be.deep.equal({
+        maxLenEvents: 10000,
+        paused: false,
+        version: `bullmq:${currentPackageVersion}`,
+        concurrency: 1,
+      });
+
+      await queue.close();
+    });
+
+    it('should return global rate limit', async function () {
+      await queue.setGlobalRateLimit(1, 500);
+      const config = await queue.getMeta();
+
+      expect(config).to.be.deep.equal({
+        maxLenEvents: 10000,
+        paused: false,
+        version: `bullmq:${currentPackageVersion}`,
+        max: 1,
+        duration: 500,
+      });
+
+      await queue.close();
+    });
+
+    it('should return paused', async function () {
+      await queue.pause();
+      const config = await queue.getMeta();
+
+      expect(config).to.be.deep.equal({
+        maxLenEvents: 10000,
+        version: `bullmq:${currentPackageVersion}`,
+        paused: true,
+      });
+
+      await queue.close();
+    });
+  });
+
   describe('.add', () => {
     describe('when jobId is provided as integer', () => {
       it('throws error', async function () {
         await expect(
           queue.add('test', { foo: 1 }, { jobId: '2' }),
-        ).to.be.rejectedWith('Custom Ids cannot be integers');
+        ).to.be.rejectedWith('Custom Id cannot be integers');
+      });
+    });
+
+    describe('when custom job id contains :', () => {
+      it('throws an error', async () => {
+        await expect(
+          queue.add('test', { foo: 1 }, { jobId: '1:0' }),
+        ).to.be.rejectedWith('Custom Id cannot contain :');
       });
     });
   });
 
-  describe('when empty name contains :', () => {
+  describe('when queue name contains :', () => {
     it('throws an error', function () {
       expect(
         () =>
@@ -302,14 +373,12 @@ describe('queues', function () {
             const countAfterEmpty = await queue.count();
             expect(countAfterEmpty).to.be.eql(0);
 
-            const childrenFailedCount = await queue.getJobCountByTypes(
-              'failed',
-            );
+            const childrenFailedCount =
+              await queue.getJobCountByTypes('failed');
             expect(childrenFailedCount).to.be.eql(0);
 
-            const parentWaitCount = await parentQueue.getJobCountByTypes(
-              'wait',
-            );
+            const parentWaitCount =
+              await parentQueue.getJobCountByTypes('wait');
             expect(parentWaitCount).to.be.eql(1);
             await parentQueue.close();
             await flow.close();
@@ -356,9 +425,8 @@ describe('queues', function () {
             const failedCount = await queue.getJobCountByTypes('failed');
             expect(failedCount).to.be.eql(0);
 
-            const parentWaitCount = await parentQueue.getJobCountByTypes(
-              'wait',
-            );
+            const parentWaitCount =
+              await parentQueue.getJobCountByTypes('wait');
             expect(parentWaitCount).to.be.eql(1);
             await parentQueue.close();
             await flow.close();
@@ -372,8 +440,8 @@ describe('queues', function () {
       it('clean queue without delayed jobs', async () => {
         const maxJobs = 50;
         const maxDelayedJobs = 50;
-        const added = [];
-        const delayed = [];
+        const added: Promise<Job>[] = [];
+        const delayed: Promise<Job>[] = [];
 
         for (let i = 1; i <= maxJobs; i++) {
           added.push(queue.add('test', { foo: 'bar', num: i }));
@@ -399,8 +467,8 @@ describe('queues', function () {
       it('clean queue including delayed jobs', async () => {
         const maxJobs = 50;
         const maxDelayedJobs = 50;
-        const added = [];
-        const delayed = [];
+        const added: Promise<Job>[] = [];
+        const delayed: Promise<Job>[] = [];
 
         for (let i = 1; i <= maxJobs; i++) {
           added.push(queue.add('test', { foo: 'bar', num: i }));
@@ -425,7 +493,7 @@ describe('queues', function () {
     describe('when queue is paused', () => {
       it('clean queue including paused jobs', async () => {
         const maxJobs = 50;
-        const added = [];
+        const added: Promise<Job>[] = [];
 
         await queue.pause();
         for (let i = 1; i <= maxJobs; i++) {
@@ -485,7 +553,7 @@ describe('queues', function () {
       let order = 0;
       const failing = new Promise<void>(resolve => {
         worker.on('failed', job => {
-          expect(order).to.be.eql(job.data.idx);
+          expect(order).to.be.eql(job!.data.idx);
           if (order === jobCount - 1) {
             resolve();
           }
@@ -593,8 +661,8 @@ describe('queues', function () {
         let timestamp;
         const failing = new Promise<void>(resolve => {
           worker.on('failed', job => {
-            expect(order).to.be.eql(job.data.idx);
-            if (job.data.idx === jobCount / 2 - 1) {
+            expect(order).to.be.eql(job!.data.idx);
+            if (job!.data.idx === jobCount / 2 - 1) {
               timestamp = Date.now();
             }
             if (order === jobCount - 1) {
@@ -658,7 +726,7 @@ describe('queues', function () {
         let order = 0;
         const failing = new Promise<void>(resolve => {
           worker.on('failed', job => {
-            expect(order).to.be.eql(job.data.idx);
+            expect(order).to.be.eql(job!.data.idx);
             if (order === jobCount - 1) {
               resolve();
             }

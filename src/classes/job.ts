@@ -563,8 +563,12 @@ export class Job<
       } else {
         // Handle complex compressable fields separately
         if (attributeName === 'telemetry') {
-          options.tm = value.metadata;
-          options.omc = value.omitContext;
+          if (value.metadata !== undefined) {
+            options.tm = value.metadata;
+          }
+          if (value.omitContext !== undefined) {
+            options.omc = value.omitContext;
+          }
         } else {
           options[attributeName] = value;
         }
@@ -956,8 +960,16 @@ export class Job<
   /**
    * Change delay of a delayed job.
    *
-   * @param delay - milliseconds to be added to current time.
+   * Reschedules a delayed job by setting a new delay from the current time.
+   * For example, calling changeDelay(5000) will reschedule the job to execute
+   * 5000 milliseconds (5 seconds) from now, regardless of the original delay.
+   *
+   * @param delay - milliseconds from now when the job should be processed.
    * @returns void
+   * @throws JobNotExist
+   * This exception is thrown if jobId is missing.
+   * @throws JobNotInState
+   * This exception is thrown if job is not in delayed state.
    */
   async changeDelay(delay: number): Promise<void> {
     await this.scripts.changeDelay(this.id, delay);
@@ -1375,9 +1387,9 @@ export class Job<
    * Attempts to retry the job. Only a job that has failed or completed can be retried.
    *
    * @param state - completed / failed
-   * @returns If resolved and return code is 1, then the queue emits a waiting event
-   * otherwise the operation was not a success and throw the corresponding error. If the promise
-   * rejects, it indicates that the script failed to execute
+   * @returns A promise that resolves when the job has been successfully moved to the wait queue.
+   * The queue emits a waiting event when the job is successfully moved.
+   * @throws Will throw an error if the job does not exist, is locked, or is not in the expected state.
    */
   retry(state: FinishedStatus = 'failed'): Promise<void> {
     this.failedReason = null;
@@ -1461,8 +1473,19 @@ export class Job<
       );
     }
 
-    if (`${parseInt(this.id, 10)}` === this.id) {
-      throw new Error('Custom Ids cannot be integers');
+    if (this.opts?.jobId) {
+      if (`${parseInt(this.opts.jobId, 10)}` === this.opts?.jobId) {
+        throw new Error('Custom Id cannot be integers');
+      }
+
+      // TODO: replace this check in next breaking check with include(':')
+      // By using split we are still keeping compatibility with old repeatable jobs
+      if (
+        this.opts?.jobId.includes(':') &&
+        this.opts?.jobId?.split(':').length !== 3
+      ) {
+        throw new Error('Custom Id cannot contain :');
+      }
     }
 
     if (this.opts.priority) {
@@ -1472,6 +1495,19 @@ export class Job<
 
       if (this.opts.priority > PRIORITY_LIMIT) {
         throw new Error(`Priority should be between 0 and ${PRIORITY_LIMIT}`);
+      }
+    }
+
+    if (this.opts.deduplication) {
+      if (!this.opts.deduplication?.id) {
+        throw new Error('Deduplication id must be provided');
+      }
+    }
+
+    // TODO: remove in v6
+    if (this.opts.debounce) {
+      if (!this.opts.debounce?.id) {
+        throw new Error('Debounce id must be provided');
       }
     }
 
