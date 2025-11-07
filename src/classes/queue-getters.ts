@@ -501,9 +501,9 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
 
       const meta = response[0]
         ? JSON.parse(response[0])
-        : { total: 0, progress: 0 };
+        : { total: 0, progress: 0, done: true };
       total = meta.total;
-      done = meta.done;
+      done = meta.done ?? true;
       progress = meta.progress;
 
       for (let i = 1; i < response.length; i++) {
