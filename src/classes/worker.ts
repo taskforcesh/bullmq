@@ -496,7 +496,9 @@ export class Worker<
 
       await this.startStalledCheckTimer();
 
-      this.lockManager.start();
+      if (!this.opts.skipLockRenewal) {
+        this.lockManager.start();
+      }
 
       const client = await this.client;
       const bclient = await this.blockingConnection.client;
