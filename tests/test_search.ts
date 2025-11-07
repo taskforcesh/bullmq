@@ -1315,6 +1315,13 @@ describe('Search', () => {
         expect(waitTimeJobs.length).to.equal(1);
         expect(waitTimeJobs[0].name).to.equal('task-two');
 
+        // query on queueTime as well (finishedOn - timestamp) = WAIT_TIME + RUNTIME
+        const QUEUE_TIME = WAIT_TIME + RUNTIME;
+        query = `queueTime:${QUEUE_TIME}`;
+        const { jobs: queueTimeJobs } = await queue.search('waiting', query);
+        expect(queueTimeJobs.length).to.equal(1);
+        expect(queueTimeJobs[0].name).to.equal('task-two');
+
         query = `logs:*alpha*`;
         const { jobs: logJobs } = await queue.search('waiting', query);
         expect(logJobs.length).to.equal(1);

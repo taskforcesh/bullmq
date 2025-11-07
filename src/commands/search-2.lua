@@ -1098,12 +1098,12 @@ local function waitTimeResolver(obj)
     return nil
 end
 
--- the total time a job spent in the queue (processedOn - timestamp)
+-- the total time a job spent in the queue (finishedOn - timestamp)
 local function queueTimeResolver(obj)
-    local processedOn = tonumber(obj['processedOn'])
-    local timestamp = tonumber(obj['timestamp'] or processedOn)
-    if (processedOn ~= nil) and (timestamp ~= nil) then
-        return processedOn - timestamp
+    local finishedOn = tonumber(obj['finishedOn'])
+    local timestamp = tonumber(obj['timestamp'] or finishedOn)
+    if (finishedOn ~= nil) and (timestamp ~= nil) then
+        return finishedOn - timestamp
     end
     return nil
 end
