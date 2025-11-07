@@ -19,5 +19,4 @@ export * from './redis-connection';
 export * from './repeat';
 export * from './sandbox';
 export * from './scripts';
-export * from './search-query-parser';
 export * from './worker';

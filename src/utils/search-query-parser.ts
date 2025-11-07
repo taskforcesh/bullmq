@@ -1,4 +1,4 @@
-export interface ServerQuery {
+export interface SearchQuery {
   [key: string]: any;
 }
 
@@ -143,7 +143,7 @@ function getTokenValue(candidate: Token): string {
  * @param luceneQuery - The Lucene query string to translate
  * @returns MongoDB-style query document
  */
-export function parseSearchQuery(luceneQuery: string): ServerQuery {
+export function parseSearchQuery(luceneQuery: string): SearchQuery {
   if (!luceneQuery || luceneQuery.trim() === '') {
     throw new Error(`Empty query string`);
   }
@@ -1141,7 +1141,7 @@ export function optimizeQuery(query: any): any {
 function coalesceCondition(
   conditions: any[],
   connector: '$and' | '$or' = '$and',
-): ServerQuery {
+): SearchQuery {
   const flattened: any[] = [];
 
   // Flatten nested $and
@@ -1168,14 +1168,14 @@ function coalesceCondition(
 /**
  * Optimizes $and conditions by flattening nested $and
  */
-function optimizeAndCondition(conditions: any[]): ServerQuery {
+function optimizeAndCondition(conditions: any[]): SearchQuery {
   return coalesceCondition(conditions, '$and');
 }
 
 /**
  * Optimizes $or conditions by flattening nested $or and coalescing $text searches
  */
-function optimizeOrCondition(conditions: any[]): ServerQuery {
+function optimizeOrCondition(conditions: any[]): SearchQuery {
   return coalesceCondition(conditions, '$or');
 }
 

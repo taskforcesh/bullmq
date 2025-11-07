@@ -1,10 +1,11 @@
 import { expect } from 'chai';
 import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 import { v4 } from 'uuid';
-import { Job, JobJsonRaw, Queue, ServerQuery } from '../src';
+import { Job, JobJsonRaw, Queue } from '../src';
 import { removeAllQueueData } from '../src';
 import * as sinon from 'sinon';
 import { default as IORedis } from 'ioredis/built/Redis';
+import { SearchQuery } from '../src';
 
 const Person: Record<string, any> = {
   _id: '100',
@@ -132,7 +133,7 @@ describe('Search', () => {
   }
 
   async function attempt(
-    criteria: ServerQuery,
+    criteria: SearchQuery,
     expectMatch = true,
   ): Promise<void> {
     const { jobs } = await queue.search('waiting', criteria);
@@ -152,7 +153,7 @@ describe('Search', () => {
     for (const [args, expected] of cases) {
       it(`Operator ${operator} `, async () => {
         const data: Record<string, any> = {};
-        const condition: ServerQuery = {};
+        const condition: SearchQuery = {};
         if (Array.isArray(args) && args.length == 2) {
           data['first'] = args[0];
           data['second'] = args[1];
@@ -480,7 +481,7 @@ describe('Search', () => {
       ];
 
       async function attempt(
-        query: ServerQuery,
+        query: SearchQuery,
         expected: Record<string, any>[],
       ): Promise<void> {
         const result = await find(data, query);
@@ -827,7 +828,7 @@ describe('Search', () => {
     ];
 
     async function attempt(
-      criteria: ServerQuery,
+      criteria: SearchQuery,
       expected: Record<string, any>[],
     ) {
       const res = await find(data, criteria);

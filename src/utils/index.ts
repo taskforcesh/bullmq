@@ -19,6 +19,12 @@ import * as semver from 'semver';
 
 import { SpanKind, TelemetryAttributes } from '../enums';
 
+export {
+  parseSearchQuery,
+  translateRegexToLuaPattern,
+  SearchQuery,
+} from './search-query-parser';
+
 export const errorObject: { [index: string]: any } = { value: null };
 
 export function tryCatch(
