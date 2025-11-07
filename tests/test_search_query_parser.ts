@@ -107,6 +107,30 @@ describe('Search Query Parsing', () => {
         const result = translateRegexToLuaPattern('a$b');
         expect(result).to.exist;
       });
+
+      it('should escape unescaped %', () => {
+        expect(translateRegexToLuaPattern('abc%xyz')).to.equal('abc%%xyz');
+      });
+
+      it('should escape multiple unescaped % characters', () => {
+        expect(translateRegexToLuaPattern('%abc%xyz%')).to.equal(
+          '%%abc%%xyz%%',
+        );
+      });
+
+      it('should handle already escaped % (\\%)', () => {
+        expect(translateRegexToLuaPattern('abc\\%xyz')).to.equal('abc%%xyz');
+      });
+
+      it('should handle adjacent % characters', () => {
+        expect(translateRegexToLuaPattern('%%')).to.equal('%%%%');
+      });
+
+      it('should handle mixed escaped and unescaped %', () => {
+        expect(translateRegexToLuaPattern('\\%abc%\\%xyz')).to.equal(
+          '%%abc%%%%xyz',
+        );
+      });
     });
 
     describe('Edge cases', () => {

@@ -1229,12 +1229,37 @@ const REGEX_TO_LUA_CHARACTER_CLASSES: Record<string, string> = {
   '\\B': '%f[%A]',
 };
 
+// All lua meta-characters except for '%' are the same as regex meta-characters, so we only need to handle '%'
+function escapePercentInRegex(input: string): string {
+  let result = '';
+  let i = 0;
+
+  while (i < input.length) {
+    if (input[i] === '%') {
+      // Check whether the '%' is explicitly escaped
+      if (i > 0 && input[i - 1] === '\\') {
+        result = result.slice(0, -1) + '%%'; // Remove '\' and escape '%'
+      } else {
+        result += '%%'; // Regular escape
+      }
+    } else {
+      result += input[i];
+    }
+    i++;
+  }
+
+  return result;
+}
+
 /**
  * Comprehensive function to translate an entire regex pattern to Lua pattern
  * @param regexPattern - The full regex pattern to translate
  * @returns The equivalent Lua pattern
  */
 export function translateRegexToLuaPattern(regexPattern: string): string {
+  // First, escape unescaped '%' characters to '%%' for Lua patterns
+  regexPattern = escapePercentInRegex(regexPattern);
+
   // Handle character class patterns early
   if (regexPattern.startsWith('[')) {
     const translated = translateRegexClassToLua(regexPattern);
@@ -1243,6 +1268,7 @@ export function translateRegexToLuaPattern(regexPattern: string): string {
     }
   }
 
+  // Escape special Lua pattern characters that might conflict
   let luaPattern = regexPattern.replace(/\*/g, '.*').replace(/\?/g, '.');
 
   // Translate character classes using the mapping
@@ -1261,9 +1287,6 @@ export function translateRegexToLuaPattern(regexPattern: string): string {
       return translateRegexClassToLua(match);
     },
   );
-
-  // Escape special Lua pattern characters that might conflict
-  luaPattern = luaPattern.replace(/([%.%+%*%?%^%$%(%)%[%]%{%}])/g, '%%$1');
 
   return luaPattern;
 }
