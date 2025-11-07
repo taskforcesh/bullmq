@@ -1116,67 +1116,66 @@ getFieldResolver = function(field)
         local segment = segmentCount > 0 and path[1] or field
         referencedFields[segment] = true
 
-        if (segment == 'runtime') then
-            handler = latencyResolver
-        elseif segment == 'waitTime' then
-            handler = waitTimeResolver
-        elseif segment == 'queueTime' then
-            handler = queueTimeResolver
-        elseif segment == 'logs' then
-            handler = resolveLogs
-        elseif segment == 'fullText' then
-            handler = resolveFullTextAndLogs
-        else
-            if segmentCount == 1 then
-                -- Simple field access
-                -- handle field aliases
-                segment = FIELD_ALIASES[segment] or segment
+        if segmentCount == 1 then
+            -- Simple field access
+            -- handle field aliases
+            segment = FIELD_ALIASES[segment] or segment
 
-                if NUMERIC_FIELDS[segment] then
-                    handler = function(obj)
-                        local resolve = simpleResolve
-                        local path = segment
-                        local val = resolve(obj, path)
-                        return tonumber(val) or cjson.null
-                    end
-                else
-                    handler = function(obj)
-                        local resolve = simpleResolve
-                        local path = segment
-                        return resolve(obj, path)
-                    end
+            if (segment == 'runtime') then
+                handler = latencyResolver
+            elseif segment == 'waitTime' then
+                handler = waitTimeResolver
+            elseif segment == 'queueTime' then
+                handler = queueTimeResolver
+            elseif segment == 'logs' then
+                handler = resolveLogs
+            elseif segment == 'fullText' then
+                handler = resolveFullTextAndLogs
+            elseif NUMERIC_FIELDS[segment] then
+                handler = function(obj)
+                    local resolve = simpleResolve
+                    local path = segment
+                    local val = resolve(obj, path)
+                    return tonumber(val) or cjson.null
                 end
             else
-                --- for complex paths, use the general resolver. If we have longer paths, cache the resolved
-                --- segments for performance. Imagine a query like the following:
-                --- { "data.user.details.discount": { $gt: 10, $lt: 20 } }
-                --- this would cause the path to be resolved twice per job (once for $gt, once for $lt).
-                if segmentCount >= 3 then
-                    -- build a cache key for the resolved path
-                    local cacheKey = '&' .. field
-                    handler = function(obj)
-                        local resolve = resolve
-                        local key = cacheKey
-                        local cache = cachedValues
-                        local cachedVal = cache[key]
-                        if cachedVal ~= nil then
-                            return cachedVal
-                        end
-                        local val = resolve(obj, path)
-                        cache[key] = val
-                        return val
+                handler = function(obj)
+                    local resolve = simpleResolve
+                    local path = segment
+                    return resolve(obj, path)
+                end
+            end
+        else
+            --- for complex paths, use the general resolver. If we have longer paths, cache the resolved
+            --- segments for performance. Imagine a query like the following:
+            --- { "data.user.details.discount": { $gt: 10, $lt: 20 } }
+            --- this would cause the path to be resolved twice per job (once for $gt, once for $lt).
+            if segmentCount >= 3 then
+                -- build a cache key for the resolved path
+                local cacheKey = '&' .. field
+                handler = function(obj)
+                    local resolve = resolve
+                    local key = cacheKey
+                    local cache = cachedValues
+                    local cachedVal = cache[key]
+                    if cachedVal ~= nil then
+                        return cachedVal
                     end
-                else
-                    handler = function(obj)
-                        local resolve = resolve
-                        local lpath = path
-                        local val = resolve(obj, lpath)
-                        --- debug('Resolved field "' .. field .. '" to value: ' .. tostr(val))
-                        return val
-                    end
+                    local val = resolve(obj, path)
+                    cache[key] = val
+                    return val
+                end
+            else
+                handler = function(obj)
+                    local resolve = resolve
+                    local lpath = path
+                    local val = resolve(obj, lpath)
+                    --- debug('Resolved field "' .. field .. '" to value: ' .. tostr(val))
+                    return val
                 end
             end
         end
+
     end
     fieldHandlers[field] = handler
     return handler
