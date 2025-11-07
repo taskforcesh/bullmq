@@ -161,6 +161,20 @@ export interface WorkerListener<
    * has been moved back to the wait list.
    */
   stalled: (jobId: string, prev: string) => void;
+
+  /**
+   * Listen to 'lockRenewalFailed' event.
+   *
+   * This event is triggered when lock renewal fails for one or more jobs.
+   */
+  lockRenewalFailed: (jobIds: string[]) => void;
+
+  /**
+   * Listen to 'locksRenewed' event.
+   *
+   * This event is triggered when locks are successfully renewed.
+   */
+  locksRenewed: (data: { count: number; jobIds: string[] }) => void;
 }
 
 /**

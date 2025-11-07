@@ -1,29 +1,6 @@
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { Span } from '../interfaces';
 
-export interface LockManagerListener {
-  /**
-   * Listen to 'error' event.
-   *
-   * This event is triggered when an error occurs during lock operations.
-   */
-  error: (error: Error) => void;
-
-  /**
-   * Listen to 'lockRenewalFailed' event.
-   *
-   * This event is triggered when lock renewal fails for one or more jobs.
-   */
-  lockRenewalFailed: (jobIds: string[]) => void;
-
-  /**
-   * Listen to 'locksRenewed' event.
-   *
-   * This event is triggered when locks are successfully renewed.
-   */
-  locksRenewed: (data: { count: number; jobIds: string[] }) => void;
-}
-
 export interface LockManagerOptions {
   lockRenewTime: number;
   lockDuration: number;
