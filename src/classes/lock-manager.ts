@@ -172,12 +172,8 @@ export class LockManager {
           }
         }
 
-        try {
-          if (jobsToExtend.length) {
-            await this.extendLocks(jobsToExtend);
-          }
-        } catch (err) {
-          this.worker.emit('error', err as Error);
+        if (jobsToExtend.length) {
+          await this.extendLocks(jobsToExtend);
         }
 
         this.startLockExtenderTimer();
