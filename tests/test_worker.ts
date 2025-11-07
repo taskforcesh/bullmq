@@ -2093,7 +2093,7 @@ describe('workers', function () {
       );
     });
 
-    await worker.waitUntilReady();
+    await worker!.waitUntilReady();
 
     await Promise.all(
       Array.from({ length: concurrency }).map(() =>
@@ -2103,7 +2103,7 @@ describe('workers', function () {
 
     await processing;
 
-    await worker.close();
+    await worker!.close();
   });
 
   it('emits error if lock is lost', async function () {
@@ -2334,7 +2334,7 @@ describe('workers', function () {
 
   it('lock extender continues to run until all active jobs are completed when closing a worker', async function () {
     this.timeout(4000);
-    let worker;
+    let worker: Worker;
 
     const startProcessing = new Promise<void>(resolve => {
       worker = new Worker(
