@@ -24,3 +24,6 @@ coverage/*
 temp
 docs/gitbook/api
 package-lock.json
+
+# GitBook
+docs/gitbook/_book

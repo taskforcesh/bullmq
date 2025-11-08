@@ -25,6 +25,20 @@ In case you don't have redis installed, there is a redis docker-compose for deve
 - Before starting Redis, make sure you have [docker-compose](https://docs.docker.com/compose/install/) installed.
 - Now please follow [pull request testing](#pull-request-testing) section.
 
+## Working with Documentation
+
+To run the documentation locally for testing purposes:
+
+```sh
+cd docs/gitbook
+npm install
+npx honkit serve
+```
+
+Open your browser and navigate to `http://localhost:4000`.
+
+**Note:** The local docs use [HonKit](https://github.com/honkit/honkit) for testing. The UI may differ slightly from the production site (GitBook). This setup is for local content verification only.
+
 ## Doing a release
 
 Releases are automatically performed by semantic-release and consists on the following:

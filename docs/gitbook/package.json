@@ -1,0 +1,25 @@
+{
+  "name": "gitbook",
+  "version": "1.0.0",
+  "description": "BullMQ Documentation",
+  "homepage": "https://docs.bullmq.io/",
+  "main": "README.md",
+  "scripts": {
+    "dev": "npx honkit serve"
+  },
+  "keywords": [
+    "bull",
+    "bullmq"
+  ],
+  "author": "Taskforce.sh Inc.",
+  "license": "MIT",
+  "devDependencies": {
+    "honkit": "^6.1.4",
+    "gitbook-plugin-hints": "^1.0.2",
+    "gitbook-plugin-tabs2": "^0.1.3"
+  },
+  "engines": {
+    "node": ">=14"
+  },
+  "packageManager": "yarn@1.22.22"
+}
