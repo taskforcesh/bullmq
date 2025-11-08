@@ -212,7 +212,6 @@ describe('Job Scheduler', function () {
 
     it('should create only one job scheduler and one delayed job with different settings', async function () {
       const date = new Date('2017-02-07T09:24:01.000+05:30');
-      const offset = 1000; // We set date at one second over one minute boundary
 
       this.clock.setSystemTime(date);
       const worker = new Worker(queueName, void 0, { connection, prefix });
@@ -253,10 +252,10 @@ describe('Job Scheduler', function () {
       expect(repeatableJobs[0]).to.deep.equal({
         key: 'test',
         name: 'test',
-        next: initialSlot + 1 * ONE_MINUTE + offset,
+        next: 1486439641003,
         iterationCount: 2,
         every: 240000,
-        offset,
+        offset: 121003,
       });
 
       await this.clock.tickAsync(ONE_MINUTE);
@@ -292,7 +291,7 @@ describe('Job Scheduler', function () {
         expect(repeatableJobs[0]).to.deep.equal({
           key: 'test',
           name: 'test',
-          next: 1486439700000,
+          next: 1486439760000,
           iterationCount: 2,
           every: ONE_MINUTE * 2,
           offset: 0,
@@ -305,7 +304,7 @@ describe('Job Scheduler', function () {
       });
 
       describe('when job scheduler is being updated with upsertJobScheduler method', function () {
-        it('updates scheduler and creates next iteration', async function () {
+        it('throws error', async function () {
           const date = new Date('2017-02-07T09:24:00.000+05:30');
           this.clock.setSystemTime(date);
 
@@ -329,18 +328,13 @@ describe('Job Scheduler', function () {
                         },
                       },
                     );
-
-                    const delayedJobs = await queue.getDelayed();
-                    expect(delayedJobs.length).to.be.equal(1);
-                    expect(delayedJobs[0].data.foo).to.be.equal('baz');
-                    // As we promoted a job, and time has not been increased at all
-                    // the delay will be 10s
-                    expect(delayedJobs[0].delay).to.be.equal(10000);
-
-                    resolve();
+                    reject('Expected error was not thrown');
                   }
                 } catch (err) {
-                  reject(err);
+                  expect(err.message).to.be.equal(
+                    'Cannot create job scheduler iteration - job ID already exists. addJobScheduler',
+                  );
+                  resolve();
                 }
               },
               { autorun: false, connection, prefix },
@@ -373,13 +367,12 @@ describe('Job Scheduler', function () {
           expect(repeatableJobs[0]).to.deep.equal({
             key: 'test',
             name: 'test',
-            next: initialNow + 10 * ONE_SECOND,
+            next: 1486439660000,
             iterationCount: 2,
-            offset: 0,
             pattern: '*/10 * * * * *',
             template: {
               data: {
-                foo: 'baz',
+                foo: 'bar',
               },
             },
           });
@@ -668,9 +661,8 @@ describe('Job Scheduler', function () {
 
       const repeatableJobs = await queue.getJobSchedulers();
       expect(repeatableJobs.length).to.be.eql(1);
-
-      const waiting = await queue.getWaiting();
-      expect(waiting).to.have.length(1);
+      const count = await queue.getJobCountByTypes('delayed', 'waiting');
+      expect(count).to.be.equal(1);
     });
   });
 
@@ -807,7 +799,6 @@ describe('Job Scheduler', function () {
       key: 'test',
       name: 'test',
       pattern: '*/2 * * * * *',
-      offset: 0,
       next: 1486481042000,
       template: {
         data: {
@@ -874,7 +865,6 @@ describe('Job Scheduler', function () {
         key: 'test',
         name: 'test',
         pattern: '*/2 * * * * *',
-        offset: 0,
         next: 1486481042000,
       });
 
@@ -1226,7 +1216,6 @@ describe('Job Scheduler', function () {
           iterationCount: 1,
           key: 'rrule',
           name: 'rrule',
-          offset: 0,
           next: 1486481042000,
           pattern: 'RRULE:FREQ=SECONDLY;INTERVAL=2;WKST=MO',
         });
@@ -2204,7 +2193,6 @@ describe('Job Scheduler', function () {
         name: 'a',
         tz: 'Asia/Calcutta',
         pattern: '0 * 1 * *',
-        offset: 0,
         next: 1488310200000,
         template: {
           data: {
@@ -2827,17 +2815,21 @@ describe('Job Scheduler', function () {
       let count = 0;
       const completing = new Promise<void>((resolve, reject) => {
         queueEvents.on('completed', async () => {
-          await delay(100); // Reduced delay to avoid too much async work
-          await queue.upsertJobScheduler(
-            'foo',
-            { every: 500 }, // Increased from 50ms to 500ms
-            {
-              name: 'bruh',
-              data: { something: 'else' },
-            },
-          );
-          if (count++ > 5) {
-            resolve();
+          try {
+            await delay(100); // Reduced delay to avoid too much async work
+            await queue.upsertJobScheduler(
+              'foo',
+              { every: 500 }, // Increased from 50ms to 500ms
+              {
+                name: 'bruh',
+                data: { something: 'else' },
+              },
+            );
+            if (count++ > 5) {
+              resolve();
+            }
+          } catch (error) {
+            reject(error);
           }
         });
         worker.on('error', err => {
@@ -3291,7 +3283,6 @@ describe('Job Scheduler', function () {
       key: 'repeat',
       limit: 5,
       name: 'repeat',
-      offset: 0,
       pattern: '*/1 * * * * *',
       next: 1486439641000,
     });

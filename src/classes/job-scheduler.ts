@@ -85,12 +85,31 @@ export class JobScheduler extends QueueBase {
     now = prevMillis < now ? now : prevMillis;
 
     // Check if we have a start date for the repeatable job
-    const { immediately, ...filteredRepeatOpts } = repeatOpts;
+    const { startDate, immediately, ...filteredRepeatOpts } = repeatOpts;
+    const nexMillisIteration = prevMillis + (every || 0) + (offset || 0);
+    // use last possible millis for next slot in case a possible promotion
+    let startMillis = now < nexMillisIteration ? nexMillisIteration - 1 : now;
+    if (startDate) {
+      startMillis = new Date(startDate).getTime();
+      startMillis = startMillis > now ? startMillis : now;
+    }
 
     let nextMillis: number;
-    const newOffset: number | null = null;
+    let newOffset: number | null = null;
+    if (every) {
+      const prevSlot =
+        Math.floor((startMillis - (offset || 0)) / every) * every;
 
-    if (pattern) {
+      newOffset = typeof offset === 'number' ? offset : startMillis - prevSlot;
+
+      const nextSlot = prevSlot + every;
+
+      if (prevMillis || offset) {
+        nextMillis = nextSlot;
+      } else {
+        nextMillis = prevSlot;
+      }
+    } else if (pattern) {
       nextMillis = await this.repeatStrategy(now, repeatOpts, jobName);
 
       if (nextMillis < now) {
@@ -98,7 +117,7 @@ export class JobScheduler extends QueueBase {
       }
     }
 
-    if (nextMillis || every) {
+    if (nextMillis) {
       return this.trace<Job<T, R, N>>(
         SpanKind.PRODUCER,
         'add',
@@ -133,12 +152,7 @@ export class JobScheduler extends QueueBase {
           );
 
           if (override) {
-            // Clamp nextMillis to now if it's in the past
-            if (nextMillis < now) {
-              nextMillis = now;
-            }
-
-            const [jobId, delay] = await this.scripts.addJobScheduler(
+            const jobId = await this.scripts.addJobScheduler(
               jobSchedulerId,
               nextMillis,
               JSON.stringify(typeof jobData === 'undefined' ? {} : jobData),
@@ -159,15 +173,11 @@ export class JobScheduler extends QueueBase {
               producerId,
             );
 
-            // Ensure delay is a number (Dragonflydb may return it as a string)
-            const numericDelay =
-              typeof delay === 'string' ? parseInt(delay, 10) : delay;
-
             const job = new this.Job<T, R, N>(
               this,
               jobName,
               jobData,
-              { ...mergedOpts, delay: numericDelay },
+              mergedOpts,
               jobId,
             );
 
@@ -186,6 +196,8 @@ export class JobScheduler extends QueueBase {
               JSON.stringify(typeof jobData === 'undefined' ? {} : jobData),
               Job.optsAsJSON(mergedOpts),
               producerId,
+              every,
+              offset,
             );
 
             if (jobId) {
