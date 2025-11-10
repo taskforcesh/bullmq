@@ -31,8 +31,8 @@ To run the documentation locally for testing purposes:
 
 ```sh
 cd docs/gitbook
-npm install
-npx honkit serve
+yarn install
+yarn dev
 ```
 
 Open your browser and navigate to `http://localhost:4000`.
