@@ -410,7 +410,7 @@ describe('Job Scheduler', function () {
           const initialTime = Date.now();
           let worker: Worker;
 
-          // Create a scheduler with 10 second interval, starting 10 seconds from now
+          // Create a scheduler with 10 second interval, starting immediately
           await queue.upsertJobScheduler(
             'test-scheduler',
             {
