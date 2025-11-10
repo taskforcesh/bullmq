@@ -39,6 +39,7 @@ counts = await myQueue.getJobCounts('wait', 'completed', 'failed')
 {% endtabs %}
 
 The available status are:
+
 - _completed_,
 - _failed_,
 - _delayed_,
@@ -77,5 +78,5 @@ completed = await myQueue.getJobs(['completed'], 0, 100, True)
 
 ## Read more:
 
-* 💡 [Get Job Counts API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getjobcounts)
-* 💡 [Get Jobs API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getjobs)
+- 💡 [Get Job Counts API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getjobcounts)
+- 💡 [Get Jobs API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getjobs)

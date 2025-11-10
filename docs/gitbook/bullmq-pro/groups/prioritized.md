@@ -16,7 +16,7 @@ await myQueue.add(
 ```
 
 {% hint style="info" %}
-The priorities go from 0 to 2097151, where a higher number means lower priority (as in Unix [processes](https://en.wikipedia.org/wiki/Nice\_\(Unix\))). Thus, jobs without any explicit priority will have the highest priority.
+The priorities go from 0 to 2097151, where a higher number means lower priority (as in Unix [processes](<https://en.wikipedia.org/wiki/Nice_(Unix)>)). Thus, jobs without any explicit priority will have the highest priority.
 {% endhint %}
 
 ## Get Counts per Priority for Group
@@ -35,6 +35,5 @@ const counts = await queue.getCountsPerPriorityForGroup('groupId', [1, 0]);
 
 ## Read more:
 
-* 💡 [Add Job API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#add)
-* 💡 [Get Counts per Priority for Group API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#getcountsperpriorityforgroup)
-
+- 💡 [Add Job API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#add)
+- 💡 [Get Counts per Priority for Group API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#getcountsperpriorityforgroup)

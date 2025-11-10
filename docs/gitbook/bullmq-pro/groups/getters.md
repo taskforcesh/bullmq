@@ -32,6 +32,6 @@ const jobs = await queue.getGroupJobs(groupId, 0, 100);
 
 ## Read more:
 
-* 💡 [Get Groups Jobs Count API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#getgroupsjobscount)
-* 💡 [Get Group Active Count API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#getgroupactivecount)
-* 💡 [Get Group Jobs API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#getgroupjobs)
+- 💡 [Get Groups Jobs Count API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#getgroupsjobscount)
+- 💡 [Get Group Active Count API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#getgroupactivecount)
+- 💡 [Get Group Jobs API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#getgroupjobs)

@@ -16,7 +16,7 @@ const myWorker = new Worker(
   },
   {
     connection,
-    removeOnFail: { count: 0 }
+    removeOnFail: { count: 0 },
   },
 );
 ```
@@ -38,7 +38,7 @@ const myWorker = new Worker(
   {
     connection,
     removeOnComplete: { count: 1000 },
-    removeOnFail: { count: 5000 }
+    removeOnFail: { count: 5000 },
   },
 );
 ```
@@ -61,7 +61,7 @@ const myWorker = new Worker(
     },
     removeOnFail: {
       age: 24 * 3600, // keep up to 24 hours
-    }
+    },
   },
 );
 ```

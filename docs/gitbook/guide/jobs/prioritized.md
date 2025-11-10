@@ -75,7 +75,7 @@ const counts = await queue.getCountsPerPriority([1, 0]);
 
 ## Read more:
 
-* 📋 [Faster Priority jobs](https://bullmq.io/news/062123/faster-priority-jobs/)
-* 💡 [Change Priority API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#changepriority)
-* 💡 [Get Prioritized API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getprioritized)
-* 💡 [Get Counts per Priority API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getcountsperpriority)
+- 📋 [Faster Priority jobs](https://bullmq.io/news/062123/faster-priority-jobs/)
+- 💡 [Change Priority API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#changepriority)
+- 💡 [Get Prioritized API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getprioritized)
+- 💡 [Get Counts per Priority API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getcountsperpriority)

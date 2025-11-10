@@ -4,7 +4,7 @@ description: Tips and hints on how to migrate from Bull package to BullMQ.
 
 # Migration from Bull to BullMQ
 
-Bull and BullMQ have diverged too much now to actually give any guarantee of backwards compatibility. 
+Bull and BullMQ have diverged too much now to actually give any guarantee of backwards compatibility.
 
 So the safest would be to use new queues for BullMQ and deprecate the old ones.
 

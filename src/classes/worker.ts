@@ -41,6 +41,7 @@ import {
 } from './errors';
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { JobScheduler } from './job-scheduler';
+import { LockManager } from './lock-manager';
 
 const ONE_SECOND = 1000;
 
@@ -185,6 +186,7 @@ export class Worker<
   private drained = false;
   private extendLocksTimer: NodeJS.Timeout | null = null;
   private limitUntil = 0;
+  private lockManager: LockManager | null = null;
 
   private stalledCheckStopper?: () => void;
   private waiting: Promise<number> | null = null;
@@ -443,6 +445,33 @@ export class Worker<
     });
   }
 
+  private initializeLockManager(): void {
+    // Create the lock manager with the appropriate settings
+    this.lockManager = new LockManager(this.name, {
+      ...this.opts,
+      workerId: this.id,
+      workerName: this.opts.name,
+    });
+
+    // Set up event listeners
+    this.lockManager.on('error', (error: Error) => {
+      this.emit('error', error);
+    });
+
+    this.lockManager.on('lockRenewalFailed', (jobIds: string[]) => {
+      // Log failed lock renewals
+      jobIds.forEach(jobId => {
+        this.emit('error', new Error(`Failed to renew lock for job ${jobId}`));
+      });
+    });
+
+    this.lockManager.on('stalledJobs', (stalledJobIds: string[]) => {
+      stalledJobIds.forEach(jobId => {
+        this.emit('stalled', jobId, 'active');
+      });
+    });
+  }
+
   async run() {
     if (!this.processFn) {
       throw new Error('No process function is defined.');
@@ -459,7 +488,10 @@ export class Worker<
         return;
       }
 
-      await this.startStalledCheckTimer();
+      this.initializeLockManager();
+
+      // Start the lock manager for lock renewal and stalled job detection
+      this.lockManager?.start();
 
       const client = await this.client;
       const bclient = await this.blockingConnection.client;
@@ -496,8 +528,6 @@ export class Worker<
       ResultType,
       NameType
     >>();
-    const jobsInProgress = new Set<{ job: Job; ts: number }>();
-    this.startLockExtenderTimer(jobsInProgress);
 
     let tokenPostfix = 0;
 
@@ -560,7 +590,6 @@ export class Worker<
             <Job<DataType, ResultType, NameType>>job,
             token,
             () => asyncFifoQueue.numTotal() <= this._concurrency,
-            jobsInProgress,
           ),
         );
       } else if (asyncFifoQueue.numQueued() === 0) {
@@ -857,7 +886,6 @@ will never work with more accuracy than 1ms. */
     job: Job<DataType, ResultType, NameType>,
     token: string,
     fetchNextCallback = () => true,
-    jobsInProgress: Set<{ job: Job; ts: number }>,
   ): Promise<void | Job<DataType, ResultType, NameType>> {
     const srcPropagationMedatada = job.opts?.telemetry?.metadata;
 
@@ -877,7 +905,6 @@ will never work with more accuracy than 1ms. */
         this.emit('active', job, 'waiting');
 
         const processedOn = Date.now();
-        const inProgressItem = { job, ts: processedOn };
 
         try {
           const unrecoverableErrorMessage =
@@ -894,15 +921,13 @@ will never work with more accuracy than 1ms. */
                   job,
                   token,
                   fetchNextCallback,
-                  jobsInProgress,
-                  inProgressItem,
                   span,
                 ),
               { delayInMs: this.opts.runRetryDelay, span },
             );
             return failed;
           }
-          jobsInProgress.add(inProgressItem);
+          this.lockManager?.trackJob(job.id, job.token, processedOn);
 
           const result = await this.callProcessJob(job, token);
           return await this.retryIfFailed<void | Job<
@@ -911,15 +936,7 @@ will never work with more accuracy than 1ms. */
             NameType
           >>(
             () =>
-              this.handleCompleted(
-                result,
-                job,
-                token,
-                fetchNextCallback,
-                jobsInProgress,
-                inProgressItem,
-                span,
-              ),
+              this.handleCompleted(result, job, token, fetchNextCallback, span),
             { delayInMs: this.opts.runRetryDelay, span },
           );
         } catch (err) {
@@ -934,14 +951,17 @@ will never work with more accuracy than 1ms. */
                 job,
                 token,
                 fetchNextCallback,
-                jobsInProgress,
-                inProgressItem,
                 span,
               ),
             { delayInMs: this.opts.runRetryDelay, span, onlyEmitError: true },
           );
           return failed;
         } finally {
+          // Remove job from lock manager tracking
+          if (job.id) {
+            this.lockManager?.untrackJob(job.id);
+          }
+
           span?.setAttributes({
             [TelemetryAttributes.JobFinishedTimestamp]: Date.now(),
             [TelemetryAttributes.JobProcessedTimestamp]: processedOn,
@@ -971,11 +991,9 @@ will never work with more accuracy than 1ms. */
     job: Job<DataType, ResultType, NameType>,
     token: string,
     fetchNextCallback = () => true,
-    jobsInProgress: Set<{ job: Job; ts: number }>,
-    inProgressItem: { job: Job; ts: number },
     span?: Span,
   ) {
-    jobsInProgress.delete(inProgressItem);
+    this.lockManager?.untrackJob(job.id);
 
     if (!this.connection.closing) {
       const completed = await job.moveToCompleted(
@@ -1001,11 +1019,9 @@ will never work with more accuracy than 1ms. */
     job: Job<DataType, ResultType, NameType>,
     token: string,
     fetchNextCallback = () => true,
-    jobsInProgress: Set<{ job: Job; ts: number }>,
-    inProgressItem: { job: Job; ts: number },
     span?: Span,
   ) {
-    jobsInProgress.delete(inProgressItem);
+    this.lockManager?.untrackJob(job.id);
 
     if (!this.connection.closing) {
       // Check if the job was manually rate-limited
@@ -1118,6 +1134,16 @@ will never work with more accuracy than 1ms. */
 
   /**
    *
+   * Checks if lock manager is initialized and running.
+   *
+   * @returns true if lock manager is initialized and running, false otherwise.
+   */
+  isLockManagerRunning(): boolean {
+    return this.lockManager?.isRunning() ?? false;
+  }
+
+  /**
+   *
    * Closes the worker and related redis connections.
    *
    * This method waits for current jobs to finalize before returning.
@@ -1153,6 +1179,7 @@ will never work with more accuracy than 1ms. */
               return force || this.whenCurrentJobsFinished(false);
             },
             () => this.childPool?.clean(),
+            () => this.lockManager?.close(),
             () => this.blockingConnection.close(force),
             () => this.connection.close(force),
           ];
@@ -1191,38 +1218,22 @@ will never work with more accuracy than 1ms. */
    * @see {@link https://docs.bullmq.io/patterns/manually-fetching-jobs}
    */
   async startStalledCheckTimer(): Promise<void> {
-    if (!this.opts.skipStalledCheck) {
-      if (!this.closing) {
-        await this.trace<void>(
-          SpanKind.INTERNAL,
-          'startStalledCheckTimer',
-          this.name,
-          async span => {
-            span?.setAttributes({
-              [TelemetryAttributes.WorkerId]: this.id,
-              [TelemetryAttributes.WorkerName]: this.opts.name,
-            });
+    if (!this.closing) {
+      await this.trace<void>(
+        SpanKind.INTERNAL,
+        'startStalledCheckTimer',
+        this.name,
+        async span => {
+          span?.setAttributes({
+            [TelemetryAttributes.WorkerId]: this.id,
+            [TelemetryAttributes.WorkerName]: this.opts.name,
+          });
 
-            this.stalledChecker().catch(err => {
-              this.emit('error', <Error>err);
-            });
-          },
-        );
-      }
-    }
-  }
-
-  private async stalledChecker() {
-    while (!(this.closing || this.paused)) {
-      await this.checkConnectionError(() => this.moveStalledJobsToWait());
-
-      await new Promise<void>(resolve => {
-        const timeout = setTimeout(resolve, this.opts.stalledInterval);
-        this.stalledCheckStopper = () => {
-          clearTimeout(timeout);
-          resolve();
-        };
-      });
+          this.lockManager.startStalledCheckTimer().catch(err => {
+            this.emit('error', <Error>err);
+          });
+        },
+      );
     }
   }
 

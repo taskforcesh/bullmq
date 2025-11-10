@@ -146,6 +146,18 @@ export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
   useWorkerThreads?: boolean;
 
   /**
+   * Use a dedicated worker thread for lock renewal and stalled job detection.
+   * This prevents long-running jobs from blocking critical lock management operations.
+   * When enabled, lock renewal and stalled job checking will run in a separate thread
+   * from the main job processing.
+   *
+   * Note: This feature requires Node.js worker_threads support.
+   *
+   * @defaultValue false
+   */
+  useDedicatedLockThread?: boolean;
+
+  /**
    * Telemetry Addon
    */
   telemetry?: Telemetry;

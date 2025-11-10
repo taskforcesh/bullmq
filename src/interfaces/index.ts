@@ -30,3 +30,4 @@ export * from './sandboxed-options';
 export * from './worker-options';
 export * from './telemetry';
 export * from './receiver';
+export * from './lock-manager-options';

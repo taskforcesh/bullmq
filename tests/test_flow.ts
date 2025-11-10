@@ -268,9 +268,8 @@ describe('flows', () => {
           async job => {
             await delay(100);
 
-            const jobIdFromDebounceKey = await queue.getDebounceJobId(
-              'debounce_id',
-            );
+            const jobIdFromDebounceKey =
+              await queue.getDebounceJobId('debounce_id');
             expect(jobIdFromDebounceKey).to.be.equal(job.id);
 
             await flow.add({
@@ -336,9 +335,8 @@ describe('flows', () => {
 
         await completing;
 
-        const jobIdFromDebounceKey = await queue.getDebounceJobId(
-          'debounce_id',
-        );
+        const jobIdFromDebounceKey =
+          await queue.getDebounceJobId('debounce_id');
         expect(jobIdFromDebounceKey).to.be.null;
 
         expect(debouncedCounter).to.be.equal(1);

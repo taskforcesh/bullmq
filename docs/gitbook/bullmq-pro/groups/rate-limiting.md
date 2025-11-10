@@ -16,13 +16,13 @@ The rate limit is configured on the worker instances:
 import { WorkerPro } from '@taskforcesh/bullmq-pro';
 
 const worker = new WorkerPro('myQueue', processFn, {
-    group: {
-      limit: {
-        max: 100,  // Limit to 100 jobs per second per group
-        duration: 1000,
-      }
+  group: {
+    limit: {
+      max: 100, // Limit to 100 jobs per second per group
+      duration: 1000,
     },
-    connection
+  },
+  connection,
 });
 ```
 
@@ -75,5 +75,6 @@ if (ttl > 0) {
 
 ## Read more:
 
-* 💡 [Rate Limit Group API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#ratelimitgroup)
-- 💡 [Get Group Rate Limit Ttl API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#getgroupratelimitttl)
+- 💡 [Rate Limit Group API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#ratelimitgroup)
+
+* 💡 [Get Group Rate Limit Ttl API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#getgroupratelimitttl)

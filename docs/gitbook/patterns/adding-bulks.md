@@ -13,12 +13,12 @@ const trees = await flow.addBulk([
   {
     name: 'job-1',
     queueName: 'queueName-1',
-    data: {}
+    data: {},
   },
   {
     name: 'job-2',
     queueName: 'queueName-2',
-    data: {}
+    data: {},
   },
 ]);
 ```

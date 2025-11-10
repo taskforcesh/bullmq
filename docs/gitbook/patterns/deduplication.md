@@ -1,6 +1,6 @@
 # Deduplication
 
-Sometimes, you may want to decide when you want to stop deduplicating jobs. 
+Sometimes, you may want to decide when you want to stop deduplicating jobs.
 
 ## Until job is active
 
@@ -12,12 +12,12 @@ import { Job, Queue, Worker } from 'bullmq';
 const myQueue = new Queue('Paint');
 
 const worker = new Worker('Paint', async (job: Job) => {
-  await myQueue.removeDeduplicationKey(job.deduplicationId)
+  await myQueue.removeDeduplicationKey(job.deduplicationId);
   console.log('Do something with job');
   return 'some value';
 });
 
-myQueue.add('house', { color: 'white' }, { deduplication: { id: 'house'} });
+myQueue.add('house', { color: 'white' }, { deduplication: { id: 'house' } });
 ```
 
 {% hint style="info" %}

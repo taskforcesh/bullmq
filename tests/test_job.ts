@@ -454,11 +454,14 @@ describe('Job', function () {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
 
       const progress = new Promise<void>(resolve => {
-        queue.on('progress', (jobId: string, progress: string | boolean | number | object) => {
-          expect(jobId).to.be.eql(job.id);
-          expect(progress).to.be.eql(42);
-          resolve();
-        });
+        queue.on(
+          'progress',
+          (jobId: string, progress: string | boolean | number | object) => {
+            expect(jobId).to.be.eql(job.id);
+            expect(progress).to.be.eql(42);
+            resolve();
+          },
+        );
       });
       queue.updateJobProgress(job.id!, 42);
       await progress;
