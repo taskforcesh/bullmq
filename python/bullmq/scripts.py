@@ -50,7 +50,7 @@ class Scripts:
             "moveToDelayed": self.redisClient.register_script(self.getScript("moveToDelayed-8.lua")),
             "moveToFinished": self.redisClient.register_script(self.getScript("moveToFinished-14.lua")),
             "moveToWaitingChildren": self.redisClient.register_script(self.getScript("moveToWaitingChildren-7.lua")),
-            "obliterate": self.redisClient.register_script(self.getScript("obliterate-2.lua")),
+            "obliterate": self.redisClient.register_script(self.getScript("obliterate-3.lua")),
             "pause": self.redisClient.register_script(self.getScript("pause-7.lua")),
             "promote": self.redisClient.register_script(self.getScript("promote-9.lua")),
             "removeJob": self.redisClient.register_script(self.getScript("removeJob-2.lua")),
@@ -484,15 +484,25 @@ class Scripts:
 
     async def obliterate(self, count: int, force: bool = False):
         """
-        Remove a queue completely
+        Remove a queue completely.
+        This command calls a Lua script that obliterates the queue
+        and removes all associated keys, including from bullmq:registry.
         """
-        keys = self.getKeys(['meta', ''])
-        result = await self.commands["obliterate"](keys, args=[count, force or ""])
-        if (result < 0):
-            if (result == -1):
-                raise Exception("Cannot obliterate non-paused queue")
-            if (result == -2):
-                raise Exception("Cannot obliterate queue with active jobs")
+        keys = ['bullmq:registry', *self.getKeys(['meta', ''])]
+
+        # Convert force=True to "1", force=False to "", matching the Lua script logic
+        force_arg = '1' if force else ''
+
+        # Pass "args" as expected by your commands["obliterate"] method
+        result = await self.commands["obliterate"](keys, args=[count, force_arg])
+
+        # If the script returns a negative code, raise an exception
+        if result < 0:
+            if result == -1:
+                raise Exception("Cannot obliterate a non-paused queue")
+            elif result == -2:
+                raise Exception("Cannot obliterate a queue with active jobs")
+
         return result
 
     def moveJobsToWaitArgs(self, state: str, count: int, timestamp: int) -> int:
