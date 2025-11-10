@@ -81,7 +81,7 @@ if every then
     -- if we changed the 'every' value we need to reset millis to nil
     local millis = prevMillis
     if prevMillis then
-        local prevEvery = rcall("HGET", schedulerKey, "every")
+        local prevEvery = tonumber(rcall("HGET", schedulerKey, "every"))
         if prevEvery ~= every then
             millis = nil
             updatedEvery = true
