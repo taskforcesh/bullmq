@@ -247,21 +247,33 @@ describe('Job Scheduler', function () {
       const now = Date.now();
       const initialSlot = Math.floor(now / (1 * ONE_MINUTE)) * 1 * ONE_MINUTE;
 
-      const repeatableJobs = await queue.getJobSchedulers();
+      let repeatableJobs = await queue.getJobSchedulers();
       expect(repeatableJobs.length).to.be.eql(1);
 
       expect(repeatableJobs[0]).to.deep.equal({
         key: 'test',
         name: 'test',
-        next: initialSlot + 1 * ONE_MINUTE + offset,
+        next: now,
         iterationCount: 2,
         every: 240000,
         offset,
       });
 
-      await this.clock.tickAsync(ONE_MINUTE);
+      (await worker.getNextJob(token)) as Job;
+
       const count = await queue.getJobCountByTypes('delayed', 'waiting');
       expect(count).to.be.equal(1);
+
+      repeatableJobs = await queue.getJobSchedulers();
+      expect(repeatableJobs.length).to.be.eql(1);
+      expect(repeatableJobs[0]).to.deep.equal({
+        key: 'test',
+        name: 'test',
+        next: now + 4 * ONE_MINUTE,
+        iterationCount: 3,
+        every: 240000,
+        offset,
+      });
 
       await worker.close();
     });
@@ -274,6 +286,8 @@ describe('Job Scheduler', function () {
         const token = 'my-token';
 
         await worker.waitUntilReady();
+
+        const now = Date.now();
 
         const jobSchedulerId = 'test';
         await queue.upsertJobScheduler(jobSchedulerId, {
@@ -292,7 +306,7 @@ describe('Job Scheduler', function () {
         expect(repeatableJobs[0]).to.deep.equal({
           key: 'test',
           name: 'test',
-          next: 1486439700000,
+          next: now + ONE_MINUTE * 2,
           iterationCount: 2,
           every: ONE_MINUTE * 2,
           offset: 0,
@@ -388,6 +402,102 @@ describe('Job Scheduler', function () {
           expect(count).to.be.equal(1);
 
           await worker!.close();
+        });
+
+        it('should reschedule immediately when changing every interval', async function () {
+          const date = new Date('2017-02-07 9:24:00');
+          this.clock.setSystemTime(date);
+          const initialTime = Date.now();
+          let worker: Worker;
+
+          // Create a scheduler with 10 second interval, starting 10 seconds from now
+          await queue.upsertJobScheduler(
+            'test-scheduler',
+            {
+              every: 10 * ONE_SECOND,
+            },
+            {
+              name: 'test-job1',
+            },
+          );
+
+          let waitingJobs = await queue.getWaiting();
+          expect(waitingJobs).to.have.length(1);
+          const job1 = waitingJobs[0];
+          expect(job1.opts.repeat!.every).to.equal(10 * ONE_SECOND);
+
+          const processing = new Promise<void>(resolve => {
+            worker = new Worker(
+              queueName,
+              async () => {
+                resolve();
+              },
+              {
+                connection,
+                prefix,
+              },
+            );
+          });
+
+          await worker!.waitUntilReady();
+
+          await this.clock.tickAsync(1);
+
+          await processing;
+
+          waitingJobs = await queue.getWaiting();
+          expect(waitingJobs).to.have.length(0);
+
+          let delayedJobs = await queue.getDelayed();
+          expect(delayedJobs).to.have.length(1);
+          const jobAfterFirstRun = delayedJobs[0];
+          expect(jobAfterFirstRun.opts.repeat!.every).to.equal(10 * ONE_SECOND);
+
+          // Close the worker to prevent it from processing the next job immediately
+          await worker!.close();
+
+          // Update scheduler to 2 second interval
+          // Expected behavior: When changing the 'every' interval, the job should be
+          // rescheduled to run immediately (delay=0), not delayed by the new interval.
+          // This treats the scheduler change as a "fresh start".
+          await queue.upsertJobScheduler(
+            'test-scheduler',
+            {
+              every: 2 * ONE_SECOND,
+            },
+            {
+              name: 'test-job2',
+            },
+          );
+
+          // Verify the job is immediately available in the waiting queue
+          // This confirms the scheduler was reset and the job runs NOW, not in 2 seconds
+          waitingJobs = await queue.getWaiting();
+          expect(waitingJobs).to.have.length(1);
+
+          delayedJobs = await queue.getDelayed();
+          expect(delayedJobs).to.have.length(0);
+
+          const job2 = waitingJobs[0];
+
+          // Verify the job has delay=0 (runs immediately)
+          expect(job2.delay).to.equal(0);
+
+          // Verify the job has the new interval configured
+          expect(job2.opts.repeat!.every).to.equal(2 * ONE_SECOND);
+
+          // Verify the timestamp is current (not scheduled for the old 10s interval)
+          const job2RunTime = job2.timestamp! + job2.delay!;
+          const timeSinceStart = job2RunTime - initialTime;
+
+          // Job should run at current time (t~1ms), not at old schedule (t+10000ms)
+          expect(timeSinceStart).to.be.lessThan(
+            100,
+            `Job should run immediately when interval changes.\n` +
+              `  Expected: job runs at current time (~t+1ms)\n` +
+              `  Actual: job runs at t+${timeSinceStart}ms\n` +
+              `  Changing the 'every' interval should treat the scheduler as new.`,
+          );
         });
 
         describe('when job scheduler is removed and upserted', function () {

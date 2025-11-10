@@ -75,9 +75,21 @@ local every = schedulerOpts['every']
 local jobOffset = jobOpts['repeat'] and jobOpts['repeat']['offset'] or 0
 local offset = schedulerOpts['offset'] or jobOffset or 0
 local newOffset = offset
+
+local updatedEvery = false
 if every then
+    -- if we changed the 'every' value we need to reset millis to nil
+    local millis = prevMillis
+    if prevMillis then
+        local prevEvery = rcall("HGET", schedulerKey, "every")
+        if prevEvery ~= every then
+            millis = nil
+            updatedEvery = true
+        end
+    end
+
     local startDate = schedulerOpts['startDate']
-    nextMillis, newOffset = getJobSchedulerEveryNextMillis(prevMillis, every, now, offset, startDate)
+    nextMillis, newOffset = getJobSchedulerEveryNextMillis(millis, every, now, offset, startDate)
 end
 
 local function removeJobFromScheduler(prefixKey, delayedKey, prioritizedKey, waitKey, pausedKey, jobId, metaKey,
@@ -120,7 +132,7 @@ end
 
 if removedPrevJob then
     -- The jobs has been removed and we want to replace it, so lets use the same millis.
-    if every then
+    if every and not updatedEvery then
         nextMillis = prevMillis
     end
 else
