@@ -39,7 +39,16 @@ export class JobScheduler extends QueueBase {
     opts: JobSchedulerTemplateOptions,
     { override, producerId }: { override: boolean; producerId?: string },
   ): Promise<Job<T, R, N> | undefined> {
-    const { every, limit, pattern, offset } = repeatOpts;
+    // Check if we have a start date for the repeatable job
+    const { immediately, startDate, ...filteredRepeatOpts } = repeatOpts;
+    const { count, endDate, every, limit, pattern, offset } =
+      filteredRepeatOpts;
+
+    // Check if we reached the limit of the repeatable job's iterations
+    const iterationCount = count ? count + 1 : 1;
+    if (typeof limit !== 'undefined' && iterationCount > limit) {
+      return;
+    }
 
     if (pattern && every) {
       throw new Error(
@@ -53,69 +62,23 @@ export class JobScheduler extends QueueBase {
       );
     }
 
-    if (repeatOpts.immediately && repeatOpts.startDate) {
+    if (immediately && startDate) {
       throw new Error(
         'Both .immediately and .startDate options are defined for this repeatable job',
       );
     }
 
-    if (repeatOpts.immediately && repeatOpts.every) {
+    if (immediately && every) {
       console.warn(
         "Using option immediately with every does not affect the job's schedule. Job will run immediately anyway.",
       );
     }
 
-    // Check if we reached the limit of the repeatable job's iterations
-    const iterationCount = repeatOpts.count ? repeatOpts.count + 1 : 1;
-    if (
-      typeof repeatOpts.limit !== 'undefined' &&
-      iterationCount > repeatOpts.limit
-    ) {
-      return;
-    }
-
-    // Check if we reached the end date of the repeatable job
-    let now = Date.now();
-    const { endDate } = repeatOpts;
-    if (endDate && now > new Date(endDate!).getTime()) {
-      return;
-    }
-
-    const prevMillis = opts.prevMillis || 0;
-    now = prevMillis < now ? now : prevMillis;
-
-    // Check if we have a start date for the repeatable job
-    const { startDate, immediately, ...filteredRepeatOpts } = repeatOpts;
-    const nexMillisIteration = prevMillis + (every || 0) + (offset || 0);
-    // use last possible millis for next slot in case a possible promotion
-    let startMillis = now < nexMillisIteration ? nexMillisIteration - 1 : now;
-    if (startDate) {
-      startMillis = new Date(startDate).getTime();
-      startMillis = startMillis > now ? startMillis : now;
-    }
-
-    let nextMillis: number;
-    let newOffset: number | null = null;
-    if (every) {
-      const prevSlot =
-        Math.floor((startMillis - (offset || 0)) / every) * every;
-
-      newOffset = typeof offset === 'number' ? offset : startMillis - prevSlot;
-
-      const nextSlot = prevSlot + every;
-
-      if (prevMillis || offset) {
-        nextMillis = nextSlot;
-      } else {
-        nextMillis = prevSlot;
-      }
-    } else if (pattern) {
-      nextMillis = await this.repeatStrategy(now, repeatOpts, jobName);
-
-      if (nextMillis < now) {
-        nextMillis = now;
-      }
-    }
+    const [nextMillis, newOffset] = await this.getNextMillis<N>(
+      repeatOpts,
+      jobName,
+      opts.prevMillis,
+    );
 
     if (nextMillis) {
       return this.trace<Job<T, R, N>>(
@@ -159,8 +122,8 @@ export class JobScheduler extends QueueBase {
               Job.optsAsJSON(opts),
               {
                 name: jobName,
-                startDate: repeatOpts.startDate
-                  ? new Date(repeatOpts.startDate).getTime()
+                startDate: startDate
+                  ? new Date(startDate).getTime()
                   : undefined,
                 endDate: endDate ? new Date(endDate).getTime() : undefined,
                 tz: repeatOpts.tz,
@@ -222,6 +185,56 @@ export class JobScheduler extends QueueBase {
         },
       );
     }
+  }
+
+  private async getNextMillis<N extends string = string>(
+    repeatOpts: Omit<RepeatOptions, 'key' | 'prevMillis'>,
+    jobName: N,
+    pMillis?: number,
+  ) {
+    const { endDate, every, pattern, offset, startDate } = repeatOpts;
+
+    // Check if we reached the end date of the repeatable job
+    let now = Date.now();
+    if (endDate && now > new Date(endDate!).getTime()) {
+      return [];
+    }
+
+    const prevMillis = pMillis || 0;
+    now = prevMillis < now ? now : prevMillis;
+
+    const nexMillisIteration = prevMillis + (every || 0) + (offset || 0);
+    // use last possible millis for next slot in case a possible promotion
+    let startMillis = now < nexMillisIteration ? nexMillisIteration - 1 : now;
+    if (startDate) {
+      startMillis = new Date(startDate).getTime();
+      startMillis = startMillis > now ? startMillis : now;
+    }
+
+    let nextMillis: number;
+    let newOffset: number | null = null;
+    if (every) {
+      const prevSlot =
+        Math.floor((startMillis - (offset || 0)) / every) * every;
+
+      newOffset = typeof offset === 'number' ? offset : startMillis - prevSlot;
+
+      const nextSlot = prevSlot + every;
+
+      if (prevMillis || offset) {
+        nextMillis = nextSlot;
+      } else {
+        nextMillis = prevSlot;
+      }
+    } else if (pattern) {
+      nextMillis = await this.repeatStrategy(now, repeatOpts, jobName);
+
+      if (nextMillis < now) {
+        nextMillis = now;
+      }
+    }
+
+    return [nextMillis, newOffset];
   }
 
   private getNextJobOpts(
