@@ -243,9 +243,6 @@ describe('Job Scheduler', function () {
         every: ONE_MINUTE * 4,
       });
 
-      const now = Date.now();
-      const initialSlot = Math.floor(now / (1 * ONE_MINUTE)) * 1 * ONE_MINUTE;
-
       const repeatableJobs = await queue.getJobSchedulers();
       expect(repeatableJobs.length).to.be.eql(1);
 

@@ -374,20 +374,14 @@ describe('Job Scheduler Stress', function () {
     const upsertPromises: Promise<void>[] = [];
     for (let i = 0; i < 5; i++) {
       const promise = async () => {
-        try {
-          await queue.upsertJobScheduler(
-            jobSchedulerId,
-            { every: 1000 + i * 200 }, // Vary timing slightly
-            {
-              name: `iteration-${i}`,
-              data: { iteration: i, timestamp: Date.now() },
-            },
-          );
-        } catch (error) {
-          expect(error.message).to.be.eql(
-            'Cannot create job scheduler iteration - current and next time slots already have jobs. addJobScheduler',
-          );
-        }
+        await queue.upsertJobScheduler(
+          jobSchedulerId,
+          { every: 1000 + i * 200 }, // Vary timing slightly
+          {
+            name: `iteration-${i}`,
+            data: { iteration: i, timestamp: Date.now() },
+          },
+        );
       };
       upsertPromises.push(promise());
 
