@@ -1,6 +1,6 @@
 {
   "name": "bullmq",
-  "version": "5.63.0",
+  "version": "5.63.1",
   "description": "Queue for messages and jobs based on Redis",
   "homepage": "https://bullmq.io/",
   "main": "./dist/cjs/index.js",
@@ -122,7 +122,8 @@
   "resolutions": {
     "@semantic-release/commit-analyzer/conventional-changelog-angular": "8.1.0",
     "@semantic-release/release-notes-generator/conventional-changelog-angular": "8.1.0",
-    "commitizen/inquirer/external-editor/tmp": "0.2.4"
+    "commitizen/inquirer/external-editor/tmp": "0.2.4",
+    "tar": ">=7.5.2"
   },
   "nyc": {
     "extends": "@istanbuljs/nyc-config-typescript",
