@@ -82,7 +82,6 @@
     "@types/node": "^18.19.127",
     "@types/semver": "^7.3.9",
     "@types/sinon": "^10.0.13",
-    "@types/uuid": "^3.4.10",
     "@typescript-eslint/eslint-plugin": "^8.37.0",
     "@typescript-eslint/parser": "^8.37.0",
     "chai": "^4.3.4",
