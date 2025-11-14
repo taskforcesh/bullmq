@@ -190,7 +190,7 @@ export class JobScheduler extends QueueBase {
   private async getNextMillis<N extends string = string>(
     repeatOpts: Omit<RepeatOptions, 'key' | 'prevMillis'>,
     jobName: N,
-    pMillis?: number,
+    prevMillis = 0,
   ) {
     const { endDate, every, pattern, offset, startDate } = repeatOpts;
 
@@ -200,7 +200,6 @@ export class JobScheduler extends QueueBase {
       return [];
     }
 
-    const prevMillis = pMillis || 0;
     now = prevMillis < now ? now : prevMillis;
 
     const nextMillisIteration = prevMillis + (every || 0) + (offset || 0);
