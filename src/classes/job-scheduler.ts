@@ -203,9 +203,9 @@ export class JobScheduler extends QueueBase {
     const prevMillis = pMillis || 0;
     now = prevMillis < now ? now : prevMillis;
 
-    const nexMillisIteration = prevMillis + (every || 0) + (offset || 0);
+    const nextMillisIteration = prevMillis + (every || 0) + (offset || 0);
     // use last possible millis for next slot in case a possible promotion
-    let startMillis = now < nexMillisIteration ? nexMillisIteration - 1 : now;
+    let startMillis = now < nextMillisIteration ? nextMillisIteration - 1 : now;
     if (startDate) {
       startMillis = new Date(startDate).getTime();
       startMillis = startMillis > now ? startMillis : now;

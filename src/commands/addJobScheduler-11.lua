@@ -124,7 +124,7 @@ end
 
 local prevMillis = rcall("ZSCORE", repeatKey, jobSchedulerId)
 
-if prevMillis then    
+if prevMillis then
     local currentJobId = "repeat:" .. jobSchedulerId .. ":" .. prevMillis
     local currentDelayedJobKey = schedulerKey .. ":" .. prevMillis
     
