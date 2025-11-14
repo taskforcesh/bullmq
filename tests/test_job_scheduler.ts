@@ -270,7 +270,7 @@ describe('Job Scheduler', function () {
         next: now + 4 * ONE_MINUTE,
         iterationCount: 3,
         every: 240000,
-        offset,
+        offset: 121003,
       });
 
       await worker.close();
