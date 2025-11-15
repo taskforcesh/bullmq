@@ -1178,6 +1178,65 @@ describe('Rate Limiter', function () {
     });
   });
 
+  describe('when there are delayed jobs to promote', () => {
+    it('should promote jobs after maximumRateLimitDelay', async function () {
+      this.timeout(10000);
+
+      const numJobs = 2;
+      const duration = 10000;
+
+      const ttl = await queue.getRateLimitTtl();
+      expect(ttl).to.be.equal(-2);
+
+      const worker = new Worker(queueName, async () => {}, {
+        autorun: false,
+        connection,
+        maximumRateLimitDelay: 4000,
+        prefix,
+        limiter: {
+          max: 1,
+          duration,
+        },
+      });
+
+      const jobs = Array.from(Array(numJobs).keys()).map(() => ({
+        name: 'rate test',
+        data: {},
+      }));
+      await queue.addBulk(jobs);
+
+      const delayedJobs = Array.from(Array(numJobs).keys()).map(() => ({
+        name: 'delayed test',
+        data: {},
+        opts: { delay: 2000 },
+      }));
+      await queue.addBulk(delayedJobs);
+
+      const countBeforeRun = await queue.getJobCounts('waiting', 'delayed');
+      expect(countBeforeRun).to.deep.equal({
+        waiting: 2,
+        delayed: 2,
+        paused: 0,
+      });
+
+      worker.run();
+
+      await delay(4100);
+
+      const countBeforeAfterMaxRLDelay = await queue.getJobCounts(
+        'waiting',
+        'delayed',
+      );
+      expect(countBeforeAfterMaxRLDelay).to.deep.equal({
+        waiting: 3,
+        delayed: 0,
+        paused: 0,
+      });
+
+      await worker.close();
+    });
+  });
+
   describe('when there are more added jobs than max limiter', () => {
     it('processes jobs as max limiter from the beginning', async function () {
       const numJobs = 400;

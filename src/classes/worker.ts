@@ -43,8 +43,6 @@ import { SpanKind, TelemetryAttributes } from '../enums';
 import { JobScheduler } from './job-scheduler';
 import { LockManager, LockManagerWorkerContext } from './lock-manager';
 
-const ONE_SECOND = 1000;
-
 // 10 seconds is the maximum time a BZPOPMIN can block.
 const maximumBlockTimeout = 10;
 
@@ -229,6 +227,7 @@ export class Worker<
         drainDelay: 5,
         concurrency: 1,
         lockDuration: 30000,
+        maximumRateLimitDelay: 30000,
         maxStalledCount: 1,
         stalledInterval: 30000,
         autorun: true,
@@ -547,6 +546,7 @@ export class Worker<
       const delay = this.getRateLimitDelay(limitUntil - Date.now());
 
       await this.delay(delay, this.abortDelayController);
+      this.limitUntil = 0;
     }
   }
 
@@ -836,7 +836,7 @@ will never work with more accuracy than 1ms. */
   protected getRateLimitDelay(delay: number): number {
     // We restrict the maximum limit until to 30 second to
     // be able to promote delayed jobs while queue is rate limited
-    return Math.min(delay, maximumRateLimitDelay);
+    return Math.min(delay, this.opts.maximumRateLimitDelay);
   }
 
   /**
