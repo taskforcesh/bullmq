@@ -834,8 +834,8 @@ will never work with more accuracy than 1ms. */
   }
 
   protected getRateLimitDelay(delay: number): number {
-    // We restrict the maximum limit until to 30 second to
-    // be able to promote delayed jobs while queue is rate limited
+    // We restrict the maximum limit delay to the configured maximumRateLimitDelay
+    // to be able to promote delayed jobs while the queue is rate limited
     return Math.min(delay, this.opts.maximumRateLimitDelay);
   }
 
