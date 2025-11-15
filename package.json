@@ -98,7 +98,6 @@
     "eslint-plugin-tsdoc": "^0.4.0",
     "fast-glob": "^3.3.3",
     "husky": "^8.0.1",
-    "istanbul": "^0.4.5",
     "lint-staged": "^16.2.6",
     "madge": "^8.0.0",
     "minimatch": "^9.0.3",
