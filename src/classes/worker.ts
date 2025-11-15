@@ -521,6 +521,7 @@ export class Worker<
 
       await this.delay(delay, this.abortDelayController);
       this.limitUntil = 0;
+      this.drained = false;
     }
   }
 
