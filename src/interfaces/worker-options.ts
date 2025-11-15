@@ -44,7 +44,7 @@ export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
 
   /**
    * Maximum time in milliseconds where the job is idle while being rate limited.
-   * While workers are idle because of a rate limite, they won't fetch new jobs to process
+   * While workers are idle because of a rate limiter, they won't fetch new jobs to process
    * and delayed jobs won't be promoted.
    * @defaultValue 30000
    */
