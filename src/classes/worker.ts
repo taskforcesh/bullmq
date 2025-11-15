@@ -46,9 +46,6 @@ import { LockManager, LockManagerWorkerContext } from './lock-manager';
 // 10 seconds is the maximum time a BZPOPMIN can block.
 const maximumBlockTimeout = 10;
 
-// 30 seconds is the maximum limit until.
-const maximumRateLimitDelay = 30000;
-
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
 
@@ -546,8 +543,8 @@ export class Worker<
       const delay = this.getRateLimitDelay(limitUntil - Date.now());
 
       await this.delay(delay, this.abortDelayController);
-      this.limitUntil = 0;
       this.drained = false;
+      this.limitUntil = 0;
     }
   }
 
