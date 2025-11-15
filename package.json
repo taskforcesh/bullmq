@@ -28,7 +28,7 @@
     "copy:lua": "cpx \"./src/commands/*.lua\" ./dist/cjs/commands && cpx \"./src/commands/*.lua\" ./dist/esm/commands",
     "copy:lua:python": "cpx \"./rawScripts/*.lua\" ./python/bullmq/commands",
     "copy:main:type": "cpx \"./dist/esm/classes/main.d.ts\" ./dist/cjs/classes && cpx \"./dist/esm/classes/main-worker.d.ts\" ./dist/cjs/classes",
-    "coverage": "c8 --all --reporter=text --reporter=lcovonly --lines 80 --functions 80 --branches 70 --statements 80 npm run test",
+    "coverage": "c8 --reporter=text --reporter=lcovonly npm run test",
     "docs": "typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts",
     "docs:json": "typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts --json ./apiVersions/v5.json --name v5",
     "dc:up": "docker-compose -f docker-compose.yml up -d",
@@ -113,6 +113,21 @@
     "ts-node": "^10.7.0",
     "typedoc": "^0.28.2",
     "typescript": "^5.9.2"
+  },
+  "c8": {
+    "all": true,
+    "check-coverage": true,
+    "lines": 80,
+    "functions": 80,
+    "branches": 70,
+    "statements": 80,
+    "exclude": [
+      "src/enums/*.ts",
+      "src/interfaces/*.ts"
+    ],
+    "include": [
+      "src/**/*.ts"
+    ]
   },
   "commitlint": {
     "extends": [
