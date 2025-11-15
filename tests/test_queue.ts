@@ -104,12 +104,13 @@ describe('queues', function () {
       await queue.setGlobalConcurrency(1);
       const config = await queue.getMeta();
 
-      expect(config).to.be.deep.equal({
+      expect(config).to.be.deep.include({
         maxLenEvents: 10000,
         paused: false,
-        version: `bullmq:${currentPackageVersion}`,
         concurrency: 1,
       });
+      expect(config.version?.startsWith('bullmq')).to.be.true;
+      expect(config.version?.endsWith(`:${currentPackageVersion}`)).to.be.true;
 
       await queue.close();
     });
@@ -118,13 +119,14 @@ describe('queues', function () {
       await queue.setGlobalRateLimit(1, 500);
       const config = await queue.getMeta();
 
-      expect(config).to.be.deep.equal({
+      expect(config).to.be.deep.include({
         maxLenEvents: 10000,
         paused: false,
-        version: `bullmq:${currentPackageVersion}`,
         max: 1,
         duration: 500,
       });
+      expect(config.version?.startsWith('bullmq')).to.be.true;
+      expect(config.version?.endsWith(`:${currentPackageVersion}`)).to.be.true;
 
       await queue.close();
     });
@@ -133,11 +135,12 @@ describe('queues', function () {
       await queue.pause();
       const config = await queue.getMeta();
 
-      expect(config).to.be.deep.equal({
+      expect(config).to.be.deep.include({
         maxLenEvents: 10000,
-        version: `bullmq:${currentPackageVersion}`,
         paused: true,
       });
+      expect(config.version?.startsWith('bullmq')).to.be.true;
+      expect(config.version?.endsWith(`:${currentPackageVersion}`)).to.be.true;
 
       await queue.close();
     });

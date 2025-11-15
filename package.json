@@ -1,6 +1,6 @@
 {
   "name": "bullmq",
-  "version": "5.63.1",
+  "version": "5.63.2",
   "description": "Queue for messages and jobs based on Redis",
   "homepage": "https://bullmq.io/",
   "main": "./dist/cjs/index.js",
@@ -29,7 +29,6 @@
     "copy:lua:python": "cpx \"./rawScripts/*.lua\" ./python/bullmq/commands",
     "copy:main:type": "cpx \"./dist/esm/classes/main.d.ts\" ./dist/cjs/classes && cpx \"./dist/esm/classes/main-worker.d.ts\" ./dist/cjs/classes",
     "coverage": "nyc --reporter=text --reporter=lcovonly npm run test",
-    "cm": "git cz",
     "docs": "typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts",
     "docs:json": "typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts --json ./apiVersions/v5.json --name v5",
     "dc:up": "docker-compose -f docker-compose.yml up -d",
@@ -55,7 +54,7 @@
   },
   "dependencies": {
     "cron-parser": "^4.9.0",
-    "ioredis": "^5.4.1",
+    "ioredis": "^5.8.2",
     "msgpackr": "^1.11.2",
     "node-abort-controller": "^3.1.1",
     "semver": "^7.5.4",
@@ -63,8 +62,8 @@
     "uuid": "^11.1.0"
   },
   "devDependencies": {
-    "@commitlint/cli": "^17.0.3",
-    "@commitlint/config-conventional": "^17.0.3",
+    "@commitlint/cli": "^20.1.0",
+    "@commitlint/config-conventional": "^20.0.0",
     "@istanbuljs/nyc-config-typescript": "^1.0.2",
     "@semantic-release/changelog": "^6.0.1",
     "@semantic-release/commit-analyzer": "^13.0.1",
@@ -86,7 +85,6 @@
     "@typescript-eslint/parser": "^8.37.0",
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
-    "commitizen": "^4.3.1",
     "coveralls-next": "^5.0.0",
     "cpx2": "^8.0.0",
     "eslint": "^9.32.0",
@@ -117,12 +115,6 @@
     "ts-node": "^10.7.0",
     "typedoc": "^0.28.2",
     "typescript": "^5.9.2"
-  },
-  "resolutions": {
-    "@semantic-release/commit-analyzer/conventional-changelog-angular": "8.1.0",
-    "@semantic-release/release-notes-generator/conventional-changelog-angular": "8.1.0",
-    "commitizen/inquirer/external-editor/tmp": "0.2.4",
-    "tar": ">=7.5.2"
   },
   "nyc": {
     "extends": "@istanbuljs/nyc-config-typescript",
@@ -155,11 +147,6 @@
         80,
         95
       ]
-    }
-  },
-  "config": {
-    "commitizen": {
-      "path": "node_modules/cz-conventional-changelog"
     }
   },
   "commitlint": {

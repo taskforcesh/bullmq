@@ -41,6 +41,7 @@ import {
 } from './errors';
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { JobScheduler } from './job-scheduler';
+import { LockManager, LockManagerWorkerContext } from './lock-manager';
 
 const ONE_SECOND = 1000;
 
@@ -160,6 +161,20 @@ export interface WorkerListener<
    * has been moved back to the wait list.
    */
   stalled: (jobId: string, prev: string) => void;
+
+  /**
+   * Listen to 'lockRenewalFailed' event.
+   *
+   * This event is triggered when lock renewal fails for one or more jobs.
+   */
+  lockRenewalFailed: (jobIds: string[]) => void;
+
+  /**
+   * Listen to 'locksRenewed' event.
+   *
+   * This event is triggered when locks are successfully renewed.
+   */
+  locksRenewed: (data: { count: number; jobIds: string[] }) => void;
 }
 
 /**
@@ -183,8 +198,8 @@ export class Worker<
   private _concurrency: number;
   private childPool: ChildPool;
   private drained = false;
-  private extendLocksTimer: NodeJS.Timeout | null = null;
   private limitUntil = 0;
+  private lockManager: LockManager;
 
   private stalledCheckStopper?: () => void;
   private waiting: Promise<number> | null = null;
@@ -258,6 +273,14 @@ export class Worker<
       this.opts.lockRenewTime || this.opts.lockDuration / 2;
 
     this.id = v4();
+
+    // Initialize lock manager with worker context
+    this.lockManager = new LockManager(this as LockManagerWorkerContext, {
+      lockRenewTime: this.opts.lockRenewTime,
+      lockDuration: this.opts.lockDuration,
+      workerId: this.id,
+      workerName: this.opts.name,
+    });
 
     if (processor) {
       if (typeof processor === 'function') {
@@ -338,6 +361,18 @@ export class Worker<
     this.blockingConnection.on('ready', () =>
       setTimeout(() => this.emit('ready'), 0),
     );
+  }
+
+  /**
+   * Public accessor method for LockManager to extend locks.
+   * This delegates to the protected scripts object.
+   */
+  async extendJobLocks(
+    jobIds: string[],
+    tokens: string[],
+    duration: number,
+  ): Promise<string[]> {
+    return this.scripts.extendLocks(jobIds, tokens, duration);
   }
 
   emit<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
@@ -461,6 +496,10 @@ export class Worker<
 
       await this.startStalledCheckTimer();
 
+      if (!this.opts.skipLockRenewal) {
+        this.lockManager.start();
+      }
+
       const client = await this.client;
       const bclient = await this.blockingConnection.client;
 
@@ -496,8 +535,6 @@ export class Worker<
       ResultType,
       NameType
     >>();
-    const jobsInProgress = new Set<{ job: Job; ts: number }>();
-    this.startLockExtenderTimer(jobsInProgress);
 
     let tokenPostfix = 0;
 
@@ -560,7 +597,6 @@ export class Worker<
             <Job<DataType, ResultType, NameType>>job,
             token,
             () => asyncFifoQueue.numTotal() <= this._concurrency,
-            jobsInProgress,
           ),
         );
       } else if (asyncFifoQueue.numQueued() === 0) {
@@ -857,7 +893,6 @@ will never work with more accuracy than 1ms. */
     job: Job<DataType, ResultType, NameType>,
     token: string,
     fetchNextCallback = () => true,
-    jobsInProgress: Set<{ job: Job; ts: number }>,
   ): Promise<void | Job<DataType, ResultType, NameType>> {
     const srcPropagationMedatada = job.opts?.telemetry?.metadata;
 
@@ -877,7 +912,8 @@ will never work with more accuracy than 1ms. */
         this.emit('active', job, 'waiting');
 
         const processedOn = Date.now();
-        const inProgressItem = { job, ts: processedOn };
+
+        this.lockManager.trackJob(job.id, token, processedOn);
 
         try {
           const unrecoverableErrorMessage =
@@ -894,15 +930,12 @@ will never work with more accuracy than 1ms. */
                   job,
                   token,
                   fetchNextCallback,
-                  jobsInProgress,
-                  inProgressItem,
                   span,
                 ),
               { delayInMs: this.opts.runRetryDelay, span },
             );
             return failed;
           }
-          jobsInProgress.add(inProgressItem);
 
           const result = await this.callProcessJob(job, token);
           return await this.retryIfFailed<void | Job<
@@ -911,15 +944,7 @@ will never work with more accuracy than 1ms. */
             NameType
           >>(
             () =>
-              this.handleCompleted(
-                result,
-                job,
-                token,
-                fetchNextCallback,
-                jobsInProgress,
-                inProgressItem,
-                span,
-              ),
+              this.handleCompleted(result, job, token, fetchNextCallback, span),
             { delayInMs: this.opts.runRetryDelay, span },
           );
         } catch (err) {
@@ -934,14 +959,14 @@ will never work with more accuracy than 1ms. */
                 job,
                 token,
                 fetchNextCallback,
-                jobsInProgress,
-                inProgressItem,
                 span,
               ),
             { delayInMs: this.opts.runRetryDelay, span, onlyEmitError: true },
           );
           return failed;
         } finally {
+          this.lockManager.untrackJob(job.id);
+
           span?.setAttributes({
             [TelemetryAttributes.JobFinishedTimestamp]: Date.now(),
             [TelemetryAttributes.JobProcessedTimestamp]: processedOn,
@@ -971,12 +996,8 @@ will never work with more accuracy than 1ms. */
     job: Job<DataType, ResultType, NameType>,
     token: string,
     fetchNextCallback = () => true,
-    jobsInProgress: Set<{ job: Job; ts: number }>,
-    inProgressItem: { job: Job; ts: number },
     span?: Span,
   ) {
-    jobsInProgress.delete(inProgressItem);
-
     if (!this.connection.closing) {
       const completed = await job.moveToCompleted(
         result,
@@ -1001,12 +1022,8 @@ will never work with more accuracy than 1ms. */
     job: Job<DataType, ResultType, NameType>,
     token: string,
     fetchNextCallback = () => true,
-    jobsInProgress: Set<{ job: Job; ts: number }>,
-    inProgressItem: { job: Job; ts: number },
     span?: Span,
   ) {
-    jobsInProgress.delete(inProgressItem);
-
     if (!this.connection.closing) {
       // Check if the job was manually rate-limited
       if (err.message === RATE_LIMIT_ERROR) {
@@ -1152,6 +1169,7 @@ will never work with more accuracy than 1ms. */
             () => {
               return force || this.whenCurrentJobsFinished(false);
             },
+            () => this.lockManager.close(),
             () => this.childPool?.clean(),
             () => this.blockingConnection.close(force),
             () => this.connection.close(force),
@@ -1166,7 +1184,6 @@ will never work with more accuracy than 1ms. */
             }
           }
 
-          clearTimeout(this.extendLocksTimer);
           this.stalledCheckStopper?.();
 
           this.closed = true;
@@ -1223,47 +1240,6 @@ will never work with more accuracy than 1ms. */
           resolve();
         };
       });
-    }
-  }
-
-  private startLockExtenderTimer(
-    jobsInProgress: Set<{ job: Job; ts: number }>,
-  ): void {
-    if (!this.opts.skipLockRenewal) {
-      clearTimeout(this.extendLocksTimer);
-
-      if (!this.closed) {
-        this.extendLocksTimer = setTimeout(async () => {
-          // Get all the jobs whose locks expire in less than 1/2 of the lockRenewTime
-          const now = Date.now();
-          const jobsToExtend = [];
-
-          for (const item of jobsInProgress) {
-            const { job, ts } = item;
-            if (!ts) {
-              item.ts = now;
-              continue;
-            }
-
-            if (ts + this.opts.lockRenewTime / 2 < now) {
-              item.ts = now;
-              jobsToExtend.push(job);
-            }
-          }
-
-          try {
-            if (jobsToExtend.length) {
-              await this.extendLocks(jobsToExtend);
-            }
-          } catch (err) {
-            if (isNotConnectionError(err as Error)) {
-              this.emit('error', <Error>err);
-            }
-          }
-
-          this.startLockExtenderTimer(jobsInProgress);
-        }, this.opts.lockRenewTime / 2);
-      }
     }
   }
 
@@ -1331,38 +1307,6 @@ will never work with more accuracy than 1ms. */
         }
       }
     } while (++retry < maxRetries);
-  }
-
-  protected async extendLocks(jobs: Job[]) {
-    await this.trace<void>(
-      SpanKind.INTERNAL,
-      'extendLocks',
-      this.name,
-      async span => {
-        span?.setAttributes({
-          [TelemetryAttributes.WorkerId]: this.id,
-          [TelemetryAttributes.WorkerName]: this.opts.name,
-          [TelemetryAttributes.WorkerJobsToExtendLocks]: jobs.map(
-            job => job.id,
-          ),
-        });
-
-        const erroredJobIds = await this.scripts.extendLocks(
-          jobs.map(job => job.id),
-          jobs.map(job => job.token),
-          this.opts.lockDuration,
-        );
-
-        for (const jobId of erroredJobIds) {
-          // TODO: Send signal to process function that the job has been lost.
-
-          this.emit(
-            'error',
-            new Error(`could not renew lock for job ${jobId}`),
-          );
-        }
-      },
-    );
   }
 
   private async moveStalledJobsToWait() {
