@@ -43,6 +43,14 @@ export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
   metrics?: MetricsOptions;
 
   /**
+   * Maximum time in milliseconds where the job is idle while being rate limited.
+   * While workers are idle because of a rate limiter, they won't fetch new jobs to process
+   * and delayed jobs won't be promoted.
+   * @defaultValue 30000
+   */
+  maximumRateLimitDelay?: number;
+
+  /**
    * Defines the maximum number of times a job is allowed to start processing,
    * regardless of whether it completes or fails. Each time a worker picks up the job
    * and begins processing it, the attemptsStarted counter is incremented.
