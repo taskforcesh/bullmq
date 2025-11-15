@@ -74,6 +74,8 @@
     "@semantic-release/release-notes-generator": "^14.1.0",
     "@types/chai": "^4.3.1",
     "@types/chai-as-promised": "^7.1.5",
+    "@types/lodash.defaults": "^4.2.9",
+    "@types/lodash.isarguments": "^3.1.9",
     "@types/mocha": "^5.2.7",
     "@types/msgpack": "^0.0.31",
     "@types/node": "^18.19.127",
