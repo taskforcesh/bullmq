@@ -1212,26 +1212,19 @@ describe('Rate Limiter', function () {
       }));
       await queue.addBulk(delayedJobs);
 
-      const countBeforeRun = await queue.getJobCounts('waiting', 'delayed');
-      expect(countBeforeRun).to.deep.equal({
-        waiting: 2,
-        delayed: 2,
-        paused: 0,
-      });
+      const waitingCountBeforeRun = await queue.getWaitingCount();
+      expect(waitingCountBeforeRun).to.be.equal(2);
+      const delayedCountBeforeRun = await queue.getDelayedCount();
+      expect(delayedCountBeforeRun).to.be.equal(2);
 
       worker.run();
 
       await delay(4100);
 
-      const countBeforeAfterMaxRLDelay = await queue.getJobCounts(
-        'waiting',
-        'delayed',
-      );
-      expect(countBeforeAfterMaxRLDelay).to.deep.equal({
-        waiting: 3,
-        delayed: 0,
-        paused: 0,
-      });
+      const waitingCountAfterMaxRLDelay = await queue.getWaitingCount();
+      expect(waitingCountAfterMaxRLDelay).to.be.equal(3);
+      const delayedCountAfterMaxRLDelay = await queue.getDelayedCount();
+      expect(delayedCountAfterMaxRLDelay).to.be.equal(0);
 
       await worker.close();
     });
