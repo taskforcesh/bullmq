@@ -1175,12 +1175,60 @@ describe('Rate Limiter', function () {
         await result;
         await worker.close();
       });
+
+      describe('when maximumRateLimitDelay is reached', () => {
+        it('should continue processing jobs', async function () {
+          this.timeout(50000);
+
+          const numJobs = 4;
+          const duration = 10000;
+
+          const worker = new Worker(queueName, async () => {}, {
+            autorun: false,
+            connection,
+            maximumRateLimitDelay: 3000,
+            prefix,
+          });
+          await queue.setGlobalRateLimit(1, duration);
+
+          const completing = new Promise<void>((resolve, reject) => {
+            worker.on(
+              'completed',
+              after(numJobs, async () => {
+                resolve();
+              }),
+            );
+          });
+
+          const jobs = Array.from(Array(numJobs).keys()).map(() => ({
+            name: 'rate test',
+            data: {},
+          }));
+          await queue.addBulk(jobs);
+
+          const waitingCountBeforeRun = await queue.getWaitingCount();
+          expect(waitingCountBeforeRun).to.be.equal(4);
+
+          worker.run();
+
+          await delay(1500);
+          await queue.removeGlobalRateLimit();
+          await delay(1500);
+
+          await completing;
+
+          const completedCountAfterRLRemoval = await queue.getCompletedCount();
+          expect(completedCountAfterRLRemoval).to.be.equal(4);
+
+          await worker.close();
+        });
+      });
     });
   });
 
   describe('when there are delayed jobs to promote', () => {
     it('should promote jobs after maximumRateLimitDelay', async function () {
-      this.timeout(10000);
+      this.timeout(5000);
 
       const numJobs = 2;
       const duration = 10000;
@@ -1191,7 +1239,7 @@ describe('Rate Limiter', function () {
       const worker = new Worker(queueName, async () => {}, {
         autorun: false,
         connection,
-        maximumRateLimitDelay: 4000,
+        maximumRateLimitDelay: 3000,
         prefix,
         limiter: {
           max: 1,
@@ -1208,7 +1256,7 @@ describe('Rate Limiter', function () {
       const delayedJobs = Array.from(Array(numJobs).keys()).map(() => ({
         name: 'delayed test',
         data: {},
-        opts: { delay: 2000 },
+        opts: { delay: 1500 },
       }));
       await queue.addBulk(delayedJobs);
 
@@ -1219,7 +1267,7 @@ describe('Rate Limiter', function () {
 
       worker.run();
 
-      await delay(4100);
+      await delay(3100);
 
       const waitingCountAfterMaxRLDelay = await queue.getWaitingCount();
       expect(waitingCountAfterMaxRLDelay).to.be.equal(3);
