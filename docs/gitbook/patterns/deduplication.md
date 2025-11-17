@@ -38,7 +38,7 @@ const myQueue = new Queue('Paint');
 const worker = new Worker(
   'Paint',
   async job => {
-    if(job.name === 'repeat'){
+    if(job.name === 'paint-trigger'){
       // Add a job that will be deduplicated for 90 seconds.
       await myQueue.add(
         'house',
@@ -52,6 +52,10 @@ const worker = new Worker(
 
 await myQueue.upsertJobScheduler('repeat', {
   pattern: '* * * * *', // every minute
+  template: {
+    name: 'paint-trigger',
+    data: {},
+  },
 });
 ```
 
