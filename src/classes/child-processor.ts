@@ -1,6 +1,10 @@
 import { ParentCommand } from '../enums';
-import { SandboxedJob, Receiver } from '../interfaces';
-import { JobJsonSandbox } from '../types';
+import {
+  MoveToWaitingChildrenOpts,
+  Receiver,
+  SandboxedJob,
+} from '../interfaces';
+import { JobJsonSandbox, JobProgress } from '../types';
 import { errorToJSON } from '../utils';
 
 enum ChildStatus {
@@ -121,13 +125,14 @@ export class ChildProcessor {
   ): SandboxedJob {
     const wrappedJob = {
       ...job,
+      queueQualifiedName: job.queueQualifiedName,
       data: JSON.parse(job.data || '{}'),
       opts: job.opts,
       returnValue: JSON.parse(job.returnvalue || '{}'),
       /*
        * Proxy `updateProgress` function, should works as `progress` function.
        */
-      async updateProgress(progress: number | object) {
+      async updateProgress(progress: JobProgress) {
         // Locally store reference to new progress value
         // so that we can return it from this process synchronously.
         this.progress = progress;
@@ -156,6 +161,38 @@ export class ChildProcessor {
         });
       },
       /*
+       * Proxy `moveToWait` function.
+       */
+      moveToWait: async (token?: string) => {
+        await send({
+          cmd: ParentCommand.MoveToWait,
+          value: { token },
+        });
+      },
+
+      /*
+       * Proxy `moveToWaitingChildren` function.
+       */
+      moveToWaitingChildren: async (
+        token?: string,
+        opts?: MoveToWaitingChildrenOpts,
+      ): Promise<boolean> => {
+        const requestId = Math.random().toString(36).substring(2, 15);
+        await send({
+          requestId,
+          cmd: ParentCommand.MoveToWaitingChildren,
+          value: { token, opts },
+        });
+
+        return waitResponse(
+          requestId,
+          this.receiver,
+          RESPONSE_TIMEOUT,
+          'moveToWaitingChildren',
+        ) as Promise<boolean>;
+      },
+
+      /*
        * Proxy `updateData` function.
        */
       updateData: async (data: any) => {
@@ -181,6 +218,30 @@ export class ChildProcessor {
           this.receiver,
           RESPONSE_TIMEOUT,
           'getChildrenValues',
+        );
+      },
+
+      /**
+       * Proxy `getIgnoredChildrenFailures` function.
+       *
+       * This method sends a request to retrieve the failures of ignored children
+       * and waits for a response from the parent process.
+       *
+       * @returns - A promise that resolves with the ignored children failures.
+       * The exact structure of the returned data depends on the parent process implementation.
+       */
+      getIgnoredChildrenFailures: async () => {
+        const requestId = Math.random().toString(36).substring(2, 15);
+        await send({
+          requestId,
+          cmd: ParentCommand.GetIgnoredChildrenFailures,
+        });
+
+        return waitResponse(
+          requestId,
+          this.receiver,
+          RESPONSE_TIMEOUT,
+          'getIgnoredChildrenFailures',
         );
       },
     };

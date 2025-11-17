@@ -8,13 +8,23 @@ interface ChildPoolOpts extends SandboxedOptions {
   mainFile?: string;
 }
 
+const supportCJS = () => {
+  return (
+    typeof require === 'function' &&
+    typeof module === 'object' &&
+    typeof module.exports === 'object'
+  );
+};
+
 export class ChildPool {
   retained: { [key: number]: Child } = {};
   free: { [key: string]: Child[] } = {};
   private opts: ChildPoolOpts;
 
   constructor({
-    mainFile = path.join(process.cwd(), 'dist/cjs/classes/main.js'),
+    mainFile = supportCJS()
+      ? path.join(process.cwd(), 'dist/cjs/classes/main.js')
+      : path.join(process.cwd(), 'dist/esm/classes/main.js'),
     useWorkerThreads,
     workerForkOptions,
     workerThreadsOptions,

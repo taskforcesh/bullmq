@@ -36,8 +36,8 @@ export interface ContextManager<Context = any> {
   /**
    * Creates a new context and sets it as active for the fn passed as last argument
    *
-   * @param context -
-   * @param fn -
+   * @param context - the context to set as active
+   * @param fn - the function to execute with the context
    */
   with<A extends (...args: any[]) => any>(
     context: Context,
@@ -54,7 +54,7 @@ export interface ContextManager<Context = any> {
    * is the mechanism used to propagate the context across a distributed
    * application.
    *
-   * @param context -
+   * @param context - the current context
    */
   getMetadata(context: Context): string;
 
@@ -62,8 +62,8 @@ export interface ContextManager<Context = any> {
    * Creates a new context from a serialized version effectively
    * linking the new context to the parent context.
    *
-   * @param activeContext -
-   * @param metadata -
+   * @param activeContext - the current active context
+   * @param metadata - the serialized version of the context
    */
   fromMetadata(activeContext: Context, metadata: string): Context;
 }
@@ -78,9 +78,10 @@ export interface Tracer<Context = any> {
    * context. If the context is not provided, the current active context should be
    * used.
    *
-   * @param name -
-   * @param options -
-   * @param context -
+   * @param name - span name
+   * @param options - span options
+   * @param context - optional context
+   * @returns - the created span
    */
   startSpan(name: string, options?: SpanOptions, context?: Context): Span;
 }
@@ -97,37 +98,39 @@ export interface Span<Context = any> {
    * setSpanOnContext sets the span on the context. This is useful when you want
    * to propagate the span across the application.
    *
-   * @param ctx
+   * @param ctx - context to set the span on
+   * @returns - the context with the span set on it
    */
   setSpanOnContext(ctx: Context): Context;
 
   /**
    * setAttribute sets an attribute on the span.
    *
-   * @param ctx
+   * @param key - attribute key
+   * @param value - attribute value
    */
   setAttribute(key: string, value: AttributeValue): void;
 
   /**
    * setAttributes sets multiple attributes on the span.
    *
-   * @param attributes
+   * @param attributes - attributes to set
    */
   setAttributes(attributes: Attributes): void;
 
   /**
    * addEvent adds an event to the span.
    *
-   * @param name
-   * @param attributes
+   * @param name - event name
+   * @param attributes - event attributes
    */
   addEvent(name: string, attributes?: Attributes): void;
 
   /**
    * recordException records an exception on the span.
    *
-   * @param exception
-   * @param time
+   * @param exception - exception to record
+   * @param time - time to record the exception
    */
   recordException(exception: Exception, time?: Time): void;
 

@@ -28,7 +28,10 @@ describe('metrics', function () {
   });
 
   beforeEach(function () {
-    this.clock = sinon.useFakeTimers({ shouldClearNativeTimers: true });
+    this.clock = sinon.useFakeTimers({
+      shouldClearNativeTimers: true,
+      toFake: ['Date', 'setTimeout', 'clearTimeout'],
+    });
   });
 
   beforeEach(async function () {
@@ -73,75 +76,9 @@ describe('metrics', function () {
     ];
 
     const fixture = [
-      '1',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '1',
-      '1',
-      '1',
-      '0',
-      '0',
-      '1',
-      '1',
-      '3',
-      '3',
+      1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 3, 3,
     ];
 
     const numJobs = timmings.length;
@@ -217,23 +154,7 @@ describe('metrics', function () {
       ONE_MINUTE,
     ];
 
-    const fixture = [
-      '1',
-      '3',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-      '0',
-    ];
+    const fixture = [1, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
     const numJobs = timmings.length;
 
@@ -298,7 +219,7 @@ describe('metrics', function () {
       0,
     ];
 
-    const fixture = ['0', '0', '1', '4', '1'];
+    const fixture = [0, 0, 1, 4, 1];
 
     const numJobs = timmings.length;
 

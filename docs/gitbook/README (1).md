@@ -117,5 +117,5 @@ queueEvents.on('progress', ({ jobId, data }, timestamp) => {
 ```
 
 {% hint style="danger" %}
-For performance reasons, the events emitted by a `QueueEvents` instance do not contain the `Job` instance, only the `jobId`. Use the `Job#fromId` method if you need the `Job` instance.
+For performance reasons, the events emitted by a `QueueEvents` instance do not contain the `Job` instance, only the `jobId`. Use the [`Job.fromId`](https://api.docs.bullmq.io/classes/v5.Job.html#fromid) method if you need the `Job` instance.
 {% endhint %}

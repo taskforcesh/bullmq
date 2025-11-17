@@ -10,7 +10,10 @@ env:
 jobs:
   release:
     permissions:
-      contents: write # for release publishing
+      id-token: write # Required for OIDC
+      contents: write
+      pull-requests: write # for creating PRs
+      issues: write # additional permission that might be needed
 
     name: Release
     env:
@@ -24,16 +27,79 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v3
         with:
-          node-version: lts/*
+          node-version: '22.14.0'
           cache: 'yarn'
       - name: Install dependencies Node
         run: yarn install --frozen-lockfile --non-interactive
       - run: yarn build
       - name: Release Node
+        id: semantic_release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
         run: npx semantic-release
+      - name: Create PR with release changes
+        if: ${{ success() && steps.semantic_release.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check if there are any changes to commit
+          if [[ -n $(git status --porcelain) ]]; then
+            # Get the version from package.json
+            VERSION=$(node -p "require('./package.json').version")
+            BRANCH_NAME="release/v${VERSION}"
+            
+            echo "Creating PR for release version: ${VERSION}"
+            
+            # Create and switch to new branch
+            git checkout -b $BRANCH_NAME
+            
+            # Configure git
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            
+            # Add and commit changes (only add files that exist)
+            git add package.json || true
+            git add yarn.lock || true
+            git add src/version.ts || true
+            git add docs/gitbook/changelog.md || true
+            
+            # Check if there are actually changes to commit after adding
+            if [[ -n $(git diff --cached --name-only) ]]; then
+              git commit -m "chore(release): ${VERSION}"
+              
+              # Push the branch
+              git push origin $BRANCH_NAME
+              
+              # Create PR using GitHub CLI
+              gh pr create \
+                --title "chore(release): v${VERSION}" \
+                --body "Automated release PR for version ${VERSION}
+
+              This PR contains:
+              - Updated package.json version
+              - Updated yarn.lock (if changed)
+              - Updated src/version.ts
+              - Updated changelog
+              - Updated API documentation (if any)
+
+              Please review and merge to complete the release process." \
+                --head $BRANCH_NAME \
+                --base master
+              
+              echo "Created PR for release ${VERSION}"
+              # Back to master branch for next releases if needed
+              git checkout origin/master
+            else
+              echo "No changes to commit after staging files"
+              git checkout origin/master
+              git branch -D $BRANCH_NAME
+            fi
+          else
+            echo "No changes detected after semantic-release"
+          fi
       - run: yarn copy:lua:python
       - name: Setup Python
         uses: actions/setup-python@61a6322f88396a6271a6ee3565807d608ecaddd1 # v4
@@ -51,14 +117,80 @@ jobs:
           flake8 ./python --count --select=E9,F63,F7,F82 --show-source --statistics
           # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
           flake8 ./python --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-      - name: Release Python
+      - name: Build Python
         if: ${{ contains(env.commitmsg, 'python') }}
         run: |
           cd python
           pip install build
-          git config --global user.email "manast@taskforce.sh"
-          git config --global user.name "manast"
-          export VERSION=$(semantic-release print-version)
-          if [ ! -z "$VERSION" ]; then
-            GH_TOKEN=${{ secrets.GITHUB_TOKEN }} PYPI_TOKEN=${{ secrets.PYPI_TOKEN }} semantic-release publish
+      - name: Install dependencies Node
+        if: ${{ contains(env.commitmsg, 'python') }}
+        run: |
+          cd python
+          yarn install --frozen-lockfile --non-interactive
+      - name: Release Python
+        id: semantic_release_python
+        if: ${{ contains(env.commitmsg, 'python') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          cd python
+          npx semantic-release
+      - name: Create PR with release changes
+        if: ${{ success() && steps.semantic_release_python.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd python
+          # Check if there are any changes to commit
+          if [[ -n $(git status --porcelain) ]]; then
+            # Get the version from package.json
+            VERSION=$(grep -m 1 "version =" pyproject.toml | cut -d'=' -f2 | tr -d '[:space:]"')
+            BRANCH_NAME="release/vpy${VERSION}"
+            
+            echo "Creating PR for release version: vpy${VERSION}"
+            
+            # Create and switch to new branch
+            git checkout -b $BRANCH_NAME
+            
+            # Configure git
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            
+            # Add and commit changes (only add files that exist)
+            git add pyproject.toml || true
+            git add ../docs/gitbook/python/changelog.md || true
+            
+            # Check if there are actually changes to commit after adding
+            if [[ -n $(git diff --cached --name-only) ]]; then
+              git commit -m "chore(release): vpy${VERSION}"
+              
+              # Push the branch
+              git push origin $BRANCH_NAME
+              
+              # Create PR using GitHub CLI
+              gh pr create \
+                --title "chore(release): vpy${VERSION}" \
+                --body "Automated release PR for version vpy${VERSION}
+
+              This PR contains:
+              - Updated pyproject.toml
+              - Updated changelog
+              - Updated API documentation (if any)
+
+              Please review and merge to complete the release process." \
+                --head $BRANCH_NAME \
+                --base master
+              
+              echo "Created PR for release vpy${VERSION}"
+              # Back to master branch for next releases if needed
+              git checkout origin/master
+            else
+              echo "No changes to commit after staging files"
+              git checkout origin/master
+              git branch -D $BRANCH_NAME
+            fi
+          else
+            echo "No changes detected after semantic-release"
           fi

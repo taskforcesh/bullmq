@@ -1,10 +1,11 @@
 import { expect } from 'chai';
+import { after } from 'lodash';
 import { default as IORedis } from 'ioredis';
 import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 
 import { v4 } from 'uuid';
-import { Queue, QueueEvents, Repeat, Worker } from '../src/classes';
-import { removeAllQueueData } from '../src/utils';
+import { Job, Queue, QueueEvents, Repeat, Worker } from '../src/classes';
+import { delay, removeAllQueueData } from '../src/utils';
 
 const ONE_SECOND = 1000;
 const ONE_MINUTE = 60 * ONE_SECOND;
@@ -19,9 +20,14 @@ describe('Job Scheduler Stress', function () {
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  let connection;
+  let connection: IORedis;
   before(async function () {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = new IORedis(redisHost, {
+      maxRetriesPerRequest: null,
+      enableReadyCheck: false,
+      lazyConnect: true,
+      reconnectOnError: () => true,
+    });
   });
 
   beforeEach(async function () {
@@ -34,10 +40,14 @@ describe('Job Scheduler Stress', function () {
   });
 
   afterEach(async function () {
-    await queue.close();
-    await repeat.close();
-    await queueEvents.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    try {
+      await queue.close();
+      await repeat.close();
+      await queueEvents.close();
+      await removeAllQueueData(new IORedis(redisHost), queueName);
+    } catch (error) {
+      // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
+    }
   });
 
   afterAll(async function () {
@@ -45,43 +55,61 @@ describe('Job Scheduler Stress', function () {
   });
 
   it('should upsert many times respecting the guarantees', async () => {
-    const worker = new Worker(
-      queueName,
-      async job => {
-        return 42;
-      },
-      {
-        connection,
-        concurrency: 1,
-        autorun: false,
-        prefix,
-      },
-    );
-
-    let completedJobs = 0;
-    worker.on('completed', async job => {
-      completedJobs++;
+    const worker = new Worker(queueName, async job => {}, {
+      connection,
+      concurrency: 1,
+      prefix,
     });
 
-    worker.run();
+    const maxIterations = 10;
+    const completing = new Promise((resolve, reject) => {
+      worker.on('completed', after(maxIterations, resolve));
 
-    const maxIterations = 100;
+      queueEvents.on('duplicated', reject);
+    });
+
     const jobSchedulerId = 'test';
-    for (let i = 0; i < maxIterations; i++) {
-      await queue.upsertJobScheduler(
+    let previousJob;
+    let every = 800;
+    for (let i = 0; i < 3; i++) {
+      if (previousJob) {
+        await delay(200);
+
+        // Ensure that there is exactly one delayed job in the queue.
+        // This validates that the upsertJobScheduler method replaces the previous job
+        // and maintains only one delayed or waiting job at a time, as expected.
+        const count = await queue.getJobCountByTypes(
+          'active',
+          'delayed',
+          'waiting',
+        );
+        expect(count).to.be.gte(1);
+        // previous job can be active while a delayed or waiting job is added
+        expect(count).to.be.lte(2);
+      }
+      previousJob = await queue.upsertJobScheduler(
         jobSchedulerId,
         {
-          every: ONE_HOUR,
+          every,
         },
         {
           data: {
             iteration: i,
           },
+          opts: {
+            removeOnComplete: true,
+          },
         },
       );
+      every = every / 2;
     }
 
-    await worker.close();
+    await completing;
+    try {
+      await worker.close();
+    } catch (error) {
+      // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
+    }
 
     const repeatableJobs = await queue.getJobSchedulers();
     expect(repeatableJobs).to.have.length(1);
@@ -90,7 +118,7 @@ describe('Job Scheduler Stress', function () {
 
     expect(counts).to.be.eql({
       active: 0,
-      completed: 1,
+      completed: 0,
       delayed: 1,
       failed: 0,
       paused: 0,
@@ -98,9 +126,6 @@ describe('Job Scheduler Stress', function () {
       waiting: 0,
       'waiting-children': 0,
     });
-
-    expect(completedJobs).to.be.eql(1);
-    await queue.close();
   });
 
   it('should start processing a job as soon as it is upserted when using every', async () => {
@@ -139,7 +164,11 @@ describe('Job Scheduler Stress', function () {
 
     const diff = Date.now() - timestamp;
     expect(diff).to.be.lessThan(ONE_SECOND);
-    await worker.close();
+    try {
+      await worker.close();
+    } catch (error) {
+      // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
+    }
   });
 
   it.skip('should upsert many times with different settings respecting the guarantees', async () => {
@@ -182,7 +211,11 @@ describe('Job Scheduler Stress', function () {
       );
     }
 
-    await worker.close();
+    try {
+      await worker.close();
+    } catch (error) {
+      // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
+    }
 
     const repeatableJobs = await queue.getJobSchedulers();
     expect(repeatableJobs).to.have.length(1);
@@ -201,6 +234,344 @@ describe('Job Scheduler Stress', function () {
     });
 
     expect(completedJobs).to.be.eql(1);
-    await queue.close();
+    try {
+      await queue.close();
+    } catch (error) {
+      // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
+    }
+  });
+
+  it('should properly update job data and options when upserting job scheduler multiple times', async function () {
+    this.timeout(30000); // Increase timeout for this longer test
+
+    const jobSchedulerId = 'update-test-scheduler';
+    const processedJobs: any[] = [];
+    const expectedDataSequence = ['first', 'second'];
+    let currentSequenceIndex = 0;
+
+    const worker = new Worker(
+      queueName,
+      async job => {
+        processedJobs.push({
+          name: job.name,
+          data: job.data,
+          processedAt: Date.now(),
+        });
+
+        // Validate that job data is updated correctly
+        if (processedJobs.length > 3) {
+          // Allow some initial jobs to process
+          const expectedKey =
+            expectedDataSequence[
+              currentSequenceIndex % expectedDataSequence.length
+            ];
+          expect(job.data.key).to.equal(
+            expectedKey,
+            `Expected job data key to be '${expectedKey}' but got '${job.data.key}' for job #${processedJobs.length}`,
+          );
+        }
+      },
+      { connection, prefix },
+    );
+
+    await worker.waitUntilReady();
+
+    // First upsert - create scheduler with initial data
+    await queue.upsertJobScheduler(
+      jobSchedulerId,
+      { every: 1000 },
+      {
+        name: 'my-name-1',
+        data: { key: 'first' },
+      },
+    );
+
+    // Let a few jobs process with the first data
+    await delay(3500); // Allow 3-4 jobs to process
+
+    const jobsAfterFirst = processedJobs.length;
+    expect(jobsAfterFirst).to.be.gte(3);
+
+    // Verify all initial jobs have the correct data
+    for (let i = 0; i < jobsAfterFirst; i++) {
+      expect(processedJobs[i].data.key).to.equal('first');
+      expect(processedJobs[i].name).to.equal('my-name-1');
+    }
+
+    // Second upsert - update data and timing
+    const every2 = 500;
+    currentSequenceIndex = 1;
+    await queue.upsertJobScheduler(
+      jobSchedulerId,
+      { every: every2 }, // Change timing
+      {
+        name: 'my-name-2',
+        data: { key: 'second' },
+      },
+    );
+
+    // Let jobs process with updated data
+    await delay(6500); // Allow 3 more jobs to process at new interval
+
+    const jobsAfterSecond = processedJobs.length;
+    expect(jobsAfterSecond).to.be.gt(jobsAfterFirst);
+
+    // Verify that jobs after the update have the new data
+    // Note: There might be 1-2 jobs in transition that still have old data
+    const newJobs = processedJobs.slice(jobsAfterFirst + 2); // Skip transition jobs
+    expect(newJobs.length).to.be.gte(1);
+
+    for (const job of newJobs) {
+      expect(job.data.key).to.equal(
+        'second',
+        `Job should have updated data 'second' but has '${job.data.key}'`,
+      );
+      expect(job.name).to.equal('my-name-2');
+    }
+
+    // We close the worker first, to avoid a possible edge case where
+    // a job has been exactly moved to active but still not added the next delayed job
+    try {
+      await worker.close();
+    } catch (error) {
+      // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
+    }
+
+    // Verify job scheduler metadata was updated correctly
+    const schedulers = await queue.getJobSchedulers();
+    expect(schedulers).to.have.length(1);
+    expect(schedulers[0].key).to.equal(jobSchedulerId);
+    expect(schedulers[0].every).to.equal(every2);
+
+    // Verify that only one delayed job exists (proper replacement)
+    const delayedJobs = await queue.getDelayed();
+    expect(delayedJobs).to.have.length(1);
+    expect(delayedJobs[0].data.key).to.equal('second');
+    expect(delayedJobs[0].name).to.equal('my-name-2');
+  });
+
+  it('should handle rapid successive upserts without creating duplicate schedulers', async function () {
+    this.timeout(15000);
+
+    const jobSchedulerId = 'rapid-upsert-test';
+    const processedJobs: any[] = [];
+
+    const worker = new Worker(
+      queueName,
+      async job => {
+        processedJobs.push({
+          name: job.name,
+          data: job.data,
+          iteration: job.data.iteration,
+        });
+      },
+      { connection, prefix },
+    );
+
+    await worker.waitUntilReady();
+
+    // Perform rapid successive upserts
+    const upsertPromises: Promise<any>[] = [];
+    for (let i = 0; i < 5; i++) {
+      const promise = queue.upsertJobScheduler(
+        jobSchedulerId,
+        { every: 1000 + i * 200 }, // Vary timing slightly
+        {
+          name: `iteration-${i}`,
+          data: { iteration: i, timestamp: Date.now() },
+        },
+      );
+      upsertPromises.push(promise);
+
+      // Small delay between upserts to simulate real-world timing
+      if (i < 4) {
+        await delay(50);
+      }
+    }
+
+    // Wait for all upserts to complete
+    await Promise.all(upsertPromises);
+
+    // Allow some jobs to process
+    await delay(4000);
+
+    // Verify only one scheduler exists
+    const schedulers = await queue.getJobSchedulers();
+    expect(schedulers).to.have.length(1);
+    expect(schedulers[0].key).to.equal(jobSchedulerId);
+
+    // Verify only one delayed job exists
+    const delayedJobs = await queue.getDelayed();
+    expect(delayedJobs).to.have.length(1);
+
+    // The final job should reflect the last upsert
+    const finalDelayedJob = delayedJobs[0];
+    expect(finalDelayedJob.data.iteration).to.equal(4);
+    expect(finalDelayedJob.name).to.equal('iteration-4');
+
+    // Verify no duplicate events were emitted
+    let duplicateEventCount = 0;
+    queueEvents.on('duplicated', () => {
+      duplicateEventCount++;
+    });
+
+    await delay(1000);
+    expect(duplicateEventCount).to.equal(0);
+
+    try {
+      await worker.close();
+    } catch (error) {
+      // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
+    }
+  });
+
+  describe("when using 'every' option and jobs are moved to active some time after delay", function () {
+    it('should repeat every 2 seconds and start immediately', async function () {
+      let iterationCount = 0;
+      const MINIMUM_DELAY_THRESHOLD_MS = 1850;
+      const DELAY = 2000;
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          try {
+            if (iterationCount === 0) {
+              expect(job.opts.delay).to.be.eq(0);
+            } else {
+              expect(job.opts.delay).to.be.gte(MINIMUM_DELAY_THRESHOLD_MS);
+              expect(job.opts.delay).to.be.lte(DELAY);
+            }
+            iterationCount++;
+          } catch (err) {
+            console.log(err);
+            throw err;
+          }
+        },
+        { autorun: false, connection, prefix },
+      );
+
+      let prev: Job;
+      let counter = 0;
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async job => {
+          try {
+            if (prev) {
+              expect(prev.timestamp).to.be.lte(job.timestamp);
+              expect(job.processedOn! - prev.processedOn!).to.be.gte(
+                MINIMUM_DELAY_THRESHOLD_MS,
+              );
+            }
+            prev = job;
+            counter++;
+            if (counter === 5) {
+              resolve();
+            }
+          } catch (err) {
+            console.log(err);
+            reject(err);
+          }
+        });
+      });
+
+      await queue.upsertJobScheduler(
+        'repeat',
+        {
+          every: DELAY,
+        },
+        { data: { foo: 'bar' } },
+      );
+
+      const waitingCountBefore = await queue.getWaitingCount();
+      expect(waitingCountBefore).to.be.eq(1);
+
+      worker.run();
+
+      await completing;
+
+      const waitingCount = await queue.getWaitingCount();
+      expect(waitingCount).to.be.eq(0);
+
+      const delayedCountAfter = await queue.getDelayedCount();
+      expect(delayedCountAfter).to.be.eq(1);
+
+      try {
+        await worker.close();
+      } catch (error) {
+        // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
+      }
+    });
+  });
+
+  describe('when disconnection happens', function () {
+    it('should retry to update job scheduler', async function () {
+      let iterationCount = 0;
+      const DELAY = 500;
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          try {
+            await delay(100);
+            iterationCount++;
+          } catch (err) {
+            console.log(err);
+            throw err;
+          }
+        },
+        { autorun: false, connection, prefix, runRetryDelay: 50 },
+      );
+
+      let counter = 0;
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async () => {
+          try {
+            counter++;
+            if (counter === 5) {
+              resolve();
+            }
+          } catch (err) {
+            console.log(err);
+            reject(err);
+          }
+        });
+        worker.on('error', err => {
+          reject(err);
+        });
+      });
+
+      await queue.upsertJobScheduler(
+        'repeat',
+        {
+          every: DELAY,
+        },
+        { data: { foo: 'bar' } },
+      );
+
+      const waitingCountBefore = await queue.getWaitingCount();
+      expect(waitingCountBefore).to.be.eq(1);
+
+      worker.run();
+      await delay(100);
+      await connection.disconnect();
+      await delay(100);
+      await connection.connect();
+
+      await delay(100);
+      await connection.disconnect();
+      await delay(100);
+      await connection.connect();
+
+      await completing;
+
+      const waitingCount = await queue.getWaitingCount();
+      expect(waitingCount).to.be.eq(0);
+
+      const delayedCountAfter = await queue.getDelayedCount();
+      expect(delayedCountAfter).to.be.eq(1);
+
+      await worker.close();
+    });
   });
 });

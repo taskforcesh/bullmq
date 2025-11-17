@@ -84,6 +84,8 @@ jobs:
         with:
           redis-version: ${{ matrix.redis-version }}
       - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
+      - name: Run ESLint
+        run: yarn lint
       - run: yarn build
       - run: yarn test
 
@@ -173,7 +175,7 @@ jobs:
       matrix:
         node-version: [lts/*]
         redis-version: [7-alpine]
-        python-version: ['3.10']
+        python-version: ['3.13']
 
     steps:
       - name: Checkout repository
@@ -211,7 +213,7 @@ jobs:
       - name: Test with pytest
         run: |
           cd python
-          ./run_tests.sh
+          pytest -v
 
   python-dragonflydb:
     runs-on: ubuntu-latest
@@ -221,7 +223,7 @@ jobs:
     strategy:
       matrix:
         node-version: [lts/*]
-        python-version: ['3.10']
+        python-version: ['3.13']
 
     services:
       dragonflydb:
@@ -265,4 +267,5 @@ jobs:
       - name: Test with pytest
         run: |
           cd python
-          ./run_tests_dragonfly.sh
+          export BULLMQ_TEST_PREFIX="{b}"
+          pytest -v

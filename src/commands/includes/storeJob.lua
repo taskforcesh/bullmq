@@ -7,7 +7,7 @@ local function storeJob(eventsKey, jobIdKey, jobId, name, data, opts, timestamp,
     local delay = opts['delay'] or 0
     local priority = opts['priority'] or 0
     local debounceId = opts['de'] and opts['de']['id']
-    
+
     local optionalValues = {}
     if parentKey ~= nil then
         table.insert(optionalValues, "parentKey")
@@ -16,7 +16,7 @@ local function storeJob(eventsKey, jobIdKey, jobId, name, data, opts, timestamp,
         table.insert(optionalValues, parentData)
     end
 
-    if repeatJobKey ~= nil then
+    if repeatJobKey then
         table.insert(optionalValues, "rjk")
         table.insert(optionalValues, repeatJobKey)
     end

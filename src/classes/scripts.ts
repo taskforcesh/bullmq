@@ -18,13 +18,14 @@ import {
   JobJsonRaw,
   MinimalJob,
   MoveToWaitingChildrenOpts,
-  ParentOpts,
+  ParentKeyOpts,
   RedisClient,
   WorkerOptions,
   KeepJobs,
   MoveToDelayedOpts,
   RepeatableOptions,
   RetryJobOpts,
+  ScriptQueueContext,
 } from '../interfaces';
 import {
   JobsOptions,
@@ -32,8 +33,8 @@ import {
   JobType,
   FinishedStatus,
   FinishedPropValAttribute,
-  MinimalQueue,
   RedisJobOptions,
+  JobProgress,
 } from '../types';
 import { ErrorCode } from '../enums';
 import {
@@ -44,6 +45,7 @@ import {
 } from '../utils';
 import { ChainableCommander } from 'ioredis';
 import { version as packageVersion } from '../version';
+import { UnrecoverableError } from './errors';
 export type JobData = [JobJsonRaw | number, string?];
 
 export class Scripts {
@@ -51,7 +53,7 @@ export class Scripts {
 
   moveToFinishedKeys: (string | undefined)[];
 
-  constructor(protected queue: MinimalQueue) {
+  constructor(protected queue: ScriptQueueContext) {
     const queueKeys = this.queue.keys;
 
     this.moveToFinishedKeys = [
@@ -92,12 +94,11 @@ export class Scripts {
     return Number.isInteger(result);
   }
 
-  protected addDelayedJob(
-    client: RedisClient,
+  protected addDelayedJobArgs(
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
-  ): Promise<string | number> {
+  ): (string | Buffer)[] {
     const queueKeys = this.queue.keys;
     const keys: (string | Buffer)[] = [
       queueKeys.marker,
@@ -109,7 +110,42 @@ export class Scripts {
     ];
 
     keys.push(pack(args), job.data, encodedOpts);
-    return this.execCommand(client, 'addDelayedJob', keys);
+
+    return keys;
+  }
+
+  protected addDelayedJob(
+    client: RedisClient,
+    job: JobJson,
+    encodedOpts: any,
+    args: (string | number | Record<string, any>)[],
+  ): Promise<string | number> {
+    const argsList = this.addDelayedJobArgs(job, encodedOpts, args);
+
+    return this.execCommand(client, 'addDelayedJob', argsList);
+  }
+
+  protected addPrioritizedJobArgs(
+    job: JobJson,
+    encodedOpts: any,
+    args: (string | number | Record<string, any>)[],
+  ): (string | Buffer)[] {
+    const queueKeys = this.queue.keys;
+    const keys: (string | Buffer)[] = [
+      queueKeys.marker,
+      queueKeys.meta,
+      queueKeys.id,
+      queueKeys.prioritized,
+      queueKeys.delayed,
+      queueKeys.completed,
+      queueKeys.active,
+      queueKeys.events,
+      queueKeys.pc,
+    ];
+
+    keys.push(pack(args), job.data, encodedOpts);
+
+    return keys;
   }
 
   protected addPrioritizedJob(
@@ -118,20 +154,29 @@ export class Scripts {
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
   ): Promise<string | number> {
+    const argsList = this.addPrioritizedJobArgs(job, encodedOpts, args);
+
+    return this.execCommand(client, 'addPrioritizedJob', argsList);
+  }
+
+  protected addParentJobArgs(
+    job: JobJson,
+    encodedOpts: any,
+    args: (string | number | Record<string, any>)[],
+  ): (string | Buffer)[] {
     const queueKeys = this.queue.keys;
     const keys: (string | Buffer)[] = [
-      queueKeys.marker,
       queueKeys.meta,
       queueKeys.id,
-      queueKeys.prioritized,
+      queueKeys.delayed,
+      queueKeys['waiting-children'],
       queueKeys.completed,
-      queueKeys.active,
       queueKeys.events,
-      queueKeys.pc,
     ];
 
     keys.push(pack(args), job.data, encodedOpts);
-    return this.execCommand(client, 'addPrioritizedJob', keys);
+
+    return keys;
   }
 
   protected addParentJob(
@@ -140,16 +185,32 @@ export class Scripts {
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
   ): Promise<string | number> {
+    const argsList = this.addParentJobArgs(job, encodedOpts, args);
+
+    return this.execCommand(client, 'addParentJob', argsList);
+  }
+
+  protected addStandardJobArgs(
+    job: JobJson,
+    encodedOpts: any,
+    args: (string | number | Record<string, any>)[],
+  ): (string | Buffer)[] {
     const queueKeys = this.queue.keys;
     const keys: (string | Buffer)[] = [
+      queueKeys.wait,
+      queueKeys.paused,
       queueKeys.meta,
       queueKeys.id,
       queueKeys.completed,
+      queueKeys.delayed,
+      queueKeys.active,
       queueKeys.events,
+      queueKeys.marker,
     ];
 
     keys.push(pack(args), job.data, encodedOpts);
-    return this.execCommand(client, 'addParentJob', keys);
+
+    return keys;
   }
 
   protected addStandardJob(
@@ -158,20 +219,9 @@ export class Scripts {
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
   ): Promise<string | number> {
-    const queueKeys = this.queue.keys;
-    const keys: (string | Buffer)[] = [
-      queueKeys.wait,
-      queueKeys.paused,
-      queueKeys.meta,
-      queueKeys.id,
-      queueKeys.completed,
-      queueKeys.active,
-      queueKeys.events,
-      queueKeys.marker,
-    ];
+    const argsList = this.addStandardJobArgs(job, encodedOpts, args);
 
-    keys.push(pack(args), job.data, encodedOpts);
-    return this.execCommand(client, 'addStandardJob', keys);
+    return this.execCommand(client, 'addStandardJob', argsList);
   }
 
   async addJob(
@@ -179,13 +229,11 @@ export class Scripts {
     job: JobJson,
     opts: RedisJobOptions,
     jobId: string,
-    parentOpts: ParentOpts = {},
+    parentKeyOpts: ParentKeyOpts = {},
   ): Promise<string> {
     const queueKeys = this.queue.keys;
 
-    const parent: Record<string, any> = job.parent
-      ? { ...job.parent, fpof: opts.fpof, rdof: opts.rdof, idof: opts.idof }
-      : null;
+    const parent: Record<string, any> = job.parent;
 
     const args = [
       queueKeys[''],
@@ -193,8 +241,7 @@ export class Scripts {
       job.name,
       job.timestamp,
       job.parentKey || null,
-      parentOpts.waitChildrenKey || null,
-      parentOpts.parentDependenciesKey || null,
+      parentKeyOpts.parentDependenciesKey || null,
       parent,
       job.repeatJobKey,
       job.deduplicationId ? `${queueKeys.de}:${job.deduplicationId}` : null,
@@ -223,7 +270,7 @@ export class Scripts {
 
     let result: string | number;
 
-    if (parentOpts.waitChildrenKey) {
+    if (parentKeyOpts.addToWaitingChildren) {
       result = await this.addParentJob(client, job, encodedOpts, args);
     } else if (typeof opts.delay == 'number' && opts.delay > 0) {
       result = await this.addDelayedJob(client, job, encodedOpts, args);
@@ -236,7 +283,7 @@ export class Scripts {
     if (<number>result < 0) {
       throw this.finishedErrors({
         code: <number>result,
-        parentKey: parentOpts.parentKey,
+        parentKey: parentKeyOpts.parentKey,
         command: 'addJob',
       });
     }
@@ -323,7 +370,7 @@ export class Scripts {
     delayedJobOpts: JobsOptions,
     // The job id of the job that produced this next iteration
     producerId?: string,
-  ): Promise<string> {
+  ): Promise<[string, number]> {
     const client = await this.queue.client;
     const queueKeys = this.queue.keys;
 
@@ -353,7 +400,20 @@ export class Scripts {
       producerId ? this.queue.toKey(producerId) : '',
     ];
 
-    return this.execCommand(client, 'addJobScheduler', keys.concat(args));
+    const result = await this.execCommand(
+      client,
+      'addJobScheduler',
+      keys.concat(args),
+    );
+
+    if (typeof result === 'number' && result < 0) {
+      throw this.finishedErrors({
+        code: result,
+        command: 'addJobScheduler',
+      });
+    }
+
+    return result;
   }
 
   async updateRepeatableJobMillis(
@@ -376,7 +436,7 @@ export class Scripts {
     nextMillis: number,
     templateData: string,
     delayedJobOpts: JobsOptions,
-    // The job id of the job that produced this next iteration
+    // The job id of the job that produced this next iteration - TODO: remove in next breaking change
     producerId?: string,
   ): Promise<string | null> {
     const client = await this.queue.client;
@@ -469,11 +529,11 @@ export class Scripts {
     jobId: string,
     removeChildren: boolean,
   ): (string | number)[] {
-    const keys: (string | number)[] = ['', 'meta', 'repeat'].map(name =>
+    const keys: (string | number)[] = [jobId, 'repeat'].map(name =>
       this.queue.toKey(name),
     );
 
-    const args = [jobId, removeChildren ? 1 : 0];
+    const args = [jobId, removeChildren ? 1 : 0, this.queue.toKey('')];
 
     return keys.concat(args);
   }
@@ -493,6 +553,19 @@ export class Scripts {
     }
 
     return result;
+  }
+
+  async removeUnprocessedChildren(jobId: string): Promise<void> {
+    const client = await this.queue.client;
+
+    const args = [
+      this.queue.toKey(jobId),
+      this.queue.keys.meta,
+      this.queue.toKey(''),
+      jobId,
+    ];
+
+    await this.execCommand(client, 'removeUnprocessedChildren', args);
   }
 
   async extendLock(
@@ -553,10 +626,7 @@ export class Scripts {
     }
   }
 
-  async updateProgress(
-    jobId: string,
-    progress: number | object,
-  ): Promise<void> {
+  async updateProgress(jobId: string, progress: JobProgress): Promise<void> {
     const client = await this.queue.client;
 
     const keys = [
@@ -655,6 +725,7 @@ export class Scripts {
           ? opts.metrics?.maxDataPoints
           : '',
         fpof: !!job.opts?.failParentOnFailure,
+        cpof: !!job.opts?.continueParentOnFailure,
         idof: !!job.opts?.ignoreDependencyOnFailure,
         rdof: !!job.opts?.removeDependencyOnFailure,
       }),
@@ -675,8 +746,8 @@ export class Scripts {
     return typeof shouldRemove === 'object'
       ? shouldRemove
       : typeof shouldRemove === 'number'
-      ? { count: shouldRemove }
-      : { count: shouldRemove ? 0 : -1 };
+        ? { count: shouldRemove }
+        : { count: shouldRemove ? 0 : -1 };
   }
 
   async moveToFinished(
@@ -942,6 +1013,21 @@ export class Scripts {
     return this.execCommand(client, 'getStateV2', keys.concat([jobId]));
   }
 
+  /**
+   * Change delay of a delayed job.
+   *
+   * Reschedules a delayed job by setting a new delay from the current time.
+   * For example, calling changeDelay(5000) will reschedule the job to execute
+   * 5000 milliseconds (5 seconds) from now, regardless of the original delay.
+   *
+   * @param jobId - the ID of the job to change the delay for.
+   * @param delay - milliseconds from now when the job should be processed.
+   * @returns delay in milliseconds.
+   * @throws JobNotExist
+   * This exception is thrown if jobId is missing.
+   * @throws JobNotInState
+   * This exception is thrown if job is not in delayed state.
+   */
   async changeDelay(jobId: string, delay: number): Promise<void> {
     const client = await this.queue.client;
 
@@ -1020,6 +1106,7 @@ export class Scripts {
     opts: MoveToDelayedOpts = {},
   ): (string | number | Buffer)[] {
     const queueKeys = this.queue.keys;
+
     const keys: (string | number | Buffer)[] = [
       queueKeys.marker,
       queueKeys.active,
@@ -1060,7 +1147,6 @@ export class Scripts {
       `${jobId}:dependencies`,
       `${jobId}:unsuccessful`,
       'stalled',
-      'failed',
       'events',
     ].map(name => {
       return this.queue.toKey(name);
@@ -1152,7 +1238,10 @@ export class Scripts {
   }
 
   getRateLimitTtlArgs(maxJobs?: number): (string | number)[] {
-    const keys: (string | number)[] = [this.queue.keys.limiter];
+    const keys: (string | number)[] = [
+      this.queue.keys.limiter,
+      this.queue.keys.meta,
+    ];
 
     return keys.concat([maxJobs ?? '0']);
   }
@@ -1299,15 +1388,15 @@ export class Scripts {
   /**
    * Attempts to reprocess a job
    *
-   * @param job -
+   * @param job - The job to reprocess
    * @param state - The expected job state. If the job is not found
    * on the provided state, then it's not reprocessed. Supported states: 'failed', 'completed'
    *
-   * @returns Returns a promise that evaluates to a return code:
-   * 1 means the operation was a success
-   * 0 means the job does not exist
-   * -1 means the job is currently locked and can't be retried.
-   * -2 means the job was not found in the expected set
+   * @returns A promise that resolves when the job has been successfully moved to the wait queue.
+   * @throws Will throw an error with a code property indicating the failure reason:
+   *   - code 0: Job does not exist
+   *   - code -1: Job is currently locked and can't be retried
+   *   - code -2: Job was not found in the expected set
    */
   async reprocessJob<T = any, R = any, N extends string = string>(
     job: MinimalJob<T, R, N>,
@@ -1350,6 +1439,28 @@ export class Scripts {
           state,
         });
     }
+  }
+
+  async getMetrics(
+    type: 'completed' | 'failed',
+    start = 0,
+    end = -1,
+  ): Promise<[string[], string[], number]> {
+    const client = await this.queue.client;
+
+    const keys: (string | number)[] = [
+      this.queue.toKey(`metrics:${type}`),
+      this.queue.toKey(`metrics:${type}:data`),
+    ];
+    const args = [start, end];
+
+    const result = await this.execCommand(
+      client,
+      'getMetrics',
+      keys.concat(args),
+    );
+
+    return result;
   }
 
   async moveToActive(client: RedisClient, token: string, name?: string) {
@@ -1424,7 +1535,6 @@ export class Scripts {
       this.queue.keys.stalled,
       this.queue.keys.wait,
       this.queue.keys.active,
-      this.queue.keys.failed,
       this.queue.keys['stalled-check'],
       this.queue.keys.meta,
       this.queue.keys.paused,
@@ -1450,7 +1560,7 @@ export class Scripts {
    * (e.g. if the job handler keeps crashing),
    * we limit the number stalled job recoveries to settings.maxStalledCount.
    */
-  async moveStalledJobsToWait(): Promise<[string[], string[]]> {
+  async moveStalledJobsToWait(): Promise<string[]> {
     const client = await this.queue.client;
 
     const args = this.moveStalledJobsToWaitArgs();
@@ -1467,7 +1577,7 @@ export class Scripts {
    * @param jobId - Job id
    * @returns
    */
-  async moveJobFromActiveToWait(jobId: string, token: string) {
+  async moveJobFromActiveToWait(jobId: string, token = '0') {
     const client = await this.queue.client;
 
     const keys: (string | number)[] = [
@@ -1529,7 +1639,7 @@ export class Scripts {
 
   /**
    * Paginate a set or hash keys.
-   * @param opts
+   * @param opts - options to define the pagination behaviour
    *
    */
   async paginate(
@@ -1625,34 +1735,66 @@ export class Scripts {
     command: string;
     state?: string;
   }): Error {
+    let error: Error;
     switch (code) {
       case ErrorCode.JobNotExist:
-        return new Error(`Missing key for job ${jobId}. ${command}`);
+        error = new Error(`Missing key for job ${jobId}. ${command}`);
+        break;
       case ErrorCode.JobLockNotExist:
-        return new Error(`Missing lock for job ${jobId}. ${command}`);
+        error = new Error(`Missing lock for job ${jobId}. ${command}`);
+        break;
       case ErrorCode.JobNotInState:
-        return new Error(
+        error = new Error(
           `Job ${jobId} is not in the ${state} state. ${command}`,
         );
-      case ErrorCode.JobPendingDependencies:
-        return new Error(`Job ${jobId} has pending dependencies. ${command}`);
+        break;
+      case ErrorCode.JobPendingChildren:
+        error = new Error(`Job ${jobId} has pending dependencies. ${command}`);
+        break;
       case ErrorCode.ParentJobNotExist:
-        return new Error(`Missing key for parent job ${parentKey}. ${command}`);
+        error = new Error(
+          `Missing key for parent job ${parentKey}. ${command}`,
+        );
+        break;
       case ErrorCode.JobLockMismatch:
-        return new Error(
+        error = new Error(
           `Lock mismatch for job ${jobId}. Cmd ${command} from ${state}`,
         );
+        break;
       case ErrorCode.ParentJobCannotBeReplaced:
-        return new Error(
+        error = new Error(
           `The parent job ${parentKey} cannot be replaced. ${command}`,
         );
+        break;
       case ErrorCode.JobBelongsToJobScheduler:
-        return new Error(
+        error = new Error(
           `Job ${jobId} belongs to a job scheduler and cannot be removed directly. ${command}`,
         );
+        break;
+      case ErrorCode.JobHasFailedChildren:
+        error = new UnrecoverableError(
+          `Cannot complete job ${jobId} because it has at least one failed child. ${command}`,
+        );
+        break;
+      case ErrorCode.SchedulerJobIdCollision:
+        error = new Error(
+          `Cannot create job scheduler iteration - job ID already exists. ${command}`,
+        );
+        break;
+      case ErrorCode.SchedulerJobSlotsBusy:
+        error = new Error(
+          `Cannot create job scheduler iteration - current and next time slots already have jobs. ${command}`,
+        );
+        break;
       default:
-        return new Error(`Unknown code ${code} error for ${jobId}. ${command}`);
+        error = new Error(
+          `Unknown code ${code} error for ${jobId}. ${command}`,
+        );
     }
+
+    // Add the code property to the error object
+    (error as any).code = code;
+    return error;
   }
 }
 

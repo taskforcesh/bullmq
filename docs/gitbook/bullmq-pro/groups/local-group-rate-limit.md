@@ -9,7 +9,7 @@ Sometimes it is required that different groups have different rate limits, this 
 You can use a local group rate limit, which would be used only for the specific group that have the rate-limit setup. For example:
 
 ```typescript
-import { QueuePro } from '@taskforcesh/bullmq-pro';
+import { QueuePro, WorkerPro } from '@taskforcesh/bullmq-pro';
 
 const queue = new QueuePro('myQueue', { connection });
 const groupId = 'my group';
@@ -18,11 +18,30 @@ const maxJobsPerDuration = 100;
 const duration = 1000; // duration in ms.
 await queue.setGroupRateLimit(groupId, maxJobsPerDuration, duration);
 
+const worker = new WorkerPro(
+  'myQueue',
+  async () => {
+    // do something
+  },
+  {
+    group: {
+      limit: {
+        // default rate limit configuration
+        max: 1000,
+        duration: 1000,
+      },
+    },
+    connection,
+  },
+);
 ```
 
-This code would set a specific rate limit on the group "my group" of max 100 jobs per second. Note that you can still have a ["default" rate-limit](rate-limiting.md) specified for the rest of the groups, the call to `setGroupRateLimit` will therefore allow you to override that rate-limit .
+This code would set a specific rate limit on the group "my group" of max 100 jobs per second. Note that you can still have a ["default" rate-limit](rate-limiting.md) specified for the rest of the groups, the call to `setGroupRateLimit` will therefore allow you to override that rate-limit.
 
-### Read more
+{% hint style="warning" %}
+You must specify a default rate limit by passing group.limit option in each Worker instance. In this way, workers are allowed to check if groups are rate limited or not.
+{% endhint %}
 
-* [ Local Rate Limit Group API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#setGroupRateLimit)
+### Read more:
 
+- 💡 [Local Rate Limit Group API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#setgroupratelimit)
