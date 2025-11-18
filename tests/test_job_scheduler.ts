@@ -277,6 +277,88 @@ describe('Job Scheduler', function () {
       await worker.close();
     });
 
+    it("should update the next job's existing data", async function () {
+      const date = new Date('2017-02-07T09:24:00.000+05:30');
+      this.clock.setSystemTime(date);
+
+      const jobSchedulerId = 'my-schedule';
+      await queue.upsertJobScheduler(
+        jobSchedulerId,
+        {
+          every: 2000,
+        },
+        {
+          name: 'my-name',
+          data: { key: 'value' },
+        },
+      );
+
+      await this.clock.tickAsync(1);
+
+      // First iteration is immediate so we need to check for waiting jobs to get the next job
+      const waitingJobs = await queue.getWaiting();
+      expect(waitingJobs).to.have.length(1);
+      expect(waitingJobs[0].data).to.deep.equal({
+        key: 'value',
+      });
+
+      await queue.upsertJobScheduler(
+        jobSchedulerId,
+        {
+          every: 2000,
+        },
+        {
+          name: 'my-name',
+          data: { anotherKey: 'another-value' },
+        },
+      );
+
+      await this.clock.tickAsync(1);
+
+      // First iteration is immediate so we need to check for waiting jobs to get the next job
+      const waitingJobs2 = await queue.getWaiting();
+      expect(waitingJobs2).to.have.length(1);
+      expect(waitingJobs2[0].data).to.deep.equal({
+        anotherKey: 'another-value',
+      });
+
+      await queue.upsertJobScheduler(
+        jobSchedulerId,
+        {
+          every: 2000,
+        },
+        {
+          name: 'my-name',
+          data: { anotherKey: 'another-value-2' },
+        },
+      );
+
+      const waitingJobs3 = await queue.getWaiting();
+      expect(waitingJobs3).to.have.length(1);
+      expect(waitingJobs3[0].data).to.deep.equal({
+        anotherKey: 'another-value-2',
+      });
+
+      await queue.upsertJobScheduler(
+        jobSchedulerId,
+        {
+          every: 2000,
+        },
+        {
+          name: 'my-name',
+          data: { anotherKey: 'another-value-3' },
+        },
+      );
+
+      await this.clock.tickAsync(1);
+
+      const waitingJobs4 = await queue.getWaiting();
+      expect(waitingJobs4).to.have.length(1);
+      expect(waitingJobs4[0].data).to.deep.equal({
+        anotherKey: 'another-value-3',
+      });
+    });
+
     describe('when next delayed job already exists and it is not in waiting or delayed states', function () {
       it('updates the scheduler with the new settings', async function () {
         const date = new Date('2017-02-07T09:24:00.000+05:30');
