@@ -23,6 +23,22 @@ const worker = new Worker(queueName, async (job: Job) => {
 });
 ```
 
+The processor function can also receive an optional third parameter for job cancellation support:
+
+```typescript
+const worker = new Worker(
+  queueName,
+  async (job: Job, token?: string, signal?: AbortSignal) => {
+    // signal can be used to detect when a job has been cancelled
+    return 'some value';
+  },
+);
+```
+
+{% hint style="info" %}
+Learn more about [cancelling jobs](cancelling-jobs.md) in the dedicated guide.
+{% endhint %}
+
 {% hint style="info" %}
 When a worker instance is created, it launches the processor immediately
 {% endhint %}
@@ -106,7 +122,7 @@ worker.on('error', err => {
 ```
 
 {% hint style="danger" %}
-If the error handler is missing, your worker may stop processing jobs when an error is emitted! Find more info [here](https://nodejs.org/api/events.html#events\_error\_events).
+If the error handler is missing, your worker may stop processing jobs when an error is emitted! Find more info [here](https://nodejs.org/api/events.html#events_error_events).
 {% endhint %}
 
 ## Typescript typings
@@ -119,5 +135,5 @@ const worker = new Worker<MyData, MyReturn>(queueName, async (job: Job) => {});
 
 ## Read more:
 
-* 💡 [Worker API Reference](https://api.docs.bullmq.io/classes/v5.Worker.html)
-* 💡 [Queue Events API Reference](https://api.docs.bullmq.io/classes/v5.QueueEvents.html)
+- 💡 [Worker API Reference](https://api.docs.bullmq.io/classes/v5.Worker.html)
+- 💡 [Queue Events API Reference](https://api.docs.bullmq.io/classes/v5.QueueEvents.html)
