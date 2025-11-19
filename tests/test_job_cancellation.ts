@@ -1,6 +1,13 @@
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
-import { describe, beforeEach, it, before, after as afterAll } from 'mocha';
+import {
+  describe,
+  beforeEach,
+  afterEach,
+  it,
+  before,
+  after as afterAll,
+} from 'mocha';
 import { v4 } from 'uuid';
 import {
   Queue,
