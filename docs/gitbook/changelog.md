@@ -1,3 +1,17 @@
+## [5.63.2](https://github.com/taskforcesh/bullmq/compare/v5.63.1...v5.63.2) (2025-11-15)
+
+
+### Bug Fixes
+
+* **connection:** consider error code when checking connection error ([#3537](https://github.com/taskforcesh/bullmq/issues/3537)) ([045f3e7](https://github.com/taskforcesh/bullmq/commit/045f3e7a5d8edb85e1adbe82eb9e20ef33ad491b))
+
+## [5.63.1](https://github.com/taskforcesh/bullmq/compare/v5.63.0...v5.63.1) (2025-11-13)
+
+
+### Bug Fixes
+
+* **job-scheduler:** changing every in upsert resets the iterations ([#3551](https://github.com/taskforcesh/bullmq/issues/3551)) ([b4c7c65](https://github.com/taskforcesh/bullmq/commit/b4c7c6579b430b53d135b7a21d20d01d14c1814e))
+
 # [5.63.0](https://github.com/taskforcesh/bullmq/compare/v5.62.2...v5.63.0) (2025-10-31)
 
 
