@@ -239,7 +239,7 @@ export class LockManager {
    * @param reason - Optional reason for the cancellation
    */
   cancelAllJobs(reason?: string): void {
-    for (const [jobId, tracked] of this.trackedJobs.entries()) {
+    for (const tracked of this.trackedJobs.values()) {
       if (tracked.abortController) {
         tracked.abortController.abort(reason);
       }
