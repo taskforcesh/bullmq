@@ -9,13 +9,7 @@ import {
   after as afterAll,
 } from 'mocha';
 import { v4 } from 'uuid';
-import {
-  Queue,
-  QueueEvents,
-  Job,
-  Worker,
-  UnrecoverableError,
-} from '../src/classes';
+import { Queue, QueueEvents, Worker, UnrecoverableError } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Job Cancellation', function () {
@@ -273,7 +267,7 @@ describe('Job Cancellation', function () {
 
       const worker = new Worker(
         queueName,
-        async (job, token, signal) => {
+        async (job, _token, signal) => {
           // Simulate long-running work
           for (let i = 0; i < 100; i++) {
             if (signal?.aborted) {
@@ -290,7 +284,7 @@ describe('Job Cancellation', function () {
       await worker.waitUntilReady();
 
       // Add multiple jobs
-      const jobs = await Promise.all(
+      await Promise.all(
         Array.from({ length: numJobs }, (_, i) =>
           queue.add('test', { index: i }),
         ),
