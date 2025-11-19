@@ -275,10 +275,6 @@ export class Worker<
 
     this.id = v4();
 
-    // Detect if processor function accepts signal parameter (3rd argument)
-    // We check this once during initialization for performance
-    this.processorAcceptsSignal = false;
-
     // Initialize lock manager with worker context
     this.lockManager = new LockManager(this as LockManagerWorkerContext, {
       lockRenewTime: this.opts.lockRenewTime,
