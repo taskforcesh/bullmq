@@ -274,6 +274,7 @@ type KeyOf<T extends object> = Extract<keyof T, string>;
  */
 export class QueueEvents extends QueueBase {
   private running = false;
+  private blocking = false;
 
   constructor(
     name: string,
@@ -373,10 +374,12 @@ export class QueueEvents extends QueueBase {
     let id = opts.lastEventId || '$';
 
     while (!this.closing) {
+      this.blocking = true;
       // Cast to actual return type, see: https://github.com/DefinitelyTyped/DefinitelyTyped/issues/44301
       const data: StreamReadRaw = await this.checkConnectionError(() =>
         client.xread('BLOCK', opts.blockingTimeout!, 'STREAMS', key, id),
       );
+      this.blocking = false;
       if (data) {
         const stream = data[0];
         const events = stream[1];
@@ -420,25 +423,10 @@ export class QueueEvents extends QueueBase {
   async close(): Promise<void> {
     if (!this.closing) {
       this.closing = (async () => {
-        let error: Error | undefined;
         try {
-          await this.disconnect();
-        } catch (err) {
-          error = err as Error;
-        }
-
-        try {
-          await this.connection.close();
-        } catch (err) {
-          if (!error) {
-            error = err as Error;
-          }
-        }
-
-        this.closed = true;
-
-        if (error) {
-          throw error;
+          await this.connection.close(this.blocking);
+        } finally {
+          this.closed = true;
         }
       })();
     }
