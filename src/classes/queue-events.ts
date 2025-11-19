@@ -424,6 +424,10 @@ export class QueueEvents extends QueueBase {
     if (!this.closing) {
       this.closing = (async () => {
         try {
+          // As the connection has been wrongly markes as "shared" by QueueBase,
+          // we need to forcibly close it here. We should fix QueueBase to avoid this in the future.
+          const client = await this.client;
+          client.disconnect();
           await this.connection.close(this.blocking);
         } finally {
           this.closed = true;
