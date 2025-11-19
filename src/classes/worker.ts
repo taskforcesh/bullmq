@@ -1087,11 +1087,10 @@ will never work with more accuracy than 1ms. */
         fetchNextCallback() && !(this.closing || this.paused),
       );
 
-      // Emit 'failed' event if result exists
+      this.emit('failed', job, err, 'active');
+
       // Note: result can be undefined if moveToFailed fails (e.g., lock was lost)
       if (result) {
-        this.emit('failed', job, err, 'active');
-
         span?.addEvent('job failed', {
           [TelemetryAttributes.JobFailedReason]: err.message,
         });
@@ -1100,9 +1099,6 @@ will never work with more accuracy than 1ms. */
         this.updateDelays(rateLimitDelay, delayUntil);
         return this.nextJobFromJobData(jobData, jobId, token);
       }
-      // If result is undefined, still emit 'failed' for backward compatibility
-      // but don't try to process next job
-      this.emit('failed', job, err, 'active');
     }
   }
 
