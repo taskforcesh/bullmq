@@ -391,7 +391,7 @@ describe('Job Cancellation', function () {
 
       await worker.waitUntilReady();
 
-      const job = await queue.add('test', { foo: 'bar' });
+      await queue.add('test', { foo: 'bar' });
 
       // Wait for completion
       await new Promise<void>(resolve => {
@@ -807,7 +807,7 @@ describe('Job Cancellation', function () {
 
       await worker.waitUntilReady();
 
-      const job = await queue.add('test', { foo: 'bar' });
+      await queue.add('test', { foo: 'bar' });
 
       await new Promise<void>(resolve => {
         worker.on('completed', () => resolve());
@@ -838,7 +838,7 @@ describe('Job Cancellation', function () {
 
       await worker.waitUntilReady();
 
-      const job = await queue.add('test', { foo: 'bar' });
+      await queue.add('test', { foo: 'bar' });
 
       await new Promise<void>(resolve => {
         worker.on('completed', () => resolve());
@@ -988,7 +988,6 @@ describe('Job Cancellation', function () {
         queueName,
         async (job, token, signal) => {
           // Mock the moveToFailed to simulate a lost lock scenario
-          const originalMoveToFailed = job.moveToFailed.bind(job);
           job.moveToFailed = async function (...args: any[]) {
             // Simulate the error that Lua script throws when lock is invalid
             throw new Error(
@@ -1004,7 +1003,7 @@ describe('Job Cancellation', function () {
 
       await worker.waitUntilReady();
 
-      const job = await queue.add('test', { foo: 'bar' }, { attempts: 1 });
+      await queue.add('test', { foo: 'bar' }, { attempts: 1 });
 
       worker.on('failed', (failedJob, err) => {
         failedEventCount++;
