@@ -9,13 +9,7 @@ import {
   after as afterAll,
 } from 'mocha';
 import { v4 } from 'uuid';
-import {
-  Queue,
-  QueueEvents,
-  Job,
-  Worker,
-  UnrecoverableError,
-} from '../src/classes';
+import { Queue, QueueEvents, Worker, UnrecoverableError } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Job Cancellation - Advanced Scenarios', function () {

@@ -78,11 +78,13 @@ describe('Job Cancellation', function () {
 
       await worker.waitUntilReady();
 
-      const job = await queue.add('test', { foo: 'bar' });
-
-      await new Promise<void>(resolve => {
+      const waitingOnActive = new Promise<void>(resolve => {
         worker.on('active', () => resolve());
       });
+
+      const job = await queue.add('test', { foo: 'bar' });
+
+      await waitingOnActive;
 
       await delay(50);
 
@@ -127,12 +129,14 @@ describe('Job Cancellation', function () {
 
       await worker.waitUntilReady();
 
+      const waitingOnActive = new Promise<void>(resolve => {
+        worker.on('active', () => resolve());
+      });
+
       const job = await queue.add('test', { foo: 'bar' });
 
       // Wait for job to start processing
-      await new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
-      });
+      await waitingOnActive;
 
       await delay(50);
 
@@ -184,11 +188,13 @@ describe('Job Cancellation', function () {
 
       await worker.waitUntilReady();
 
-      const job = await queue.add('test', { foo: 'bar' });
-
-      await new Promise<void>(resolve => {
+      const waitingOnActive = new Promise<void>(resolve => {
         worker.on('active', () => resolve());
       });
+
+      const job = await queue.add('test', { foo: 'bar' });
+
+      await waitingOnActive;
 
       await delay(100);
 
@@ -240,12 +246,14 @@ describe('Job Cancellation', function () {
 
       await worker.waitUntilReady();
 
+      const waitingOnCompleted = new Promise<void>(resolve => {
+        worker.on('completed', () => resolve());
+      });
+
       const job = await queue.add('test', { foo: 'bar' });
 
       // Wait for job to complete
-      await new Promise<void>(resolve => {
-        worker.on('completed', () => resolve());
-      });
+      await waitingOnCompleted;
 
       // Add small delay to ensure untracking is complete
       await delay(10);
@@ -283,16 +291,9 @@ describe('Job Cancellation', function () {
 
       await worker.waitUntilReady();
 
-      // Add multiple jobs
-      await Promise.all(
-        Array.from({ length: numJobs }, (_, i) =>
-          queue.add('test', { index: i }),
-        ),
-      );
-
       // Wait for all jobs to be active
       let activeCount = 0;
-      await new Promise<void>(resolve => {
+      const waitingOnActive = new Promise<void>(resolve => {
         worker.on('active', () => {
           activeCount++;
           if (activeCount === numJobs) {
@@ -300,6 +301,15 @@ describe('Job Cancellation', function () {
           }
         });
       });
+
+      // Add multiple jobs
+      await Promise.all(
+        Array.from({ length: numJobs }, (_, i) =>
+          queue.add('test', { index: i }),
+        ),
+      );
+
+      await waitingOnActive;
 
       // Get active job IDs before cancelling
       const activeJobs = await queue.getActive();
@@ -354,12 +364,14 @@ describe('Job Cancellation', function () {
 
       await worker.waitUntilReady();
 
+      const waitingOnActive = new Promise<void>(resolve => {
+        worker.on('active', () => resolve());
+      });
+
       const job = await queue.add('test', { foo: 'bar' });
 
       // Wait for job to start
-      await new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
-      });
+      await waitingOnActive;
 
       // Cancel the job
       worker.cancelJob(job.id!);
@@ -391,12 +403,14 @@ describe('Job Cancellation', function () {
 
       await worker.waitUntilReady();
 
+      const waitingOnCompleted = new Promise<void>(resolve => {
+        worker.on('completed', () => resolve());
+      });
+
       await queue.add('test', { foo: 'bar' });
 
       // Wait for completion
-      await new Promise<void>(resolve => {
-        worker.on('completed', () => resolve());
-      });
+      await waitingOnCompleted;
 
       expect(jobCompleted).to.be.true;
 
@@ -425,12 +439,14 @@ describe('Job Cancellation', function () {
 
       await worker.waitUntilReady();
 
+      const waitingOnActive = new Promise<void>(resolve => {
+        worker.on('active', () => resolve());
+      });
+
       const job = await queue.add('test', { foo: 'bar' });
 
       // Wait for job to start
-      await new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
-      });
+      await waitingOnActive;
 
       // Give it some time to iterate
       await delay(25);
@@ -480,11 +496,13 @@ describe('Job Cancellation', function () {
 
       await worker.waitUntilReady();
 
-      const job = await queue.add('test', { foo: 'bar' });
-
-      await new Promise<void>(resolve => {
+      const waitingOnActive = new Promise<void>(resolve => {
         worker.on('active', () => resolve());
       });
+
+      const job = await queue.add('test', { foo: 'bar' });
+
+      await waitingOnActive;
 
       // Simulate lock renewal failure by calling cancelJob
       // (In real scenario, this would be triggered by lockRenewalFailed event)
@@ -516,16 +534,9 @@ describe('Job Cancellation', function () {
 
       await worker.waitUntilReady();
 
-      // Add jobs
-      const jobs = await Promise.all(
-        Array.from({ length: numJobs }, (_, i) =>
-          queue.add('test', { index: i }),
-        ),
-      );
-
       // Wait for all jobs to be active
       let activeCount = 0;
-      await new Promise<void>(resolve => {
+      const waitingOnActive = new Promise<void>(resolve => {
         worker.on('active', () => {
           activeCount++;
           if (activeCount === numJobs) {
@@ -533,6 +544,15 @@ describe('Job Cancellation', function () {
           }
         });
       });
+
+      // Add jobs
+      const jobs = await Promise.all(
+        Array.from({ length: numJobs }, (_, i) =>
+          queue.add('test', { index: i }),
+        ),
+      );
+
+      await waitingOnActive;
 
       const activeJobs = await queue.getActive();
       expect(activeJobs).to.have.lengthOf(numJobs);
@@ -575,12 +595,8 @@ describe('Job Cancellation', function () {
 
       await worker.waitUntilReady();
 
-      // Add 2 jobs
-      await queue.add('test', { index: 1 });
-      await queue.add('test', { index: 2 });
-
       // Wait for jobs to be active
-      await new Promise<void>(resolve => {
+      const waitingOnActive = new Promise<void>(resolve => {
         let count = 0;
         worker.on('active', () => {
           count++;
@@ -589,6 +605,12 @@ describe('Job Cancellation', function () {
           }
         });
       });
+
+      // Add 2 jobs
+      await queue.add('test', { index: 1 });
+      await queue.add('test', { index: 2 });
+
+      await waitingOnActive;
 
       let activeJobs = await queue.getActive();
       expect(activeJobs.length).to.equal(2);
@@ -637,11 +659,13 @@ describe('Job Cancellation', function () {
 
       await worker.waitUntilReady();
 
-      const job = await queue.add('test', { foo: 'bar' });
-
-      await new Promise<void>(resolve => {
+      const waitingOnActive = new Promise<void>(resolve => {
         worker.on('active', () => resolve());
       });
+
+      const job = await queue.add('test', { foo: 'bar' });
+
+      await waitingOnActive;
 
       worker.cancelJob(job.id!);
 
@@ -672,11 +696,13 @@ describe('Job Cancellation', function () {
 
       await worker.waitUntilReady();
 
-      const job = await queue.add('test', { foo: 'bar' });
-
-      await new Promise<void>(resolve => {
+      const waitingOnActive = new Promise<void>(resolve => {
         worker.on('active', () => resolve());
       });
+
+      const job = await queue.add('test', { foo: 'bar' });
+
+      await waitingOnActive;
 
       // Try to cancel multiple times
       const result1 = worker.cancelJob(job.id!);
@@ -712,11 +738,13 @@ describe('Job Cancellation', function () {
 
       await worker.waitUntilReady();
 
-      const job = await queue.add('test', { foo: 'bar' });
-
-      await new Promise<void>(resolve => {
+      const waitingOnActive = new Promise<void>(resolve => {
         worker.on('active', () => resolve());
       });
+
+      const job = await queue.add('test', { foo: 'bar' });
+
+      await waitingOnActive;
 
       worker.cancelJob(job.id!);
 
@@ -807,11 +835,13 @@ describe('Job Cancellation', function () {
 
       await worker.waitUntilReady();
 
-      await queue.add('test', { foo: 'bar' });
-
-      await new Promise<void>(resolve => {
+      const waitingOnCompleted = new Promise<void>(resolve => {
         worker.on('completed', () => resolve());
       });
+
+      await queue.add('test', { foo: 'bar' });
+
+      await waitingOnCompleted;
 
       expect(jobCompleted).to.be.true;
 
@@ -838,11 +868,13 @@ describe('Job Cancellation', function () {
 
       await worker.waitUntilReady();
 
-      await queue.add('test', { foo: 'bar' });
-
-      await new Promise<void>(resolve => {
+      const waitingOnCompleted = new Promise<void>(resolve => {
         worker.on('completed', () => resolve());
       });
+
+      await queue.add('test', { foo: 'bar' });
+
+      await waitingOnCompleted;
 
       expect(signalReceived).to.be.true;
       expect((worker as any).processorAcceptsSignal).to.be.true;
@@ -874,11 +906,13 @@ describe('Job Cancellation', function () {
 
       await worker.waitUntilReady();
 
-      const job = await queue.add('test', { foo: 'bar' });
-
-      await new Promise<void>(resolve => {
+      const waitingOnActive = new Promise<void>(resolve => {
         worker.on('active', () => resolve());
       });
+
+      const job = await queue.add('test', { foo: 'bar' });
+
+      await waitingOnActive;
 
       await delay(50);
       worker.cancelJob(job.id!);
@@ -918,11 +952,13 @@ describe('Job Cancellation', function () {
 
       await worker.waitUntilReady();
 
-      const job = await queue.add('test', { foo: 'bar' });
-
-      await new Promise<void>(resolve => {
+      const waitingOnActive = new Promise<void>(resolve => {
         worker.on('active', () => resolve());
       });
+
+      const job = await queue.add('test', { foo: 'bar' });
+
+      await waitingOnActive;
 
       await delay(50);
       worker.cancelJob(job.id!);
@@ -959,11 +995,13 @@ describe('Job Cancellation', function () {
 
       await worker.waitUntilReady();
 
-      const job = await queue.add('test', { foo: 'bar' });
-
-      await new Promise<void>(resolve => {
+      const waitingOnActive = new Promise<void>(resolve => {
         worker.on('active', () => resolve());
       });
+
+      const job = await queue.add('test', { foo: 'bar' });
+
+      await waitingOnActive;
 
       // Cancel with a specific reason
       const customReason = 'User requested cancellation';
@@ -1003,7 +1041,15 @@ describe('Job Cancellation', function () {
 
       await worker.waitUntilReady();
 
-      await queue.add('test', { foo: 'bar' }, { attempts: 1 });
+      const waitingOnActive = new Promise<void>(resolve => {
+        let activeReceived = false;
+
+        worker.on('active', () => {
+          activeReceived = true;
+          // Wait a bit to ensure processing completes
+          setTimeout(resolve, 100);
+        });
+      });
 
       worker.on('failed', (failedJob, err) => {
         failedEventCount++;
@@ -1014,15 +1060,9 @@ describe('Job Cancellation', function () {
         errorMessage = err.message;
       });
 
-      await new Promise<void>(resolve => {
-        let activeReceived = false;
+      await queue.add('test', { foo: 'bar' }, { attempts: 1 });
 
-        worker.on('active', () => {
-          activeReceived = true;
-          // Wait a bit to ensure processing completes
-          setTimeout(resolve, 100);
-        });
-      });
+      await waitingOnActive;
 
       // The failed event should NOT be emitted because moveToFailed threw
       expect(failedEventCount).to.equal(0);
