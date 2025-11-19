@@ -420,9 +420,26 @@ export class QueueEvents extends QueueBase {
   async close(): Promise<void> {
     if (!this.closing) {
       this.closing = (async () => {
-        await this.disconnect();
-        await this.connection.close();
+        let error: Error | undefined;
+        try {
+          await this.disconnect();
+        } catch (err) {
+          error = err as Error;
+        }
+
+        try {
+          await this.connection.close();
+        } catch (err) {
+          if (!error) {
+            error = err as Error;
+          }
+        }
+
         this.closed = true;
+
+        if (error) {
+          throw error;
+        }
       })();
     }
     return this.closing;
