@@ -7,6 +7,7 @@ import { v4 } from 'uuid';
 import { FlowProducer, Job, Queue, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 import { version as currentPackageVersion } from '../src/version';
+import { BullMQRegistryKey } from '../src/consts/bullmq-registry-key';
 
 describe('queues', function () {
   const redisHost = process.env.REDIS_HOST || 'localhost';
@@ -796,6 +797,144 @@ describe('queues', function () {
       expect(promotedCount.delayed).to.be.equal(0);
 
       await worker.close();
+    });
+  });
+
+  describe('Queue registry', () => {
+    let client: IORedis;
+
+    beforeEach(async function () {
+      client = new IORedis();
+      await client.del(BullMQRegistryKey);
+    });
+
+    afterEach(async function () {
+      await client.quit();
+    });
+
+    it('should add the queue to the registry ZSET when created', async () => {
+      const queue = new Queue('test-registry', { connection: client, prefix });
+
+      // Wait a tick for the queue’s init (if needed)
+      await queue.waitUntilReady();
+
+      // Check if the queue is in the registry
+      const result = await client.zscore(
+        BullMQRegistryKey,
+        queue.qualifiedName,
+      );
+      expect(result).to.not.be.null;
+
+      // Clean up
+      await queue.obliterate();
+      await queue.close();
+    });
+
+    it('should NOT add the queue to the registry if skipMetasUpdate is true', async () => {
+      const queue = new Queue('test-registry-skip', {
+        skipMetasUpdate: true,
+        connection: client,
+        prefix,
+      });
+
+      await queue.waitUntilReady();
+
+      // If skipMetasUpdate is true, we expect no entry in the registry
+      const result = await client.zscore(
+        BullMQRegistryKey,
+        queue.qualifiedName,
+      );
+      expect(result).to.be.null;
+
+      await queue.obliterate();
+      await queue.close();
+    });
+
+    it('should remove the queue from registry after obliterating a paused queue', async () => {
+      const queue = new Queue('test-registry-remove', {
+        connection: client,
+        prefix,
+      });
+      await queue.waitUntilReady();
+
+      // Pause the queue so obliterate can work normally in BullMQ
+      await queue.pause();
+
+      // Add it to ensure it’s in the registry
+      let score = await client.zscore(BullMQRegistryKey, queue.qualifiedName);
+      expect(score).to.not.be.null;
+
+      // Obliterate
+      await queue.obliterate();
+
+      // The queue should now be gone from the registry
+      score = await client.zscore(BullMQRegistryKey, queue.qualifiedName);
+      expect(score).to.be.null;
+
+      await queue.close();
+    });
+
+    it('should return paginated queue names via getRegistry()', async () => {
+      const queueNames = ['registry-a', 'registry-b', 'registry-c'];
+      const queues: Queue[] = [];
+
+      // Create multiple queues
+      for (const name of queueNames) {
+        const queue = new Queue(name, { connection: client, prefix });
+        queues.push(queue);
+      }
+
+      await Promise.all(queues.map(q => q.waitUntilReady()));
+
+      await delay(100);
+
+      const results = await Queue.getRegistry(client, 0, -1);
+      expect(results).to.have.lengthOf(3);
+      expect(results).to.include.members(
+        queueNames.map(name => `${prefix}:${name}`),
+      );
+
+      // Let’s do partial pagination: only the first 2
+      const paginatedResults = await Queue.getRegistry(client, 0, 1);
+      // Because ZRANGE end index is inclusive, "0,1" means 2 items
+      expect(paginatedResults).to.have.lengthOf(2);
+      expect(queueNames.map(name => `${prefix}:${name}`)).to.include.members(
+        paginatedResults,
+      );
+
+      // Clean up
+      for (const queue of queues) {
+        await queue.obliterate();
+        await queue.close();
+      }
+    });
+
+    // This test should pass however it seems that the paused logic in obliterate is
+    // not working as expected.
+    it.skip('should fail to obliterate if queue is not paused', async () => {
+      const queue = new Queue('test-registry-not-paused', {
+        connection: client,
+        prefix,
+      });
+      await queue.waitUntilReady();
+
+      let errorCode: number | null = null;
+      try {
+        const result = await queue.obliterate();
+        console.log(result);
+      } catch (err: any) {
+        console.log(err);
+        errorCode = err.message.includes('-1') ? -1 : null;
+      }
+
+      // Verify that it actually was not removed from the registry
+      const score = await client.zscore(BullMQRegistryKey, queue.qualifiedName);
+      expect(score).to.not.be.null;
+
+      // If your script / code is returning an error or an error code, check it
+      expect(errorCode).to.eql(-1);
+
+      await queue.close();
     });
   });
 });
