@@ -1,3 +1,4 @@
+import { AbortController } from 'node-abort-controller';
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { Span } from '../interfaces';
 
@@ -51,8 +52,11 @@ export interface LockManagerWorkerContext {
 export class LockManager {
   protected lockRenewalTimer?: NodeJS.Timeout;
 
-  // Maps job ids with their timestamps
-  protected trackedJobs = new Map<string, { token: string; ts: number }>();
+  // Maps job ids with their tokens, timestamps, and abort controllers
+  protected trackedJobs = new Map<
+    string,
+    { token: string; ts: number; abortController?: AbortController }
+  >();
   protected closed = false;
 
   constructor(
@@ -101,8 +105,6 @@ export class LockManager {
             this.worker.emit('lockRenewalFailed', erroredJobIds);
 
             for (const jobId of erroredJobIds) {
-              // TODO: Send signal to process function that the job has been lost.
-
               this.worker.emit(
                 'error',
                 new Error(`could not renew lock for job ${jobId}`),
@@ -137,14 +139,15 @@ export class LockManager {
         const jobsToExtend: string[] = [];
 
         for (const jobId of this.trackedJobs.keys()) {
-          const { ts, token } = this.trackedJobs.get(jobId)!;
+          const tracked = this.trackedJobs.get(jobId)!;
+          const { ts, token, abortController } = tracked;
           if (!ts) {
-            this.trackedJobs.set(jobId, { token, ts: now });
+            this.trackedJobs.set(jobId, { token, ts: now, abortController });
             continue;
           }
 
           if (ts + this.opts.lockRenewTime / 2 < now) {
-            this.trackedJobs.set(jobId, { token, ts: now });
+            this.trackedJobs.set(jobId, { token, ts: now, abortController });
             jobsToExtend.push(jobId);
           }
         }
@@ -178,11 +181,21 @@ export class LockManager {
 
   /**
    * Adds a job to be tracked for lock renewal.
+   * Returns an AbortController if shouldCreateController is true, undefined otherwise.
    */
-  trackJob(jobId: string, token: string, ts: number): void {
+  trackJob(
+    jobId: string,
+    token: string,
+    ts: number,
+    shouldCreateController: boolean,
+  ): AbortController | undefined {
+    const abortController = shouldCreateController
+      ? new AbortController()
+      : undefined;
     if (!this.closed && jobId) {
-      this.trackedJobs.set(jobId, { token, ts });
+      this.trackedJobs.set(jobId, { token, ts, abortController });
     }
+    return abortController;
   }
 
   /**
@@ -204,5 +217,40 @@ export class LockManager {
    */
   isRunning(): boolean {
     return !this.closed && this.lockRenewalTimer !== undefined;
+  }
+
+  /**
+   * Cancels a specific job by aborting its signal.
+   * @param jobId - The ID of the job to cancel
+   * @param reason - Optional reason for the cancellation
+   * @returns true if the job was found and cancelled, false otherwise
+   */
+  cancelJob(jobId: string, reason?: string): boolean {
+    const tracked = this.trackedJobs.get(jobId);
+    if (tracked?.abortController) {
+      tracked.abortController.abort(reason);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Cancels all tracked jobs by aborting their signals.
+   * @param reason - Optional reason for the cancellation
+   */
+  cancelAllJobs(reason?: string): void {
+    for (const tracked of this.trackedJobs.values()) {
+      if (tracked.abortController) {
+        tracked.abortController.abort(reason);
+      }
+    }
+  }
+
+  /**
+   * Gets a list of all tracked job IDs.
+   * @returns Array of job IDs currently being tracked
+   */
+  getTrackedJobIds(): string[] {
+    return Array.from(this.trackedJobs.keys());
   }
 }
