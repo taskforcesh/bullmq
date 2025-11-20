@@ -2001,12 +2001,12 @@ cosmiconfig@^9.0.0:
     js-yaml "^4.1.0"
     parse-json "^5.2.0"
 
-coveralls-next@^6.0.0:
-  version "6.0.0"
-  resolved "https://registry.yarnpkg.com/coveralls-next/-/coveralls-next-6.0.0.tgz#d8a39267b8707607ff625fe40901b195d2228b33"
-  integrity sha512-cnpf4rIpCklA6b0vqFl+kuB7PCqte3vfPeoEP5g28fS//3Sv7IkdQEZqzvOwIBdheoHN6vuqgSPXQ79soJitrA==
+coveralls-next@^6.0.1:
+  version "6.0.1"
+  resolved "https://registry.yarnpkg.com/coveralls-next/-/coveralls-next-6.0.1.tgz#3220b7f81a8472b52a9f0aca400a4eca00b49701"
+  integrity sha512-G0xhUJE9M3OCKf8Xn/cGWrIh4xJI1w7MgJx30HpUfJf6yxyFS1SVGgXtFKmPGb5qEEh4H6oTUk0JQRVjq0ZgDQ==
   dependencies:
-    js-yaml "4.1.0"
+    js-yaml "4.1.1"
     lcov-parse "1.0.0"
 
 cpx2@^8.0.0:
@@ -3420,7 +3420,7 @@ js-tokens@^4.0.0:
   resolved "https://registry.yarnpkg.com/js-tokens/-/js-tokens-4.0.0.tgz#19203fb59991df98e3a287050d4647cdeaf32499"
   integrity sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==
 
-js-yaml@4.1.0, js-yaml@^4.1.0, js-yaml@^4.1.1:
+js-yaml@4.1.1, js-yaml@^4.1.0:
   version "4.1.1"
   resolved "https://registry.yarnpkg.com/js-yaml/-/js-yaml-4.1.1.tgz#854c292467705b699476e1a2decc0c8a3458806b"
   integrity sha512-qQKT4zQxXl8lLwBtHMWwaTcGfFOZviOJet3Oy/xmGk2gZH677CJM9EvtfdSkgWcATZhj/55JZ0rmy3myCT5lsA==
