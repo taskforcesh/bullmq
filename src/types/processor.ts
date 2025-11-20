@@ -6,4 +6,5 @@ import { Job } from '../classes/job';
 export type Processor<T = any, R = any, N extends string = string> = (
   job: Job<T, R, N>,
   token?: string,
+  signal?: AbortSignal,
 ) => Promise<R>;

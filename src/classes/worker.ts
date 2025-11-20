@@ -200,6 +200,7 @@ export class Worker<
   private drained = false;
   private limitUntil = 0;
   private lockManager: LockManager;
+  private processorAcceptsSignal = false;
 
   private stalledCheckStopper?: () => void;
   private waiting: Promise<number> | null = null;
@@ -285,6 +286,8 @@ export class Worker<
     if (processor) {
       if (typeof processor === 'function') {
         this.processFn = processor;
+        // Check if processor accepts signal parameter (3rd parameter)
+        this.processorAcceptsSignal = processor.length >= 3;
       } else {
         // SANDBOXED
         if (processor instanceof URL) {
@@ -409,8 +412,9 @@ export class Worker<
   protected callProcessJob(
     job: Job<DataType, ResultType, NameType>,
     token: string,
+    signal?: AbortSignal,
   ): Promise<ResultType> {
-    return this.processFn(job, token);
+    return this.processFn(job, token, signal);
   }
 
   protected createJob(
@@ -433,6 +437,28 @@ export class Worker<
   async waitUntilReady(): Promise<RedisClient> {
     await super.waitUntilReady();
     return this.blockingConnection.client;
+  }
+
+  /**
+   * Cancels a specific job currently being processed by this worker.
+   * The job's processor function will receive an abort signal.
+   *
+   * @param jobId - The ID of the job to cancel
+   * @param reason - Optional reason for the cancellation
+   * @returns true if the job was found and cancelled, false otherwise
+   */
+  cancelJob(jobId: string, reason?: string): boolean {
+    return this.lockManager.cancelJob(jobId, reason);
+  }
+
+  /**
+   * Cancels all jobs currently being processed by this worker.
+   * All active job processor functions will receive abort signals.
+   *
+   * @param reason - Optional reason for the cancellation
+   */
+  cancelAllJobs(reason?: string): void {
+    this.lockManager.cancelAllJobs(reason);
   }
 
   set concurrency(concurrency: number) {
@@ -913,7 +939,12 @@ will never work with more accuracy than 1ms. */
 
         const processedOn = Date.now();
 
-        this.lockManager.trackJob(job.id, token, processedOn);
+        const abortController = this.lockManager.trackJob(
+          job.id,
+          token,
+          processedOn,
+          this.processorAcceptsSignal,
+        );
 
         try {
           const unrecoverableErrorMessage =
@@ -937,7 +968,13 @@ will never work with more accuracy than 1ms. */
             return failed;
           }
 
-          const result = await this.callProcessJob(job, token);
+          const result = await this.callProcessJob(
+            job,
+            token,
+            abortController
+              ? (abortController.signal as AbortSignal)
+              : undefined,
+          );
           return await this.retryIfFailed<void | Job<
             DataType,
             ResultType,
@@ -1049,13 +1086,15 @@ will never work with more accuracy than 1ms. */
         token,
         fetchNextCallback() && !(this.closing || this.paused),
       );
+
       this.emit('failed', job, err, 'active');
 
-      span?.addEvent('job failed', {
-        [TelemetryAttributes.JobFailedReason]: err.message,
-      });
-
+      // Note: result can be undefined if moveToFailed fails (e.g., lock was lost)
       if (result) {
+        span?.addEvent('job failed', {
+          [TelemetryAttributes.JobFailedReason]: err.message,
+        });
+
         const [jobData, jobId, rateLimitDelay, delayUntil] = result;
         this.updateDelays(rateLimitDelay, delayUntil);
         return this.nextJobFromJobData(jobData, jobId, token);
