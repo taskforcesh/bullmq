@@ -274,6 +274,7 @@ type KeyOf<T extends object> = Extract<keyof T, string>;
  */
 export class QueueEvents extends QueueBase {
   private running = false;
+  private blocking = false;
 
   constructor(
     name: string,
@@ -373,10 +374,12 @@ export class QueueEvents extends QueueBase {
     let id = opts.lastEventId || '$';
 
     while (!this.closing) {
+      this.blocking = true;
       // Cast to actual return type, see: https://github.com/DefinitelyTyped/DefinitelyTyped/issues/44301
       const data: StreamReadRaw = await this.checkConnectionError(() =>
         client.xread('BLOCK', opts.blockingTimeout!, 'STREAMS', key, id),
       );
+      this.blocking = false;
       if (data) {
         const stream = data[0];
         const events = stream[1];
@@ -417,9 +420,19 @@ export class QueueEvents extends QueueBase {
    *
    * @returns
    */
-  close(): Promise<void> {
+  async close(): Promise<void> {
     if (!this.closing) {
-      this.closing = this.disconnect();
+      this.closing = (async () => {
+        try {
+          // As the connection has been wrongly markes as "shared" by QueueBase,
+          // we need to forcibly close it here. We should fix QueueBase to avoid this in the future.
+          const client = await this.client;
+          client.disconnect();
+          await this.connection.close(this.blocking);
+        } finally {
+          this.closed = true;
+        }
+      })();
     }
     return this.closing;
   }
