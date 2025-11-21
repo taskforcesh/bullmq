@@ -1,3 +1,10 @@
+## [5.64.1](https://github.com/taskforcesh/bullmq/compare/v5.64.0...v5.64.1) (2025-11-21)
+
+
+### Performance Improvements
+
+* **worker:** promote delayed jobs while queue is rate limited ([#3561](https://github.com/taskforcesh/bullmq/issues/3561)) ([a474801](https://github.com/taskforcesh/bullmq/commit/a47480111a2f1238a57ea9bfbab44f7de958227f))
+
 # [5.64.0](https://github.com/taskforcesh/bullmq/compare/v5.63.2...v5.64.0) (2025-11-20)
 
 
