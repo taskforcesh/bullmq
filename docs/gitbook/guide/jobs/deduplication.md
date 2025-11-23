@@ -125,7 +125,7 @@ If you need to stop deduplication before ttl finishes or before finishing a job,
 await myQueue.removeDeduplicationKey('customValue');
 ```
 
-Or if you want to stop deduplication only if an specific job the one that caused the deduplication
+Or if you want to stop deduplication only if a specific job is the one that caused the deduplication
 
 ```typescript
 const isDeduplicatedKeyRemoved = await job.removeDeduplicationKey();
