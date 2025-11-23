@@ -1441,7 +1441,7 @@ export class Job<
   }
 
   /**
-   * Removes a deduplication key if job is still the caused of deduplication.
+   * Removes a deduplication key if job is still the cause of deduplication.
    * @returns true if the deduplication key was removed.
    */
   async removeDeduplicationKey(): Promise<boolean> {
