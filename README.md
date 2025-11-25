@@ -113,6 +113,15 @@ Some notable organizations using BullMQ:
         />
         </a>
     </td>
+    <td valign="center">
+      <a href="https://langfuse.com">
+        <img
+          src="https://langfuse.com/langfuse_logo.svg"
+          width="150"
+          alt="Langfuse"
+        />
+        </a>
+    </td>
     </tr>
     <tr>
       <td valign="center">
