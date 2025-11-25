@@ -364,7 +364,6 @@ export class Worker<
    * This method can be overridden in subclasses to customize sandbox behavior.
    *
    * @param processor - The processor file path, URL, or function to be sandboxed
-   * @protected
    */
   protected createSandbox(
     processor: string | URL | null | Processor<DataType, ResultType, NameType>,
