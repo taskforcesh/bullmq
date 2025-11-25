@@ -333,10 +333,7 @@ export class Worker<
           workerThreadsOptions: this.opts.workerThreadsOptions,
         });
 
-        this.processFn = sandbox<DataType, ResultType, NameType>(
-          processor,
-          this.childPool,
-        ).bind(this);
+        this.createSandbox(processor);
       }
 
       if (this.opts.autorun) {
@@ -360,6 +357,15 @@ export class Worker<
     this.blockingConnection.on('ready', () =>
       setTimeout(() => this.emit('ready'), 0),
     );
+  }
+
+  protected createSandbox(
+    processor: string | URL | null | Processor<DataType, ResultType, NameType>,
+  ) {
+    this.processFn = sandbox<DataType, ResultType, NameType>(
+      processor,
+      this.childPool,
+    ).bind(this);
   }
 
   /**
