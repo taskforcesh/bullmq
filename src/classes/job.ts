@@ -1440,6 +1440,21 @@ export class Job<
     );
   }
 
+  /**
+   * Removes a deduplication key if job is still the cause of deduplication.
+   * @returns true if the deduplication key was removed.
+   */
+  async removeDeduplicationKey(): Promise<boolean> {
+    if (this.deduplicationId) {
+      const result = await this.scripts.removeDeduplicationKey(
+        this.deduplicationId,
+        this.id,
+      );
+      return result > 0;
+    }
+    return false;
+  }
+
   protected validateOptions(jobData: JobJson) {
     const exclusiveOptions: (keyof JobsOptions)[] = [
       'removeDependencyOnFailure',

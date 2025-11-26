@@ -361,6 +361,24 @@ export class Scripts {
     return this.execCommand(client, 'addRepeatableJob', args);
   }
 
+  async removeDeduplicationKey(
+    deduplicationId: string,
+    jobId: string,
+  ): Promise<number> {
+    const client = await this.queue.client;
+    const queueKeys = this.queue.keys;
+
+    const keys: string[] = [`${queueKeys.de}:${deduplicationId}`];
+
+    const args = [jobId];
+
+    return this.execCommand(
+      client,
+      'removeDeduplicationKey',
+      keys.concat(args),
+    );
+  }
+
   async addJobScheduler(
     jobSchedulerId: string,
     nextMillis: number,

@@ -1,6 +1,6 @@
 # Deduplication
 
-Sometimes, you may want to decide when you want to stop deduplicating jobs. 
+Sometimes, you may want to decide when you want to stop deduplicating jobs.
 
 ## Until job is active
 
@@ -12,12 +12,12 @@ import { Job, Queue, Worker } from 'bullmq';
 const myQueue = new Queue('Paint');
 
 const worker = new Worker('Paint', async (job: Job) => {
-  await myQueue.removeDeduplicationKey(job.deduplicationId)
+  await job.removeDeduplicationKey();
   console.log('Do something with job');
   return 'some value';
 });
 
-myQueue.add('house', { color: 'white' }, { deduplication: { id: 'house'} });
+myQueue.add('house', { color: 'white' }, { deduplication: { id: 'house' } });
 ```
 
 {% hint style="info" %}
@@ -38,7 +38,7 @@ const myQueue = new Queue('Paint');
 const worker = new Worker(
   'Paint',
   async job => {
-    if(job.name === 'paint-trigger'){
+    if (job.name === 'paint-trigger') {
       // Add a job that will be deduplicated for 90 seconds.
       await myQueue.add(
         'house',
@@ -65,5 +65,5 @@ In this way, you can deduplicate a job when using job schedulers.
 
 - 💡 [Add Job API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#add)
 - 💡 [Deduplication Reference](../guide/jobs/deduplication.md)
-- 💡 [Remove Deduplication Key API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removededuplicationkey)
+- 💡 [Remove Deduplication Key API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#removededuplicationkey)
 - 💡 [Upsert Job Scheduler API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#upsertJobScheduler)
