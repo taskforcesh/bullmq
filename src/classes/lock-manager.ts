@@ -60,8 +60,8 @@ export class LockManager {
   protected closed = false;
 
   constructor(
-    private worker: LockManagerWorkerContext,
-    private opts: LockManagerOptions,
+    protected worker: LockManagerWorkerContext,
+    protected opts: LockManagerOptions,
   ) {}
 
   /**

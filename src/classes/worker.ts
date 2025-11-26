@@ -194,7 +194,7 @@ export class Worker<
   private childPool: ChildPool;
   private drained = false;
   private limitUntil = 0;
-  private lockManager: LockManager;
+  protected lockManager: LockManager;
   private processorAcceptsSignal = false;
 
   private stalledCheckStopper?: () => void;
@@ -271,13 +271,7 @@ export class Worker<
 
     this.id = v4();
 
-    // Initialize lock manager with worker context
-    this.lockManager = new LockManager(this as LockManagerWorkerContext, {
-      lockRenewTime: this.opts.lockRenewTime,
-      lockDuration: this.opts.lockDuration,
-      workerId: this.id,
-      workerName: this.opts.name,
-    });
+    this.createLockManager();
 
     if (processor) {
       if (typeof processor === 'function') {
@@ -357,6 +351,19 @@ export class Worker<
     this.blockingConnection.on('ready', () =>
       setTimeout(() => this.emit('ready'), 0),
     );
+  }
+
+  /**
+   * Creates and configures the lock manager for processing jobs.
+   * This method can be overridden in subclasses to customize lock manager behavior.
+   */
+  protected createLockManager() {
+    this.lockManager = new LockManager(this as LockManagerWorkerContext, {
+      lockRenewTime: this.opts.lockRenewTime,
+      lockDuration: this.opts.lockDuration,
+      workerId: this.id,
+      workerName: this.opts.name,
+    });
   }
 
   /**

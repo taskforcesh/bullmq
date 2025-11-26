@@ -37,7 +37,9 @@ for i = 1, jobCount, 1 do
             table.insert(failedJobs, jobId)
         end
     else
-        table.insert(failedJobs, jobId)
+        if rcall("SISMEMBER", stalledKey, jobId) == 1 then
+            table.insert(failedJobs, jobId)
+        end
     end
 end
 
