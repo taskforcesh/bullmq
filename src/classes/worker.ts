@@ -333,10 +333,7 @@ export class Worker<
           workerThreadsOptions: this.opts.workerThreadsOptions,
         });
 
-        this.processFn = sandbox<DataType, ResultType, NameType>(
-          processor,
-          this.childPool,
-        ).bind(this);
+        this.createSandbox(processor);
       }
 
       if (this.opts.autorun) {
@@ -360,6 +357,21 @@ export class Worker<
     this.blockingConnection.on('ready', () =>
       setTimeout(() => this.emit('ready'), 0),
     );
+  }
+
+  /**
+   * Creates and configures the sandbox for processing jobs.
+   * This method can be overridden in subclasses to customize sandbox behavior.
+   *
+   * @param processor - The processor file path, URL, or function to be sandboxed
+   */
+  protected createSandbox(
+    processor: string | URL | null | Processor<DataType, ResultType, NameType>,
+  ) {
+    this.processFn = sandbox<DataType, ResultType, NameType>(
+      processor,
+      this.childPool,
+    ).bind(this);
   }
 
   /**
