@@ -94,7 +94,7 @@ await queue.add(
 );
 ```
 
-You can also provide a [jitter](https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/) option, it will generate random delays between `2 ^ (attempts - 1) * delay` and 0 milliseconds depending on the percentage of jitter usage. For example, you can provide a jitter value of 0.5 value and a delay of 3000 milliseconds, for the 7th attempt, it will generate a delay between `2^6 * 3000` milliseconds = 192000ms and `2^6 * 3000 * 0.5` milliseconds = 96000 minutes after the previous attempt.
+You can also provide a [jitter](https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/) option, it will generate random delays between `2 ^ (attempts - 1) * delay` and 0 milliseconds depending on the percentage of jitter usage. For example, you can provide a jitter value of 0.5 value and a delay of 3000 milliseconds, for the 7th attempt, it will generate a delay between `2^6 * 3000` milliseconds = 192000ms and `2^6 * 3000 * 0.5` milliseconds = 96000ms after the previous attempt.
 
 ```typescript
 import { Queue } from 'bullmq';
