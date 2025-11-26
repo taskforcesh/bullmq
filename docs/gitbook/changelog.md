@@ -1,3 +1,10 @@
+# [5.65.0](https://github.com/taskforcesh/bullmq/compare/v5.64.1...v5.65.0) (2025-11-26)
+
+
+### Features
+
+* **job:** support removeDeduplicationKey method ([#3575](https://github.com/taskforcesh/bullmq/issues/3575)) ([b059cfc](https://github.com/taskforcesh/bullmq/commit/b059cfcba48524446a62fd29785142c3d1edc30d))
+
 ## [5.64.1](https://github.com/taskforcesh/bullmq/compare/v5.64.0...v5.64.1) (2025-11-21)
 
 
