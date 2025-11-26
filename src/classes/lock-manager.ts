@@ -187,7 +187,7 @@ export class LockManager {
     jobId: string,
     token: string,
     ts: number,
-    shouldCreateController: boolean,
+    shouldCreateController = false,
   ): AbortController | undefined {
     const abortController = shouldCreateController
       ? new AbortController()

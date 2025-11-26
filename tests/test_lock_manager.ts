@@ -407,6 +407,109 @@ describe('LockManager', function () {
 
       await lockManager.close();
     });
+
+    it('should not emit error when job token mismatch but job is not in stalled set', async function () {
+      this.timeout(5000);
+
+      const queueName = `test-lock-manager-real-${v4()}`;
+
+      const queue = new Queue(queueName, { connection, prefix });
+
+      const emittedErrors: Error[] = [];
+      const emittedEvents: any[] = [];
+      let extendLocksCallCount = 0;
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          // Long running job to allow lock renewal
+          await delay(2000);
+          return { processed: true };
+        },
+        {
+          connection,
+          prefix,
+          lockRenewTime: 500, // Renew every 500ms
+          lockDuration: 1000, // Lock duration 1 second
+        },
+      );
+
+      // Listen for events on the worker
+      worker.on('error', error => {
+        emittedErrors.push(error);
+      });
+
+      worker.on('locksRenewed', data => {
+        emittedEvents.push({ event: 'locksRenewed', args: [data] });
+      });
+
+      worker.on('lockRenewalFailed', data => {
+        emittedEvents.push({ event: 'lockRenewalFailed', args: [data] });
+      });
+
+      await worker.waitUntilReady();
+
+      // Get access to the lock manager
+      const lockManager = (worker as any).lockManager;
+
+      // Spy on the extendLocks method to verify it's called
+      const originalExtendLocks = lockManager.extendLocks.bind(lockManager);
+      lockManager.extendLocks = async function (jobIds: string[]) {
+        extendLocksCallCount++;
+        return originalExtendLocks(jobIds);
+      };
+
+      // Add a job to process
+      const job = await queue.add('test', { data: 'test' });
+
+      const completing = new Promise<void>(resolve => {
+        worker.on('completed', () => {
+          resolve();
+        });
+      });
+
+      // Simulate token mismatch by manually changing the lock token in Redis
+      // This simulates the scenario where another worker might have taken over
+      // but the job is not in the stalled set
+      const jobId = job.id!;
+      const lockKey = `${prefix}:${queueName}:${jobId}:lock`;
+      await connection.set(lockKey, 'different-token', 'PX', 2000);
+
+      // Wait for lock renewal attempts - should not emit errors since
+      // the job is not in the stalled set despite token mismatch
+      await delay(1500);
+
+      // Wait for job completion
+      await completing;
+
+      // Verify that extendLocks was called
+      expect(extendLocksCallCount).to.be.at.least(1);
+
+      // Should not emit error events for "could not renew lock for job"
+      // because the job is not in the stalled set even though token mismatched
+      const lockRenewalErrors = emittedErrors.filter(err =>
+        err.message.includes('could not renew lock for job'),
+      );
+      expect(lockRenewalErrors).to.have.lengthOf(0);
+
+      // There might be some lock renewal events, but no failures should be reported
+      // for jobs not in the stalled set
+      const lockRenewalFailedEvents = emittedEvents.filter(
+        e => e.event === 'lockRenewalFailed',
+      );
+
+      // If there are any lock renewal failed events, they should not include our job
+      if (lockRenewalFailedEvents.length > 0) {
+        const failedJobIds = lockRenewalFailedEvents.flatMap(
+          event => event.args[0],
+        );
+        expect(failedJobIds).to.not.include(jobId);
+      }
+
+      await worker.close();
+      await queue.close();
+      await removeAllQueueData(new IORedis(redisHost), queueName);
+    });
   });
 
   describe('integration with Worker', () => {
