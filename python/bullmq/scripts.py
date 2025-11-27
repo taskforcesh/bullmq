@@ -567,10 +567,11 @@ class Scripts:
         keys.append(self.keys['marker'])
 
         def getKeepJobs(shouldRemove: bool | dict | int | None):
-            if type(shouldRemove) == int:
+            # Exclude bool from the int check because bool is a subclass of int in Python.
+            if isinstance(shouldRemove, int) and not isinstance(shouldRemove, bool):
                 return {"count": shouldRemove}
 
-            if type(shouldRemove) == dict:
+            if isinstance(shouldRemove, dict):
                 return shouldRemove
 
             if shouldRemove:
@@ -630,7 +631,8 @@ class Scripts:
         result = await self.commands["moveToFinished"](keys=keys, args=args)
 
         if result is not None:
-            if type(result) == int and result < 0:
+            if isinstance(result, int) and result < 0:
+                # result < 0 ensures that the value of result is not a Boolean.
                 raise self.finishedErrors({
                     "code": result,
                     "jobId": job_id,

@@ -204,10 +204,10 @@ class Job:
             result = await self.scripts.moveToFinished(self.id, keys, args)
             finished_on = args[1]
 
-        if finished_on and type(finished_on) == int:
+        if isinstance(finished_on, int):
             self.finishedOn = finished_on
 
-        if delay and type(delay) == int:
+        if isinstance(delay, int):
             self.delay = delay
 
         self.attemptsMade = self.attemptsMade + 1
@@ -277,7 +277,7 @@ class Job:
             job.deferredFailure = rawData.get("defa")
 
         returnvalue = rawData.get("returnvalue")
-        if type(returnvalue) == str:
+        if isinstance(returnvalue, str):
             job.returnvalue = getReturnValue(returnvalue)
 
         job.stacktrace = json.loads(rawData.get("stacktrace", "[]"))
