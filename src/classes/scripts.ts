@@ -45,6 +45,7 @@ import {
 } from '../utils';
 import { ChainableCommander } from 'ioredis';
 import { version as packageVersion } from '../version';
+import { BullMQRegistryKey } from '../consts/bullmq-registry-key';
 import { UnrecoverableError } from './errors';
 export type JobData = [JobJsonRaw | number, string?];
 
@@ -1634,6 +1635,7 @@ export class Scripts {
     const client = await this.queue.client;
 
     const keys: (string | number)[] = [
+      BullMQRegistryKey,
       this.queue.keys.meta,
       this.queue.toKey(''),
     ];

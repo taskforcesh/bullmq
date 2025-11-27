@@ -22,6 +22,7 @@ import { RedisConnection } from './redis-connection';
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { JobScheduler } from './job-scheduler';
 import { version } from '../version';
+import { BullMQRegistryKey } from '../consts/bullmq-registry-key';
 
 export interface ObliterateOpts {
   /**
@@ -174,13 +175,31 @@ export class Queue<
     this.waitUntilReady()
       .then(client => {
         if (!this.closing && !opts?.skipMetasUpdate) {
-          return client.hmset(this.keys.meta, this.metaValues);
+          const multi = client.multi();
+          multi.hmset(this.keys.meta, this.metaValues);
+          multi.zadd(BullMQRegistryKey, Date.now(), this.qualifiedName);
+          return multi.exec();
         }
       })
       .catch(err => {
         // We ignore this error to avoid warnings. The error can still
         // be received by listening to event 'error'
       });
+  }
+
+  /**
+   * Returns the queues that are available in the registry.
+   * @param start - zero based index from where to start returning jobs.
+   * @param end - zero based index where to stop returning jobs.
+   */
+  static getRegistry(
+    client: {
+      zrange: (key: string, start: number, end: number) => Promise<string[]>;
+    },
+    start = 0,
+    end = -1,
+  ): Promise<string[]> {
+    return client.zrange(BullMQRegistryKey, start, end);
   }
 
   emit<U extends keyof QueueListener<JobBase<DataType, ResultType, NameType>>>(
