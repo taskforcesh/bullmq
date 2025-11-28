@@ -9,6 +9,7 @@ import {
   array2obj,
   clientCommandMessageReg,
   isRedisInstance,
+  parseObjectValues,
   QUEUE_EVENT_SUFFIX,
 } from '../utils';
 import { QueueBase } from './queue-base';
@@ -388,19 +389,39 @@ export class QueueEvents extends QueueBase {
           id = events[i][0];
           const args = array2obj(events[i][1]);
 
+          let { event, ...restArgs } = args;
+
           //
           // TODO: we may need to have a separate xtream for progress data
           // to avoid this hack.
-          switch (args.event) {
+          switch (event) {
+            case 'active':
+            case 'added':
+            case 'cleaned':
+            case 'debounced': // TODO: to be removed in next breaking change
+            case 'deduplicated':
+            case 'delayed':
+            case 'duplicated':
+            case 'error':
+            case 'failed':
+            case 'paused':
+            case 'removed':
+            case 'resumed':
+            case 'retries-exhausted':
+            case 'stalled':
+            case 'waiting':
+            case 'waiting-children':
+              break;
             case 'progress':
-              args.data = JSON.parse(args.data);
+              restArgs.data = JSON.parse(restArgs.data);
               break;
             case 'completed':
-              args.returnvalue = JSON.parse(args.returnvalue);
+              restArgs.returnvalue = JSON.parse(restArgs.returnvalue);
+              break;
+            default:
+              restArgs = parseObjectValues(restArgs);
               break;
           }
-
-          const { event, ...restArgs } = args;
 
           if (event === 'drained') {
             this.emit(event, id);
