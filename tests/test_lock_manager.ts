@@ -408,7 +408,7 @@ describe('LockManager', function () {
       await lockManager.close();
     });
 
-    it('should not emit error when job token mismatch but job is not in stalled set', async function () {
+    it('should not emit error when job token does not exist and job is not in active state', async function () {
       this.timeout(5000);
 
       const queueName = `test-lock-manager-real-${v4()}`;
@@ -468,22 +468,24 @@ describe('LockManager', function () {
         });
       });
 
-      // Simulate token mismatch by manually changing the lock token in Redis
-      // This simulates the scenario where another worker might have taken over
-      // but the job is not in the stalled set
-      const jobId = job.id!;
-      const lockKey = `${prefix}:${queueName}:${jobId}:lock`;
-      await connection.set(lockKey, 'different-token', 'PX', 2000);
-
-      // Wait for lock renewal attempts - should not emit errors since
-      // the job is not in the stalled set despite token mismatch
-      await delay(1500);
-
       // Wait for job completion
       await completing;
 
       // Verify that extendLocks was called
       expect(extendLocksCallCount).to.be.at.least(1);
+
+      // Now the job is completed and no longer in active state
+      // But we can simulate the lock manager still trying to renew the lock
+      // by manually tracking the job again after completion
+      const jobId = job.id!;
+      const fakeToken = 'fake-token-for-completed-job';
+
+      // Add the completed job to lock manager tracking to simulate
+      // a scenario where lock renewal attempts happen for a non-active job
+      lockManager.trackJob(jobId, fakeToken, Date.now());
+
+      // Wait for lock renewal attempts
+      await delay(500);
 
       // Should not emit error events for "could not renew lock for job"
       // because the job is not in the stalled set even though token mismatched
@@ -493,18 +495,14 @@ describe('LockManager', function () {
       expect(lockRenewalErrors).to.have.lengthOf(0);
 
       // There might be some lock renewal events, but no failures should be reported
-      // for jobs not in the stalled set
+      // for jobs not in the active state
       const lockRenewalFailedEvents = emittedEvents.filter(
         e => e.event === 'lockRenewalFailed',
       );
 
-      // If there are any lock renewal failed events, they should not include our job
-      if (lockRenewalFailedEvents.length > 0) {
-        const failedJobIds = lockRenewalFailedEvents.flatMap(
-          event => event.args[0],
-        );
-        expect(failedJobIds).to.not.include(jobId);
-      }
+      expect(lockRenewalFailedEvents).to.have.lengthOf(0);
+
+      lockManager.untrackJob(jobId);
 
       await worker.close();
       await queue.close();
