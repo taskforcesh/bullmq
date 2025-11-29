@@ -612,17 +612,13 @@ export class Scripts {
 
     const args = [
       this.queue.keys.stalled,
-      this.queue.keys.active,
       this.queue.toKey(''),
       pack(tokens),
       pack(jobIds),
       duration,
     ];
 
-    if (isRedisVersionLowerThan(this.queue.redisVersion, '6.0.6')) {
-      return this.execCommand(client, 'extendLocks', args);
-    }
-    return this.execCommand(client, 'extendLocksV2', args);
+    return this.execCommand(client, 'extendLocks', args);
   }
 
   async updateData<T = any, R = any, N extends string = string>(

@@ -972,14 +972,16 @@ will never work with more accuracy than 1ms. */
               ResultType,
               NameType
             >>(
-              () =>
-                this.handleFailed(
+              () => {
+                this.lockManager.untrackJob(job.id);
+                return this.handleFailed(
                   new UnrecoverableError(unrecoverableErrorMessage),
                   job,
                   token,
                   fetchNextCallback,
                   span,
-                ),
+                );
+              },
               { delayInMs: this.opts.runRetryDelay, span },
             );
             return failed;
@@ -997,8 +999,16 @@ will never work with more accuracy than 1ms. */
             ResultType,
             NameType
           >>(
-            () =>
-              this.handleCompleted(result, job, token, fetchNextCallback, span),
+            () => {
+              this.lockManager.untrackJob(job.id);
+              return this.handleCompleted(
+                result,
+                job,
+                token,
+                fetchNextCallback,
+                span,
+              );
+            },
             { delayInMs: this.opts.runRetryDelay, span },
           );
         } catch (err) {
@@ -1007,20 +1017,20 @@ will never work with more accuracy than 1ms. */
             ResultType,
             NameType
           >>(
-            () =>
-              this.handleFailed(
+            () => {
+              this.lockManager.untrackJob(job.id);
+              return this.handleFailed(
                 <Error>err,
                 job,
                 token,
                 fetchNextCallback,
                 span,
-              ),
+              );
+            },
             { delayInMs: this.opts.runRetryDelay, span, onlyEmitError: true },
           );
           return failed;
         } finally {
-          this.lockManager.untrackJob(job.id);
-
           span?.setAttributes({
             [TelemetryAttributes.JobFinishedTimestamp]: Date.now(),
             [TelemetryAttributes.JobProcessedTimestamp]: processedOn,

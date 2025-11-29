@@ -3,7 +3,6 @@
   Return the list of job IDs for which the operation failed.
 
   KEYS[1] = stalled key
-  KEYS[2] = active key
   
   ARGV[1] = baseKey
   ARGV[2] = tokens
@@ -16,7 +15,6 @@
 local rcall = redis.call
 
 local stalledKey = KEYS[1]
-local activeKey = KEYS[2]
 local baseKey = ARGV[1]
 local tokens = cmsgpack.unpack(ARGV[2])
 local jobIds = cmsgpack.unpack(ARGV[3])
@@ -24,7 +22,6 @@ local lockDuration = ARGV[4]
 
 local jobCount = #jobIds
 local failedJobs = {}
-local activeJobs
 
 -- Includes
 --- @include "includes/checkItemInList"
@@ -47,13 +44,7 @@ for i = 1, jobCount, 1 do
             table.insert(failedJobs, jobId)
         end
     else
-        if not activeJobs then
-            activeJobs = rcall("LRANGE", activeKey , 0, -1)
-        end
-
-        if checkItemInList(activeJobs, jobId) then
-            table.insert(failedJobs, jobId)
-        end
+        table.insert(failedJobs, jobId)
     end
 end
 
