@@ -24,7 +24,6 @@ local jobCount = #jobIds
 local failedJobs = {}
 
 -- Includes
---- @include "includes/checkItemInList"
 
 for i = 1, jobCount, 1 do
     local lockKey = baseKey .. jobIds[i] .. ':lock'
