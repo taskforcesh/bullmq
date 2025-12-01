@@ -1031,6 +1031,8 @@ will never work with more accuracy than 1ms. */
           );
           return failed;
         } finally {
+          this.lockManager.untrackJob(job.id);
+
           span?.setAttributes({
             [TelemetryAttributes.JobFinishedTimestamp]: Date.now(),
             [TelemetryAttributes.JobProcessedTimestamp]: processedOn,
