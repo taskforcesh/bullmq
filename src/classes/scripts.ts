@@ -617,6 +617,7 @@ export class Scripts {
       pack(jobIds),
       duration,
     ];
+
     return this.execCommand(client, 'extendLocks', args);
   }
 
