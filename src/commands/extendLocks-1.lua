@@ -23,8 +23,6 @@ local lockDuration = ARGV[4]
 local jobCount = #jobIds
 local failedJobs = {}
 
--- Includes
-
 for i = 1, jobCount, 1 do
     local lockKey = baseKey .. jobIds[i] .. ':lock'
     local jobId = jobIds[i]
