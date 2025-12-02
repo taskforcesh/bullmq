@@ -1,3 +1,9 @@
+/**
+ * (c) 2017-2025 BullForce Labs AB, MIT Licensed.
+ * @see LICENSE.md
+ *
+ */
+
 class Node<T> {
   value: T | undefined = undefined;
   next: Node<T> | null = null;

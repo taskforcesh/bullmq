@@ -194,3 +194,86 @@ jobs:
           else
             echo "No changes detected after semantic-release"
           fi
+
+      # Elixir Release
+      - name: Setup Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: '1.17'
+          otp-version: '27.x'
+      - name: Install Elixir dependencies
+        if: ${{ contains(env.commitmsg, 'elixir') }}
+        working-directory: elixir
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix deps.get
+      - name: Install Node dependencies for Elixir
+        if: ${{ contains(env.commitmsg, 'elixir') }}
+        working-directory: elixir
+        run: yarn install --frozen-lockfile --non-interactive
+      - name: Release Elixir
+        id: semantic_release_elixir
+        if: ${{ contains(env.commitmsg, 'elixir') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+        working-directory: elixir
+        run: npx semantic-release
+      - name: Create PR with Elixir release changes
+        if: ${{ success() && steps.semantic_release_elixir.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd elixir
+          # Check if there are any changes to commit
+          if [[ -n $(git status --porcelain) ]]; then
+            # Get the version from mix.exs
+            VERSION=$(grep -m 1 '@version "' mix.exs | sed 's/.*@version "\([^"]*\)".*/\1/')
+            BRANCH_NAME="release/vex${VERSION}"
+            
+            echo "Creating PR for Elixir release version: vex${VERSION}"
+            
+            # Create and switch to new branch
+            git checkout -b $BRANCH_NAME
+            
+            # Configure git
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            
+            # Add and commit changes (only add files that exist)
+            git add mix.exs || true
+            git add ../docs/gitbook/elixir/changelog.md || true
+            
+            # Check if there are actually changes to commit after adding
+            if [[ -n $(git diff --cached --name-only) ]]; then
+              git commit -m "chore(release): vex${VERSION}"
+              
+              # Push the branch
+              git push origin $BRANCH_NAME
+              
+              # Create PR using GitHub CLI
+              gh pr create \
+                --title "chore(release): vex${VERSION}" \
+                --body "Automated release PR for Elixir version vex${VERSION}
+
+              This PR contains:
+              - Updated mix.exs version
+              - Updated changelog
+
+              Please review and merge to complete the release process." \
+                --head $BRANCH_NAME \
+                --base master
+              
+              echo "Created PR for release vex${VERSION}"
+              # Back to master branch for next releases if needed
+              git checkout origin/master
+            else
+              echo "No changes to commit after staging files"
+              git checkout origin/master
+              git branch -D $BRANCH_NAME
+            fi
+          else
+            echo "No changes detected after semantic-release"
+          fi

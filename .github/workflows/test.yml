@@ -269,3 +269,110 @@ jobs:
           cd python
           export BULLMQ_TEST_PREFIX="{b}"
           pytest -v
+
+  elixir:
+    runs-on: ubuntu-latest
+
+    name: testing elixir@${{ matrix.elixir-version }}, otp@${{ matrix.otp-version }}, redis@${{ matrix.redis-version }}
+
+    strategy:
+      matrix:
+        elixir-version: ['1.15', '1.16', '1.17']
+        otp-version: ['26.x', '27.x']
+        redis-version: [7-alpine]
+        exclude:
+          # Elixir 1.15 doesn't support OTP 27
+          - elixir-version: '1.15'
+            otp-version: '27.x'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Start Redis
+        uses: supercharge/redis-github-action@f63fe516254d0af5df91755a4488274c2e71e38c # 1.5.0
+        with:
+          redis-version: ${{ matrix.redis-version }}
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ matrix.elixir-version }}
+          otp-version: ${{ matrix.otp-version }}
+
+      - name: Restore dependencies cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            elixir/deps
+            elixir/_build
+          key: ${{ runner.os }}-mix-${{ matrix.elixir-version }}-${{ matrix.otp-version }}-${{ hashFiles('elixir/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-${{ matrix.elixir-version }}-${{ matrix.otp-version }}-
+
+      - name: Install dependencies
+        working-directory: elixir
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix deps.get
+
+      - name: Compile
+        working-directory: elixir
+        run: mix compile --warnings-as-errors
+
+      - name: Run tests
+        working-directory: elixir
+        run: mix test --include integration
+
+      - name: Check formatting
+        working-directory: elixir
+        run: mix format --check-formatted
+
+  elixir-dragonflydb:
+    runs-on: ubuntu-latest
+
+    name: testing elixir@1.17, otp@27.x, dragonflydb@latest
+
+    services:
+      dragonflydb:
+        image: docker.dragonflydb.io/dragonflydb/dragonfly:v1.24.0
+        env:
+          DFLY_cluster_mode: emulated
+          DFLY_lock_on_hashtags: true
+          HEALTHCHECK_PORT: 6379
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: '1.17'
+          otp-version: '27.x'
+
+      - name: Restore dependencies cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            elixir/deps
+            elixir/_build
+          key: ${{ runner.os }}-mix-1.17-27.x-${{ hashFiles('elixir/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-1.17-27.x-
+
+      - name: Install dependencies
+        working-directory: elixir
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix deps.get
+
+      - name: Run tests
+        working-directory: elixir
+        env:
+          BULLMQ_TEST_PREFIX: '{b}'
+        run: mix test --include integration

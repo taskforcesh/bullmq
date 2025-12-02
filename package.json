@@ -154,6 +154,10 @@
             {
               "message": "*\\[python\\]*",
               "release": false
+            },
+            {
+              "message": "*\\[elixir\\]*",
+              "release": false
             }
           ]
         }
@@ -163,7 +167,7 @@
         {
           "preset": "angular",
           "presetConfig": {
-            "ignoreCommits": "\\[python\\]"
+            "ignoreCommits": "(\\[python\\]|\\[elixir\\])"
           }
         }
       ],

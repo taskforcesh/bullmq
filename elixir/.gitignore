@@ -1,0 +1,34 @@
+# Build artifacts
+_build/
+deps/
+
+# Generated documentation
+doc/
+
+# Crash dumps
+erl_crash.dump
+*.crashdump
+
+# Mix archives
+*.ez
+
+# Dialyzer PLT files
+*.plt
+*.plt.hash
+
+# IDE/Editor files
+.elixir_ls/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test coverage
+cover/
+
+# Temporary files
+tmp/
