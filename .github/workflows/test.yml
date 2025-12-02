@@ -303,12 +303,10 @@ jobs:
       - name: Restore dependencies cache
         uses: actions/cache@v3
         with:
-          path: |
-            elixir/deps
-            elixir/_build
-          key: ${{ runner.os }}-mix-${{ matrix.elixir-version }}-${{ matrix.otp-version }}-${{ hashFiles('elixir/mix.lock') }}
+          path: elixir/deps
+          key: ${{ runner.os }}-mix-deps-${{ matrix.elixir-version }}-${{ matrix.otp-version }}-${{ hashFiles('elixir/mix.lock') }}
           restore-keys: |
-            ${{ runner.os }}-mix-${{ matrix.elixir-version }}-${{ matrix.otp-version }}-
+            ${{ runner.os }}-mix-deps-${{ matrix.elixir-version }}-${{ matrix.otp-version }}-
 
       - name: Install dependencies
         working-directory: elixir
@@ -357,12 +355,10 @@ jobs:
       - name: Restore dependencies cache
         uses: actions/cache@v3
         with:
-          path: |
-            elixir/deps
-            elixir/_build
-          key: ${{ runner.os }}-mix-1.17-27.x-${{ hashFiles('elixir/mix.lock') }}
+          path: elixir/deps
+          key: ${{ runner.os }}-mix-deps-1.17-27.x-${{ hashFiles('elixir/mix.lock') }}
           restore-keys: |
-            ${{ runner.os }}-mix-1.17-27.x-
+            ${{ runner.os }}-mix-deps-1.17-27.x-
 
       - name: Install dependencies
         working-directory: elixir
@@ -370,6 +366,10 @@ jobs:
           mix local.hex --force
           mix local.rebar --force
           mix deps.get
+
+      - name: Compile
+        working-directory: elixir
+        run: mix compile
 
       - name: Run tests
         working-directory: elixir
