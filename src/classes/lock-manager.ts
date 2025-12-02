@@ -60,8 +60,8 @@ export class LockManager {
   protected closed = false;
 
   constructor(
-    private worker: LockManagerWorkerContext,
-    private opts: LockManagerOptions,
+    protected worker: LockManagerWorkerContext,
+    protected opts: LockManagerOptions,
   ) {}
 
   /**
@@ -187,7 +187,7 @@ export class LockManager {
     jobId: string,
     token: string,
     ts: number,
-    shouldCreateController: boolean,
+    shouldCreateController = false,
   ): AbortController | undefined {
     const abortController = shouldCreateController
       ? new AbortController()

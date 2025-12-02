@@ -1,5 +1,6 @@
 from typing import Callable
 from uuid import uuid4
+from redis.exceptions import ConnectionError
 from bullmq.custom_errors import UnrecoverableError, WaitingChildrenError
 from bullmq.scripts import Scripts
 from bullmq.redis_connection import RedisConnection
@@ -32,6 +33,7 @@ class Worker(EventEmitter):
             "lockDuration": 30000,
             "maxStalledCount": 1,
             "stalledInterval": 30000,
+            "runRetryDelay": 15000,
         }
         final_opts.update(opts or {})
         self.opts = final_opts
@@ -46,6 +48,7 @@ class Worker(EventEmitter):
         self.forceClosing = False
         self.closed = False
         self.running = False
+        self.paused = False
         self.processing = set()
         self.jobs = set()
         self.id = uuid4().hex
@@ -76,7 +79,20 @@ class Worker(EventEmitter):
             while not self.waiting and len(self.processing) < self.opts.get("concurrency") and not self.closing:
                 token_postfix+=1
                 token = f'{self.id}:{token_postfix}'
-                waiting_job = asyncio.ensure_future(self.getNextJob(token))
+                
+                # Use retryIfFailed to wrap getNextJob call, similar to TypeScript worker
+                async def get_next_job_wrapped():
+                    return await self.getNextJob(token)
+                
+                waiting_job = asyncio.ensure_future(
+                    self.retryIfFailed(
+                        get_next_job_wrapped,
+                        {
+                            "delay_in_ms": self.opts.get("runRetryDelay"),
+                            "only_emit_error": True,
+                        }
+                    )
+                )
                 self.processing.add(waiting_job)
 
             try:
@@ -185,7 +201,6 @@ class Worker(EventEmitter):
     @property
     def minimumBlockTimeout(self):
         return minimum_block_timeout if self.blockingRedisConnection.capabilities.get("canBlockFor1Ms", True) else 0.002
-        
 
     async def processJob(self, job: Job, token: str):
         try:
@@ -215,6 +230,56 @@ class Worker(EventEmitter):
                 self.emit("error", err, job)
         finally:
             self.jobs.remove((job, token))
+
+    async def retryIfFailed(self, fn, opts=None):
+        """
+        Retry a coroutine function if it fails, with delay and max retries.
+        :param fn: Coroutine function to execute.
+        :param opts: Dictionary with options:
+            - delay_in_ms: Delay between retries in milliseconds.
+            - max_retries: Maximum number of retries.
+            - only_emit_error: If True, only emit error and do not raise.
+        """
+        if opts is None:
+            opts = {}
+        delay_in_ms = opts.get("delay_in_ms", 15000)
+        max_retries = opts.get("max_retries", float('inf'))
+        only_emit_error = opts.get("only_emit_error", False)
+
+        retry = 0
+        while retry < max_retries:
+            try:
+                return await fn()
+            except Exception as err:
+                # Check if this is a connection error that should be retried
+                is_connection_error = self.isConnectionError(err)
+                
+                if not is_connection_error:
+                    # Swallow error if locally not paused or not closing since we did not force a disconnection
+                    if not (self.paused or self.closing):
+                        self.emit("error", err)
+                    
+                    if only_emit_error:
+                        return None
+                    else:
+                        raise err
+                else:
+                    # For connection errors, wait and retry
+                    if delay_in_ms and not self.closing and not self.closed:
+                        await asyncio.sleep(delay_in_ms / 1000.0)
+                    
+                    retry += 1
+                    if retry >= max_retries:
+                        # If we've reached max retries, raise the last error
+                        raise err
+        
+        return None
+    
+    def isConnectionError(self, error):
+        """
+        Check if an error is a connection-related error.
+        """
+        return isinstance(error, ConnectionError)
 
     async def extendLocks(self):
         # Renew all the locks for the jobs that are still active
@@ -257,6 +322,28 @@ class Worker(EventEmitter):
 
         await self.blockingRedisConnection.close()
         await self.redisConnection.close()
+        self.closed = True
+        self.emit('closed')
+
+    async def pause(self, do_not_wait_active: bool = False):
+        """
+        Pauses the worker, preventing it from processing new jobs.
+
+        This method waits for current jobs to finalize before returning.
+        """
+        if not self.paused:
+            self.paused = True
+            if not do_not_wait_active and len(self.processing) > 0:
+                await asyncio.wait(self.processing, return_when=asyncio.ALL_COMPLETED)
+        self.emit('paused')
+
+    def resume(self):
+        """
+        Resumes processing of this worker (if paused).
+        """
+        if self.paused:
+            self.paused = False
+            self.emit('resumed')
 
     def cancelProcessing(self):
         for job in self.processing:

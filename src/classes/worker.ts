@@ -194,7 +194,7 @@ export class Worker<
   private childPool: ChildPool;
   private drained = false;
   private limitUntil = 0;
-  private lockManager: LockManager;
+  protected lockManager: LockManager;
   private processorAcceptsSignal = false;
 
   private stalledCheckStopper?: () => void;
@@ -271,13 +271,7 @@ export class Worker<
 
     this.id = v4();
 
-    // Initialize lock manager with worker context
-    this.lockManager = new LockManager(this as LockManagerWorkerContext, {
-      lockRenewTime: this.opts.lockRenewTime,
-      lockDuration: this.opts.lockDuration,
-      workerId: this.id,
-      workerName: this.opts.name,
-    });
+    this.createLockManager();
 
     if (processor) {
       if (typeof processor === 'function') {
@@ -333,10 +327,7 @@ export class Worker<
           workerThreadsOptions: this.opts.workerThreadsOptions,
         });
 
-        this.processFn = sandbox<DataType, ResultType, NameType>(
-          processor,
-          this.childPool,
-        ).bind(this);
+        this.createSandbox(processor);
       }
 
       if (this.opts.autorun) {
@@ -360,6 +351,34 @@ export class Worker<
     this.blockingConnection.on('ready', () =>
       setTimeout(() => this.emit('ready'), 0),
     );
+  }
+
+  /**
+   * Creates and configures the lock manager for processing jobs.
+   * This method can be overridden in subclasses to customize lock manager behavior.
+   */
+  protected createLockManager() {
+    this.lockManager = new LockManager(this as LockManagerWorkerContext, {
+      lockRenewTime: this.opts.lockRenewTime,
+      lockDuration: this.opts.lockDuration,
+      workerId: this.id,
+      workerName: this.opts.name,
+    });
+  }
+
+  /**
+   * Creates and configures the sandbox for processing jobs.
+   * This method can be overridden in subclasses to customize sandbox behavior.
+   *
+   * @param processor - The processor file path, URL, or function to be sandboxed
+   */
+  protected createSandbox(
+    processor: string | URL | null | Processor<DataType, ResultType, NameType>,
+  ) {
+    this.processFn = sandbox<DataType, ResultType, NameType>(
+      processor,
+      this.childPool,
+    ).bind(this);
   }
 
   /**
@@ -953,14 +972,16 @@ will never work with more accuracy than 1ms. */
               ResultType,
               NameType
             >>(
-              () =>
-                this.handleFailed(
+              () => {
+                this.lockManager.untrackJob(job.id);
+                return this.handleFailed(
                   new UnrecoverableError(unrecoverableErrorMessage),
                   job,
                   token,
                   fetchNextCallback,
                   span,
-                ),
+                );
+              },
               { delayInMs: this.opts.runRetryDelay, span },
             );
             return failed;
@@ -978,8 +999,16 @@ will never work with more accuracy than 1ms. */
             ResultType,
             NameType
           >>(
-            () =>
-              this.handleCompleted(result, job, token, fetchNextCallback, span),
+            () => {
+              this.lockManager.untrackJob(job.id);
+              return this.handleCompleted(
+                result,
+                job,
+                token,
+                fetchNextCallback,
+                span,
+              );
+            },
             { delayInMs: this.opts.runRetryDelay, span },
           );
         } catch (err) {
@@ -988,14 +1017,16 @@ will never work with more accuracy than 1ms. */
             ResultType,
             NameType
           >>(
-            () =>
-              this.handleFailed(
+            () => {
+              this.lockManager.untrackJob(job.id);
+              return this.handleFailed(
                 <Error>err,
                 job,
                 token,
                 fetchNextCallback,
                 span,
-              ),
+              );
+            },
             { delayInMs: this.opts.runRetryDelay, span, onlyEmitError: true },
           );
           return failed;
