@@ -636,7 +636,8 @@ defmodule BullMQ.Worker do
       on_error: Keyword.get(opts, :on_error),
       on_active: Keyword.get(opts, :on_active),
       on_progress: Keyword.get(opts, :on_progress),
-      on_stalled: Keyword.get(opts, :on_stalled)
+      on_stalled: Keyword.get(opts, :on_stalled),
+      on_lock_renewal_failed: Keyword.get(opts, :on_lock_renewal_failed)
     }
 
     if autorun do
@@ -949,7 +950,7 @@ defmodule BullMQ.Worker do
 
         {token, processor_pid} ->
           Logger.warning("[BullMQ.Worker] Lock lost for job #{job_id}, cancelling processor")
-          CancellationToken.cancel(token, processor_pid, {:lock_lost, job_id})
+          CancellationToken.cancel(processor_pid, token, {:lock_lost, job_id})
 
           # Also call the user's on_lock_renewal_failed callback if provided
           if state.on_lock_renewal_failed do

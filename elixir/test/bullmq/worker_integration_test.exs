@@ -1583,8 +1583,126 @@ defmodule BullMQ.WorkerIntegrationTest do
   end
 
   # ---------------------------------------------------------------------------
+  # Lock Lost / Cancellation Tests
+  # ---------------------------------------------------------------------------
+
+  describe "lock lost cancellation" do
+    @tag :integration
+    @tag timeout: 30_000
+    test "processor receives cancellation when lock is lost", %{conn: conn, queue_name: queue_name} do
+      test_pid = self()
+
+      # Start worker with short lock duration so renewal happens quickly
+      {:ok, worker} = Worker.start_link(
+        queue: queue_name,
+        connection: conn,
+        prefix: @test_prefix,
+        lock_duration: 1000,  # 1 second lock
+        # Use arity-2 processor to receive cancellation token
+        processor: fn job, cancel_token ->
+          send(test_pid, {:processor_started, job.id, cancel_token})
+
+          # Wait in a loop, checking for cancellation
+          result = wait_for_cancellation_or_timeout(cancel_token, 10_000)
+          send(test_pid, {:processor_result, result})
+          result
+        end,
+        on_lock_renewal_failed: fn job_ids ->
+          send(test_pid, {:lock_renewal_failed, job_ids})
+        end,
+        on_failed: fn job, reason ->
+          send(test_pid, {:failed, job.id, reason})
+        end
+      )
+
+      # Add a job
+      {:ok, job} = Queue.add(queue_name, "test-job", %{value: 1},
+        connection: conn, prefix: @test_prefix)
+
+      job_id = job.id
+
+      # Wait for processor to start
+      assert_receive {:processor_started, ^job_id, _token}, 5_000
+
+      # Delete the lock from Redis to simulate lock expiry/theft
+      # This will cause the next lock renewal to fail
+      lock_key = "#{@test_prefix}:#{queue_name}:#{job_id}:lock"
+      {:ok, _} = BullMQ.RedisConnection.command(conn, ["DEL", lock_key])
+
+      # Wait for lock renewal to fail and cancellation to be sent
+      assert_receive {:lock_renewal_failed, [^job_id]}, 5_000
+
+      # The processor should receive the cancellation
+      assert_receive {:processor_result, {:error, {:cancelled, {:lock_lost, ^job_id}}}}, 5_000
+
+      Worker.close(worker, force: true)
+    end
+
+    @tag :integration
+    @tag timeout: 30_000
+    test "on_lock_renewal_failed callback is invoked when lock is lost", %{conn: conn, queue_name: queue_name} do
+      test_pid = self()
+
+      {:ok, worker} = Worker.start_link(
+        queue: queue_name,
+        connection: conn,
+        prefix: @test_prefix,
+        lock_duration: 1000,
+        processor: fn job, _cancel_token ->
+          send(test_pid, {:processor_started, job.id})
+          # Long-running job
+          Process.sleep(15_000)
+          {:ok, :done}
+        end,
+        on_lock_renewal_failed: fn job_ids ->
+          send(test_pid, {:lock_renewal_failed, job_ids})
+        end
+      )
+
+      {:ok, job} = Queue.add(queue_name, "test-job", %{value: 1},
+        connection: conn, prefix: @test_prefix)
+
+      job_id = job.id
+
+      assert_receive {:processor_started, ^job_id}, 5_000
+
+      # Delete the lock
+      lock_key = "#{@test_prefix}:#{queue_name}:#{job_id}:lock"
+      {:ok, _} = BullMQ.RedisConnection.command(conn, ["DEL", lock_key])
+
+      # Verify callback is called
+      assert_receive {:lock_renewal_failed, [^job_id]}, 5_000
+
+      Worker.close(worker, force: true)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Helper Functions
   # ---------------------------------------------------------------------------
+
+  # Wait for cancellation token to be triggered or timeout
+  defp wait_for_cancellation_or_timeout(cancel_token, timeout_ms) do
+    deadline = System.monotonic_time(:millisecond) + timeout_ms
+
+    do_wait_for_cancellation(cancel_token, deadline)
+  end
+
+  defp do_wait_for_cancellation(cancel_token, deadline) do
+    case BullMQ.CancellationToken.check(cancel_token) do
+      {:cancelled, reason} ->
+        {:error, {:cancelled, reason}}
+
+      :ok ->
+        now = System.monotonic_time(:millisecond)
+        if now >= deadline do
+          {:ok, :timeout}
+        else
+          Process.sleep(50)
+          do_wait_for_cancellation(cancel_token, deadline)
+        end
+    end
+  end
 
   # Simple helper to receive a :completed message value
   defp receive_completion(timeout) do

@@ -1,46 +1,6 @@
 defmodule BullMQ.MixProject do
   use Mix.Project
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# mix.lock# Mix lock file (optional - you may want to commit this)/priv/plts/# Dialyzer PLT filesThumbs.db.DS_Store# OS files.idea/.vscode/.elixir_ls/# IDE/Editor directories/tmp/# Temporary files, for example, from tests.bullmq-*.tar# Ignore package tarball (built via "mix hex.build").*.ez# Also ignore archive artifacts (built via "mix archive.build").erl_crash.dump# If the VM crashes, it generates a dump, let's ignore it too./.fetch# Ignore .fetch files in case you like to edit your project deps locally./doc/# Where third-party dependencies like ExDoc output generated docs./deps/# The directory Mix downloads your dependencies sources to./cover/# If you run "mix test --cover", coverage assets end up here.
   @version "0.1.0"
   @source_url "https://github.com/taskforcesh/bullmq"
   @description "A powerful, fast, and robust job queue for Elixir backed by Redis"
