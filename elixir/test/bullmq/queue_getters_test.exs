@@ -28,6 +28,7 @@ defmodule BullMQ.QueueGettersTest do
       # Stop the connection
       try do
         supervisor_name = :"#{conn_name}_supervisor"
+
         if Process.whereis(supervisor_name) do
           Supervisor.stop(supervisor_name)
         end
@@ -45,10 +46,13 @@ defmodule BullMQ.QueueGettersTest do
         case Redix.command(cleanup_conn, ["KEYS", "#{@test_prefix}:#{queue_name}:*"]) do
           {:ok, keys} when keys != [] ->
             Redix.command(cleanup_conn, ["DEL" | keys])
+
           _ ->
             :ok
         end
+
         Redix.stop(cleanup_conn)
+
       _ ->
         :ok
     end
@@ -83,7 +87,8 @@ defmodule BullMQ.QueueGettersTest do
         Queue.add(queue_name, "job#{i}", %{i: i}, connection: conn, prefix: prefix)
       end
 
-      {:ok, jobs} = Queue.get_waiting(queue_name, connection: conn, prefix: prefix, start: 0, end: 2)
+      {:ok, jobs} =
+        Queue.get_waiting(queue_name, connection: conn, prefix: prefix, start: 0, end: 2)
 
       assert length(jobs) == 3
     end
@@ -94,7 +99,11 @@ defmodule BullMQ.QueueGettersTest do
   # ---------------------------------------------------------------------------
 
   describe "get_active/2" do
-    test "returns empty list when no active jobs", %{conn: conn, queue_name: queue_name, prefix: prefix} do
+    test "returns empty list when no active jobs", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
       {:ok, jobs} = Queue.get_active(queue_name, connection: conn, prefix: prefix)
       assert jobs == []
     end
@@ -105,14 +114,18 @@ defmodule BullMQ.QueueGettersTest do
   # ---------------------------------------------------------------------------
 
   describe "get_delayed/2" do
-    test "returns empty list when no delayed jobs", %{conn: conn, queue_name: queue_name, prefix: prefix} do
+    test "returns empty list when no delayed jobs", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
       {:ok, jobs} = Queue.get_delayed(queue_name, connection: conn, prefix: prefix)
       assert jobs == []
     end
 
     test "returns delayed jobs", %{conn: conn, queue_name: queue_name, prefix: prefix} do
-      {:ok, job} = Queue.add(queue_name, "delayed_job", %{},
-        connection: conn, prefix: prefix, delay: 60_000)
+      {:ok, job} =
+        Queue.add(queue_name, "delayed_job", %{}, connection: conn, prefix: prefix, delay: 60_000)
 
       {:ok, jobs} = Queue.get_delayed(queue_name, connection: conn, prefix: prefix)
 
@@ -126,14 +139,18 @@ defmodule BullMQ.QueueGettersTest do
   # ---------------------------------------------------------------------------
 
   describe "get_prioritized/2" do
-    test "returns empty list when no prioritized jobs", %{conn: conn, queue_name: queue_name, prefix: prefix} do
+    test "returns empty list when no prioritized jobs", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
       {:ok, jobs} = Queue.get_prioritized(queue_name, connection: conn, prefix: prefix)
       assert jobs == []
     end
 
     test "returns prioritized jobs", %{conn: conn, queue_name: queue_name, prefix: prefix} do
-      {:ok, job} = Queue.add(queue_name, "priority_job", %{},
-        connection: conn, prefix: prefix, priority: 5)
+      {:ok, job} =
+        Queue.add(queue_name, "priority_job", %{}, connection: conn, prefix: prefix, priority: 5)
 
       {:ok, jobs} = Queue.get_prioritized(queue_name, connection: conn, prefix: prefix)
 
@@ -147,7 +164,11 @@ defmodule BullMQ.QueueGettersTest do
   # ---------------------------------------------------------------------------
 
   describe "get_completed/2" do
-    test "returns empty list when no completed jobs", %{conn: conn, queue_name: queue_name, prefix: prefix} do
+    test "returns empty list when no completed jobs", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
       {:ok, jobs} = Queue.get_completed(queue_name, connection: conn, prefix: prefix)
       assert jobs == []
     end
@@ -158,7 +179,11 @@ defmodule BullMQ.QueueGettersTest do
   # ---------------------------------------------------------------------------
 
   describe "get_failed/2" do
-    test "returns empty list when no failed jobs", %{conn: conn, queue_name: queue_name, prefix: prefix} do
+    test "returns empty list when no failed jobs", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
       {:ok, jobs} = Queue.get_failed(queue_name, connection: conn, prefix: prefix)
       assert jobs == []
     end
@@ -188,7 +213,11 @@ defmodule BullMQ.QueueGettersTest do
       assert count == 0
     end
 
-    test "returns correct count for delayed jobs", %{conn: conn, queue_name: queue_name, prefix: prefix} do
+    test "returns correct count for delayed jobs", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
       Queue.add(queue_name, "delayed1", %{}, connection: conn, prefix: prefix, delay: 60_000)
       Queue.add(queue_name, "delayed2", %{}, connection: conn, prefix: prefix, delay: 60_000)
 
@@ -210,7 +239,11 @@ defmodule BullMQ.QueueGettersTest do
       assert count == 0
     end
 
-    test "returns correct count for prioritized jobs", %{conn: conn, queue_name: queue_name, prefix: prefix} do
+    test "returns correct count for prioritized jobs", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
       Queue.add(queue_name, "priority1", %{}, connection: conn, prefix: prefix, priority: 1)
       Queue.add(queue_name, "priority2", %{}, connection: conn, prefix: prefix, priority: 2)
       Queue.add(queue_name, "priority3", %{}, connection: conn, prefix: prefix, priority: 3)
@@ -226,7 +259,11 @@ defmodule BullMQ.QueueGettersTest do
       assert count == 0
     end
 
-    test "returns correct count for waiting jobs", %{conn: conn, queue_name: queue_name, prefix: prefix} do
+    test "returns correct count for waiting jobs", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
       Queue.add(queue_name, "job1", %{}, connection: conn, prefix: prefix)
       Queue.add(queue_name, "job2", %{}, connection: conn, prefix: prefix)
 
@@ -236,7 +273,11 @@ defmodule BullMQ.QueueGettersTest do
   end
 
   describe "get_waiting_children_count/2" do
-    test "returns 0 when no waiting-children jobs", %{conn: conn, queue_name: queue_name, prefix: prefix} do
+    test "returns 0 when no waiting-children jobs", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
       {:ok, count} = Queue.get_waiting_children_count(queue_name, connection: conn, prefix: prefix)
       assert count == 0
     end
@@ -248,7 +289,9 @@ defmodule BullMQ.QueueGettersTest do
 
   describe "get_global_concurrency/2" do
     test "returns nil when not set", %{conn: conn, queue_name: queue_name, prefix: prefix} do
-      {:ok, concurrency} = Queue.get_global_concurrency(queue_name, connection: conn, prefix: prefix)
+      {:ok, concurrency} =
+        Queue.get_global_concurrency(queue_name, connection: conn, prefix: prefix)
+
       assert concurrency == nil
     end
 
@@ -257,7 +300,9 @@ defmodule BullMQ.QueueGettersTest do
       ctx = BullMQ.Keys.new(queue_name, prefix: prefix)
       RedisConnection.command(conn, ["HSET", BullMQ.Keys.meta(ctx), "concurrency", "10"])
 
-      {:ok, concurrency} = Queue.get_global_concurrency(queue_name, connection: conn, prefix: prefix)
+      {:ok, concurrency} =
+        Queue.get_global_concurrency(queue_name, connection: conn, prefix: prefix)
+
       assert concurrency == 10
     end
   end
@@ -271,7 +316,15 @@ defmodule BullMQ.QueueGettersTest do
     test "returns value when set", %{conn: conn, queue_name: queue_name, prefix: prefix} do
       # Set rate limit manually
       ctx = BullMQ.Keys.new(queue_name, prefix: prefix)
-      RedisConnection.command(conn, ["HSET", BullMQ.Keys.meta(ctx), "max", "100", "duration", "60000"])
+
+      RedisConnection.command(conn, [
+        "HSET",
+        BullMQ.Keys.meta(ctx),
+        "max",
+        "100",
+        "duration",
+        "60000"
+      ])
 
       {:ok, rate_limit} = Queue.get_global_rate_limit(queue_name, connection: conn, prefix: prefix)
       assert rate_limit == %{max: 100, duration: 60000}
@@ -279,7 +332,11 @@ defmodule BullMQ.QueueGettersTest do
   end
 
   describe "get_rate_limit_ttl/2" do
-    test "returns result when limiter is not active", %{conn: conn, queue_name: queue_name, prefix: prefix} do
+    test "returns result when limiter is not active", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
       {:ok, ttl} = Queue.get_rate_limit_ttl(queue_name, connection: conn, prefix: prefix)
       # Returns 0 when no rate limit is active, -2 if key doesn't exist with PTTL, or actual TTL
       assert is_integer(ttl)
@@ -292,16 +349,24 @@ defmodule BullMQ.QueueGettersTest do
 
   describe "get_deduplication_job_id/3" do
     test "returns nil when no deduplication", %{conn: conn, queue_name: queue_name, prefix: prefix} do
-      {:ok, job_id} = Queue.get_deduplication_job_id(queue_name, "nonexistent", connection: conn, prefix: prefix)
+      {:ok, job_id} =
+        Queue.get_deduplication_job_id(queue_name, "nonexistent", connection: conn, prefix: prefix)
+
       assert job_id == nil
     end
 
-    test "returns job_id when deduplication exists", %{conn: conn, queue_name: queue_name, prefix: prefix} do
+    test "returns job_id when deduplication exists", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
       # Set deduplication key manually
       ctx = BullMQ.Keys.new(queue_name, prefix: prefix)
       RedisConnection.command(conn, ["SET", "#{BullMQ.Keys.key(ctx)}:de:my-dedup-id", "job123"])
 
-      {:ok, job_id} = Queue.get_deduplication_job_id(queue_name, "my-dedup-id", connection: conn, prefix: prefix)
+      {:ok, job_id} =
+        Queue.get_deduplication_job_id(queue_name, "my-dedup-id", connection: conn, prefix: prefix)
+
       assert job_id == "job123"
     end
   end
@@ -313,20 +378,31 @@ defmodule BullMQ.QueueGettersTest do
       RedisConnection.command(conn, ["SET", "#{BullMQ.Keys.key(ctx)}:de:remove-test", "job456"])
 
       # Verify it exists
-      {:ok, job_id} = Queue.get_deduplication_job_id(queue_name, "remove-test", connection: conn, prefix: prefix)
+      {:ok, job_id} =
+        Queue.get_deduplication_job_id(queue_name, "remove-test", connection: conn, prefix: prefix)
+
       assert job_id == "job456"
 
       # Remove it
-      {:ok, removed} = Queue.remove_deduplication_key(queue_name, "remove-test", connection: conn, prefix: prefix)
+      {:ok, removed} =
+        Queue.remove_deduplication_key(queue_name, "remove-test", connection: conn, prefix: prefix)
+
       assert removed == 1
 
       # Verify it's gone
-      {:ok, job_id} = Queue.get_deduplication_job_id(queue_name, "remove-test", connection: conn, prefix: prefix)
+      {:ok, job_id} =
+        Queue.get_deduplication_job_id(queue_name, "remove-test", connection: conn, prefix: prefix)
+
       assert job_id == nil
     end
 
     test "returns 0 when key doesn't exist", %{conn: conn, queue_name: queue_name, prefix: prefix} do
-      {:ok, removed} = Queue.remove_deduplication_key(queue_name, "nonexistent-key", connection: conn, prefix: prefix)
+      {:ok, removed} =
+        Queue.remove_deduplication_key(queue_name, "nonexistent-key",
+          connection: conn,
+          prefix: prefix
+        )
+
       assert removed == 0
     end
   end
@@ -336,7 +412,11 @@ defmodule BullMQ.QueueGettersTest do
   # ---------------------------------------------------------------------------
 
   describe "get_job_logs/3" do
-    test "returns empty logs for job without logs", %{conn: conn, queue_name: queue_name, prefix: prefix} do
+    test "returns empty logs for job without logs", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
       {:ok, job} = Queue.add(queue_name, "test", %{}, connection: conn, prefix: prefix)
 
       {:ok, result} = Queue.get_job_logs(queue_name, job.id, connection: conn, prefix: prefix)
@@ -350,6 +430,7 @@ defmodule BullMQ.QueueGettersTest do
       # Add logs manually
       ctx = BullMQ.Keys.new(queue_name, prefix: prefix)
       logs_key = BullMQ.Keys.logs(ctx, job.id)
+
       RedisConnection.command(conn, ["RPUSH", logs_key, "Log entry 1", "Log entry 2", "Log entry 3"])
 
       {:ok, result} = Queue.get_job_logs(queue_name, job.id, connection: conn, prefix: prefix)
@@ -363,10 +444,11 @@ defmodule BullMQ.QueueGettersTest do
       # Add logs
       ctx = BullMQ.Keys.new(queue_name, prefix: prefix)
       logs_key = BullMQ.Keys.logs(ctx, job.id)
+
       RedisConnection.command(conn, ["RPUSH", logs_key, "Log 1", "Log 2", "Log 3", "Log 4", "Log 5"])
 
-      {:ok, result} = Queue.get_job_logs(queue_name, job.id,
-        connection: conn, prefix: prefix, start: 0, end: 2)
+      {:ok, result} =
+        Queue.get_job_logs(queue_name, job.id, connection: conn, prefix: prefix, start: 0, end: 2)
 
       assert result.logs == ["Log 1", "Log 2", "Log 3"]
       assert result.count == 5
@@ -380,8 +462,8 @@ defmodule BullMQ.QueueGettersTest do
       logs_key = BullMQ.Keys.logs(ctx, job.id)
       RedisConnection.command(conn, ["RPUSH", logs_key, "Log 1", "Log 2", "Log 3"])
 
-      {:ok, result} = Queue.get_job_logs(queue_name, job.id,
-        connection: conn, prefix: prefix, asc: false)
+      {:ok, result} =
+        Queue.get_job_logs(queue_name, job.id, connection: conn, prefix: prefix, asc: false)
 
       assert result.logs == ["Log 3", "Log 2", "Log 1"]
     end
@@ -411,7 +493,11 @@ defmodule BullMQ.QueueGettersTest do
   # ---------------------------------------------------------------------------
 
   describe "export_prometheus_metrics/2" do
-    test "exports metrics in Prometheus format", %{conn: conn, queue_name: queue_name, prefix: prefix} do
+    test "exports metrics in Prometheus format", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
       # Add some jobs
       Queue.add(queue_name, "job1", %{}, connection: conn, prefix: prefix)
       Queue.add(queue_name, "job2", %{}, connection: conn, prefix: prefix)
@@ -425,13 +511,19 @@ defmodule BullMQ.QueueGettersTest do
       assert String.contains?(metrics, ~s(queue="#{queue_name}"))
     end
 
-    test "includes global variables in metrics", %{conn: conn, queue_name: queue_name, prefix: prefix} do
+    test "includes global variables in metrics", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
       Queue.add(queue_name, "job1", %{}, connection: conn, prefix: prefix)
 
-      {:ok, metrics} = Queue.export_prometheus_metrics(queue_name,
-        connection: conn,
-        prefix: prefix,
-        global_variables: %{"env" => "test", "region" => "us-west"})
+      {:ok, metrics} =
+        Queue.export_prometheus_metrics(queue_name,
+          connection: conn,
+          prefix: prefix,
+          global_variables: %{"env" => "test", "region" => "us-west"}
+        )
 
       assert String.contains?(metrics, ~s(env="test"))
       assert String.contains?(metrics, ~s(region="us-west"))
@@ -443,7 +535,11 @@ defmodule BullMQ.QueueGettersTest do
   # ---------------------------------------------------------------------------
 
   describe "get_metrics/3" do
-    test "returns metrics structure for completed", %{conn: conn, queue_name: queue_name, prefix: prefix} do
+    test "returns metrics structure for completed", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
       {:ok, metrics} = Queue.get_metrics(queue_name, :completed, connection: conn, prefix: prefix)
 
       assert is_map(metrics)
@@ -457,7 +553,11 @@ defmodule BullMQ.QueueGettersTest do
       assert Map.has_key?(metrics.meta, :prev_count)
     end
 
-    test "returns metrics structure for failed", %{conn: conn, queue_name: queue_name, prefix: prefix} do
+    test "returns metrics structure for failed", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
       {:ok, metrics} = Queue.get_metrics(queue_name, :failed, connection: conn, prefix: prefix)
 
       assert is_map(metrics)

@@ -108,7 +108,8 @@ defmodule BullMQ.Telemetry.OpenTelemetry do
   """
   @spec available?() :: boolean()
   def available? do
-    @otel_available and @otel_tracer_available and @otel_ctx_available and @otel_propagator_available
+    @otel_available and @otel_tracer_available and @otel_ctx_available and
+      @otel_propagator_available
   end
 
   # Get the tracer - returns a noop tracer if SDK isn't configured
@@ -141,7 +142,11 @@ defmodule BullMQ.Telemetry.OpenTelemetry do
 
         # Start span with context and tracer
         # :otel_tracer.start_span(Ctx, Tracer, Name, Opts)
-        span_ctx = :otel_tracer.start_span(ctx, tracer, name, %{kind: kind, attributes: build_attributes(attributes)})
+        span_ctx =
+          :otel_tracer.start_span(ctx, tracer, name, %{
+            kind: kind,
+            attributes: build_attributes(attributes)
+          })
 
         # Return both the new context with span and the span context for later use
         new_ctx = :otel_tracer.set_current_span(ctx, span_ctx)
@@ -217,9 +222,10 @@ defmodule BullMQ.Telemetry.OpenTelemetry do
         # The inject_from function takes: Context, Carrier, CarrierSetFun
         # CarrierSetFun has signature: (Key, Value, Carrier) -> Carrier
         # We build a map to match Node.js bullmq-otel format: {"traceparent": "...", ...}
-        headers = :otel_propagator_text_map.inject_from(context, %{}, fn key, value, carrier ->
-          Map.put(carrier, key, value)
-        end)
+        headers =
+          :otel_propagator_text_map.inject_from(context, %{}, fn key, value, carrier ->
+            Map.put(carrier, key, value)
+          end)
 
         if headers == %{} do
           nil
@@ -250,10 +256,12 @@ defmodule BullMQ.Telemetry.OpenTelemetry do
           {:ok, headers} when is_list(headers) ->
             # Legacy format: [["traceparent", "..."], ...]
             # Convert JSON array to list of tuples if needed
-            carrier = Enum.map(headers, fn
-              [k, v] -> {k, v}
-              {k, v} -> {k, v}
-            end)
+            carrier =
+              Enum.map(headers, fn
+                [k, v] -> {k, v}
+                {k, v} -> {k, v}
+              end)
+
             :otel_propagator_text_map.extract_to(:otel_ctx.new(), carrier)
 
           _ ->
@@ -399,50 +407,56 @@ defmodule BullMQ.Telemetry.OpenTelemetry do
     propagate = Keyword.get(opts, :propagate, false)
 
     # If we have parent metadata, deserialize and use it as parent
-    parent_ctx = if parent_metadata do
-      deserialize_context(parent_metadata)
-    else
-      nil
-    end
+    parent_ctx =
+      if parent_metadata do
+        deserialize_context(parent_metadata)
+      else
+        nil
+      end
 
-    span_opts = opts
-                |> Keyword.delete(:parent_metadata)
-                |> Keyword.delete(:propagate)
-                |> Keyword.put(:parent, parent_ctx)
+    span_opts =
+      opts
+      |> Keyword.delete(:parent_metadata)
+      |> Keyword.delete(:propagate)
+      |> Keyword.put(:parent, parent_ctx)
 
     span = start_span(name, span_opts)
 
     # Get context for propagation if requested
-    dst_metadata = case span do
-      {:noop, nil} ->
-        nil
-      {ctx, span_data} when span_data != nil ->
-        if propagate and available?() do
-          try do
-            span_ctx = :otel_tracer.set_current_span(ctx, span_data)
-            serialize_context(span_ctx)
-          rescue
-            _ -> nil
-          catch
-            _, _ -> nil
-          end
-        else
+    dst_metadata =
+      case span do
+        {:noop, nil} ->
           nil
-        end
-      _ ->
-        nil
-    end
+
+        {ctx, span_data} when span_data != nil ->
+          if propagate and available?() do
+            try do
+              span_ctx = :otel_tracer.set_current_span(ctx, span_data)
+              serialize_context(span_ctx)
+            rescue
+              _ -> nil
+            catch
+              _, _ -> nil
+            end
+          else
+            nil
+          end
+
+        _ ->
+          nil
+      end
 
     try do
-      result = if propagate do
-        with_span_context(span, fn ->
-          fun.(span, dst_metadata)
-        end)
-      else
-        with_span_context(span, fn ->
-          fun.(span)
-        end)
-      end
+      result =
+        if propagate do
+          with_span_context(span, fn ->
+            fun.(span, dst_metadata)
+          end)
+        else
+          with_span_context(span, fn ->
+            fun.(span)
+          end)
+        end
 
       end_span(span, :ok)
       result

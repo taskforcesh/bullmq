@@ -81,45 +81,46 @@ defmodule BullMQ.QueueEvents do
 
   require Logger
 
-  @opts_schema NimbleOptions.new!([
-    name: [
-      type: {:or, [:atom, nil]},
-      doc: "Optional name to register the GenServer process under."
-    ],
-    queue: [
-      type: :string,
-      required: true,
-      doc: "The name of the queue to listen for events from."
-    ],
-    connection: [
-      type: {:or, [:atom, :pid, {:tuple, [:atom, :atom]}]},
-      required: true,
-      doc: "The Redis connection (atom name, pid, or `{:via, registry}` tuple)."
-    ],
-    prefix: [
-      type: :string,
-      default: "bull",
-      doc: "The prefix for Redis keys."
-    ],
-    handler: [
-      type: {:or, [:atom, nil]},
-      doc: "Optional handler module implementing `BullMQ.QueueEvents.Handler` behaviour."
-    ],
-    handler_state: [
-      type: :any,
-      doc: "Initial state passed to the handler module."
-    ],
-    last_event_id: [
-      type: :string,
-      default: "$",
-      doc: "Start from specific event ID (default: \"$\" for new events only)."
-    ],
-    autorun: [
-      type: :boolean,
-      default: true,
-      doc: "Whether to start listening for events immediately."
-    ]
-  ])
+  @opts_schema NimbleOptions.new!(
+                 name: [
+                   type: {:or, [:atom, nil]},
+                   doc: "Optional name to register the GenServer process under."
+                 ],
+                 queue: [
+                   type: :string,
+                   required: true,
+                   doc: "The name of the queue to listen for events from."
+                 ],
+                 connection: [
+                   type: {:or, [:atom, :pid, {:tuple, [:atom, :atom]}]},
+                   required: true,
+                   doc: "The Redis connection (atom name, pid, or `{:via, registry}` tuple)."
+                 ],
+                 prefix: [
+                   type: :string,
+                   default: "bull",
+                   doc: "The prefix for Redis keys."
+                 ],
+                 handler: [
+                   type: {:or, [:atom, nil]},
+                   doc:
+                     "Optional handler module implementing `BullMQ.QueueEvents.Handler` behaviour."
+                 ],
+                 handler_state: [
+                   type: :any,
+                   doc: "Initial state passed to the handler module."
+                 ],
+                 last_event_id: [
+                   type: :string,
+                   default: "$",
+                   doc: "Start from specific event ID (default: \"$\" for new events only)."
+                 ],
+                 autorun: [
+                   type: :boolean,
+                   default: true,
+                   doc: "Whether to start listening for events immediately."
+                 ]
+               )
 
   @default_block_timeout 5_000
 
@@ -265,7 +266,10 @@ defmodule BullMQ.QueueEvents do
         {:noreply, schedule_consume(new_state)}
 
       {:error, reason} ->
-        Logger.error("[BullMQ.QueueEvents] Failed to create blocking connection: #{inspect(reason)}")
+        Logger.error(
+          "[BullMQ.QueueEvents] Failed to create blocking connection: #{inspect(reason)}"
+        )
+
         Process.send_after(self(), :start, 5_000)
         {:noreply, state}
     end
@@ -345,26 +349,29 @@ defmodule BullMQ.QueueEvents do
 
   defp schedule_consume(%{closing: true} = state), do: state
   defp schedule_consume(%{consumer_task: ref} = state) when not is_nil(ref), do: state
+
   defp schedule_consume(state) do
     events_key = Keys.events(state.keys)
     blocking_conn = state.blocking_conn
     last_event_id = state.last_event_id
 
-    task = Task.async(fn ->
-      Redix.command(blocking_conn, [
-        "XREAD",
-        "BLOCK",
-        @default_block_timeout,
-        "STREAMS",
-        events_key,
-        last_event_id
-      ])
-    end)
+    task =
+      Task.async(fn ->
+        Redix.command(blocking_conn, [
+          "XREAD",
+          "BLOCK",
+          @default_block_timeout,
+          "STREAMS",
+          events_key,
+          last_event_id
+        ])
+      end)
 
     %{state | consumer_task: task.ref}
   end
 
   defp cancel_consumer_task(%{consumer_task: nil} = state), do: state
+
   defp cancel_consumer_task(%{consumer_task: ref} = state) when is_reference(ref) do
     # We can't really cancel the blocking Redis command, but we can
     # demonitor and ignore its result
@@ -426,6 +433,7 @@ defmodule BullMQ.QueueEvents do
     if state.blocking_conn do
       RedisConnection.close_blocking(state.connection, state.blocking_conn)
     end
+
     :ok
   end
 end

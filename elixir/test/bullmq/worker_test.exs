@@ -232,7 +232,7 @@ defmodule BullMQ.WorkerTest do
 
   # Get the Worker options schema for validation testing
   defp worker_opts_schema do
-    NimbleOptions.new!([
+    NimbleOptions.new!(
       name: [type: {:or, [:atom, nil]}],
       queue: [type: :string, required: true],
       connection: [type: {:or, [:atom, :pid]}, required: true],
@@ -252,7 +252,7 @@ defmodule BullMQ.WorkerTest do
       on_stalled: [type: {:or, [{:fun, 1}, nil]}],
       on_lock_renewal_failed: [type: {:or, [{:fun, 1}, nil]}],
       telemetry: [type: :atom, default: nil]
-    ])
+    )
   end
 
   # Helper to catch validation errors from Worker.start_link

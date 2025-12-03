@@ -39,7 +39,8 @@ defmodule BullMQ.TelemetryTest do
 
       Telemetry.emit([:job, :complete], %{duration: 100}, %{job_id: "123"})
 
-      assert_receive {:telemetry_event, [:bullmq, :job, :complete], %{duration: 100}, %{job_id: "123"}}
+      assert_receive {:telemetry_event, [:bullmq, :job, :complete], %{duration: 100},
+                      %{job_id: "123"}}
 
       :telemetry.detach("test-handler-#{inspect(ref)}")
     end
@@ -109,15 +110,19 @@ defmodule BullMQ.TelemetryTest do
         nil
       )
 
-      result = Telemetry.span([:operation], %{id: "op-1"}, fn ->
-        Process.sleep(10)
-        :ok
-      end)
+      result =
+        Telemetry.span([:operation], %{id: "op-1"}, fn ->
+          Process.sleep(10)
+          :ok
+        end)
 
       assert result == :ok
 
       assert_receive {:span_event, [:bullmq, :operation, :start], %{system_time: _}, %{id: "op-1"}}
-      assert_receive {:span_event, [:bullmq, :operation, :stop], %{duration: duration}, %{id: "op-1"}}
+
+      assert_receive {:span_event, [:bullmq, :operation, :stop], %{duration: duration},
+                      %{id: "op-1"}}
+
       assert duration > 0
 
       :telemetry.detach("test-span-#{inspect(ref)}")

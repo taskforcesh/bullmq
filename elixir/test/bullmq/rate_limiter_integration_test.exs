@@ -25,11 +25,12 @@ defmodule BullMQ.RateLimiterIntegrationTest do
     # Start a named Redis connection pool for this test
     pool_name = :"rate_limit_pool_#{System.unique_integer([:positive])}"
 
-    {:ok, _} = BullMQ.RedisConnection.start_link(
-      name: pool_name,
-      url: @redis_url,
-      pool_size: 5
-    )
+    {:ok, _} =
+      BullMQ.RedisConnection.start_link(
+        name: pool_name,
+        url: @redis_url,
+        pool_size: 5
+      )
 
     queue_name = "rate-limit-queue-#{System.unique_integer([:positive])}"
     ctx = Keys.new(queue_name, prefix: @test_prefix)
@@ -41,10 +42,13 @@ defmodule BullMQ.RateLimiterIntegrationTest do
           case Redix.command(cleanup_conn, ["KEYS", "#{@test_prefix}:#{queue_name}:*"]) do
             {:ok, keys} when keys != [] ->
               Redix.command(cleanup_conn, ["DEL" | keys])
+
             _ ->
               :ok
           end
+
           Redix.stop(cleanup_conn)
+
         _ ->
           :ok
       end
@@ -62,31 +66,37 @@ defmodule BullMQ.RateLimiterIntegrationTest do
     @tag timeout: 15_000
     test "should obey the rate limit", %{conn: conn, queue_name: queue_name} do
       num_jobs = 4
-      duration = 500  # 500ms per job window
+      # 500ms per job window
+      duration = 500
 
       # Start queue events to track completions
-      {:ok, events} = QueueEvents.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix
-      )
+      {:ok, events} =
+        QueueEvents.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
       QueueEvents.subscribe(events)
 
       # Start rate limited worker
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job -> :ok end,
-        limiter: %{max: 1, duration: duration}
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job -> :ok end,
+          limiter: %{max: 1, duration: duration}
+        )
 
       start_time = System.system_time(:millisecond)
 
       # Add jobs
-      jobs = Enum.map(1..num_jobs, fn i ->
-        {"rate-test", %{idx: i}, []}
-      end)
+      jobs =
+        Enum.map(1..num_jobs, fn i ->
+          {"rate-test", %{idx: i}, []}
+        end)
+
       {:ok, _added} = Queue.add_bulk(queue_name, jobs, connection: conn, prefix: @test_prefix)
 
       # Wait for all jobs to complete
@@ -99,7 +109,7 @@ defmodule BullMQ.RateLimiterIntegrationTest do
       expected_min_time = (num_jobs - 1) * duration
 
       assert total_time >= expected_min_time,
-        "Expected at least #{expected_min_time}ms, got #{total_time}ms"
+             "Expected at least #{expected_min_time}ms, got #{total_time}ms"
 
       # Cleanup
       Worker.close(worker)
@@ -108,34 +118,42 @@ defmodule BullMQ.RateLimiterIntegrationTest do
 
     @tag :rate_limiter
     @tag timeout: 20_000
-    test "should obey the rate limit with max value greater than 1", %{conn: conn, queue_name: queue_name} do
+    test "should obey the rate limit with max value greater than 1", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
       num_jobs = 8
       duration = 500
       max_per_window = 2
 
       # Start queue events to track completions
-      {:ok, events} = QueueEvents.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix
-      )
+      {:ok, events} =
+        QueueEvents.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
       QueueEvents.subscribe(events)
 
       # Start rate limited worker with max: 2
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job -> :ok end,
-        limiter: %{max: max_per_window, duration: duration}
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job -> :ok end,
+          limiter: %{max: max_per_window, duration: duration}
+        )
 
       start_time = System.system_time(:millisecond)
 
       # Add jobs
-      jobs = Enum.map(1..num_jobs, fn i ->
-        {"rate-test", %{idx: i}, []}
-      end)
+      jobs =
+        Enum.map(1..num_jobs, fn i ->
+          {"rate-test", %{idx: i}, []}
+        end)
+
       {:ok, _added} = Queue.add_bulk(queue_name, jobs, connection: conn, prefix: @test_prefix)
 
       # Wait for all jobs to complete
@@ -150,7 +168,7 @@ defmodule BullMQ.RateLimiterIntegrationTest do
       expected_min_time = expected_windows * duration
 
       assert total_time >= expected_min_time,
-        "Expected at least #{expected_min_time}ms, got #{total_time}ms"
+             "Expected at least #{expected_min_time}ms, got #{total_time}ms"
 
       # Cleanup
       Worker.close(worker)
@@ -159,26 +177,32 @@ defmodule BullMQ.RateLimiterIntegrationTest do
 
     @tag :rate_limiter
     @tag timeout: 10_000
-    test "should not put a job into the delayed queue when limit is hit", %{conn: conn, queue_name: queue_name} do
+    test "should not put a job into the delayed queue when limit is hit", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
       num_jobs = 5
 
       # Start rate limited worker
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        concurrency: 5,
-        processor: fn _job ->
-          Process.sleep(200)
-          :ok
-        end,
-        limiter: %{max: 1, duration: 1000}
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          concurrency: 5,
+          processor: fn _job ->
+            Process.sleep(200)
+            :ok
+          end,
+          limiter: %{max: 1, duration: 1000}
+        )
 
       # Add jobs
-      jobs = Enum.map(1..num_jobs, fn i ->
-        {"test", %{idx: i}, []}
-      end)
+      jobs =
+        Enum.map(1..num_jobs, fn i ->
+          {"test", %{idx: i}, []}
+        end)
+
       {:ok, _added} = Queue.add_bulk(queue_name, jobs, connection: conn, prefix: @test_prefix)
 
       # Wait a bit for processing to start
@@ -208,31 +232,38 @@ defmodule BullMQ.RateLimiterIntegrationTest do
 
     @tag :rate_limiter
     @tag timeout: 10_000
-    test "getRateLimitTtl should return TTL when rate limited", %{conn: conn, queue_name: queue_name, ctx: ctx} do
+    test "getRateLimitTtl should return TTL when rate limited", %{
+      conn: conn,
+      queue_name: queue_name,
+      ctx: ctx
+    } do
       duration = 1000
 
-      {:ok, events} = QueueEvents.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix
-      )
+      {:ok, events} =
+        QueueEvents.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
       QueueEvents.subscribe(events)
 
       # Start rate limited worker that checks TTL inside processor
       ttl_holder = :ets.new(:ttl_holder, [:set, :public])
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job ->
-          # Use Scripts module directly to check TTL
-          {:ok, current_ttl} = Scripts.get_rate_limit_ttl(conn, ctx)
-          :ets.insert(ttl_holder, {:ttl, current_ttl})
-          :ok
-        end,
-        limiter: %{max: 1, duration: duration}
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            # Use Scripts module directly to check TTL
+            {:ok, current_ttl} = Scripts.get_rate_limit_ttl(conn, ctx)
+            :ets.insert(ttl_holder, {:ttl, current_ttl})
+            :ok
+          end,
+          limiter: %{max: 1, duration: duration}
+        )
 
       # Add a job
       {:ok, _job} = Queue.add(queue_name, "test-job", %{}, connection: conn, prefix: @test_prefix)
@@ -245,7 +276,7 @@ defmodule BullMQ.RateLimiterIntegrationTest do
 
       # TTL should be between 0 and duration (or -2 if key doesn't exist yet)
       assert recorded_ttl == -2 or (recorded_ttl >= 0 and recorded_ttl <= duration),
-        "Expected TTL between 0 and #{duration} or -2, got #{recorded_ttl}"
+             "Expected TTL between 0 and #{duration} or -2, got #{recorded_ttl}"
 
       # Cleanup
       Worker.close(worker)
@@ -261,36 +292,42 @@ defmodule BullMQ.RateLimiterIntegrationTest do
   describe "dynamic rate limiting" do
     @tag :rate_limiter
     @tag timeout: 10_000
-    test "{:rate_limit, ms} return value triggers rate limiting", %{conn: conn, queue_name: queue_name} do
+    test "{:rate_limit, ms} return value triggers rate limiting", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
       dynamic_limit = 500
 
-      {:ok, events} = QueueEvents.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix
-      )
+      {:ok, events} =
+        QueueEvents.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
       QueueEvents.subscribe(events)
 
       attempt_count = :ets.new(:attempts, [:set, :public])
       :ets.insert(attempt_count, {:count, 0})
 
       # Start worker that returns {:rate_limit, ms} on first attempt
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job ->
-          [{:count, count}] = :ets.lookup(attempt_count, :count)
-          :ets.insert(attempt_count, {:count, count + 1})
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            [{:count, count}] = :ets.lookup(attempt_count, :count)
+            :ets.insert(attempt_count, {:count, count + 1})
 
-          if count == 0 do
-            # First attempt - trigger dynamic rate limit via return value
-            {:rate_limit, dynamic_limit}
-          else
-            :ok
+            if count == 0 do
+              # First attempt - trigger dynamic rate limit via return value
+              {:rate_limit, dynamic_limit}
+            else
+              :ok
+            end
           end
-        end
-      )
+        )
 
       start_time = System.system_time(:millisecond)
 
@@ -305,7 +342,7 @@ defmodule BullMQ.RateLimiterIntegrationTest do
 
       # Should have taken at least dynamic_limit ms due to rate limiting
       assert total_time >= dynamic_limit * 0.9,
-        "Expected at least #{dynamic_limit}ms, got #{total_time}ms"
+             "Expected at least #{dynamic_limit}ms, got #{total_time}ms"
 
       # Cleanup
       Worker.close(worker)
@@ -321,15 +358,20 @@ defmodule BullMQ.RateLimiterIntegrationTest do
   describe "quick close" do
     @tag :rate_limiter
     @tag timeout: 5_000
-    test "should quickly close a worker even with slow rate-limit", %{conn: conn, queue_name: queue_name} do
+    test "should quickly close a worker even with slow rate-limit", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
       # Start worker with very slow rate limit
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job -> :ok end,
-        limiter: %{max: 1, duration: 60_000}  # 1 minute
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job -> :ok end,
+          # 1 minute
+          limiter: %{max: 1, duration: 60_000}
+        )
 
       # Add a job
       {:ok, _job} = Queue.add(queue_name, "test", %{}, connection: conn, prefix: @test_prefix)
@@ -346,7 +388,7 @@ defmodule BullMQ.RateLimiterIntegrationTest do
 
       # Close should be fast (< 2 seconds), not wait for 60s rate limit
       assert close_time < 2_000,
-        "Expected quick close, but took #{close_time}ms"
+             "Expected quick close, but took #{close_time}ms"
     end
   end
 

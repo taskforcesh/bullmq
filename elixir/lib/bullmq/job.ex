@@ -592,7 +592,8 @@ defmodule BullMQ.Job do
       # Complete job without fetching next
       {:ok, nil} = Job.move_to_completed(job, %{result: "done"}, token, fetch_next: false)
   """
-  @spec move_to_completed(t(), term(), String.t(), keyword()) :: {:ok, nil | {list(), String.t()}} | {:error, term()}
+  @spec move_to_completed(t(), term(), String.t(), keyword()) ::
+          {:ok, nil | {list(), String.t()}} | {:error, term()}
   def move_to_completed(%__MODULE__{} = job, return_value, token, opts \\ []) do
     ctx = Keys.new(job.queue_name, prefix: job.prefix)
 
@@ -606,8 +607,10 @@ defmodule BullMQ.Job do
     case Scripts.move_to_completed(job.connection, ctx, job.id, token, return_value, script_opts) do
       {:ok, [job_data, job_id | _]} when is_list(job_data) and job_data != [] ->
         {:ok, {job_data, to_string(job_id)}}
+
       {:ok, _} ->
         {:ok, nil}
+
       {:error, _} = error ->
         error
     end
@@ -642,15 +645,17 @@ defmodule BullMQ.Job do
       # Fail job with exception
       {:ok, nil} = Job.move_to_failed(job, %RuntimeError{message: "oops"}, token)
   """
-  @spec move_to_failed(t(), term(), String.t(), keyword()) :: {:ok, nil | {list(), String.t()}} | {:error, term()}
+  @spec move_to_failed(t(), term(), String.t(), keyword()) ::
+          {:ok, nil | {list(), String.t()}} | {:error, term()}
   def move_to_failed(%__MODULE__{} = job, error, token, opts \\ []) do
     ctx = Keys.new(job.queue_name, prefix: job.prefix)
 
-    error_message = case error do
-      %{message: msg} -> msg
-      msg when is_binary(msg) -> msg
-      other -> inspect(other)
-    end
+    error_message =
+      case error do
+        %{message: msg} -> msg
+        msg when is_binary(msg) -> msg
+        other -> inspect(other)
+      end
 
     script_opts = [
       fetch_next: Keyword.get(opts, :fetch_next, false),
@@ -662,8 +667,10 @@ defmodule BullMQ.Job do
     case Scripts.move_to_failed(job.connection, ctx, job.id, token, error_message, script_opts) do
       {:ok, [job_data, job_id | _]} when is_list(job_data) and job_data != [] ->
         {:ok, {job_data, to_string(job_id)}}
+
       {:ok, _} ->
         {:ok, nil}
+
       {:error, _} = error ->
         error
     end

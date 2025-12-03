@@ -23,11 +23,12 @@ defmodule BullMQ.JobSchedulerProcessingTest do
   setup do
     pool_name = :"scheduler_proc_pool_#{System.unique_integer([:positive])}"
 
-    {:ok, _} = BullMQ.RedisConnection.start_link(
-      name: pool_name,
-      url: @redis_url,
-      pool_size: 5
-    )
+    {:ok, _} =
+      BullMQ.RedisConnection.start_link(
+        name: pool_name,
+        url: @redis_url,
+        pool_size: 5
+      )
 
     {:ok, raw_conn} = Redix.start_link(@redis_url)
     queue_name = "proc-queue-#{System.unique_integer([:positive])}"
@@ -39,10 +40,13 @@ defmodule BullMQ.JobSchedulerProcessingTest do
           case Redix.command(cleanup_conn, ["KEYS", "#{@test_prefix}:*"]) do
             {:ok, keys} when keys != [] ->
               Redix.command(cleanup_conn, ["DEL" | keys])
+
             _ ->
               :ok
           end
+
           Redix.stop(cleanup_conn)
+
         _ ->
           :ok
       end
@@ -58,41 +62,55 @@ defmodule BullMQ.JobSchedulerProcessingTest do
   describe "Every-based scheduler job processing" do
     @tag :processing
     @tag timeout: 10_000
-    test "scheduled job is created and can be processed", %{conn: conn, raw_conn: raw_conn, queue_name: queue_name} do
+    test "scheduled job is created and can be processed", %{
+      conn: conn,
+      raw_conn: raw_conn,
+      queue_name: queue_name
+    } do
       processed = :ets.new(:processed, [:bag, :public])
 
-      {:ok, events} = QueueEvents.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix
-      )
+      {:ok, events} =
+        QueueEvents.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
       QueueEvents.subscribe(events)
 
       # Start worker BEFORE creating scheduler
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          :ets.insert(processed, {:job, %{
-            name: job.name,
-            data: job.data,
-            repeat_job_key: job.repeat_job_key
-          }})
-          :ok
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            :ets.insert(
+              processed,
+              {:job,
+               %{
+                 name: job.name,
+                 data: job.data,
+                 repeat_job_key: job.repeat_job_key
+               }}
+            )
+
+            :ok
+          end
+        )
 
       # Create a scheduler with short interval
-      {:ok, initial_job} = JobScheduler.upsert(
-        raw_conn,
-        queue_name,
-        "process-test",
-        %{every: 100, immediately: true},  # 100ms interval, run immediately
-        "test-job",
-        %{test: "data"},
-        prefix: @test_prefix
-      )
+      {:ok, initial_job} =
+        JobScheduler.upsert(
+          raw_conn,
+          queue_name,
+          "process-test",
+          # 100ms interval, run immediately
+          %{every: 100, immediately: true},
+          "test-job",
+          %{test: "data"},
+          prefix: @test_prefix
+        )
 
       assert initial_job != nil
       assert initial_job.repeat_job_key == "process-test"
@@ -115,42 +133,56 @@ defmodule BullMQ.JobSchedulerProcessingTest do
 
     @tag :processing
     @tag timeout: 15_000
-    test "multiple jobs are processed in sequence", %{conn: conn, raw_conn: raw_conn, queue_name: queue_name} do
+    test "multiple jobs are processed in sequence", %{
+      conn: conn,
+      raw_conn: raw_conn,
+      queue_name: queue_name
+    } do
       processed = :ets.new(:processed, [:ordered_set, :public])
-      counter = :atomics.new(1, [signed: false])
+      counter = :atomics.new(1, signed: false)
 
-      {:ok, events} = QueueEvents.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix
-      )
+      {:ok, events} =
+        QueueEvents.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
       QueueEvents.subscribe(events)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          idx = :atomics.add_get(counter, 1, 1)
-          :ets.insert(processed, {idx, %{
-            name: job.name,
-            repeat_job_key: job.repeat_job_key,
-            processed_at: System.system_time(:millisecond)
-          }})
-          :ok
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            idx = :atomics.add_get(counter, 1, 1)
+
+            :ets.insert(
+              processed,
+              {idx,
+               %{
+                 name: job.name,
+                 repeat_job_key: job.repeat_job_key,
+                 processed_at: System.system_time(:millisecond)
+               }}
+            )
+
+            :ok
+          end
+        )
 
       # Create scheduler
-      {:ok, _} = JobScheduler.upsert(
-        raw_conn,
-        queue_name,
-        "multi-job-test",
-        %{every: 150, immediately: true},
-        "sequential-job",
-        %{sequence: true},
-        prefix: @test_prefix
-      )
+      {:ok, _} =
+        JobScheduler.upsert(
+          raw_conn,
+          queue_name,
+          "multi-job-test",
+          %{every: 150, immediately: true},
+          "sequential-job",
+          %{sequence: true},
+          prefix: @test_prefix
+        )
 
       # Wait for multiple jobs
       wait_for_completions(3, 10_000)
@@ -172,25 +204,32 @@ defmodule BullMQ.JobSchedulerProcessingTest do
 
     @tag :processing
     @tag timeout: 10_000
-    test "job data is correctly passed to each iteration", %{conn: conn, raw_conn: raw_conn, queue_name: queue_name} do
+    test "job data is correctly passed to each iteration", %{
+      conn: conn,
+      raw_conn: raw_conn,
+      queue_name: queue_name
+    } do
       processed = :ets.new(:processed, [:duplicate_bag, :public])
 
-      {:ok, events} = QueueEvents.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix
-      )
+      {:ok, events} =
+        QueueEvents.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
       QueueEvents.subscribe(events)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          :ets.insert(processed, {:job, job.data})
-          :ok
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            :ets.insert(processed, {:job, job.data})
+            :ok
+          end
+        )
 
       job_data = %{
         user_id: 12345,
@@ -198,15 +237,16 @@ defmodule BullMQ.JobSchedulerProcessingTest do
         options: %{full: true, retry: 3}
       }
 
-      {:ok, _} = JobScheduler.upsert(
-        raw_conn,
-        queue_name,
-        "data-test",
-        %{every: 100, immediately: true},
-        "data-job",
-        job_data,
-        prefix: @test_prefix
-      )
+      {:ok, _} =
+        JobScheduler.upsert(
+          raw_conn,
+          queue_name,
+          "data-test",
+          %{every: 100, immediately: true},
+          "data-job",
+          job_data,
+          prefix: @test_prefix
+        )
 
       wait_for_completions(2, 5_000)
 
@@ -226,26 +266,35 @@ defmodule BullMQ.JobSchedulerProcessingTest do
 
     @tag :processing
     @tag timeout: 10_000
-    test "upsert while job is pending replaces the job", %{conn: conn, raw_conn: raw_conn, queue_name: queue_name, ctx: ctx} do
+    test "upsert while job is pending replaces the job", %{
+      conn: conn,
+      raw_conn: raw_conn,
+      queue_name: queue_name,
+      ctx: ctx
+    } do
       processed = :ets.new(:processed, [:bag, :public])
 
-      {:ok, events} = QueueEvents.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix
-      )
+      {:ok, events} =
+        QueueEvents.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
       QueueEvents.subscribe(events)
 
       # Create initial scheduler with longer interval (no immediately)
-      {:ok, job1} = JobScheduler.upsert(
-        raw_conn,
-        queue_name,
-        "upsert-test",
-        %{every: 5000},  # 5 seconds
-        "original-job",
-        %{version: 1},
-        prefix: @test_prefix
-      )
+      {:ok, job1} =
+        JobScheduler.upsert(
+          raw_conn,
+          queue_name,
+          "upsert-test",
+          # 5 seconds
+          %{every: 5000},
+          "original-job",
+          %{version: 1},
+          prefix: @test_prefix
+        )
 
       # Verify job is in delayed or wait
       {:ok, delayed1} = Redix.command(raw_conn, ["ZRANGE", Keys.delayed(ctx), 0, -1])
@@ -253,26 +302,29 @@ defmodule BullMQ.JobSchedulerProcessingTest do
       assert job1.id in delayed1 or job1.id in waiting1
 
       # Upsert with new data and shorter interval + immediately
-      {:ok, _job2} = JobScheduler.upsert(
-        raw_conn,
-        queue_name,
-        "upsert-test",
-        %{every: 100, immediately: true},  # Much shorter
-        "updated-job",
-        %{version: 2},
-        prefix: @test_prefix
-      )
+      {:ok, _job2} =
+        JobScheduler.upsert(
+          raw_conn,
+          queue_name,
+          "upsert-test",
+          # Much shorter
+          %{every: 100, immediately: true},
+          "updated-job",
+          %{version: 2},
+          prefix: @test_prefix
+        )
 
       # Start worker and verify we get the updated version
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          :ets.insert(processed, {:job, %{name: job.name, data: job.data}})
-          :ok
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            :ets.insert(processed, {:job, %{name: job.name, data: job.data}})
+            :ok
+          end
+        )
 
       wait_for_completions(1, 5_000)
 
@@ -295,37 +347,46 @@ defmodule BullMQ.JobSchedulerProcessingTest do
   describe "Cron-based scheduler job processing" do
     @tag :processing
     @tag timeout: 10_000
-    test "cron scheduler creates job at correct time", %{conn: conn, raw_conn: raw_conn, queue_name: queue_name} do
+    test "cron scheduler creates job at correct time", %{
+      conn: conn,
+      raw_conn: raw_conn,
+      queue_name: queue_name
+    } do
       processed = :ets.new(:processed, [:bag, :public])
 
-      {:ok, events} = QueueEvents.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix
-      )
+      {:ok, events} =
+        QueueEvents.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
       QueueEvents.subscribe(events)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          :ets.insert(processed, {:job, job.name})
-          :ok
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            :ets.insert(processed, {:job, job.name})
+            :ok
+          end
+        )
 
       # Create scheduler that runs immediately (using a pattern that runs very soon)
       # Use "every second" pattern and immediately flag
-      {:ok, _} = JobScheduler.upsert(
-        raw_conn,
-        queue_name,
-        "cron-test",
-        %{pattern: "* * * * * *", immediately: true},  # Every second + immediate
-        "cron-job",
-        %{},
-        prefix: @test_prefix
-      )
+      {:ok, _} =
+        JobScheduler.upsert(
+          raw_conn,
+          queue_name,
+          "cron-test",
+          # Every second + immediate
+          %{pattern: "* * * * * *", immediately: true},
+          "cron-job",
+          %{},
+          prefix: @test_prefix
+        )
 
       wait_for_completions(1, 5_000)
 
@@ -346,36 +407,44 @@ defmodule BullMQ.JobSchedulerProcessingTest do
   describe "Scheduler limits" do
     @tag :processing
     @tag timeout: 15_000
-    test "scheduler respects iteration limit", %{conn: conn, raw_conn: raw_conn, queue_name: queue_name} do
+    test "scheduler respects iteration limit", %{
+      conn: conn,
+      raw_conn: raw_conn,
+      queue_name: queue_name
+    } do
       processed = :ets.new(:processed, [:bag, :public])
 
-      {:ok, events} = QueueEvents.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix
-      )
+      {:ok, events} =
+        QueueEvents.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
       QueueEvents.subscribe(events)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          :ets.insert(processed, {:job, job.name})
-          :ok
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            :ets.insert(processed, {:job, job.name})
+            :ok
+          end
+        )
 
       # Create scheduler with limit
-      {:ok, _} = JobScheduler.upsert(
-        raw_conn,
-        queue_name,
-        "limited-test",
-        %{every: 50, limit: 3, immediately: true},
-        "limited-job",
-        %{},
-        prefix: @test_prefix
-      )
+      {:ok, _} =
+        JobScheduler.upsert(
+          raw_conn,
+          queue_name,
+          "limited-test",
+          %{every: 50, limit: 3, immediately: true},
+          "limited-job",
+          %{},
+          prefix: @test_prefix
+        )
 
       # Wait longer than needed to ensure no extra jobs are created
       Process.sleep(500)
@@ -402,36 +471,44 @@ defmodule BullMQ.JobSchedulerProcessingTest do
   describe "Scheduler removal" do
     @tag :processing
     @tag timeout: 10_000
-    test "removing scheduler stops job creation", %{conn: conn, raw_conn: raw_conn, queue_name: queue_name} do
+    test "removing scheduler stops job creation", %{
+      conn: conn,
+      raw_conn: raw_conn,
+      queue_name: queue_name
+    } do
       processed = :ets.new(:processed, [:bag, :public])
 
-      {:ok, events} = QueueEvents.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix
-      )
+      {:ok, events} =
+        QueueEvents.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
       QueueEvents.subscribe(events)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          :ets.insert(processed, {:job, job.name})
-          :ok
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            :ets.insert(processed, {:job, job.name})
+            :ok
+          end
+        )
 
       # Create scheduler
-      {:ok, _} = JobScheduler.upsert(
-        raw_conn,
-        queue_name,
-        "remove-test",
-        %{every: 100, immediately: true},
-        "remove-job",
-        %{},
-        prefix: @test_prefix
-      )
+      {:ok, _} =
+        JobScheduler.upsert(
+          raw_conn,
+          queue_name,
+          "remove-test",
+          %{every: 100, immediately: true},
+          "remove-job",
+          %{},
+          prefix: @test_prefix
+        )
 
       # Wait for first job
       wait_for_completions(1, 3_000)
@@ -463,44 +540,52 @@ defmodule BullMQ.JobSchedulerProcessingTest do
   describe "Worker processing behavior" do
     @tag :processing
     @tag timeout: 10_000
-    test "failed job does not affect next scheduled iteration", %{conn: conn, raw_conn: raw_conn, queue_name: queue_name} do
+    test "failed job does not affect next scheduled iteration", %{
+      conn: conn,
+      raw_conn: raw_conn,
+      queue_name: queue_name
+    } do
       processed = :ets.new(:processed, [:bag, :public])
-      counter = :atomics.new(1, [signed: false])
+      counter = :atomics.new(1, signed: false)
 
-      {:ok, events} = QueueEvents.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix
-      )
+      {:ok, events} =
+        QueueEvents.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
       QueueEvents.subscribe(events)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job ->
-          count = :atomics.add_get(counter, 1, 1)
-          :ets.insert(processed, {:job, count})
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            count = :atomics.add_get(counter, 1, 1)
+            :ets.insert(processed, {:job, count})
 
-          if count == 1 do
-            # First job fails
-            raise "Intentional failure"
-          else
-            # Subsequent jobs succeed
-            :ok
+            if count == 1 do
+              # First job fails
+              raise "Intentional failure"
+            else
+              # Subsequent jobs succeed
+              :ok
+            end
           end
-        end
-      )
+        )
 
-      {:ok, _} = JobScheduler.upsert(
-        raw_conn,
-        queue_name,
-        "fail-test",
-        %{every: 150, immediately: true},
-        "fail-job",
-        %{},
-        prefix: @test_prefix
-      )
+      {:ok, _} =
+        JobScheduler.upsert(
+          raw_conn,
+          queue_name,
+          "fail-test",
+          %{every: 150, immediately: true},
+          "fail-job",
+          %{},
+          prefix: @test_prefix
+        )
 
       # Wait for multiple iterations (some will fail, some will succeed)
       Process.sleep(1000)

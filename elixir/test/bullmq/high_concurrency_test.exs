@@ -11,24 +11,29 @@ defmodule BullMQ.HighConcurrencyTest do
     IO.puts("\n=== High Concurrency Test (50-1000) ===")
     IO.puts("Job duration: #{job_duration_ms}ms, Jobs: 5x concurrency\n")
 
-    results = for concurrency <- [50, 100, 200, 300, 400, 500, 750, 1000] do
-      job_count = concurrency * 5  # 5x jobs to keep workers saturated
-      result = run_concurrency_test(concurrency, job_count, job_duration_ms)
+    results =
+      for concurrency <- [50, 100, 200, 300, 400, 500, 750, 1000] do
+        # 5x jobs to keep workers saturated
+        job_count = concurrency * 5
+        result = run_concurrency_test(concurrency, job_count, job_duration_ms)
 
-      # Theoretical minimum: jobs * duration / concurrency (assuming instant fetch)
-      _theoretical_min = job_count * job_duration_ms / concurrency
-      throughput = job_count / result.elapsed * 1000  # jobs per second
-      utilization = result.max_concurrent / concurrency * 100
+        # Theoretical minimum: jobs * duration / concurrency (assuming instant fetch)
+        _theoretical_min = job_count * job_duration_ms / concurrency
+        # jobs per second
+        throughput = job_count / result.elapsed * 1000
+        utilization = result.max_concurrent / concurrency * 100
 
-      IO.puts("Concurrency #{String.pad_leading(Integer.to_string(concurrency), 4)}: " <>
-              "#{String.pad_leading(Integer.to_string(job_count), 5)} jobs, " <>
-              "#{String.pad_leading(Integer.to_string(result.elapsed), 5)}ms, " <>
-              "max: #{String.pad_leading(Integer.to_string(result.max_concurrent), 4)} " <>
-              "(#{String.pad_leading(Integer.to_string(trunc(utilization)), 3)}%), " <>
-              "throughput: #{String.pad_leading(Integer.to_string(trunc(throughput)), 5)} jobs/sec")
+        IO.puts(
+          "Concurrency #{String.pad_leading(Integer.to_string(concurrency), 4)}: " <>
+            "#{String.pad_leading(Integer.to_string(job_count), 5)} jobs, " <>
+            "#{String.pad_leading(Integer.to_string(result.elapsed), 5)}ms, " <>
+            "max: #{String.pad_leading(Integer.to_string(result.max_concurrent), 4)} " <>
+            "(#{String.pad_leading(Integer.to_string(trunc(utilization)), 3)}%), " <>
+            "throughput: #{String.pad_leading(Integer.to_string(trunc(throughput)), 5)} jobs/sec"
+        )
 
-      {concurrency, result, throughput}
-    end
+        {concurrency, result, throughput}
+      end
 
     IO.puts("")
     IO.puts("Note: Utilization < 100% indicates sequential job fetching bottleneck")
@@ -38,9 +43,11 @@ defmodule BullMQ.HighConcurrencyTest do
     for {concurrency, result, _} <- results do
       # At high concurrency, we expect diminishing returns due to fetch bottleneck
       # Use 20% threshold to account for CI resource constraints
-      min_expected = min(concurrency * 0.2, 200)  # Very relaxed for CI
+      # Very relaxed for CI
+      min_expected = min(concurrency * 0.2, 200)
+
       assert result.max_concurrent >= min_expected,
-        "Concurrency #{concurrency}: max_concurrent #{result.max_concurrent} < expected #{min_expected}"
+             "Concurrency #{concurrency}: max_concurrent #{result.max_concurrent} < expected #{min_expected}"
     end
 
     IO.puts("\n=== Test completed! ===")
@@ -79,12 +86,13 @@ defmodule BullMQ.HighConcurrencyTest do
     # Start timing and worker together
     start_time = System.monotonic_time(:millisecond)
 
-    {:ok, worker} = Worker.start_link(
-      queue: queue_name,
-      connection: conn_name,
-      concurrency: concurrency,
-      processor: processor
-    )
+    {:ok, worker} =
+      Worker.start_link(
+        queue: queue_name,
+        connection: conn_name,
+        concurrency: concurrency,
+        processor: processor
+      )
 
     # Wait for all jobs
     wait_for_completion(completed, job_count, 60_000)
@@ -98,6 +106,7 @@ defmodule BullMQ.HighConcurrencyTest do
 
     # Clean redis
     {:ok, keys} = RedisConnection.command(conn_name, ["KEYS", "bull:#{queue_name}:*"])
+
     if length(keys) > 0 do
       RedisConnection.command(conn_name, ["DEL" | keys])
     end
@@ -112,9 +121,14 @@ defmodule BullMQ.HighConcurrencyTest do
 
   defp do_wait(counter, expected, deadline) do
     current = :counters.get(counter, 1)
+
     cond do
-      current >= expected -> :ok
-      System.monotonic_time(:millisecond) > deadline -> {:error, :timeout}
+      current >= expected ->
+        :ok
+
+      System.monotonic_time(:millisecond) > deadline ->
+        {:error, :timeout}
+
       true ->
         Process.sleep(10)
         do_wait(counter, expected, deadline)

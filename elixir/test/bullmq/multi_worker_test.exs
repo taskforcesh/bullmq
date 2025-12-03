@@ -15,10 +15,14 @@ defmodule BullMQ.MultiWorkerTest do
   test "multiple workers vs single worker at high concurrency" do
     job_duration_ms = 100
     total_concurrency = 500
-    job_count = total_concurrency * 5  # 2500 jobs
+    # 2500 jobs
+    job_count = total_concurrency * 5
 
     IO.puts("\n=== Multiple Workers vs Single Worker ===")
-    IO.puts("Total concurrency: #{total_concurrency}, Jobs: #{job_count}, Duration: #{job_duration_ms}ms\n")
+
+    IO.puts(
+      "Total concurrency: #{total_concurrency}, Jobs: #{job_count}, Duration: #{job_duration_ms}ms\n"
+    )
 
     # Test 1: Single worker with concurrency 500
     result_single = run_single_worker_test(total_concurrency, job_count, job_duration_ms)
@@ -27,30 +31,60 @@ defmodule BullMQ.MultiWorkerTest do
     IO.puts("  Throughput: #{trunc(job_count / result_single.elapsed * 1000)} jobs/sec")
 
     # Test 2: 2 workers with concurrency 250 each
-    result_2_workers = run_multi_worker_test(2, div(total_concurrency, 2), job_count, job_duration_ms)
+    result_2_workers =
+      run_multi_worker_test(2, div(total_concurrency, 2), job_count, job_duration_ms)
+
     IO.puts("\n2 workers (concurrency #{div(total_concurrency, 2)} each):")
-    IO.puts("  Time: #{result_2_workers.elapsed}ms, Max concurrent: #{result_2_workers.max_concurrent}")
+
+    IO.puts(
+      "  Time: #{result_2_workers.elapsed}ms, Max concurrent: #{result_2_workers.max_concurrent}"
+    )
+
     IO.puts("  Throughput: #{trunc(job_count / result_2_workers.elapsed * 1000)} jobs/sec")
 
     # Test 3: 5 workers with concurrency 100 each
-    result_5_workers = run_multi_worker_test(5, div(total_concurrency, 5), job_count, job_duration_ms)
+    result_5_workers =
+      run_multi_worker_test(5, div(total_concurrency, 5), job_count, job_duration_ms)
+
     IO.puts("\n5 workers (concurrency #{div(total_concurrency, 5)} each):")
-    IO.puts("  Time: #{result_5_workers.elapsed}ms, Max concurrent: #{result_5_workers.max_concurrent}")
+
+    IO.puts(
+      "  Time: #{result_5_workers.elapsed}ms, Max concurrent: #{result_5_workers.max_concurrent}"
+    )
+
     IO.puts("  Throughput: #{trunc(job_count / result_5_workers.elapsed * 1000)} jobs/sec")
 
     # Test 4: 10 workers with concurrency 50 each
-    result_10_workers = run_multi_worker_test(10, div(total_concurrency, 10), job_count, job_duration_ms)
+    result_10_workers =
+      run_multi_worker_test(10, div(total_concurrency, 10), job_count, job_duration_ms)
+
     IO.puts("\n10 workers (concurrency #{div(total_concurrency, 10)} each):")
-    IO.puts("  Time: #{result_10_workers.elapsed}ms, Max concurrent: #{result_10_workers.max_concurrent}")
+
+    IO.puts(
+      "  Time: #{result_10_workers.elapsed}ms, Max concurrent: #{result_10_workers.max_concurrent}"
+    )
+
     IO.puts("  Throughput: #{trunc(job_count / result_10_workers.elapsed * 1000)} jobs/sec")
 
     IO.puts("\n=== Summary ===")
     IO.puts("Config                    | Time    | Max Conc | Throughput")
     IO.puts("--------------------------|---------|----------|------------")
-    IO.puts("1 worker × 500 conc       | #{String.pad_leading(Integer.to_string(result_single.elapsed), 5)}ms | #{String.pad_leading(Integer.to_string(result_single.max_concurrent), 8)} | #{String.pad_leading(Integer.to_string(trunc(job_count / result_single.elapsed * 1000)), 6)} j/s")
-    IO.puts("2 workers × 250 conc      | #{String.pad_leading(Integer.to_string(result_2_workers.elapsed), 5)}ms | #{String.pad_leading(Integer.to_string(result_2_workers.max_concurrent), 8)} | #{String.pad_leading(Integer.to_string(trunc(job_count / result_2_workers.elapsed * 1000)), 6)} j/s")
-    IO.puts("5 workers × 100 conc      | #{String.pad_leading(Integer.to_string(result_5_workers.elapsed), 5)}ms | #{String.pad_leading(Integer.to_string(result_5_workers.max_concurrent), 8)} | #{String.pad_leading(Integer.to_string(trunc(job_count / result_5_workers.elapsed * 1000)), 6)} j/s")
-    IO.puts("10 workers × 50 conc      | #{String.pad_leading(Integer.to_string(result_10_workers.elapsed), 5)}ms | #{String.pad_leading(Integer.to_string(result_10_workers.max_concurrent), 8)} | #{String.pad_leading(Integer.to_string(trunc(job_count / result_10_workers.elapsed * 1000)), 6)} j/s")
+
+    IO.puts(
+      "1 worker × 500 conc       | #{String.pad_leading(Integer.to_string(result_single.elapsed), 5)}ms | #{String.pad_leading(Integer.to_string(result_single.max_concurrent), 8)} | #{String.pad_leading(Integer.to_string(trunc(job_count / result_single.elapsed * 1000)), 6)} j/s"
+    )
+
+    IO.puts(
+      "2 workers × 250 conc      | #{String.pad_leading(Integer.to_string(result_2_workers.elapsed), 5)}ms | #{String.pad_leading(Integer.to_string(result_2_workers.max_concurrent), 8)} | #{String.pad_leading(Integer.to_string(trunc(job_count / result_2_workers.elapsed * 1000)), 6)} j/s"
+    )
+
+    IO.puts(
+      "5 workers × 100 conc      | #{String.pad_leading(Integer.to_string(result_5_workers.elapsed), 5)}ms | #{String.pad_leading(Integer.to_string(result_5_workers.max_concurrent), 8)} | #{String.pad_leading(Integer.to_string(trunc(job_count / result_5_workers.elapsed * 1000)), 6)} j/s"
+    )
+
+    IO.puts(
+      "10 workers × 50 conc      | #{String.pad_leading(Integer.to_string(result_10_workers.elapsed), 5)}ms | #{String.pad_leading(Integer.to_string(result_10_workers.max_concurrent), 8)} | #{String.pad_leading(Integer.to_string(trunc(job_count / result_10_workers.elapsed * 1000)), 6)} j/s"
+    )
 
     IO.puts("\n=== Test completed! ===")
   end
@@ -86,12 +120,13 @@ defmodule BullMQ.MultiWorkerTest do
 
     start_time = System.monotonic_time(:millisecond)
 
-    {:ok, worker} = Worker.start_link(
-      queue: queue_name,
-      connection: conn_name,
-      concurrency: concurrency,
-      processor: processor
-    )
+    {:ok, worker} =
+      Worker.start_link(
+        queue: queue_name,
+        connection: conn_name,
+        concurrency: concurrency,
+        processor: processor
+      )
 
     wait_for_completion(completed, job_count, 120_000)
 
@@ -137,15 +172,18 @@ defmodule BullMQ.MultiWorkerTest do
     start_time = System.monotonic_time(:millisecond)
 
     # Start multiple workers
-    workers = for _ <- 1..num_workers do
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn_name,
-        concurrency: concurrency_per_worker,
-        processor: processor
-      )
-      worker
-    end
+    workers =
+      for _ <- 1..num_workers do
+        {:ok, worker} =
+          Worker.start_link(
+            queue: queue_name,
+            connection: conn_name,
+            concurrency: concurrency_per_worker,
+            processor: processor
+          )
+
+        worker
+      end
 
     wait_for_completion(completed, job_count, 120_000)
 
@@ -166,9 +204,14 @@ defmodule BullMQ.MultiWorkerTest do
 
   defp do_wait(counter, expected, deadline) do
     current = :counters.get(counter, 1)
+
     cond do
-      current >= expected -> :ok
-      System.monotonic_time(:millisecond) > deadline -> {:error, :timeout}
+      current >= expected ->
+        :ok
+
+      System.monotonic_time(:millisecond) > deadline ->
+        {:error, :timeout}
+
       true ->
         Process.sleep(10)
         do_wait(counter, expected, deadline)
@@ -177,6 +220,7 @@ defmodule BullMQ.MultiWorkerTest do
 
   defp cleanup_queue(conn_name, queue_name) do
     {:ok, keys} = RedisConnection.command(conn_name, ["KEYS", "bull:#{queue_name}:*"])
+
     if length(keys) > 0 do
       RedisConnection.command(conn_name, ["DEL" | keys])
     end

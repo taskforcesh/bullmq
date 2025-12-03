@@ -100,7 +100,9 @@ defmodule BullMQ.Telemetry.OpenTelemetryTest do
       # If we got a serialized context, it should be a JSON object (map), not an array
       if serialized do
         {:ok, decoded} = Jason.decode(serialized)
-        assert is_map(decoded), "Serialized context should be a JSON object for Node.js compatibility"
+
+        assert is_map(decoded),
+               "Serialized context should be a JSON object for Node.js compatibility"
       end
     end
   end
@@ -109,17 +111,19 @@ defmodule BullMQ.Telemetry.OpenTelemetryTest do
     test "executes function and returns result" do
       ctx = OpenTelemetry.get_current_context()
 
-      result = OpenTelemetry.with_context(ctx, fn ->
-        :test_result
-      end)
+      result =
+        OpenTelemetry.with_context(ctx, fn ->
+          :test_result
+        end)
 
       assert result == :test_result
     end
 
     test "handles nil context gracefully" do
-      result = OpenTelemetry.with_context(nil, fn ->
-        :test_result
-      end)
+      result =
+        OpenTelemetry.with_context(nil, fn ->
+          :test_result
+        end)
 
       assert result == :test_result
     end
@@ -168,9 +172,10 @@ defmodule BullMQ.Telemetry.OpenTelemetryTest do
 
   describe "trace/3" do
     test "traces a successful operation" do
-      result = OpenTelemetry.trace("test.operation", [], fn _span ->
-        {:ok, :success}
-      end)
+      result =
+        OpenTelemetry.trace("test.operation", [], fn _span ->
+          {:ok, :success}
+        end)
 
       assert result == {:ok, :success}
     end
@@ -184,10 +189,11 @@ defmodule BullMQ.Telemetry.OpenTelemetryTest do
     end
 
     test "traces with propagation" do
-      result = OpenTelemetry.trace("test.operation", [propagate: true], fn _span, metadata ->
-        # metadata should be the serialized context or nil
-        {:ok, metadata}
-      end)
+      result =
+        OpenTelemetry.trace("test.operation", [propagate: true], fn _span, metadata ->
+          # metadata should be the serialized context or nil
+          {:ok, metadata}
+        end)
 
       assert match?({:ok, _}, result)
     end
@@ -196,9 +202,10 @@ defmodule BullMQ.Telemetry.OpenTelemetryTest do
       # Use list of lists for JSON encoding (tuples don't encode)
       parent_metadata = Jason.encode!([["traceparent", "00-trace-span-01"]])
 
-      result = OpenTelemetry.trace("child.operation", [parent_metadata: parent_metadata], fn _span ->
-        :child_result
-      end)
+      result =
+        OpenTelemetry.trace("child.operation", [parent_metadata: parent_metadata], fn _span ->
+          :child_result
+        end)
 
       assert result == :child_result
     end

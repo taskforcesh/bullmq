@@ -121,20 +121,59 @@ defmodule BullMQ.JobTest do
 
   describe "state checks" do
     test "completed?/1" do
-      assert Job.completed?(%Job{id: "1", name: "t", data: %{}, queue_name: "q", finished_on: 123, failed_reason: nil})
+      assert Job.completed?(%Job{
+               id: "1",
+               name: "t",
+               data: %{},
+               queue_name: "q",
+               finished_on: 123,
+               failed_reason: nil
+             })
+
       refute Job.completed?(%Job{id: "1", name: "t", data: %{}, queue_name: "q", finished_on: nil})
-      refute Job.completed?(%Job{id: "1", name: "t", data: %{}, queue_name: "q", finished_on: 123, failed_reason: "error"})
+
+      refute Job.completed?(%Job{
+               id: "1",
+               name: "t",
+               data: %{},
+               queue_name: "q",
+               finished_on: 123,
+               failed_reason: "error"
+             })
     end
 
     test "failed?/1" do
-      assert Job.failed?(%Job{id: "1", name: "t", data: %{}, queue_name: "q", failed_reason: "error"})
+      assert Job.failed?(%Job{
+               id: "1",
+               name: "t",
+               data: %{},
+               queue_name: "q",
+               failed_reason: "error"
+             })
+
       refute Job.failed?(%Job{id: "1", name: "t", data: %{}, queue_name: "q", failed_reason: nil})
     end
 
     test "active?/1" do
-      assert Job.active?(%Job{id: "1", name: "t", data: %{}, queue_name: "q", processed_on: 123, finished_on: nil})
+      assert Job.active?(%Job{
+               id: "1",
+               name: "t",
+               data: %{},
+               queue_name: "q",
+               processed_on: 123,
+               finished_on: nil
+             })
+
       refute Job.active?(%Job{id: "1", name: "t", data: %{}, queue_name: "q", processed_on: nil})
-      refute Job.active?(%Job{id: "1", name: "t", data: %{}, queue_name: "q", processed_on: 123, finished_on: 456})
+
+      refute Job.active?(%Job{
+               id: "1",
+               name: "t",
+               data: %{},
+               queue_name: "q",
+               processed_on: 123,
+               finished_on: 456
+             })
     end
 
     test "delayed?/1" do
@@ -217,13 +256,14 @@ defmodule BullMQ.JobTest do
       redis_data = %{
         "name" => "nodejs-job",
         "data" => "{}",
-        "opts" => Jason.encode!(%{
-          "fpof" => true,
-          "kl" => 100,
-          "idof" => false,
-          "cpof" => true,
-          "de" => %{"id" => "dedup-123"}
-        }),
+        "opts" =>
+          Jason.encode!(%{
+            "fpof" => true,
+            "kl" => 100,
+            "idof" => false,
+            "cpof" => true,
+            "de" => %{"id" => "dedup-123"}
+          }),
         "timestamp" => "1700000000000"
       }
 
@@ -241,11 +281,12 @@ defmodule BullMQ.JobTest do
       redis_data = %{
         "name" => "custom",
         "data" => "{}",
-        "opts" => Jason.encode!(%{
-          "customOption" => "value",
-          "attempts" => 3,
-          "backoff" => %{"type" => "exponential", "delay" => 1000}
-        }),
+        "opts" =>
+          Jason.encode!(%{
+            "customOption" => "value",
+            "attempts" => 3,
+            "backoff" => %{"type" => "exponential", "delay" => 1000}
+          }),
         "timestamp" => "1700000000000"
       }
 

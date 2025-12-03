@@ -94,103 +94,107 @@ defmodule BullMQ.Worker do
   @default_max_stalled_count 1
   @default_concurrency 1
 
-  @opts_schema NimbleOptions.new!([
-    name: [
-      type: {:or, [:atom, nil]},
-      doc: "Process name for registration."
-    ],
-    queue: [
-      type: :string,
-      required: true,
-      doc: "The name of the queue to process jobs from."
-    ],
-    connection: [
-      type: {:or, [:atom, :pid]},
-      required: true,
-      doc: "The Redis connection name or pid."
-    ],
-    processor: [
-      type: {:or, [{:fun, 1}, {:fun, 2}, {:fun, 3}, nil]},
-      doc: "Function to process jobs. Set to `nil` for manual processing with `autorun: false`."
-    ],
-    prefix: [
-      type: :string,
-      default: "bull",
-      doc: "Prefix for all Redis keys."
-    ],
-    concurrency: [
-      type: :pos_integer,
-      default: @default_concurrency,
-      doc: "Number of jobs to process concurrently."
-    ],
-    lock_duration: [
-      type: :pos_integer,
-      default: @default_lock_duration,
-      doc: "Time in ms before a job lock expires."
-    ],
-    stalled_interval: [
-      type: :pos_integer,
-      default: @default_stalled_interval,
-      doc: "Interval in ms to check for stalled jobs."
-    ],
-    max_stalled_count: [
-      type: :pos_integer,
-      default: @default_max_stalled_count,
-      doc: "Max times a job can stall before being moved to failed."
-    ],
-    limiter: [
-      type: :map,
-      doc: "Rate limiting configuration with `:max` and `:duration` keys."
-    ],
-    autorun: [
-      type: :boolean,
-      default: true,
-      doc: "Whether to start processing jobs automatically."
-    ],
-    # Event callbacks
-    on_completed: [
-      type: {:or, [{:fun, 2}, nil]},
-      doc: "Callback when a job completes."
-    ],
-    on_failed: [
-      type: {:or, [{:fun, 2}, nil]},
-      doc: "Callback when a job fails."
-    ],
-    on_error: [
-      type: {:or, [{:fun, 1}, nil]},
-      doc: "Callback for worker errors."
-    ],
-    on_active: [
-      type: {:or, [{:fun, 1}, nil]},
-      doc: "Callback when a job becomes active."
-    ],
-    on_progress: [
-      type: {:or, [{:fun, 2}, nil]},
-      doc: "Callback on job progress updates."
-    ],
-    on_stalled: [
-      type: {:or, [{:fun, 1}, nil]},
-      doc: "Callback when a job stalls."
-    ],
-    on_lock_renewal_failed: [
-      type: {:or, [{:fun, 1}, nil]},
-      doc: """
-      Callback when lock renewal fails for jobs. Receives a list of job IDs.
-      When lock renewal fails, affected jobs are automatically cancelled with
-      reason `{:lock_lost, job_id}` to prevent duplicate processing.
-      """
-    ],
-    telemetry: [
-      type: :atom,
-      default: nil,
-      doc: "Module implementing `BullMQ.Telemetry.Behaviour` for distributed tracing (e.g., `BullMQ.Telemetry.OpenTelemetry`)."
-    ]
-  ])
+  @opts_schema NimbleOptions.new!(
+                 name: [
+                   type: {:or, [:atom, nil]},
+                   doc: "Process name for registration."
+                 ],
+                 queue: [
+                   type: :string,
+                   required: true,
+                   doc: "The name of the queue to process jobs from."
+                 ],
+                 connection: [
+                   type: {:or, [:atom, :pid]},
+                   required: true,
+                   doc: "The Redis connection name or pid."
+                 ],
+                 processor: [
+                   type: {:or, [{:fun, 1}, {:fun, 2}, {:fun, 3}, nil]},
+                   doc:
+                     "Function to process jobs. Set to `nil` for manual processing with `autorun: false`."
+                 ],
+                 prefix: [
+                   type: :string,
+                   default: "bull",
+                   doc: "Prefix for all Redis keys."
+                 ],
+                 concurrency: [
+                   type: :pos_integer,
+                   default: @default_concurrency,
+                   doc: "Number of jobs to process concurrently."
+                 ],
+                 lock_duration: [
+                   type: :pos_integer,
+                   default: @default_lock_duration,
+                   doc: "Time in ms before a job lock expires."
+                 ],
+                 stalled_interval: [
+                   type: :pos_integer,
+                   default: @default_stalled_interval,
+                   doc: "Interval in ms to check for stalled jobs."
+                 ],
+                 max_stalled_count: [
+                   type: :pos_integer,
+                   default: @default_max_stalled_count,
+                   doc: "Max times a job can stall before being moved to failed."
+                 ],
+                 limiter: [
+                   type: :map,
+                   doc: "Rate limiting configuration with `:max` and `:duration` keys."
+                 ],
+                 autorun: [
+                   type: :boolean,
+                   default: true,
+                   doc: "Whether to start processing jobs automatically."
+                 ],
+                 # Event callbacks
+                 on_completed: [
+                   type: {:or, [{:fun, 2}, nil]},
+                   doc: "Callback when a job completes."
+                 ],
+                 on_failed: [
+                   type: {:or, [{:fun, 2}, nil]},
+                   doc: "Callback when a job fails."
+                 ],
+                 on_error: [
+                   type: {:or, [{:fun, 1}, nil]},
+                   doc: "Callback for worker errors."
+                 ],
+                 on_active: [
+                   type: {:or, [{:fun, 1}, nil]},
+                   doc: "Callback when a job becomes active."
+                 ],
+                 on_progress: [
+                   type: {:or, [{:fun, 2}, nil]},
+                   doc: "Callback on job progress updates."
+                 ],
+                 on_stalled: [
+                   type: {:or, [{:fun, 1}, nil]},
+                   doc: "Callback when a job stalls."
+                 ],
+                 on_lock_renewal_failed: [
+                   type: {:or, [{:fun, 1}, nil]},
+                   doc: """
+                   Callback when lock renewal fails for jobs. Receives a list of job IDs.
+                   When lock renewal fails, affected jobs are automatically cancelled with
+                   reason `{:lock_lost, job_id}` to prevent duplicate processing.
+                   """
+                 ],
+                 telemetry: [
+                   type: :atom,
+                   default: nil,
+                   doc:
+                     "Module implementing `BullMQ.Telemetry.Behaviour` for distributed tracing (e.g., `BullMQ.Telemetry.OpenTelemetry`)."
+                 ]
+               )
 
   @type processor ::
-    (Job.t() -> {:ok, term()} | :ok | {:error, term()} | {:delay, non_neg_integer()}) |
-    (Job.t(), String.t() -> {:ok, term()} | :ok | {:error, term()} | {:delay, non_neg_integer()}) |
-    (Job.t(), String.t(), BullMQ.CancellationToken.t() -> {:ok, term()} | :ok | {:error, term()} | {:delay, non_neg_integer()})
+          (Job.t() -> {:ok, term()} | :ok | {:error, term()} | {:delay, non_neg_integer()})
+          | (Job.t(), String.t() ->
+               {:ok, term()} | :ok | {:error, term()} | {:delay, non_neg_integer()})
+          | (Job.t(), String.t(), BullMQ.CancellationToken.t() ->
+               {:ok, term()} | :ok | {:error, term()} | {:delay, non_neg_integer()})
 
   @type t :: %__MODULE__{
           name: atom() | nil,
@@ -481,7 +485,8 @@ defmodule BullMQ.Worker do
         {:ok, job} -> process(job)
       end
   """
-  @spec get_next_job(GenServer.server(), String.t(), keyword()) :: {:ok, Job.t() | nil} | {:error, term()}
+  @spec get_next_job(GenServer.server(), String.t(), keyword()) ::
+          {:ok, Job.t() | nil} | {:error, term()}
   def get_next_job(worker, token, opts \\ []) do
     GenServer.call(worker, {:get_next_job, token, opts}, :infinity)
   end
@@ -555,6 +560,7 @@ defmodule BullMQ.Worker do
         if job.worker && Process.alive?(job.worker) do
           GenServer.cast(job.worker, {:progress, job, progress})
         end
+
         :ok
 
       {:error, _} = error ->
@@ -686,7 +692,8 @@ defmodule BullMQ.Worker do
       {:reply, {:ok, nil}, state}
     else
       block = Keyword.get(opts, :block, true)
-      timeout = Keyword.get(opts, :timeout, 5)  # Default 5 second timeout for blocking
+      # Default 5 second timeout for blocking
+      timeout = Keyword.get(opts, :timeout, 5)
 
       # First try to get a job without blocking
       case fetch_next_job_with_token(state, token) do
@@ -728,6 +735,7 @@ defmodule BullMQ.Worker do
     if state.stalled_timer do
       Process.cancel_timer(state.stalled_timer)
     end
+
     {:reply, :ok, %{state | stalled_timer: nil}}
   end
 
@@ -746,6 +754,7 @@ defmodule BullMQ.Worker do
     Enum.each(state.cancellation_tokens, fn {_job_id, {token, task_pid}} ->
       CancellationToken.cancel(task_pid, token, reason)
     end)
+
     {:reply, :ok, state}
   end
 
@@ -792,23 +801,27 @@ defmodule BullMQ.Worker do
         # Link it to this process - if LockManager crashes, Worker crashes too
         # and gets restarted by its supervisor
         worker_pid = self()
-        {:ok, lock_manager} = LockManager.start_link(
-          connection: state.connection,
-          keys: state.keys,
-          lock_duration: state.lock_duration,
-          on_lock_renewal_failed: fn failed_job_ids ->
-            # Cancel jobs whose locks failed to renew
-            send(worker_pid, {:cancel_jobs_lock_lost, failed_job_ids})
-          end
-        )
+
+        {:ok, lock_manager} =
+          LockManager.start_link(
+            connection: state.connection,
+            keys: state.keys,
+            lock_duration: state.lock_duration,
+            on_lock_renewal_failed: fn failed_job_ids ->
+              # Cancel jobs whose locks failed to renew
+              send(worker_pid, {:cancel_jobs_lock_lost, failed_job_ids})
+            end
+          )
+
         # Explicitly link so crashes propagate
         Process.link(lock_manager)
 
-        new_state = %{state |
-          running: true,
-          blocking_conn: blocking_conn,
-          stalled_timer: stalled_timer,
-          lock_manager: lock_manager
+        new_state = %{
+          state
+          | running: true,
+            blocking_conn: blocking_conn,
+            stalled_timer: stalled_timer,
+            lock_manager: lock_manager
         }
 
         send(self(), :fetch_jobs)
@@ -908,8 +921,6 @@ defmodule BullMQ.Worker do
     end
   end
 
-
-
   def handle_info({:DOWN, ref, :process, _pid, reason}, state) do
     # Find the job associated with this task
     case find_job_by_ref(state.active_jobs, ref) do
@@ -946,7 +957,9 @@ defmodule BullMQ.Worker do
     Enum.each(job_ids, fn job_id ->
       case Map.get(state.cancellation_tokens, job_id) do
         nil ->
-          Logger.warning("[BullMQ.Worker] Lock lost for job #{job_id} but no cancellation token found")
+          Logger.warning(
+            "[BullMQ.Worker] Lock lost for job #{job_id} but no cancellation token found"
+          )
 
         {token, processor_pid} ->
           Logger.warning("[BullMQ.Worker] Lock lost for job #{job_id}, cancelling processor")
@@ -957,7 +970,10 @@ defmodule BullMQ.Worker do
             try do
               state.on_lock_renewal_failed.([job_id])
             rescue
-              e -> Logger.warning("[BullMQ.Worker] on_lock_renewal_failed callback failed: #{Exception.message(e)}")
+              e ->
+                Logger.warning(
+                  "[BullMQ.Worker] on_lock_renewal_failed callback failed: #{Exception.message(e)}"
+                )
             end
           end
       end
@@ -1034,19 +1050,23 @@ defmodule BullMQ.Worker do
 
       # Rate limited
       {:ok, [job_data, _job_id, rate_limit_delay, _delay_until]}
-          when job_data in [0, nil, ""] and is_integer(rate_limit_delay) and rate_limit_delay > 0 ->
+      when job_data in [0, nil, ""] and is_integer(rate_limit_delay) and rate_limit_delay > 0 ->
         {:rate_limited, rate_limit_delay}
 
       # Job available - job_data is a list of key-value pairs
-      {:ok, [job_data, job_id, _limit_delay, _delay_until]} when is_list(job_data) and job_data != [] ->
+      {:ok, [job_data, job_id, _limit_delay, _delay_until]}
+      when is_list(job_data) and job_data != [] ->
         # Convert flat list to map (BullMQ returns [key1, val1, key2, val2, ...])
         job_map = list_to_job_map(job_data)
-        job = Job.from_redis(to_string(job_id), state.queue_name, job_map,
-          prefix: state.prefix,
-          token: state.token,
-          connection: state.connection,
-          worker: self()
-        )
+
+        job =
+          Job.from_redis(to_string(job_id), state.queue_name, job_map,
+            prefix: state.prefix,
+            token: state.token,
+            connection: state.connection,
+            worker: self()
+          )
+
         {:ok, job}
 
       # Legacy tuple format (for backward compatibility)
@@ -1057,12 +1077,14 @@ defmodule BullMQ.Worker do
         {:rate_limited, rate_limit_delay}
 
       {:ok, {job_data, job_id, _limit_delay, _delay_until}} when not is_nil(job_data) ->
-        job = Job.from_redis(job_id, state.queue_name, job_data,
-          prefix: state.prefix,
-          token: state.token,
-          connection: state.connection,
-          worker: self()
-        )
+        job =
+          Job.from_redis(job_id, state.queue_name, job_data,
+            prefix: state.prefix,
+            token: state.token,
+            connection: state.connection,
+            worker: self()
+          )
+
         {:ok, job}
 
       {:error, _} = error ->
@@ -1086,18 +1108,22 @@ defmodule BullMQ.Worker do
 
       # Rate limited - return nil for manual processing (caller handles rate limiting)
       {:ok, [job_data, _job_id, _rate_limit_delay, _delay_until]}
-          when job_data in [0, nil, ""] ->
+      when job_data in [0, nil, ""] ->
         {:ok, nil}
 
       # Job available
-      {:ok, [job_data, job_id, _limit_delay, _delay_until]} when is_list(job_data) and job_data != [] ->
+      {:ok, [job_data, job_id, _limit_delay, _delay_until]}
+      when is_list(job_data) and job_data != [] ->
         job_map = list_to_job_map(job_data)
-        job = Job.from_redis(to_string(job_id), state.queue_name, job_map,
-          prefix: state.prefix,
-          token: token,
-          connection: state.connection,
-          worker: self()
-        )
+
+        job =
+          Job.from_redis(to_string(job_id), state.queue_name, job_map,
+            prefix: state.prefix,
+            token: token,
+            connection: state.connection,
+            worker: self()
+          )
+
         {:ok, job}
 
       {:error, _} = error ->
@@ -1160,6 +1186,7 @@ defmodule BullMQ.Worker do
     end)
     |> Map.new()
   end
+
   defp list_to_job_map(data), do: data
 
   defp start_job_processing(job, state) do
@@ -1172,23 +1199,26 @@ defmodule BullMQ.Worker do
     emit_event(state.on_active, [job])
 
     # Extract telemetry metadata from job opts for context restoration
-    telemetry_metadata = get_in(job.opts, [:telemetry_metadata]) ||
-                         get_in(job.opts, ["telemetry_metadata"])
+    telemetry_metadata =
+      get_in(job.opts, [:telemetry_metadata]) ||
+        get_in(job.opts, ["telemetry_metadata"])
 
     # Only create cancellation token if processor supports it (arity 2)
     # This optimization avoids overhead for processors that don't use cancellation
     cancel_token = if supports_cancellation, do: CancellationToken.new(), else: nil
 
     # Build the processor function based on whether cancellation is supported
-    processor_fn = if supports_cancellation do
-      fn -> processor.(job, cancel_token) end
-    else
-      fn -> processor.(job) end
-    end
+    processor_fn =
+      if supports_cancellation do
+        fn -> processor.(job, cancel_token) end
+      else
+        fn -> processor.(job) end
+      end
 
-    task = Task.async(fn ->
-      run_processor(processor_fn, job, worker_pid, telemetry_mod, telemetry_metadata)
-    end)
+    task =
+      Task.async(fn ->
+        run_processor(processor_fn, job, worker_pid, telemetry_mod, telemetry_metadata)
+      end)
 
     # Track job in LockManager for automatic lock renewal
     if state.lock_manager do
@@ -1199,11 +1229,12 @@ defmodule BullMQ.Worker do
     active_jobs = Map.put(state.active_jobs, job.id, {job, task.ref})
 
     # Only track cancellation token if processor supports cancellation
-    cancellation_tokens = if supports_cancellation do
-      Map.put(state.cancellation_tokens, job.id, {cancel_token, task.pid})
-    else
-      state.cancellation_tokens
-    end
+    cancellation_tokens =
+      if supports_cancellation do
+        Map.put(state.cancellation_tokens, job.id, {cancel_token, task.pid})
+      else
+        state.cancellation_tokens
+      end
 
     %{state | active_jobs: active_jobs, cancellation_tokens: cancellation_tokens}
   end
@@ -1216,11 +1247,12 @@ defmodule BullMQ.Worker do
 
   defp run_processor(processor_fn, job, worker_pid, telemetry_mod, metadata) do
     # Restore parent context if available
-    parent_ctx = if metadata do
-      telemetry_mod.deserialize_context(metadata)
-    else
-      nil
-    end
+    parent_ctx =
+      if metadata do
+        telemetry_mod.deserialize_context(metadata)
+      else
+        nil
+      end
 
     span_opts = [
       kind: :consumer,
@@ -1309,69 +1341,75 @@ defmodule BullMQ.Worker do
         other -> other
       end
 
-    next_job_result = case return_value do
-      {:delay, delay_ms} ->
-        # Move job back to delayed
-        Scripts.move_to_delayed(
-          state.connection,
-          state.keys,
-          job.id,
-          job.token,
-          delay_ms,
-          skip_attempt: true
-        )
-        nil
+    next_job_result =
+      case return_value do
+        {:delay, delay_ms} ->
+          # Move job back to delayed
+          Scripts.move_to_delayed(
+            state.connection,
+            state.keys,
+            job.id,
+            job.token,
+            delay_ms,
+            skip_attempt: true
+          )
 
-      {:rate_limit, delay_ms} ->
-        # Move job back to wait and apply rate limiting delay
-        # This is similar to delay but indicates the job should wait due to rate limiting
-        Scripts.move_to_delayed(
-          state.connection,
-          state.keys,
-          job.id,
-          job.token,
-          delay_ms,
-          skip_attempt: true
-        )
-        nil
+          nil
 
-      :waiting ->
-        # Move job back to waiting queue
-        Scripts.move_job_from_active_to_wait(
-          state.connection,
-          state.keys,
-          job.id,
-          job.token
-        )
-        nil
+        {:rate_limit, delay_ms} ->
+          # Move job back to wait and apply rate limiting delay
+          # This is similar to delay but indicates the job should wait due to rate limiting
+          Scripts.move_to_delayed(
+            state.connection,
+            state.keys,
+            job.id,
+            job.token,
+            delay_ms,
+            skip_attempt: true
+          )
 
-      :waiting_children ->
-        # Move job to waiting-children state
-        Scripts.move_to_waiting_children(
-          state.connection,
-          state.keys,
-          job.id,
-          job.token
-        )
-        nil
+          nil
 
-      _ ->
-        # Complete the job and get next job if available
-        Scripts.move_to_completed(
-          state.connection,
-          state.keys,
-          job.id,
-          job.token,
-          return_value,
-          build_move_opts(state.opts, job)
-        )
-    end
+        :waiting ->
+          # Move job back to waiting queue
+          Scripts.move_job_from_active_to_wait(
+            state.connection,
+            state.keys,
+            job.id,
+            job.token
+          )
+
+          nil
+
+        :waiting_children ->
+          # Move job to waiting-children state
+          Scripts.move_to_waiting_children(
+            state.connection,
+            state.keys,
+            job.id,
+            job.token
+          )
+
+          nil
+
+        _ ->
+          # Complete the job and get next job if available
+          Scripts.move_to_completed(
+            state.connection,
+            state.keys,
+            job.id,
+            job.token,
+            return_value,
+            build_move_opts(state.opts, job)
+          )
+      end
 
     # Determine if this was a "soft" return (not a real completion)
-    is_soft_return = match?({:delay, _}, return_value) or
-                     match?({:rate_limit, _}, return_value) or
-                     return_value == :waiting or
-                     return_value == :waiting_children
+    is_soft_return =
+      match?({:delay, _}, return_value) or
+        match?({:rate_limit, _}, return_value) or
+        return_value == :waiting or
+        return_value == :waiting_children
 
     # If this was a repeatable job, schedule the next iteration (only on actual completion)
     unless is_soft_return do
@@ -1402,21 +1440,23 @@ defmodule BullMQ.Worker do
 
   # No job available [0, 0, 0, 0] or similar
   defp handle_next_job_or_fetch({:ok, [job_data, _job_id, _, _]}, state)
-      when job_data in [0, nil, ""] do
+       when job_data in [0, nil, ""] do
     check_closing_or_fetch(state)
   end
 
   # Next job returned from moveToFinished
   defp handle_next_job_or_fetch({:ok, [job_data, job_id, _limit_delay, _delay_until]}, state)
-      when is_list(job_data) and job_data != [] do
+       when is_list(job_data) and job_data != [] do
     # Parse and process the next job
     job_map = list_to_job_map(job_data)
-    next_job = Job.from_redis(to_string(job_id), state.queue_name, job_map,
-      prefix: state.prefix,
-      token: state.token,
-      connection: state.connection,
-      worker: self()
-    )
+
+    next_job =
+      Job.from_redis(to_string(job_id), state.queue_name, job_map,
+        prefix: state.prefix,
+        token: state.token,
+        connection: state.connection,
+        worker: self()
+      )
 
     # Start processing the next job
     new_state = start_job_processing(next_job, state)
@@ -1432,8 +1472,8 @@ defmodule BullMQ.Worker do
 
     is_final_failure = !Job.should_retry?(job)
 
+    # Check if we should retry
     next_job_result =
-      # Check if we should retry
       if Job.should_retry?(job) do
         # Calculate backoff delay
         backoff_delay = Job.calculate_backoff(job)
@@ -1452,6 +1492,7 @@ defmodule BullMQ.Worker do
           effective_delay,
           stacktrace: formatted_stacktrace
         )
+
         nil
       else
         # Move to failed and get next job
@@ -1479,8 +1520,6 @@ defmodule BullMQ.Worker do
     new_state = cleanup_job_resources(job.id, state)
     handle_next_job_or_fetch(next_job_result, new_state)
   end
-
-
 
   defp check_closing_or_fetch(state) do
     cond do
@@ -1543,30 +1582,37 @@ defmodule BullMQ.Worker do
   # Clean up resources for a completed/failed job
   defp cleanup_job_resources(job_id, state) do
     # No cleanup needed for tokens - they're just references
-    %{state |
-      active_jobs: Map.delete(state.active_jobs, job_id),
-      cancellation_tokens: Map.delete(state.cancellation_tokens, job_id)
+    %{
+      state
+      | active_jobs: Map.delete(state.active_jobs, job_id),
+        cancellation_tokens: Map.delete(state.cancellation_tokens, job_id)
     }
   end
 
   # Format Elixir stacktrace to a string similar to Node.js stack traces
   defp format_stacktrace([]), do: nil
   defp format_stacktrace(nil), do: nil
+
   defp format_stacktrace(stacktrace) when is_list(stacktrace) do
     stacktrace
     |> Exception.format_stacktrace()
     |> String.trim()
   end
+
   defp format_stacktrace(_), do: nil
 
   # Extract stacktrace from exit reason if available
   # Some exit reasons include stacktrace info
-  defp extract_stacktrace_from_exit({:EXIT, _pid, {_reason, stacktrace}}) when is_list(stacktrace) do
+  defp extract_stacktrace_from_exit({:EXIT, _pid, {_reason, stacktrace}})
+       when is_list(stacktrace) do
     stacktrace
   end
-  defp extract_stacktrace_from_exit({exception, stacktrace}) when is_exception(exception) and is_list(stacktrace) do
+
+  defp extract_stacktrace_from_exit({exception, stacktrace})
+       when is_exception(exception) and is_list(stacktrace) do
     stacktrace
   end
+
   defp extract_stacktrace_from_exit(_), do: []
 
   defp schedule_stalled_check(interval) do
@@ -1598,6 +1644,7 @@ defmodule BullMQ.Worker do
 
   # Event callback helper - safely invokes callback if provided
   defp emit_event(nil, _args), do: :ok
+
   defp emit_event(callback, args) when is_function(callback) do
     try do
       apply(callback, args)
@@ -1605,6 +1652,7 @@ defmodule BullMQ.Worker do
       e ->
         Logger.warning("Worker event callback failed: #{Exception.message(e)}")
     end
+
     :ok
   end
 
@@ -1612,6 +1660,7 @@ defmodule BullMQ.Worker do
   # This is called after a job with repeat_job_key completes
   defp schedule_next_repeatable_job(%Job{repeat_job_key: nil}, _state), do: :ok
   defp schedule_next_repeatable_job(%Job{repeat_job_key: ""}, _state), do: :ok
+
   defp schedule_next_repeatable_job(%Job{repeat_job_key: scheduler_id} = job, state) do
     # Check if this is a new-style job scheduler (key without many colons)
     # Old style: "schedulerId:pattern:tz:..." (5+ parts)
@@ -1646,7 +1695,8 @@ defmodule BullMQ.Worker do
           spawn(fn ->
             try do
               # Calculate next execution time (will be refined by Lua script for 'every' jobs)
-              next_millis = now + 1000  # placeholder, Lua script calculates real value
+              # placeholder, Lua script calculates real value
+              next_millis = now + 1000
 
               # Build job options for the next iteration with updated count
               job_opts = build_scheduler_job_opts(job, next_count)
@@ -1666,9 +1716,12 @@ defmodule BullMQ.Worker do
               )
             rescue
               e ->
-                Logger.error("[BullMQ.Worker] Failed to schedule next repeatable job: #{Exception.message(e)}")
+                Logger.error(
+                  "[BullMQ.Worker] Failed to schedule next repeatable job: #{Exception.message(e)}"
+                )
             end
           end)
+
           :ok
         end
       end
@@ -1685,6 +1738,7 @@ defmodule BullMQ.Worker do
       _ -> %{}
     end
   end
+
   defp get_repeat_opts(_), do: %{}
 
   # Build job options for the next scheduler iteration
@@ -1693,16 +1747,17 @@ defmodule BullMQ.Worker do
     repeat_opts = get_repeat_opts(job)
 
     # Build the repeat sub-options with the updated count
-    repeat = %{
-      "every" => Map.get(repeat_opts, "every") || Map.get(repeat_opts, :every),
-      "pattern" => Map.get(repeat_opts, "pattern") || Map.get(repeat_opts, :pattern),
-      "offset" => Map.get(repeat_opts, "offset") || Map.get(repeat_opts, :offset),
-      "count" => next_count || (Map.get(repeat_opts, "count", 0) + 1),
-      "limit" => Map.get(repeat_opts, "limit") || Map.get(repeat_opts, :limit),
-      "endDate" => Map.get(repeat_opts, "endDate") || Map.get(repeat_opts, :end_date)
-    }
-    |> Enum.reject(fn {_k, v} -> is_nil(v) end)
-    |> Map.new()
+    repeat =
+      %{
+        "every" => Map.get(repeat_opts, "every") || Map.get(repeat_opts, :every),
+        "pattern" => Map.get(repeat_opts, "pattern") || Map.get(repeat_opts, :pattern),
+        "offset" => Map.get(repeat_opts, "offset") || Map.get(repeat_opts, :offset),
+        "count" => next_count || Map.get(repeat_opts, "count", 0) + 1,
+        "limit" => Map.get(repeat_opts, "limit") || Map.get(repeat_opts, :limit),
+        "endDate" => Map.get(repeat_opts, "endDate") || Map.get(repeat_opts, :end_date)
+      }
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Map.new()
 
     %{
       "repeat" => repeat,

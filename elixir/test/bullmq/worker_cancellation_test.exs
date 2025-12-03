@@ -16,11 +16,13 @@ defmodule BullMQ.WorkerCancellationTest do
     queue_name = "test-cancellation-#{System.unique_integer([:positive])}"
 
     # Start the connection pool - unlink so test cleanup doesn't cascade
-    {:ok, pool_pid} = BullMQ.RedisConnection.start_link(
-      name: pool_name,
-      url: @redis_url,
-      pool_size: 5
-    )
+    {:ok, pool_pid} =
+      BullMQ.RedisConnection.start_link(
+        name: pool_name,
+        url: @redis_url,
+        pool_size: 5
+      )
+
     Process.unlink(pool_pid)
 
     on_exit(fn ->
@@ -37,10 +39,13 @@ defmodule BullMQ.WorkerCancellationTest do
           case Redix.command(cleanup_conn, ["KEYS", "#{@test_prefix}:#{queue_name}:*"]) do
             {:ok, keys} when keys != [] ->
               Redix.command(cleanup_conn, ["DEL" | keys])
+
             _ ->
               :ok
           end
+
           Redix.stop(cleanup_conn)
+
         _ ->
           :ok
       end
@@ -78,8 +83,8 @@ defmodule BullMQ.WorkerCancellationTest do
         )
 
       # Add a job
-      {:ok, job} = Queue.add(queue_name, "test-job", %{value: 1},
-        connection: conn, prefix: @test_prefix)
+      {:ok, job} =
+        Queue.add(queue_name, "test-job", %{value: 1}, connection: conn, prefix: @test_prefix)
 
       # Wait for job to start
       assert_receive {:job_started, job_id}, 2000
@@ -172,7 +177,10 @@ defmodule BullMQ.WorkerCancellationTest do
 
   describe "processor with cancellation token" do
     @tag timeout: 10_000
-    test "processor receives cancellation token as second argument", %{conn: conn, queue_name: queue_name} do
+    test "processor receives cancellation token as second argument", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
       test_pid = self()
 
       processor = fn job, cancel_token ->
@@ -188,8 +196,7 @@ defmodule BullMQ.WorkerCancellationTest do
           processor: processor
         )
 
-      {:ok, job} = Queue.add(queue_name, "test-job", %{},
-        connection: conn, prefix: @test_prefix)
+      {:ok, job} = Queue.add(queue_name, "test-job", %{}, connection: conn, prefix: @test_prefix)
 
       assert_receive {:processor_called, job_id, true}, 2000
       assert job_id == job.id
@@ -198,7 +205,10 @@ defmodule BullMQ.WorkerCancellationTest do
     end
 
     @tag timeout: 10_000
-    test "processor with arity 1 still works (backward compatible)", %{conn: conn, queue_name: queue_name} do
+    test "processor with arity 1 still works (backward compatible)", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
       test_pid = self()
 
       # Old-style processor without cancellation support
@@ -215,8 +225,8 @@ defmodule BullMQ.WorkerCancellationTest do
           processor: processor
         )
 
-      {:ok, job} = Queue.add(queue_name, "test-job", %{value: 42},
-        connection: conn, prefix: @test_prefix)
+      {:ok, job} =
+        Queue.add(queue_name, "test-job", %{value: 42}, connection: conn, prefix: @test_prefix)
 
       assert_receive {:job_processed, job_id}, 2000
       assert job_id == job.id
@@ -227,7 +237,10 @@ defmodule BullMQ.WorkerCancellationTest do
 
   describe "CancellationToken.check/1 pattern" do
     @tag timeout: 10_000
-    test "processor can use check/1 for checkpoint-style cancellation", %{conn: conn, queue_name: queue_name} do
+    test "processor can use check/1 for checkpoint-style cancellation", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
       test_pid = self()
 
       processor = fn job, cancel_token ->
@@ -262,8 +275,8 @@ defmodule BullMQ.WorkerCancellationTest do
           processor: processor
         )
 
-      {:ok, job} = Queue.add(queue_name, "test-job", %{"steps" => 5},
-        connection: conn, prefix: @test_prefix)
+      {:ok, job} =
+        Queue.add(queue_name, "test-job", %{"steps" => 5}, connection: conn, prefix: @test_prefix)
 
       # Wait for a couple steps then cancel
       assert_receive {:step_completed, job_id, 1}, 1000
@@ -318,8 +331,11 @@ defmodule BullMQ.WorkerCancellationTest do
           processor: processor
         )
 
-      {:ok, job} = Queue.add(queue_name, "test-job", %{"items" => [1, 2, 3, 4, 5]},
-        connection: conn, prefix: @test_prefix)
+      {:ok, job} =
+        Queue.add(queue_name, "test-job", %{"items" => [1, 2, 3, 4, 5]},
+          connection: conn,
+          prefix: @test_prefix
+        )
 
       # Wait for first item
       assert_receive {:processed_item, _job_id, 1}, 1000
@@ -344,10 +360,11 @@ defmodule BullMQ.WorkerCancellationTest do
 
       processor = fn job, cancel_token ->
         # Start a long-running task
-        task = Task.async(fn ->
-          Process.sleep(500)
-          {:ok, "task completed"}
-        end)
+        task =
+          Task.async(fn ->
+            Process.sleep(500)
+            {:ok, "task completed"}
+          end)
 
         # Wait for either completion or cancellation
         receive do
@@ -370,8 +387,7 @@ defmodule BullMQ.WorkerCancellationTest do
           processor: processor
         )
 
-      {:ok, job} = Queue.add(queue_name, "test-job", %{},
-        connection: conn, prefix: @test_prefix)
+      {:ok, job} = Queue.add(queue_name, "test-job", %{}, connection: conn, prefix: @test_prefix)
 
       # Wait a bit then cancel before task completes
       Process.sleep(100)
@@ -389,10 +405,11 @@ defmodule BullMQ.WorkerCancellationTest do
 
       processor = fn job, cancel_token ->
         # Start a quick task
-        task = Task.async(fn ->
-          Process.sleep(50)
-          {:ok, "done"}
-        end)
+        task =
+          Task.async(fn ->
+            Process.sleep(50)
+            {:ok, "done"}
+          end)
 
         task_ref = task.ref
 
@@ -417,8 +434,7 @@ defmodule BullMQ.WorkerCancellationTest do
           processor: processor
         )
 
-      {:ok, job} = Queue.add(queue_name, "test-job", %{},
-        connection: conn, prefix: @test_prefix)
+      {:ok, job} = Queue.add(queue_name, "test-job", %{}, connection: conn, prefix: @test_prefix)
 
       assert_receive {:completed, job_id}, 2000
       assert job_id == job.id

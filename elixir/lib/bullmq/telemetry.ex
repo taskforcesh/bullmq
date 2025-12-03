@@ -111,7 +111,8 @@ defmodule BullMQ.Telemetry do
         end
       )
   """
-  @spec attach(String.t(), [atom()], (list(), map(), map(), term() -> :ok), term()) :: :ok | {:error, term()}
+  @spec attach(String.t(), [atom()], (list(), map(), map(), term() -> :ok), term()) ::
+          :ok | {:error, term()}
   def attach(handler_id, event_suffix, handler_fn, config \\ nil) do
     event = [:bullmq | event_suffix]
     :telemetry.attach(handler_id, event, handler_fn, config)
@@ -161,7 +162,7 @@ defmodule BullMQ.Telemetry do
         do_work()
       end)
   """
-  @spec span([atom()], metadata(), (() -> result)) :: result when result: term()
+  @spec span([atom()], metadata(), (-> result)) :: result when result: term()
   def span(event_suffix, metadata, fun) do
     start_time = System.monotonic_time()
     event_prefix = [:bullmq | event_suffix]

@@ -10,7 +10,8 @@ defmodule BullMQ.StressTest do
   alias BullMQ.{Queue, Worker, RedisConnection}
 
   @moduletag :stress
-  @moduletag timeout: 300_000  # 5 minutes max
+  # 5 minutes max
+  @moduletag timeout: 300_000
 
   @redis_opts [host: "localhost", port: 6379]
 
@@ -63,16 +64,20 @@ defmodule BullMQ.StressTest do
   describe "bulk operations" do
     @tag timeout: 60_000
     test "adds 1000 jobs in bulk", %{queue_name: queue_name, conn: conn} do
-      jobs = for i <- 1..1000 do
-        {"bulk_job_#{i}", %{index: i}, []}
-      end
+      jobs =
+        for i <- 1..1000 do
+          {"bulk_job_#{i}", %{index: i}, []}
+        end
 
       start_time = System.monotonic_time(:millisecond)
       {:ok, added} = Queue.add_bulk(queue_name, jobs, connection: conn)
       elapsed = System.monotonic_time(:millisecond) - start_time
 
       assert length(added) == 1000
-      IO.puts("\n  Bulk add 1000 jobs: #{elapsed}ms (#{Float.round(1000 / elapsed * 1000, 1)} jobs/sec)")
+
+      IO.puts(
+        "\n  Bulk add 1000 jobs: #{elapsed}ms (#{Float.round(1000 / elapsed * 1000, 1)} jobs/sec)"
+      )
     end
 
     @tag timeout: 120_000
@@ -81,9 +86,10 @@ defmodule BullMQ.StressTest do
       processed = :counters.new(1, [:atomics])
 
       # Add jobs in bulk
-      jobs = for i <- 1..job_count do
-        {"bulk_job", %{index: i}, []}
-      end
+      jobs =
+        for i <- 1..job_count do
+          {"bulk_job", %{index: i}, []}
+        end
 
       add_start = System.monotonic_time(:millisecond)
       {:ok, _} = Queue.add_bulk(queue_name, jobs, connection: conn)
@@ -92,15 +98,16 @@ defmodule BullMQ.StressTest do
       IO.puts("\n  Bulk add #{job_count} jobs: #{add_elapsed}ms")
 
       # Process all jobs
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        concurrency: 100,
-        processor: fn _job ->
-          :counters.add(processed, 1, 1)
-          {:ok, nil}
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          concurrency: 100,
+          processor: fn _job ->
+            :counters.add(processed, 1, 1)
+            {:ok, nil}
+          end
+        )
 
       process_start = System.monotonic_time(:millisecond)
 
@@ -128,23 +135,26 @@ defmodule BullMQ.StressTest do
       batch_size = 500
       processed = :counters.new(1, [:atomics])
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        concurrency: 50,
-        processor: fn _job ->
-          :counters.add(processed, 1, 1)
-          {:ok, nil}
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          concurrency: 50,
+          processor: fn _job ->
+            :counters.add(processed, 1, 1)
+            {:ok, nil}
+          end
+        )
 
       start_time = System.monotonic_time(:millisecond)
 
       # Add jobs in batches
       for batch <- 1..div(total_jobs, batch_size) do
-        jobs = for i <- 1..batch_size do
-          {"sustained_job", %{batch: batch, index: i}, []}
-        end
+        jobs =
+          for i <- 1..batch_size do
+            {"sustained_job", %{batch: batch, index: i}, []}
+          end
+
         {:ok, _} = Queue.add_bulk(queue_name, jobs, connection: conn)
 
         # Small delay between batches to simulate real-world usage
@@ -174,26 +184,29 @@ defmodule BullMQ.StressTest do
       failures = :counters.new(1, [:atomics])
 
       # Add jobs
-      jobs = for i <- 1..job_count do
-        {"resilience_job", %{index: i}, [attempts: 3]}
-      end
+      jobs =
+        for i <- 1..job_count do
+          {"resilience_job", %{index: i}, [attempts: 3]}
+        end
+
       {:ok, _} = Queue.add_bulk(queue_name, jobs, connection: conn)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        concurrency: 20,
-        processor: fn _job ->
-          # 10% chance of failure
-          if :rand.uniform(10) == 1 do
-            :counters.add(failures, 1, 1)
-            {:error, "Random failure"}
-          else
-            :counters.add(processed, 1, 1)
-            {:ok, nil}
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          concurrency: 20,
+          processor: fn _job ->
+            # 10% chance of failure
+            if :rand.uniform(10) == 1 do
+              :counters.add(failures, 1, 1)
+              {:error, "Random failure"}
+            else
+              :counters.add(processed, 1, 1)
+              {:ok, nil}
+            end
           end
-        end
-      )
+        )
 
       # Wait for completion (with retries, may take longer)
       Process.sleep(30_000)
@@ -208,7 +221,7 @@ defmodule BullMQ.StressTest do
 
       # Should have processed most jobs (some may still be retrying)
       assert final_processed >= job_count * 0.8,
-        "Expected at least 80% processed, got #{final_processed}/#{job_count}"
+             "Expected at least 80% processed, got #{final_processed}/#{job_count}"
     end
   end
 
@@ -224,9 +237,10 @@ defmodule BullMQ.StressTest do
     add_start = System.monotonic_time(:millisecond)
 
     # Add in batches of 1000 for efficiency
-    jobs = for i <- 1..job_count do
-      {"stress_job_#{i}", %{index: i, timestamp: System.system_time()}, []}
-    end
+    jobs =
+      for i <- 1..job_count do
+        {"stress_job_#{i}", %{index: i, timestamp: System.system_time()}, []}
+      end
 
     Enum.chunk_every(jobs, 1000)
     |> Enum.each(fn batch ->
@@ -237,21 +251,23 @@ defmodule BullMQ.StressTest do
     IO.puts("  Jobs added in #{add_elapsed}ms")
 
     # Start worker
-    {:ok, worker} = Worker.start_link(
-      queue: queue_name,
-      connection: conn,
-      concurrency: concurrency,
-      processor: fn _job ->
-        :counters.add(processed, 1, 1)
-        {:ok, nil}
-      end
-    )
+    {:ok, worker} =
+      Worker.start_link(
+        queue: queue_name,
+        connection: conn,
+        concurrency: concurrency,
+        processor: fn _job ->
+          :counters.add(processed, 1, 1)
+          {:ok, nil}
+        end
+      )
 
     # Wait for processing
     IO.puts("  Processing with concurrency #{concurrency}...")
     process_start = System.monotonic_time(:millisecond)
 
-    timeout = max(60_000, job_count * 10)  # At least 60s, or 10ms per job
+    # At least 60s, or 10ms per job
+    timeout = max(60_000, job_count * 10)
     wait_for_processed(processed, job_count, timeout)
 
     process_elapsed = System.monotonic_time(:millisecond) - process_start
@@ -272,7 +288,7 @@ defmodule BullMQ.StressTest do
 
     # Verify all jobs processed
     assert final_count == job_count,
-      "Expected #{job_count} jobs processed, got #{final_count}"
+           "Expected #{job_count} jobs processed, got #{final_count}"
   end
 
   defp wait_for_processed(counter, target, timeout) do

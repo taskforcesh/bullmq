@@ -30,10 +30,13 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
           case Redix.command(cleanup_conn, ["KEYS", "#{@test_prefix}:*"]) do
             {:ok, keys} when keys != [] ->
               Redix.command(cleanup_conn, ["DEL" | keys])
+
             _ ->
               :ok
           end
+
           Redix.stop(cleanup_conn)
+
         _ ->
           :ok
       end
@@ -49,45 +52,58 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
   describe "Option validation" do
     @tag :integration
     test "rejects when both pattern and every are specified", %{conn: conn, queue_name: queue_name} do
-      result = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "test-scheduler",
-        %{pattern: "0 * * * *", every: 60_000},
-        "test-job",
-        %{},
-        prefix: @test_prefix
-      )
+      result =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "test-scheduler",
+          %{pattern: "0 * * * *", every: 60_000},
+          "test-job",
+          %{},
+          prefix: @test_prefix
+        )
 
       assert {:error, :both_pattern_and_every} = result
     end
 
     @tag :integration
-    test "rejects when neither pattern nor every is specified", %{conn: conn, queue_name: queue_name} do
-      result = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "test-scheduler",
-        %{limit: 10},
-        "test-job",
-        %{},
-        prefix: @test_prefix
-      )
+    test "rejects when neither pattern nor every is specified", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      result =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "test-scheduler",
+          %{limit: 10},
+          "test-job",
+          %{},
+          prefix: @test_prefix
+        )
 
       assert {:error, :no_pattern_or_every} = result
     end
 
     @tag :integration
-    test "rejects when immediately and start_date are both specified", %{conn: conn, queue_name: queue_name} do
-      result = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "test-scheduler",
-        %{pattern: "0 * * * *", immediately: true, start_date: System.system_time(:millisecond) + 60_000},
-        "test-job",
-        %{},
-        prefix: @test_prefix
-      )
+    test "rejects when immediately and start_date are both specified", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      result =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "test-scheduler",
+          %{
+            pattern: "0 * * * *",
+            immediately: true,
+            start_date: System.system_time(:millisecond) + 60_000
+          },
+          "test-job",
+          %{},
+          prefix: @test_prefix
+        )
 
       assert {:error, :immediately_with_start_date} = result
     end
@@ -100,15 +116,16 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
   describe "Every-based schedulers" do
     @tag :integration
     test "creates a scheduler with every option", %{conn: conn, queue_name: queue_name} do
-      {:ok, job} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "every-2s",
-        %{every: 2000},
-        "test-job",
-        %{foo: "bar"},
-        prefix: @test_prefix
-      )
+      {:ok, job} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "every-2s",
+          %{every: 2000},
+          "test-job",
+          %{foo: "bar"},
+          prefix: @test_prefix
+        )
 
       assert job.id =~ "repeat:every-2s:"
       assert job.name == "test-job"
@@ -118,17 +135,19 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
 
     @tag :integration
     test "scheduler is stored in Redis", %{conn: conn, queue_name: queue_name} do
-      {:ok, _job} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "stored-scheduler",
-        %{every: 5000},
-        "test-job",
-        %{},
-        prefix: @test_prefix
-      )
+      {:ok, _job} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "stored-scheduler",
+          %{every: 5000},
+          "test-job",
+          %{},
+          prefix: @test_prefix
+        )
 
-      {:ok, scheduler} = JobScheduler.get(conn, queue_name, "stored-scheduler", prefix: @test_prefix)
+      {:ok, scheduler} =
+        JobScheduler.get(conn, queue_name, "stored-scheduler", prefix: @test_prefix)
 
       assert scheduler.key == "stored-scheduler"
       assert scheduler.name == "test-job"
@@ -140,15 +159,17 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
     test "creates delayed job in Redis", %{conn: conn, queue_name: queue_name} do
       ctx = Keys.new(queue_name, prefix: @test_prefix)
 
-      {:ok, job} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "delayed-test",
-        %{every: 60_000},  # Use a longer delay to ensure it goes to delayed set
-        "test-job",
-        %{},
-        prefix: @test_prefix
-      )
+      {:ok, job} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "delayed-test",
+          # Use a longer delay to ensure it goes to delayed set
+          %{every: 60_000},
+          "test-job",
+          %{},
+          prefix: @test_prefix
+        )
 
       # Check delayed set - the job should be scheduled for the future
       {:ok, delayed} = Redix.command(conn, ["ZRANGE", Keys.delayed(ctx), 0, -1])
@@ -156,24 +177,25 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
       # The job ID should be in the delayed set (or wait if immediate)
       # Since every: 60_000 means next execution is now + 60000ms, it should be delayed
       assert job.id in delayed or
-             (fn ->
-               {:ok, waiting} = Redix.command(conn, ["LRANGE", Keys.wait(ctx), 0, -1])
-               job.id in waiting
-             end).()
+               (fn ->
+                  {:ok, waiting} = Redix.command(conn, ["LRANGE", Keys.wait(ctx), 0, -1])
+                  job.id in waiting
+                end).()
     end
 
     @tag :integration
     test "multiple schedulers with different every values", %{conn: conn, queue_name: queue_name} do
       for {id, every} <- [{"s1", 1000}, {"s2", 2000}, {"s3", 5000}] do
-        {:ok, _} = JobScheduler.upsert(
-          conn,
-          queue_name,
-          id,
-          %{every: every},
-          "test-#{id}",
-          %{},
-          prefix: @test_prefix
-        )
+        {:ok, _} =
+          JobScheduler.upsert(
+            conn,
+            queue_name,
+            id,
+            %{every: every},
+            "test-#{id}",
+            %{},
+            prefix: @test_prefix
+          )
       end
 
       {:ok, count} = JobScheduler.count(conn, queue_name, prefix: @test_prefix)
@@ -186,26 +208,28 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
     @tag :integration
     test "upserting same scheduler updates it", %{conn: conn, queue_name: queue_name} do
       # Create initial scheduler
-      {:ok, _job1} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "update-test",
-        %{every: 5000},
-        "test-job",
-        %{version: 1},
-        prefix: @test_prefix
-      )
+      {:ok, _job1} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "update-test",
+          %{every: 5000},
+          "test-job",
+          %{version: 1},
+          prefix: @test_prefix
+        )
 
       # Update with different interval
-      {:ok, _job2} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "update-test",
-        %{every: 10_000},
-        "test-job",
-        %{version: 2},
-        prefix: @test_prefix
-      )
+      {:ok, _job2} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "update-test",
+          %{every: 10_000},
+          "test-job",
+          %{version: 2},
+          prefix: @test_prefix
+        )
 
       # Should still only have one scheduler
       {:ok, count} = JobScheduler.count(conn, queue_name, prefix: @test_prefix)
@@ -225,15 +249,17 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
   describe "Pattern-based schedulers" do
     @tag :integration
     test "creates a scheduler with cron pattern", %{conn: conn, queue_name: queue_name} do
-      {:ok, job} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "cron-test",
-        %{pattern: "0 * * * *"},  # Every hour
-        "hourly-job",
-        %{type: "hourly"},
-        prefix: @test_prefix
-      )
+      {:ok, job} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "cron-test",
+          # Every hour
+          %{pattern: "0 * * * *"},
+          "hourly-job",
+          %{type: "hourly"},
+          prefix: @test_prefix
+        )
 
       assert job.id =~ "repeat:cron-test:"
       assert job.name == "hourly-job"
@@ -242,15 +268,17 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
 
     @tag :integration
     test "stores pattern in scheduler data", %{conn: conn, queue_name: queue_name} do
-      {:ok, _job} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "pattern-storage",
-        %{pattern: "*/5 * * * *"},  # Every 5 minutes
-        "test-job",
-        %{},
-        prefix: @test_prefix
-      )
+      {:ok, _job} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "pattern-storage",
+          # Every 5 minutes
+          %{pattern: "*/5 * * * *"},
+          "test-job",
+          %{},
+          prefix: @test_prefix
+        )
 
       {:ok, scheduler} = JobScheduler.get(conn, queue_name, "pattern-storage", prefix: @test_prefix)
 
@@ -269,15 +297,16 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
       ]
 
       for {id, pattern} <- patterns do
-        {:ok, _} = JobScheduler.upsert(
-          conn,
-          queue_name,
-          id,
-          %{pattern: pattern},
-          "#{id}-job",
-          %{},
-          prefix: @test_prefix
-        )
+        {:ok, _} =
+          JobScheduler.upsert(
+            conn,
+            queue_name,
+            id,
+            %{pattern: pattern},
+            "#{id}-job",
+            %{},
+            prefix: @test_prefix
+          )
       end
 
       {:ok, schedulers} = JobScheduler.list(conn, queue_name, prefix: @test_prefix)
@@ -292,15 +321,17 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
     test "immediately option runs first job immediately", %{conn: conn, queue_name: queue_name} do
       _now = System.system_time(:millisecond)
 
-      {:ok, job} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "immediate-test",
-        %{pattern: "0 * * * *", immediately: true},  # Every hour, but first one now
-        "test-job",
-        %{},
-        prefix: @test_prefix
-      )
+      {:ok, job} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "immediate-test",
+          # Every hour, but first one now
+          %{pattern: "0 * * * *", immediately: true},
+          "test-job",
+          %{},
+          prefix: @test_prefix
+        )
 
       # Job should have very small or zero delay
       assert job.delay <= 100
@@ -314,54 +345,63 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
   describe "Limits and boundaries" do
     @tag :integration
     test "respects limit option", %{conn: conn, queue_name: queue_name} do
-      {:ok, job} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "limited-scheduler",
-        %{every: 1000, limit: 5},
-        "test-job",
-        %{},
-        prefix: @test_prefix
-      )
+      {:ok, job} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "limited-scheduler",
+          %{every: 1000, limit: 5},
+          "test-job",
+          %{},
+          prefix: @test_prefix
+        )
 
       assert job != nil
 
-      {:ok, scheduler} = JobScheduler.get(conn, queue_name, "limited-scheduler", prefix: @test_prefix)
+      {:ok, scheduler} =
+        JobScheduler.get(conn, queue_name, "limited-scheduler", prefix: @test_prefix)
+
       assert scheduler.limit == 5
     end
 
     @tag :integration
     test "rejects when count exceeds limit", %{conn: conn, queue_name: queue_name} do
-      result = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "over-limit",
-        %{every: 1000, limit: 5, count: 5},  # Already at limit
-        "test-job",
-        %{},
-        prefix: @test_prefix
-      )
+      result =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "over-limit",
+          # Already at limit
+          %{every: 1000, limit: 5, count: 5},
+          "test-job",
+          %{},
+          prefix: @test_prefix
+        )
 
       assert {:error, :limit_reached} = result
     end
 
     @tag :integration
     test "respects end_date option", %{conn: conn, queue_name: queue_name} do
-      future = System.system_time(:millisecond) + 86_400_000  # 1 day from now
+      # 1 day from now
+      future = System.system_time(:millisecond) + 86_400_000
 
-      {:ok, job} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "end-date-scheduler",
-        %{every: 1000, end_date: future},
-        "test-job",
-        %{},
-        prefix: @test_prefix
-      )
+      {:ok, job} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "end-date-scheduler",
+          %{every: 1000, end_date: future},
+          "test-job",
+          %{},
+          prefix: @test_prefix
+        )
 
       assert job != nil
 
-      {:ok, scheduler} = JobScheduler.get(conn, queue_name, "end-date-scheduler", prefix: @test_prefix)
+      {:ok, scheduler} =
+        JobScheduler.get(conn, queue_name, "end-date-scheduler", prefix: @test_prefix)
+
       assert scheduler.end_date == future
     end
 
@@ -369,37 +409,42 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
     test "rejects when end_date is in the past", %{conn: conn, queue_name: queue_name} do
       past = System.system_time(:millisecond) - 1000
 
-      result = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "past-end-date",
-        %{every: 1000, end_date: past},
-        "test-job",
-        %{},
-        prefix: @test_prefix
-      )
+      result =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "past-end-date",
+          %{every: 1000, end_date: past},
+          "test-job",
+          %{},
+          prefix: @test_prefix
+        )
 
       assert {:error, :end_date_reached} = result
     end
 
     @tag :integration
     test "respects start_date option", %{conn: conn, queue_name: queue_name} do
-      future = System.system_time(:millisecond) + 60_000  # 1 minute from now
+      # 1 minute from now
+      future = System.system_time(:millisecond) + 60_000
 
-      {:ok, job} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "start-date-scheduler",
-        %{every: 1000, start_date: future},
-        "test-job",
-        %{},
-        prefix: @test_prefix
-      )
+      {:ok, job} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "start-date-scheduler",
+          %{every: 1000, start_date: future},
+          "test-job",
+          %{},
+          prefix: @test_prefix
+        )
 
       # Delay should be at least 1 minute
       assert job.delay >= 59_000
 
-      {:ok, scheduler} = JobScheduler.get(conn, queue_name, "start-date-scheduler", prefix: @test_prefix)
+      {:ok, scheduler} =
+        JobScheduler.get(conn, queue_name, "start-date-scheduler", prefix: @test_prefix)
+
       assert scheduler.start_date == future
     end
   end
@@ -417,17 +462,19 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
 
     @tag :integration
     test "get returns full scheduler data", %{conn: conn, queue_name: queue_name} do
-      future_end = System.system_time(:millisecond) + 3_600_000  # 1 hour
+      # 1 hour
+      future_end = System.system_time(:millisecond) + 3_600_000
 
-      {:ok, _} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "full-data-test",
-        %{every: 2000, limit: 10, end_date: future_end, tz: "UTC"},
-        "detailed-job",
-        %{key: "value"},
-        prefix: @test_prefix
-      )
+      {:ok, _} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "full-data-test",
+          %{every: 2000, limit: 10, end_date: future_end, tz: "UTC"},
+          "detailed-job",
+          %{key: "value"},
+          prefix: @test_prefix
+        )
 
       {:ok, scheduler} = JobScheduler.get(conn, queue_name, "full-data-test", prefix: @test_prefix)
 
@@ -444,15 +491,16 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
     test "list returns schedulers in order", %{conn: conn, queue_name: queue_name} do
       # Create schedulers with different next times
       for i <- 1..5 do
-        {:ok, _} = JobScheduler.upsert(
-          conn,
-          queue_name,
-          "ordered-#{i}",
-          %{every: i * 10_000},
-          "job-#{i}",
-          %{},
-          prefix: @test_prefix
-        )
+        {:ok, _} =
+          JobScheduler.upsert(
+            conn,
+            queue_name,
+            "ordered-#{i}",
+            %{every: i * 10_000},
+            "job-#{i}",
+            %{},
+            prefix: @test_prefix
+          )
       end
 
       # Default order (descending)
@@ -469,23 +517,28 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
     @tag :integration
     test "list with pagination", %{conn: conn, queue_name: queue_name} do
       for i <- 1..10 do
-        {:ok, _} = JobScheduler.upsert(
-          conn,
-          queue_name,
-          "paginated-#{i}",
-          %{every: 1000},
-          "job-#{i}",
-          %{},
-          prefix: @test_prefix
-        )
+        {:ok, _} =
+          JobScheduler.upsert(
+            conn,
+            queue_name,
+            "paginated-#{i}",
+            %{every: 1000},
+            "job-#{i}",
+            %{},
+            prefix: @test_prefix
+          )
       end
 
       # Get first 3
-      {:ok, first_page} = JobScheduler.list(conn, queue_name, start: 0, end: 2, prefix: @test_prefix)
+      {:ok, first_page} =
+        JobScheduler.list(conn, queue_name, start: 0, end: 2, prefix: @test_prefix)
+
       assert length(first_page) == 3
 
       # Get next 3
-      {:ok, second_page} = JobScheduler.list(conn, queue_name, start: 3, end: 5, prefix: @test_prefix)
+      {:ok, second_page} =
+        JobScheduler.list(conn, queue_name, start: 3, end: 5, prefix: @test_prefix)
+
       assert length(second_page) == 3
 
       # No overlap
@@ -500,15 +553,16 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
       assert initial_count == 0
 
       for i <- 1..7 do
-        {:ok, _} = JobScheduler.upsert(
-          conn,
-          queue_name,
-          "counted-#{i}",
-          %{every: 1000},
-          "job",
-          %{},
-          prefix: @test_prefix
-        )
+        {:ok, _} =
+          JobScheduler.upsert(
+            conn,
+            queue_name,
+            "counted-#{i}",
+            %{every: 1000},
+            "job",
+            %{},
+            prefix: @test_prefix
+          )
       end
 
       {:ok, final_count} = JobScheduler.count(conn, queue_name, prefix: @test_prefix)
@@ -525,15 +579,16 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
     test "remove deletes scheduler and delayed job", %{conn: conn, queue_name: queue_name} do
       ctx = Keys.new(queue_name, prefix: @test_prefix)
 
-      {:ok, job} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "to-remove",
-        %{every: 60_000},
-        "test-job",
-        %{},
-        prefix: @test_prefix
-      )
+      {:ok, job} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "to-remove",
+          %{every: 60_000},
+          "test-job",
+          %{},
+          prefix: @test_prefix
+        )
 
       # Verify exists
       {:ok, scheduler} = JobScheduler.get(conn, queue_name, "to-remove", prefix: @test_prefix)
@@ -560,17 +615,20 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
 
     @tag :integration
     test "remove_by_key is alias for remove", %{conn: conn, queue_name: queue_name} do
-      {:ok, _} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "alias-test",
-        %{every: 1000},
-        "test-job",
-        %{},
-        prefix: @test_prefix
-      )
+      {:ok, _} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "alias-test",
+          %{every: 1000},
+          "test-job",
+          %{},
+          prefix: @test_prefix
+        )
 
-      {:ok, removed} = JobScheduler.remove_by_key(conn, queue_name, "alias-test", prefix: @test_prefix)
+      {:ok, removed} =
+        JobScheduler.remove_by_key(conn, queue_name, "alias-test", prefix: @test_prefix)
+
       assert removed == true
 
       {:ok, scheduler} = JobScheduler.get(conn, queue_name, "alias-test", prefix: @test_prefix)
@@ -591,17 +649,19 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
         tags: ["important", "scheduled"]
       }
 
-      {:ok, _} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "template-data-test",
-        %{every: 1000},
-        "notification-job",
-        job_data,
-        prefix: @test_prefix
-      )
+      {:ok, _} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "template-data-test",
+          %{every: 1000},
+          "notification-job",
+          job_data,
+          prefix: @test_prefix
+        )
 
-      {:ok, scheduler} = JobScheduler.get(conn, queue_name, "template-data-test", prefix: @test_prefix)
+      {:ok, scheduler} =
+        JobScheduler.get(conn, queue_name, "template-data-test", prefix: @test_prefix)
 
       assert scheduler.template.data["user_id"] == 123
       assert scheduler.template.data["action"] == "notify"
@@ -610,20 +670,22 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
 
     @tag :integration
     test "stores job options in template", %{conn: conn, queue_name: queue_name} do
-      {:ok, _} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "template-opts-test",
-        %{every: 1000},
-        "priority-job",
-        %{},
-        prefix: @test_prefix,
-        priority: 10,
-        attempts: 5,
-        backoff: %{type: "exponential", delay: 1000}
-      )
+      {:ok, _} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "template-opts-test",
+          %{every: 1000},
+          "priority-job",
+          %{},
+          prefix: @test_prefix,
+          priority: 10,
+          attempts: 5,
+          backoff: %{type: "exponential", delay: 1000}
+        )
 
-      {:ok, scheduler} = JobScheduler.get(conn, queue_name, "template-opts-test", prefix: @test_prefix)
+      {:ok, scheduler} =
+        JobScheduler.get(conn, queue_name, "template-opts-test", prefix: @test_prefix)
 
       assert scheduler.template.opts["priority"] == 10
       assert scheduler.template.opts["attempts"] == 5
@@ -690,15 +752,16 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
   describe "Timezone handling" do
     @tag :integration
     test "stores timezone in scheduler", %{conn: conn, queue_name: queue_name} do
-      {:ok, _} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "tz-test",
-        %{pattern: "0 9 * * *", tz: "America/New_York"},
-        "daily-job",
-        %{},
-        prefix: @test_prefix
-      )
+      {:ok, _} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "tz-test",
+          %{pattern: "0 9 * * *", tz: "America/New_York"},
+          "daily-job",
+          %{},
+          prefix: @test_prefix
+        )
 
       {:ok, scheduler} = JobScheduler.get(conn, queue_name, "tz-test", prefix: @test_prefix)
       assert scheduler.tz == "America/New_York"
@@ -712,15 +775,16 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
   describe "Iteration counting" do
     @tag :integration
     test "stores iteration count", %{conn: conn, queue_name: queue_name} do
-      {:ok, _} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "iteration-test",
-        %{every: 1000},
-        "test-job",
-        %{},
-        prefix: @test_prefix
-      )
+      {:ok, _} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "iteration-test",
+          %{every: 1000},
+          "test-job",
+          %{},
+          prefix: @test_prefix
+        )
 
       {:ok, scheduler} = JobScheduler.get(conn, queue_name, "iteration-test", prefix: @test_prefix)
       assert scheduler.iteration_count == 1
@@ -734,15 +798,16 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
   describe "Offset handling" do
     @tag :integration
     test "stores offset in scheduler", %{conn: conn, queue_name: queue_name} do
-      {:ok, _} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "offset-test",
-        %{every: 60_000, offset: 5000},
-        "offset-job",
-        %{},
-        prefix: @test_prefix
-      )
+      {:ok, _} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "offset-test",
+          %{every: 60_000, offset: 5000},
+          "offset-job",
+          %{},
+          prefix: @test_prefix
+        )
 
       {:ok, scheduler} = JobScheduler.get(conn, queue_name, "offset-test", prefix: @test_prefix)
       # Offset is calculated by the script, but we can verify it exists
@@ -758,32 +823,34 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
     @tag :integration
     test "handles concurrent upserts safely", %{conn: _conn, queue_name: queue_name} do
       # Create multiple connections for parallel operations
-      tasks = for i <- 1..5 do
-        Task.async(fn ->
-          {:ok, task_conn} = Redix.start_link(@redis_url)
+      tasks =
+        for i <- 1..5 do
+          Task.async(fn ->
+            {:ok, task_conn} = Redix.start_link(@redis_url)
 
-          result = JobScheduler.upsert(
-            task_conn,
-            queue_name,
-            "concurrent-test",
-            %{every: 1000 + i * 100},
-            "test-job",
-            %{index: i},
-            prefix: @test_prefix
-          )
+            result =
+              JobScheduler.upsert(
+                task_conn,
+                queue_name,
+                "concurrent-test",
+                %{every: 1000 + i * 100},
+                "test-job",
+                %{index: i},
+                prefix: @test_prefix
+              )
 
-          Redix.stop(task_conn)
-          result
-        end)
-      end
+            Redix.stop(task_conn)
+            result
+          end)
+        end
 
       results = Task.await_many(tasks)
 
       # All should succeed (upsert semantics)
       assert Enum.all?(results, fn
-        {:ok, _} -> true
-        _ -> false
-      end)
+               {:ok, _} -> true
+               _ -> false
+             end)
 
       # Should only have one scheduler
       {:ok, check_conn} = Redix.start_link(@redis_url)
@@ -807,23 +874,28 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
 
       # Start a connection pool
       pool_name = :"worker_pool_#{System.unique_integer([:positive])}"
-      {:ok, pool_pid} = BullMQ.RedisConnection.start_link(
-        name: pool_name,
-        url: @redis_url,
-        pool_size: 3
-      )
+
+      {:ok, pool_pid} =
+        BullMQ.RedisConnection.start_link(
+          name: pool_name,
+          url: @redis_url,
+          pool_size: 3
+        )
+
       Process.unlink(pool_pid)
 
       # Create scheduler with short interval for testing
-      {:ok, initial_job} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "every-worker-test",
-        %{every: 500},  # Every 500ms
-        "scheduled-job",
-        %{test: "data"},
-        prefix: @test_prefix
-      )
+      {:ok, initial_job} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "every-worker-test",
+          # Every 500ms
+          %{every: 500},
+          "scheduled-job",
+          %{test: "data"},
+          prefix: @test_prefix
+        )
 
       assert initial_job.repeat_job_key == "every-worker-test"
 
@@ -831,19 +903,20 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
       {:ok, counter} = Agent.start_link(fn -> [] end)
 
       # Start worker with event callback
-      {:ok, worker} = BullMQ.Worker.start_link(
-        queue: queue_name,
-        connection: pool_name,
-        prefix: @test_prefix,
-        processor: fn job ->
-          Agent.update(counter, fn jobs -> [job.id | jobs] end)
-          send(test_pid, {:processed, job.id, job.data})
-          {:ok, %{processed: true}}
-        end,
-        on_completed: fn job, _result ->
-          send(test_pid, {:completed, job.id})
-        end
-      )
+      {:ok, worker} =
+        BullMQ.Worker.start_link(
+          queue: queue_name,
+          connection: pool_name,
+          prefix: @test_prefix,
+          processor: fn job ->
+            Agent.update(counter, fn jobs -> [job.id | jobs] end)
+            send(test_pid, {:processed, job.id, job.data})
+            {:ok, %{processed: true}}
+          end,
+          on_completed: fn job, _result ->
+            send(test_pid, {:completed, job.id})
+          end
+        )
 
       # Wait for at least 3 job iterations
       assert_receive {:processed, _job_id1, data1}, 5_000
@@ -861,7 +934,9 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
       assert length(processed_jobs) >= 3
 
       # Verify scheduler still exists
-      {:ok, scheduler} = JobScheduler.get(conn, queue_name, "every-worker-test", prefix: @test_prefix)
+      {:ok, scheduler} =
+        JobScheduler.get(conn, queue_name, "every-worker-test", prefix: @test_prefix)
+
       assert scheduler != nil
       assert scheduler.iteration_count >= 3
 
@@ -878,37 +953,42 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
 
       # Start a connection pool
       pool_name = :"worker_pool_limit_#{System.unique_integer([:positive])}"
-      {:ok, pool_pid} = BullMQ.RedisConnection.start_link(
-        name: pool_name,
-        url: @redis_url,
-        pool_size: 3
-      )
+
+      {:ok, pool_pid} =
+        BullMQ.RedisConnection.start_link(
+          name: pool_name,
+          url: @redis_url,
+          pool_size: 3
+        )
+
       Process.unlink(pool_pid)
 
       # Create scheduler with limit of 3 iterations
-      {:ok, _initial_job} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "limited-scheduler",
-        %{every: 300, limit: 3},
-        "limited-job",
-        %{counter: 0},
-        prefix: @test_prefix
-      )
+      {:ok, _initial_job} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "limited-scheduler",
+          %{every: 300, limit: 3},
+          "limited-job",
+          %{counter: 0},
+          prefix: @test_prefix
+        )
 
       {:ok, counter} = Agent.start_link(fn -> 0 end)
 
       # Start worker
-      {:ok, worker} = BullMQ.Worker.start_link(
-        queue: queue_name,
-        connection: pool_name,
-        prefix: @test_prefix,
-        processor: fn _job ->
-          count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
-          send(test_pid, {:iteration, count + 1})
-          :ok
-        end
-      )
+      {:ok, worker} =
+        BullMQ.Worker.start_link(
+          queue: queue_name,
+          connection: pool_name,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
+            send(test_pid, {:iteration, count + 1})
+            :ok
+          end
+        )
 
       # Wait for exactly 3 iterations
       assert_receive {:iteration, 1}, 5_000
@@ -923,7 +1003,9 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
       assert final_count == 3
 
       # Check scheduler state
-      {:ok, scheduler} = JobScheduler.get(conn, queue_name, "limited-scheduler", prefix: @test_prefix)
+      {:ok, scheduler} =
+        JobScheduler.get(conn, queue_name, "limited-scheduler", prefix: @test_prefix)
+
       assert scheduler != nil
       assert scheduler.limit == 3
       # iteration_count might be 3 or higher depending on how the limit is enforced
@@ -941,11 +1023,14 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
 
       # Start a connection pool
       pool_name = :"worker_pool_data_#{System.unique_integer([:positive])}"
-      {:ok, pool_pid} = BullMQ.RedisConnection.start_link(
-        name: pool_name,
-        url: @redis_url,
-        pool_size: 3
-      )
+
+      {:ok, pool_pid} =
+        BullMQ.RedisConnection.start_link(
+          name: pool_name,
+          url: @redis_url,
+          pool_size: 3
+        )
+
       Process.unlink(pool_pid)
 
       # Create scheduler with specific data
@@ -958,26 +1043,28 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
         }
       }
 
-      {:ok, _initial_job} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "data-test-scheduler",
-        %{every: 400},
-        "report-job",
-        job_data,
-        prefix: @test_prefix
-      )
+      {:ok, _initial_job} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "data-test-scheduler",
+          %{every: 400},
+          "report-job",
+          job_data,
+          prefix: @test_prefix
+        )
 
       # Start worker
-      {:ok, worker} = BullMQ.Worker.start_link(
-        queue: queue_name,
-        connection: pool_name,
-        prefix: @test_prefix,
-        processor: fn job ->
-          send(test_pid, {:job_data, job.data})
-          :ok
-        end
-      )
+      {:ok, worker} =
+        BullMQ.Worker.start_link(
+          queue: queue_name,
+          connection: pool_name,
+          prefix: @test_prefix,
+          processor: fn job ->
+            send(test_pid, {:job_data, job.data})
+            :ok
+          end
+        )
 
       # Verify first job has correct data
       assert_receive {:job_data, received_data}, 5_000
@@ -1002,51 +1089,58 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
 
       # Start a connection pool
       pool_name = :"worker_pool_upsert_#{System.unique_integer([:positive])}"
-      {:ok, pool_pid} = BullMQ.RedisConnection.start_link(
-        name: pool_name,
-        url: @redis_url,
-        pool_size: 3
-      )
+
+      {:ok, pool_pid} =
+        BullMQ.RedisConnection.start_link(
+          name: pool_name,
+          url: @redis_url,
+          pool_size: 3
+        )
+
       Process.unlink(pool_pid)
 
       # Create initial scheduler
-      {:ok, _} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "upsert-test",
-        %{every: 500},
-        "job-v1",
-        %{version: 1},
-        prefix: @test_prefix
-      )
+      {:ok, _} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "upsert-test",
+          %{every: 500},
+          "job-v1",
+          %{version: 1},
+          prefix: @test_prefix
+        )
 
       {:ok, versions} = Agent.start_link(fn -> [] end)
 
       # Start worker
-      {:ok, worker} = BullMQ.Worker.start_link(
-        queue: queue_name,
-        connection: pool_name,
-        prefix: @test_prefix,
-        processor: fn job ->
-          Agent.update(versions, fn v -> [job.data["version"] | v] end)
-          send(test_pid, {:processed_version, job.data["version"]})
-          :ok
-        end
-      )
+      {:ok, worker} =
+        BullMQ.Worker.start_link(
+          queue: queue_name,
+          connection: pool_name,
+          prefix: @test_prefix,
+          processor: fn job ->
+            Agent.update(versions, fn v -> [job.data["version"] | v] end)
+            send(test_pid, {:processed_version, job.data["version"]})
+            :ok
+          end
+        )
 
       # Wait for first version
       assert_receive {:processed_version, 1}, 5_000
 
       # Update scheduler with new data
-      {:ok, _} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "upsert-test",
-        %{every: 300},  # Faster interval
-        "job-v2",
-        %{version: 2},
-        prefix: @test_prefix
-      )
+      {:ok, _} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "upsert-test",
+          # Faster interval
+          %{every: 300},
+          "job-v2",
+          %{version: 2},
+          prefix: @test_prefix
+        )
 
       # Wait for updated version to be processed
       # May take a moment for the update to take effect
@@ -1079,37 +1173,42 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
 
       # Start a connection pool
       pool_name = :"worker_pool_remove_#{System.unique_integer([:positive])}"
-      {:ok, pool_pid} = BullMQ.RedisConnection.start_link(
-        name: pool_name,
-        url: @redis_url,
-        pool_size: 3
-      )
+
+      {:ok, pool_pid} =
+        BullMQ.RedisConnection.start_link(
+          name: pool_name,
+          url: @redis_url,
+          pool_size: 3
+        )
+
       Process.unlink(pool_pid)
 
       # Create scheduler
-      {:ok, _} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "remove-test",
-        %{every: 400},
-        "removable-job",
-        %{},
-        prefix: @test_prefix
-      )
+      {:ok, _} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "remove-test",
+          %{every: 400},
+          "removable-job",
+          %{},
+          prefix: @test_prefix
+        )
 
       {:ok, counter} = Agent.start_link(fn -> 0 end)
 
       # Start worker
-      {:ok, worker} = BullMQ.Worker.start_link(
-        queue: queue_name,
-        connection: pool_name,
-        prefix: @test_prefix,
-        processor: fn _job ->
-          count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
-          send(test_pid, {:processed, count + 1})
-          :ok
-        end
-      )
+      {:ok, worker} =
+        BullMQ.Worker.start_link(
+          queue: queue_name,
+          connection: pool_name,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
+            send(test_pid, {:processed, count + 1})
+            :ok
+          end
+        )
 
       # Wait for first job
       assert_receive {:processed, 1}, 5_000
@@ -1141,35 +1240,41 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
 
       # Start a connection pool
       pool_name = :"worker_pool_cron_#{System.unique_integer([:positive])}"
-      {:ok, pool_pid} = BullMQ.RedisConnection.start_link(
-        name: pool_name,
-        url: @redis_url,
-        pool_size: 3
-      )
+
+      {:ok, pool_pid} =
+        BullMQ.RedisConnection.start_link(
+          name: pool_name,
+          url: @redis_url,
+          pool_size: 3
+        )
+
       Process.unlink(pool_pid)
 
       # Create scheduler with cron pattern that runs immediately for first execution
       # then every minute after that
-      {:ok, _} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "cron-test",
-        %{pattern: "* * * * *", immediately: true},  # Every minute, but first runs immediately
-        "cron-job",
-        %{type: "cron"},
-        prefix: @test_prefix
-      )
+      {:ok, _} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "cron-test",
+          # Every minute, but first runs immediately
+          %{pattern: "* * * * *", immediately: true},
+          "cron-job",
+          %{type: "cron"},
+          prefix: @test_prefix
+        )
 
       # Start worker
-      {:ok, worker} = BullMQ.Worker.start_link(
-        queue: queue_name,
-        connection: pool_name,
-        prefix: @test_prefix,
-        processor: fn job ->
-          send(test_pid, {:cron_processed, job.name, job.data})
-          :ok
-        end
-      )
+      {:ok, worker} =
+        BullMQ.Worker.start_link(
+          queue: queue_name,
+          connection: pool_name,
+          prefix: @test_prefix,
+          processor: fn job ->
+            send(test_pid, {:cron_processed, job.name, job.data})
+            :ok
+          end
+        )
 
       # Wait for job to be processed (immediately: true means it should be fast)
       assert_receive {:cron_processed, "cron-job", data}, 5_000
@@ -1187,36 +1292,42 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
 
       # Start a connection pool
       pool_name = :"worker_pool_immediate_#{System.unique_integer([:positive])}"
-      {:ok, pool_pid} = BullMQ.RedisConnection.start_link(
-        name: pool_name,
-        url: @redis_url,
-        pool_size: 3
-      )
+
+      {:ok, pool_pid} =
+        BullMQ.RedisConnection.start_link(
+          name: pool_name,
+          url: @redis_url,
+          pool_size: 3
+        )
+
       Process.unlink(pool_pid)
 
       start_time = System.monotonic_time(:millisecond)
 
       # Create scheduler with immediately option - pattern every hour but first runs now
-      {:ok, _} = JobScheduler.upsert(
-        conn,
-        queue_name,
-        "immediate-test",
-        %{pattern: "0 * * * *", immediately: true},  # Every hour, but immediately for first
-        "immediate-job",
-        %{},
-        prefix: @test_prefix
-      )
+      {:ok, _} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "immediate-test",
+          # Every hour, but immediately for first
+          %{pattern: "0 * * * *", immediately: true},
+          "immediate-job",
+          %{},
+          prefix: @test_prefix
+        )
 
       # Start worker
-      {:ok, worker} = BullMQ.Worker.start_link(
-        queue: queue_name,
-        connection: pool_name,
-        prefix: @test_prefix,
-        processor: fn job ->
-          send(test_pid, {:immediate_processed, job.name})
-          :ok
-        end
-      )
+      {:ok, worker} =
+        BullMQ.Worker.start_link(
+          queue: queue_name,
+          connection: pool_name,
+          prefix: @test_prefix,
+          processor: fn job ->
+            send(test_pid, {:immediate_processed, job.name})
+            :ok
+          end
+        )
 
       # First job should be processed quickly (not waiting for the cron pattern)
       assert_receive {:immediate_processed, "immediate-job"}, 5_000
@@ -1239,41 +1350,59 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
 
       # Start a connection pool
       pool_name = :"worker_pool_multi_#{System.unique_integer([:positive])}"
-      {:ok, pool_pid} = BullMQ.RedisConnection.start_link(
-        name: pool_name,
-        url: @redis_url,
-        pool_size: 3
-      )
+
+      {:ok, pool_pid} =
+        BullMQ.RedisConnection.start_link(
+          name: pool_name,
+          url: @redis_url,
+          pool_size: 3
+        )
+
       Process.unlink(pool_pid)
 
       # Create multiple schedulers with different intervals
-      {:ok, _} = JobScheduler.upsert(
-        conn, queue_name, "scheduler-a", %{every: 300}, "job-a", %{scheduler: "a"},
-        prefix: @test_prefix
-      )
+      {:ok, _} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "scheduler-a",
+          %{every: 300},
+          "job-a",
+          %{scheduler: "a"},
+          prefix: @test_prefix
+        )
 
-      {:ok, _} = JobScheduler.upsert(
-        conn, queue_name, "scheduler-b", %{every: 500}, "job-b", %{scheduler: "b"},
-        prefix: @test_prefix
-      )
+      {:ok, _} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "scheduler-b",
+          %{every: 500},
+          "job-b",
+          %{scheduler: "b"},
+          prefix: @test_prefix
+        )
 
       {:ok, processed} = Agent.start_link(fn -> %{a: 0, b: 0} end)
 
       # Start worker
-      {:ok, worker} = BullMQ.Worker.start_link(
-        queue: queue_name,
-        connection: pool_name,
-        prefix: @test_prefix,
-        processor: fn job ->
-          scheduler = job.data["scheduler"]
-          key = String.to_atom(scheduler)
-          Agent.update(processed, fn counts ->
-            Map.update(counts, key, 1, &(&1 + 1))
-          end)
-          send(test_pid, {:processed, scheduler})
-          :ok
-        end
-      )
+      {:ok, worker} =
+        BullMQ.Worker.start_link(
+          queue: queue_name,
+          connection: pool_name,
+          prefix: @test_prefix,
+          processor: fn job ->
+            scheduler = job.data["scheduler"]
+            key = String.to_atom(scheduler)
+
+            Agent.update(processed, fn counts ->
+              Map.update(counts, key, 1, &(&1 + 1))
+            end)
+
+            send(test_pid, {:processed, scheduler})
+            :ok
+          end
+        )
 
       # Wait for jobs from both schedulers
       Enum.each(1..4, fn _ ->

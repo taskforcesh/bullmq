@@ -118,7 +118,8 @@ defmodule BullMQ.Types do
   - `%{age: ms}` - Remove after job is older than this
   - `%{count: n}` - Keep only the last n jobs
   """
-  @type keep_jobs :: boolean() | non_neg_integer() | %{age: duration_ms()} | %{count: non_neg_integer()}
+  @type keep_jobs ::
+          boolean() | non_neg_integer() | %{age: duration_ms()} | %{count: non_neg_integer()}
 
   @typedoc """
   Worker failure behavior for parent jobs.

@@ -121,7 +121,8 @@ defmodule BullMQ.StalledChecker do
   @doc """
   Checks if a specific job is stalled.
   """
-  @spec job_stalled?(atom(), String.t(), String.t(), Keyword.t()) :: {:ok, boolean()} | {:error, term()}
+  @spec job_stalled?(atom(), String.t(), String.t(), Keyword.t()) ::
+          {:ok, boolean()} | {:error, term()}
   def job_stalled?(connection, queue, job_id, opts \\ []) do
     prefix = Keyword.get(opts, :prefix, "bull")
     ctx = Keys.context(prefix, queue)

@@ -72,38 +72,39 @@ defmodule BullMQ.Queue do
 
   require Logger
 
-  @opts_schema NimbleOptions.new!([
-    name: [
-      type: :atom,
-      required: true,
-      doc: "The name to register the GenServer process under."
-    ],
-    queue: [
-      type: :string,
-      required: true,
-      doc: "The name of the queue."
-    ],
-    connection: [
-      type: {:or, [:atom, :pid, {:tuple, [:atom, :atom]}]},
-      required: true,
-      doc: "The Redis connection (atom name, pid, or `{:via, registry}` tuple)."
-    ],
-    prefix: [
-      type: :string,
-      default: "bull",
-      doc: "The prefix for Redis keys."
-    ],
-    default_job_opts: [
-      type: :map,
-      default: %{},
-      doc: "Default options to apply to all jobs added through this queue."
-    ],
-    telemetry: [
-      type: :atom,
-      default: nil,
-      doc: "Module implementing `BullMQ.Telemetry.Behaviour` for distributed tracing (e.g., `BullMQ.Telemetry.OpenTelemetry`)."
-    ]
-  ])
+  @opts_schema NimbleOptions.new!(
+                 name: [
+                   type: :atom,
+                   required: true,
+                   doc: "The name to register the GenServer process under."
+                 ],
+                 queue: [
+                   type: :string,
+                   required: true,
+                   doc: "The name of the queue."
+                 ],
+                 connection: [
+                   type: {:or, [:atom, :pid, {:tuple, [:atom, :atom]}]},
+                   required: true,
+                   doc: "The Redis connection (atom name, pid, or `{:via, registry}` tuple)."
+                 ],
+                 prefix: [
+                   type: :string,
+                   default: "bull",
+                   doc: "The prefix for Redis keys."
+                 ],
+                 default_job_opts: [
+                   type: :map,
+                   default: %{},
+                   doc: "Default options to apply to all jobs added through this queue."
+                 ],
+                 telemetry: [
+                   type: :atom,
+                   default: nil,
+                   doc:
+                     "Module implementing `BullMQ.Telemetry.Behaviour` for distributed tracing (e.g., `BullMQ.Telemetry.OpenTelemetry`)."
+                 ]
+               )
 
   @type t :: %__MODULE__{
           name: String.t(),
@@ -252,7 +253,11 @@ defmodule BullMQ.Queue do
     * Delayed and prioritized jobs fall back to sequential processing
     * Returns `{:error, {:partial_failure, results}}` if some jobs fail
   """
-  @spec add_bulk(atom() | pid() | String.t(), [{Types.job_name(), Types.job_data(), keyword()}], keyword()) ::
+  @spec add_bulk(
+          atom() | pid() | String.t(),
+          [{Types.job_name(), Types.job_data(), keyword()}],
+          keyword()
+        ) ::
           {:ok, [Job.t()]} | {:error, term()}
   def add_bulk(queue, jobs, opts \\ [])
 
@@ -286,74 +291,84 @@ defmodule BullMQ.Queue do
     chunk_size = Keyword.get(opts, :chunk_size, @default_chunk_size)
 
     # Separate jobs by type (standard, delayed, prioritized)
-    {standard_jobs, other_jobs} = Enum.split_with(jobs, fn {_name, _data, job_opts} ->
-      merged = Keyword.merge(opts, job_opts)
-      delay = Keyword.get(merged, :delay, 0)
-      priority = Keyword.get(merged, :priority, 0)
-      delay == 0 and priority == 0
-    end)
-
-    # For standard jobs, use pipelining with concurrent chunks
-    standard_results = if Enum.empty?(standard_jobs) do
-      []
-    else
-      # Prepare all jobs with their options
-      jobs_with_opts = Enum.map(standard_jobs, fn {name, data, job_opts} ->
-        merged_opts = Keyword.merge(opts, job_opts)
-        job = Job.new(queue, name, data, merged_opts)
-        encoded_opts = encode_job_opts(job.opts)
-        {job, encoded_opts}
+    {standard_jobs, other_jobs} =
+      Enum.split_with(jobs, fn {_name, _data, job_opts} ->
+        merged = Keyword.merge(opts, job_opts)
+        delay = Keyword.get(merged, :delay, 0)
+        priority = Keyword.get(merged, :priority, 0)
+        delay == 0 and priority == 0
       end)
 
-      # Split into chunks
-      chunks = Enum.chunk_every(jobs_with_opts, chunk_size)
-      num_chunks = length(chunks)
+    # For standard jobs, use pipelining with concurrent chunks
+    standard_results =
+      if Enum.empty?(standard_jobs) do
+        []
+      else
+        # Prepare all jobs with their options
+        jobs_with_opts =
+          Enum.map(standard_jobs, fn {name, data, job_opts} ->
+            merged_opts = Keyword.merge(opts, job_opts)
+            job = Job.new(queue, name, data, merged_opts)
+            encoded_opts = encode_job_opts(job.opts)
+            {job, encoded_opts}
+          end)
 
-      # Get connection pool or create single-connection "pool"
-      conn_pool = Keyword.get(opts, :connection_pool, [conn])
-      conn_pool = if is_list(conn_pool), do: conn_pool, else: [conn_pool]
+        # Split into chunks
+        chunks = Enum.chunk_every(jobs_with_opts, chunk_size)
+        num_chunks = length(chunks)
 
-      # Determine concurrency: min of (requested, num_chunks, pool_size)
-      requested_concurrency = Keyword.get(opts, :concurrency, @default_bulk_concurrency)
-      max_concurrency = requested_concurrency
-        |> min(num_chunks)          # Can't have more concurrency than chunks
-        |> min(length(conn_pool))   # Can't have more concurrency than connections
-        |> max(1)                   # At least 1
+        # Get connection pool or create single-connection "pool"
+        conn_pool = Keyword.get(opts, :connection_pool, [conn])
+        conn_pool = if is_list(conn_pool), do: conn_pool, else: [conn_pool]
 
-      # Ensure scripts are loaded before concurrent execution
-      Scripts.ensure_scripts_loaded(conn, [:add_standard_job])
+        # Determine concurrency: min of (requested, num_chunks, pool_size)
+        requested_concurrency = Keyword.get(opts, :concurrency, @default_bulk_concurrency)
 
-      # Process chunks concurrently
-      chunks
-      |> Enum.with_index()
-      |> Task.async_stream(
-        fn {chunk, idx} ->
-          # Round-robin connection selection
-          chunk_conn = Enum.at(conn_pool, rem(idx, length(conn_pool)))
+        max_concurrency =
+          requested_concurrency
+          # Can't have more concurrency than chunks
+          |> min(num_chunks)
+          # Can't have more concurrency than connections
+          |> min(length(conn_pool))
+          # At least 1
+          |> max(1)
 
-          case Scripts.add_standard_jobs_pipelined(chunk_conn, ctx, chunk) do
-            {:ok, job_ids} ->
-              Enum.zip(chunk, job_ids)
-              |> Enum.map(fn {{job, _opts}, job_id} ->
-                {:ok, %{job | id: to_string(job_id)}}
-              end)
-            {:error, reason} ->
-              Enum.map(chunk, fn _ -> {:error, reason} end)
-          end
-        end,
-        max_concurrency: max_concurrency,
-        timeout: 60_000,
-        ordered: true
-      )
-      |> Enum.flat_map(fn {:ok, results} -> results end)
-    end
+        # Ensure scripts are loaded before concurrent execution
+        Scripts.ensure_scripts_loaded(conn, [:add_standard_job])
+
+        # Process chunks concurrently
+        chunks
+        |> Enum.with_index()
+        |> Task.async_stream(
+          fn {chunk, idx} ->
+            # Round-robin connection selection
+            chunk_conn = Enum.at(conn_pool, rem(idx, length(conn_pool)))
+
+            case Scripts.add_standard_jobs_pipelined(chunk_conn, ctx, chunk) do
+              {:ok, job_ids} ->
+                Enum.zip(chunk, job_ids)
+                |> Enum.map(fn {{job, _opts}, job_id} ->
+                  {:ok, %{job | id: to_string(job_id)}}
+                end)
+
+              {:error, reason} ->
+                Enum.map(chunk, fn _ -> {:error, reason} end)
+            end
+          end,
+          max_concurrency: max_concurrency,
+          timeout: 60_000,
+          ordered: true
+        )
+        |> Enum.flat_map(fn {:ok, results} -> results end)
+      end
 
     # For other jobs (delayed/prioritized), fall back to sequential
-    other_results = Enum.map(other_jobs, fn {name, data, job_opts} ->
-      merged_opts = Keyword.merge(opts, job_opts)
-      job = Job.new(queue, name, data, merged_opts)
-      add_job(conn, ctx, job)
-    end)
+    other_results =
+      Enum.map(other_jobs, fn {name, data, job_opts} ->
+        merged_opts = Keyword.merge(opts, job_opts)
+        job = Job.new(queue, name, data, merged_opts)
+        add_job(conn, ctx, job)
+      end)
 
     all_results = standard_results ++ other_results
     errors = Enum.filter(all_results, &match?({:error, _}, &1))
@@ -507,7 +522,11 @@ defmodule BullMQ.Queue do
   end
 
   def count(queue, opts) when is_binary(queue) do
-    get_job_count_by_types(queue, [:waiting, :paused, :delayed, :prioritized, :waiting_children], opts)
+    get_job_count_by_types(
+      queue,
+      [:waiting, :paused, :delayed, :prioritized, :waiting_children],
+      opts
+    )
   end
 
   @doc """
@@ -536,9 +555,10 @@ defmodule BullMQ.Queue do
     # Sanitize types - if :waiting is included, also include :paused
     sanitized_types = sanitize_job_types(types)
 
-    commands = Enum.map(sanitized_types, fn type ->
-      build_count_command(ctx, type)
-    end)
+    commands =
+      Enum.map(sanitized_types, fn type ->
+        build_count_command(ctx, type)
+      end)
 
     case RedisConnection.pipeline(conn, commands) do
       {:ok, results} ->
@@ -608,14 +628,16 @@ defmodule BullMQ.Queue do
     case RedisConnection.command(conn, ["HGETALL", Keys.meta(ctx)]) do
       {:ok, data} ->
         meta_map = parse_hash_data(data)
-        {:ok, %{
-          paused: meta_map["paused"] == "1",
-          version: meta_map["version"],
-          concurrency: parse_int_or_nil(meta_map["concurrency"]),
-          max: parse_int_or_nil(meta_map["max"]),
-          duration: parse_int_or_nil(meta_map["duration"]),
-          max_len_events: parse_int_or_nil(meta_map["opts.maxLenEvents"]) || 10_000
-        }}
+
+        {:ok,
+         %{
+           paused: meta_map["paused"] == "1",
+           version: meta_map["version"],
+           concurrency: parse_int_or_nil(meta_map["concurrency"]),
+           max: parse_int_or_nil(meta_map["max"]),
+           duration: parse_int_or_nil(meta_map["duration"]),
+           max_len_events: parse_int_or_nil(meta_map["opts.maxLenEvents"]) || 10_000
+         }}
 
       {:error, _} = error ->
         error
@@ -661,16 +683,35 @@ defmodule BullMQ.Queue do
     job_ids_results =
       Enum.map(state_list, fn state ->
         case state do
-          :waiting -> RedisConnection.command(conn, ["LRANGE", Keys.wait(ctx), start_idx, end_idx])
-          :active -> RedisConnection.command(conn, ["LRANGE", Keys.active(ctx), start_idx, end_idx])
-          :delayed -> RedisConnection.command(conn, ["ZRANGE", Keys.delayed(ctx), start_idx, end_idx])
-          :prioritized -> RedisConnection.command(conn, ["ZRANGE", Keys.prioritized(ctx), start_idx, end_idx])
-          :completed -> RedisConnection.command(conn, ["ZRANGE", Keys.completed(ctx), start_idx, end_idx])
-          :failed -> RedisConnection.command(conn, ["ZRANGE", Keys.failed(ctx), start_idx, end_idx])
-          :paused -> RedisConnection.command(conn, ["LRANGE", Keys.paused(ctx), start_idx, end_idx])
-          :wait -> RedisConnection.command(conn, ["LRANGE", Keys.wait(ctx), start_idx, end_idx])
-          :waiting_children -> RedisConnection.command(conn, ["ZRANGE", Keys.waiting_children(ctx), start_idx, end_idx])
-          _ -> {:ok, []}
+          :waiting ->
+            RedisConnection.command(conn, ["LRANGE", Keys.wait(ctx), start_idx, end_idx])
+
+          :active ->
+            RedisConnection.command(conn, ["LRANGE", Keys.active(ctx), start_idx, end_idx])
+
+          :delayed ->
+            RedisConnection.command(conn, ["ZRANGE", Keys.delayed(ctx), start_idx, end_idx])
+
+          :prioritized ->
+            RedisConnection.command(conn, ["ZRANGE", Keys.prioritized(ctx), start_idx, end_idx])
+
+          :completed ->
+            RedisConnection.command(conn, ["ZRANGE", Keys.completed(ctx), start_idx, end_idx])
+
+          :failed ->
+            RedisConnection.command(conn, ["ZRANGE", Keys.failed(ctx), start_idx, end_idx])
+
+          :paused ->
+            RedisConnection.command(conn, ["LRANGE", Keys.paused(ctx), start_idx, end_idx])
+
+          :wait ->
+            RedisConnection.command(conn, ["LRANGE", Keys.wait(ctx), start_idx, end_idx])
+
+          :waiting_children ->
+            RedisConnection.command(conn, ["ZRANGE", Keys.waiting_children(ctx), start_idx, end_idx])
+
+          _ ->
+            {:ok, []}
         end
       end)
 
@@ -734,7 +775,8 @@ defmodule BullMQ.Queue do
 
       {:ok, jobs} = BullMQ.Queue.get_waiting_children("my_queue", connection: :redis)
   """
-  @spec get_waiting_children(atom() | pid() | String.t(), keyword()) :: {:ok, [Job.t()]} | {:error, term()}
+  @spec get_waiting_children(atom() | pid() | String.t(), keyword()) ::
+          {:ok, [Job.t()]} | {:error, term()}
   def get_waiting_children(queue, opts \\ []) do
     get_jobs(queue, [:waiting_children], opts)
   end
@@ -770,7 +812,8 @@ defmodule BullMQ.Queue do
 
       {:ok, jobs} = BullMQ.Queue.get_prioritized("my_queue", connection: :redis)
   """
-  @spec get_prioritized(atom() | pid() | String.t(), keyword()) :: {:ok, [Job.t()]} | {:error, term()}
+  @spec get_prioritized(atom() | pid() | String.t(), keyword()) ::
+          {:ok, [Job.t()]} | {:error, term()}
   def get_prioritized(queue, opts \\ []) do
     get_jobs(queue, [:prioritized], opts)
   end
@@ -810,7 +853,8 @@ defmodule BullMQ.Queue do
 
       {:ok, count} = BullMQ.Queue.get_completed_count("my_queue", connection: :redis)
   """
-  @spec get_completed_count(atom() | pid() | String.t(), keyword()) :: {:ok, integer()} | {:error, term()}
+  @spec get_completed_count(atom() | pid() | String.t(), keyword()) ::
+          {:ok, integer()} | {:error, term()}
   def get_completed_count(queue, opts \\ []) do
     get_job_count_by_types(queue, [:completed], opts)
   end
@@ -822,7 +866,8 @@ defmodule BullMQ.Queue do
 
       {:ok, count} = BullMQ.Queue.get_failed_count("my_queue", connection: :redis)
   """
-  @spec get_failed_count(atom() | pid() | String.t(), keyword()) :: {:ok, integer()} | {:error, term()}
+  @spec get_failed_count(atom() | pid() | String.t(), keyword()) ::
+          {:ok, integer()} | {:error, term()}
   def get_failed_count(queue, opts \\ []) do
     get_job_count_by_types(queue, [:failed], opts)
   end
@@ -834,7 +879,8 @@ defmodule BullMQ.Queue do
 
       {:ok, count} = BullMQ.Queue.get_delayed_count("my_queue", connection: :redis)
   """
-  @spec get_delayed_count(atom() | pid() | String.t(), keyword()) :: {:ok, integer()} | {:error, term()}
+  @spec get_delayed_count(atom() | pid() | String.t(), keyword()) ::
+          {:ok, integer()} | {:error, term()}
   def get_delayed_count(queue, opts \\ []) do
     get_job_count_by_types(queue, [:delayed], opts)
   end
@@ -846,7 +892,8 @@ defmodule BullMQ.Queue do
 
       {:ok, count} = BullMQ.Queue.get_active_count("my_queue", connection: :redis)
   """
-  @spec get_active_count(atom() | pid() | String.t(), keyword()) :: {:ok, integer()} | {:error, term()}
+  @spec get_active_count(atom() | pid() | String.t(), keyword()) ::
+          {:ok, integer()} | {:error, term()}
   def get_active_count(queue, opts \\ []) do
     get_job_count_by_types(queue, [:active], opts)
   end
@@ -858,7 +905,8 @@ defmodule BullMQ.Queue do
 
       {:ok, count} = BullMQ.Queue.get_prioritized_count("my_queue", connection: :redis)
   """
-  @spec get_prioritized_count(atom() | pid() | String.t(), keyword()) :: {:ok, integer()} | {:error, term()}
+  @spec get_prioritized_count(atom() | pid() | String.t(), keyword()) ::
+          {:ok, integer()} | {:error, term()}
   def get_prioritized_count(queue, opts \\ []) do
     get_job_count_by_types(queue, [:prioritized], opts)
   end
@@ -870,7 +918,8 @@ defmodule BullMQ.Queue do
 
       {:ok, count} = BullMQ.Queue.get_waiting_count("my_queue", connection: :redis)
   """
-  @spec get_waiting_count(atom() | pid() | String.t(), keyword()) :: {:ok, integer()} | {:error, term()}
+  @spec get_waiting_count(atom() | pid() | String.t(), keyword()) ::
+          {:ok, integer()} | {:error, term()}
   def get_waiting_count(queue, opts \\ []) do
     get_job_count_by_types(queue, [:waiting], opts)
   end
@@ -882,7 +931,8 @@ defmodule BullMQ.Queue do
 
       {:ok, count} = BullMQ.Queue.get_waiting_children_count("my_queue", connection: :redis)
   """
-  @spec get_waiting_children_count(atom() | pid() | String.t(), keyword()) :: {:ok, integer()} | {:error, term()}
+  @spec get_waiting_children_count(atom() | pid() | String.t(), keyword()) ::
+          {:ok, integer()} | {:error, term()}
   def get_waiting_children_count(queue, opts \\ []) do
     get_job_count_by_types(queue, [:waiting_children], opts)
   end
@@ -901,7 +951,8 @@ defmodule BullMQ.Queue do
       {:ok, concurrency} = BullMQ.Queue.get_global_concurrency("my_queue", connection: :redis)
       # {:ok, 10} or {:ok, nil}
   """
-  @spec get_global_concurrency(atom() | pid() | String.t(), keyword()) :: {:ok, integer() | nil} | {:error, term()}
+  @spec get_global_concurrency(atom() | pid() | String.t(), keyword()) ::
+          {:ok, integer() | nil} | {:error, term()}
   def get_global_concurrency(queue, opts \\ [])
 
   def get_global_concurrency(queue, _opts) when is_atom(queue) or is_pid(queue) do
@@ -968,7 +1019,8 @@ defmodule BullMQ.Queue do
 
       {:ok, ttl} = BullMQ.Queue.get_rate_limit_ttl("my_queue", connection: :redis)
   """
-  @spec get_rate_limit_ttl(atom() | pid() | String.t(), keyword()) :: {:ok, integer()} | {:error, term()}
+  @spec get_rate_limit_ttl(atom() | pid() | String.t(), keyword()) ::
+          {:ok, integer()} | {:error, term()}
   def get_rate_limit_ttl(queue, opts \\ [])
 
   def get_rate_limit_ttl(queue, _opts) when is_atom(queue) or is_pid(queue) do
@@ -1208,7 +1260,8 @@ defmodule BullMQ.Queue do
 
       {:ok, count} = BullMQ.Queue.get_workers_count("my_queue", connection: :redis)
   """
-  @spec get_workers_count(atom() | pid() | String.t(), keyword()) :: {:ok, integer()} | {:error, term()}
+  @spec get_workers_count(atom() | pid() | String.t(), keyword()) ::
+          {:ok, integer()} | {:error, term()}
   def get_workers_count(queue, opts \\ []) do
     case get_workers(queue, opts) do
       {:ok, workers} -> {:ok, length(workers)}
@@ -1480,7 +1533,15 @@ defmodule BullMQ.Queue do
       end
 
     if key do
-      case RedisConnection.command(conn, ["ZRANGEBYSCORE", key, "-inf", timestamp, "LIMIT", "0", limit]) do
+      case RedisConnection.command(conn, [
+             "ZRANGEBYSCORE",
+             key,
+             "-inf",
+             timestamp,
+             "LIMIT",
+             "0",
+             limit
+           ]) do
         {:ok, job_ids} ->
           # Remove each job
           Enum.each(job_ids, fn job_id ->
@@ -1662,7 +1723,9 @@ defmodule BullMQ.Queue do
   end
 
   def handle_call({:get_job_count_by_types, types}, _from, state) do
-    result = get_job_count_by_types(state.name, types, connection: state.connection, prefix: state.prefix)
+    result =
+      get_job_count_by_types(state.name, types, connection: state.connection, prefix: state.prefix)
+
     {:reply, result, state}
   end
 
@@ -1687,12 +1750,22 @@ defmodule BullMQ.Queue do
   end
 
   def handle_call({:get_deduplication_job_id, dedup_id}, _from, state) do
-    result = get_deduplication_job_id(state.name, dedup_id, connection: state.connection, prefix: state.prefix)
+    result =
+      get_deduplication_job_id(state.name, dedup_id,
+        connection: state.connection,
+        prefix: state.prefix
+      )
+
     {:reply, result, state}
   end
 
   def handle_call({:remove_deduplication_key, dedup_id}, _from, state) do
-    result = remove_deduplication_key(state.name, dedup_id, connection: state.connection, prefix: state.prefix)
+    result =
+      remove_deduplication_key(state.name, dedup_id,
+        connection: state.connection,
+        prefix: state.prefix
+      )
+
     {:reply, result, state}
   end
 
@@ -1770,6 +1843,7 @@ defmodule BullMQ.Queue do
   end
 
   defp parse_int_or_nil(nil), do: nil
+
   defp parse_int_or_nil(str) when is_binary(str) do
     case Integer.parse(str) do
       {int, ""} -> int

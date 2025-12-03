@@ -26,6 +26,7 @@ defmodule BullMQ.IntegrationTest do
         {:ok, cleanup_conn} ->
           cleanup_keys(cleanup_conn)
           Redix.stop(cleanup_conn)
+
         _ ->
           :ok
       end
@@ -38,6 +39,7 @@ defmodule BullMQ.IntegrationTest do
     case Redix.command(conn, ["KEYS", "#{@test_prefix}:*"]) do
       {:ok, [_ | _] = keys} ->
         Redix.command(conn, ["DEL" | keys])
+
       _ ->
         :ok
     end
@@ -65,16 +67,21 @@ defmodule BullMQ.IntegrationTest do
       stored_map = Enum.chunk_every(stored, 2) |> Map.new(fn [k, v] -> {k, v} end)
 
       assert stored_map["name"] == "email-job"
-      assert Jason.decode!(stored_map["data"]) == %{"to" => "user@example.com", "subject" => "Hello"}
+
+      assert Jason.decode!(stored_map["data"]) == %{
+               "to" => "user@example.com",
+               "subject" => "Hello"
+             }
     end
 
     @tag :integration
     test "job IDs are unique", %{conn: _conn} do
       queue_name = "test-unique-#{System.unique_integer([:positive])}"
 
-      jobs = for _ <- 1..100 do
-        Job.new(queue_name, "test", %{})
-      end
+      jobs =
+        for _ <- 1..100 do
+          Job.new(queue_name, "test", %{})
+        end
 
       ids = Enum.map(jobs, & &1.id)
       assert length(Enum.uniq(ids)) == 100
@@ -82,14 +89,15 @@ defmodule BullMQ.IntegrationTest do
 
     @tag :integration
     test "job preserves all options", %{conn: _conn} do
-      job = Job.new("queue", "test", %{key: "value"},
-        priority: 5,
-        delay: 1000,
-        attempts: 3,
-        backoff: %{type: :exponential, delay: 500},
-        remove_on_complete: true,
-        remove_on_fail: 100
-      )
+      job =
+        Job.new("queue", "test", %{key: "value"},
+          priority: 5,
+          delay: 1000,
+          attempts: 3,
+          backoff: %{type: :exponential, delay: 500},
+          remove_on_complete: true,
+          remove_on_fail: 100
+        )
 
       assert job.priority == 5
       assert job.delay == 1000
@@ -155,11 +163,12 @@ defmodule BullMQ.IntegrationTest do
       ctx = Keys.context(@test_prefix, queue_name)
 
       # Add multiple jobs to wait list
-      _job_ids = for i <- 1..5 do
-        job_id = "job-#{i}"
-        {:ok, _} = Redix.command(conn, ["RPUSH", Keys.wait(ctx), job_id])
-        job_id
-      end
+      _job_ids =
+        for i <- 1..5 do
+          job_id = "job-#{i}"
+          {:ok, _} = Redix.command(conn, ["RPUSH", Keys.wait(ctx), job_id])
+          job_id
+        end
 
       # Verify list length
       {:ok, len} = Redix.command(conn, ["LLEN", Keys.wait(ctx)])
@@ -284,14 +293,18 @@ defmodule BullMQ.IntegrationTest do
       assert stored_token == token
 
       # Try to acquire again (should fail)
-      {:ok, result} = Redix.command(conn, ["SET", Keys.lock(ctx, job_id), "other-token", "PX", 30000, "NX"])
+      {:ok, result} =
+        Redix.command(conn, ["SET", Keys.lock(ctx, job_id), "other-token", "PX", 30000, "NX"])
+
       assert result == nil
 
       # Release lock
       {:ok, _} = Redix.command(conn, ["DEL", Keys.lock(ctx, job_id)])
 
       # Now can acquire again
-      {:ok, result} = Redix.command(conn, ["SET", Keys.lock(ctx, job_id), "new-token", "PX", 30000, "NX"])
+      {:ok, result} =
+        Redix.command(conn, ["SET", Keys.lock(ctx, job_id), "new-token", "PX", 30000, "NX"])
+
       assert result == "OK"
     end
 
@@ -444,15 +457,17 @@ defmodule BullMQ.IntegrationTest do
       {script, key_count} = Scripts.get(:pause)
 
       # Build keys based on key count
-      keys = [
-        Keys.wait(ctx),
-        Keys.paused(ctx),
-        Keys.meta(ctx),
-        Keys.prioritized(ctx),
-        Keys.pc(ctx),
-        Keys.marker(ctx),
-        Keys.events(ctx)
-      ] |> Enum.take(key_count)
+      keys =
+        [
+          Keys.wait(ctx),
+          Keys.paused(ctx),
+          Keys.meta(ctx),
+          Keys.prioritized(ctx),
+          Keys.pc(ctx),
+          Keys.marker(ctx),
+          Keys.events(ctx)
+        ]
+        |> Enum.take(key_count)
 
       args = ["paused"]
 
@@ -479,7 +494,21 @@ defmodule BullMQ.IntegrationTest do
       {:ok, _} = Redix.command(conn, ["RPUSH", Keys.wait(ctx), "w1", "w2", "w3"])
       {:ok, _} = Redix.command(conn, ["RPUSH", Keys.active(ctx), "a1", "a2"])
       {:ok, _} = Redix.command(conn, ["ZADD", Keys.delayed(ctx), now + 10000, "d1"])
-      {:ok, _} = Redix.command(conn, ["ZADD", Keys.completed(ctx), now, "c1", now+1, "c2", now+2, "c3", now+3, "c4"])
+
+      {:ok, _} =
+        Redix.command(conn, [
+          "ZADD",
+          Keys.completed(ctx),
+          now,
+          "c1",
+          now + 1,
+          "c2",
+          now + 2,
+          "c3",
+          now + 3,
+          "c4"
+        ])
+
       {:ok, _} = Redix.command(conn, ["ZADD", Keys.failed(ctx), now, "f1"])
 
       # Get counts
@@ -503,7 +532,8 @@ defmodule BullMQ.IntegrationTest do
       now = System.system_time(:millisecond)
 
       # Add completed jobs with different ages
-      old_time = now - 3600_000  # 1 hour ago
+      # 1 hour ago
+      old_time = now - 3600_000
 
       {:ok, _} = Redix.command(conn, ["ZADD", Keys.completed(ctx), old_time, "old-1"])
       {:ok, _} = Redix.command(conn, ["ZADD", Keys.completed(ctx), old_time + 100, "old-2"])
@@ -562,10 +592,18 @@ defmodule BullMQ.IntegrationTest do
 
       # Add many events with exact MAXLEN (not approximate ~)
       for i <- 1..150 do
-        {:ok, _} = Redix.command(conn, [
-          "XADD", Keys.events(ctx), "MAXLEN", max_events, "*",
-          "event", "test", "index", "#{i}"
-        ])
+        {:ok, _} =
+          Redix.command(conn, [
+            "XADD",
+            Keys.events(ctx),
+            "MAXLEN",
+            max_events,
+            "*",
+            "event",
+            "test",
+            "index",
+            "#{i}"
+          ])
       end
 
       # Check length is exactly max
@@ -593,10 +631,11 @@ defmodule BullMQ.IntegrationTest do
       # Check which jobs have locks
       active_jobs = ["job-1", "job-2", "job-3"]
 
-      stalled_jobs = Enum.filter(active_jobs, fn job_id ->
-        {:ok, lock} = Redix.command(conn, ["GET", Keys.lock(ctx, job_id)])
-        lock == nil
-      end)
+      stalled_jobs =
+        Enum.filter(active_jobs, fn job_id ->
+          {:ok, lock} = Redix.command(conn, ["GET", Keys.lock(ctx, job_id)])
+          lock == nil
+        end)
 
       assert stalled_jobs == ["job-2", "job-3"]
     end
@@ -765,12 +804,14 @@ defmodule BullMQ.IntegrationTest do
       ctx = Keys.context(@test_prefix, queue_name)
 
       repeat_key = "email:every:60000"
-      config = Jason.encode!(%{
-        name: "send-email",
-        every: 60000,
-        data: %{template: "welcome"},
-        opts: %{attempts: 3}
-      })
+
+      config =
+        Jason.encode!(%{
+          name: "send-email",
+          every: 60000,
+          data: %{template: "welcome"},
+          opts: %{attempts: 3}
+        })
 
       {:ok, _} = Redix.command(conn, ["HSET", Keys.repeat(ctx), repeat_key, config])
 
@@ -786,7 +827,7 @@ defmodule BullMQ.IntegrationTest do
 
       # Add scheduled jobs
       {:ok, _} = Redix.command(conn, ["ZADD", Keys.job_scheduler(ctx), now + 60000, "job:1"])
-      {:ok, _} = Redix.command(conn, ["ZADD", Keys.job_scheduler(ctx), now + 120000, "job:2"])
+      {:ok, _} = Redix.command(conn, ["ZADD", Keys.job_scheduler(ctx), now + 120_000, "job:2"])
 
       # Get next scheduled
       {:ok, next} = Redix.command(conn, ["ZRANGE", Keys.job_scheduler(ctx), 0, 0, "WITHSCORES"])
@@ -827,12 +868,13 @@ defmodule BullMQ.IntegrationTest do
       # Use transaction for atomic move
       {:ok, _} = Redix.command(conn, ["RPUSH", Keys.wait(ctx), "job-to-move"])
 
-      {:ok, results} = Redix.pipeline(conn, [
-        ["MULTI"],
-        ["LPOP", Keys.wait(ctx)],
-        ["RPUSH", Keys.active(ctx), "job-to-move"],
-        ["EXEC"]
-      ])
+      {:ok, results} =
+        Redix.pipeline(conn, [
+          ["MULTI"],
+          ["LPOP", Keys.wait(ctx)],
+          ["RPUSH", Keys.active(ctx), "job-to-move"],
+          ["EXEC"]
+        ])
 
       # EXEC returns the results of queued commands
       [_multi, _queued1, _queued2, exec_results] = results

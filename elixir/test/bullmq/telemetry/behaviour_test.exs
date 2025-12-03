@@ -31,7 +31,9 @@ defmodule BullMQ.Telemetry.BehaviourTest do
     @impl true
     def end_span({span_id, _span}, status \\ :ok) do
       case Process.get({:span, span_id}) do
-        nil -> :ok
+        nil ->
+          :ok
+
         span ->
           updated = %{span | status: status, ended: true}
           Process.put({:span, span_id}, updated)
@@ -58,6 +60,7 @@ defmodule BullMQ.Telemetry.BehaviourTest do
     def with_context(context, fun) do
       old_context = Process.get(:current_context)
       Process.put(:current_context, context)
+
       try do
         fun.()
       after
@@ -72,7 +75,9 @@ defmodule BullMQ.Telemetry.BehaviourTest do
     @impl true
     def set_attribute({span_id, _span}, key, value) do
       case Process.get({:span, span_id}) do
-        nil -> {span_id, nil}
+        nil ->
+          {span_id, nil}
+
         span ->
           updated = %{span | attributes: Map.put(span.attributes, key, value)}
           Process.put({:span, span_id}, updated)
@@ -83,7 +88,9 @@ defmodule BullMQ.Telemetry.BehaviourTest do
     @impl true
     def add_event({span_id, _span}, name, attributes \\ %{}) do
       case Process.get({:span, span_id}) do
-        nil -> :ok
+        nil ->
+          :ok
+
         span ->
           event = %{name: name, attributes: attributes, timestamp: System.system_time()}
           updated = %{span | events: [event | span.events]}
@@ -95,10 +102,18 @@ defmodule BullMQ.Telemetry.BehaviourTest do
     @impl true
     def record_exception({span_id, _span}, exception, _stacktrace \\ []) do
       case Process.get({:span, span_id}) do
-        nil -> :ok
+        nil ->
+          :ok
+
         span ->
           event = %{name: "exception", exception: exception, timestamp: System.system_time()}
-          updated = %{span | events: [event | span.events], status: {:error, Exception.message(exception)}}
+
+          updated = %{
+            span
+            | events: [event | span.events],
+              status: {:error, Exception.message(exception)}
+          }
+
           Process.put({:span, span_id}, updated)
           :ok
       end
@@ -151,9 +166,10 @@ defmodule BullMQ.Telemetry.BehaviourTest do
     test "with_context sets context during execution" do
       test_context = %{"test" => "context"}
 
-      result = MockTelemetry.with_context(test_context, fn ->
-        MockTelemetry.get_current_context()
-      end)
+      result =
+        MockTelemetry.with_context(test_context, fn ->
+          MockTelemetry.get_current_context()
+        end)
 
       assert result == test_context
     end

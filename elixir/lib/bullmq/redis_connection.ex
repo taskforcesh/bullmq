@@ -64,9 +64,7 @@ defmodule BullMQ.RedisConnection do
     children = [
       # Main connection pool for commands
       {NimblePool,
-       worker: {__MODULE__.Worker, redis_opts},
-       pool_size: pool_size,
-       name: pool_name(name)},
+       worker: {__MODULE__.Worker, redis_opts}, pool_size: pool_size, name: pool_name(name)},
 
       # Registry for tracking blocking connections
       {Registry, keys: :unique, name: registry_name(name)}
@@ -194,17 +192,21 @@ defmodule BullMQ.RedisConnection do
           nil ->
             # Transaction was aborted (e.g., WATCH failed)
             {:error, :transaction_aborted}
+
           exec_results when is_list(exec_results) ->
             # Check for errors in results
             errors = Enum.filter(exec_results, &match?(%Redix.Error{}, &1))
+
             if Enum.empty?(errors) do
               {:ok, exec_results}
             else
               {:error, {:transaction_errors, exec_results}}
             end
+
           %Redix.Error{} = error ->
             {:error, error}
         end
+
       {:error, reason} ->
         {:error, reason}
     end
@@ -388,7 +390,9 @@ defmodule BullMQ.RedisConnection do
     # Parse password from userinfo (format: user:password or just password)
     password =
       case uri.userinfo do
-        nil -> nil
+        nil ->
+          nil
+
         userinfo ->
           case String.split(userinfo, ":", parts: 2) do
             [_, pass] -> pass
@@ -399,9 +403,15 @@ defmodule BullMQ.RedisConnection do
     # Parse database from path (e.g., /0 for database 0)
     database =
       case uri.path do
-        nil -> 0
-        "" -> 0
-        "/" -> 0
+        nil ->
+          0
+
+        "" ->
+          0
+
+        "/" ->
+          0
+
         "/" <> db_str ->
           case Integer.parse(db_str) do
             {db, _} -> db

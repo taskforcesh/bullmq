@@ -23,11 +23,13 @@ defmodule BullMQ.WorkerIntegrationTest do
     pool_name = :"worker_pool_#{System.unique_integer([:positive])}"
 
     # Start the connection pool - unlink so test cleanup doesn't cascade
-    {:ok, pool_pid} = BullMQ.RedisConnection.start_link(
-      name: pool_name,
-      url: @redis_url,
-      pool_size: 5
-    )
+    {:ok, pool_pid} =
+      BullMQ.RedisConnection.start_link(
+        name: pool_name,
+        url: @redis_url,
+        pool_size: 5
+      )
+
     Process.unlink(pool_pid)
 
     queue_name = "worker-queue-#{System.unique_integer([:positive])}"
@@ -46,10 +48,13 @@ defmodule BullMQ.WorkerIntegrationTest do
           case Redix.command(cleanup_conn, ["KEYS", "#{@test_prefix}:*"]) do
             {:ok, keys} when keys != [] ->
               Redix.command(cleanup_conn, ["DEL" | keys])
+
             _ ->
               :ok
           end
+
           Redix.stop(cleanup_conn)
+
         _ ->
           :ok
       end
@@ -68,22 +73,23 @@ defmodule BullMQ.WorkerIntegrationTest do
     test "worker processes a job successfully", %{conn: conn, queue_name: queue_name} do
       test_pid = self()
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          {:ok, %{value: job.data["value"] * 2}}
-        end,
-        # Event callback - like worker.on('completed', ...)
-        on_completed: fn job, result ->
-          send(test_pid, {:completed, job.id, result})
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            {:ok, %{value: job.data["value"] * 2}}
+          end,
+          # Event callback - like worker.on('completed', ...)
+          on_completed: fn job, result ->
+            send(test_pid, {:completed, job.id, result})
+          end
+        )
 
       # Add a job
-      {:ok, job} = Queue.add(queue_name, "test-job", %{value: 42},
-        connection: conn, prefix: @test_prefix)
+      {:ok, job} =
+        Queue.add(queue_name, "test-job", %{value: 42}, connection: conn, prefix: @test_prefix)
 
       # Wait for completion event (like awaiting a Promise)
       assert_receive {:completed, job_id, result}, 5_000
@@ -98,22 +104,25 @@ defmodule BullMQ.WorkerIntegrationTest do
     test "worker processes multiple jobs", %{conn: conn, queue_name: queue_name} do
       test_pid = self()
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          {:ok, job.data["idx"]}
-        end,
-        on_completed: fn _job, result ->
-          send(test_pid, {:completed, result})
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            {:ok, job.data["idx"]}
+          end,
+          on_completed: fn _job, result ->
+            send(test_pid, {:completed, result})
+          end
+        )
 
       # Add multiple jobs
-      jobs = Enum.map(1..5, fn i ->
-        {"test-job", %{idx: i}, []}
-      end)
+      jobs =
+        Enum.map(1..5, fn i ->
+          {"test-job", %{idx: i}, []}
+        end)
+
       {:ok, _} = Queue.add_bulk(queue_name, jobs, connection: conn, prefix: @test_prefix)
 
       # Wait for all completions
@@ -129,34 +138,39 @@ defmodule BullMQ.WorkerIntegrationTest do
       test_pid = self()
       {:ok, counter} = Agent.start_link(fn -> %{current: 0, max: 0} end)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        concurrency: 3,
-        processor: fn _job ->
-          # Track concurrent execution
-          Agent.update(counter, fn state ->
-            new_current = state.current + 1
-            %{current: new_current, max: max(state.max, new_current)}
-          end)
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          concurrency: 3,
+          processor: fn _job ->
+            # Track concurrent execution
+            Agent.update(counter, fn state ->
+              new_current = state.current + 1
+              %{current: new_current, max: max(state.max, new_current)}
+            end)
 
-          Process.sleep(100)  # Simulate work
+            # Simulate work
+            Process.sleep(100)
 
-          Agent.update(counter, fn state ->
-            %{state | current: state.current - 1}
-          end)
-          :ok
-        end,
-        on_completed: fn _job, _result ->
-          send(test_pid, :completed)
-        end
-      )
+            Agent.update(counter, fn state ->
+              %{state | current: state.current - 1}
+            end)
+
+            :ok
+          end,
+          on_completed: fn _job, _result ->
+            send(test_pid, :completed)
+          end
+        )
 
       # Add jobs
-      jobs = Enum.map(1..6, fn i ->
-        {"test-job", %{idx: i}, []}
-      end)
+      jobs =
+        Enum.map(1..6, fn i ->
+          {"test-job", %{idx: i}, []}
+        end)
+
       {:ok, _} = Queue.add_bulk(queue_name, jobs, connection: conn, prefix: @test_prefix)
 
       # Wait for all completions
@@ -182,33 +196,40 @@ defmodule BullMQ.WorkerIntegrationTest do
       test_pid = self()
       {:ok, counter} = Agent.start_link(fn -> 0 end)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job ->
-          count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
 
-          if count < 2 do
-            raise "Temporary failure"
-          else
-            :ok
+            if count < 2 do
+              raise "Temporary failure"
+            else
+              :ok
+            end
+          end,
+          on_completed: fn job, _result ->
+            attempts = Agent.get(counter, & &1)
+            send(test_pid, {:completed, job.id, attempts})
           end
-        end,
-        on_completed: fn job, _result ->
-          attempts = Agent.get(counter, & &1)
-          send(test_pid, {:completed, job.id, attempts})
-        end
-      )
+        )
 
       # Add a job with retries
-      {:ok, job} = Queue.add(queue_name, "retry-test", %{},
-        connection: conn, prefix: @test_prefix, attempts: 3)
+      {:ok, job} =
+        Queue.add(queue_name, "retry-test", %{},
+          connection: conn,
+          prefix: @test_prefix,
+          attempts: 3
+        )
+
       job_id = job.id
 
       # Wait for completion after retries
       assert_receive {:completed, ^job_id, attempts}, 15_000
-      assert attempts == 3  # Failed twice, succeeded on third
+      # Failed twice, succeeded on third
+      assert attempts == 3
 
       Worker.close(worker)
       Agent.stop(counter)
@@ -219,21 +240,23 @@ defmodule BullMQ.WorkerIntegrationTest do
     test "job moves to failed after max retries", %{conn: conn, queue_name: queue_name} do
       test_pid = self()
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job ->
-          raise "Always fails"
-        end,
-        on_failed: fn job, reason ->
-          send(test_pid, {:failed, job.id, reason})
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            raise "Always fails"
+          end,
+          on_failed: fn job, reason ->
+            send(test_pid, {:failed, job.id, reason})
+          end
+        )
 
       # Add a job with limited retries
-      {:ok, job} = Queue.add(queue_name, "fail-test", %{},
-        connection: conn, prefix: @test_prefix, attempts: 2)
+      {:ok, job} =
+        Queue.add(queue_name, "fail-test", %{}, connection: conn, prefix: @test_prefix, attempts: 2)
+
       job_id = job.id
 
       # Wait for final failure (after exhausting retries)
@@ -252,21 +275,27 @@ defmodule BullMQ.WorkerIntegrationTest do
     test "failed job stores stacktrace in Redis", %{conn: conn, queue_name: queue_name} do
       test_pid = self()
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job ->
-          raise "Test error for stacktrace"
-        end,
-        on_failed: fn job, _reason ->
-          send(test_pid, {:failed, job.id})
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            raise "Test error for stacktrace"
+          end,
+          on_failed: fn job, _reason ->
+            send(test_pid, {:failed, job.id})
+          end
+        )
 
       # Add a job with no retries so it goes directly to failed
-      {:ok, job} = Queue.add(queue_name, "stacktrace-test", %{},
-        connection: conn, prefix: @test_prefix, attempts: 1)
+      {:ok, job} =
+        Queue.add(queue_name, "stacktrace-test", %{},
+          connection: conn,
+          prefix: @test_prefix,
+          attempts: 1
+        )
+
       job_id = job.id
 
       # Wait for failure
@@ -299,20 +328,22 @@ defmodule BullMQ.WorkerIntegrationTest do
     test "exit in processor is handled as job failure", %{conn: conn, queue_name: queue_name} do
       test_pid = self()
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job ->
-          exit(:processor_exit_reason)
-        end,
-        on_failed: fn job, reason ->
-          send(test_pid, {:failed, job.id, reason})
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            exit(:processor_exit_reason)
+          end,
+          on_failed: fn job, reason ->
+            send(test_pid, {:failed, job.id, reason})
+          end
+        )
 
-      {:ok, job} = Queue.add(queue_name, "exit-test", %{},
-        connection: conn, prefix: @test_prefix, attempts: 1)
+      {:ok, job} =
+        Queue.add(queue_name, "exit-test", %{}, connection: conn, prefix: @test_prefix, attempts: 1)
+
       job_id = job.id
 
       # Should receive failure with the exit reason
@@ -320,8 +351,7 @@ defmodule BullMQ.WorkerIntegrationTest do
       assert reason =~ "processor_exit_reason"
 
       # Verify job is in failed state
-      {:ok, state} = Queue.get_job_state(queue_name, job_id,
-        connection: conn, prefix: @test_prefix)
+      {:ok, state} = Queue.get_job_state(queue_name, job_id, connection: conn, prefix: @test_prefix)
       assert state == "failed"
 
       Worker.close(worker)
@@ -332,20 +362,26 @@ defmodule BullMQ.WorkerIntegrationTest do
     test "throw in processor is handled as job failure", %{conn: conn, queue_name: queue_name} do
       test_pid = self()
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job ->
-          throw(:processor_throw_value)
-        end,
-        on_failed: fn job, reason ->
-          send(test_pid, {:failed, job.id, reason})
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            throw(:processor_throw_value)
+          end,
+          on_failed: fn job, reason ->
+            send(test_pid, {:failed, job.id, reason})
+          end
+        )
 
-      {:ok, job} = Queue.add(queue_name, "throw-test", %{},
-        connection: conn, prefix: @test_prefix, attempts: 1)
+      {:ok, job} =
+        Queue.add(queue_name, "throw-test", %{},
+          connection: conn,
+          prefix: @test_prefix,
+          attempts: 1
+        )
+
       job_id = job.id
 
       # Should receive failure with the thrown value
@@ -353,8 +389,7 @@ defmodule BullMQ.WorkerIntegrationTest do
       assert reason =~ "processor_throw_value"
 
       # Verify job is in failed state
-      {:ok, state} = Queue.get_job_state(queue_name, job_id,
-        connection: conn, prefix: @test_prefix)
+      {:ok, state} = Queue.get_job_state(queue_name, job_id, connection: conn, prefix: @test_prefix)
       assert state == "failed"
 
       Worker.close(worker)
@@ -366,28 +401,35 @@ defmodule BullMQ.WorkerIntegrationTest do
       test_pid = self()
       {:ok, counter} = Agent.start_link(fn -> 0 end)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
-          if count == 0 do
-            send(test_pid, {:first_attempt, job.attempts_made})
-            exit(:temporary_exit)
-          else
-            send(test_pid, {:second_attempt, job.attempts_made})
-            {:ok, :success}
-          end
-        end,
-        on_completed: fn job, _result ->
-          send(test_pid, {:completed, job.id})
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
 
-      {:ok, job} = Queue.add(queue_name, "exit-retry", %{},
-        connection: conn, prefix: @test_prefix, attempts: 3,
-        backoff: %{type: "fixed", delay: 100})
+            if count == 0 do
+              send(test_pid, {:first_attempt, job.attempts_made})
+              exit(:temporary_exit)
+            else
+              send(test_pid, {:second_attempt, job.attempts_made})
+              {:ok, :success}
+            end
+          end,
+          on_completed: fn job, _result ->
+            send(test_pid, {:completed, job.id})
+          end
+        )
+
+      {:ok, job} =
+        Queue.add(queue_name, "exit-retry", %{},
+          connection: conn,
+          prefix: @test_prefix,
+          attempts: 3,
+          backoff: %{type: "fixed", delay: 100}
+        )
+
       job_id = job.id
 
       # First attempt exits
@@ -406,28 +448,35 @@ defmodule BullMQ.WorkerIntegrationTest do
       test_pid = self()
       {:ok, counter} = Agent.start_link(fn -> 0 end)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
-          if count == 0 do
-            send(test_pid, {:first_attempt, job.attempts_made})
-            throw(:temporary_throw)
-          else
-            send(test_pid, {:second_attempt, job.attempts_made})
-            {:ok, :success}
-          end
-        end,
-        on_completed: fn job, _result ->
-          send(test_pid, {:completed, job.id})
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
 
-      {:ok, job} = Queue.add(queue_name, "throw-retry", %{},
-        connection: conn, prefix: @test_prefix, attempts: 3,
-        backoff: %{type: "fixed", delay: 100})
+            if count == 0 do
+              send(test_pid, {:first_attempt, job.attempts_made})
+              throw(:temporary_throw)
+            else
+              send(test_pid, {:second_attempt, job.attempts_made})
+              {:ok, :success}
+            end
+          end,
+          on_completed: fn job, _result ->
+            send(test_pid, {:completed, job.id})
+          end
+        )
+
+      {:ok, job} =
+        Queue.add(queue_name, "throw-retry", %{},
+          connection: conn,
+          prefix: @test_prefix,
+          attempts: 3,
+          backoff: %{type: "fixed", delay: 100}
+        )
+
       job_id = job.id
 
       # First attempt throws
@@ -446,28 +495,35 @@ defmodule BullMQ.WorkerIntegrationTest do
       test_pid = self()
       {:ok, counter} = Agent.start_link(fn -> 0 end)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
-          if count == 0 do
-            send(test_pid, {:first_attempt, job.attempts_made})
-            {:error, "temporary failure"}
-          else
-            send(test_pid, {:second_attempt, job.attempts_made})
-            {:ok, :success}
-          end
-        end,
-        on_completed: fn job, _result ->
-          send(test_pid, {:completed, job.id})
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
 
-      {:ok, job} = Queue.add(queue_name, "error-retry", %{},
-        connection: conn, prefix: @test_prefix, attempts: 3,
-        backoff: %{type: "fixed", delay: 100})
+            if count == 0 do
+              send(test_pid, {:first_attempt, job.attempts_made})
+              {:error, "temporary failure"}
+            else
+              send(test_pid, {:second_attempt, job.attempts_made})
+              {:ok, :success}
+            end
+          end,
+          on_completed: fn job, _result ->
+            send(test_pid, {:completed, job.id})
+          end
+        )
+
+      {:ok, job} =
+        Queue.add(queue_name, "error-retry", %{},
+          connection: conn,
+          prefix: @test_prefix,
+          attempts: 3,
+          backoff: %{type: "fixed", delay: 100}
+        )
+
       job_id = job.id
 
       # First attempt returns {:error, reason}
@@ -485,21 +541,27 @@ defmodule BullMQ.WorkerIntegrationTest do
     test "error tuple moves job to failed after max retries", %{conn: conn, queue_name: queue_name} do
       test_pid = self()
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job ->
-          {:error, "always fails"}
-        end,
-        on_failed: fn job, reason ->
-          send(test_pid, {:failed, job.id, reason})
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            {:error, "always fails"}
+          end,
+          on_failed: fn job, reason ->
+            send(test_pid, {:failed, job.id, reason})
+          end
+        )
 
-      {:ok, job} = Queue.add(queue_name, "error-fail", %{},
-        connection: conn, prefix: @test_prefix, attempts: 2,
-        backoff: %{type: "fixed", delay: 50})
+      {:ok, job} =
+        Queue.add(queue_name, "error-fail", %{},
+          connection: conn,
+          prefix: @test_prefix,
+          attempts: 2,
+          backoff: %{type: "fixed", delay: 50}
+        )
+
       job_id = job.id
 
       # Should receive failure after exhausting retries
@@ -507,8 +569,7 @@ defmodule BullMQ.WorkerIntegrationTest do
       assert reason =~ "always fails"
 
       # Verify job is in failed state
-      {:ok, state} = Queue.get_job_state(queue_name, job_id,
-        connection: conn, prefix: @test_prefix)
+      {:ok, state} = Queue.get_job_state(queue_name, job_id, connection: conn, prefix: @test_prefix)
       assert state == "failed"
 
       Worker.close(worker)
@@ -516,35 +577,44 @@ defmodule BullMQ.WorkerIntegrationTest do
 
     @tag :integration
     @tag timeout: 10_000
-    test "delay returns job to delayed queue without incrementing attempts", %{conn: conn, queue_name: queue_name} do
+    test "delay returns job to delayed queue without incrementing attempts", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
       test_pid = self()
       {:ok, counter} = Agent.start_link(fn -> 0 end)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
 
-          if count == 0 do
-            # First time: delay for 500ms
-            send(test_pid, {:delayed, job.id, job.attempts_made})
-            {:delay, 500}
-          else
-            # Second time: complete
-            send(test_pid, {:processing, job.id, job.attempts_made})
-            {:ok, %{processed_count: count}}
+            if count == 0 do
+              # First time: delay for 500ms
+              send(test_pid, {:delayed, job.id, job.attempts_made})
+              {:delay, 500}
+            else
+              # Second time: complete
+              send(test_pid, {:processing, job.id, job.attempts_made})
+              {:ok, %{processed_count: count}}
+            end
+          end,
+          on_completed: fn job, result ->
+            send(test_pid, {:completed, job.id, result})
           end
-        end,
-        on_completed: fn job, result ->
-          send(test_pid, {:completed, job.id, result})
-        end
-      )
+        )
 
       # Add a job
-      {:ok, job} = Queue.add(queue_name, "delay-test", %{value: 42},
-        connection: conn, prefix: @test_prefix, attempts: 3)
+      {:ok, job} =
+        Queue.add(queue_name, "delay-test", %{value: 42},
+          connection: conn,
+          prefix: @test_prefix,
+          attempts: 3
+        )
+
       job_id = job.id
 
       # Should receive delay first
@@ -573,30 +643,31 @@ defmodule BullMQ.WorkerIntegrationTest do
       test_pid = self()
       {:ok, counter} = Agent.start_link(fn -> 0 end)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job ->
-          count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
 
-          cond do
-            count < 3 ->
-              # Delay 3 times
-              send(test_pid, {:delay, count})
-              {:delay, 100}
-            true ->
-              # Complete on 4th attempt
-              {:ok, :done}
+            cond do
+              count < 3 ->
+                # Delay 3 times
+                send(test_pid, {:delay, count})
+                {:delay, 100}
+
+              true ->
+                # Complete on 4th attempt
+                {:ok, :done}
+            end
+          end,
+          on_completed: fn job, _result ->
+            send(test_pid, {:completed, job.id})
           end
-        end,
-        on_completed: fn job, _result ->
-          send(test_pid, {:completed, job.id})
-        end
-      )
+        )
 
-      {:ok, job} = Queue.add(queue_name, "multi-delay", %{},
-        connection: conn, prefix: @test_prefix)
+      {:ok, job} = Queue.add(queue_name, "multi-delay", %{}, connection: conn, prefix: @test_prefix)
       job_id = job.id
 
       # Should delay 3 times
@@ -619,30 +690,32 @@ defmodule BullMQ.WorkerIntegrationTest do
       test_pid = self()
       {:ok, counter} = Agent.start_link(fn -> 0 end)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
 
-          if count == 0 do
-            # First time: simulate rate limiting
-            send(test_pid, {:rate_limited, job.id})
-            {:rate_limit, 500}
-          else
-            # Second time: complete
-            send(test_pid, {:processing, job.id})
-            {:ok, :done}
+            if count == 0 do
+              # First time: simulate rate limiting
+              send(test_pid, {:rate_limited, job.id})
+              {:rate_limit, 500}
+            else
+              # Second time: complete
+              send(test_pid, {:processing, job.id})
+              {:ok, :done}
+            end
+          end,
+          on_completed: fn job, _result ->
+            send(test_pid, {:completed, job.id})
           end
-        end,
-        on_completed: fn job, _result ->
-          send(test_pid, {:completed, job.id})
-        end
-      )
+        )
 
-      {:ok, job} = Queue.add(queue_name, "rate-limit-test", %{},
-        connection: conn, prefix: @test_prefix)
+      {:ok, job} =
+        Queue.add(queue_name, "rate-limit-test", %{}, connection: conn, prefix: @test_prefix)
+
       job_id = job.id
 
       # Should receive rate limit first
@@ -664,30 +737,32 @@ defmodule BullMQ.WorkerIntegrationTest do
       test_pid = self()
       {:ok, counter} = Agent.start_link(fn -> 0 end)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
 
-          if count == 0 do
-            # First time: move back to waiting
-            send(test_pid, {:back_to_waiting, job.id})
-            :waiting
-          else
-            # Second time: complete
-            send(test_pid, {:processing, job.id})
-            {:ok, :done}
+            if count == 0 do
+              # First time: move back to waiting
+              send(test_pid, {:back_to_waiting, job.id})
+              :waiting
+            else
+              # Second time: complete
+              send(test_pid, {:processing, job.id})
+              {:ok, :done}
+            end
+          end,
+          on_completed: fn job, _result ->
+            send(test_pid, {:completed, job.id})
           end
-        end,
-        on_completed: fn job, _result ->
-          send(test_pid, {:completed, job.id})
-        end
-      )
+        )
 
-      {:ok, job} = Queue.add(queue_name, "waiting-test", %{},
-        connection: conn, prefix: @test_prefix)
+      {:ok, job} =
+        Queue.add(queue_name, "waiting-test", %{}, connection: conn, prefix: @test_prefix)
+
       job_id = job.id
 
       # Should receive waiting first
@@ -712,25 +787,28 @@ defmodule BullMQ.WorkerIntegrationTest do
       test_pid = self()
       {:ok, counter} = Agent.start_link(fn -> 0 end)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job ->
-          count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
-          if count < 2 do
-            :waiting
-          else
-            {:ok, :done}
-          end
-        end,
-        on_completed: fn job, _result ->
-          send(test_pid, {:completed, job.id})
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
 
-      {:ok, job} = Queue.add(queue_name, "waiting-callback-test", %{},
-        connection: conn, prefix: @test_prefix)
+            if count < 2 do
+              :waiting
+            else
+              {:ok, :done}
+            end
+          end,
+          on_completed: fn job, _result ->
+            send(test_pid, {:completed, job.id})
+          end
+        )
+
+      {:ok, job} =
+        Queue.add(queue_name, "waiting-callback-test", %{}, connection: conn, prefix: @test_prefix)
+
       job_id = job.id
 
       # Should only receive ONE completion (not 3)
@@ -752,25 +830,31 @@ defmodule BullMQ.WorkerIntegrationTest do
       test_pid = self()
       {:ok, counter} = Agent.start_link(fn -> 0 end)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job ->
-          count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
-          if count < 2 do
-            {:rate_limit, 100}
-          else
-            {:ok, :done}
-          end
-        end,
-        on_completed: fn job, _result ->
-          send(test_pid, {:completed, job.id})
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
 
-      {:ok, job} = Queue.add(queue_name, "rate-limit-callback-test", %{},
-        connection: conn, prefix: @test_prefix)
+            if count < 2 do
+              {:rate_limit, 100}
+            else
+              {:ok, :done}
+            end
+          end,
+          on_completed: fn job, _result ->
+            send(test_pid, {:completed, job.id})
+          end
+        )
+
+      {:ok, job} =
+        Queue.add(queue_name, "rate-limit-callback-test", %{},
+          connection: conn,
+          prefix: @test_prefix
+        )
+
       job_id = job.id
 
       # Should only receive ONE completion (not 3)
@@ -792,25 +876,28 @@ defmodule BullMQ.WorkerIntegrationTest do
       test_pid = self()
       {:ok, counter} = Agent.start_link(fn -> 0 end)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job ->
-          count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
-          if count < 2 do
-            {:delay, 100}
-          else
-            {:ok, :done}
-          end
-        end,
-        on_completed: fn job, _result ->
-          send(test_pid, {:completed, job.id})
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
 
-      {:ok, job} = Queue.add(queue_name, "delay-callback-test", %{},
-        connection: conn, prefix: @test_prefix)
+            if count < 2 do
+              {:delay, 100}
+            else
+              {:ok, :done}
+            end
+          end,
+          on_completed: fn job, _result ->
+            send(test_pid, {:completed, job.id})
+          end
+        )
+
+      {:ok, job} =
+        Queue.add(queue_name, "delay-callback-test", %{}, connection: conn, prefix: @test_prefix)
+
       job_id = job.id
 
       # Should only receive ONE completion (not 3)
@@ -832,28 +919,34 @@ defmodule BullMQ.WorkerIntegrationTest do
       test_pid = self()
       {:ok, counter} = Agent.start_link(fn -> 0 end)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
-          # Send the attempts_made from the job
-          send(test_pid, {:attempt, count, job.attempts_made})
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
+            # Send the attempts_made from the job
+            send(test_pid, {:attempt, count, job.attempts_made})
 
-          if count < 3 do
-            :waiting
-          else
-            {:ok, :done}
+            if count < 3 do
+              :waiting
+            else
+              {:ok, :done}
+            end
+          end,
+          on_completed: fn job, _result ->
+            send(test_pid, {:completed, job.id, job.attempts_made})
           end
-        end,
-        on_completed: fn job, _result ->
-          send(test_pid, {:completed, job.id, job.attempts_made})
-        end
-      )
+        )
 
-      {:ok, job} = Queue.add(queue_name, "waiting-attempts", %{},
-        connection: conn, prefix: @test_prefix, attempts: 5)
+      {:ok, job} =
+        Queue.add(queue_name, "waiting-attempts", %{},
+          connection: conn,
+          prefix: @test_prefix,
+          attempts: 5
+        )
+
       job_id = job.id
 
       # All processing attempts should have attempts_made == 0
@@ -871,31 +964,36 @@ defmodule BullMQ.WorkerIntegrationTest do
 
     @tag :integration
     @tag timeout: 15_000
-    test "waiting puts job back in waiting queue for immediate retry", %{conn: conn, queue_name: queue_name} do
+    test "waiting puts job back in waiting queue for immediate retry", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
       test_pid = self()
       {:ok, counter} = Agent.start_link(fn -> 0 end)
       {:ok, timestamps} = Agent.start_link(fn -> [] end)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
-          now = System.system_time(:millisecond)
-          Agent.update(timestamps, fn list -> list ++ [now] end)
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
+            now = System.system_time(:millisecond)
+            Agent.update(timestamps, fn list -> list ++ [now] end)
 
-          if count < 2 do
-            :waiting
-          else
-            send(test_pid, {:completed, job.id})
-            {:ok, :done}
+            if count < 2 do
+              :waiting
+            else
+              send(test_pid, {:completed, job.id})
+              {:ok, :done}
+            end
           end
-        end
-      )
+        )
 
-      {:ok, job} = Queue.add(queue_name, "waiting-immediate", %{},
-        connection: conn, prefix: @test_prefix)
+      {:ok, job} =
+        Queue.add(queue_name, "waiting-immediate", %{}, connection: conn, prefix: @test_prefix)
+
       job_id = job.id
 
       assert_receive {:completed, ^job_id}, 5_000
@@ -922,31 +1020,35 @@ defmodule BullMQ.WorkerIntegrationTest do
   describe "processor :waiting_children return value" do
     @tag :integration
     @tag timeout: 20_000
-    test "waiting_children moves job to waiting-children state (using FlowProducer)", %{conn: conn, queue_name: queue_name} do
+    test "waiting_children moves job to waiting-children state (using FlowProducer)", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
       test_pid = self()
 
       alias BullMQ.FlowProducer
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          case job.name do
-            "parent" ->
-              send(test_pid, {:parent_processing, job.id})
-              # Return waiting_children to move job to waiting-children state
-              :waiting_children
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            case job.name do
+              "parent" ->
+                send(test_pid, {:parent_processing, job.id})
+                # Return waiting_children to move job to waiting-children state
+                :waiting_children
 
-            "child" ->
-              send(test_pid, {:child_processing, job.id})
-              {:ok, :child_done}
+              "child" ->
+                send(test_pid, {:child_processing, job.id})
+                {:ok, :child_done}
+            end
+          end,
+          on_completed: fn job, result ->
+            send(test_pid, {:completed, job.name, job.id, result})
           end
-        end,
-        on_completed: fn job, result ->
-          send(test_pid, {:completed, job.name, job.id, result})
-        end
-      )
+        )
 
       # Create a flow with parent and child
       flow = %{
@@ -984,30 +1086,34 @@ defmodule BullMQ.WorkerIntegrationTest do
 
     @tag :integration
     @tag timeout: 20_000
-    test "waiting_children does not trigger on_completed callback", %{conn: conn, queue_name: queue_name} do
+    test "waiting_children does not trigger on_completed callback", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
       test_pid = self()
 
       alias BullMQ.FlowProducer
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          case job.name do
-            "parent" ->
-              send(test_pid, {:parent_processing, job.id})
-              :waiting_children
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            case job.name do
+              "parent" ->
+                send(test_pid, {:parent_processing, job.id})
+                :waiting_children
 
-            "child" ->
-              send(test_pid, {:child_processing, job.id})
-              {:ok, :child_done}
+              "child" ->
+                send(test_pid, {:child_processing, job.id})
+                {:ok, :child_done}
+            end
+          end,
+          on_completed: fn job, _result ->
+            send(test_pid, {:completed, job.name})
           end
-        end,
-        on_completed: fn job, _result ->
-          send(test_pid, {:completed, job.name})
-        end
-      )
+        )
 
       # Create a flow with parent and child
       flow = %{
@@ -1041,21 +1147,22 @@ defmodule BullMQ.WorkerIntegrationTest do
 
       alias BullMQ.FlowProducer
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          case job.name do
-            "parent" ->
-              send(test_pid, {:parent_attempts, job.attempts_made})
-              :waiting_children
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            case job.name do
+              "parent" ->
+                send(test_pid, {:parent_attempts, job.attempts_made})
+                :waiting_children
 
-            "child" ->
-              {:ok, :done}
+              "child" ->
+                {:ok, :done}
+            end
           end
-        end
-      )
+        )
 
       flow = %{
         name: "parent",
@@ -1075,6 +1182,7 @@ defmodule BullMQ.WorkerIntegrationTest do
       Worker.close(worker)
     end
   end
+
   # Worker Lifecycle Tests
   # ---------------------------------------------------------------------------
 
@@ -1082,12 +1190,13 @@ defmodule BullMQ.WorkerIntegrationTest do
     @tag :integration
     @tag timeout: 5_000
     test "worker can be paused and resumed", %{conn: conn, queue_name: queue_name} do
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job -> :ok end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job -> :ok end
+        )
 
       # Pause worker
       :ok = Worker.pause(worker)
@@ -1103,12 +1212,13 @@ defmodule BullMQ.WorkerIntegrationTest do
     @tag :integration
     @tag timeout: 5_000
     test "worker closes gracefully when idle", %{conn: conn, queue_name: queue_name} do
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job -> :ok end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job -> :ok end
+        )
 
       # Close should complete without error
       :ok = Worker.close(worker)
@@ -1125,25 +1235,25 @@ defmodule BullMQ.WorkerIntegrationTest do
     test "worker waits for active jobs to complete on close", %{conn: conn, queue_name: queue_name} do
       test_pid = self()
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          send(test_pid, {:processing_started, job.id})
-          # Simulate long-running job
-          Process.sleep(500)
-          send(test_pid, {:processing_finished, job.id})
-          :ok
-        end,
-        on_completed: fn job, _result ->
-          send(test_pid, {:completed, job.id})
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            send(test_pid, {:processing_started, job.id})
+            # Simulate long-running job
+            Process.sleep(500)
+            send(test_pid, {:processing_finished, job.id})
+            :ok
+          end,
+          on_completed: fn job, _result ->
+            send(test_pid, {:completed, job.id})
+          end
+        )
 
       # Add a job
-      {:ok, job} = Queue.add(queue_name, "long-job", %{},
-        connection: conn, prefix: @test_prefix)
+      {:ok, job} = Queue.add(queue_name, "long-job", %{}, connection: conn, prefix: @test_prefix)
       job_id = job.id
 
       # Wait for job to start processing
@@ -1174,29 +1284,32 @@ defmodule BullMQ.WorkerIntegrationTest do
       {:ok, started_counter} = Agent.start_link(fn -> 0 end)
       {:ok, finished_counter} = Agent.start_link(fn -> 0 end)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        concurrency: 3,
-        processor: fn job ->
-          Agent.update(started_counter, & &1 + 1)
-          send(test_pid, {:processing_started, job.id})
-          # Simulate work with varying durations
-          Process.sleep(300 + job.data["idx"] * 100)
-          Agent.update(finished_counter, & &1 + 1)
-          send(test_pid, {:processing_finished, job.id})
-          :ok
-        end,
-        on_completed: fn job, _result ->
-          send(test_pid, {:completed, job.id})
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          concurrency: 3,
+          processor: fn job ->
+            Agent.update(started_counter, &(&1 + 1))
+            send(test_pid, {:processing_started, job.id})
+            # Simulate work with varying durations
+            Process.sleep(300 + job.data["idx"] * 100)
+            Agent.update(finished_counter, &(&1 + 1))
+            send(test_pid, {:processing_finished, job.id})
+            :ok
+          end,
+          on_completed: fn job, _result ->
+            send(test_pid, {:completed, job.id})
+          end
+        )
 
       # Add multiple jobs
-      jobs = Enum.map(1..3, fn i ->
-        {"test-job", %{idx: i}, []}
-      end)
+      jobs =
+        Enum.map(1..3, fn i ->
+          {"test-job", %{idx: i}, []}
+        end)
+
       {:ok, _} = Queue.add_bulk(queue_name, jobs, connection: conn, prefix: @test_prefix)
 
       # Wait for all jobs to start processing
@@ -1237,27 +1350,28 @@ defmodule BullMQ.WorkerIntegrationTest do
     test "worker can update job progress", %{conn: conn, queue_name: queue_name} do
       test_pid = self()
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          Worker.update_progress(job, 25)
-          Process.sleep(50)
-          Worker.update_progress(job, 50)
-          Process.sleep(50)
-          Worker.update_progress(job, 75)
-          Process.sleep(50)
-          Worker.update_progress(job, 100)
-          :ok
-        end,
-        on_completed: fn _job, _result ->
-          send(test_pid, :completed)
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            Worker.update_progress(job, 25)
+            Process.sleep(50)
+            Worker.update_progress(job, 50)
+            Process.sleep(50)
+            Worker.update_progress(job, 75)
+            Process.sleep(50)
+            Worker.update_progress(job, 100)
+            :ok
+          end,
+          on_completed: fn _job, _result ->
+            send(test_pid, :completed)
+          end
+        )
 
-      {:ok, _job} = Queue.add(queue_name, "progress-test", %{},
-        connection: conn, prefix: @test_prefix)
+      {:ok, _job} =
+        Queue.add(queue_name, "progress-test", %{}, connection: conn, prefix: @test_prefix)
 
       # Wait for completion
       assert_receive :completed, 5_000
@@ -1267,31 +1381,38 @@ defmodule BullMQ.WorkerIntegrationTest do
 
     @tag :integration
     @tag timeout: 10_000
-    test "on_progress callback is called when progress is updated", %{conn: conn, queue_name: queue_name} do
+    test "on_progress callback is called when progress is updated", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
       test_pid = self()
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          Worker.update_progress(job, 25)
-          Process.sleep(50)
-          Worker.update_progress(job, 50)
-          Process.sleep(50)
-          Worker.update_progress(job, 100)
-          :ok
-        end,
-        on_progress: fn job, progress ->
-          send(test_pid, {:progress, job.id, progress})
-        end,
-        on_completed: fn _job, _result ->
-          send(test_pid, :completed)
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            Worker.update_progress(job, 25)
+            Process.sleep(50)
+            Worker.update_progress(job, 50)
+            Process.sleep(50)
+            Worker.update_progress(job, 100)
+            :ok
+          end,
+          on_progress: fn job, progress ->
+            send(test_pid, {:progress, job.id, progress})
+          end,
+          on_completed: fn _job, _result ->
+            send(test_pid, :completed)
+          end
+        )
 
-      {:ok, job} = Queue.add(queue_name, "progress-callback-test", %{value: 42},
-        connection: conn, prefix: @test_prefix)
+      {:ok, job} =
+        Queue.add(queue_name, "progress-callback-test", %{value: 42},
+          connection: conn,
+          prefix: @test_prefix
+        )
 
       job_id = job.id
 
@@ -1311,30 +1432,39 @@ defmodule BullMQ.WorkerIntegrationTest do
     test "on_progress callback receives correct job data", %{conn: conn, queue_name: queue_name} do
       test_pid = self()
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          Worker.update_progress(job, %{step: 1, message: "Starting"})
-          Process.sleep(50)
-          Worker.update_progress(job, %{step: 2, message: "Processing"})
-          :ok
-        end,
-        on_progress: fn job, progress ->
-          send(test_pid, {:progress_data, job.name, job.data, progress})
-        end,
-        on_completed: fn _job, _result ->
-          send(test_pid, :completed)
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            Worker.update_progress(job, %{step: 1, message: "Starting"})
+            Process.sleep(50)
+            Worker.update_progress(job, %{step: 2, message: "Processing"})
+            :ok
+          end,
+          on_progress: fn job, progress ->
+            send(test_pid, {:progress_data, job.name, job.data, progress})
+          end,
+          on_completed: fn _job, _result ->
+            send(test_pid, :completed)
+          end
+        )
 
-      {:ok, _job} = Queue.add(queue_name, "test-job", %{"input" => "test-value"},
-        connection: conn, prefix: @test_prefix)
+      {:ok, _job} =
+        Queue.add(queue_name, "test-job", %{"input" => "test-value"},
+          connection: conn,
+          prefix: @test_prefix
+        )
 
       # Verify job data and progress are passed correctly
-      assert_receive {:progress_data, "test-job", %{"input" => "test-value"}, %{step: 1, message: "Starting"}}, 5_000
-      assert_receive {:progress_data, "test-job", %{"input" => "test-value"}, %{step: 2, message: "Processing"}}, 5_000
+      assert_receive {:progress_data, "test-job", %{"input" => "test-value"},
+                      %{step: 1, message: "Starting"}},
+                     5_000
+
+      assert_receive {:progress_data, "test-job", %{"input" => "test-value"},
+                      %{step: 2, message: "Processing"}},
+                     5_000
 
       assert_receive :completed, 5_000
 
@@ -1353,25 +1483,25 @@ defmodule BullMQ.WorkerIntegrationTest do
       test_pid = self()
       {:ok, raw_conn} = Redix.start_link(@redis_url)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          {:ok, 1} = Job.log(job, "Starting work")
-          Process.sleep(50)
-          {:ok, 2} = Job.log(job, "Still working")
-          Process.sleep(50)
-          {:ok, 3} = Job.log(job, "Done!")
-          :ok
-        end,
-        on_completed: fn job, _result ->
-          send(test_pid, {:completed, job.id})
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            {:ok, 1} = Job.log(job, "Starting work")
+            Process.sleep(50)
+            {:ok, 2} = Job.log(job, "Still working")
+            Process.sleep(50)
+            {:ok, 3} = Job.log(job, "Done!")
+            :ok
+          end,
+          on_completed: fn job, _result ->
+            send(test_pid, {:completed, job.id})
+          end
+        )
 
-      {:ok, job} = Queue.add(queue_name, "log-test", %{},
-        connection: conn, prefix: @test_prefix)
+      {:ok, job} = Queue.add(queue_name, "log-test", %{}, connection: conn, prefix: @test_prefix)
 
       assert_receive {:completed, _job_id}, 5_000
 
@@ -1390,21 +1520,22 @@ defmodule BullMQ.WorkerIntegrationTest do
       test_pid = self()
       {:ok, raw_conn} = Redix.start_link(@redis_url)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          Worker.log(job, "Log via Worker module")
-          :ok
-        end,
-        on_completed: fn job, _result ->
-          send(test_pid, {:completed, job.id})
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            Worker.log(job, "Log via Worker module")
+            :ok
+          end,
+          on_completed: fn job, _result ->
+            send(test_pid, {:completed, job.id})
+          end
+        )
 
-      {:ok, job} = Queue.add(queue_name, "worker-log-test", %{},
-        connection: conn, prefix: @test_prefix)
+      {:ok, job} =
+        Queue.add(queue_name, "worker-log-test", %{}, connection: conn, prefix: @test_prefix)
 
       assert_receive {:completed, _job_id}, 5_000
 
@@ -1423,24 +1554,25 @@ defmodule BullMQ.WorkerIntegrationTest do
       test_pid = self()
       {:ok, raw_conn} = Redix.start_link(@redis_url)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          Job.log(job, "Log 1", keep_logs: 2)
-          Job.log(job, "Log 2", keep_logs: 2)
-          Job.log(job, "Log 3", keep_logs: 2)
-          Job.log(job, "Log 4", keep_logs: 2)
-          :ok
-        end,
-        on_completed: fn job, _result ->
-          send(test_pid, {:completed, job.id})
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            Job.log(job, "Log 1", keep_logs: 2)
+            Job.log(job, "Log 2", keep_logs: 2)
+            Job.log(job, "Log 3", keep_logs: 2)
+            Job.log(job, "Log 4", keep_logs: 2)
+            :ok
+          end,
+          on_completed: fn job, _result ->
+            send(test_pid, {:completed, job.id})
+          end
+        )
 
-      {:ok, job} = Queue.add(queue_name, "keep-logs-test", %{},
-        connection: conn, prefix: @test_prefix)
+      {:ok, job} =
+        Queue.add(queue_name, "keep-logs-test", %{}, connection: conn, prefix: @test_prefix)
 
       assert_receive {:completed, _job_id}, 5_000
 
@@ -1491,7 +1623,9 @@ defmodule BullMQ.WorkerIntegrationTest do
       wrong_token = "wrong-token"
       job_id = "test-job-#{System.unique_integer([:positive])}"
 
-      {:ok, _} = Redix.command(raw_conn, ["SET", Keys.lock(ctx, job_id), correct_token, "PX", 30000])
+      {:ok, _} =
+        Redix.command(raw_conn, ["SET", Keys.lock(ctx, job_id), correct_token, "PX", 30000])
+
       {:ok, _} = Redix.command(raw_conn, ["SADD", Keys.stalled(ctx), job_id])
 
       {script, _} = Scripts.get(:extend_lock)
@@ -1543,37 +1677,44 @@ defmodule BullMQ.WorkerIntegrationTest do
       test_pid = self()
 
       # Start multiple workers - each with on_completed callback
-      workers = for i <- 1..3 do
-        worker_id = i
-        {:ok, worker} = Worker.start_link(
-          queue: queue_name,
-          connection: conn,
-          prefix: @test_prefix,
-          processor: fn job ->
-            Process.sleep(50)
-            {:ok, job.data["idx"]}
-          end,
-          on_completed: fn _job, result ->
-            send(test_pid, {:completed, result, worker_id})
-          end
-        )
-        worker
-      end
+      workers =
+        for i <- 1..3 do
+          worker_id = i
+
+          {:ok, worker} =
+            Worker.start_link(
+              queue: queue_name,
+              connection: conn,
+              prefix: @test_prefix,
+              processor: fn job ->
+                Process.sleep(50)
+                {:ok, job.data["idx"]}
+              end,
+              on_completed: fn _job, result ->
+                send(test_pid, {:completed, result, worker_id})
+              end
+            )
+
+          worker
+        end
 
       # Add jobs
-      jobs = Enum.map(1..9, fn i ->
-        {"test-job", %{idx: i}, []}
-      end)
+      jobs =
+        Enum.map(1..9, fn i ->
+          {"test-job", %{idx: i}, []}
+        end)
+
       {:ok, _} = Queue.add_bulk(queue_name, jobs, connection: conn, prefix: @test_prefix)
 
       # Collect all completions
-      results = for _ <- 1..9 do
-        receive do
-          {:completed, idx, _worker_id} -> idx
-        after
-          10_000 -> flunk("Timeout waiting for job completion")
+      results =
+        for _ <- 1..9 do
+          receive do
+            {:completed, idx, _worker_id} -> idx
+          after
+            10_000 -> flunk("Timeout waiting for job completion")
+          end
         end
-      end
 
       # Verify all jobs processed
       assert Enum.sort(results) == [1, 2, 3, 4, 5, 6, 7, 8, 9]
@@ -1593,31 +1734,33 @@ defmodule BullMQ.WorkerIntegrationTest do
       test_pid = self()
 
       # Start worker with short lock duration so renewal happens quickly
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        lock_duration: 1000,  # 1 second lock
-        # Use arity-2 processor to receive cancellation token
-        processor: fn job, cancel_token ->
-          send(test_pid, {:processor_started, job.id, cancel_token})
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          # 1 second lock
+          lock_duration: 1000,
+          # Use arity-2 processor to receive cancellation token
+          processor: fn job, cancel_token ->
+            send(test_pid, {:processor_started, job.id, cancel_token})
 
-          # Wait in a loop, checking for cancellation
-          result = wait_for_cancellation_or_timeout(cancel_token, 10_000)
-          send(test_pid, {:processor_result, result})
-          result
-        end,
-        on_lock_renewal_failed: fn job_ids ->
-          send(test_pid, {:lock_renewal_failed, job_ids})
-        end,
-        on_failed: fn job, reason ->
-          send(test_pid, {:failed, job.id, reason})
-        end
-      )
+            # Wait in a loop, checking for cancellation
+            result = wait_for_cancellation_or_timeout(cancel_token, 10_000)
+            send(test_pid, {:processor_result, result})
+            result
+          end,
+          on_lock_renewal_failed: fn job_ids ->
+            send(test_pid, {:lock_renewal_failed, job_ids})
+          end,
+          on_failed: fn job, reason ->
+            send(test_pid, {:failed, job.id, reason})
+          end
+        )
 
       # Add a job
-      {:ok, job} = Queue.add(queue_name, "test-job", %{value: 1},
-        connection: conn, prefix: @test_prefix)
+      {:ok, job} =
+        Queue.add(queue_name, "test-job", %{value: 1}, connection: conn, prefix: @test_prefix)
 
       job_id = job.id
 
@@ -1640,27 +1783,31 @@ defmodule BullMQ.WorkerIntegrationTest do
 
     @tag :integration
     @tag timeout: 30_000
-    test "on_lock_renewal_failed callback is invoked when lock is lost", %{conn: conn, queue_name: queue_name} do
+    test "on_lock_renewal_failed callback is invoked when lock is lost", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
       test_pid = self()
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        lock_duration: 1000,
-        processor: fn job, _cancel_token ->
-          send(test_pid, {:processor_started, job.id})
-          # Long-running job
-          Process.sleep(15_000)
-          {:ok, :done}
-        end,
-        on_lock_renewal_failed: fn job_ids ->
-          send(test_pid, {:lock_renewal_failed, job_ids})
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          lock_duration: 1000,
+          processor: fn job, _cancel_token ->
+            send(test_pid, {:processor_started, job.id})
+            # Long-running job
+            Process.sleep(15_000)
+            {:ok, :done}
+          end,
+          on_lock_renewal_failed: fn job_ids ->
+            send(test_pid, {:lock_renewal_failed, job_ids})
+          end
+        )
 
-      {:ok, job} = Queue.add(queue_name, "test-job", %{value: 1},
-        connection: conn, prefix: @test_prefix)
+      {:ok, job} =
+        Queue.add(queue_name, "test-job", %{value: 1}, connection: conn, prefix: @test_prefix)
 
       job_id = job.id
 
@@ -1695,6 +1842,7 @@ defmodule BullMQ.WorkerIntegrationTest do
 
       :ok ->
         now = System.monotonic_time(:millisecond)
+
         if now >= deadline do
           {:ok, :timeout}
         else

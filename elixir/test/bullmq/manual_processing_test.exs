@@ -19,11 +19,13 @@ defmodule BullMQ.ManualProcessingTest do
     queue_name = "test-manual-#{System.unique_integer([:positive])}"
 
     # Start the connection pool - unlink so test cleanup doesn't cascade
-    {:ok, pool_pid} = BullMQ.RedisConnection.start_link(
-      name: pool_name,
-      url: @redis_url,
-      pool_size: 5
-    )
+    {:ok, pool_pid} =
+      BullMQ.RedisConnection.start_link(
+        name: pool_name,
+        url: @redis_url,
+        pool_size: 5
+      )
+
     Process.unlink(pool_pid)
 
     on_exit(fn ->
@@ -40,10 +42,13 @@ defmodule BullMQ.ManualProcessingTest do
           case Redix.command(cleanup_conn, ["KEYS", "#{@test_prefix}:#{queue_name}:*"]) do
             {:ok, keys} when keys != [] ->
               Redix.command(cleanup_conn, ["DEL" | keys])
+
             _ ->
               :ok
           end
+
           Redix.stop(cleanup_conn)
+
         _ ->
           :ok
       end
@@ -56,17 +61,18 @@ defmodule BullMQ.ManualProcessingTest do
     @tag timeout: 10_000
     test "fetches a job from the queue", %{conn: conn, queue_name: queue_name} do
       # Create a worker without a processor (manual mode)
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job -> {:ok, "unused"} end,
-        autorun: false
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job -> {:ok, "unused"} end,
+          autorun: false
+        )
 
       # Add a job to the queue
-      {:ok, job} = Queue.add(queue_name, "test-job", %{value: 123},
-        connection: conn, prefix: @test_prefix)
+      {:ok, job} =
+        Queue.add(queue_name, "test-job", %{value: 123}, connection: conn, prefix: @test_prefix)
 
       # Fetch the job manually
       token = generate_token()
@@ -83,13 +89,14 @@ defmodule BullMQ.ManualProcessingTest do
 
     @tag timeout: 10_000
     test "returns nil when no jobs available", %{conn: conn, queue_name: queue_name} do
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job -> {:ok, "unused"} end,
-        autorun: false
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job -> {:ok, "unused"} end,
+          autorun: false
+        )
 
       token = generate_token()
       {:ok, job} = Worker.get_next_job(worker, token, block: false)
@@ -101,29 +108,35 @@ defmodule BullMQ.ManualProcessingTest do
 
     @tag timeout: 10_000
     test "blocks and waits for job when block: true", %{conn: conn, queue_name: queue_name} do
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job -> {:ok, "unused"} end,
-        autorun: false
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job -> {:ok, "unused"} end,
+          autorun: false
+        )
 
       test_pid = self()
 
       # Start a task that will wait for a job
-      task = Task.async(fn ->
-        token = generate_token()
-        start_time = System.monotonic_time(:millisecond)
-        result = Worker.get_next_job(worker, token, timeout: 5)
-        end_time = System.monotonic_time(:millisecond)
-        send(test_pid, {:got_result, result, end_time - start_time})
-      end)
+      task =
+        Task.async(fn ->
+          token = generate_token()
+          start_time = System.monotonic_time(:millisecond)
+          result = Worker.get_next_job(worker, token, timeout: 5)
+          end_time = System.monotonic_time(:millisecond)
+          send(test_pid, {:got_result, result, end_time - start_time})
+        end)
 
       # Wait a bit, then add a job
       Process.sleep(500)
-      {:ok, job} = Queue.add(queue_name, "delayed-job", %{value: "test"},
-        connection: conn, prefix: @test_prefix)
+
+      {:ok, job} =
+        Queue.add(queue_name, "delayed-job", %{value: "test"},
+          connection: conn,
+          prefix: @test_prefix
+        )
 
       # Wait for the task to complete
       Task.await(task, 10_000)
@@ -140,13 +153,14 @@ defmodule BullMQ.ManualProcessingTest do
 
     @tag timeout: 10_000
     test "times out when no job arrives within timeout", %{conn: conn, queue_name: queue_name} do
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job -> {:ok, "unused"} end,
-        autorun: false
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job -> {:ok, "unused"} end,
+          autorun: false
+        )
 
       token = generate_token()
 
@@ -165,20 +179,20 @@ defmodule BullMQ.ManualProcessingTest do
 
     @tag timeout: 10_000
     test "returns nil when worker is paused", %{conn: conn, queue_name: queue_name} do
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job -> {:ok, "unused"} end,
-        autorun: false
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job -> {:ok, "unused"} end,
+          autorun: false
+        )
 
       # Pause the worker
       Worker.pause(worker)
 
       # Add a job
-      {:ok, _job} = Queue.add(queue_name, "test-job", %{},
-        connection: conn, prefix: @test_prefix)
+      {:ok, _job} = Queue.add(queue_name, "test-job", %{}, connection: conn, prefix: @test_prefix)
 
       # Should return nil when paused
       token = generate_token()
@@ -193,17 +207,18 @@ defmodule BullMQ.ManualProcessingTest do
   describe "Job.move_to_completed/4" do
     @tag timeout: 10_000
     test "moves job to completed state", %{conn: conn, queue_name: queue_name} do
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job -> {:ok, "unused"} end,
-        autorun: false
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job -> {:ok, "unused"} end,
+          autorun: false
+        )
 
       # Add a job
-      {:ok, _job} = Queue.add(queue_name, "test-job", %{value: 456},
-        connection: conn, prefix: @test_prefix)
+      {:ok, _job} =
+        Queue.add(queue_name, "test-job", %{value: 456}, connection: conn, prefix: @test_prefix)
 
       # Fetch and complete the job
       token = generate_token()
@@ -223,13 +238,14 @@ defmodule BullMQ.ManualProcessingTest do
 
     @tag timeout: 10_000
     test "returns next job when fetch_next: true", %{conn: conn, queue_name: queue_name} do
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job -> {:ok, "unused"} end,
-        autorun: false
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job -> {:ok, "unused"} end,
+          autorun: false
+        )
 
       # Add two jobs
       {:ok, job1} = Queue.add(queue_name, "job-1", %{}, connection: conn, prefix: @test_prefix)
@@ -256,17 +272,18 @@ defmodule BullMQ.ManualProcessingTest do
   describe "Job.move_to_failed/4" do
     @tag timeout: 10_000
     test "moves job to failed state", %{conn: conn, queue_name: queue_name} do
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job -> {:ok, "unused"} end,
-        autorun: false
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job -> {:ok, "unused"} end,
+          autorun: false
+        )
 
       # Add a job (with no retries)
-      {:ok, _job} = Queue.add(queue_name, "test-job", %{},
-        connection: conn, prefix: @test_prefix, attempts: 1)
+      {:ok, _job} =
+        Queue.add(queue_name, "test-job", %{}, connection: conn, prefix: @test_prefix, attempts: 1)
 
       # Fetch and fail the job
       token = generate_token()
@@ -286,17 +303,18 @@ defmodule BullMQ.ManualProcessingTest do
 
     @tag timeout: 10_000
     test "accepts exception as error", %{conn: conn, queue_name: queue_name} do
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job -> {:ok, "unused"} end,
-        autorun: false
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job -> {:ok, "unused"} end,
+          autorun: false
+        )
 
       # Add a job
-      {:ok, _job} = Queue.add(queue_name, "test-job", %{},
-        connection: conn, prefix: @test_prefix, attempts: 1)
+      {:ok, _job} =
+        Queue.add(queue_name, "test-job", %{}, connection: conn, prefix: @test_prefix, attempts: 1)
 
       # Fetch and fail with exception
       token = generate_token()
@@ -316,18 +334,19 @@ defmodule BullMQ.ManualProcessingTest do
   describe "Job.extend_lock/3" do
     @tag timeout: 10_000
     test "extends the lock on a job", %{conn: conn, queue_name: queue_name} do
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job -> {:ok, "unused"} end,
-        autorun: false,
-        lock_duration: 5_000  # Short lock for testing
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job -> {:ok, "unused"} end,
+          autorun: false,
+          # Short lock for testing
+          lock_duration: 5_000
+        )
 
       # Add a job
-      {:ok, _job} = Queue.add(queue_name, "test-job", %{},
-        connection: conn, prefix: @test_prefix)
+      {:ok, _job} = Queue.add(queue_name, "test-job", %{}, connection: conn, prefix: @test_prefix)
 
       # Fetch the job
       token = generate_token()
@@ -352,17 +371,18 @@ defmodule BullMQ.ManualProcessingTest do
   describe "Job.move_to_wait/2" do
     @tag timeout: 10_000
     test "moves job back to waiting state", %{conn: conn, queue_name: queue_name} do
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job -> {:ok, "unused"} end,
-        autorun: false
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job -> {:ok, "unused"} end,
+          autorun: false
+        )
 
       # Add a job
-      {:ok, original_job} = Queue.add(queue_name, "test-job", %{value: 789},
-        connection: conn, prefix: @test_prefix)
+      {:ok, original_job} =
+        Queue.add(queue_name, "test-job", %{value: 789}, connection: conn, prefix: @test_prefix)
 
       # Fetch the job
       token = generate_token()
@@ -395,14 +415,15 @@ defmodule BullMQ.ManualProcessingTest do
   describe "start_stalled_check_timer/1" do
     @tag timeout: 10_000
     test "starts and stops the stalled check timer", %{conn: conn, queue_name: queue_name} do
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job -> {:ok, "unused"} end,
-        autorun: false,
-        stalled_interval: 1_000
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job -> {:ok, "unused"} end,
+          autorun: false,
+          stalled_interval: 1_000
+        )
 
       # Start the timer
       :ok = Worker.start_stalled_check_timer(worker)
@@ -419,39 +440,43 @@ defmodule BullMQ.ManualProcessingTest do
   describe "complete manual processing loop" do
     @tag timeout: 15_000
     test "processes multiple jobs in a loop", %{conn: conn, queue_name: queue_name} do
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job -> {:ok, "unused"} end,
-        autorun: false
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job -> {:ok, "unused"} end,
+          autorun: false
+        )
 
       # Start stalled check timer
       :ok = Worker.start_stalled_check_timer(worker)
 
       # Add multiple jobs
-      jobs = for i <- 1..5 do
-        {:ok, job} = Queue.add(queue_name, "job-#{i}", %{index: i},
-          connection: conn, prefix: @test_prefix)
-        job
-      end
+      jobs =
+        for i <- 1..5 do
+          {:ok, job} =
+            Queue.add(queue_name, "job-#{i}", %{index: i}, connection: conn, prefix: @test_prefix)
+
+          job
+        end
 
       # Process all jobs manually
       token = generate_token()
 
-      processed_ids = Enum.reduce_while(1..10, [], fn _, acc ->
-        case Worker.get_next_job(worker, token, block: false) do
-          {:ok, nil} ->
-            {:halt, acc}
+      processed_ids =
+        Enum.reduce_while(1..10, [], fn _, acc ->
+          case Worker.get_next_job(worker, token, block: false) do
+            {:ok, nil} ->
+              {:halt, acc}
 
-          {:ok, job} ->
-            # Simulate processing
-            result = %{processed: job.data["index"]}
-            {:ok, _} = Job.move_to_completed(job, result, token, fetch_next: false)
-            {:cont, [job.id | acc]}
-        end
-      end)
+            {:ok, job} ->
+              # Simulate processing
+              result = %{processed: job.data["index"]}
+              {:ok, _} = Job.move_to_completed(job, result, token, fetch_next: false)
+              {:cont, [job.id | acc]}
+          end
+        end)
 
       # Should have processed all 5 jobs
       assert length(processed_ids) == 5
@@ -459,7 +484,9 @@ defmodule BullMQ.ManualProcessingTest do
 
       # All jobs should be completed
       for job <- jobs do
-        {:ok, state} = Queue.get_job_state(queue_name, job.id, connection: conn, prefix: @test_prefix)
+        {:ok, state} =
+          Queue.get_job_state(queue_name, job.id, connection: conn, prefix: @test_prefix)
+
         assert state == "completed"
       end
 

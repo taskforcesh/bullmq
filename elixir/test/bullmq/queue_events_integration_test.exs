@@ -21,11 +21,13 @@ defmodule BullMQ.QueueEventsIntegrationTest do
   setup do
     pool_name = :"events_pool_#{System.unique_integer([:positive])}"
 
-    {:ok, pool_pid} = BullMQ.RedisConnection.start_link(
-      name: pool_name,
-      url: @redis_url,
-      pool_size: 5
-    )
+    {:ok, pool_pid} =
+      BullMQ.RedisConnection.start_link(
+        name: pool_name,
+        url: @redis_url,
+        pool_size: 5
+      )
+
     Process.unlink(pool_pid)
 
     queue_name = "events-queue-#{System.unique_integer([:positive])}"
@@ -42,10 +44,13 @@ defmodule BullMQ.QueueEventsIntegrationTest do
           case Redix.command(cleanup_conn, ["KEYS", "#{@test_prefix}:*"]) do
             {:ok, keys} when keys != [] ->
               Redix.command(cleanup_conn, ["DEL" | keys])
+
             _ ->
               :ok
           end
+
           Redix.stop(cleanup_conn)
+
         _ ->
           :ok
       end
@@ -62,18 +67,20 @@ defmodule BullMQ.QueueEventsIntegrationTest do
     @tag :integration
     @tag timeout: 10_000
     test "emits waiting event when a job has been added", %{conn: conn, queue_name: queue_name} do
-      {:ok, events} = QueueEvents.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix
-      )
+      {:ok, events} =
+        QueueEvents.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
       QueueEvents.subscribe(events)
 
       # Small delay to ensure QueueEvents is listening
       Process.sleep(100)
 
-      {:ok, job} = Queue.add(queue_name, "test", %{foo: "bar"},
-        connection: conn, prefix: @test_prefix)
+      {:ok, job} =
+        Queue.add(queue_name, "test", %{foo: "bar"}, connection: conn, prefix: @test_prefix)
 
       # Should receive waiting event
       assert_receive {:bullmq_event, :waiting, event_data}, 5_000
@@ -85,17 +92,19 @@ defmodule BullMQ.QueueEventsIntegrationTest do
     @tag :integration
     @tag timeout: 10_000
     test "emits added event when a job has been added", %{conn: conn, queue_name: queue_name} do
-      {:ok, events} = QueueEvents.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix
-      )
+      {:ok, events} =
+        QueueEvents.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
       QueueEvents.subscribe(events)
 
       Process.sleep(100)
 
-      {:ok, job} = Queue.add(queue_name, "test-name", %{foo: "bar"},
-        connection: conn, prefix: @test_prefix)
+      {:ok, job} =
+        Queue.add(queue_name, "test-name", %{foo: "bar"}, connection: conn, prefix: @test_prefix)
 
       # Should receive added event
       assert_receive {:bullmq_event, :added, event_data}, 5_000
@@ -114,27 +123,29 @@ defmodule BullMQ.QueueEventsIntegrationTest do
     @tag :integration
     @tag timeout: 10_000
     test "emits active event when job becomes active", %{conn: conn, queue_name: queue_name} do
-      {:ok, events} = QueueEvents.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix
-      )
+      {:ok, events} =
+        QueueEvents.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
       QueueEvents.subscribe(events)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job ->
-          Process.sleep(100)
-          :ok
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            Process.sleep(100)
+            :ok
+          end
+        )
 
       Process.sleep(100)
 
-      {:ok, job} = Queue.add(queue_name, "test", %{},
-        connection: conn, prefix: @test_prefix)
+      {:ok, job} = Queue.add(queue_name, "test", %{}, connection: conn, prefix: @test_prefix)
 
       # Should receive active event
       assert_receive {:bullmq_event, :active, event_data}, 5_000
@@ -154,26 +165,29 @@ defmodule BullMQ.QueueEventsIntegrationTest do
     @tag :integration
     @tag timeout: 10_000
     test "emits completed event when job completes", %{conn: conn, queue_name: queue_name} do
-      {:ok, events} = QueueEvents.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix
-      )
+      {:ok, events} =
+        QueueEvents.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
       QueueEvents.subscribe(events)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job ->
-          {:ok, "done"}
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            {:ok, "done"}
+          end
+        )
 
       Process.sleep(100)
 
-      {:ok, job} = Queue.add(queue_name, "test", %{foo: "bar"},
-        connection: conn, prefix: @test_prefix)
+      {:ok, job} =
+        Queue.add(queue_name, "test", %{foo: "bar"}, connection: conn, prefix: @test_prefix)
 
       # Should receive completed event
       assert_receive {:bullmq_event, :completed, event_data}, 5_000
@@ -193,26 +207,29 @@ defmodule BullMQ.QueueEventsIntegrationTest do
     @tag :integration
     @tag timeout: 10_000
     test "emits failed event when job fails", %{conn: conn, queue_name: queue_name} do
-      {:ok, events} = QueueEvents.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix
-      )
+      {:ok, events} =
+        QueueEvents.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
       QueueEvents.subscribe(events)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job ->
-          raise "Job error"
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            raise "Job error"
+          end
+        )
 
       Process.sleep(100)
 
-      {:ok, job} = Queue.add(queue_name, "test", %{},
-        connection: conn, prefix: @test_prefix, attempts: 1)
+      {:ok, job} =
+        Queue.add(queue_name, "test", %{}, connection: conn, prefix: @test_prefix, attempts: 1)
 
       # Should receive failed event
       assert_receive {:bullmq_event, :failed, event_data}, 5_000
@@ -232,29 +249,31 @@ defmodule BullMQ.QueueEventsIntegrationTest do
     @tag :integration
     @tag timeout: 10_000
     test "emits progress event when job updates progress", %{conn: conn, queue_name: queue_name} do
-      {:ok, events} = QueueEvents.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix
-      )
+      {:ok, events} =
+        QueueEvents.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
       QueueEvents.subscribe(events)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn job ->
-          Worker.update_progress(job, 50)
-          Process.sleep(50)
-          Worker.update_progress(job, 100)
-          :ok
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            Worker.update_progress(job, 50)
+            Process.sleep(50)
+            Worker.update_progress(job, 100)
+            :ok
+          end
+        )
 
       Process.sleep(100)
 
-      {:ok, job} = Queue.add(queue_name, "test", %{},
-        connection: conn, prefix: @test_prefix)
+      {:ok, job} = Queue.add(queue_name, "test", %{}, connection: conn, prefix: @test_prefix)
 
       # Should receive progress events
       assert_receive {:bullmq_event, :progress, event_data}, 5_000
@@ -273,30 +292,39 @@ defmodule BullMQ.QueueEventsIntegrationTest do
   describe "delayed events" do
     @tag :integration
     @tag timeout: 10_000
-    test "emits delayed event when job is retried with backoff", %{conn: conn, queue_name: queue_name} do
-      {:ok, events} = QueueEvents.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix
-      )
+    test "emits delayed event when job is retried with backoff", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      {:ok, events} =
+        QueueEvents.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
       QueueEvents.subscribe(events)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job ->
-          raise "Temporary error"
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            raise "Temporary error"
+          end
+        )
 
       Process.sleep(100)
 
       # Job with backoff that will trigger delayed event on retry
-      {:ok, job} = Queue.add(queue_name, "test", %{},
-        connection: conn, prefix: @test_prefix,
-        attempts: 2,
-        backoff: %{type: "fixed", delay: 1000})
+      {:ok, job} =
+        Queue.add(queue_name, "test", %{},
+          connection: conn,
+          prefix: @test_prefix,
+          attempts: 2,
+          backoff: %{type: "fixed", delay: 1000}
+        )
 
       # Should receive delayed event when job moves to delayed for retry
       assert_receive {:bullmq_event, :delayed, event_data}, 5_000
@@ -315,26 +343,28 @@ defmodule BullMQ.QueueEventsIntegrationTest do
     @tag :integration
     @tag timeout: 10_000
     test "receives waiting -> active -> completed sequence", %{conn: conn, queue_name: queue_name} do
-      {:ok, events} = QueueEvents.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix
-      )
+      {:ok, events} =
+        QueueEvents.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
       QueueEvents.subscribe(events)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job ->
-          :ok
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            :ok
+          end
+        )
 
       Process.sleep(100)
 
-      {:ok, job} = Queue.add(queue_name, "test", %{},
-        connection: conn, prefix: @test_prefix)
+      {:ok, job} = Queue.add(queue_name, "test", %{}, connection: conn, prefix: @test_prefix)
 
       # Collect events for this job
       events_received = collect_job_events(job.id, [:waiting, :active, :completed], 5_000)
@@ -351,26 +381,29 @@ defmodule BullMQ.QueueEventsIntegrationTest do
     @tag :integration
     @tag timeout: 10_000
     test "receives waiting -> active -> failed sequence", %{conn: conn, queue_name: queue_name} do
-      {:ok, events} = QueueEvents.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix
-      )
+      {:ok, events} =
+        QueueEvents.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
       QueueEvents.subscribe(events)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job ->
-          raise "Job failed"
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            raise "Job failed"
+          end
+        )
 
       Process.sleep(100)
 
-      {:ok, job} = Queue.add(queue_name, "test", %{},
-        connection: conn, prefix: @test_prefix, attempts: 1)
+      {:ok, job} =
+        Queue.add(queue_name, "test", %{}, connection: conn, prefix: @test_prefix, attempts: 1)
 
       # Collect events for this job
       events_received = collect_job_events(job.id, [:waiting, :active, :failed], 5_000)
@@ -393,11 +426,12 @@ defmodule BullMQ.QueueEventsIntegrationTest do
     @tag :integration
     @tag timeout: 10_000
     test "broadcasts events to all subscribers", %{conn: conn, queue_name: queue_name} do
-      {:ok, events} = QueueEvents.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix
-      )
+      {:ok, events} =
+        QueueEvents.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix
+        )
 
       test_pid = self()
 
@@ -405,28 +439,30 @@ defmodule BullMQ.QueueEventsIntegrationTest do
       QueueEvents.subscribe(events)
 
       # Create another process that also subscribes and reports back
-      _other_pid = spawn_link(fn ->
-        QueueEvents.subscribe(events)
-        receive do
-          {:bullmq_event, :completed, _data} ->
-            send(test_pid, :other_received_completed)
-        after
-          5_000 -> send(test_pid, :other_timeout)
-        end
-      end)
+      _other_pid =
+        spawn_link(fn ->
+          QueueEvents.subscribe(events)
+
+          receive do
+            {:bullmq_event, :completed, _data} ->
+              send(test_pid, :other_received_completed)
+          after
+            5_000 -> send(test_pid, :other_timeout)
+          end
+        end)
 
       # Small delay to ensure both are subscribed
       Process.sleep(100)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        processor: fn _job -> :ok end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job -> :ok end
+        )
 
-      {:ok, _job} = Queue.add(queue_name, "test", %{},
-        connection: conn, prefix: @test_prefix)
+      {:ok, _job} = Queue.add(queue_name, "test", %{}, connection: conn, prefix: @test_prefix)
 
       # Main process should receive event
       assert_receive {:bullmq_event, :completed, _}, 5_000
@@ -447,17 +483,19 @@ defmodule BullMQ.QueueEventsIntegrationTest do
     @tag :integration
     @tag timeout: 10_000
     test "does not start listening when autorun is false", %{conn: conn, queue_name: queue_name} do
-      {:ok, events} = QueueEvents.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        autorun: false
-      )
+      {:ok, events} =
+        QueueEvents.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          autorun: false
+        )
+
       QueueEvents.subscribe(events)
 
       # Add a job - but since autorun is false, we shouldn't receive events
-      {:ok, _job} = Queue.add(queue_name, "test", %{foo: "bar"},
-        connection: conn, prefix: @test_prefix)
+      {:ok, _job} =
+        Queue.add(queue_name, "test", %{foo: "bar"}, connection: conn, prefix: @test_prefix)
 
       # Should NOT receive any events since autorun is false
       refute_receive {:bullmq_event, _, _}, 500
@@ -491,18 +529,19 @@ defmodule BullMQ.QueueEventsIntegrationTest do
         end
       end
 
-      {:ok, events} = QueueEvents.start_link(
-        queue: queue_name,
-        connection: conn,
-        prefix: @test_prefix,
-        handler: TestHandler,
-        handler_state: %{test_pid: test_pid, events: []}
-      )
+      {:ok, events} =
+        QueueEvents.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          handler: TestHandler,
+          handler_state: %{test_pid: test_pid, events: []}
+        )
 
       Process.sleep(100)
 
-      {:ok, _job} = Queue.add(queue_name, "test", %{foo: "bar"},
-        connection: conn, prefix: @test_prefix)
+      {:ok, _job} =
+        Queue.add(queue_name, "test", %{foo: "bar"}, connection: conn, prefix: @test_prefix)
 
       # Handler should receive events
       assert_receive {:handler_event, :waiting, _}, 5_000

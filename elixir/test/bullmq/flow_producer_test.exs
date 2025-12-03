@@ -17,6 +17,7 @@ defmodule BullMQ.FlowProducerTest do
 
     # Clean up any existing data
     {:ok, keys} = RedisConnection.command(conn_name, ["KEYS", "bull:#{queue_name}*"])
+
     if length(keys) > 0 do
       RedisConnection.command(conn_name, ["DEL" | keys])
     end
@@ -25,6 +26,7 @@ defmodule BullMQ.FlowProducerTest do
       # Try to cleanup, but don't fail if connection is already gone
       try do
         {:ok, keys} = RedisConnection.command(conn_name, ["KEYS", "bull:#{queue_name}*"])
+
         if length(keys) > 0 do
           RedisConnection.command(conn_name, ["DEL" | keys])
         end
@@ -126,6 +128,7 @@ defmodule BullMQ.FlowProducerTest do
 
       # All children should be in waiting
       {:ok, wait_list} = RedisConnection.command(conn, ["LRANGE", Keys.wait(ctx), 0, -1])
+
       for child <- result.children do
         assert child.job.id in wait_list
       end
@@ -266,6 +269,7 @@ defmodule BullMQ.FlowProducerTest do
 
       # Cleanup other queue
       {:ok, keys} = RedisConnection.command(conn, ["KEYS", "bull:#{other_queue}*"])
+
       if length(keys) > 0 do
         RedisConnection.command(conn, ["DEL" | keys])
       end
@@ -469,19 +473,23 @@ defmodule BullMQ.FlowProducerTest do
     @describetag :integration
 
     @tag timeout: 60_000
-    test "parent moves to waiting after all children complete", %{queue_name: queue_name, conn: conn} do
+    test "parent moves to waiting after all children complete", %{
+      queue_name: queue_name,
+      conn: conn
+    } do
       # Track processed jobs
       test_pid = self()
 
       # Start worker
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        processor: fn job ->
-          send(test_pid, {:processed, job.name, job.id})
-          {:ok, %{result: job.name}}
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          processor: fn job ->
+            send(test_pid, {:processed, job.name, job.id})
+            {:ok, %{result: job.name}}
+          end
+        )
 
       # Create flow
       flow = %{
@@ -508,32 +516,36 @@ defmodule BullMQ.FlowProducerTest do
     end
 
     @tag timeout: 60_000
-    test "parent can access children results after completion", %{queue_name: queue_name, conn: conn} do
+    test "parent can access children results after completion", %{
+      queue_name: queue_name,
+      conn: conn
+    } do
       test_pid = self()
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        processor: fn job ->
-          if job.name == "parent" do
-            # Get children values
-            parent_job = %Job{
-              id: job.id,
-              name: job.name,
-              queue_name: queue_name,
-              data: job.data,
-              connection: conn,
-              prefix: "bull"
-            }
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          processor: fn job ->
+            if job.name == "parent" do
+              # Get children values
+              parent_job = %Job{
+                id: job.id,
+                name: job.name,
+                queue_name: queue_name,
+                data: job.data,
+                connection: conn,
+                prefix: "bull"
+              }
 
-            {:ok, values} = Job.get_children_values(parent_job)
-            send(test_pid, {:parent_values, values})
+              {:ok, values} = Job.get_children_values(parent_job)
+              send(test_pid, {:parent_values, values})
+            end
+
+            # Return a value for children
+            {:ok, %{name: job.name, value: 100}}
           end
-
-          # Return a value for children
-          {:ok, %{name: job.name, value: 100}}
-        end
-      )
+        )
 
       flow = %{
         name: "parent",
@@ -562,15 +574,16 @@ defmodule BullMQ.FlowProducerTest do
       test_pid = self()
       processed_order = Agent.start_link(fn -> [] end) |> elem(1)
 
-      {:ok, worker} = Worker.start_link(
-        queue: queue_name,
-        connection: conn,
-        processor: fn job ->
-          Agent.update(processed_order, fn list -> list ++ [job.name] end)
-          send(test_pid, {:processed, job.name})
-          {:ok, %{}}
-        end
-      )
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          processor: fn job ->
+            Agent.update(processed_order, fn list -> list ++ [job.name] end)
+            send(test_pid, {:processed, job.name})
+            {:ok, %{}}
+          end
+        )
 
       flow = %{
         name: "root",

@@ -127,6 +127,7 @@ defmodule BullMQ.FlowProducer do
           {:ok, results} ->
             # Check for errors in results
             errors = Enum.filter(results, &match?({:error, _}, &1))
+
             if Enum.empty?(errors) do
               # Extract job IDs from results and populate the job tree
               job_ids = Enum.map(results, fn {:ok, id} -> to_string(id) end)
@@ -174,6 +175,7 @@ defmodule BullMQ.FlowProducer do
         case build_flow_commands(flow, nil, prefix, []) do
           {:ok, commands, job_tree} ->
             {cmds_acc ++ commands, trees_acc ++ [job_tree], errs_acc}
+
           {:error, _} = error ->
             {cmds_acc, trees_acc, errs_acc ++ [error]}
         end
@@ -187,6 +189,7 @@ defmodule BullMQ.FlowProducer do
         {:ok, results} ->
           # Check for errors in results
           result_errors = Enum.filter(results, &match?({:error, _}, &1))
+
           if Enum.empty?(result_errors) do
             # Extract job IDs and populate all trees
             job_ids = Enum.map(results, fn {:ok, id} -> to_string(id) end)
@@ -212,13 +215,13 @@ defmodule BullMQ.FlowProducer do
     queue_name = Map.get(flow, :queue_name) || Map.get(flow, :queue)
 
     unless queue_name do
-      throw {:error, {:missing_queue, "Flow node must have :queue_name or :queue"}}
+      throw({:error, {:missing_queue, "Flow node must have :queue_name or :queue"}})
     end
 
     name = Map.get(flow, :name)
 
     unless name do
-      throw {:error, {:missing_name, "Flow node must have :name"}}
+      throw({:error, {:missing_name, "Flow node must have :name"}})
     end
 
     data = Map.get(flow, :data, %{})
@@ -236,23 +239,59 @@ defmodule BullMQ.FlowProducer do
 
     if Enum.empty?(children) do
       # Leaf node - add as standard job
-      build_leaf_node_command(ctx, queue_name, name, data, opts, job_id, timestamp, parent_info, prefix, commands_acc)
+      build_leaf_node_command(
+        ctx,
+        queue_name,
+        name,
+        data,
+        opts,
+        job_id,
+        timestamp,
+        parent_info,
+        prefix,
+        commands_acc
+      )
     else
       # Parent node - add parent first, then children
-      build_parent_node_commands(ctx, queue_name, queue_key, name, data, opts, job_id, timestamp, parent_info, prefix, children, commands_acc)
+      build_parent_node_commands(
+        ctx,
+        queue_name,
+        queue_key,
+        name,
+        data,
+        opts,
+        job_id,
+        timestamp,
+        parent_info,
+        prefix,
+        children,
+        commands_acc
+      )
     end
   catch
     {:error, _} = error -> error
   end
 
-  defp build_leaf_node_command(ctx, queue_name, name, data, opts, job_id, timestamp, parent_info, prefix, commands_acc) do
+  defp build_leaf_node_command(
+         ctx,
+         queue_name,
+         name,
+         data,
+         opts,
+         job_id,
+         timestamp,
+         parent_info,
+         prefix,
+         commands_acc
+       ) do
     job = build_job_map(job_id, name, data, queue_name, opts, timestamp, parent_info)
     encoded_opts = encode_job_opts(opts)
 
     {:ok, cmd} = Scripts.build_add_standard_job_command(ctx, job, encoded_opts)
 
     job_template = %{
-      id: nil,  # Will be populated after execution
+      # Will be populated after execution
+      id: nil,
       name: name,
       data: data,
       queue_name: queue_name,
@@ -267,7 +306,20 @@ defmodule BullMQ.FlowProducer do
     {:ok, commands_acc ++ [cmd], job_template}
   end
 
-  defp build_parent_node_commands(ctx, queue_name, queue_key, name, data, opts, job_id, timestamp, parent_info, prefix, children, commands_acc) do
+  defp build_parent_node_commands(
+         ctx,
+         queue_name,
+         queue_key,
+         name,
+         data,
+         opts,
+         job_id,
+         timestamp,
+         parent_info,
+         prefix,
+         children,
+         commands_acc
+       ) do
     job = build_job_map(job_id, name, data, queue_name, opts, timestamp, parent_info)
     encoded_opts = encode_job_opts(opts)
 
@@ -275,6 +327,7 @@ defmodule BullMQ.FlowProducer do
 
     # Build parent info for children
     parent_key = "#{queue_key}:#{job_id}"
+
     parent_info_for_children = %{
       id: job_id,
       queue: queue_name,
@@ -289,13 +342,15 @@ defmodule BullMQ.FlowProducer do
         case build_flow_commands(child, parent_info_for_children, prefix, []) do
           {:ok, child_cmds, child_template} ->
             {cmds ++ child_cmds, templates ++ [child_template]}
+
           {:error, _} = error ->
-            throw error
+            throw(error)
         end
       end)
 
     job_template = %{
-      id: nil,  # Will be populated after execution
+      # Will be populated after execution
+      id: nil,
       name: name,
       data: data,
       queue_name: queue_name,
@@ -360,12 +415,14 @@ defmodule BullMQ.FlowProducer do
         {populated, remaining} = do_populate_job_ids(tree, ids, conn, prefix)
         {acc ++ [populated], remaining}
       end)
+
     populated
   end
 
   # Helper functions
 
   defp build_parent_from_info(nil), do: nil
+
   defp build_parent_from_info(parent_info) do
     %{
       id: Map.get(parent_info, :id),
@@ -375,6 +432,7 @@ defmodule BullMQ.FlowProducer do
   end
 
   defp build_parent_key_from_info(nil), do: nil
+
   defp build_parent_key_from_info(parent_info) do
     Map.get(parent_info, :key)
   end

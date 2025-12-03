@@ -14,19 +14,23 @@ defmodule BullMQ.ConcurrencyScalingTest do
     IO.puts("Job duration: #{job_duration_ms}ms, Jobs per test: #{job_count}")
     IO.puts("")
 
-    results = for concurrency <- [5, 10, 20, 50, 100] do
-      result = run_concurrency_test(concurrency, job_count, job_duration_ms)
+    results =
+      for concurrency <- [5, 10, 20, 50, 100] do
+        result = run_concurrency_test(concurrency, job_count, job_duration_ms)
 
-      expected_time = job_count * job_duration_ms / concurrency  # jobs × duration / concurrency
-      efficiency = expected_time / result.elapsed * 100
+        # jobs × duration / concurrency
+        expected_time = job_count * job_duration_ms / concurrency
+        efficiency = expected_time / result.elapsed * 100
 
-      IO.puts("Concurrency #{String.pad_leading(Integer.to_string(concurrency), 3)}: " <>
-              "#{String.pad_leading(Integer.to_string(result.elapsed), 6)}ms, " <>
-              "max concurrent: #{String.pad_leading(Integer.to_string(result.max_concurrent), 3)}, " <>
-              "efficiency: #{Float.round(efficiency, 1)}%")
+        IO.puts(
+          "Concurrency #{String.pad_leading(Integer.to_string(concurrency), 3)}: " <>
+            "#{String.pad_leading(Integer.to_string(result.elapsed), 6)}ms, " <>
+            "max concurrent: #{String.pad_leading(Integer.to_string(result.max_concurrent), 3)}, " <>
+            "efficiency: #{Float.round(efficiency, 1)}%"
+        )
 
-      {concurrency, result, efficiency}
-    end
+        {concurrency, result, efficiency}
+      end
 
     IO.puts("")
     IO.puts("Expected times (ideal):")
@@ -34,13 +38,18 @@ defmodule BullMQ.ConcurrencyScalingTest do
     IO.puts("  Concurrency 10:  #{job_count * job_duration_ms / 10}ms")
     IO.puts("  Concurrency 20:  #{job_count * job_duration_ms / 20}ms")
     IO.puts("  Concurrency 50:  #{job_count * job_duration_ms / 50}ms")
-    IO.puts("  Concurrency 100: #{trunc(job_count * job_duration_ms / 100)}ms (capped by job count)")
+
+    IO.puts(
+      "  Concurrency 100: #{trunc(job_count * job_duration_ms / 100)}ms (capped by job count)"
+    )
 
     # Verify all tests achieved reasonable max concurrent
     for {concurrency, result, _} <- results do
-      min_expected = min(concurrency, job_count) * 0.8  # Allow 20% variance
+      # Allow 20% variance
+      min_expected = min(concurrency, job_count) * 0.8
+
       assert result.max_concurrent >= min_expected,
-        "Concurrency #{concurrency}: max_concurrent #{result.max_concurrent} < expected #{min_expected}"
+             "Concurrency #{concurrency}: max_concurrent #{result.max_concurrent} < expected #{min_expected}"
     end
 
     IO.puts("\n=== All tests passed! ===")
@@ -78,12 +87,13 @@ defmodule BullMQ.ConcurrencyScalingTest do
 
     start_time = System.monotonic_time(:millisecond)
 
-    {:ok, worker} = Worker.start_link(
-      queue: queue_name,
-      connection: conn_name,
-      concurrency: concurrency,
-      processor: processor
-    )
+    {:ok, worker} =
+      Worker.start_link(
+        queue: queue_name,
+        connection: conn_name,
+        concurrency: concurrency,
+        processor: processor
+      )
 
     wait_for_completion(completed, job_count, 120_000)
 
@@ -110,8 +120,12 @@ defmodule BullMQ.ConcurrencyScalingTest do
     elapsed = System.monotonic_time(:millisecond) - start
 
     cond do
-      count >= target -> :ok
-      elapsed > timeout -> :timeout
+      count >= target ->
+        :ok
+
+      elapsed > timeout ->
+        :timeout
+
       true ->
         Process.sleep(10)
         do_wait(counter, target, start, timeout)

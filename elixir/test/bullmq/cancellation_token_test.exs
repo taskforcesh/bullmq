@@ -149,10 +149,11 @@ defmodule BullMQ.CancellationTokenTest do
       test_pid = self()
 
       # Start a task that does some work
-      task = Task.async(fn ->
-        Process.sleep(100)
-        :completed
-      end)
+      task =
+        Task.async(fn ->
+          Process.sleep(100)
+          :completed
+        end)
 
       # Cancel after a short delay
       spawn(fn ->
@@ -178,10 +179,11 @@ defmodule BullMQ.CancellationTokenTest do
       _token = CancellationToken.new()
 
       # Start a task that completes quickly
-      task = Task.async(fn ->
-        Process.sleep(10)
-        :completed
-      end)
+      task =
+        Task.async(fn ->
+          Process.sleep(10)
+          :completed
+        end)
 
       # Wait for task completion using Task.await which handles the message properly
       result = Task.await(task)

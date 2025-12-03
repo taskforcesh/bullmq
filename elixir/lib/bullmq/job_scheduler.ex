@@ -223,7 +223,18 @@ defmodule BullMQ.JobScheduler do
         if end_date && now > end_date do
           {:error, :end_date_reached}
         else
-          do_upsert(conn, ctx, queue_name, scheduler_id, repeat_opts, job_name, job_data, opts, now, prefix)
+          do_upsert(
+            conn,
+            ctx,
+            queue_name,
+            scheduler_id,
+            repeat_opts,
+            job_name,
+            job_data,
+            opts,
+            now,
+            prefix
+          )
         end
       end
     end
@@ -527,7 +538,18 @@ defmodule BullMQ.JobScheduler do
   defp validate_repeat_opts(%{every: _}), do: :ok
   defp validate_repeat_opts(_), do: {:error, :no_pattern_or_every}
 
-  defp do_upsert(conn, ctx, queue_name, scheduler_id, repeat_opts, job_name, job_data, opts, now, _prefix) do
+  defp do_upsert(
+         conn,
+         ctx,
+         queue_name,
+         scheduler_id,
+         repeat_opts,
+         job_name,
+         job_data,
+         opts,
+         now,
+         _prefix
+       ) do
     # Calculate next execution time
     next_millis = calculate_next_millis(repeat_opts, now)
 
@@ -565,23 +587,24 @@ defmodule BullMQ.JobScheduler do
       offset = Map.get(repeat_opts, :offset, 0)
       delay = max(0, next_millis + offset - now)
 
-      delayed_opts = %{
-        delay: delay,
-        timestamp: now,
-        prevMillis: next_millis,
-        repeatJobKey: scheduler_id,
-        repeat: %{
-          count: iteration_count,
-          limit: Map.get(repeat_opts, :limit),
-          pattern: Map.get(repeat_opts, :pattern),
-          every: Map.get(repeat_opts, :every),
-          offset: offset,
-          startDate: normalize_date(Map.get(repeat_opts, :start_date)),
-          endDate: normalize_date(Map.get(repeat_opts, :end_date)),
-          tz: Map.get(repeat_opts, :tz)
+      delayed_opts =
+        %{
+          delay: delay,
+          timestamp: now,
+          prevMillis: next_millis,
+          repeatJobKey: scheduler_id,
+          repeat: %{
+            count: iteration_count,
+            limit: Map.get(repeat_opts, :limit),
+            pattern: Map.get(repeat_opts, :pattern),
+            every: Map.get(repeat_opts, :every),
+            offset: offset,
+            startDate: normalize_date(Map.get(repeat_opts, :start_date)),
+            endDate: normalize_date(Map.get(repeat_opts, :end_date)),
+            tz: Map.get(repeat_opts, :tz)
+          }
         }
-      }
-      |> maybe_add_job_opts(opts)
+        |> maybe_add_job_opts(opts)
 
       # Encode data
       template_data = Jason.encode!(job_data)
@@ -595,7 +618,8 @@ defmodule BullMQ.JobScheduler do
         Msgpax.pack!(delayed_opts, iodata: false),
         now,
         Keys.base(ctx) <> ":",
-        ""  # producer key (empty for now)
+        # producer key (empty for now)
+        ""
       ]
 
       case Redix.command(conn, ["EVAL", script, key_count | keys ++ args]) do
@@ -763,24 +787,32 @@ defmodule BullMQ.JobScheduler do
 
     template =
       case Map.get(raw_data, "data") do
-        nil -> template
+        nil ->
+          template
+
         data when is_binary(data) ->
           case Jason.decode(data) do
             {:ok, decoded} -> Map.put(template, :data, decoded)
             _ -> template
           end
-        data -> Map.put(template, :data, data)
+
+        data ->
+          Map.put(template, :data, data)
       end
 
     template =
       case Map.get(raw_data, "opts") do
-        nil -> template
+        nil ->
+          template
+
         opts when is_binary(opts) ->
           case Jason.decode(opts) do
             {:ok, decoded} -> Map.put(template, :opts, decoded)
             _ -> template
           end
-        opts -> Map.put(template, :opts, opts)
+
+        opts ->
+          Map.put(template, :opts, opts)
       end
 
     if map_size(template) > 0 do
