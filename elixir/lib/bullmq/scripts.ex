@@ -18,21 +18,21 @@ defmodule BullMQ.Scripts do
 
   # Path to the scripts directory
   # First try priv/scripts (for CI and production), fallback to rawScripts (for local dev)
-  @priv_scripts_path Path.expand("../../priv/scripts", __DIR__)
-  @raw_scripts_path Path.expand("../../../rawScripts", __DIR__)
-
   @scripts_path (
-    cond do
-      File.dir?(@priv_scripts_path) and
-          File.ls!(@priv_scripts_path) |> Enum.any?(&String.ends_with?(&1, ".lua")) ->
-        @priv_scripts_path
+    priv_scripts_path = Path.expand("../../priv/scripts", __DIR__)
+    raw_scripts_path = Path.expand("../../../rawScripts", __DIR__)
 
-      File.dir?(@raw_scripts_path) ->
-        @raw_scripts_path
+    cond do
+      File.dir?(priv_scripts_path) and
+          File.ls!(priv_scripts_path) |> Enum.any?(&String.ends_with?(&1, ".lua")) ->
+        priv_scripts_path
+
+      File.dir?(raw_scripts_path) ->
+        raw_scripts_path
 
       true ->
         # Will result in empty scripts - error will be raised at runtime
-        @priv_scripts_path
+        priv_scripts_path
     end
   )
 
