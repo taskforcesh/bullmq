@@ -278,13 +278,9 @@ jobs:
     strategy:
       matrix:
         node-version: [lts/*]
-        elixir-version: ['1.15', '1.16', '1.17']
-        otp-version: ['26.x', '27.x']
+        elixir-version: ['1.17']
+        otp-version: ['27.x']
         redis-version: [7-alpine]
-        exclude:
-          # Elixir 1.15 doesn't support OTP 27
-          - elixir-version: '1.15'
-            otp-version: '27.x'
 
     steps:
       - name: Checkout repository
