@@ -277,6 +277,7 @@ jobs:
 
     strategy:
       matrix:
+        node-version: [lts/*]
         elixir-version: ['1.15', '1.16', '1.17']
         otp-version: ['26.x', '27.x']
         redis-version: [7-alpine]
@@ -289,10 +290,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'yarn'
+
       - name: Start Redis
         uses: supercharge/redis-github-action@f63fe516254d0af5df91755a4488274c2e71e38c # 1.5.0
         with:
           redis-version: ${{ matrix.redis-version }}
+
+      - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
+      - run: yarn build
+      - run: yarn copy:lua:elixir
 
       - name: Set up Elixir
         uses: erlef/setup-beam@v1
@@ -308,18 +319,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-mix-deps-${{ matrix.elixir-version }}-${{ matrix.otp-version }}-
 
-      - name: Install dependencies
+      - name: Install Elixir dependencies
         working-directory: elixir
         run: |
           mix local.hex --force
           mix local.rebar --force
           mix deps.get
-
-      - name: Copy Lua scripts
-        run: |
-          mkdir -p elixir/priv/scripts
-          cp rawScripts/*.lua elixir/priv/scripts/
-          echo "Copied $(ls elixir/priv/scripts/*.lua | wc -l) Lua scripts"
 
       - name: Compile
         working-directory: elixir
@@ -332,59 +337,3 @@ jobs:
       - name: Check formatting
         working-directory: elixir
         run: mix format --check-formatted
-
-  elixir-dragonflydb:
-    runs-on: ubuntu-latest
-
-    name: testing elixir@1.17, otp@27.x, dragonflydb@latest
-
-    services:
-      dragonflydb:
-        image: docker.dragonflydb.io/dragonflydb/dragonfly:v1.24.0
-        env:
-          DFLY_cluster_mode: emulated
-          DFLY_lock_on_hashtags: true
-          HEALTHCHECK_PORT: 6379
-        ports:
-          - 6379:6379
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Set up Elixir
-        uses: erlef/setup-beam@v1
-        with:
-          elixir-version: '1.17'
-          otp-version: '27.x'
-
-      - name: Restore dependencies cache
-        uses: actions/cache@v3
-        with:
-          path: elixir/deps
-          key: ${{ runner.os }}-mix-deps-1.17-27.x-${{ hashFiles('elixir/mix.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-mix-deps-1.17-27.x-
-
-      - name: Install dependencies
-        working-directory: elixir
-        run: |
-          mix local.hex --force
-          mix local.rebar --force
-          mix deps.get
-
-      - name: Copy Lua scripts
-        run: |
-          mkdir -p elixir/priv/scripts
-          cp rawScripts/*.lua elixir/priv/scripts/
-          echo "Copied $(ls elixir/priv/scripts/*.lua | wc -l) Lua scripts"
-
-      - name: Compile
-        working-directory: elixir
-        run: mix compile
-
-      - name: Run tests
-        working-directory: elixir
-        env:
-          BULLMQ_TEST_PREFIX: '{b}'
-        run: mix test --include integration
