@@ -5,18 +5,12 @@
 
 * **deps:** upgrade bullmq to v5.63.1 ([#386](https://github.com/taskforcesh/bullmq-pro/issues/386)) ([a9a0fcb](https://github.com/taskforcesh/bullmq-pro/commit/a9a0fcbff5fff1aec8381825534f882204012a5f))
 
-
-
-
 # [7.40.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.39.3...v7.40.0) (2025-11-04)
 
 
 ### Features
 
 * **deps:** upgrade bullmq to v5.63.0 ([#382](https://github.com/taskforcesh/bullmq-pro/issues/382)) ([4e5fc31](https://github.com/taskforcesh/bullmq-pro/commit/4e5fc31b1ec69808f8c3be9a2bb7cfa665b1e94f))
-
-
-
 
 ## [7.39.3](https://github.com/taskforcesh/bullmq-pro/compare/v7.39.2...v7.39.3) (2025-10-08)
 
@@ -25,9 +19,6 @@
 
 * **classes:** expose WaitingError ([#379](https://github.com/taskforcesh/bullmq-pro/issues/379)) ([1cd999e](https://github.com/taskforcesh/bullmq-pro/commit/1cd999e7b52a531d14f5a94f90ef3b3cee167517))
 
-
-
-
 ## [7.39.2](https://github.com/taskforcesh/bullmq-pro/compare/v7.39.1...v7.39.2) (2025-10-04)
 
 
@@ -35,18 +26,12 @@
 
 * **deps:** upgrade bullmq to v5.58.7 ([#376](https://github.com/taskforcesh/bullmq-pro/issues/376)) ([05c9442](https://github.com/taskforcesh/bullmq-pro/commit/05c944299ab97ab49332244fc3b24616c0b7cc04))
 
-
-
-
 ## [7.39.1](https://github.com/taskforcesh/bullmq-pro/compare/v7.39.0...v7.39.1) (2025-09-20)
 
 
 ### Bug Fixes
 
 * **scripts:** detect missing transformed scripts ([#371](https://github.com/taskforcesh/bullmq-pro/issues/371)) ([006b394](https://github.com/taskforcesh/bullmq-pro/commit/006b3948928eab365c17bd6adac57c2f17fd1f75))
-
-
-
 
 # [7.39.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.38.5...v7.39.0) (2025-09-18)
 

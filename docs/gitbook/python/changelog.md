@@ -3,7 +3,6 @@
 
 ### Bug Fixes
 
-* upsertJobScheduler does not apply change on existing scheduled job ([#3524](https://github.com/taskforcesh/bullmq/issues/3524)) ([98f73b3](https://github.com/taskforcesh/bullmq/commit/98f73b3f33aa79cdd67d0c4090cc86a8e4cfeb4c)), closes [#3500](https://github.com/taskforcesh/bullmq/issues/3500)
 * **worker:** add retryIfFailed method fixes [#3517](https://github.com/taskforcesh/bullmq/issues/3517) [python] ([#3521](https://github.com/taskforcesh/bullmq/issues/3521)) ([c385b52](https://github.com/taskforcesh/bullmq/commit/c385b520b9fbe3dd58cdaead79c258835cab4361))
 
 ## [2.16.1](https://github.com/taskforcesh/bullmq/compare/vpy2.16.0...vpy2.16.1) (2025-09-08)
