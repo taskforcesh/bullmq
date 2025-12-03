@@ -2,16 +2,39 @@ defmodule BullMQ.Scripts do
   @moduledoc """
   Manages Lua scripts for BullMQ Redis operations.
 
-  This module loads Lua scripts from the rawScripts directory at compile time,
+  This module loads Lua scripts from priv/scripts at compile time,
   extracting the number of keys from the filename pattern `scriptName-numberOfKeys.lua`.
 
   All scripts are loaded and cached for efficient execution using Redis EVALSHA.
+
+  ## Script Location
+
+  Scripts are copied from the root `rawScripts/` directory to `priv/scripts/`
+  before compilation. Run `mix scripts.copy` to update the scripts, or they
+  will be copied automatically during CI builds.
   """
 
   alias BullMQ.{Keys, RedisConnection}
 
-  # Path to the rawScripts directory (relative to the elixir project)
+  # Path to the scripts directory
+  # First try priv/scripts (for CI and production), fallback to rawScripts (for local dev)
+  @priv_scripts_path Path.expand("../../priv/scripts", __DIR__)
   @raw_scripts_path Path.expand("../../../rawScripts", __DIR__)
+
+  @scripts_path (
+    cond do
+      File.dir?(@priv_scripts_path) and
+          File.ls!(@priv_scripts_path) |> Enum.any?(&String.ends_with?(&1, ".lua")) ->
+        @priv_scripts_path
+
+      File.dir?(@raw_scripts_path) ->
+        @raw_scripts_path
+
+      true ->
+        # Will result in empty scripts - error will be raised at runtime
+        @priv_scripts_path
+    end
+  )
 
   # Map of Elixir atom names to script file base names (without the -N.lua suffix)
   @script_name_mapping %{
@@ -69,7 +92,7 @@ defmodule BullMQ.Scripts do
 
   # Find all script files and register them as external resources
   @script_files (
-    case File.ls(@raw_scripts_path) do
+    case File.ls(@scripts_path) do
       {:ok, files} ->
         files
         |> Enum.filter(&String.ends_with?(&1, ".lua"))
@@ -81,7 +104,7 @@ defmodule BullMQ.Scripts do
 
   # Register each script file as an external resource for recompilation on change
   for file <- @script_files do
-    @external_resource Path.join(@raw_scripts_path, file)
+    @external_resource Path.join(@scripts_path, file)
   end
 
   # Parse script files to extract name and key count
@@ -92,7 +115,7 @@ defmodule BullMQ.Scripts do
       case Regex.run(~r/^(.+)-(\d+)\.lua$/, filename) do
         [_, base_name, key_count_str] ->
           key_count = String.to_integer(key_count_str)
-          file_path = Path.join(@raw_scripts_path, filename)
+          file_path = Path.join(@scripts_path, filename)
           content = File.read!(file_path)
           {base_name, %{content: content, key_count: key_count, filename: filename}}
         nil ->

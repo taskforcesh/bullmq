@@ -177,7 +177,33 @@ defmodule BullMQ.MixProject do
       setup: ["deps.get", "cmd --cd assets npm install"],
       test: ["test"],
       "test.watch": ["test.watch"],
-      lint: ["format --check-formatted", "credo --strict", "dialyzer"]
+      lint: ["format --check-formatted", "credo --strict", "dialyzer"],
+      "scripts.copy": &copy_lua_scripts/1
     ]
+  end
+
+  # Copy Lua scripts from rawScripts to priv/scripts
+  # This ensures scripts are available at compile time
+  defp copy_lua_scripts(_args) do
+    source_dir = Path.expand("../rawScripts", __DIR__)
+    target_dir = Path.expand("priv/scripts", __DIR__)
+
+    File.mkdir_p!(target_dir)
+
+    case File.ls(source_dir) do
+      {:ok, files} ->
+        lua_files = Enum.filter(files, &String.ends_with?(&1, ".lua"))
+
+        Enum.each(lua_files, fn file ->
+          source = Path.join(source_dir, file)
+          target = Path.join(target_dir, file)
+          File.cp!(source, target)
+        end)
+
+        Mix.shell().info("Copied #{length(lua_files)} Lua scripts to priv/scripts/")
+
+      {:error, reason} ->
+        Mix.raise("Failed to read rawScripts directory: #{inspect(reason)}")
+    end
   end
 end

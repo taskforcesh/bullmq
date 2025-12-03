@@ -315,6 +315,12 @@ jobs:
           mix local.rebar --force
           mix deps.get
 
+      - name: Copy Lua scripts
+        run: |
+          mkdir -p elixir/priv/scripts
+          cp rawScripts/*.lua elixir/priv/scripts/
+          echo "Copied $(ls elixir/priv/scripts/*.lua | wc -l) Lua scripts"
+
       - name: Compile
         working-directory: elixir
         run: mix compile --warnings-as-errors
@@ -366,6 +372,12 @@ jobs:
           mix local.hex --force
           mix local.rebar --force
           mix deps.get
+
+      - name: Copy Lua scripts
+        run: |
+          mkdir -p elixir/priv/scripts
+          cp rawScripts/*.lua elixir/priv/scripts/
+          echo "Copied $(ls elixir/priv/scripts/*.lua | wc -l) Lua scripts"
 
       - name: Compile
         working-directory: elixir

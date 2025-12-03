@@ -32,3 +32,6 @@ cover/
 
 # Temporary files
 tmp/
+
+# Copied Lua scripts (from rawScripts/)
+priv/scripts/
