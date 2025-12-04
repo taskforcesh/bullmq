@@ -68,7 +68,7 @@ defmodule BullMQ.Queue do
 
   use GenServer
 
-  alias BullMQ.{Job, Keys, RedisConnection, Scripts, Types}
+  alias BullMQ.{Job, Keys, RedisConnection, Scripts, Types, Version}
 
   require Logger
 
@@ -103,6 +103,30 @@ defmodule BullMQ.Queue do
                    default: nil,
                    doc:
                      "Module implementing `BullMQ.Telemetry.Behaviour` for distributed tracing (e.g., `BullMQ.Telemetry.OpenTelemetry`)."
+                 ],
+                 skip_meta_update: [
+                   type: :boolean,
+                   default: false,
+                   doc: "Skip updating queue metadata (version, maxLenEvents) in Redis on init."
+                 ],
+                 streams: [
+                   type: :keyword_list,
+                   default: [],
+                   doc: "Stream configuration options.",
+                   keys: [
+                     events: [
+                       type: :keyword_list,
+                       default: [],
+                       doc: "Event stream configuration.",
+                       keys: [
+                         max_len: [
+                           type: :pos_integer,
+                           default: 10_000,
+                           doc: "Maximum length of the event stream."
+                         ]
+                       ]
+                     ]
+                   ]
                  ]
                )
 
@@ -641,6 +665,86 @@ defmodule BullMQ.Queue do
 
       {:error, _} = error ->
         error
+    end
+  end
+
+  @doc """
+  Gets the BullMQ version stored in the queue's metadata.
+
+  This version indicates the Lua script version/capabilities of the queue,
+  which corresponds to the Node.js BullMQ version. This is important for
+  frontend tools like Bull Board to match features.
+
+  Returns `nil` if no version has been set (e.g., the queue was never used
+  or was created with `skip_meta_update: true`).
+
+  ## Examples
+
+      {:ok, version} = BullMQ.Queue.get_version("my_queue", connection: :redis)
+      # "bullmq:5.65.1"
+
+  ## See Also
+
+    * `BullMQ.Version` - Module containing the BullMQ version constants
+  """
+  @spec get_version(atom() | pid() | String.t(), keyword()) :: {:ok, String.t() | nil} | {:error, term()}
+  def get_version(queue, opts \\ [])
+
+  def get_version(queue, _opts) when is_atom(queue) or is_pid(queue) do
+    GenServer.call(queue, :get_version)
+  end
+
+  def get_version(queue, opts) when is_binary(queue) do
+    conn = Keyword.fetch!(opts, :connection)
+    prefix = Keyword.get(opts, :prefix, "bull")
+    ctx = Keys.new(queue, prefix: prefix)
+
+    case RedisConnection.command(conn, ["HGET", Keys.meta(ctx), "version"]) do
+      {:ok, version} -> {:ok, version}
+      {:error, _} = error -> error
+    end
+  end
+
+  @doc """
+  Updates queue metadata (version and maxLenEvents) in Redis.
+
+  This is automatically called when using a Queue GenServer, but for stateless
+  usage you may want to call this explicitly to ensure the version is set.
+  This is important for frontend tools like Bull Board to properly detect
+  queue capabilities.
+
+  ## Options
+
+    * `:connection` - Redis connection (required)
+    * `:prefix` - Queue prefix (default: "bull")
+    * `:max_len_events` - Maximum length of the event stream (default: 10_000)
+
+  ## Examples
+
+      :ok = BullMQ.Queue.update_meta("my_queue", connection: :redis)
+      :ok = BullMQ.Queue.update_meta("my_queue", connection: :redis, max_len_events: 50_000)
+
+  ## See Also
+
+    * `BullMQ.Version` - The BullMQ version that will be set
+  """
+  @spec update_meta(String.t(), keyword()) :: :ok | {:error, term()}
+  def update_meta(queue, opts) when is_binary(queue) do
+    conn = Keyword.fetch!(opts, :connection)
+    prefix = Keyword.get(opts, :prefix, "bull")
+    max_len_events = Keyword.get(opts, :max_len_events, 10_000)
+    ctx = Keys.new(queue, prefix: prefix)
+
+    case RedisConnection.command(conn, [
+           "HMSET",
+           Keys.meta(ctx),
+           "opts.maxLenEvents",
+           to_string(max_len_events),
+           "version",
+           Version.full_version()
+         ]) do
+      {:ok, _} -> :ok
+      {:error, _} = error -> error
     end
   end
 
@@ -1594,6 +1698,8 @@ defmodule BullMQ.Queue do
     prefix = Keyword.get(opts, :prefix, "bull")
     default_job_opts = Keyword.get(opts, :default_job_opts, %{})
     telemetry = Keyword.get(opts, :telemetry)
+    skip_meta_update = Keyword.get(opts, :skip_meta_update, false)
+    streams = Keyword.get(opts, :streams, [])
 
     state = %__MODULE__{
       name: queue_name,
@@ -1603,6 +1709,12 @@ defmodule BullMQ.Queue do
       keys: Keys.new(queue_name, prefix: prefix),
       telemetry: telemetry
     }
+
+    # Set meta values in Redis (version and maxLenEvents) unless skipped
+    unless skip_meta_update do
+      max_len_events = get_in(streams, [:events, :max_len]) || 10_000
+      set_meta_values(connection, state.keys, max_len_events)
+    end
 
     {:ok, state}
   end
@@ -1786,6 +1898,11 @@ defmodule BullMQ.Queue do
     {:reply, result, state}
   end
 
+  def handle_call(:get_version, _from, state) do
+    result = get_version(state.name, connection: state.connection, prefix: state.prefix)
+    {:reply, result, state}
+  end
+
   def handle_call({:export_prometheus_metrics, opts}, _from, state) do
     merged_opts = Keyword.merge([connection: state.connection, prefix: state.prefix], opts)
     result = export_prometheus_metrics(state.name, merged_opts)
@@ -1793,6 +1910,25 @@ defmodule BullMQ.Queue do
   end
 
   # Private helpers
+
+  defp set_meta_values(conn, keys, max_len_events) do
+    # Set version and maxLenEvents in Redis meta hash
+    # This is done asynchronously to not block init
+    Task.start(fn ->
+      try do
+        RedisConnection.command(conn, [
+          "HMSET",
+          Keys.meta(keys),
+          "opts.maxLenEvents",
+          to_string(max_len_events),
+          "version",
+          Version.full_version()
+        ])
+      rescue
+        _ -> :ok
+      end
+    end)
+  end
 
   defp add_job(conn, ctx, job) do
     encoded_opts = encode_job_opts(job.opts)
