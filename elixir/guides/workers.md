@@ -340,7 +340,7 @@ end
 
 - Job moves to waiting-children state
 - Automatically resumed when all child jobs complete
-- Parent can access child results via `BullMQ.FlowProducer.get_children_values/1`
+- Parent can access child results via `BullMQ.Job.get_children_values/1`
 - Does NOT trigger `on_completed` callback (until children complete and job finishes)
 - See [Flows & Parent-Child Jobs](flows.md) for details
 

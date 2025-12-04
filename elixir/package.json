@@ -63,7 +63,13 @@
           "publishCmd": "mix hex.publish --yes"
         }
       ],
-      "@semantic-release/github"
+      [
+        "@semantic-release/github",
+        {
+          "successComment": false,
+          "failComment": false
+        }
+      ]
     ]
   },
   "packageManager": "yarn@1.22.22"
