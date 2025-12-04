@@ -15,7 +15,7 @@ Add BullMQ to your `mix.exs`:
 ```elixir
 def deps do
   [
-    {:bullmq, "~> 0.1.0"},
+    {:bullmq, "~> 1.0"},
     {:redix, "~> 1.2"}  # Redis client
   ]
 end

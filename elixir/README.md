@@ -28,7 +28,7 @@ Add `bullmq` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:bullmq, "~> 0.1.0"}
+    {:bullmq, "~> 1.0"}
   ]
 end
 ```

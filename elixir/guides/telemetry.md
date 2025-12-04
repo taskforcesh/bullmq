@@ -20,31 +20,27 @@ OpenTelemetry enables distributed tracing across service boundaries, allowing yo
 
 Add the optional OpenTelemetry dependencies to your \`mix.exs\`:
 
-\`\`\`elixir
+```elixir
 def deps do
-[
-{:bullmq, "~> 1.0"},
+  [
+    {:bullmq, "~> 1.0"},
+    # OpenTelemetry API (required for tracing)
+    {:opentelemetry_api, "~> 1.0"},
 
-# OpenTelemetry API (required for tracing)
+    # OpenTelemetry SDK (for exporting traces)
+    {:opentelemetry, "~> 1.0"},
 
-{:opentelemetry_api, "~> 1.0"},
-
-# OpenTelemetry SDK (for exporting traces)
-
-{:opentelemetry, "~> 1.0"},
-
-# Exporter (choose one)
-
-{:opentelemetry_exporter, "~> 1.0"} # OTLP exporter
-]
+    # Exporter (choose one)
+    {:opentelemetry_exporter, "~> 1.0"} # OTLP exporter
+  ]
 end
-\`\`\`
+```
 
 ### Configuration
 
 Configure OpenTelemetry in your \`config/runtime.exs\`:
 
-\`\`\`elixir
+```elixir
 config :opentelemetry,
 resource: [
 service: [name: "my-app"]
@@ -55,26 +51,27 @@ traces_exporter: :otlp
 config :opentelemetry_exporter,
 otlp_protocol: :http_protobuf,
 otlp_endpoint: "http://localhost:4318"
-\`\`\`
+```
 
 ### Basic Usage
 
 Enable telemetry when creating workers:
 
-\`\`\`elixir
+```elixir
 
 # Worker with OpenTelemetry
-
-{:ok, worker} = BullMQ.Worker.start_link(
-queue: "my-queue",
-connection: :my_redis,
-telemetry: BullMQ.Telemetry.OpenTelemetry,
-processor: fn job -> # Your job is automatically wrapped in a span # linked to the producer's trace context
-process_job(job)
-{:ok, :done}
-end
-)
-\`\`\`
+  {:ok, worker} =
+  BullMQ.Worker.start_link(
+    queue: "my-queue",
+    connection: :my_redis,
+    telemetry: BullMQ.Telemetry.OpenTelemetry,
+    processor: fn job ->
+      # Your job is automatically wrapped in a span linked to the producer's trace context
+      process_job(job)
+      {:ok, :done}
+    end
+  )
+```
 
 ### How It Works
 
@@ -88,7 +85,7 @@ end
 
 BullMQ's trace context is compatible with Node.js BullMQ (using \`bullmq-otel\`). A trace can flow seamlessly:
 
-\`\`\`
+```
 [Node.js Service] [Elixir Worker] [Node.js Worker]
 | | |
 Add Job | |
@@ -99,30 +96,29 @@ Add Job | |
 | Add Child Job ────────────────|
 | | Process Job
 | | (grandchild span)
-\`\`\`
+```
 
 ### Manual Tracing
 
 Create additional spans within your processor:
 
-\`\`\`elixir
+```elixir
 alias BullMQ.Telemetry.OpenTelemetry, as: Tracer
 
 def processor(job) do
-
-# Create a child span for a specific operation
-
-Tracer.trace("process.validate", [kind: :internal], fn \_span ->
-validate_data(job.data)
-end)
-
-Tracer.trace("process.save", [kind: :client], fn \_span ->
 save_to_database(job.data)
-end)
+  # Create a child span for a specific operation
+  Tracer.trace("process.validate", [kind: :internal], fn _span ->
+    validate_data(job.data)
+  end)
 
-{:ok, :processed}
+  Tracer.trace("process.save", [kind: :client], fn _span ->
+    save_to_database(job.data)
+  end)
+
+  {:ok, :processed}
 end
-\`\`\`
+```
 
 ### Span Attributes
 
@@ -137,13 +133,13 @@ Automatic spans include these attributes:
 
 Add custom attributes:
 
-\`\`\`elixir
+```elixir
 Tracer.trace("my.operation", [], fn span ->
 Tracer.set_attribute(span, "user.id", user_id)
 Tracer.set_attribute(span, "order.amount", amount)
 do_work()
 end)
-\`\`\`
+```
 
 ### Job Options for Telemetry
 
@@ -152,12 +148,12 @@ end)
 | \`telemetry_metadata\` | string  | nil     | Serialized trace context (auto-set) |
 | \`omit_context\`       | boolean | false   | Skip trace context propagation      |
 
-\`\`\`elixir
+```elixir
 
 # Disable tracing for a specific job
 
 BullMQ.Queue.add("queue", "job", %{}, omit_context: true)
-\`\`\`
+```
 
 ### Graceful Degradation
 
@@ -169,17 +165,17 @@ The OpenTelemetry adapter gracefully degrades:
 
 This means you can enable telemetry safely:
 
-\`\`\`elixir
+```elixir
 
 # In dev, just the API - spans are created but go nowhere
 
-{:opentelemetry_api, "~> 1.0"}
+  {:opentelemetry_api, "~> 1.0"}
 
 # In prod, add the SDK and exporter
 
-{:opentelemetry, "~> 1.0"},
-{:opentelemetry_exporter, "~> 1.0"}
-\`\`\`
+  {:opentelemetry, "~> 1.0"},
+  {:opentelemetry_exporter, "~> 1.0"}
+```
 
 ### Viewing Traces
 
@@ -193,7 +189,7 @@ Popular tools for viewing OpenTelemetry traces:
 
 Example Jaeger setup:
 
-\`\`\`yaml
+```yaml
 
 # docker-compose.yml
 
@@ -201,16 +197,16 @@ services:
 jaeger:
 image: jaegertracing/all-in-one:latest
 ports: - "16686:16686" # UI - "4318:4318" # OTLP HTTP
-\`\`\`
+```
 
-\`\`\`elixir
+```elixir
 
 # config/runtime.exs
 
 config :opentelemetry_exporter,
 otlp_protocol: :http_protobuf,
 otlp_endpoint: "http://localhost:4318"
-\`\`\`
+```
 
 ---
 
@@ -257,7 +253,7 @@ All events are prefixed with \`[:bullmq, ...]\`.
 
 ### Basic Handler
 
-\`\`\`elixir
+```elixir
 defmodule MyApp.BullMQTelemetry do
 require Logger
 
@@ -299,13 +295,13 @@ MyApp.BullMQTelemetry.setup()
 # ... rest of supervision tree
 
 end
-\`\`\`
+```
 
 ### Prometheus Integration
 
 Using [Telemetry.Metrics](https://hexdocs.pm/telemetry_metrics) and [TelemetryMetricsPrometheus](https://hexdocs.pm/telemetry_metrics_prometheus):
 
-\`\`\`elixir
+```elixir
 defmodule MyApp.Metrics do
 import Telemetry.Metrics
 
@@ -360,13 +356,13 @@ end
 children = [
 {TelemetryMetricsPrometheus, metrics: MyApp.Metrics.metrics()}
 ]
-\`\`\`
+```
 
 ### StatsD Integration
 
 Using [TelemetryMetricsStatsd](https://hexdocs.pm/telemetry_metrics_statsd):
 
-\`\`\`elixir
+```elixir
 defmodule MyApp.Metrics do
 import Telemetry.Metrics
 
@@ -387,11 +383,11 @@ host: "localhost",
 port: 8125
 }
 ]
-\`\`\`
+```
 
 ### Grafana Queries (Prometheus)
 
-\`\`\`promql
+```promql
 
 # Job throughput by queue
 
@@ -408,7 +404,7 @@ rate(bullmq_job_failures_total[5m]) / rate(bullmq_job_count_total[5m])
 # P99 job duration
 
 histogram_quantile(0.99, rate(bullmq_job_duration_bucket[5m]))
-\`\`\`
+```
 
 ---
 
@@ -421,16 +417,16 @@ histogram_quantile(0.99, rate(bullmq_job_duration_bucket[5m]))
 
 ### 2. Tag by Queue and Job Name
 
-\`\`\`elixir
+```elixir
 distribution("bullmq.job.duration",
 event_name: [:bullmq, :job, :complete],
 tags: [:queue, :job_name]
 )
-\`\`\`
+```
 
 ### 3. Set Up Alerts
 
-\`\`\`yaml
+```yaml
 
 # Prometheus alert rules
 
@@ -448,11 +444,11 @@ groups:
   for: 10m
   labels:
   severity: warning
-  \`\`\`
+```
 
 ### 4. Log Failures with Context
 
-\`\`\`elixir
+```elixir
 def handle_event([:bullmq, :job, :fail], measurements, metadata, \_config) do
 Logger.error(
 "Job failed",
@@ -463,13 +459,13 @@ duration_ms: measurements.duration / 1_000_000,
 error: inspect(metadata.error)
 )
 end
-\`\`\`
+```
 
 ## Custom Telemetry Implementation
 
 You can implement your own telemetry backend:
 
-\`\`\`elixir
+```elixir
 defmodule MyApp.CustomTelemetry do
 @behaviour BullMQ.Telemetry.Behaviour
 
@@ -487,13 +483,14 @@ end
 
 # Use it
 
-{:ok, worker} = BullMQ.Worker.start_link(
-queue: "my-queue",
-connection: :my_redis,
-telemetry: MyApp.CustomTelemetry,
-processor: &process/1
-)
-\`\`\`
+  {:ok, worker} =
+    BullMQ.Worker.start_link(
+      queue: "my-queue",
+      connection: :my_redis,
+      telemetry: MyApp.CustomTelemetry,
+      processor: &process/1
+    )
+```
 
 ## Next Steps
 

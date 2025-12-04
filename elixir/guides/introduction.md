@@ -24,7 +24,7 @@ Add BullMQ to your dependencies:
 ```elixir
 def deps do
   [
-    {:bullmq, "~> 0.1.0"}
+    {:bullmq, "~> 1.0"}
   ]
 end
 ```
