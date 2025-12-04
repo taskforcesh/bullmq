@@ -85,169 +85,199 @@
 
 * **add-job:** trim events when waiting-children event is published ([#2262](https://github.com/taskforcesh/bullmq/issues/2262)) (python) ([198bf05](https://github.com/taskforcesh/bullmq/commit/198bf05fa5a4e1ce50081296033a2e0f26ece498))
 
-## v1.15.2 (2023-10-18)
+## [1.15.2](https://github.com/taskforcesh/bullmq/compare/vpy1.15.1...vpy1.15.2) (2023-10-18)
 
-### Fix
 
-- **events:** Do not publish removed event on non-existent jobs ([#2227](https://github.com/taskforcesh/bullmq/issues/2227)) ([`c134606`](https://github.com/taskforcesh/bullmq/commit/c1346064c6cd9f93c59b184f150eac11d51c91b4))
-- **events:** Trim events when retrying a job ([#2224](https://github.com/taskforcesh/bullmq/issues/2224)) ([`1986b05`](https://github.com/taskforcesh/bullmq/commit/1986b05ac03fe4ee48861aa60caadcc9df8170a6))
+### Bug Fixes
 
-### Performance
+* **events:** do not publish removed event on non-existent jobs ([#2227](https://github.com/taskforcesh/bullmq/issues/2227)) ([c134606](https://github.com/taskforcesh/bullmq/commit/c1346064c6cd9f93c59b184f150eac11d51c91b4))
+* **events:** trim events when retrying a job ([#2224](https://github.com/taskforcesh/bullmq/issues/2224)) ([1986b05](https://github.com/taskforcesh/bullmq/commit/1986b05ac03fe4ee48861aa60caadcc9df8170a6))
 
-- **events:** Trim events when removing jobs (#2235) (python) ([`889815c`](https://github.com/taskforcesh/bullmq/commit/889815c412666e5fad8f32d2e3a2d41cf650f001))
 
-## v1.15.1 (2023-10-04)
+### Performance Improvements
 
-### Fix
+* **events:** trim events when removing jobs ([#2235](https://github.com/taskforcesh/bullmq/issues/2235)) (python) ([889815c](https://github.com/taskforcesh/bullmq/commit/889815c412666e5fad8f32d2e3a2d41cf650f001))
 
-- **delayed:** Trim events when moving jobs to delayed (python) ([#2211](https://github.com/taskforcesh/bullmq/issues/2211)) ([`eca8c2d`](https://github.com/taskforcesh/bullmq/commit/eca8c2d4dfeafbd8ac36a49764dbd4897303628c))
+## [1.15.1](https://github.com/taskforcesh/bullmq/compare/vpy1.15.0...vpy1.15.1) (2023-10-04)
 
-## v1.15.0 (2023-09-30)
 
-### Feature
+### Bug Fixes
 
-- Nothing changed
+* **delayed:** trim events when moving jobs to delayed (python) ([#2211](https://github.com/taskforcesh/bullmq/issues/2211)) ([eca8c2d](https://github.com/taskforcesh/bullmq/commit/eca8c2d4dfeafbd8ac36a49764dbd4897303628c))
 
-## v1.14.0 (2023-09-26)
+# [1.15.0](https://github.com/taskforcesh/bullmq/compare/vpy1.14.0...vpy1.15.0) (2023-09-30)
 
-### Feature
 
-- **queue:** Add clean method [python] ([#2194](https://github.com/taskforcesh/bullmq/issues/2194)) ([`3b67193`](https://github.com/taskforcesh/bullmq/commit/3b6719379cbec5beb1b7dfb5f06d46cbbf74010f))
+### Features
 
-### Fix
+* Nothing changed
 
-- **move-to-finished:** Stringify any return value [python] (#2198) fixes #2196 ([`07f1335`](https://github.com/taskforcesh/bullmq/commit/07f13356eb1c0136f03dfdf946d163f0ef3c4d62))
-- **queue:** Batched unpack now uses range ([#2188](https://github.com/taskforcesh/bullmq/issues/2188)) ([`b5e97f4`](https://github.com/taskforcesh/bullmq/commit/b5e97f420bc0c4bc82772f3e87883ee522be43d9))
-- **queue:** Differentiate score purpose per state in clean method (#2133) fixes #2124 ([`862f10b`](https://github.com/taskforcesh/bullmq/commit/862f10b586276314d9bffff2a5e6caf939399f7e))
+# [1.14.0](https://github.com/taskforcesh/bullmq/compare/vpy1.13.2...vpy1.14.0) (2023-09-26)
 
-## v1.13.2 (2023-09-12)
 
-### Fix
+### Features
 
-- **remove:** Change error message when job is locked (python) ([#2175](https://github.com/taskforcesh/bullmq/issues/2175)) ([`2f5628f`](https://github.com/taskforcesh/bullmq/commit/2f5628feffab66cdcc78abf4d7bb608bdcaa65bb))
+* **queue:** add clean method [python] ([#2194](https://github.com/taskforcesh/bullmq/issues/2194)) ([3b67193](https://github.com/taskforcesh/bullmq/commit/3b6719379cbec5beb1b7dfb5f06d46cbbf74010f))
 
-## v1.13.1 (2023-09-11)
 
-### Fix
+### Bug Fixes
 
-- **move-to-finished:** Consider addition of prioritized jobs when processing last active job (#2176) (python) ([`4b01f35`](https://github.com/taskforcesh/bullmq/commit/4b01f359c290cfc62ea74ff3ab0b43ccc6956a02))
+* **move-to-finished:** stringify any return value [python] ([#2198](https://github.com/taskforcesh/bullmq/issues/2198)) fixes [#2196](https://github.com/taskforcesh/bullmq/issues/2196) ([07f1335](https://github.com/taskforcesh/bullmq/commit/07f13356eb1c0136f03dfdf946d163f0ef3c4d62))
+* **queue:** batched unpack now uses range ([#2188](https://github.com/taskforcesh/bullmq/issues/2188)) ([b5e97f4](https://github.com/taskforcesh/bullmq/commit/b5e97f420bc0c4bc82772f3e87883ee522be43d9))
+* **queue:** differentiate score purpose per state in clean method ([#2133](https://github.com/taskforcesh/bullmq/issues/2133)) fixes [#2124](https://github.com/taskforcesh/bullmq/issues/2124) ([862f10b](https://github.com/taskforcesh/bullmq/commit/862f10b586276314d9bffff2a5e6caf939399f7e))
 
-## v1.13.0 (2023-09-07)
+## [1.13.2](https://github.com/taskforcesh/bullmq/compare/vpy1.13.1...vpy1.13.2) (2023-09-12)
 
-### Feature
 
-- **flow-producer:** Add addBulk method (python) ([#2174](https://github.com/taskforcesh/bullmq/issues/2174)) ([`c67dfb4`](https://github.com/taskforcesh/bullmq/commit/c67dfb49931ee4cb96573af660e9f2316942687c))
+### Bug Fixes
 
-## v1.12.0 (2023-08-31)
+* **remove:** change error message when job is locked (python) ([#2175](https://github.com/taskforcesh/bullmq/issues/2175)) ([2f5628f](https://github.com/taskforcesh/bullmq/commit/2f5628feffab66cdcc78abf4d7bb608bdcaa65bb))
 
-### Feature
+## [1.13.1](https://github.com/taskforcesh/bullmq/compare/vpy1.13.0...vpy1.13.1) (2023-09-11)
 
-- **queue:** Add addBulk method ([#2161](https://github.com/taskforcesh/bullmq/issues/2161)) ([`555dd44`](https://github.com/taskforcesh/bullmq/commit/555dd44a0190f4957e43f083e2f59d7f58b90ac9))
 
-## v1.11.0 (2023-08-26)
+### Bug Fixes
 
-### Feature
+* **move-to-finished:** consider addition of prioritized jobs when processing last active job ([#2176](https://github.com/taskforcesh/bullmq/issues/2176)) (python) ([4b01f35](https://github.com/taskforcesh/bullmq/commit/4b01f359c290cfc62ea74ff3ab0b43ccc6956a02))
 
-- Add flow producer class ([#2115](https://github.com/taskforcesh/bullmq/issues/2115)) ([`14a769b`](https://github.com/taskforcesh/bullmq/commit/14a769b193d97576ff9b3f2a65de47463ba04ffd))
+# [1.13.0](https://github.com/taskforcesh/bullmq/compare/vpy1.12.0...vpy1.13.0) (2023-09-07)
 
-## v1.10.1 (2023-08-19)
 
-### Fix
+### Features
 
-- **job:** Job getReturnValue not returning returnvalue ([#2143](https://github.com/taskforcesh/bullmq/issues/2143)) ([`dcb8e6a`](https://github.com/taskforcesh/bullmq/commit/dcb8e6a8e62346fac8574bd9aac56c5a25589a2c))
+* **flow-producer:** add addBulk method (python) ([#2174](https://github.com/taskforcesh/bullmq/issues/2174)) ([c67dfb4](https://github.com/taskforcesh/bullmq/commit/c67dfb49931ee4cb96573af660e9f2316942687c))
 
-### Performance
+# [1.12.0](https://github.com/taskforcesh/bullmq/compare/vpy1.11.0...vpy1.12.0) (2023-08-31)
 
-- **rate-limit:** Get pttl only if needed ([#2129](https://github.com/taskforcesh/bullmq/issues/2129)) ([`12ce2f3`](https://github.com/taskforcesh/bullmq/commit/12ce2f3746626a81ea961961bb1a629077eed68a))
 
-## v1.10.0 (2023-08-03)
+### Features
 
-### Feature
+* **queue:** add addBulk method ([#2161](https://github.com/taskforcesh/bullmq/issues/2161)) ([555dd44](https://github.com/taskforcesh/bullmq/commit/555dd44a0190f4957e43f083e2f59d7f58b90ac9))
 
-- **redis-connection:** Add username option into redisOpts ([#2108](https://github.com/taskforcesh/bullmq/issues/2108)) ([`d27f33e`](https://github.com/taskforcesh/bullmq/commit/d27f33e997d30e6c0c7d4484bea338347c3fe67e))
+# [1.11.0](https://github.com/taskforcesh/bullmq/compare/vpy1.10.1...vpy1.11.0) (2023-08-26)
 
-### Performance
 
-- **retry:** Compare prev state instead of regex expression ([#2099](https://github.com/taskforcesh/bullmq/issues/2099)) ([`c141283`](https://github.com/taskforcesh/bullmq/commit/c1412831903d1fae0955af097e0be049024839fe))
+### Features
 
-## v1.9.0 (2023-07-18)
+* add flow producer class ([#2115](https://github.com/taskforcesh/bullmq/issues/2115)) ([14a769b](https://github.com/taskforcesh/bullmq/commit/14a769b193d97576ff9b3f2a65de47463ba04ffd))
 
-### Feature
+## [1.10.1](https://github.com/taskforcesh/bullmq/compare/vpy1.10.0...vpy1.10.1) (2023-08-19)
 
-- **job:** Add option for removing children in remove method (python) ([#2064](https://github.com/taskforcesh/bullmq/issues/2064)) ([`841dc87`](https://github.com/taskforcesh/bullmq/commit/841dc87a689897df81438ad1f43e45a4da77c388))
 
-## v1.8.0 (2023-07-17)
+### Bug Fixes
 
-### Fix
+* **job:** job getReturnValue not returning returnvalue ([#2143](https://github.com/taskforcesh/bullmq/issues/2143)) ([dcb8e6a](https://github.com/taskforcesh/bullmq/commit/dcb8e6a8e62346fac8574bd9aac56c5a25589a2c))
 
-- **worker:** Respect concurrency (#2062) fixes #2063 ([`1b95185`](https://github.com/taskforcesh/bullmq/commit/1b95185e8f4a4349037b59e61455bdec79792644))
 
-## v1.7.0 (2023-07-14)
+### Performance Improvements
 
-### Feature
+* **rate-limit:** get pttl only if needed ([#2129](https://github.com/taskforcesh/bullmq/issues/2129)) ([12ce2f3](https://github.com/taskforcesh/bullmq/commit/12ce2f3746626a81ea961961bb1a629077eed68a))
 
-- **queue:** Add remove method ([#2066](https://github.com/taskforcesh/bullmq/issues/2066)) ([`808ee72`](https://github.com/taskforcesh/bullmq/commit/808ee7231c75d4d826881f25e346f01b2fd2dc23))
-- **worker:** Add id as part of token ([#2061](https://github.com/taskforcesh/bullmq/issues/2061)) ([`e255356`](https://github.com/taskforcesh/bullmq/commit/e2553562271e1e4143a8fef616349bb30de4899d))
+# [1.10.0](https://github.com/taskforcesh/bullmq/compare/vpy1.9.0...vpy1.10.0) (2023-08-03)
 
-## v1.6.1 (2023-07-10)
 
-### Fix
+### Features
 
-- **pyproject:** Add requires-python config (#2056) fixes #1979 ([`a557970`](https://github.com/taskforcesh/bullmq/commit/a557970c755d370ed23850e2f32af35774002bc9))
+* **redis-connection:** add username option into redisOpts ([#2108](https://github.com/taskforcesh/bullmq/issues/2108)) ([d27f33e](https://github.com/taskforcesh/bullmq/commit/d27f33e997d30e6c0c7d4484bea338347c3fe67e))
 
-## v1.6.0 (2023-07-06)
 
-### Feature
+### Performance Improvements
 
-- **job:** Add moveToWaitingChildren method ([#2049](https://github.com/taskforcesh/bullmq/issues/2049)) ([`6d0e224`](https://github.com/taskforcesh/bullmq/commit/6d0e224cd985069055786f447b0ba7c394a76b8a))
+* **retry:** compare prev state instead of regex expression ([#2099](https://github.com/taskforcesh/bullmq/issues/2099)) ([c141283](https://github.com/taskforcesh/bullmq/commit/c1412831903d1fae0955af097e0be049024839fe))
 
-## v1.5.0 (2023-07-04)
+# [1.9.0](https://github.com/taskforcesh/bullmq/compare/vpy1.8.0...vpy1.9.0) (2023-07-18)
 
-### Fix
 
-- **queue:** Fix isPaused method when custom prefix is present ([#2047](https://github.com/taskforcesh/bullmq/issues/2047)) ([`7ec1c5b`](https://github.com/taskforcesh/bullmq/commit/7ec1c5b2ccbd575ecd50d339f5377e204ca7aa16))
+### Features
 
-## v1.4.0 (2023-06-30)
+* **job:** add option for removing children in remove method (python) ([#2064](https://github.com/taskforcesh/bullmq/issues/2064)) ([841dc87](https://github.com/taskforcesh/bullmq/commit/841dc87a689897df81438ad1f43e45a4da77c388))
 
-### Feature
+# [1.8.0](https://github.com/taskforcesh/bullmq/compare/vpy1.7.0...vpy1.8.0) (2023-07-17)
 
-- **queue:** Add getJobState method ([#2040](https://github.com/taskforcesh/bullmq/issues/2040)) ([`8ec9ed6`](https://github.com/taskforcesh/bullmq/commit/8ec9ed67d2803224a3b866c51f67239a5c4b7042))
 
-## v1.3.1 (2023-06-29)
+### Bug Fixes
 
-### Fix
+* **worker:** respect concurrency ([#2062](https://github.com/taskforcesh/bullmq/issues/2062)) fixes [#2063](https://github.com/taskforcesh/bullmq/issues/2063) ([1b95185](https://github.com/taskforcesh/bullmq/commit/1b95185e8f4a4349037b59e61455bdec79792644))
 
-- **pyproject:** Build egg-info at the root location ([`3c2d06e`](https://github.com/taskforcesh/bullmq/commit/3c2d06e7e6e0944135fe6bd8045d08dd43fe7d9c))
+# [1.7.0](https://github.com/taskforcesh/bullmq/compare/vpy1.6.1...vpy1.7.0) (2023-07-14)
 
-## v1.3.0 (2023-06-29)
 
-### Feature
+### Features
 
-- **queue:** Add getFailedCount method ([#2036](https://github.com/taskforcesh/bullmq/issues/2036)) ([`92d7227`](https://github.com/taskforcesh/bullmq/commit/92d7227bf5ec63a75b7af3fc7c312d9b4a81d69f))
-- **queue:** Add getCompletedCount method ([#2033](https://github.com/taskforcesh/bullmq/issues/2033)) ([`3e9db5e`](https://github.com/taskforcesh/bullmq/commit/3e9db5ef4d868f8b420e368a711c20c2568a5910))
+* **queue:** add remove method ([#2066](https://github.com/taskforcesh/bullmq/issues/2066)) ([808ee72](https://github.com/taskforcesh/bullmq/commit/808ee7231c75d4d826881f25e346f01b2fd2dc23))
+* **worker:** add id as part of token ([#2061](https://github.com/taskforcesh/bullmq/issues/2061)) ([e255356](https://github.com/taskforcesh/bullmq/commit/e2553562271e1e4143a8fef616349bb30de4899d))
 
-### Fix
+## [1.6.1](https://github.com/taskforcesh/bullmq/compare/vpy1.6.0...vpy1.6.1) (2023-07-10)
 
-- **release:** Add recommended pyproject.toml configuration ([#2029](https://github.com/taskforcesh/bullmq/issues/2029)) ([`d03ffc9`](https://github.com/taskforcesh/bullmq/commit/d03ffc9c98425a96d6e9dd47a6625382556a4cbf))
 
-## v1.2.0 (2023-06-24)
+### Bug Fixes
 
-### Feature
+* **pyproject:** add requires-python config ([#2056](https://github.com/taskforcesh/bullmq/issues/2056)) fixes [#1979](https://github.com/taskforcesh/bullmq/issues/1979) ([a557970](https://github.com/taskforcesh/bullmq/commit/a557970c755d370ed23850e2f32af35774002bc9))
 
-- **queue:** Add get job methods by state ([#2012](https://github.com/taskforcesh/bullmq/issues/2012)) ([`57b2b72`](https://github.com/taskforcesh/bullmq/commit/57b2b72f79afb683067d49170df5d2eed46e3712))
+# [1.6.0](https://github.com/taskforcesh/bullmq/compare/vpy1.5.0...vpy1.6.0) (2023-07-06)
 
-## v1.1.0 (2023-06-23)
 
-### Feature
+### Features
 
-- **queue:** Add getJobs method ([#2011](https://github.com/taskforcesh/bullmq/issues/2011)) ([`8d5d6c1`](https://github.com/taskforcesh/bullmq/commit/8d5d6c14442b7b967c42cb6ec3907a4d1a5bd575))
+* **job:** add moveToWaitingChildren method ([#2049](https://github.com/taskforcesh/bullmq/issues/2049)) ([6d0e224](https://github.com/taskforcesh/bullmq/commit/6d0e224cd985069055786f447b0ba7c394a76b8a))
 
-## v1.0.0 (2023-06-21)
+# [1.5.0](https://github.com/taskforcesh/bullmq/compare/vpy1.4.0...vpy1.5.0) (2023-07-04)
 
-### Breaking
 
-- priority is separeted in its own zset, no duplication needed ([`42a890a`](https://github.com/taskforcesh/bullmq/commit/42a890a2bfe45b29348030f886766400f5d41aa3))
+### Bug Fixes
 
-### Performance
+* **queue:** fix isPaused method when custom prefix is present ([#2047](https://github.com/taskforcesh/bullmq/issues/2047)) ([7ec1c5b](https://github.com/taskforcesh/bullmq/commit/7ec1c5b2ccbd575ecd50d339f5377e204ca7aa16))
 
-- **priority:** Add prioritized as a new state (#1984) (python) ([`42a890a`](https://github.com/taskforcesh/bullmq/commit/42a890a2bfe45b29348030f886766400f5d41aa3))
+# [1.4.0](https://github.com/taskforcesh/bullmq/compare/vpy1.3.1...vpy1.4.0) (2023-06-30)
+
+
+### Features
+
+* **queue:** add getJobState method ([#2040](https://github.com/taskforcesh/bullmq/issues/2040)) ([8ec9ed6](https://github.com/taskforcesh/bullmq/commit/8ec9ed67d2803224a3b866c51f67239a5c4b7042))
+
+## [1.3.1](https://github.com/taskforcesh/bullmq/compare/vpy1.3.0...vpy1.3.1) (2023-06-29)
+
+
+### Bug Fixes
+
+* **pyproject:** build egg-info at the root location ([3c2d06e](https://github.com/taskforcesh/bullmq/commit/3c2d06e7e6e0944135fe6bd8045d08dd43fe7d9c))
+
+# [1.3.0](https://github.com/taskforcesh/bullmq/compare/vpy1.2.0...vpy1.3.0) (2023-06-29)
+
+
+### Bug Fixes
+
+* **release:** add recommended pyproject.toml configuration ([#2029](https://github.com/taskforcesh/bullmq/issues/2029)) ([d03ffc9](https://github.com/taskforcesh/bullmq/commit/d03ffc9c98425a96d6e9dd47a6625382556a4cbf))
+
+
+### Features
+
+* **queue:** add getFailedCount method ([#2036](https://github.com/taskforcesh/bullmq/issues/2036)) ([92d7227](https://github.com/taskforcesh/bullmq/commit/92d7227bf5ec63a75b7af3fc7c312d9b4a81d69f))
+* **queue:** add getCompletedCount method ([#2033](https://github.com/taskforcesh/bullmq/issues/2033)) ([3e9db5e](https://github.com/taskforcesh/bullmq/commit/3e9db5ef4d868f8b420e368a711c20c2568a5910))
+
+# [1.2.0](https://github.com/taskforcesh/bullmq/compare/vpy1.1.0...vpy1.2.0) (2023-06-24)
+
+
+### Features
+
+* **queue:** add get job methods by state ([#2012](https://github.com/taskforcesh/bullmq/issues/2012)) ([57b2b72](https://github.com/taskforcesh/bullmq/commit/57b2b72f79afb683067d49170df5d2eed46e3712))
+
+# [1.1.0](https://github.com/taskforcesh/bullmq/compare/vpy1.0.0...vpy1.1.0) (2023-06-23)
+
+
+### Features
+
+* **queue:** add getJobs method ([#2011](https://github.com/taskforcesh/bullmq/issues/2011)) ([8d5d6c1](https://github.com/taskforcesh/bullmq/commit/8d5d6c14442b7b967c42cb6ec3907a4d1a5bd575))
+
+# [1.0.0](https://github.com/taskforcesh/bullmq/compare/vpy0.5.6...vpy1.1.0) (2023-06-21)
+
+
+### Performance Improvements
+
+* **priority:** add prioritized as a new state ([#1984](https://github.com/taskforcesh/bullmq/issues/1984)) (python) ([42a890a](https://github.com/taskforcesh/bullmq/commit/42a890a2bfe45b29348030f886766400f5d41aa3))
+
+### BREAKING CHANGES
+
+* **priority:** priority is separeted in its own zset, no duplication needed ([42a890a](https://github.com/taskforcesh/bullmq/commit/42a890a2bfe45b29348030f886766400f5d41aa3))
+
+ref [faster priority jobs](https://bullmq.io/news/062123/faster-priority-jobs/)
