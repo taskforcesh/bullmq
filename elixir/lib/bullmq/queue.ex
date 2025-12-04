@@ -687,7 +687,8 @@ defmodule BullMQ.Queue do
 
     * `BullMQ.Version` - Module containing the BullMQ version constants
   """
-  @spec get_version(atom() | pid() | String.t(), keyword()) :: {:ok, String.t() | nil} | {:error, term()}
+  @spec get_version(atom() | pid() | String.t(), keyword()) ::
+          {:ok, String.t() | nil} | {:error, term()}
   def get_version(queue, opts \\ [])
 
   def get_version(queue, _opts) when is_atom(queue) or is_pid(queue) do
