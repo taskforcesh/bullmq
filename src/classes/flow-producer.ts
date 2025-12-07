@@ -6,6 +6,7 @@ import {
   FlowQueuesOpts,
   FlowOpts,
   IoredisListener,
+  ParentOptions,
   QueueBaseOptions,
   RedisClient,
   Tracer,
@@ -21,10 +22,7 @@ export interface AddNodeOpts {
   multi: ChainableCommander;
   node: FlowJob;
   parent?: {
-    parentOpts: {
-      id: string;
-      queue: string;
-    };
+    parentOpts: ParentOptions;
     parentDependenciesKey: string;
   };
   /**
@@ -37,10 +35,7 @@ export interface AddChildrenOpts {
   multi: ChainableCommander;
   nodes: FlowJob[];
   parent: {
-    parentOpts: {
-      id: string;
-      queue: string;
-    };
+    parentOpts: ParentOptions;
     parentDependenciesKey: string;
   };
   queuesOpts?: FlowQueuesOpts;
@@ -250,6 +245,7 @@ export class FlowProducer extends EventEmitter {
       {
         depth: 10,
         maxChildren: 20,
+        prefix: this.opts.prefix,
       },
       opts,
     );
@@ -329,7 +325,7 @@ export class FlowProducer extends EventEmitter {
     return trace<Promise<JobNode>>(
       this.telemetry,
       SpanKind.PRODUCER,
-      node.name,
+      node.queueName,
       'addNode',
       node.queueName,
       async (span, srcPropagationMedatada) => {
@@ -375,14 +371,10 @@ export class FlowProducer extends EventEmitter {
           const queueKeysParent = new QueueKeys(
             node.prefix || this.opts.prefix,
           );
-          const waitChildrenKey = queueKeysParent.toKey(
-            node.queueName,
-            'waiting-children',
-          );
 
           await job.addJob(<Redis>(multi as unknown), {
             parentDependenciesKey: parent?.parentDependenciesKey,
-            waitChildrenKey,
+            addToWaitingChildren: true,
             parentKey,
           });
 
@@ -461,22 +453,38 @@ export class FlowProducer extends EventEmitter {
     const job = await this.Job.fromId(queue, node.id);
 
     if (job) {
-      const { processed = {}, unprocessed = [] } = await job.getDependencies({
+      const {
+        processed = {},
+        unprocessed = [],
+        failed = [],
+        ignored = {},
+      } = await job.getDependencies({
+        failed: {
+          count: node.maxChildren,
+        },
         processed: {
           count: node.maxChildren,
         },
         unprocessed: {
           count: node.maxChildren,
         },
+        ignored: {
+          count: node.maxChildren,
+        },
       });
       const processedKeys = Object.keys(processed);
+      const ignoredKeys = Object.keys(ignored);
 
-      const childrenCount = processedKeys.length + unprocessed.length;
+      const childrenCount =
+        processedKeys.length +
+        unprocessed.length +
+        ignoredKeys.length +
+        failed.length;
       const newDepth = node.depth - 1;
       if (childrenCount > 0 && newDepth) {
         const children = await this.getChildren(
           client,
-          [...processedKeys, ...unprocessed],
+          [...processedKeys, ...unprocessed, ...failed, ...ignoredKeys],
           newDepth,
           node.maxChildren,
         );

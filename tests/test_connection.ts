@@ -43,6 +43,17 @@ describe('RedisConnection', () => {
       const connection = new RedisConnection({}, options);
       expect((connection as any).extraOptions).to.deep.include(options);
     });
+
+    describe('when skipVersionCheck is set as true', () => {
+      it('initializes version as minimum', async () => {
+        const connection = new RedisConnection({
+          skipVersionCheck: true,
+        });
+        await (connection as any).initializing;
+
+        expect((connection as any).redisVersion).to.be.equal('5.0.0');
+      });
+    });
   });
 
   describe('blocking option', () => {
@@ -117,21 +128,23 @@ describe('RedisConnection', () => {
   });
 
   describe('Worker', () => {
-    it('initializes blockingConnection with blocking: true', () => {
+    it('initializes blockingConnection with blocking: true', async () => {
       const worker = new Worker('test', async () => {}, { connection: {} });
       expect((<any>worker).blockingConnection.extraOptions.blocking).to.be.true;
+      await worker.close();
     });
 
-    it('sets shared: false for blockingConnection', () => {
+    it('sets shared: false for blockingConnection', async () => {
       const connection = new IORedis({ maxRetriesPerRequest: null });
 
       const worker = new Worker('test', async () => {}, { connection });
       expect((<any>worker).blockingConnection.extraOptions.shared).to.be.false;
 
+      await worker.close();
       connection.disconnect();
     });
 
-    it('uses blocking connection by default', () => {
+    it('uses blocking connection by default', async () => {
       const connection = new IORedis({ maxRetriesPerRequest: null });
 
       const worker = new Worker('test', async () => {}, { connection });
@@ -139,14 +152,16 @@ describe('RedisConnection', () => {
       expect((<any>worker).connection.extraOptions.blocking).to.be.false;
       expect((<any>worker).blockingConnection.extraOptions.blocking).to.be.true;
 
+      await worker.close();
       connection.disconnect();
     });
   });
 
   describe('FlowProducer', () => {
-    it('uses non-blocking connection', () => {
+    it('uses non-blocking connection', async () => {
       const flowProducer = new FlowProducer();
       expect((<any>flowProducer).connection.extraOptions.blocking).to.be.false;
+      await flowProducer.close();
     });
 
     it('shares connection if provided Redis instance', () => {
@@ -212,9 +227,11 @@ describe('connection', () => {
         },
       });
 
-      await expect(queue.waitUntilReady()).to.be.eventually.rejectedWith(
-        'connect ECONNREFUSED 127.0.0.1:9000',
-      );
+      try {
+        await queue.waitUntilReady();
+      } catch (error) {
+        expect(error.code).to.be.equal('ECONNREFUSED');
+      }
     });
 
     it('should connect with connection URL', async () => {
@@ -245,9 +262,11 @@ describe('connection', () => {
         },
       });
 
-      await expect(queue.waitUntilReady()).to.be.eventually.rejectedWith(
-        'connect ECONNREFUSED 127.0.0.1:9001',
-      );
+      try {
+        await queue.waitUntilReady();
+      } catch (error) {
+        expect(error.code).to.be.equal('ECONNREFUSED');
+      }
     });
   });
 

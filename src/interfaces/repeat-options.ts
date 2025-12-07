@@ -43,7 +43,6 @@ export interface RepeatOptions extends Omit<ParserOptions, 'iterator'> {
 
   /**
    * Offset in milliseconds to affect the next iteration time
-   *
    * */
   offset?: number;
 
@@ -54,7 +53,7 @@ export interface RepeatOptions extends Omit<ParserOptions, 'iterator'> {
 
   /**
    * Internal property to store de job id
-   * @deprecated
+   * @deprecated not in use anymore
    */
   jobId?: string;
 }

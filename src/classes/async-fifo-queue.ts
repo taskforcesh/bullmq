@@ -1,3 +1,9 @@
+/**
+ * (c) 2017-2025 BullForce Labs AB, MIT Licensed.
+ * @see LICENSE.md
+ *
+ */
+
 class Node<T> {
   value: T | undefined = undefined;
   next: Node<T> | null = null;
@@ -8,7 +14,7 @@ class Node<T> {
 }
 
 class LinkedList<T> {
-  length: number = 0;
+  length = 0;
   private head: Node<T> | null;
   private tail: Node<T> | null;
 

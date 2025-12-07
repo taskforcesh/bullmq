@@ -130,6 +130,6 @@ By removing rate limit key, workers will be able to pick jobs again and your rat
 
 ## Read more:
 
-- 💡 [Rate Limit API Reference](https://api.docs.bullmq.io/classes/v5.Worker.html#rateLimit)
-- 💡 [Get Rate Limit Ttl API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getRateLimitTtl)
-- 💡 [Remove Rate Limit Key API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removeRateLimitKey)
+- 💡 [Rate Limit API Reference](https://api.docs.bullmq.io/classes/v5.Worker.html#ratelimit)
+- 💡 [Get Rate Limit Ttl API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getratelimitttl)
+- 💡 [Remove Rate Limit Key API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removeratelimitkey)

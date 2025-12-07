@@ -31,7 +31,7 @@ local function cleanSet(
         local jobKey = jobKeyPrefix .. job
         -- Extract a Job Scheduler Id from jobId ("repeat:job-scheduler-id:millis") 
         -- and check if it is in the scheduled jobs
-        if not isJobSchedulerJob(job, jobKey, jobSchedulersKey) then
+        if not (jobSchedulersKey and isJobSchedulerJob(job, jobKey, jobSchedulersKey)) then
             if isFinished then
                 removeJob(job, true, jobKeyPrefix, true --[[remove debounce key]] )
                 deletedCount = deletedCount + 1

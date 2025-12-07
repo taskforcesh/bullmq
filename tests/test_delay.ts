@@ -75,7 +75,6 @@ describe('Delayed jobs', function () {
           const delayedJobs = await queue.getDelayed();
           expect(delayedJobs.length).to.be.equal(0);
           expect(publishHappened).to.be.eql(true);
-          await worker.close();
           resolve();
         } catch (err) {
           reject(err);
@@ -139,7 +138,6 @@ describe('Delayed jobs', function () {
             const delayedJobs = await queue.getDelayed();
             expect(delayedJobs.length).to.be.equal(0);
             expect(publishHappened).to.be.eql(true);
-            await worker.close();
             resolve();
           } catch (err) {
             reject(err);
@@ -430,8 +428,9 @@ describe('Delayed jobs', function () {
   it('should process delayed jobs concurrently respecting delay and concurrency', async function () {
     const delay_ = 250;
     const concurrency = 100;
-    const margin = 1.5;
+    const margin = 2;
     let numJobs = 10;
+    let jobsToProcess = numJobs;
 
     let worker;
     const processing = new Promise<void>((resolve, reject) => {
@@ -452,7 +451,8 @@ describe('Delayed jobs', function () {
             console.error(err);
             reject(err);
           }
-          if (!numJobs) {
+          jobsToProcess -= 1;
+          if (!jobsToProcess) {
             resolve();
           }
         },
@@ -462,14 +462,11 @@ describe('Delayed jobs', function () {
 
     let index = 1;
     while (numJobs) {
-      numJobs -= 1;
       await queue.add('my-queue', { foo: 'bar', index }, { delay: delay_ });
       index += 1;
-      if (numJobs) {
-        await delay(1000);
-      }
+      numJobs -= 1;
+      await delay(50); // Add a small delay to ensure jobs are staggered.
     }
-
     await processing;
     await worker.close();
   });

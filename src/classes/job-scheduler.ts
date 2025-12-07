@@ -77,7 +77,7 @@ export class JobScheduler extends QueueBase {
     // Check if we reached the end date of the repeatable job
     let now = Date.now();
     const { endDate } = repeatOpts;
-    if (!(typeof endDate === undefined) && now > new Date(endDate!).getTime()) {
+    if (endDate && now > new Date(endDate!).getTime()) {
       return;
     }
 
@@ -85,29 +85,12 @@ export class JobScheduler extends QueueBase {
     now = prevMillis < now ? now : prevMillis;
 
     // Check if we have a start date for the repeatable job
-    const { startDate, immediately, ...filteredRepeatOpts } = repeatOpts;
-    let startMillis = now;
-    if (startDate) {
-      startMillis = new Date(startDate).getTime();
-      startMillis = startMillis > now ? startMillis : now;
-    }
+    const { immediately, ...filteredRepeatOpts } = repeatOpts;
 
     let nextMillis: number;
-    let newOffset = offset || 0;
+    const newOffset: number | null = null;
 
-    if (every) {
-      const prevSlot = Math.floor(startMillis / every) * every;
-      const nextSlot = prevSlot + every;
-      if (prevMillis || offset) {
-        nextMillis = nextSlot;
-      } else {
-        nextMillis = prevSlot;
-        newOffset = startMillis - prevSlot;
-
-        // newOffset should always be positive, but we do an extra safety check
-        newOffset = newOffset < 0 ? 0 : newOffset;
-      }
-    } else if (pattern) {
+    if (pattern) {
       nextMillis = await this.repeatStrategy(now, repeatOpts, jobName);
 
       if (nextMillis < now) {
@@ -115,32 +98,7 @@ export class JobScheduler extends QueueBase {
       }
     }
 
-    const multi = (await this.client).multi();
-    if (nextMillis) {
-      if (override) {
-        this.scripts.addJobScheduler(
-          (<unknown>multi) as RedisClient,
-          jobSchedulerId,
-          nextMillis,
-          JSON.stringify(typeof jobData === 'undefined' ? {} : jobData),
-          Job.optsAsJSON(opts),
-          {
-            name: jobName,
-            endDate: endDate ? new Date(endDate).getTime() : undefined,
-            tz: repeatOpts.tz,
-            limit,
-            pattern,
-            every,
-          },
-        );
-      } else {
-        this.scripts.updateJobSchedulerNextMillis(
-          (<unknown>multi) as RedisClient,
-          jobSchedulerId,
-          nextMillis,
-        );
-      }
-
+    if (nextMillis || every) {
       return this.trace<Job<T, R, N>>(
         SpanKind.PRODUCER,
         'add',
@@ -162,59 +120,105 @@ export class JobScheduler extends QueueBase {
             }
           }
 
-          const job = this.createNextJob<T, R, N>(
-            (<unknown>multi) as RedisClient,
-            jobName,
+          const mergedOpts = this.getNextJobOpts(
             nextMillis,
-            newOffset,
             jobSchedulerId,
             {
               ...opts,
-              repeat: { ...filteredRepeatOpts, offset: newOffset },
+              repeat: filteredRepeatOpts,
               telemetry,
             },
-            jobData,
             iterationCount,
-            producerId,
+            newOffset,
           );
 
-          const results = await multi.exec(); // multi.exec returns an array of results [ err, result ][]
+          if (override) {
+            // Clamp nextMillis to now if it's in the past
+            if (nextMillis < now) {
+              nextMillis = now;
+            }
 
-          // Check if there are any errors
-          const erroredResult = results.find(result => result[0]);
-          if (erroredResult) {
-            throw new Error(
-              `Error upserting job scheduler ${jobSchedulerId} - ${erroredResult[0]}`,
+            const [jobId, delay] = await this.scripts.addJobScheduler(
+              jobSchedulerId,
+              nextMillis,
+              JSON.stringify(typeof jobData === 'undefined' ? {} : jobData),
+              Job.optsAsJSON(opts),
+              {
+                name: jobName,
+                startDate: repeatOpts.startDate
+                  ? new Date(repeatOpts.startDate).getTime()
+                  : undefined,
+                endDate: endDate ? new Date(endDate).getTime() : undefined,
+                tz: repeatOpts.tz,
+                pattern,
+                every,
+                limit,
+                offset: newOffset,
+              },
+              Job.optsAsJSON(mergedOpts),
+              producerId,
             );
+
+            // Ensure delay is a number (Dragonflydb may return it as a string)
+            const numericDelay =
+              typeof delay === 'string' ? parseInt(delay, 10) : delay;
+
+            const job = new this.Job<T, R, N>(
+              this,
+              jobName,
+              jobData,
+              { ...mergedOpts, delay: numericDelay },
+              jobId,
+            );
+
+            job.id = jobId;
+
+            span?.setAttributes({
+              [TelemetryAttributes.JobSchedulerId]: jobSchedulerId,
+              [TelemetryAttributes.JobId]: job.id,
+            });
+
+            return job;
+          } else {
+            const jobId = await this.scripts.updateJobSchedulerNextMillis(
+              jobSchedulerId,
+              nextMillis,
+              JSON.stringify(typeof jobData === 'undefined' ? {} : jobData),
+              Job.optsAsJSON(mergedOpts),
+              producerId,
+            );
+
+            if (jobId) {
+              const job = new this.Job<T, R, N>(
+                this,
+                jobName,
+                jobData,
+                mergedOpts,
+                jobId,
+              );
+
+              job.id = jobId;
+
+              span?.setAttributes({
+                [TelemetryAttributes.JobSchedulerId]: jobSchedulerId,
+                [TelemetryAttributes.JobId]: job.id,
+              });
+
+              return job;
+            }
           }
-
-          // Get last result with the job id
-          const lastResult = results.pop();
-          job.id = lastResult[1] as string;
-
-          span?.setAttributes({
-            [TelemetryAttributes.JobSchedulerId]: jobSchedulerId,
-            [TelemetryAttributes.JobId]: job.id,
-          });
-
-          return job;
         },
       );
     }
   }
 
-  private createNextJob<T = any, R = any, N extends string = string>(
-    client: RedisClient,
-    name: N,
+  private getNextJobOpts(
     nextMillis: number,
-    offset: number,
     jobSchedulerId: string,
     opts: JobsOptions,
-    data: T,
     currentCount: number,
-    // The job id of the job that produced this next iteration
-    producerId?: string,
-  ) {
+    offset?: number,
+  ): JobsOptions {
     //
     // Generate unique job id for this iteration.
     //
@@ -226,7 +230,7 @@ export class JobScheduler extends QueueBase {
     const now = Date.now();
     const delay = nextMillis + offset - now;
 
-    const mergedOpts = {
+    const mergedOpts: JobsOptions = {
       ...opts,
       jobId,
       delay: delay < 0 ? 0 : delay,
@@ -235,17 +239,19 @@ export class JobScheduler extends QueueBase {
       repeatJobKey: jobSchedulerId,
     };
 
-    mergedOpts.repeat = { ...opts.repeat, count: currentCount };
+    mergedOpts.repeat = {
+      ...opts.repeat,
+      offset,
+      count: currentCount,
+      startDate: opts.repeat?.startDate
+        ? new Date(opts.repeat.startDate).getTime()
+        : undefined,
+      endDate: opts.repeat?.endDate
+        ? new Date(opts.repeat.endDate).getTime()
+        : undefined,
+    };
 
-    const job = new this.Job<T, R, N>(this, name, data, mergedOpts, jobId);
-    job.addJob(client);
-
-    if (producerId) {
-      const producerJobKey = this.toKey(producerId);
-      client.hset(producerJobKey, 'nrjid', job.id);
-    }
-
-    return job;
+    return mergedOpts;
   }
 
   async removeJobScheduler(jobSchedulerId: string): Promise<number> {
@@ -262,11 +268,11 @@ export class JobScheduler extends QueueBase {
     return this.transformSchedulerData<D>(key, jobData, next);
   }
 
-  private async transformSchedulerData<D>(
+  private transformSchedulerData<D>(
     key: string,
     jobData: any,
     next?: number,
-  ): Promise<JobSchedulerJson<D>> {
+  ): JobSchedulerJson<D> | undefined {
     if (jobData) {
       const jobSchedulerData: JobSchedulerJson<D> = {
         key,
@@ -274,8 +280,16 @@ export class JobScheduler extends QueueBase {
         next,
       };
 
+      if (jobData.ic) {
+        jobSchedulerData.iterationCount = parseInt(jobData.ic);
+      }
+
       if (jobData.limit) {
         jobSchedulerData.limit = parseInt(jobData.limit);
+      }
+
+      if (jobData.startDate) {
+        jobSchedulerData.startDate = parseInt(jobData.startDate);
       }
 
       if (jobData.endDate) {
@@ -291,7 +305,11 @@ export class JobScheduler extends QueueBase {
       }
 
       if (jobData.every) {
-        jobSchedulerData.every = jobData.every;
+        jobSchedulerData.every = parseInt(jobData.every);
+      }
+
+      if (jobData.offset) {
+        jobSchedulerData.offset = parseInt(jobData.offset);
       }
 
       if (jobData.data || jobData.opts) {
@@ -396,7 +414,9 @@ export const defaultRepeatStrategy = (
 ): number | undefined => {
   const { pattern } = opts;
 
-  const currentDate = new Date(millis);
+  const dateFromMillis = new Date(millis);
+  const startDate = opts.startDate && new Date(opts.startDate);
+  const currentDate = startDate > dateFromMillis ? startDate : dateFromMillis;
   const interval = parseExpression(pattern, {
     ...opts,
     currentDate,

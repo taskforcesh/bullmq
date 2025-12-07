@@ -7,7 +7,7 @@
 
 local function trimEvents(metaKey, eventStreamKey)
   local maxEvents = getOrSetMaxEvents(metaKey)
-  if maxEvents ~= false then
+  if maxEvents then
     rcall("XTRIM", eventStreamKey, "MAXLEN", "~", maxEvents)
   else
     rcall("XTRIM", eventStreamKey, "MAXLEN", "~", 10000)

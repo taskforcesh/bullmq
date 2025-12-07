@@ -210,6 +210,7 @@ describe('Concurrency', () => {
 
     await worker.close();
     await queue.close();
+    await queueEvents.close();
   }).timeout(6000);
 
   describe('when global dynamic limit is used', () => {
@@ -258,8 +259,6 @@ describe('Concurrency', () => {
           'completed',
           // after every job has been completed
           after(numJobs, async () => {
-            await worker.close();
-
             try {
               const timeDiff = new Date().getTime() - startTime;
               expect(timeDiff).to.be.gte(
@@ -342,8 +341,6 @@ describe('Concurrency', () => {
             'completed',
             // after every job has been completed
             after(numJobs, async () => {
-              await worker.close();
-
               try {
                 const timeDiff = new Date().getTime() - startTime;
                 expect(timeDiff).to.be.gte(numJobs * dynamicLimit);

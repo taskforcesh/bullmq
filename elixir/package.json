@@ -1,0 +1,70 @@
+{
+  "name": "bullmq-elixir",
+  "description": "Queue for messages and jobs based on Redis for Elixir",
+  "author": "Taskforce.sh Inc.",
+  "license": "MIT",
+  "keywords": [
+    "bullmq",
+    "elixir"
+  ],
+  "scripts": {
+    "semantic-release": "semantic-release",
+    "semantic-release:debug": "semantic-release --no-ci --dry-run --debug"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^17.0.3",
+    "@commitlint/config-conventional": "^17.0.3",
+    "@semantic-release/changelog": "^6.0.1",
+    "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/exec": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^11.0.1",
+    "@semantic-release/release-notes-generator": "^14.1.0",
+    "semantic-release": "^24.2.7"
+  },
+  "commitlint": {
+    "extends": [
+      "@commitlint/config-conventional"
+    ]
+  },
+  "release": {
+    "tagFormat": "vex${version}",
+    "plugins": [
+      [
+        "@semantic-release/commit-analyzer",
+        {
+          "releaseRules": [
+            {
+              "message": "!(*\\(elixir\\)*|*\\[elixir\\]*)",
+              "release": false
+            }
+          ]
+        }
+      ],
+      [
+        "@semantic-release/release-notes-generator",
+        {
+          "preset": "angular",
+          "presetConfig": {
+            "ignoreCommits": "^(?![^]*\\(elixir\\))(?![^]*\\[elixir\\]).*$"
+          }
+        }
+      ],
+      [
+        "@semantic-release/changelog",
+        {
+          "changelogFile": "../docs/gitbook/elixir/changelog.md"
+        }
+      ],
+      [
+        "@semantic-release/exec",
+        {
+          "prepareCmd": "node scripts/updateVersion.js ${nextRelease.version}",
+          "publishCmd": "mix hex.publish --yes"
+        }
+      ],
+      "@semantic-release/github"
+    ]
+  },
+  "packageManager": "yarn@1.22.22"
+}

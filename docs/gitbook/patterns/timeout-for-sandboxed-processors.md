@@ -2,7 +2,7 @@
 description: A pattern for applying time-to-live to sandboxed processors.
 ---
 
-# TTL for Sandboxed processors
+# Timeout for Sandboxed processors
 
 When you are working with sandboxed processors, every job is run in a separate process. This opens the possibility to implement a time-to-live (TTL) mechanism, that kills the process if it has not been able to complete in a reasonable time.
 
@@ -17,7 +17,8 @@ const MAX_TTL = 30_000;
 // The processor will have a cleanup timeout of 5 seconds.
 const CLEANUP_TTL = 5_000;
 
-// We use a custom exit code to mark the TTL, but any would do in practice.
+// We use a custom exit code to mark the TTL, but any would do in practice
+// as long as it is < 256 (Due to Unix limitation to 8 bits per exit code)
 const TTL_EXIT_CODE = 10;
 
 module.exports = async function (job) {

@@ -85,7 +85,7 @@ Sometimes you need to listen to all the workers events in a given place, for thi
 ```typescript
 import { QueueEvents } from 'bullmq';
 
-const queueEvents = new QueueEvents();
+const queueEvents = new QueueEvents("my-queue-name");
 
 queueEvents.on('waiting', ({ jobId }) => {
   console.log(`A job with ID ${jobId} is waiting`);
@@ -109,7 +109,7 @@ You may also access the timestamp of the event, which looks like "1580456039332-
 ```typescript
 import { QueueEvents } from 'bullmq';
 
-const queueEvents = new QueueEvents();
+const queueEvents = new QueueEvents("my-queue-name");
 
 queueEvents.on('progress', ({ jobId, data }, timestamp) => {
   console.log(`${jobId} reported progress ${data} at ${timestamp}`);
@@ -117,5 +117,5 @@ queueEvents.on('progress', ({ jobId, data }, timestamp) => {
 ```
 
 {% hint style="danger" %}
-For performance reasons, the events emitted by a `QueueEvents` instance do not contain the `Job` instance, only the `jobId`. Use the `Job#fromId` method if you need the `Job` instance.
+For performance reasons, the events emitted by a `QueueEvents` instance do not contain the `Job` instance, only the `jobId`. Use the [`Job.fromId`](https://api.docs.bullmq.io/classes/v5.Job.html#fromid) method if you need the `Job` instance.
 {% endhint %}

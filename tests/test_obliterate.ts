@@ -373,7 +373,7 @@ describe('Obliterate', function () {
     let first = true;
     const worker = new Worker(
       queue.name,
-      async job => {
+      async () => {
         if (first) {
           first = false;
           throw new Error('failed first');

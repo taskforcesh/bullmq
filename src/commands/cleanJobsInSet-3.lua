@@ -4,7 +4,7 @@
   Input:
     KEYS[1]  set key,
     KEYS[2]  events stream key
-    KEYS[3]  job schedulers key
+    KEYS[3]  repeat key
 
     ARGV[1]  jobKey prefix
     ARGV[2]  timestamp
@@ -12,6 +12,7 @@
     ARGV[4]  set name, can be any of 'wait', 'active', 'paused', 'delayed', 'completed', or 'failed'
 ]]
 local rcall = redis.call
+local repeatKey = KEYS[3]
 local rangeStart = 0
 local rangeEnd = -1
 
@@ -34,20 +35,21 @@ end
 local result
 if ARGV[4] == "active" then
   result = cleanList(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], false --[[ hasFinished ]],
-                      KEYS[3])
+                      repeatKey)
 elseif ARGV[4] == "delayed" then
   rangeEnd = "+inf"
   result = cleanSet(KEYS[1], ARGV[1], rangeEnd, ARGV[2], limit,
-                    {"processedOn", "timestamp"}, false  --[[ hasFinished ]], KEYS[3])
+                    {"processedOn", "timestamp"}, false  --[[ hasFinished ]], repeatKey)
 elseif ARGV[4] == "prioritized" then
   rangeEnd = "+inf"
   result = cleanSet(KEYS[1], ARGV[1], rangeEnd, ARGV[2], limit,
-                    {"timestamp"}, false  --[[ hasFinished ]])
+                    {"timestamp"}, false  --[[ hasFinished ]], repeatKey)
 elseif ARGV[4] == "wait" or ARGV[4] == "paused" then
   result = cleanList(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], true --[[ hasFinished ]],
-                      KEYS[3])
+                      repeatKey)
 else
   rangeEnd = ARGV[2]
+  -- No need to pass repeat key as in that moment job won't be related to a job scheduler
   result = cleanSet(KEYS[1], ARGV[1], rangeEnd, ARGV[2], limit,
                     {"finishedOn"}, true  --[[ hasFinished ]])
 end

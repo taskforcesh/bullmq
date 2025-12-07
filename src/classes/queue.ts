@@ -4,6 +4,7 @@ import {
   BulkJobOptions,
   IoredisListener,
   JobSchedulerJson,
+  MinimalQueue,
   QueueOptions,
   RepeatableJob,
   RepeatOptions,
@@ -12,7 +13,7 @@ import {
   FinishedStatus,
   JobsOptions,
   JobSchedulerTemplateOptions,
-  MinimalQueue,
+  JobProgress,
 } from '../types';
 import { Job } from './job';
 import { QueueGetters } from './queue-getters';
@@ -63,14 +64,14 @@ export interface QueueListener<JobBase extends Job = Job>
    *
    * This event is triggered when the job updates its progress.
    */
-  progress: (job: JobBase, progress: number | object) => void;
+  progress: (jobId: string, progress: JobProgress) => void;
 
   /**
    * Listen to 'removed' event.
    *
    * This event is triggered when a job is removed.
    */
-  removed: (job: JobBase) => void;
+  removed: (jobId: string) => void;
 
   /**
    * Listen to 'resumed' event.
@@ -87,36 +88,30 @@ export interface QueueListener<JobBase extends Job = Job>
   waiting: (job: JobBase) => void;
 }
 
+/**
+ * IsAny<T> A type helper to determine if a given type `T` is `any`.
+ * This works by using `any` type with the intersection
+ * operator (`&`). If `T` is `any`, then `1 & T` resolves to `any`, and since `0`
+ * is assignable to `any`, the conditional type returns `true`.
+ */
+type IsAny<T> = 0 extends 1 & T ? true : false;
 // Helper for JobBase type
-type JobBase<T, ResultType, NameType extends string> = T extends Job<
-  any,
-  any,
-  any
->
-  ? T
-  : Job<T, ResultType, NameType>;
+type JobBase<T, ResultType, NameType extends string> =
+  IsAny<T> extends true
+    ? Job<T, ResultType, NameType>
+    : T extends Job<any, any, any>
+      ? T
+      : Job<T, ResultType, NameType>;
 
 // Helper types to extract DataType, ResultType, and NameType
-type ExtractDataType<DataTypeOrJob, Default> = DataTypeOrJob extends Job<
-  infer D,
-  any,
-  any
->
-  ? D
-  : Default;
+type ExtractDataType<DataTypeOrJob, Default> =
+  DataTypeOrJob extends Job<infer D, any, any> ? D : Default;
 
-type ExtractResultType<DataTypeOrJob, Default> = DataTypeOrJob extends Job<
-  any,
-  infer R,
-  any
->
-  ? R
-  : Default;
+type ExtractResultType<DataTypeOrJob, Default> =
+  DataTypeOrJob extends Job<any, infer R, any> ? R : Default;
 
-type ExtractNameType<
-  DataTypeOrJob,
-  Default extends string,
-> = DataTypeOrJob extends Job<any, any, infer N> ? N : Default;
+type ExtractNameType<DataTypeOrJob, Default extends string> =
+  DataTypeOrJob extends Job<any, any, infer N> ? N : Default;
 
 /**
  * Queue
@@ -124,9 +119,9 @@ type ExtractNameType<
  * This class provides methods to add jobs to a queue and some other high-level
  * administration such as pausing or deleting queues.
  *
- * @template DataType - The type of the data that the job will process.
- * @template ResultType - The type of the result of the job.
- * @template NameType - The type of the name of the job.
+ * @typeParam DataType - The type of the data that the job will process.
+ * @typeParam ResultType - The type of the result of the job.
+ * @typeParam NameType - The type of the name of the job.
  *
  * @example
  *
@@ -272,19 +267,6 @@ export class Queue<
   }
 
   /**
-   * Get global concurrency value.
-   * Returns null in case no value is set.
-   */
-  async getGlobalConcurrency(): Promise<number | null> {
-    const client = await this.client;
-    const concurrency = await client.hget(this.keys.meta, 'concurrency');
-    if (concurrency) {
-      return Number(concurrency);
-    }
-    return null;
-  }
-
-  /**
    * Enable and set global concurrency value.
    * @param concurrency - Maximum number of simultaneous jobs that the workers can handle.
    * For instance, setting this value to 1 ensures that no more than one job
@@ -297,11 +279,29 @@ export class Queue<
   }
 
   /**
+   * Enable and set rate limit.
+   * @param max - Max number of jobs to process in the time period specified in `duration`
+   * @param duration - Time in milliseconds. During this time, a maximum of `max` jobs will be processed.
+   */
+  async setGlobalRateLimit(max: number, duration: number) {
+    const client = await this.client;
+    return client.hset(this.keys.meta, 'max', max, 'duration', duration);
+  }
+
+  /**
    * Remove global concurrency value.
    */
   async removeGlobalConcurrency() {
     const client = await this.client;
     return client.hdel(this.keys.meta, 'concurrency');
+  }
+
+  /**
+   * Remove global rate limit values.
+   */
+  async removeGlobalRateLimit() {
+    const client = await this.client;
+    return client.hdel(this.keys.meta, 'max', 'duration');
   }
 
   /**
@@ -344,9 +344,9 @@ export class Queue<
    * addJob is a telemetry free version of the add method, useful in order to wrap it
    * with custom telemetry on subclasses.
    *
-   * @param name
-   * @param data
-   * @param opts
+   * @param name - Name of the job to be added to the queue.
+   * @param data - Arbitrary data to append to the job.
+   * @param opts - Job options that affects how the job is going to be processed.
    *
    * @returns Job
    */
@@ -584,7 +584,6 @@ export class Queue<
   /**
    * Get all repeatable meta jobs.
    *
-   *
    * @deprecated This method is deprecated and will be removed in v6. Use getJobSchedulers instead.
    *
    * @param start - Offset of first job to return.
@@ -605,7 +604,9 @@ export class Queue<
    *
    * @param id - identifier of scheduler.
    */
-  async getJobScheduler(id: string): Promise<JobSchedulerJson<DataType>> {
+  async getJobScheduler(
+    id: string,
+  ): Promise<JobSchedulerJson<DataType> | undefined> {
     return (await this.jobScheduler).getScheduler<DataType>(id);
   }
 
@@ -650,8 +651,8 @@ export class Queue<
    * @see removeRepeatableByKey
    *
    * @param name - Job name
-   * @param repeatOpts -
-   * @param jobId -
+   * @param repeatOpts - Repeat options
+   * @param jobId - Job id to remove. If not provided, all jobs with the same repeatOpts
    * @returns
    */
   async removeRepeatable(
@@ -681,7 +682,7 @@ export class Queue<
    *
    * Removes a job scheduler.
    *
-   * @param jobSchedulerId
+   * @param jobSchedulerId - identifier of the job scheduler.
    *
    * @returns
    */
@@ -696,7 +697,7 @@ export class Queue<
    * Removes a debounce key.
    * @deprecated use removeDeduplicationKey
    *
-   * @param id - identifier
+   * @param id - debounce identifier
    */
   async removeDebounceKey(id: string): Promise<number> {
     return this.trace<number>(
@@ -797,7 +798,13 @@ export class Queue<
           }),
         });
 
-        return await this.scripts.remove(jobId, removeChildren);
+        const code = await this.scripts.remove(jobId, removeChildren);
+
+        if (code === 1) {
+          this.emit('removed', jobId);
+        }
+
+        return code;
       },
     );
   }
@@ -808,10 +815,7 @@ export class Queue<
    * @param jobId - The id of the job to update
    * @param progress - Number or object to be saved as progress.
    */
-  async updateJobProgress(
-    jobId: string,
-    progress: number | object,
-  ): Promise<void> {
+  async updateJobProgress(jobId: string, progress: JobProgress): Promise<void> {
     await this.trace<void>(
       SpanKind.INTERNAL,
       'updateJobProgress',
@@ -823,6 +827,8 @@ export class Queue<
         });
 
         await this.scripts.updateProgress(jobId, progress);
+
+        this.emit('progress', jobId, progress);
       },
     );
   }
@@ -882,6 +888,7 @@ export class Queue<
     type:
       | 'completed'
       | 'wait'
+      | 'waiting'
       | 'active'
       | 'paused'
       | 'prioritized'
@@ -899,14 +906,17 @@ export class Queue<
         let deletedCount = 0;
         const deletedJobsIds: string[] = [];
 
+        // Normalize 'waiting' to 'wait' for consistency with internal Redis keys
+        const normalizedType = type === 'waiting' ? 'wait' : type;
+
         while (deletedCount < maxCount) {
           const jobsIds = await this.scripts.cleanJobsInSet(
-            type,
+            normalizedType,
             timestamp,
             maxCountPerCall,
           );
 
-          this.emit('cleaned', jobsIds, type);
+          this.emit('cleaned', jobsIds, normalizedType);
           deletedCount += jobsIds.length;
           deletedJobsIds.push(...jobsIds);
 
@@ -929,7 +939,7 @@ export class Queue<
 
   /**
    * Completely destroys the queue and all of its contents irreversibly.
-   * This method will the *pause* the queue and requires that there are no
+   * This method will *pause* the queue and requires that there are no
    * active jobs. It is possible to bypass this requirement, i.e. not
    * having active jobs using the "force" option.
    *
@@ -961,7 +971,7 @@ export class Queue<
   /**
    * Retry all the failed or completed jobs.
    *
-   * @param opts: { count: number; state: FinishedStatus; timestamp: number}
+   * @param opts - An object with the following properties:
    *   - count  number to limit how many jobs will be moved to wait status per iteration,
    *   - state  failed by default or completed.
    *   - timestamp from which timestamp to start moving jobs to wait status, default Date.now().
@@ -995,7 +1005,7 @@ export class Queue<
   /**
    * Promote all the delayed jobs.
    *
-   * @param opts: { count: number }
+   * @param opts - An object with the following properties:
    *   - count  number to limit how many jobs will be moved to wait status per iteration
    *
    * @returns

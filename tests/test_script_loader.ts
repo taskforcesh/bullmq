@@ -11,6 +11,7 @@ import { RedisClient } from '../src/interfaces';
 
 describe('scriptLoader', () => {
   let loader: ScriptLoader;
+  const basePath = __dirname + '/../src/commands';
 
   function getRootPath() {
     return path.resolve(path.join(__dirname, '../'));
@@ -34,7 +35,9 @@ describe('scriptLoader', () => {
   }
 
   beforeEach(() => {
-    loader = new ScriptLoader();
+    loader = new ScriptLoader({
+      base: basePath,
+    });
   });
 
   describe('when using path mappings', () => {
@@ -116,21 +119,31 @@ describe('scriptLoader', () => {
       filename: string,
       cache?: Map<string, ScriptMetadata>,
     ): Promise<string> {
-      const command = await loader.loadCommand(filename, cache);
+      const command = await loader.loadCommand(
+        filename,
+        __dirname + '/fixtures/scripts/',
+        cache,
+      );
       return command.options.lua;
     }
 
     it('handles basic includes', async () => {
       const fixture =
         __dirname + '/fixtures/scripts/fixture_simple_include.lua';
-      const command = await loader.loadCommand(fixture);
+      const command = await loader.loadCommand(
+        fixture,
+        __dirname + '/fixtures/scripts/',
+      );
       expect(command).to.not.eql(undefined);
     });
 
     it('normalizes path before loading', async () => {
       const path =
         __dirname + '/fixtures/scripts/includes/../fixture_simple_include.lua';
-      const command = await loader.loadCommand(path);
+      const command = await loader.loadCommand(
+        path,
+        __dirname + '/fixtures/scripts/',
+      );
       expect(command).to.not.eql(undefined);
     });
 
@@ -189,7 +202,11 @@ describe('scriptLoader', () => {
       loader.addPathMapping('includes', './fixtures/scripts/includes');
       const fixture = __dirname + '/fixtures/scripts/fixture_path_mapped.lua';
       const cache = new Map<string, ScriptMetadata>();
-      await loader.loadCommand(fixture, cache);
+      await loader.loadCommand(
+        fixture,
+        __dirname + '/fixtures/scripts/',
+        cache,
+      );
       const info = cache.get(path.basename(path.resolve(fixture), '.lua'));
 
       expect(info).to.not.eql(undefined);
@@ -206,7 +223,11 @@ describe('scriptLoader', () => {
         __dirname + '/fixtures/scripts/fixture_path_mapped_glob.lua';
       const cache = new Map<string, ScriptMetadata>();
 
-      await loader.loadCommand(fixture, cache);
+      await loader.loadCommand(
+        fixture,
+        __dirname + '/fixtures/scripts/',
+        cache,
+      );
       const info = cache.get(path.basename(path.resolve(fixture), '.lua'));
 
       expect(info).to.not.eql(undefined);
@@ -226,7 +247,7 @@ describe('scriptLoader', () => {
       let didThrow = false;
       let error: ScriptLoaderError;
       try {
-        await loader.loadCommand(fixture);
+        await loader.loadCommand(fixture, __dirname + '/fixtures/scripts/');
       } catch (err) {
         error = <ScriptLoaderError>err;
         didThrow = true;
@@ -245,7 +266,7 @@ describe('scriptLoader', () => {
       let didThrow = false;
       let error: ScriptLoaderError;
       try {
-        await loader.loadCommand(fixture);
+        await loader.loadCommand(fixture, __dirname + '/fixtures/scripts/');
       } catch (err) {
         error = <ScriptLoaderError>err;
         didThrow = true;
@@ -262,7 +283,7 @@ describe('scriptLoader', () => {
       let didThrow = false;
       let error: ScriptLoaderError;
       try {
-        await loader.loadCommand(fixture);
+        await loader.loadCommand(fixture, __dirname + '/fixtures/scripts/');
       } catch (err) {
         error = <ScriptLoaderError>err;
         didThrow = true;
@@ -281,7 +302,9 @@ describe('scriptLoader', () => {
     });
 
     it('caches loadScripts calls per directory', async () => {
-      const loader = new ScriptLoader();
+      const loader = new ScriptLoader({
+        base: basePath,
+      });
       const loadScriptSpy = sinon.spy(loader, 'loadScripts');
 
       const dirname = __dirname + '/fixtures/scripts/dir-test';
@@ -359,7 +382,9 @@ describe('scriptLoader', () => {
 
   describe('.clearCache', () => {
     it('can clear the command cache', async () => {
-      const loader = new ScriptLoader();
+      const loader = new ScriptLoader({
+        base: basePath,
+      });
       const loadScriptSpy = sinon.spy(loader, 'loadScripts');
 
       const dirname = __dirname + '/fixtures/scripts/dir-test';

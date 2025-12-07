@@ -958,7 +958,7 @@ describe('Jobs getters', function () {
       });
 
       let completedChildren = 0;
-      const complettingChildren = new Promise<void>(resolve => {
+      const completingChildren = new Promise<void>(resolve => {
         worker.on('completed', async () => {
           completedChildren++;
           if (completedChildren === 4) {
@@ -967,7 +967,7 @@ describe('Jobs getters', function () {
         });
       });
 
-      await complettingChildren;
+      await completingChildren;
 
       const result = await queue.getDependencies(
         flow.job.id!,
@@ -1032,6 +1032,35 @@ describe('Jobs getters', function () {
       // Verify all states are present
       for (const [state, count] of Object.entries(counts)) {
         const expectedLine = `bullmq_job_count{queue="${queueName}", state="${state}"} ${count}`;
+        expect(metrics).to.include(expectedLine);
+      }
+    });
+
+    it('should export all job states in Prometheus gauge format with global variables', async () => {
+      const counts = {
+        waiting: 5,
+        active: 3,
+        completed: 10,
+        delayed: 2,
+        failed: 1,
+        paused: 0,
+      };
+
+      const env = 'Production';
+      const server = '1';
+
+      sinon.stub(queue, 'getJobCounts').resolves(counts);
+      const metrics = await queue.exportPrometheusMetrics({ env, server });
+
+      expect(metrics).to.include(
+        '# HELP bullmq_job_count Number of jobs in the queue by state',
+      );
+      expect(metrics).to.include('# TYPE bullmq_job_count gauge');
+
+      // Verify all states are present
+      for (const [state, count] of Object.entries(counts)) {
+        // eslint-disable-next-line max-len
+        const expectedLine = `bullmq_job_count{queue="${queueName}", state="${state}", env="${env}", server="${server}"} ${count}`;
         expect(metrics).to.include(expectedLine);
       }
     });
