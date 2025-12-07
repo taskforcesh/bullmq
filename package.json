@@ -28,6 +28,7 @@
     "copy:lua": "cpx \"./src/commands/*.lua\" ./dist/cjs/commands && cpx \"./src/commands/*.lua\" ./dist/esm/commands",
     "copy:lua:python": "cpx \"./rawScripts/*.lua\" ./python/bullmq/commands",
     "copy:lua:elixir": "cpx \"./rawScripts/*.lua\" ./elixir/priv/scripts",
+    "copy:lua:php": "cpx \"./rawScripts/*.lua\" ./php/src/commands",
     "copy:main:type": "cpx \"./dist/esm/classes/main.d.ts\" ./dist/cjs/classes && cpx \"./dist/esm/classes/main-worker.d.ts\" ./dist/cjs/classes",
     "coverage": "c8 --reporter=text --reporter=lcovonly npm run test",
     "docs": "typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts",
@@ -159,6 +160,10 @@
             {
               "message": "*\\[elixir\\]*",
               "release": false
+            },
+            {
+              "message": "*\\[php\\]*",
+              "release": false
             }
           ]
         }
@@ -168,7 +173,7 @@
         {
           "preset": "angular",
           "presetConfig": {
-            "ignoreCommits": "(\\[python\\]|\\[elixir\\])"
+            "ignoreCommits": "(\\[python\\]|\\[elixir\\]|\\[php\\])"
           }
         }
       ],
