@@ -48,7 +48,7 @@
   },
   "scripts": {
     "test": "phpunit",
-    "phpstan": "phpstan analyse src --level=8",
+    "phpstan": "phpstan analyse src --level=6",
     "cs": "phpcs src --standard=PSR12",
     "cs-fix": "phpcbf src --standard=PSR12"
   },

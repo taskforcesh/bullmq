@@ -93,6 +93,77 @@ class Scripts
     }
 
     /**
+     * Queue a Lua script execution on a transaction.
+     *
+     * @param mixed $transaction The Predis transaction
+     * @param string $scriptName
+     * @param array<string> $keys
+     * @param array<mixed> $args
+     * @return void
+     */
+    private function execScriptOnTransaction(mixed $transaction, string $scriptName, array $keys, array $args): void
+    {
+        $script = $this->getScript($scriptName);
+        $numKeys = count($keys);
+        
+        $transaction->eval($script, $numKeys, ...$keys, ...$args);
+    }
+
+    /**
+     * Add a job to a transaction (for bulk operations).
+     *
+     * @param mixed $transaction The Predis transaction
+     * @param Job $job
+     * @return void
+     */
+    public function addJobToTransaction(mixed $transaction, Job $job): void
+    {
+        if ($job->opts->delay > 0) {
+            $this->addDelayedJobToTransaction($transaction, $job, $job->opts->delay);
+        } elseif ($job->opts->priority !== null && $job->opts->priority > 0) {
+            $this->addPrioritizedJobToTransaction($transaction, $job, $job->opts->priority);
+        } else {
+            $this->addStandardJobToTransaction($transaction, $job, $job->timestamp);
+        }
+    }
+
+    /**
+     * Add a standard job to a transaction.
+     */
+    private function addStandardJobToTransaction(mixed $transaction, Job $job, int $timestamp): void
+    {
+        $keys = $this->getKeys(['wait', 'paused', 'meta', 'id', 'completed', 'delayed', 'active', 'events', 'marker']);
+        $args = $this->addJobArgs($job);
+        $args[] = $timestamp;
+
+        $this->execScriptOnTransaction($transaction, 'addStandardJob-9.lua', $keys, $args);
+    }
+
+    /**
+     * Add a delayed job to a transaction.
+     */
+    private function addDelayedJobToTransaction(mixed $transaction, Job $job, int $delay): void
+    {
+        $keys = $this->getKeys(['marker', 'meta', 'id', 'delayed', 'completed', 'events']);
+        $args = $this->addJobArgs($job);
+        $args[] = $job->timestamp + $delay;
+
+        $this->execScriptOnTransaction($transaction, 'addDelayedJob-6.lua', $keys, $args);
+    }
+
+    /**
+     * Add a prioritized job to a transaction.
+     */
+    private function addPrioritizedJobToTransaction(mixed $transaction, Job $job, int $priority): void
+    {
+        $keys = $this->getKeys(['marker', 'meta', 'id', 'prioritized', 'delayed', 'completed', 'active', 'events', 'pc']);
+        $args = $this->addJobArgs($job);
+        $args[] = $priority;
+
+        $this->execScriptOnTransaction($transaction, 'addPrioritizedJob-9.lua', $keys, $args);
+    }
+
+    /**
      * Build the arguments for adding a job.
      *
      * @param Job $job

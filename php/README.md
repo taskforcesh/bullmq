@@ -200,9 +200,7 @@ $queue->retryJobs([
 ]);
 
 // Promote delayed jobs (move to waiting)
-do {
-    $cursor = $queue->promoteJobs(100); // Returns cursor for pagination
-} while ($cursor > 0);
+$queue->promoteJobs(['count' => 100]);
 
 // Drain the queue (remove all waiting jobs)
 $queue->drain();
@@ -323,33 +321,33 @@ Contributions are welcome! Please see [CONTRIBUTING.md](../CONTRIBUTING.md) for 
 
 ### Queue Methods
 
-| Method                             | Description                             |
-| ---------------------------------- | --------------------------------------- |
-| `add(name, data, opts)`            | Add a single job to the queue           |
-| `addBulk(jobs)`                    | Add multiple jobs in a single operation |
-| `getJob(id)`                       | Get a job by its ID                     |
-| `getJobs(types, start, end, asc)`  | Get jobs by type(s) with pagination     |
-| `getJobState(id)`                  | Get the current state of a job          |
-| `getJobCounts(...types)`           | Get job counts by state                 |
-| `getJobCountByTypes(...types)`     | Get total count for specific types      |
-| `getCountsPerPriority(priorities)` | Get counts grouped by priority          |
-| `getWaiting(start, end)`           | Get waiting jobs                        |
-| `getActive(start, end)`            | Get active jobs                         |
-| `getDelayed(start, end)`           | Get delayed jobs                        |
-| `getCompleted(start, end)`         | Get completed jobs                      |
-| `getFailed(start, end)`            | Get failed jobs                         |
-| `getPrioritized(start, end)`       | Get prioritized jobs                    |
-| `pause()`                          | Pause the queue                         |
-| `resume()`                         | Resume the queue                        |
-| `isPaused()`                       | Check if queue is paused                |
-| `remove(jobId)`                    | Remove a specific job                   |
-| `clean(grace, limit, type)`        | Clean old jobs                          |
-| `drain(delayed)`                   | Remove all waiting/delayed jobs         |
-| `obliterate(opts)`                 | Remove all queue data                   |
-| `retryJobs(opts)`                  | Retry failed/completed jobs             |
-| `promoteJobs(count)`               | Promote delayed jobs to waiting         |
-| `trimEvents(maxLength)`            | Trim the events stream                  |
-| `close()`                          | Close the connection                    |
+| Method                                  | Description                             |
+| --------------------------------------- | --------------------------------------- |
+| `add(name, data, opts)`                 | Add a single job to the queue           |
+| `addBulk(jobs)`                         | Add multiple jobs in a single operation |
+| `getJob(id)`                            | Get a job by its ID                     |
+| `getJobs(jobIds)`                       | Get multiple jobs by their IDs          |
+| `getJobsByType(types, start, end, asc)` | Get jobs by type(s) with pagination     |
+| `getJobState(id)`                       | Get the current state of a job          |
+| `getJobCounts()`                        | Get job counts for all states           |
+| `getJobCountByTypes(...types)`          | Get total count for specific types      |
+| `getCountsPerPriority(priorities)`      | Get counts grouped by priority          |
+| `getWaiting(start, end)`                | Get waiting jobs                        |
+| `getActive(start, end)`                 | Get active jobs                         |
+| `getDelayed(start, end)`                | Get delayed jobs                        |
+| `getPrioritized(start, end)`            | Get prioritized jobs                    |
+| `getCompleted(start, end)`              | Get completed jobs                      |
+| `getFailed(start, end)`                 | Get failed jobs                         |
+| `pause()`                               | Pause the queue                         |
+| `resume()`                              | Resume the queue                        |
+| `isPaused()`                            | Check if queue is paused                |
+| `remove(jobId)`                         | Remove a specific job                   |
+| `clean(grace, limit, type)`             | Clean old jobs                          |
+| `drain(delayed)`                        | Remove all waiting/delayed jobs         |
+| `obliterate(opts)`                      | Remove all queue data                   |
+| `retryJobs(opts)`                       | Retry failed/completed jobs             |
+| `promoteJobs(opts)`                     | Promote delayed jobs to waiting         |
+| `close()`                               | Close the connection                    |
 
 ### Job Options
 

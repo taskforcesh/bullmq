@@ -145,8 +145,6 @@ class Queue
      */
     public function addBulk(array $jobs): array
     {
-        $client = $this->connection->getClient();
-        $pipe = $client->pipeline();
         $createdJobs = [];
 
         foreach ($jobs as $jobData) {
@@ -161,10 +159,25 @@ class Queue
             $createdJobs[] = $job;
         }
 
-        // Execute all in pipeline
-        // Note: For now, we execute them sequentially since addJob returns immediately
+        // Execute all jobs atomically using a transaction (MULTI/EXEC)
+        $client = $this->connection->getClient();
+        $transaction = $client->transaction();
+
         foreach ($createdJobs as $job) {
-            $this->scripts->addJob($job);
+            $this->scripts->addJobToTransaction($transaction, $job);
+        }
+
+        $results = $transaction->execute();
+
+        // Check results for errors
+        foreach ($results as $index => $result) {
+            if (is_int($result) && $result < 0) {
+                throw new \RuntimeException("Failed to add job at index {$index}: error code {$result}");
+            }
+            // Update job ID from result if returned
+            if (is_string($result) && !empty($result)) {
+                $createdJobs[$index]->id = $result;
+            }
         }
 
         return $createdJobs;
@@ -350,6 +363,18 @@ class Queue
     }
 
     /**
+     * Get prioritized jobs.
+     *
+     * @param int $start Start index
+     * @param int $end End index
+     * @return array<Job>
+     */
+    public function getPrioritized(int $start = 0, int $end = -1): array
+    {
+        return $this->getJobsByType('prioritized', $start, $end);
+    }
+
+    /**
      * Get completed jobs.
      *
      * @param int $start Start index
@@ -462,32 +487,41 @@ class Queue
     }
 
     /**
-     * Retry all failed jobs.
+     * Retry all failed or completed jobs.
      *
-     * @param int $count Maximum number of jobs to retry per call
-     * @param int $timestamp Only retry jobs failed before this timestamp
-     * @return int Number of jobs moved
+     * @param array{count?: int, state?: string, timestamp?: int} $opts Options:
+     *   - count: Maximum number of jobs to retry per iteration (default: 1000)
+     *   - state: 'failed' or 'completed' (default: 'failed')
+     *   - timestamp: Only retry jobs before this timestamp in ms (default: now)
+     * @return void
      */
-    public function retryJobs(int $count = 1000, int $timestamp = 0): int
+    public function retryJobs(array $opts = []): void
     {
-        if ($timestamp === 0) {
-            $timestamp = (int)(microtime(true) * 1000);
-        }
+        $count = $opts['count'] ?? 1000;
+        $state = $opts['state'] ?? 'failed';
+        $timestamp = $opts['timestamp'] ?? (int)(microtime(true) * 1000);
 
-        return $this->scripts->moveJobsToWait('failed', $count, $timestamp);
+        do {
+            $cursor = $this->scripts->moveJobsToWait($state, $count, $timestamp);
+        } while ($cursor > 0);
     }
 
     /**
-     * Promote delayed jobs.
+     * Promote all delayed jobs to waiting.
      *
-     * @param int $count Maximum number of jobs to promote
-     * @return int Cursor position (0 = done, 1 = more to process)
+     * @param array{count?: int} $opts Options:
+     *   - count: Maximum number of jobs to promote per iteration (default: 1000)
+     * @return void
      */
-    public function promoteJobs(int $count = 1000): int
+    public function promoteJobs(array $opts = []): void
     {
+        $count = $opts['count'] ?? 1000;
         // Use max timestamp to promote all delayed jobs regardless of scheduled time
         $maxTimestamp = PHP_INT_MAX;
-        return $this->scripts->moveJobsToWait('delayed', $count, $maxTimestamp);
+
+        do {
+            $cursor = $this->scripts->moveJobsToWait('delayed', $count, $maxTimestamp);
+        } while ($cursor > 0);
     }
 
     /**

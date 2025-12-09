@@ -198,6 +198,20 @@ class QueueTest extends TestCase
         $this->assertGreaterThanOrEqual(2, count($delayedJobs));
     }
 
+    public function testCanGetPrioritizedJobs(): void
+    {
+        $this->queue->add('priority-1', ['data' => 1], ['priority' => 1]);
+        $this->queue->add('priority-2', ['data' => 2], ['priority' => 2]);
+        $this->queue->add('priority-3', ['data' => 3], ['priority' => 3]);
+
+        $prioritizedJobs = $this->queue->getPrioritized();
+
+        $this->assertGreaterThanOrEqual(3, count($prioritizedJobs));
+        foreach ($prioritizedJobs as $job) {
+            $this->assertInstanceOf(Job::class, $job);
+        }
+    }
+
     public function testCanCleanJobs(): void
     {
         // This test would require jobs to be completed/failed first
@@ -238,11 +252,8 @@ class QueueTest extends TestCase
         $counts = $this->queue->getJobCounts();
         $this->assertEquals(3, $counts['delayed']);
 
-        // Promote all delayed jobs (promoteJobs uses pagination cursor)
-        // Keep calling until cursor is 0
-        do {
-            $cursor = $this->queue->promoteJobs();
-        } while ($cursor > 0);
+        // Promote all delayed jobs
+        $this->queue->promoteJobs();
 
         // Check they moved to waiting
         $counts = $this->queue->getJobCounts();
