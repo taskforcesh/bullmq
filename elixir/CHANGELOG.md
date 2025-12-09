@@ -86,6 +86,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Requires Elixir 1.15+
 - Requires Erlang/OTP 26+
 - Requires Redis 6.0+
-
-[Unreleased]: https://github.com/taskforcesh/bullmq/compare/elixir-v0.1.0...HEAD
-[0.1.0]: https://github.com/taskforcesh/bullmq/releases/tag/elixir-v0.1.0
