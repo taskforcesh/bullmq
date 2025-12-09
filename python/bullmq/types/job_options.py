@@ -1,9 +1,9 @@
-from typing import TypedDict
+from typing import TypedDict, Union
 from bullmq.types import BackoffOptions, KeepJobs
 
 
 class JobOptions(TypedDict, total=False):
-    backoff: int | BackoffOptions
+    backoff: Union[int, BackoffOptions]
     """
     Backoff setting for automatic retries if the job fails.
     """
@@ -41,7 +41,7 @@ class JobOptions(TypedDict, total=False):
     @defaultValue 0
     """
 
-    removeOnComplete: bool | int | KeepJobs
+    removeOnComplete: Union[bool, int, KeepJobs]
     """
     If true, removes the job when it successfully completes
     When given a number, it specifies the maximum amount of
@@ -50,7 +50,7 @@ class JobOptions(TypedDict, total=False):
     Default behavior is to keep the job in the completed set.
     """
 
-    removeOnFail: bool | int | KeepJobs
+    removeOnFail: Union[bool, int, KeepJobs]
     """
     If true, removes the job when it fails after all attempts.
     When given a number, it specifies the maximum amount of

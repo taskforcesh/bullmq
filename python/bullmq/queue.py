@@ -1,4 +1,5 @@
 import asyncio
+from typing import Union
 from bullmq.event_emitter import EventEmitter
 from bullmq.redis_connection import RedisConnection
 from bullmq.types import QueueBaseOptions, RetryJobsOptions, JobOptions, PromoteJobsOptions
@@ -44,7 +45,7 @@ class Queue(EventEmitter):
         job.id = job_id
         return job
 
-    async def addBulk(self, jobs: list[dict[str, dict | str]]):
+    async def addBulk(self, jobs: list[dict[str, Union[dict, str]]]):
         """
         Adds an array of jobs to the queue. This method may be faster than adding
         one job at a time in a sequence

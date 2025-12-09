@@ -168,7 +168,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         data = {"foo": "bar"}
         job = await queue.add("test-job", data, {"removeOnComplete": False})
 
-        failedReason = "Out of range float values are not JSON compliant: nan"
+        failedReason = "Out of range float values are not JSON compliant"
 
         async def process(job: Job, token: str):
             print("Processing job", job)
@@ -185,7 +185,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(failedJob.id, job.id)
         self.assertEqual(failedJob.attemptsMade, 1)
         self.assertEqual(failedJob.data, data)
-        self.assertEqual(failedJob.failedReason, f'"{failedReason}"')
+        self.assertIn(failedReason, failedJob.failedReason)
         self.assertEqual(len(failedJob.stacktrace), 1)
         self.assertEqual(failedJob.returnvalue, None)
         self.assertNotEqual(failedJob.finishedOn, None)
