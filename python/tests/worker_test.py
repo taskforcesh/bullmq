@@ -185,7 +185,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(failedJob.id, job.id)
         self.assertEqual(failedJob.attemptsMade, 1)
         self.assertEqual(failedJob.data, data)
-        assert failedReason in failedJob.failedReason
+        self.assertIn(failedReason, failedJob.failedReason)
         self.assertEqual(len(failedJob.stacktrace), 1)
         self.assertEqual(failedJob.returnvalue, None)
         self.assertNotEqual(failedJob.finishedOn, None)
