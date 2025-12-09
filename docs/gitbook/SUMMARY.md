@@ -153,3 +153,14 @@
 - [Changelogs](python/changelog.md)
   - [v1](python/changelogs/changelog-v1.md)
   - [v0](python/changelogs/changelog-v0.md)
+
+## Elixir
+
+- [Introduction](elixir/introduction.md)
+- [API Reference](https://hexdocs.pm/bullmq)
+- [Changelogs](elixir/changelog.md)
+
+## PHP
+
+- [Introduction](php/introduction.md)
+- [Changelogs](php/changelog.md)

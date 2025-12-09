@@ -277,3 +277,80 @@ jobs:
           else
             echo "No changes detected after semantic-release"
           fi
+
+      # PHP Release
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: redis, msgpack
+          tools: composer:v2
+      - run: yarn copy:lua:php
+      - name: Install Node dependencies for PHP
+        if: ${{ contains(env.commitmsg, 'php') }}
+        working-directory: php
+        run: yarn install --frozen-lockfile --non-interactive
+      - name: Release PHP
+        id: semantic_release_php
+        if: ${{ contains(env.commitmsg, 'php') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: php
+        run: npx semantic-release
+      - name: Create PR with PHP release changes
+        if: ${{ success() && steps.semantic_release_php.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd php
+          # Check if there are any changes to commit
+          if [[ -n $(git status --porcelain) ]]; then
+            # Get the version from composer.json
+            VERSION=$(node -p "require('./composer.json').version")
+            BRANCH_NAME="release/vphp${VERSION}"
+            
+            echo "Creating PR for release version: vphp${VERSION}"
+            
+            # Create and switch to new branch
+            git checkout -b $BRANCH_NAME
+            
+            # Configure git
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            
+            # Add and commit changes (only add files that exist)
+            git add composer.json || true
+            git add ../docs/gitbook/php/changelog.md || true
+            
+            # Check if there are actually changes to commit after adding
+            if [[ -n $(git diff --cached --name-only) ]]; then
+              git commit -m "chore(release): vphp${VERSION}"
+              
+              # Push the branch
+              git push origin $BRANCH_NAME
+              
+              # Create PR using GitHub CLI
+              gh pr create \
+                --title "chore(release): vphp${VERSION}" \
+                --body "Automated release PR for version vphp${VERSION}
+
+              This PR contains:
+              - Updated php/composer.json version
+              - Updated changelog
+
+              Please review and merge to complete the release process." \
+                --head $BRANCH_NAME \
+                --base master
+              
+              echo "Created PR for release vphp${VERSION}"
+              # Back to master branch for next releases if needed
+              git checkout origin/master
+            else
+              echo "No changes to commit after staging files"
+              git checkout origin/master
+              git branch -D $BRANCH_NAME
+            fi
+          else
+            echo "No changes detected after semantic-release"
+          fi

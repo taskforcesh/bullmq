@@ -333,3 +333,64 @@ jobs:
       - name: Check formatting
         working-directory: elixir
         run: mix format --check-formatted
+
+  php:
+    runs-on: ubuntu-latest
+
+    name: testing php@${{ matrix.php-version }}, redis@7
+
+    strategy:
+      matrix:
+        node-version: [lts/*]
+        php-version: ['8.1', '8.2', '8.3']
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'yarn'
+
+      - name: Start Redis
+        uses: supercharge/redis-github-action@f63fe516254d0af5df91755a4488274c2e71e38c # 1.5.0
+        with:
+          redis-version: 7-alpine
+
+      - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
+      - run: yarn build
+      - run: yarn copy:lua:php
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          extensions: redis, msgpack
+          tools: composer:v2
+
+      - name: Get Composer Cache Directory
+        id: composer-cache
+        working-directory: php
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ matrix.php-version }}-${{ hashFiles('php/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-${{ matrix.php-version }}-
+
+      - name: Install PHP dependencies
+        working-directory: php
+        run: composer install --prefer-dist --no-progress
+
+      - name: Run PHPStan
+        working-directory: php
+        run: ./vendor/bin/phpstan analyse src --level=6
+
+      - name: Run tests
+        working-directory: php
+        run: ./vendor/bin/phpunit
