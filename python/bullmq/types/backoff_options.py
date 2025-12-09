@@ -1,8 +1,8 @@
-from typing import TypedDict
+from typing import TypedDict, Union
 
 
 class BackoffOptions(TypedDict, total=False):
-    type: str | dict
+    type: Union[str, dict]
     """
     Name of the backoff strategy.
     """

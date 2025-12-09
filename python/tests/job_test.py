@@ -80,7 +80,7 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError) as error:
             await job.updateData({"baz": float('nan')})
 
-        self.assertEqual(str(error.exception), "Out of range float values are not JSON compliant: nan")
+        assert "Out of range float values are not JSON compliant" in str(error.exception)
 
         await queue.close()
 
