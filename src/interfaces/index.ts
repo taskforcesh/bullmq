@@ -23,6 +23,7 @@ export * from './redis-streams';
 export * from './repeatable-job';
 export * from './repeatable-options';
 export * from './repeat-options';
+export * from './retry-options';
 export * from './script-queue-context';
 export * from './sandboxed-job-processor';
 export * from './sandboxed-job';

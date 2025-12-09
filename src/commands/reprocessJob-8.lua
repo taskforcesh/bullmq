@@ -15,6 +15,8 @@
     ARGV[2] (job.opts.lifo ? 'R' : 'L') + 'PUSH'
     ARGV[3] propVal - failedReason/returnvalue
     ARGV[4] prev state - failed/completed
+    ARGV[5] reset attemptsMade - "1" or "0"
+    ARGV[6] reset attemptsStarted - "1" or "0"
 
   Output:
      1 means the operation was a success
@@ -32,7 +34,17 @@ local jobKey = KEYS[1]
 if rcall("EXISTS", jobKey) == 1 then
   local jobId = ARGV[1]
   if (rcall("ZREM", KEYS[3], jobId) == 1) then
-    rcall("HDEL", jobKey, "finishedOn", "processedOn", ARGV[3])
+    local attributesToRemove = {}
+
+    if ARGV[5] == "1" then
+      table.insert(attributesToRemove, "atm")
+    end
+
+    if ARGV[6] == "1" then
+      table.insert(attributesToRemove, "ats")
+    end
+
+    rcall("HDEL", jobKey, "finishedOn", "processedOn", ARGV[3], unpack(attributesToRemove))
 
     local target, isPausedOrMaxed = getTargetQueueList(KEYS[5], KEYS[7], KEYS[4], KEYS[6])
     addJobInTargetList(target, KEYS[8], ARGV[2], isPausedOrMaxed, jobId)

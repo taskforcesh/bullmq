@@ -25,6 +25,7 @@ import {
   MoveToDelayedOpts,
   RepeatableOptions,
   RetryJobOpts,
+  RetryOptions,
   ScriptQueueContext,
 } from '../interfaces';
 import {
@@ -1420,6 +1421,7 @@ export class Scripts {
   async reprocessJob<T = any, R = any, N extends string = string>(
     job: MinimalJob<T, R, N>,
     state: 'failed' | 'completed',
+    opts: RetryOptions = {},
   ): Promise<void> {
     const client = await this.queue.client;
 
@@ -1439,6 +1441,8 @@ export class Scripts {
       (job.opts.lifo ? 'R' : 'L') + 'PUSH',
       state === 'failed' ? 'failedReason' : 'returnvalue',
       state,
+      opts.resetAttemptsMade ? '1' : '0',
+      opts.resetAttemptsStarted ? '1' : '0',
     ];
 
     const result = await this.execCommand(

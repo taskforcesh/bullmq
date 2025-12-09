@@ -11,6 +11,7 @@ import {
   ParentKeys,
   ParentKeyOpts,
   RedisClient,
+  RetryOptions,
   WorkerOptions,
 } from '../interfaces';
 import {
@@ -1387,17 +1388,28 @@ export class Job<
    * Attempts to retry the job. Only a job that has failed or completed can be retried.
    *
    * @param state - completed / failed
+   * @param opts - options to retry a job
    * @returns A promise that resolves when the job has been successfully moved to the wait queue.
    * The queue emits a waiting event when the job is successfully moved.
    * @throws Will throw an error if the job does not exist, is locked, or is not in the expected state.
    */
-  retry(state: FinishedStatus = 'failed'): Promise<void> {
+  async retry(
+    state: FinishedStatus = 'failed',
+    opts: RetryOptions = {},
+  ): Promise<void> {
+    await this.scripts.reprocessJob(this, state, opts);
     this.failedReason = null;
     this.finishedOn = null;
     this.processedOn = null;
     this.returnvalue = null;
 
-    return this.scripts.reprocessJob(this, state);
+    if (opts.resetAttemptsMade) {
+      this.attemptsMade = 0;
+    }
+
+    if (opts.resetAttemptsStarted) {
+      this.attemptsStarted = 0;
+    }
   }
 
   /**
