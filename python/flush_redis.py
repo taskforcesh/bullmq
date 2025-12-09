@@ -4,7 +4,11 @@ from bullmq.redis_connection import RedisConnection
 
 
 async def flush():
-    await RedisConnection().conn.flushall()
+    connection = RedisConnection()
+    try:
+        await connection.conn.flushall()
+    finally:
+        await connection.close()
 
 
 if __name__ == '__main__':
