@@ -195,16 +195,14 @@ $queue = new Queue('myQueue', [
 ```php
 <?php
 
-// Retry failed jobs with options
+// Retry all failed jobs
 $queue->retryJobs([
-    'count' => 100,      // Max jobs to retry per iteration
+    'count' => 100,      // Max jobs to retry per iteration (default: 1000)
     'state' => 'failed', // State to retry from: 'failed' or 'completed'
 ]);
 
 // Promote all delayed jobs to waiting
-do {
-    $cursor = $queue->promoteJobs(100);
-} while ($cursor > 0);
+$queue->promoteJobs(['count' => 100]);
 
 // Get counts by priority
 $counts = $queue->getCountsPerPriority([0, 1, 2, 3]);
