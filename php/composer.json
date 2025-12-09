@@ -1,5 +1,6 @@
 {
   "name": "taskforcesh/bullmq-php",
+  "version": "1.0.0",
   "description": "BullMQ Queue client for PHP - Schedule jobs to be processed by BullMQ workers",
   "keywords": [
     "queue",
