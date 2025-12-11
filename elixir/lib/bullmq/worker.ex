@@ -1597,15 +1597,11 @@ defmodule BullMQ.Worker do
     end
   end
 
-  defp get_job_opt(%Job{opts: opts}, atom_key, string_key, default) when is_list(opts) do
+  defp get_job_opt(%Job{opts: opts}, atom_key, _string_key, default) when is_list(opts) do
     case Keyword.get(opts, atom_key) do
-      nil -> Keyword.get(opts, String.to_existing_atom(string_key), default)
+      nil -> default
       value -> value
     end
-  rescue
-    # String.to_existing_atom can raise if atom doesn't exist
-    ArgumentError -> default
-  end
 
   defp get_job_opt(_, _, _, default), do: default
 
