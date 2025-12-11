@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/taskforcesh/bullmq/compare/vex1.0.0...vex1.0.1) (2025-12-11)
+
+
+### Bug Fixes
+
+* **scheduler:** add generated delayed job before processing current job [elixir] ([#3598](https://github.com/taskforcesh/bullmq/issues/3598)) ([84e8745](https://github.com/taskforcesh/bullmq/commit/84e8745e87dea9a7748852ccd281b728e6d0545e))
+
 # 1.0.0 (2025-12-04)
 
 
