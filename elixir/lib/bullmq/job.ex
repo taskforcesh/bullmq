@@ -743,6 +743,7 @@ defmodule BullMQ.Job do
   def retry(%__MODULE__{} = job, state \\ :failed, opts \\ [])
       when state in [:failed, :completed] do
     ctx = Keys.new(job.queue_name, prefix: job.prefix)
+
     lifo =
       case Map.fetch(job.opts, :lifo) do
         {:ok, value} -> value
