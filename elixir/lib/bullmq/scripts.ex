@@ -1647,9 +1647,8 @@ defmodule BullMQ.Scripts do
 
     * `{:ok, 1}` - Job successfully moved to wait
     * `{:error, reason}` - Error with code indicating failure:
-      * 0: Job does not exist
-      * -1: Job is currently locked
-      * -2: Job was not found in the expected state
+      * -1: Job does not exist
+      * -3: Job was not found in the expected state
   """
   @spec reprocess_job(atom(), queue_context(), String.t(), atom(), keyword()) :: script_result()
   def reprocess_job(conn, ctx, job_id, state, opts \\ []) when state in [:failed, :completed] do
