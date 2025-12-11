@@ -1417,7 +1417,7 @@ defmodule BullMQ.Worker do
         return_value == :waiting or
         return_value == :waiting_children
 
-     # Update job's attempts_made to match Redis state (incremented during moveToFinished)
+    # Update job's attempts_made to match Redis state (incremented during moveToFinished)
     # This mirrors TypeScript behavior where job.attemptsMade += 1 after moveToCompleted
     updated_job =
       if is_soft_return do
