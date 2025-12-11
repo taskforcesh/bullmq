@@ -725,10 +725,8 @@ defmodule BullMQ.Job do
 
   ## Error Codes
 
-    * `0` - Job does not exist
-    * `-1` - Job is currently locked and can't be retried
-    * `-2` - Job was not found in the expected state
-
+    * `-1` - Job does not exist
+    * `-3` - Job was not found in the expected state
   ## Examples
 
       # Retry a failed job
