@@ -1602,6 +1602,7 @@ defmodule BullMQ.Worker do
       nil -> default
       value -> value
     end
+  end
 
   defp get_job_opt(_, _, _, default), do: default
 
