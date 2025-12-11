@@ -1198,6 +1198,12 @@ defmodule BullMQ.Worker do
     # Emit active event callback
     emit_event(state.on_active, [job])
 
+    # Schedule the next iteration of a repeatable job BEFORE processing
+    # This matches TypeScript behavior where next job is scheduled in nextJobFromJobData
+    # before the current job is processed. This ensures that even if the job fails,
+    # the next scheduled iteration will still be created.
+    schedule_next_repeatable_job(job, state)
+
     # Extract telemetry metadata from job opts for context restoration
     telemetry_metadata =
       get_in(job.opts, [:telemetry_metadata]) ||
@@ -1413,8 +1419,6 @@ defmodule BullMQ.Worker do
 
     # If this was a repeatable job, schedule the next iteration (only on actual completion)
     unless is_soft_return do
-      schedule_next_repeatable_job(job, state)
-
       # Emit completed event callback (soft returns are not completions)
       emit_event(state.on_completed, [job, return_value])
     end

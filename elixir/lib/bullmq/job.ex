@@ -377,7 +377,7 @@ defmodule BullMQ.Job do
   def should_retry?(%__MODULE__{opts: opts, attempts_made: attempts_made}) do
     # Handle both atom and string keys (string keys come from JSON decode)
     max_attempts = get_opt(opts, :attempts, "attempts", 1)
-    attempts_made < max_attempts
+    attempts_made + 1 < max_attempts
   end
 
   @doc """
