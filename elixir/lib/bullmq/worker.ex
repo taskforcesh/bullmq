@@ -1417,10 +1417,19 @@ defmodule BullMQ.Worker do
         return_value == :waiting or
         return_value == :waiting_children
 
+     # Update job's attempts_made to match Redis state (incremented during moveToFinished)
+    # This mirrors TypeScript behavior where job.attemptsMade += 1 after moveToCompleted
+    updated_job =
+      if is_soft_return do
+        job
+      else
+        %{job | attempts_made: job.attempts_made + 1}
+      end
+
     # If this was a repeatable job, schedule the next iteration (only on actual completion)
     unless is_soft_return do
       # Emit completed event callback (soft returns are not completions)
-      emit_event(state.on_completed, [job, return_value])
+      emit_event(state.on_completed, [updated_job, return_value])
     end
 
     # Untrack job from LockManager
@@ -1512,7 +1521,8 @@ defmodule BullMQ.Worker do
 
     # Emit failed event callback only when job has exhausted retries
     if is_final_failure do
-      emit_event(state.on_failed, [job, error_message])
+      updated_job = %{job | attempts_made: job.attempts_made + 1, failed_reason: error_message}
+      emit_event(state.on_failed, [updated_job, error_message])
     end
 
     # Untrack job from LockManager
@@ -1552,7 +1562,7 @@ defmodule BullMQ.Worker do
       lock_duration: Map.get(worker_opts, :lock_duration, 30_000),
       fetch_next: true,
       name: Map.get(worker_opts, :name),
-      attempts: job.attempts_made,
+      attempts: get_job_opt(job, :attempts, "attempts", 0),
       limiter: Map.get(worker_opts, :limiter),
       remove_on_complete: Map.get(worker_opts, :remove_on_complete, %{"count" => -1}),
       remove_on_fail: Map.get(worker_opts, :remove_on_fail, %{"count" => -1}),
@@ -1568,7 +1578,7 @@ defmodule BullMQ.Worker do
       lock_duration: Keyword.get(worker_opts, :lock_duration, 30_000),
       fetch_next: true,
       name: Keyword.get(worker_opts, :name),
-      attempts: job.attempts_made,
+      attempts: get_job_opt(job, :attempts, "attempts", 0),
       limiter: Keyword.get(worker_opts, :limiter),
       remove_on_complete: Keyword.get(worker_opts, :remove_on_complete, %{"count" => -1}),
       remove_on_fail: Keyword.get(worker_opts, :remove_on_fail, %{"count" => -1}),
@@ -1578,6 +1588,26 @@ defmodule BullMQ.Worker do
       remove_dependency_on_failure: Keyword.get(worker_opts, :remove_dependency_on_failure, false)
     ]
   end
+
+  # Helper to extract a value from job.opts supporting both atom and string keys
+  defp get_job_opt(%Job{opts: opts}, atom_key, string_key, default) when is_map(opts) do
+    case Map.get(opts, atom_key) do
+      nil -> Map.get(opts, string_key, default)
+      value -> value
+    end
+  end
+
+  defp get_job_opt(%Job{opts: opts}, atom_key, string_key, default) when is_list(opts) do
+    case Keyword.get(opts, atom_key) do
+      nil -> Keyword.get(opts, String.to_existing_atom(string_key), default)
+      value -> value
+    end
+  rescue
+    # String.to_existing_atom can raise if atom doesn't exist
+    ArgumentError -> default
+  end
+
+  defp get_job_opt(_, _, _, default), do: default
 
   defp find_job_by_ref(active_jobs, ref) do
     Enum.find(active_jobs, fn {_id, {_job, task_ref}} -> task_ref == ref end)

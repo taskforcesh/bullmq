@@ -1628,6 +1628,60 @@ defmodule BullMQ.Scripts do
   end
 
   @doc """
+  Reprocesses a job that is in completed or failed state.
+
+  Moves a finished job back to the wait queue for reprocessing.
+
+  ## Parameters
+
+    * `conn` - Redis connection
+    * `ctx` - Queue context from Keys.new/2
+    * `job_id` - The job ID to reprocess
+    * `state` - The expected current state (:failed or :completed)
+    * `opts` - Options:
+      * `:lifo` - If true, push to front of queue (default: false)
+      * `:reset_attempts_made` - Reset attempts counter (default: false)
+      * `:reset_attempts_started` - Reset attempts started counter (default: false)
+
+  ## Returns
+
+    * `{:ok, 1}` - Job successfully moved to wait
+    * `{:error, reason}` - Error with code indicating failure:
+      * 0: Job does not exist
+      * -1: Job is currently locked
+      * -2: Job was not found in the expected state
+  """
+  @spec reprocess_job(atom(), queue_context(), String.t(), atom(), keyword()) :: script_result()
+  def reprocess_job(conn, ctx, job_id, state, opts \\ []) when state in [:failed, :completed] do
+    state_str = to_string(state)
+    lifo = Keyword.get(opts, :lifo, false)
+    reset_attempts_made = Keyword.get(opts, :reset_attempts_made, false)
+    reset_attempts_started = Keyword.get(opts, :reset_attempts_started, false)
+
+    keys = [
+      Keys.job(ctx, job_id),
+      Keys.events(ctx),
+      if(state == :failed, do: Keys.failed(ctx), else: Keys.completed(ctx)),
+      Keys.wait(ctx),
+      Keys.meta(ctx),
+      Keys.paused(ctx),
+      Keys.active(ctx),
+      Keys.marker(ctx)
+    ]
+
+    args = [
+      job_id,
+      if(lifo, do: "RPUSH", else: "LPUSH"),
+      if(state == :failed, do: "failedReason", else: "returnvalue"),
+      state_str,
+      if(reset_attempts_made, do: "1", else: "0"),
+      if(reset_attempts_started, do: "1", else: "0")
+    ]
+
+    execute(conn, :reprocess_job, keys, args)
+  end
+
+  @doc """
   Gets queue metrics for completed or failed jobs.
 
   Returns metrics data including count, previous timestamp, previous count,
