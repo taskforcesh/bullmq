@@ -1,3 +1,10 @@
+# [5.66.0](https://github.com/taskforcesh/bullmq/compare/v5.65.1...v5.66.0) (2025-12-11)
+
+
+### Features
+
+* **job:** allow resetting attemptsMade and attemptsStarted attributes on retry ([#3596](https://github.com/taskforcesh/bullmq/issues/3596)) ref [#2152](https://github.com/taskforcesh/bullmq/issues/2152) ([241d847](https://github.com/taskforcesh/bullmq/commit/241d847fbc798d957bf25ccfaa5c9ec96928a4ae))
+
 ## [5.65.1](https://github.com/taskforcesh/bullmq/compare/v5.65.0...v5.65.1) (2025-12-01)
 
 
