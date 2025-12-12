@@ -444,7 +444,7 @@ class Scripts:
                     })
         return None
 
-    async def reprocessJob(self, job: Job, state: str):
+    async def reprocessJob(self, job: Job, state: str, opts: dict = {}):
         keys = [self.toKey(job.id)]
         keys.append(self.keys['events'])
         keys.append(self.keys[state])
@@ -458,7 +458,9 @@ class Scripts:
             job.id,
             ("R" if job.opts.get("lifo") else "L") + "PUSH",
             "failedReason" if state == "failed" else "returnvalue",
-            state
+            state,
+            "1" if opts.get("resetAttemptsMade") else "0",
+            "1" if opts.get("resetAttemptsStarted") else "0"
             ]
 
         result = await self.commands["reprocessJob"](keys=keys, args=args)

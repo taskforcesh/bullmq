@@ -38,6 +38,7 @@
   - [Repeatable](guide/jobs/repeatable.md)
   - [Prioritized](guide/jobs/prioritized.md)
   - [Removing jobs](guide/jobs/removing-job.md)
+  - [Retrying jobs](guide/jobs/retrying-job.md)
   - [Stalled](guide/jobs/stalled.md)
   - [Getters](guide/jobs/getters.md)
 - [Job Schedulers](guide/job-schedulers/README.md)

@@ -510,5 +510,263 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         await worker.close()
         await queue.close()
 
+    async def test_retry_job_that_fails(self):
+        """Test retrying a job that has failed"""
+        queue = Queue(queueName, {"prefix": prefix})
+        data = {"foo": "bar"}
+        
+        failed_once = False
+        not_even_err = Exception("Not even!")
+
+        async def process(job: Job, token: str):
+            failed_once
+            if not failed_once:
+                raise not_even_err
+            return "done"
+
+        worker = Worker(queueName, process, {"prefix": prefix})
+
+        failing = Future()
+        
+        def on_failed(job, err):
+            nonlocal failed_once
+            try:
+                self.assertIsNotNone(job)
+                self.assertEqual(job.data["foo"], "bar")
+                self.assertEqual(job.attemptsStarted, 1)
+                self.assertEqual(job.attemptsMade, 1)
+                failed_once = True
+                failing.set_result(None)
+            except Exception as e:
+                failing.set_exception(e)
+        
+        worker.on("failed", on_failed)
+
+        job = await queue.add("test", data, {"removeOnComplete": False})
+        self.assertIsNotNone(job.id)
+        self.assertEqual(job.data["foo"], "bar")
+
+        await failing
+
+        # Remove listener and add completed listener
+        worker.off("failed", on_failed)
+        
+        completing = Future()
+        
+        def on_completed(completed_job, result):
+            try:
+                self.assertTrue(failed_once)
+                self.assertEqual(completed_job.attemptsStarted, 2)
+                self.assertEqual(completed_job.attemptsMade, 2)
+                completing.set_result(None)
+            except Exception as e:
+                completing.set_exception(e)
+        
+        worker.on("completed", on_completed)
+        
+        await job.retry()
+        await completing
+
+        await worker.close()
+        await queue.close()
+
+    async def test_retry_failed_job_with_reset_attempts(self):
+        """Test retrying a failed job with resetAttemptsMade and resetAttemptsStarted options"""
+        queue = Queue(queueName, {"prefix": prefix})
+        data = {"foo": "bar"}
+        
+        failed_once = False
+        not_even_err = Exception("Not even!")
+
+        async def process(job: Job, token: str):
+            failed_once
+            if not failed_once:
+                raise not_even_err
+            return "done"
+
+        worker = Worker(queueName, process, {"prefix": prefix})
+
+        failing = Future()
+        
+        def on_failed(job, err):
+            nonlocal failed_once
+            try:
+                self.assertIsNotNone(job)
+                self.assertEqual(job.data["foo"], "bar")
+                self.assertEqual(job.attemptsStarted, 1)
+                self.assertEqual(job.attemptsMade, 1)
+                failed_once = True
+                failing.set_result(None)
+            except Exception as e:
+                failing.set_exception(e)
+        
+        worker.on("failed", on_failed)
+
+        job = await queue.add("test", data, {"removeOnComplete": False})
+        self.assertIsNotNone(job.id)
+        self.assertEqual(job.data["foo"], "bar")
+
+        await failing
+
+        # Remove listener and add completed listener
+        worker.off("failed", on_failed)
+        
+        completing = Future()
+        
+        def on_completed(completed_job, result):
+            try:
+                self.assertTrue(failed_once)
+                # With reset options, attempts should be 1 (reset to 0, then incremented)
+                self.assertEqual(completed_job.attemptsStarted, 1)
+                self.assertEqual(completed_job.attemptsMade, 1)
+                completing.set_result(None)
+            except Exception as e:
+                completing.set_exception(e)
+        
+        worker.on("completed", on_completed)
+        
+        await job.retry("failed", {
+            "resetAttemptsMade": True,
+            "resetAttemptsStarted": True
+        })
+        await completing
+
+        await worker.close()
+        await queue.close()
+
+    async def test_retry_job_that_completes(self):
+        """Test retrying a job that has completed"""
+        queue = Queue(queueName, {"prefix": prefix})
+        data = {"foo": "bar"}
+        
+        completed_once = False
+        count = 1
+
+        async def process(job: Job, token: str):
+            completed_once, count
+            if not completed_once:
+                return count
+            return count
+
+        worker = Worker(queueName, process, {"prefix": prefix})
+
+        completing = Future()
+        
+        def on_completed(job, result):
+            nonlocal completed_once, count
+            try:
+                self.assertIsNotNone(job)
+                self.assertEqual(job.data["foo"], "bar")
+                self.assertEqual(job.attemptsStarted, 1)
+                self.assertEqual(job.attemptsMade, 1)
+                self.assertEqual(result, count)
+                count += 1
+                completed_once = True
+                completing.set_result(None)
+            except Exception as e:
+                completing.set_exception(e)
+        
+        worker.on("completed", on_completed)
+
+        job = await queue.add("test", data, {"removeOnComplete": False})
+        self.assertIsNotNone(job.id)
+        self.assertEqual(job.data["foo"], "bar")
+
+        await completing
+
+        # Remove listener and add new completed listener
+        worker.off("completed", on_completed)
+        
+        completing2 = Future()
+        
+        def on_completed2(completed_job, result):
+            count
+            try:
+                self.assertIsNotNone(completed_job)
+                self.assertEqual(completed_job.data["foo"], "bar")
+                self.assertEqual(completed_job.attemptsStarted, 2)
+                self.assertEqual(completed_job.attemptsMade, 2)
+                self.assertEqual(result, count)
+                completing2.set_result(None)
+            except Exception as e:
+                completing2.set_exception(e)
+        
+        worker.on("completed", on_completed2)
+        
+        await job.retry("completed")
+        await completing2
+
+        await worker.close()
+        await queue.close()
+
+    async def test_retry_completed_job_with_reset_attempts(self):
+        """Test retrying a completed job with resetAttemptsMade and resetAttemptsStarted options"""
+        queue = Queue(queueName, {"prefix": prefix})
+        data = {"foo": "bar"}
+        
+        completed_once = False
+        count = 1
+
+        async def process(job: Job, token: str):
+            completed_once, count
+            if not completed_once:
+                return count
+            return count
+
+        worker = Worker(queueName, process, {"prefix": prefix})
+
+        completing = Future()
+        
+        def on_completed(job, result):
+            nonlocal completed_once, count
+            try:
+                self.assertIsNotNone(job)
+                self.assertEqual(job.data["foo"], "bar")
+                self.assertEqual(job.attemptsStarted, 1)
+                self.assertEqual(job.attemptsMade, 1)
+                self.assertEqual(result, count)
+                count += 1
+                completed_once = True
+                completing.set_result(None)
+            except Exception as e:
+                completing.set_exception(e)
+        
+        worker.on("completed", on_completed)
+
+        job = await queue.add("test", data, {"removeOnComplete": False})
+        self.assertIsNotNone(job.id)
+        self.assertEqual(job.data["foo"], "bar")
+
+        await completing
+
+        # Remove listener and add new completed listener
+        worker.off("completed", on_completed)
+        
+        completing2 = Future()
+        
+        def on_completed2(completed_job, result):
+            count
+            try:
+                self.assertIsNotNone(completed_job)
+                self.assertEqual(completed_job.data["foo"], "bar")
+                # With reset options, attempts should be 1 (reset to 0, then incremented)
+                self.assertEqual(completed_job.attemptsStarted, 1)
+                self.assertEqual(completed_job.attemptsMade, 1)
+                self.assertEqual(result, count)
+                completing2.set_result(None)
+            except Exception as e:
+                completing2.set_exception(e)
+        
+        worker.on("completed", on_completed2)
+        
+        await job.retry("completed", {
+            "resetAttemptsMade": True,
+            "resetAttemptsStarted": True
+        })
+        await completing2
+
+        await worker.close()
+        await queue.close()
+
 if __name__ == '__main__':
     unittest.main()

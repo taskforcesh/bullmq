@@ -955,8 +955,8 @@ defmodule BullMQ.WorkerIntegrationTest do
       assert_receive {:attempt, 2, 0}, 5_000
       assert_receive {:attempt, 3, 0}, 5_000
 
-      # Completed with attempts still at 0
-      assert_receive {:completed, ^job_id, 0}, 5_000
+      # Completed with attempts still at 1 (incremented after final moveToFinished)
+      assert_receive {:completed, ^job_id, 1}, 5_000
 
       Worker.close(worker)
       Agent.stop(counter)
@@ -1010,6 +1010,360 @@ defmodule BullMQ.WorkerIntegrationTest do
       Worker.close(worker)
       Agent.stop(counter)
       Agent.stop(timestamps)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Job.retry method Tests
+  # ---------------------------------------------------------------------------
+
+  describe "Job.retry when job is in failed state" do
+    @tag :integration
+    @tag timeout: 15_000
+    test "retries a job that fails", %{conn: conn, queue_name: queue_name} do
+      test_pid = self()
+      {:ok, failed_once} = Agent.start_link(fn -> false end)
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            if Agent.get(failed_once, & &1) do
+              {:ok, :success}
+            else
+              raise "Not even!"
+            end
+          end,
+          on_failed: fn job, reason ->
+            send(test_pid, {:failed, job, reason})
+          end,
+          on_completed: fn job, result ->
+            send(test_pid, {:completed, job, result})
+          end
+        )
+
+      # Add a job
+      {:ok, job} =
+        Queue.add(queue_name, "test", %{"foo" => "bar"},
+          connection: conn,
+          prefix: @test_prefix
+        )
+
+      # Wait for failure
+      assert_receive {:failed, failed_job, reason}, 5_000
+      assert failed_job.id == job.id
+      assert failed_job.data["foo"] == "bar"
+      assert failed_job.attempts_started == 1
+      assert failed_job.attempts_made == 1
+      assert reason =~ "Not even!"
+
+      # Mark as failed once and retry the job
+      Agent.update(failed_once, fn _ -> true end)
+
+      # Fetch the job with connection to call retry
+      job_with_conn = %{failed_job | connection: conn}
+      {:ok, _updated_job} = Job.retry(job_with_conn, :failed)
+
+      # Wait for completion after retry
+      assert_receive {:completed, completed_job, _result}, 5_000
+      assert completed_job.id == job.id
+      assert completed_job.attempts_started == 2
+      assert completed_job.attempts_made == 2
+
+      Worker.close(worker)
+      Agent.stop(failed_once)
+    end
+
+    @tag :integration
+    @tag timeout: 15_000
+    test "retries a job with reset_attempts_made and reset_attempts_started options", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      test_pid = self()
+      {:ok, failed_once} = Agent.start_link(fn -> false end)
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            if Agent.get(failed_once, & &1) do
+              {:ok, :success}
+            else
+              raise "Not even!"
+            end
+          end,
+          on_failed: fn job, reason ->
+            send(test_pid, {:failed, job, reason})
+          end,
+          on_completed: fn job, result ->
+            send(test_pid, {:completed, job, result})
+          end
+        )
+
+      # Add a job
+      {:ok, job} =
+        Queue.add(queue_name, "test", %{"foo" => "bar"},
+          connection: conn,
+          prefix: @test_prefix
+        )
+
+      # Wait for failure
+      assert_receive {:failed, failed_job, _reason}, 5_000
+      assert failed_job.attempts_started == 1
+      assert failed_job.attempts_made == 1
+
+      # Mark as failed once and retry with reset options
+      Agent.update(failed_once, fn _ -> true end)
+
+      job_with_conn = %{failed_job | connection: conn}
+
+      {:ok, updated_job} =
+        Job.retry(job_with_conn, :failed,
+          reset_attempts_made: true,
+          reset_attempts_started: true
+        )
+
+      # Verify the local job struct was updated
+      assert updated_job.attempts_made == 0
+      assert updated_job.attempts_started == 0
+
+      # Wait for completion after retry - attempts should be 1 (reset + new attempt)
+      assert_receive {:completed, completed_job, _result}, 5_000
+      assert completed_job.id == job.id
+      assert completed_job.attempts_started == 1
+      assert completed_job.attempts_made == 1
+
+      Worker.close(worker)
+      Agent.stop(failed_once)
+    end
+  end
+
+  describe "Job.retry when job is in completed state" do
+    @tag :integration
+    @tag timeout: 15_000
+    test "retries a job that completes", %{conn: conn, queue_name: queue_name} do
+      test_pid = self()
+      {:ok, completed_once} = Agent.start_link(fn -> false end)
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            if Agent.get(completed_once, & &1) do
+              {:ok, 2}
+            else
+              {:ok, 1}
+            end
+          end,
+          on_completed: fn job, result ->
+            send(test_pid, {:completed, job, result})
+          end
+        )
+
+      # Add a job
+      {:ok, job} =
+        Queue.add(queue_name, "test", %{"foo" => "bar"},
+          connection: conn,
+          prefix: @test_prefix
+        )
+
+      # Wait for first completion
+      assert_receive {:completed, completed_job, result}, 5_000
+      assert completed_job.id == job.id
+      assert completed_job.data["foo"] == "bar"
+      assert completed_job.attempts_started == 1
+      assert completed_job.attempts_made == 1
+      assert result == 1
+
+      # Mark as completed once and retry
+      Agent.update(completed_once, fn _ -> true end)
+
+      job_with_conn = %{completed_job | connection: conn}
+      {:ok, _updated_job} = Job.retry(job_with_conn, :completed)
+
+      # Wait for second completion after retry
+      assert_receive {:completed, completed_job_2, result_2}, 5_000
+      assert completed_job_2.id == job.id
+      assert completed_job_2.attempts_started == 2
+      assert completed_job_2.attempts_made == 2
+      assert result_2 == 2
+
+      Worker.close(worker)
+      Agent.stop(completed_once)
+    end
+
+    @tag :integration
+    @tag timeout: 15_000
+    test "retries a completed job with reset_attempts_made and reset_attempts_started options", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      test_pid = self()
+      {:ok, completed_once} = Agent.start_link(fn -> false end)
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            if Agent.get(completed_once, & &1) do
+              {:ok, 2}
+            else
+              {:ok, 1}
+            end
+          end,
+          on_completed: fn job, result ->
+            send(test_pid, {:completed, job, result})
+          end
+        )
+
+      # Add a job
+      {:ok, job} =
+        Queue.add(queue_name, "test", %{"foo" => "bar"},
+          connection: conn,
+          prefix: @test_prefix
+        )
+
+      # Wait for first completion
+      assert_receive {:completed, completed_job, result}, 5_000
+      assert completed_job.attempts_started == 1
+      assert completed_job.attempts_made == 1
+      assert result == 1
+
+      # Mark as completed once and retry with reset options
+      Agent.update(completed_once, fn _ -> true end)
+
+      job_with_conn = %{completed_job | connection: conn}
+
+      {:ok, updated_job} =
+        Job.retry(job_with_conn, :completed,
+          reset_attempts_made: true,
+          reset_attempts_started: true
+        )
+
+      # Verify the local job struct was updated
+      assert updated_job.attempts_made == 0
+      assert updated_job.attempts_started == 0
+
+      # Wait for second completion - attempts should be 1 (reset + new attempt)
+      assert_receive {:completed, completed_job_2, result_2}, 5_000
+      assert completed_job_2.id == job.id
+      assert completed_job_2.attempts_started == 1
+      assert completed_job_2.attempts_made == 1
+      assert result_2 == 2
+
+      Worker.close(worker)
+      Agent.stop(completed_once)
+    end
+  end
+
+  describe "Job.retry error cases" do
+    @tag :integration
+    @tag timeout: 10_000
+    test "returns error when job is not in expected state", %{conn: conn, queue_name: queue_name} do
+      test_pid = self()
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            {:ok, :success}
+          end,
+          on_completed: fn job, _result ->
+            send(test_pid, {:completed, job})
+          end
+        )
+
+      # Add a job
+      {:ok, _job} =
+        Queue.add(queue_name, "test", %{"foo" => "bar"},
+          connection: conn,
+          prefix: @test_prefix
+        )
+
+      # Wait for completion
+      assert_receive {:completed, completed_job}, 5_000
+
+      # Try to retry from :failed state (but job is in :completed)
+      job_with_conn = %{completed_job | connection: conn}
+      result = Job.retry(job_with_conn, :failed)
+
+      # Should return error because job is not in failed state
+      assert {:error, {:reprocess_failed, _code}} = result
+
+      Worker.close(worker)
+    end
+
+    @tag :integration
+    @tag timeout: 10_000
+    test "returns error when job does not exist", %{conn: conn, queue_name: queue_name} do
+      # Create a fake job that doesn't exist in Redis
+      fake_job = %Job{
+        id: "non-existent-job-id",
+        name: "test",
+        data: %{},
+        queue_name: queue_name,
+        prefix: @test_prefix,
+        connection: conn
+      }
+
+      result = Job.retry(fake_job, :failed)
+
+      # Should return error because job doesn't exist
+      assert {:error, {:reprocess_failed, _code}} = result
+    end
+
+    @tag :integration
+    @tag timeout: 10_000
+    test "clears job properties after retry", %{conn: conn, queue_name: queue_name} do
+      test_pid = self()
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job ->
+            raise "Test error"
+          end,
+          on_failed: fn job, _reason ->
+            send(test_pid, {:failed, job})
+          end
+        )
+
+      # Add a job
+      {:ok, _job} =
+        Queue.add(queue_name, "test", %{"foo" => "bar"},
+          connection: conn,
+          prefix: @test_prefix
+        )
+
+      # Wait for failure
+      assert_receive {:failed, failed_job}, 5_000
+      assert failed_job.failed_reason != nil
+
+      # Stop the worker so the job stays in wait after retry
+      Worker.close(worker)
+
+      # Retry the job
+      job_with_conn = %{failed_job | connection: conn}
+      {:ok, updated_job} = Job.retry(job_with_conn, :failed)
+
+      # Verify job properties were cleared
+      assert updated_job.failed_reason == nil
+      assert updated_job.finished_on == nil
+      assert updated_job.processed_on == nil
+      assert updated_job.return_value == nil
     end
   end
 
