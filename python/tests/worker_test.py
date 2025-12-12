@@ -519,7 +519,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         not_even_err = Exception("Not even!")
 
         async def process(job: Job, token: str):
-            nonlocal failed_once
+            failed_once
             if not failed_once:
                 raise not_even_err
             return "done"
@@ -579,7 +579,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         not_even_err = Exception("Not even!")
 
         async def process(job: Job, token: str):
-            nonlocal failed_once
+            failed_once
             if not failed_once:
                 raise not_even_err
             return "done"
@@ -643,7 +643,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         count = 1
 
         async def process(job: Job, token: str):
-            nonlocal completed_once, count
+            completed_once, count
             if not completed_once:
                 return count
             return count
@@ -680,7 +680,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         completing2 = Future()
         
         def on_completed2(completed_job, result):
-            nonlocal count
+            count
             try:
                 self.assertIsNotNone(completed_job)
                 self.assertEqual(completed_job.data["foo"], "bar")
@@ -708,7 +708,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         count = 1
 
         async def process(job: Job, token: str):
-            nonlocal completed_once, count
+            completed_once, count
             if not completed_once:
                 return count
             return count
@@ -745,7 +745,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         completing2 = Future()
         
         def on_completed2(completed_job, result):
-            nonlocal count
+            count
             try:
                 self.assertIsNotNone(completed_job)
                 self.assertEqual(completed_job.data["foo"], "bar")
