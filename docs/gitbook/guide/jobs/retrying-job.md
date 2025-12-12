@@ -36,6 +36,27 @@ await job.retry('completed');
 
 {% endtab %}
 
+{% tab title="Python" %}
+
+```python
+from bullmq import Queue, Job
+
+queue = Queue('my-queue')
+
+# Get a failed job by ID
+job = await Job.fromId(queue, 'job-id')
+
+# Retry a failed job (default state is 'failed')
+await job.retry()
+
+# Retry a completed job
+await job.retry('completed')
+
+await queue.close()
+```
+
+{% endtab %}
+
 {% tab title="Elixir" %}
 
 ```elixir
@@ -70,6 +91,15 @@ await job.retry('failed', { resetAttemptsMade: true });
 
 {% endtab %}
 
+{% tab title="Python" %}
+
+```python
+# Retry and reset the attempts counter
+await job.retry('failed', {"resetAttemptsMade": True})
+```
+
+{% endtab %}
+
 {% tab title="Elixir" %}
 
 ```elixir
@@ -93,6 +123,18 @@ await job.retry('failed', {
   resetAttemptsMade: true,
   resetAttemptsStarted: true 
 });
+```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+# Retry and reset both counters
+await job.retry('failed', {
+    "resetAttemptsMade": True,
+    "resetAttemptsStarted": True
+})
 ```
 
 {% endtab %}
@@ -149,6 +191,17 @@ try {
 
 {% endtab %}
 
+{% tab title="Python" %}
+
+```python
+try:
+    await job.retry('failed')
+except Exception as error:
+    print(f'Failed to retry job: {error}')
+```
+
+{% endtab %}
+
 {% tab title="Elixir" %}
 
 ```elixir
@@ -172,5 +225,6 @@ end
 
 ## Read More
 
+* 💡 [Retry API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#retry)
 - 💡 [Retrying Failing Jobs](../retrying-failing-jobs.md) - Automatic retry configuration with backoff strategies
 - 💡 [Stop Retrying Jobs](../patterns/stop-retrying-jobs.md) - How to prevent further retries
