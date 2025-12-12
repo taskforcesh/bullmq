@@ -25,6 +25,7 @@ import {
   MoveToDelayedOpts,
   RepeatableOptions,
   RetryJobOpts,
+  RetryOptions,
   ScriptQueueContext,
 } from '../interfaces';
 import {
@@ -361,6 +362,24 @@ export class Scripts {
     return this.execCommand(client, 'addRepeatableJob', args);
   }
 
+  async removeDeduplicationKey(
+    deduplicationId: string,
+    jobId: string,
+  ): Promise<number> {
+    const client = await this.queue.client;
+    const queueKeys = this.queue.keys;
+
+    const keys: string[] = [`${queueKeys.de}:${deduplicationId}`];
+
+    const args = [jobId];
+
+    return this.execCommand(
+      client,
+      'removeDeduplicationKey',
+      keys.concat(args),
+    );
+  }
+
   async addJobScheduler(
     jobSchedulerId: string,
     nextMillis: number,
@@ -602,6 +621,7 @@ export class Scripts {
       pack(jobIds),
       duration,
     ];
+
     return this.execCommand(client, 'extendLocks', args);
   }
 
@@ -1404,6 +1424,7 @@ export class Scripts {
   async reprocessJob<T = any, R = any, N extends string = string>(
     job: MinimalJob<T, R, N>,
     state: 'failed' | 'completed',
+    opts: RetryOptions = {},
   ): Promise<void> {
     const client = await this.queue.client;
 
@@ -1423,6 +1444,8 @@ export class Scripts {
       (job.opts.lifo ? 'R' : 'L') + 'PUSH',
       state === 'failed' ? 'failedReason' : 'returnvalue',
       state,
+      opts.resetAttemptsMade ? '1' : '0',
+      opts.resetAttemptsStarted ? '1' : '0',
     ];
 
     const result = await this.execCommand(

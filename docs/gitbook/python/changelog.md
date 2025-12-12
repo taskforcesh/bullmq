@@ -1,3 +1,10 @@
+## [2.16.2](https://github.com/taskforcesh/bullmq/compare/vpy2.16.1...vpy2.16.2) (2025-12-02)
+
+
+### Bug Fixes
+
+* **worker:** add retryIfFailed method fixes [#3517](https://github.com/taskforcesh/bullmq/issues/3517) [python] ([#3521](https://github.com/taskforcesh/bullmq/issues/3521)) ([c385b52](https://github.com/taskforcesh/bullmq/commit/c385b520b9fbe3dd58cdaead79c258835cab4361))
+
 ## [2.16.1](https://github.com/taskforcesh/bullmq/compare/vpy2.16.0...vpy2.16.1) (2025-09-08)
 
 ### Bug Fixes

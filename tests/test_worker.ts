@@ -807,96 +807,248 @@ describe('workers', function () {
     await worker.close();
   });
 
-  it('retry a job that fails', async () => {
-    let failedOnce = false;
-    const notEvenErr = new Error('Not even!');
+  describe('when job is in failed state', () => {
+    it('retries a job that fails', async () => {
+      let failedOnce = false;
+      const notEvenErr = new Error('Not even!');
 
-    const worker = new Worker(
-      queueName,
-      async () => {
-        if (!failedOnce) {
-          throw notEvenErr;
-        }
-      },
-      { connection, prefix },
-    );
-    await worker.waitUntilReady();
+      const worker = new Worker(
+        queueName,
+        async () => {
+          if (!failedOnce) {
+            throw notEvenErr;
+          }
+        },
+        { connection, prefix },
+      );
+      await worker.waitUntilReady();
 
-    const failing = new Promise<void>((resolve, reject) => {
-      worker.once('failed', async (job, err) => {
-        try {
-          expect(job).to.be.ok;
-          expect(job.data.foo).to.be.eql('bar');
-          expect(err).to.be.eql(notEvenErr);
-          failedOnce = true;
-        } catch (err) {
-          reject(err);
-        }
-        resolve();
-      });
-    });
-
-    const completing = new Promise<void>((resolve, reject) => {
-      worker.once('completed', () => {
-        try {
-          expect(failedOnce).to.be.eql(true);
+      const failing = new Promise<void>((resolve, reject) => {
+        worker.once('failed', async (job, err) => {
+          try {
+            expect(job).to.be.ok;
+            expect(job?.data.foo).to.be.eql('bar');
+            expect(job?.attemptsStarted).to.be.eql(1);
+            expect(job?.attemptsMade).to.be.eql(1);
+            expect(err).to.be.eql(notEvenErr);
+            failedOnce = true;
+          } catch (err) {
+            reject(err);
+          }
           resolve();
-        } catch (err) {
-          reject(err);
-        }
+        });
       });
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.once('completed', job => {
+          try {
+            expect(failedOnce).to.be.eql(true);
+            expect(job?.attemptsStarted).to.be.eql(2);
+            expect(job?.attemptsMade).to.be.eql(2);
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      const job = await queue.add('test', { foo: 'bar' });
+      expect(job.id).to.be.ok;
+      expect(job.data.foo).to.be.eql('bar');
+
+      await failing;
+      await job.retry();
+      await completing;
+
+      await worker.close();
     });
 
-    const job = await queue.add('test', { foo: 'bar' });
-    expect(job.id).to.be.ok;
-    expect(job.data.foo).to.be.eql('bar');
+    describe('when passing resetAttemptsMade and resetAttemptsStarted as true', () => {
+      it('retries a job that fails and resets attemptsMade and attemptsStarted', async () => {
+        let failedOnce = false;
+        const notEvenErr = new Error('Not even!');
 
-    await failing;
-    await job.retry();
-    await completing;
+        const worker = new Worker(
+          queueName,
+          async () => {
+            if (!failedOnce) {
+              throw notEvenErr;
+            }
+          },
+          { connection, prefix },
+        );
+        await worker.waitUntilReady();
 
-    await worker.close();
+        const failing = new Promise<void>((resolve, reject) => {
+          worker.once('failed', async (job, err) => {
+            try {
+              expect(job).to.be.ok;
+              expect(job?.data.foo).to.be.eql('bar');
+              expect(job?.attemptsStarted).to.be.eql(1);
+              expect(job?.attemptsMade).to.be.eql(1);
+              expect(err).to.be.eql(notEvenErr);
+              failedOnce = true;
+            } catch (err) {
+              reject(err);
+            }
+            resolve();
+          });
+        });
+
+        const completing = new Promise<void>((resolve, reject) => {
+          worker.once('completed', job => {
+            try {
+              expect(failedOnce).to.be.eql(true);
+              expect(job?.attemptsStarted).to.be.eql(1);
+              expect(job?.attemptsMade).to.be.eql(1);
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          });
+        });
+
+        const job = await queue.add('test', { foo: 'bar' });
+        expect(job.id).to.be.ok;
+        expect(job.data.foo).to.be.eql('bar');
+
+        await failing;
+        await job.retry('failed', {
+          resetAttemptsMade: true,
+          resetAttemptsStarted: true,
+        });
+        await completing;
+
+        await worker.close();
+      });
+    });
   });
 
-  it('retry a job that completes', async () => {
-    let completedOnce = false;
+  describe('when job is in completed state', () => {
+    it('retries a job that completes', async () => {
+      let completedOnce = false;
 
-    const worker = new Worker(
-      queueName,
-      async () => {
-        if (!completedOnce) {
-          return 1;
-        }
-        return 2;
-      },
-      { connection, prefix },
-    );
-    await worker.waitUntilReady();
+      const worker = new Worker(
+        queueName,
+        async () => {
+          if (!completedOnce) {
+            return 1;
+          }
+          return 2;
+        },
+        { connection, prefix },
+      );
+      await worker.waitUntilReady();
 
-    let count = 1;
-    const completing = new Promise<void>((resolve, reject) => {
-      worker.once('completed', async (job, result) => {
-        try {
-          expect(job).to.be.ok;
-          expect(job.data.foo).to.be.eql('bar');
-          expect(result).to.be.eql(count++);
-          completedOnce = true;
-        } catch (err) {
-          reject(err);
-        }
-        resolve();
+      let count = 1;
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.once('completed', async (job, result) => {
+          try {
+            expect(job).to.be.ok;
+            expect(job?.data.foo).to.be.eql('bar');
+            expect(job?.attemptsStarted).to.be.eql(1);
+            expect(job?.attemptsMade).to.be.eql(1);
+            expect(result).to.be.eql(count++);
+            completedOnce = true;
+          } catch (err) {
+            reject(err);
+          }
+          resolve();
+        });
       });
+
+      const job = await queue.add('test', { foo: 'bar' });
+      expect(job.id).to.be.ok;
+      expect(job.data.foo).to.be.eql('bar');
+
+      await completing;
+      worker.removeAllListeners('completed');
+
+      const completing2 = new Promise<void>((resolve, reject) => {
+        worker.once('completed', async (job, result) => {
+          try {
+            expect(job).to.be.ok;
+            expect(job?.data.foo).to.be.eql('bar');
+            expect(job?.attemptsStarted).to.be.eql(2);
+            expect(job?.attemptsMade).to.be.eql(2);
+            expect(result).to.be.eql(count++);
+          } catch (err) {
+            reject(err);
+          }
+          resolve();
+        });
+      });
+
+      await job.retry('completed');
+      await completing2;
+
+      await worker.close();
     });
 
-    const job = await queue.add('test', { foo: 'bar' });
-    expect(job.id).to.be.ok;
-    expect(job.data.foo).to.be.eql('bar');
+    describe('when passing resetAttemptsMade and resetAttemptsStarted as true', () => {
+      it('retries a job that completes and resets attemptsMade and attemptsStarted', async () => {
+        let completedOnce = false;
 
-    await completing;
-    await job.retry('completed');
-    await completing;
+        const worker = new Worker(
+          queueName,
+          async () => {
+            if (!completedOnce) {
+              return 1;
+            }
+            return 2;
+          },
+          { connection, prefix },
+        );
+        await worker.waitUntilReady();
 
-    await worker.close();
+        let count = 1;
+        const completing = new Promise<void>((resolve, reject) => {
+          worker.once('completed', async (job, result) => {
+            try {
+              expect(job).to.be.ok;
+              expect(job?.data.foo).to.be.eql('bar');
+              expect(job?.attemptsStarted).to.be.eql(1);
+              expect(job?.attemptsMade).to.be.eql(1);
+              expect(result).to.be.eql(count++);
+              completedOnce = true;
+            } catch (err) {
+              reject(err);
+            }
+            resolve();
+          });
+        });
+
+        const job = await queue.add('test', { foo: 'bar' });
+        expect(job.id).to.be.ok;
+        expect(job.data.foo).to.be.eql('bar');
+
+        await completing;
+        worker.removeAllListeners('completed');
+
+        const completing2 = new Promise<void>((resolve, reject) => {
+          worker.once('completed', async (job, result) => {
+            try {
+              expect(job).to.be.ok;
+              expect(job?.data.foo).to.be.eql('bar');
+              expect(job?.attemptsStarted).to.be.eql(1);
+              expect(job?.attemptsMade).to.be.eql(1);
+              expect(result).to.be.eql(count++);
+            } catch (err) {
+              reject(err);
+            }
+            resolve();
+          });
+        });
+
+        await job.retry('completed', {
+          resetAttemptsMade: true,
+          resetAttemptsStarted: true,
+        });
+        await completing2;
+
+        await worker.close();
+      });
+    });
   });
 
   describe('when 0.002 is used as blocktimeout', () => {

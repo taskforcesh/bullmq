@@ -24,6 +24,8 @@ export default defineConfig([
     '**/.DS_Store',
     '**/node_modules',
     'dist',
+    'elixir',
+    'php/vendor',
     '**/npm-debug.log*',
     '**/yarn-debug.log*',
     '**/yarn-error.log*',

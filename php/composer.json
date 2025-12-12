@@ -1,0 +1,60 @@
+{
+  "name": "taskforcesh/bullmq-php",
+  "version": "1.0.0",
+  "description": "BullMQ Queue client for PHP - Schedule jobs to be processed by BullMQ workers",
+  "keywords": [
+    "queue",
+    "redis",
+    "bullmq",
+    "job",
+    "scheduler",
+    "background",
+    "task",
+    "worker"
+  ],
+  "type": "library",
+  "license": "MIT",
+  "homepage": "https://bullmq.io",
+  "support": {
+    "docs": "https://docs.bullmq.io",
+    "issues": "https://github.com/taskforcesh/bullmq/issues",
+    "source": "https://github.com/taskforcesh/bullmq"
+  },
+  "authors": [
+    {
+      "name": "Taskforce.sh Inc.",
+      "email": "manast@taskforce.sh"
+    }
+  ],
+  "require": {
+    "php": "^8.1",
+    "predis/predis": "^2.0",
+    "ramsey/uuid": "^4.7",
+    "rybakit/msgpack": "^0.9"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^10.0",
+    "phpstan/phpstan": "^1.10",
+    "squizlabs/php_codesniffer": "^3.7"
+  },
+  "autoload": {
+    "psr-4": {
+      "BullMQ\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "BullMQ\\Tests\\": "tests/"
+    }
+  },
+  "scripts": {
+    "test": "phpunit",
+    "phpstan": "phpstan analyse src --level=6",
+    "cs": "phpcs src --standard=PSR12",
+    "cs-fix": "phpcbf src --standard=PSR12"
+  },
+  "config": {
+    "sort-packages": true
+  },
+  "minimum-stability": "stable"
+}

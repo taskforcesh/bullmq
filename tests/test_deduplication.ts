@@ -285,9 +285,15 @@ describe('deduplication', function () {
           );
 
           let debouncedCounter = 0;
-          queueEvents.on('debounced', ({ jobId }) => {
-            debouncedCounter++;
+          const debouncing = new Promise<void>(resolve => {
+            queueEvents.on('debounced', () => {
+              debouncedCounter++;
+              if (debouncedCounter == 2) {
+                resolve();
+              }
+            });
           });
+
           await job.remove();
 
           await queue.add(testName, { foo: 'bar' }, { debounce: { id: 'a1' } });
@@ -300,6 +306,7 @@ describe('deduplication', function () {
             { debounce: { id: 'a1' } },
           );
           await secondJob.remove();
+          await debouncing;
 
           expect(debouncedCounter).to.be.equal(2);
         });
@@ -384,6 +391,110 @@ describe('deduplication', function () {
 
         await completing;
         await worker.close();
+      });
+
+      describe('when using removeDeduplicationKey from job instance', function () {
+        describe('when job id is still present inside deduplication key', function () {
+          it('should stop deduplication', async function () {
+            const testName = 'test';
+            const deduplicationId = 'dedupId';
+            const worker = new Worker(
+              queueName,
+              async job => {
+                const isDeduplicationKeyRemoved =
+                  await job.removeDeduplicationKey();
+                expect(isDeduplicationKeyRemoved).to.be.true;
+                await delay(100);
+              },
+              { autorun: false, connection, prefix },
+            );
+            await worker.waitUntilReady();
+
+            let completedCounter = 0;
+            const completing = new Promise<void>((resolve, reject) => {
+              worker.on('completed', job => {
+                try {
+                  completedCounter++;
+                  expect(job.deduplicationId).to.be.equal(deduplicationId);
+                  if (job.id === 'a2') {
+                    resolve();
+                  }
+                } catch (error) {
+                  reject(error);
+                }
+              });
+            });
+            worker.run();
+
+            await queue.add(
+              testName,
+              { foo: 'bar' },
+              { jobId: 'a1', deduplication: { id: deduplicationId } },
+            );
+            await delay(25);
+            await queue.add(
+              testName,
+              { foo: 'bar' },
+              { jobId: 'a2', deduplication: { id: deduplicationId } },
+            );
+
+            await completing;
+            expect(completedCounter).to.be.equal(2);
+
+            await worker.close();
+          });
+        });
+
+        describe('when job id is not present inside deduplication key', function () {
+          it('should not stop deduplication', async function () {
+            const testName = 'test';
+            const deduplicationId = 'dedupId';
+            const worker = new Worker(
+              queueName,
+              async job => {
+                await delay(200);
+                const isDeduplicationKeyRemoved =
+                  await job.removeDeduplicationKey();
+                expect(isDeduplicationKeyRemoved).to.be.false;
+              },
+              { autorun: false, connection, prefix },
+            );
+            await worker.waitUntilReady();
+
+            let completedCounter = 0;
+            const completing = new Promise<void>((resolve, reject) => {
+              worker.on('completed', job => {
+                try {
+                  completedCounter++;
+                  expect(job.deduplicationId).to.be.equal(deduplicationId);
+                  if (job.id === 'a2') {
+                    resolve();
+                  }
+                } catch (error) {
+                  reject(error);
+                }
+              });
+            });
+            worker.run();
+
+            await queue.add(
+              testName,
+              { foo: 'bar' },
+              { jobId: 'a1', deduplication: { id: deduplicationId, ttl: 100 } },
+            );
+            await delay(105);
+            await queue.add(
+              testName,
+              { foo: 'bar' },
+              { jobId: 'a2', deduplication: { id: deduplicationId, ttl: 100 } },
+            );
+
+            await completing;
+            expect(completedCounter).to.be.equal(2);
+
+            await worker.close();
+          });
+        });
       });
     });
 

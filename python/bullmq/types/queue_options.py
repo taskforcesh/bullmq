@@ -1,5 +1,5 @@
 
-from typing import TypedDict, Any
+from typing import TypedDict, Any, Union
 import redis.asyncio as redis
 
 
@@ -13,7 +13,7 @@ class QueueBaseOptions(TypedDict, total=False):
     Prefix for all queue keys.
     """
 
-    connection: dict[str, Any] | redis.Redis | str
+    connection: Union[dict[str, Any], redis.Redis, str]
     """
     Options for connecting to a Redis instance.
     """

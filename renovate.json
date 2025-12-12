@@ -1,0 +1,47 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    ":maintainLockFilesWeekly"
+  ],
+  "labels": ["dependencies"],
+  "rangeStrategy": "pin",
+  "packageRules": [
+    {
+      "description": "Group all non-major devDependencies",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "devDependencies (non-major)"
+    },
+    {
+      "description": "Group TypeScript type definitions",
+      "matchPackagePatterns": ["^@types/"],
+      "groupName": "TypeScript type definitions"
+    },
+    {
+      "description": "Group ESLint related packages",
+      "matchPackagePatterns": ["eslint"],
+      "groupName": "ESLint"
+    },
+    {
+      "description": "Python dependencies",
+      "matchManagers": ["pip_requirements", "pep621", "pip-compile"],
+      "groupName": "Python dependencies"
+    },
+    {
+      "description": "PHP dependencies",
+      "matchManagers": ["composer"],
+      "groupName": "PHP dependencies"
+    },
+    {
+      "description": "Elixir dependencies",
+      "matchManagers": ["mix"],
+      "groupName": "Elixir dependencies"
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "labels": ["security"]
+  },
+  "schedule": ["before 9am on monday"]
+}

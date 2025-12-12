@@ -1,3 +1,4 @@
+from typing import Union
 from bullmq.redis_connection import RedisConnection
 from bullmq.types import QueueBaseOptions
 from bullmq.scripts import Scripts
@@ -30,7 +31,7 @@ class FlowProducer:
     """
 
     #TODO: pass only queueOpts, no need 2 parameters in next breaking change
-    def __init__(self, redisOpts: dict | str = {}, opts: QueueBaseOptions = {}):
+    def __init__(self, redisOpts: Union[dict, str] = {}, opts: QueueBaseOptions = {}):
         """
         Initialize a connection
         """

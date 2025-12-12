@@ -15,21 +15,17 @@
     "semantic-release:debug": "semantic-release --no-ci --dry-run --debug"
   },
   "devDependencies": {
-    "@commitlint/cli": "^17.0.3",
-    "@commitlint/config-conventional": "^17.0.3",
+    "@commitlint/cli": "^20.1.0",
+    "@commitlint/config-conventional": "^20.0.0",
     "@semantic-release/changelog": "^6.0.1",
     "@semantic-release/commit-analyzer": "^13.0.1",
-    "@semantic-release/exec": "^6.0.3",
+    "@semantic-release/exec": "^7.1.0",
     "@semantic-release/git": "^10.0.1",
-    "@semantic-release/github": "^11.0.1",
-    "@semantic-release/npm": "^11.0.3",
+    "@semantic-release/github": "^12.0.0",
+    "@semantic-release/npm": "^13.1.2",
     "@semantic-release/release-notes-generator": "^14.1.0",
-    "semantic-release": "^24.2.7",
+    "semantic-release": "^25.0.1",
     "semantic-release-pypi": "^5.1.1"
-  },
-  "resolutions": {
-    "@semantic-release/commit-analyzer/conventional-changelog-angular": "8.1.0",
-    "@semantic-release/release-notes-generator/conventional-changelog-angular": "8.1.0"
   },
   "commitlint": {
     "extends": [

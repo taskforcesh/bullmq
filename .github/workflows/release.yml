@@ -101,12 +101,14 @@ jobs:
             echo "No changes detected after semantic-release"
           fi
       - run: yarn copy:lua:python
+
+      # Python Release
       - name: Setup Python
         uses: actions/setup-python@61a6322f88396a6271a6ee3565807d608ecaddd1 # v4
         with:
           python-version: '3.10'
           cache: 'pip'
-      - name: Install dependencies Python
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install flake8 mypy types-redis
@@ -119,30 +121,27 @@ jobs:
           flake8 ./python --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
       - name: Build Python
         if: ${{ contains(env.commitmsg, 'python') }}
-        run: |
-          cd python
-          pip install build
-      - name: Install dependencies Node
+        working-directory: python
+        run: pip install build
+      - name: Install dependencies Node for Python
         if: ${{ contains(env.commitmsg, 'python') }}
-        run: |
-          cd python
-          yarn install --frozen-lockfile --non-interactive
+        working-directory: python
+        run: yarn install --frozen-lockfile --non-interactive
       - name: Release Python
         id: semantic_release_python
         if: ${{ contains(env.commitmsg, 'python') }}
+        working-directory: python
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
-        run: |
-          cd python
-          npx semantic-release
-      - name: Create PR with release changes
+        run: npx semantic-release
+      - name: Create PR with Python release changes
         if: ${{ success() && steps.semantic_release_python.outcome == 'success' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: python
         run: |
-          cd python
           # Check if there are any changes to commit
           if [[ -n $(git status --porcelain) ]]; then
             # Get the version from package.json
@@ -184,6 +183,166 @@ jobs:
                 --base master
               
               echo "Created PR for release vpy${VERSION}"
+              # Back to master branch for next releases if needed
+              git checkout origin/master
+            else
+              echo "No changes to commit after staging files"
+              git checkout origin/master
+              git branch -D $BRANCH_NAME
+            fi
+          else
+            echo "No changes detected after semantic-release"
+          fi
+
+      # Elixir Release
+      - name: Setup Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: '1.17'
+          otp-version: '27.x'
+      - name: Install Elixir dependencies
+        if: ${{ contains(env.commitmsg, 'elixir') }}
+        working-directory: elixir
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix deps.get
+      - name: Install Node dependencies for Elixir
+        if: ${{ contains(env.commitmsg, 'elixir') }}
+        working-directory: elixir
+        run: yarn install --frozen-lockfile --non-interactive
+      - name: Release Elixir
+        id: semantic_release_elixir
+        if: ${{ contains(env.commitmsg, 'elixir') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+        working-directory: elixir
+        run: npx semantic-release
+      - name: Create PR with Elixir release changes
+        if: ${{ success() && steps.semantic_release_elixir.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: elixir
+        run: |
+          # Check if there are any changes to commit
+          if [[ -n $(git status --porcelain) ]]; then
+            # Get the version from mix.exs
+            VERSION=$(grep -m 1 '@version "' mix.exs | sed 's/.*@version "\([^"]*\)".*/\1/')
+            BRANCH_NAME="release/vex${VERSION}"
+            
+            echo "Creating PR for Elixir release version: vex${VERSION}"
+            
+            # Create and switch to new branch
+            git checkout -b $BRANCH_NAME
+            
+            # Configure git
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            
+            # Add and commit changes (only add files that exist)
+            git add mix.exs || true
+            git add ../docs/gitbook/elixir/changelog.md || true
+            
+            # Check if there are actually changes to commit after adding
+            if [[ -n $(git diff --cached --name-only) ]]; then
+              git commit -m "chore(release): vex${VERSION}"
+              
+              # Push the branch
+              git push origin $BRANCH_NAME
+              
+              # Create PR using GitHub CLI
+              gh pr create \
+                --title "chore(release): vex${VERSION}" \
+                --body "Automated release PR for Elixir version vex${VERSION}
+
+              This PR contains:
+              - Updated mix.exs version
+              - Updated changelog
+
+              Please review and merge to complete the release process." \
+                --head $BRANCH_NAME \
+                --base master
+              
+              echo "Created PR for release vex${VERSION}"
+              # Back to master branch for next releases if needed
+              git checkout origin/master
+            else
+              echo "No changes to commit after staging files"
+              git checkout origin/master
+              git branch -D $BRANCH_NAME
+            fi
+          else
+            echo "No changes detected after semantic-release"
+          fi
+
+      # PHP Release
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: redis, msgpack
+          tools: composer:v2
+      - run: yarn copy:lua:php
+      - name: Install Node dependencies for PHP
+        if: ${{ contains(env.commitmsg, 'php') }}
+        working-directory: php
+        run: yarn install --frozen-lockfile --non-interactive
+      - name: Release PHP
+        id: semantic_release_php
+        if: ${{ contains(env.commitmsg, 'php') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: php
+        run: npx semantic-release
+      - name: Create PR with PHP release changes
+        if: ${{ success() && steps.semantic_release_php.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: php
+        run: |
+          # Check if there are any changes to commit
+          if [[ -n $(git status --porcelain) ]]; then
+            # Get the version from composer.json
+            VERSION=$(node -p "require('./composer.json').version")
+            BRANCH_NAME="release/vphp${VERSION}"
+            
+            echo "Creating PR for release version: vphp${VERSION}"
+            
+            # Create and switch to new branch
+            git checkout -b $BRANCH_NAME
+            
+            # Configure git
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            
+            # Add and commit changes (only add files that exist)
+            git add composer.json || true
+            git add ../docs/gitbook/php/changelog.md || true
+            
+            # Check if there are actually changes to commit after adding
+            if [[ -n $(git diff --cached --name-only) ]]; then
+              git commit -m "chore(release): vphp${VERSION}"
+              
+              # Push the branch
+              git push origin $BRANCH_NAME
+              
+              # Create PR using GitHub CLI
+              gh pr create \
+                --title "chore(release): vphp${VERSION}" \
+                --body "Automated release PR for version vphp${VERSION}
+
+              This PR contains:
+              - Updated php/composer.json version
+              - Updated changelog
+
+              Please review and merge to complete the release process." \
+                --head $BRANCH_NAME \
+                --base master
+              
+              echo "Created PR for release vphp${VERSION}"
               # Back to master branch for next releases if needed
               git checkout origin/master
             else
