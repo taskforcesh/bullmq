@@ -72,12 +72,34 @@ class Job:
         await self.scripts.promote(self.id)
         self.delay = 0
 
-    def retry(self, state: str = "failed"):
+    async def retry(self, state: str = "failed", opts: dict = {}):
+        """
+        Attempts to retry the job. Only a job that has failed or completed can be retried.
+
+        Args:
+            state: The state of the job to retry ('failed' or 'completed')
+            opts: Options for retrying the job
+                - resetAttemptsMade: boolean - Resets attemptsMade counter to 0
+                - resetAttemptsStarted: boolean - Resets attemptsStarted counter to 0
+        
+        Returns:
+            A coroutine that resolves when the job has been successfully moved to the wait queue.
+        
+        Raises:
+            Exception: If the job does not exist, is locked, or is not in the expected state.
+        """            
+        await self.scripts.reprocessJob(self, state, opts)
+
         self.failedReason = None
         self.finishedOn = None
         self.processedOn = None
         self.returnvalue = None
-        return self.scripts.reprocessJob(self, state)
+        
+        if opts.get("resetAttemptsMade"):
+            self.attemptsMade = 0
+        
+        if opts.get("resetAttemptsStarted"):
+            self.attemptsStarted = 0
 
     def getState(self):
         return self.scripts.getState(self.id)
