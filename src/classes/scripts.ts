@@ -487,7 +487,7 @@ export class Scripts {
       Date.now(),
       queueKeys[''],
       producerId,
-      every ? every : null,
+      every,
     ];
 
     return this.execCommand(client, 'updateJobScheduler', keys.concat(args));
