@@ -94,31 +94,30 @@ if rcall("EXISTS", nextDelayedJobKey) == 1 then
     if not removeJobFromScheduler(prefixKey, delayedKey, prioritizedKey, waitKey, pausedKey,
         nextDelayedJobId, metaKey, eventsKey) then
 
+        local nextExtraDelay = 1
+        local errorCode = -10 --SchedulerJobSlotsBusy
         if every then
-            -- For 'every' case: try next time slot to avoid collision
-            local nextSlotMillis = nextMillis + every
-            local nextSlotJobId = "repeat:" .. jobSchedulerId .. ":" .. nextSlotMillis
-            local nextSlotJobKey = prefixKey .. nextSlotJobId
-
-            if rcall("EXISTS", nextSlotJobKey) == 0 then
-                -- Next slot is free, use it
-                nextMillis = nextSlotMillis
-                nextDelayedJobId = nextSlotJobId
-                nextDelayedJobKey = nextSlotJobKey
-                extraDelay = every
-            else
-                -- Next slot also has a job, return error code
-                return -11 -- SchedulerJobSlotsBusy
+            local prevEvery = tonumber(rcall("HGET", schedulerKey, "every"))
+            if prevEvery and prevEvery == tonumber(every) then
+                nextExtraDelay = prevEvery
+                errorCode = -11 -- Next slot also has a job, return error code
             end
-        else
-            -- For 'pattern' case: return error code
-            return -10 -- SchedulerJobIdCollision
         end
 
-        --rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
-        --    "duplicated", "jobId", nextDelayedJobId)
+        -- For 'every' case: try next every by adding 1 millisecond to prevent collision
+        local nextMillisCandidate = nextMillis + nextExtraDelay
+        local nextCandidateJobId = "repeat:" .. jobSchedulerId .. ":" .. nextMillisCandidate
+        local nextCandidateJobKey = prefixKey .. nextCandidateJobId
 
-        --return nextDelayedJobId .. "" -- convert to string
+        if rcall("EXISTS", nextCandidateJobKey) == 0 then
+            -- Next slot is free, use it
+            nextMillis = nextMillisCandidate
+            nextDelayedJobId = nextCandidateJobId
+            nextDelayedJobKey = nextCandidateJobKey
+            extraDelay = nextExtraDelay
+        else
+            return errorCode
+        end
     end
 end
 
