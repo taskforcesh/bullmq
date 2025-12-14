@@ -705,6 +705,92 @@ defmodule BullMQ.Job do
   end
 
   @doc """
+  Attempts to retry the job. Only a job that has failed or completed can be retried.
+
+  Moves the job from the completed or failed state back to the wait queue for
+  reprocessing.
+
+  ## Parameters
+
+    * `job` - The job struct (must have `connection` set)
+    * `state` - The expected current state: `:failed` (default) or `:completed`
+    * `opts` - Options:
+      * `:reset_attempts_made` - If `true`, resets the `attempts_made` counter to 0 (default: `false`)
+      * `:reset_attempts_started` - If `true`, resets the `attempts_started` counter to 0 (default: `false`)
+
+  ## Returns
+
+    * `{:ok, job}` - Job successfully moved to wait queue with updated state
+    * `{:error, reason}` - Failed to retry job
+
+  ## Error Codes
+
+    * `-1` - Job does not exist
+    * `-3` - Job was not found in the expected state
+  ## Examples
+
+      # Retry a failed job
+      {:ok, updated_job} = Job.retry(job)
+
+      # Retry a completed job
+      {:ok, updated_job} = Job.retry(job, :completed)
+
+      # Retry and reset attempt counters
+      {:ok, updated_job} = Job.retry(job, :failed, reset_attempts_made: true)
+
+  """
+  @spec retry(t(), atom(), keyword()) :: {:ok, t()} | {:error, term()}
+  def retry(%__MODULE__{} = job, state \\ :failed, opts \\ [])
+      when state in [:failed, :completed] do
+    ctx = Keys.new(job.queue_name, prefix: job.prefix)
+
+    lifo =
+      case Map.fetch(job.opts, :lifo) do
+        {:ok, value} -> value
+        :error -> Map.get(job.opts, "lifo", false)
+      end
+
+    script_opts = [
+      lifo: lifo,
+      reset_attempts_made: Keyword.get(opts, :reset_attempts_made, false),
+      reset_attempts_started: Keyword.get(opts, :reset_attempts_started, false)
+    ]
+
+    case Scripts.reprocess_job(job.connection, ctx, job.id, state, script_opts) do
+      {:ok, 1} ->
+        updated_job = %{
+          job
+          | failed_reason: nil,
+            finished_on: nil,
+            processed_on: nil,
+            return_value: nil
+        }
+
+        updated_job =
+          if Keyword.get(opts, :reset_attempts_made, false) do
+            %{updated_job | attempts_made: 0}
+          else
+            updated_job
+          end
+
+        updated_job =
+          if Keyword.get(opts, :reset_attempts_started, false) do
+            %{updated_job | attempts_started: 0}
+          else
+            updated_job
+          end
+
+        {:ok, updated_job}
+
+      {:ok, code} when is_integer(code) ->
+        {:error, {:reprocess_failed, code}}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  @doc """
   Extends the lock on a job.
 
   When manually processing jobs, locks are not automatically renewed.
