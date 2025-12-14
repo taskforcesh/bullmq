@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/taskforcesh/bullmq/compare/vex1.0.1...vex1.1.0) (2025-12-14)
+
+
+### Features
+
+* **job:** support retry method options [elixir] [python] ([#3601](https://github.com/taskforcesh/bullmq/issues/3601)) ([6e406a9](https://github.com/taskforcesh/bullmq/commit/6e406a94a5a2fe1f2c1c6e8a1073c6c9b1f11092))
+
 ## [1.0.1](https://github.com/taskforcesh/bullmq/compare/vex1.0.0...vex1.0.1) (2025-12-11)
 
 
