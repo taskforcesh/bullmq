@@ -1,3 +1,10 @@
+## [5.66.1](https://github.com/taskforcesh/bullmq/compare/v5.66.0...v5.66.1) (2025-12-17)
+
+
+### Bug Fixes
+
+* **deps:** pin dependencies ([#3609](https://github.com/taskforcesh/bullmq/issues/3609)) ([5fbf778](https://github.com/taskforcesh/bullmq/commit/5fbf778f0b8f58b90e82f9020c041f3248b0b269))
+
 # [5.66.0](https://github.com/taskforcesh/bullmq/compare/v5.65.1...v5.66.0) (2025-12-11)
 
 
