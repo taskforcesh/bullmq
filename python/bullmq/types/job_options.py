@@ -1,5 +1,7 @@
 from typing import TypedDict, Union
-from bullmq.types import BackoffOptions, KeepJobs
+from bullmq.types.backoff_options import BackoffOptions
+from bullmq.types.keep_jobs import KeepJobs
+from bullmq.types.deduplication_options import DeduplicationOptions
 
 
 class JobOptions(TypedDict, total=False):
@@ -62,4 +64,12 @@ class JobOptions(TypedDict, total=False):
     stackTraceLimit: int
     """
     Limits the amount of stack trace lines that will be recorded in the stacktrace.
+    """
+
+    deduplication: DeduplicationOptions
+    """
+    Deduplication options to prevent duplicate jobs from being added to the queue.
+    
+    This can be used to implement throttling, debouncing, or simple deduplication
+    where jobs with the same deduplication ID are ignored.
     """
