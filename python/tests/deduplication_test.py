@@ -82,7 +82,7 @@ class TestDeduplication(unittest.IsolatedAsyncioTestCase):
         
         # Add multiple jobs with replace option
         for i in range(1, 6):
-            job = await queue.add(
+            await queue.add(
                 "test-job",
                 {"color": f"white {i}"},
                 {
