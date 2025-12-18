@@ -12,7 +12,33 @@ This library allows you to add jobs to a BullMQ queue from your PHP application.
 
 ## Installation
 
-This package is distributed directly from the BullMQ monorepo. Add the repository to your `composer.json` and require the package:
+### Option 1: Download Release (Recommended)
+
+Download the latest release from the [releases page](https://github.com/taskforcesh/bullmq/releases) (look for `bullmq-php-X.X.X.zip`), extract it to your project, and configure Composer:
+
+```json
+{
+  "repositories": [
+    {
+      "type": "path",
+      "url": "./bullmq-php-X.X.X"
+    }
+  ],
+  "require": {
+    "taskforcesh/bullmq-php": "*"
+  }
+}
+```
+
+Then run:
+
+```bash
+composer install
+```
+
+### Option 2: Install from GitHub (Development)
+
+For development or if you want the latest changes, you can install directly from the repository. Note that this requires Node.js to build the Lua scripts first.
 
 ```json
 {
@@ -30,17 +56,14 @@ This package is distributed directly from the BullMQ monorepo. Add the repositor
 }
 ```
 
-Then run:
+After installing, you need to build the Lua scripts:
 
 ```bash
-composer install
-```
-
-Or add it to an existing project:
-
-```bash
-composer config repositories.bullmq vcs https://github.com/taskforcesh/bullmq
-composer require taskforcesh/bullmq-php:dev-master
+cd vendor/taskforcesh/bullmq-php
+# From the monorepo root:
+yarn install
+yarn build
+yarn copy:lua:php
 ```
 
 > **Note:** Stable releases are tagged with the format `vphp{version}` (e.g., `vphp1.0.0`). Check the [releases page](https://github.com/taskforcesh/bullmq/releases) for available versions.
