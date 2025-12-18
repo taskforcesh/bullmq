@@ -127,9 +127,18 @@ class Scripts:
             deduplicationKey = f"{self.keys['']}de:{job.deduplication_id}"
 
         packedArgs = msgpack.packb(
-            [self.keys[""], job.id or "", job.name, job.timestamp, job.parentKey,
-                f"{parentKey}:dependencies" if parentKey else None, parent, 
-                job.repeatJobKey, deduplicationKey],use_bin_type=True)
+            [
+                self.keys[""],                                              # [1] key prefix
+                job.id or "",                                               # [2] custom id
+                job.name,                                                   # [3] name
+                job.timestamp,                                              # [4] timestamp
+                job.parentKey,                                              # [5] parentKey
+                f"{parentKey}:dependencies" if parentKey else None,         # [6] parent dependencies key
+                parent,                                                     # [7] parent {id, queueKey}
+                job.repeatJobKey,                                           # [8] repeat job key
+                deduplicationKey                                            # [9] deduplication key
+            ],
+            use_bin_type=True)
         
         return [packedArgs, jsonData, packedOpts]
 
