@@ -10,7 +10,6 @@ from uuid import uuid4
 import asyncio
 import unittest
 import os
-import time
 
 queueName = f"__test_dedup__{uuid4().hex}"
 prefix = os.environ.get('BULLMQ_TEST_PREFIX') or "bull"
