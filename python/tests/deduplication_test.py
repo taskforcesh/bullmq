@@ -53,24 +53,24 @@ class TestDeduplication(unittest.IsolatedAsyncioTestCase):
         """Test throttle mode with TTL"""
         queue = Queue(queueName, {"prefix": prefix})
         
-        # Add first job with deduplication and 2 second TTL
+        # Add first job with deduplication and 1 second TTL
         job1 = await queue.add("test-job", {"color": "white"}, {
-            "deduplication": {"id": "throttleTest", "ttl": 2000}
+            "deduplication": {"id": "throttleTest", "ttl": 1000}
         })
         
         # Try to add second job immediately (should be deduplicated)
         job2 = await queue.add("test-job", {"color": "black"}, {
-            "deduplication": {"id": "throttleTest", "ttl": 2000}
+            "deduplication": {"id": "throttleTest", "ttl": 1000}
         })
         
         self.assertEqual(job1.id, job2.id)
         
-        # Wait for TTL to expire
-        await asyncio.sleep(2.1)
+        # Wait for TTL to expire (with small buffer)
+        await asyncio.sleep(1.1)
         
         # Now we should be able to add a new job
         job3 = await queue.add("test-job", {"color": "red"}, {
-            "deduplication": {"id": "throttleTest", "ttl": 2000}
+            "deduplication": {"id": "throttleTest", "ttl": 1000}
         })
         
         self.assertNotEqual(job1.id, job3.id)
@@ -89,16 +89,16 @@ class TestDeduplication(unittest.IsolatedAsyncioTestCase):
                 {
                     "deduplication": {
                         "id": "debounceTest",
-                        "ttl": 3000,
+                        "ttl": 2000,
                         "extend": True,
                         "replace": True
                     },
-                    "delay": 3000
+                    "delay": 2000
                 }
             )
         
         # Wait a bit to ensure all jobs are processed
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(0.1)
         
         # Only one job should exist in delayed state
         delayed_jobs = await queue.getJobs(["delayed"])

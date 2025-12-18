@@ -65,7 +65,7 @@ class Job:
         
         # Extract deduplication ID from options
         deduplication = opts.get("deduplication")
-        self.deduplication_id = deduplication.get("id") if isinstance(deduplication, dict) else None
+        self.deduplication_id = deduplication.get("id") if deduplication and isinstance(deduplication, dict) else None
         
         self.scripts = Scripts(queue.prefix, queue.name, queue.redisConnection)
         self.queueQualifiedName = queue.qualifiedName
