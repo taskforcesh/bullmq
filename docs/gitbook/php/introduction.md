@@ -12,7 +12,33 @@ The PHP package only implements the Queue class (producer side). Workers are not
 
 ### Installation
 
-This package is distributed directly from the BullMQ monorepo. Add the repository to your `composer.json`:
+#### Option 1: Download Release (Recommended)
+
+Download the latest release from the [releases page](https://github.com/taskforcesh/bullmq/releases) (look for `bullmq-php-X.X.X.zip`), extract it to your project, and configure Composer:
+
+```json
+{
+  "repositories": [
+    {
+      "type": "path",
+      "url": "./bullmq-php-X.X.X"
+    }
+  ],
+  "require": {
+    "taskforcesh/bullmq-php": "*"
+  }
+}
+```
+
+Then run:
+
+```bash
+composer install
+```
+
+#### Option 2: Install from GitHub (Development)
+
+For development or the latest changes, install directly from the repository:
 
 ```json
 {
@@ -30,18 +56,14 @@ This package is distributed directly from the BullMQ monorepo. Add the repositor
 }
 ```
 
-Then run:
+{% hint style="warning" %}
+Installing from VCS requires building the Lua scripts. After `composer install`, run from the monorepo root:
 
 ```bash
-composer install
+yarn install && yarn build && yarn copy:lua:php
 ```
 
-Or add it to an existing project via command line:
-
-```bash
-composer config repositories.bullmq vcs https://github.com/taskforcesh/bullmq
-composer require taskforcesh/bullmq-php:dev-master
-```
+{% endhint %}
 
 ### Requirements
 
