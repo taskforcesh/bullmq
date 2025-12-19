@@ -101,7 +101,6 @@ jobs:
             echo "No changes detected after semantic-release"
           fi
       - run: yarn copy:lua:python
-
       # Python Release
       - name: Setup Python
         uses: actions/setup-python@61a6322f88396a6271a6ee3565807d608ecaddd1 # v4
@@ -296,6 +295,28 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         working-directory: php
         run: npx semantic-release
+      - name: Create PHP release asset
+        if: ${{ success() && steps.semantic_release_php.outcome == 'success' }}
+        working-directory: php
+        run: |
+          VERSION=$(node -p "require('./composer.json').version")
+          # Create a clean directory with only the necessary files
+          mkdir -p ../bullmq-php-${VERSION}
+          cp -r src ../bullmq-php-${VERSION}/
+          cp composer.json ../bullmq-php-${VERSION}/
+          cp README.md ../bullmq-php-${VERSION}/ || true
+          cp LICENSE ../bullmq-php-${VERSION}/ || true
+          # Create zip file
+          cd ..
+          zip -r bullmq-php-${VERSION}.zip bullmq-php-${VERSION}
+          echo "PHP_VERSION=${VERSION}" >> $GITHUB_ENV
+          echo "PHP_ASSET_PATH=$(pwd)/bullmq-php-${VERSION}.zip" >> $GITHUB_ENV
+      - name: Upload PHP release asset
+        if: ${{ success() && steps.semantic_release_php.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "vphp${PHP_VERSION}" "${PHP_ASSET_PATH}" --clobber
       - name: Create PR with PHP release changes
         if: ${{ success() && steps.semantic_release_php.outcome == 'success' }}
         env:
