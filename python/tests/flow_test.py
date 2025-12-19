@@ -5,6 +5,7 @@ https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 """
 
 from asyncio import Future
+import asyncio
 import os
 
 from bullmq import Queue, Job, FlowProducer, Worker
@@ -255,7 +256,6 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         await processing_child
 
         # Give some time for the failure to propagate
-        import asyncio
         await asyncio.sleep(1.0)
 
         # Check that the parent job is in failed state
