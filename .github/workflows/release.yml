@@ -119,16 +119,16 @@ jobs:
           # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
           flake8 ./python --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
       - name: Build Python
-        if: ${{ contains(env.commitmsg, 'python') }}
+        if: ${{ contains(env.commitmsg, '[python]') }}
         working-directory: python
         run: pip install build
       - name: Install dependencies Node for Python
-        if: ${{ contains(env.commitmsg, 'python') }}
+        if: ${{ contains(env.commitmsg, '[python]') }}
         working-directory: python
         run: yarn install --frozen-lockfile --non-interactive
       - name: Release Python
         id: semantic_release_python
-        if: ${{ contains(env.commitmsg, 'python') }}
+        if: ${{ contains(env.commitmsg, '[python]') }}
         working-directory: python
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -200,19 +200,19 @@ jobs:
           elixir-version: '1.17'
           otp-version: '27.x'
       - name: Install Elixir dependencies
-        if: ${{ contains(env.commitmsg, 'elixir') }}
+        if: ${{ contains(env.commitmsg, '[elixir]') }}
         working-directory: elixir
         run: |
           mix local.hex --force
           mix local.rebar --force
           mix deps.get
       - name: Install Node dependencies for Elixir
-        if: ${{ contains(env.commitmsg, 'elixir') }}
+        if: ${{ contains(env.commitmsg, '[elixir]') }}
         working-directory: elixir
         run: yarn install --frozen-lockfile --non-interactive
       - name: Release Elixir
         id: semantic_release_elixir
-        if: ${{ contains(env.commitmsg, 'elixir') }}
+        if: ${{ contains(env.commitmsg, '[elixir]') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
@@ -285,12 +285,12 @@ jobs:
           tools: composer:v2
       - run: yarn copy:lua:php
       - name: Install Node dependencies for PHP
-        if: ${{ contains(env.commitmsg, 'php') }}
+        if: ${{ contains(env.commitmsg, '[php]') }}
         working-directory: php
         run: yarn install --frozen-lockfile --non-interactive
       - name: Release PHP
         id: semantic_release_php
-        if: ${{ contains(env.commitmsg, 'php') }}
+        if: ${{ contains(env.commitmsg, '[php]') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         working-directory: php
