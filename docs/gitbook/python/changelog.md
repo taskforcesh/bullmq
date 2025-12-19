@@ -1,3 +1,10 @@
+# [2.18.0](https://github.com/taskforcesh/bullmq/compare/vpy2.17.0...vpy2.18.0) (2025-12-19)
+
+
+### Features
+
+* **add:** add deduplication support [python] ([#3614](https://github.com/taskforcesh/bullmq/issues/3614)) ref [#3613](https://github.com/taskforcesh/bullmq/issues/3613) ([0c3beb5](https://github.com/taskforcesh/bullmq/commit/0c3beb58f4a8c90ad7800f5616c2a3494a952963))
+
 # [2.17.0](https://github.com/taskforcesh/bullmq/compare/vpy2.16.2...vpy2.17.0) (2025-12-14)
 
 
