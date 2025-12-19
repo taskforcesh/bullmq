@@ -86,20 +86,59 @@ class Scripts:
             return self.keys[key]
         return list(map(mapKey, keys))
 
+    def encodeOpts(self, opts: dict) -> dict:
+        """
+        Encode options keys from long form to short form for Redis storage.
+        For example: 'deduplication' -> 'de', 'failParentOnFailure' -> 'fpof'
+        """
+        from bullmq.job import optsEncodeMap
+        
+        encoded = {}
+        for key, value in opts.items():
+            # Use encoded key if available, otherwise use original key
+            encoded_key = optsEncodeMap.get(key, key)
+            encoded[encoded_key] = value
+        return encoded
+
     def addJobArgs(self, job: Job):
-        #  We are still lacking some arguments here:
         #  ARGV[1] msgpacked arguments array
-        #         [9]  repeat job key
+        #         [1]  key prefix,
+        #         [2]  custom id (will not generate one automatically)
+        #         [3]  name
+        #         [4]  timestamp
+        #         [5]  parentKey?
+        #         [6]  parent dependencies key.
+        #         [7]  parent? {id, queueKey}
+        #         [8]  repeat job key
+        #         [9]  deduplication key
 
         jsonData = json.dumps(job.data, separators=(',', ':'), allow_nan=False)
-        packedOpts = msgpack.packb(job.opts)
+        
+        # Encode opts keys before packing
+        encodedOpts = self.encodeOpts(job.opts)
+        packedOpts = msgpack.packb(encodedOpts)
 
         parent = job.parent
         parentKey = job.parentKey
+        
+        # Build deduplication key if deduplication ID exists
+        deduplicationKey = None
+        if job.deduplication_id:
+            deduplicationKey = f"{self.keys['']}de:{job.deduplication_id}"
 
         packedArgs = msgpack.packb(
-            [self.keys[""], job.id or "", job.name, job.timestamp, job.parentKey,
-                f"{parentKey}:dependencies" if parentKey else None, parent],use_bin_type=True)
+            [
+                self.keys[""],                                              # [1] key prefix
+                job.id or "",                                               # [2] custom id
+                job.name,                                                   # [3] name
+                job.timestamp,                                              # [4] timestamp
+                job.parentKey,                                              # [5] parentKey
+                f"{parentKey}:dependencies" if parentKey else None,         # [6] parent dependencies key
+                parent,                                                     # [7] parent {id, queueKey}
+                job.repeatJobKey,                                           # [8] repeat job key
+                deduplicationKey                                            # [9] deduplication key
+            ],
+            use_bin_type=True)
         
         return [packedArgs, jsonData, packedOpts]
 

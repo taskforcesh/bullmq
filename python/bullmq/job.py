@@ -18,6 +18,7 @@ optsDecodeMap = {
     'cpof': 'continueParentOnFailure',
     'idof': 'ignoreDependencyOnFailure',
     'kl': 'keepLogs',
+    'de': 'deduplication',
 }
 
 optsEncodeMap = {v: k for k, v in optsDecodeMap.items()}
@@ -61,6 +62,11 @@ class Job:
         self.parentKey = get_parent_key(parent)
         self.parent = {"id": parent.get("id"), "queueKey": parent.get("queue")} if parent else None
         self.stacktrace: List[str] = []
+        
+        # Extract deduplication ID from options
+        deduplication = opts.get("deduplication")
+        self.deduplication_id = deduplication.get("id") if deduplication and isinstance(deduplication, dict) else None
+        
         self.scripts = Scripts(queue.prefix, queue.name, queue.redisConnection)
         self.queueQualifiedName = queue.qualifiedName
 
