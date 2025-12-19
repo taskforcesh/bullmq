@@ -157,7 +157,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
    * Job counts by type
    *
    * Queue#getJobCountByTypes('completed') =\> completed count
-   * Queue#getJobCountByTypes('completed,failed') =\> completed + failed count
+   * Queue#getJobCountByTypes('completed', 'failed') =\> completed + failed count
    * Queue#getJobCountByTypes('completed', 'failed') =\> completed + failed count
    * Queue#getJobCountByTypes('completed', 'waiting', 'failed') =\> completed + waiting + failed count
    */
