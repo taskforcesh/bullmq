@@ -158,7 +158,6 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
    *
    * Queue#getJobCountByTypes('completed') =\> completed count
    * Queue#getJobCountByTypes('completed', 'failed') =\> completed + failed count
-   * Queue#getJobCountByTypes('completed', 'failed') =\> completed + failed count
    * Queue#getJobCountByTypes('completed', 'waiting', 'failed') =\> completed + waiting + failed count
    */
   async getJobCountByTypes(...types: JobType[]): Promise<number> {
