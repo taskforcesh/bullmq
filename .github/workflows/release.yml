@@ -296,7 +296,7 @@ jobs:
         working-directory: php
         run: npx semantic-release
       - name: Create PHP release asset
-        if: ${{ success() && steps.semantic_release_php.outcome == 'success' }}
+        if: ${{ contains(env.commitmsg, '[php]') && steps.semantic_release_php.outcome == 'success' }}
         working-directory: php
         run: |
           VERSION=$(node -p "require('./composer.json').version")
@@ -312,7 +312,7 @@ jobs:
           echo "PHP_VERSION=${VERSION}" >> $GITHUB_ENV
           echo "PHP_ASSET_PATH=$(pwd)/bullmq-php-${VERSION}.zip" >> $GITHUB_ENV
       - name: Upload PHP release asset
-        if: ${{ success() && steps.semantic_release_php.outcome == 'success' }}
+        if: ${{ contains(env.commitmsg, '[php]') && steps.semantic_release_php.outcome == 'success' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
