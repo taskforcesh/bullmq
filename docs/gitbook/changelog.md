@@ -1,3 +1,10 @@
+## [5.66.2](https://github.com/taskforcesh/bullmq/compare/v5.66.1...v5.66.2) (2025-12-19)
+
+
+### Bug Fixes
+
+* **telemetry:** send most updated attemptsMade value when finishing ([#3623](https://github.com/taskforcesh/bullmq/issues/3623)) ([1380a16](https://github.com/taskforcesh/bullmq/commit/1380a16fa45c70f0bc5b938efdf178b33a19cac1))
+
 ## [5.66.1](https://github.com/taskforcesh/bullmq/compare/v5.66.0...v5.66.1) (2025-12-17)
 
 
