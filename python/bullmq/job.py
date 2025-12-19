@@ -17,6 +17,7 @@ optsDecodeMap = {
     'fpof': 'failParentOnFailure',
     'cpof': 'continueParentOnFailure',
     'idof': 'ignoreDependencyOnFailure',
+    'rdof': 'removeDependencyOnFailure',
     'kl': 'keepLogs',
     'de': 'deduplication',
 }
@@ -61,6 +62,18 @@ class Job:
         parent = opts.get("parent")
         self.parentKey = get_parent_key(parent)
         self.parent = {"id": parent.get("id"), "queueKey": parent.get("queue")} if parent else None
+        
+        # Add parent-related options to the parent object if they exist
+        if self.parent:
+            if opts.get("failParentOnFailure"):
+                self.parent["fpof"] = True
+            if opts.get("removeDependencyOnFailure"):
+                self.parent["rdof"] = True
+            if opts.get("ignoreDependencyOnFailure"):
+                self.parent["idof"] = True
+            if opts.get("continueParentOnFailure"):
+                self.parent["cpof"] = True
+        
         self.stacktrace: List[str] = []
         
         # Extract deduplication ID from options

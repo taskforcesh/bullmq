@@ -212,5 +212,71 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
 
         await queue.close()
 
+    async def test_should_fail_parent_when_child_with_failParentOnFailure_fails(self):
+        """Test that parent job fails when child job with failParentOnFailure fails"""
+        parent_queue_name = f"__test_parent_queue__{uuid4().hex}"
+        child_queue_name = f"__test_child_queue__{uuid4().hex}"
+
+        processing_child = Future()
+        processing_parent = Future()
+
+        # Child worker that fails
+        async def process_child(job: Job, token: str):
+            processing_child.set_result(None)
+            raise Exception("Child job failed")
+
+        # Parent worker
+        async def process_parent(job: Job, token: str):
+            processing_parent.set_result(None)
+            return 1
+
+        parent_worker = Worker(parent_queue_name, process_parent, {"prefix": prefix})
+        child_worker = Worker(child_queue_name, process_child, {"prefix": prefix})
+
+        flow = FlowProducer({}, {"prefix": prefix})
+        await flow.add(
+            {
+                "name": 'parent-job',
+                "queueName": parent_queue_name,
+                "data": {},
+                "children": [
+                    {
+                        "name": 'child-job',
+                        "data": {"foo": 'bar'},
+                        "queueName": child_queue_name,
+                        "opts": {"failParentOnFailure": True}
+                    }
+                ]
+            }
+        )
+
+        # Wait for child to be processed (and fail)
+        await processing_child
+
+        # Give some time for the failure to propagate
+        import asyncio
+        await asyncio.sleep(0.5)
+
+        # Check that the parent job is in failed state
+        parent_queue = Queue(parent_queue_name, {"prefix": prefix})
+        failed_jobs = await parent_queue.getFailed()
+        
+        self.assertEqual(len(failed_jobs), 1, "Parent job should be in failed state")
+        parent_job = failed_jobs[0]
+        self.assertIn("child", parent_job.failedReason.lower(), "Failed reason should mention child failure")
+
+        await parent_worker.close()
+        await child_worker.close()
+        await flow.close()
+
+        await parent_queue.pause()
+        await parent_queue.obliterate()
+        await parent_queue.close()
+
+        child_queue = Queue(child_queue_name, {"prefix": prefix})
+        await child_queue.pause()
+        await child_queue.obliterate()
+        await child_queue.close()
+
 if __name__ == '__main__':
     unittest.main()
