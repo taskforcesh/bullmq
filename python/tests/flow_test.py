@@ -219,7 +219,6 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         child_queue_name = f"__test_child_queue__{uuid4().hex}"
 
         processing_child = Future()
-        child_failed = Future()
 
         # Child worker that fails
         async def process_child(job: Job, token: str):
