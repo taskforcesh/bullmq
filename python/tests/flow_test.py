@@ -4,8 +4,9 @@ Tests for flow producer class.
 https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 """
 
-from asyncio import Future
+import asyncio
 import os
+from asyncio import Future
 
 from bullmq import Queue, Job, FlowProducer, Worker
 from uuid import uuid4

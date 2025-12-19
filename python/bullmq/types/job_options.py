@@ -76,12 +76,12 @@ class JobOptions(TypedDict, total=False):
 
     failParentOnFailure: bool
     """
-    If true, moves parent to failed if this job fails after all attempts.
+    If true, moves parent to failed when this child job fails after all attempts.
     """
 
     continueParentOnFailure: bool
     """
-    If true, starts processing parent job as soon as this job fails.
+    If true, starts processing parent job as soon as this child job fails.
     """
 
     ignoreDependencyOnFailure: bool

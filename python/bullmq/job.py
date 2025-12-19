@@ -63,6 +63,19 @@ class Job:
         self.parentKey = get_parent_key(parent)
         self.parent = {"id": parent.get("id"), "queueKey": parent.get("queue")} if parent else None
         
+        # Validate mutually exclusive parent-related options
+        exclusive_options = [
+            'removeDependencyOnFailure',
+            'failParentOnFailure',
+            'continueParentOnFailure',
+            'ignoreDependencyOnFailure',
+        ]
+        enabled_exclusive_options = [opt for opt in exclusive_options if opts.get(opt)]
+        
+        if len(enabled_exclusive_options) > 1:
+            options_list = ', '.join(enabled_exclusive_options)
+            raise ValueError(f"The following options cannot be used together: {options_list}")
+        
         # Add parent-related options to the parent object if they exist
         if self.parent:
             if opts.get("failParentOnFailure"):
