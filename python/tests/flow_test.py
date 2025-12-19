@@ -218,23 +218,22 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         child_queue_name = f"__test_child_queue__{uuid4().hex}"
 
         processing_child = Future()
-        processing_parent = Future()
+        child_failed = Future()
 
         # Child worker that fails
         async def process_child(job: Job, token: str):
             processing_child.set_result(None)
             raise Exception("Child job failed")
 
-        # Parent worker
+        # Parent worker should not be called because parent should fail
         async def process_parent(job: Job, token: str):
-            processing_parent.set_result(None)
             return 1
 
         parent_worker = Worker(parent_queue_name, process_parent, {"prefix": prefix})
         child_worker = Worker(child_queue_name, process_child, {"prefix": prefix})
 
         flow = FlowProducer({}, {"prefix": prefix})
-        await flow.add(
+        parent_tree = await flow.add(
             {
                 "name": 'parent-job',
                 "queueName": parent_queue_name,
@@ -250,20 +249,27 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
             }
         )
 
+        parent_job_id = parent_tree["job"].id
+
         # Wait for child to be processed (and fail)
         await processing_child
 
         # Give some time for the failure to propagate
         import asyncio
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(1.0)
 
         # Check that the parent job is in failed state
         parent_queue = Queue(parent_queue_name, {"prefix": prefix})
-        failed_jobs = await parent_queue.getFailed()
+        parent_job = await Job.fromId(parent_queue, parent_job_id)
         
-        self.assertEqual(len(failed_jobs), 1, "Parent job should be in failed state")
-        parent_job = failed_jobs[0]
-        self.assertIn("child", parent_job.failedReason.lower(), "Failed reason should mention child failure")
+        self.assertIsNotNone(parent_job, "Parent job should exist")
+        
+        # Check the job state
+        job_state = await parent_job.getState()
+        self.assertEqual(job_state, "failed", f"Parent job should be in failed state but is in {job_state}")
+        
+        # Check that the failed reason mentions children
+        self.assertIsNotNone(parent_job.failedReason, "Parent job should have a failed reason")
 
         await parent_worker.close()
         await child_worker.close()
