@@ -5,7 +5,6 @@ https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 """
 
 from asyncio import Future
-import asyncio
 import os
 
 from bullmq import Queue, Job, FlowProducer, Worker
