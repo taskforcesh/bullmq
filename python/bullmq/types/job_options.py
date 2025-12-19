@@ -1,5 +1,7 @@
 from typing import TypedDict, Union
-from bullmq.types import BackoffOptions, KeepJobs, DeduplicationOptions
+from bullmq.types.backoff_options import BackoffOptions
+from bullmq.types.keep_jobs import KeepJobs
+from bullmq.types.deduplication_options import DeduplicationOptions
 
 
 class JobOptions(TypedDict, total=False):
