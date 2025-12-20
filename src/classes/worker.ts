@@ -949,7 +949,6 @@ will never work with more accuracy than 1ms. */
           [TelemetryAttributes.WorkerName]: this.opts.name,
           [TelemetryAttributes.JobId]: job.id,
           [TelemetryAttributes.JobName]: job.name,
-          [TelemetryAttributes.JobAttemptsMade]: job.attemptsMade,
         });
 
         this.emit('active', job, 'waiting');
@@ -1076,10 +1075,16 @@ will never work with more accuracy than 1ms. */
         [TelemetryAttributes.JobResult]: JSON.stringify(result),
       });
 
-      const [jobData, jobId, rateLimitDelay, delayUntil] = completed || [];
-      this.updateDelays(rateLimitDelay, delayUntil);
+      span?.setAttributes({
+        [TelemetryAttributes.JobAttemptsMade]: job.attemptsMade,
+      });
 
-      return this.nextJobFromJobData(jobData, jobId, token);
+      if (Array.isArray(completed)) {
+        const [jobData, jobId, rateLimitDelay, delayUntil] = completed;
+        this.updateDelays(rateLimitDelay, delayUntil);
+
+        return this.nextJobFromJobData(jobData, jobId, token);
+      }
     }
   }
 
@@ -1118,12 +1123,15 @@ will never work with more accuracy than 1ms. */
 
       this.emit('failed', job, err, 'active');
 
-      // Note: result can be undefined if moveToFailed fails (e.g., lock was lost)
-      if (result) {
-        span?.addEvent('job failed', {
-          [TelemetryAttributes.JobFailedReason]: err.message,
-        });
+      span?.addEvent('job failed', {
+        [TelemetryAttributes.JobFailedReason]: err.message,
+      });
+      span?.setAttributes({
+        [TelemetryAttributes.JobAttemptsMade]: job.attemptsMade,
+      });
 
+      // Note: result can be undefined if moveToFailed fails (e.g., lock was lost)
+      if (Array.isArray(result)) {
         const [jobData, jobId, rateLimitDelay, delayUntil] = result;
         this.updateDelays(rateLimitDelay, delayUntil);
         return this.nextJobFromJobData(jobData, jobId, token);

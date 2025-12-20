@@ -4,8 +4,9 @@ Tests for flow producer class.
 https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 """
 
-from asyncio import Future
+import asyncio
 import os
+from asyncio import Future
 
 from bullmq import Queue, Job, FlowProducer, Worker
 from uuid import uuid4
@@ -211,6 +212,76 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(children_values, {})
 
         await queue.close()
+
+    async def test_should_fail_parent_when_child_with_failParentOnFailure_fails(self):
+        """Test that parent job fails when child job with failParentOnFailure fails"""
+        parent_queue_name = f"__test_parent_queue__{uuid4().hex}"
+        child_queue_name = f"__test_child_queue__{uuid4().hex}"
+
+        processing_child = Future()
+
+        # Child worker that fails
+        async def process_child(job: Job, token: str):
+            processing_child.set_result(None)
+            raise Exception("Child job failed")
+
+        # Parent worker should not be called because parent should fail
+        async def process_parent(job: Job, token: str):
+            return 1
+
+        parent_worker = Worker(parent_queue_name, process_parent, {"prefix": prefix})
+        child_worker = Worker(child_queue_name, process_child, {"prefix": prefix})
+
+        flow = FlowProducer({}, {"prefix": prefix})
+        parent_tree = await flow.add(
+            {
+                "name": 'parent-job',
+                "queueName": parent_queue_name,
+                "data": {},
+                "children": [
+                    {
+                        "name": 'child-job',
+                        "data": {"foo": 'bar'},
+                        "queueName": child_queue_name,
+                        "opts": {"failParentOnFailure": True}
+                    }
+                ]
+            }
+        )
+
+        parent_job_id = parent_tree["job"].id
+
+        # Wait for child to be processed (and fail)
+        await processing_child
+
+        # Give some time for the failure to propagate
+        await asyncio.sleep(1.0)
+
+        # Check that the parent job is in failed state
+        parent_queue = Queue(parent_queue_name, {"prefix": prefix})
+        parent_job = await Job.fromId(parent_queue, parent_job_id)
+        
+        self.assertIsNotNone(parent_job, "Parent job should exist")
+        
+        # Check the job state
+        job_state = await parent_job.getState()
+        self.assertEqual(job_state, "failed", f"Parent job should be in failed state but is in {job_state}")
+        
+        # Check that the failed reason mentions children
+        self.assertIsNotNone(parent_job.failedReason, "Parent job should have a failed reason")
+
+        await parent_worker.close()
+        await child_worker.close()
+        await flow.close()
+
+        await parent_queue.pause()
+        await parent_queue.obliterate()
+        await parent_queue.close()
+
+        child_queue = Queue(child_queue_name, {"prefix": prefix})
+        await child_queue.pause()
+        await child_queue.obliterate()
+        await child_queue.close()
 
 if __name__ == '__main__':
     unittest.main()
