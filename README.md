@@ -24,7 +24,7 @@
       <img src="https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg"/>
     </a>
     <a href="https://github.com/sponsors/taskforcesh">
-      <img src="https://img.shields.io/badge/sponsor-30363D?style=flat&logo=GitHub-Sponsors&logoColor=#EA4AAA"/>
+      <img src="https://img.shields.io/badge/sponsor-30363D?style=flat&logo=GitHub-Sponsors&logoColor=EA4AAA"/>
     </a>
   </p>
   <p>
