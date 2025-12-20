@@ -23,8 +23,8 @@
     <a href="https://github.com/semantic-release/semantic-release">
       <img src="https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg"/>
     </a>
-    <a href="https://gurubase.io/g/bullmq">
-      <img src="https://img.shields.io/badge/Gurubase-Ask%20BullMQ%20Guru-006BFF"/>
+    <a href="https://github.com/sponsors/taskforcesh">
+      <img src="https://img.shields.io/badge/sponsor-30363D?style=flat&logo=GitHub-Sponsors&logoColor=EA4AAA"/>
     </a>
   </p>
   <p>
@@ -237,19 +237,19 @@ const originalTree = await flow.add({
         {
           name: 'grandchild-job',
           data: { idx: 1, foo: 'bah' },
-          queueName: 'grandChildrenQueueName'
+          queueName: 'grandChildrenQueueName',
         },
         {
           name: 'grandchild-job',
           data: { idx: 2, foo: 'baz' },
-          queueName: 'grandChildrenQueueName'
+          queueName: 'grandChildrenQueueName',
         },
       ],
     },
     {
       name: 'child-job',
       data: { idx: 3, foo: 'foo' },
-      queueName: 'childrenQueueName'
+      queueName: 'childrenQueueName',
     },
   ],
 });
@@ -261,28 +261,28 @@ This is just scratching the surface, check all the features and more in the offi
 
 Since there are a few job queue solutions, here is a table comparing them:
 
-| Feature                   | [BullMQ-Pro](https://bullmq.io/#bullmq-pro) | [BullMQ](https://bullmq.io) |      Bull       |  Kue  | Bee      | Agenda |
-| :------------------------ | :-----------------------------------------: | :-------------------------: | :-------------: | :---: | -------- | ------ |
-| Backend                   |                    redis                    |            redis            |      redis      | redis | redis    | mongo  |
-| Observables               |                      ✓                      |                             |                 |       |          |        |
-| Group Rate Limit          |                      ✓                      |                             |                 |       |          |        |
-| Group Support             |                      ✓                      |                             |                 |       |          |        |
-| Batches Support           |                      ✓                      |                             |                 |       |          |        |
-| Parent/Child Dependencies |                      ✓                      |              ✓              |                 |       |          |        |
-| Deduplication (Debouncing)                |                      ✓                      |              ✓              |        ✓        |       |          |        |
-| Deduplication (Throttling)                |                      ✓                      |              ✓              |        ✓        |       |          |        |
-| Priorities                |                      ✓                      |              ✓              |        ✓        |   ✓   |          | ✓      |
-| Concurrency               |                      ✓                      |              ✓              |        ✓        |   ✓   | ✓        | ✓      |
-| Delayed jobs              |                      ✓                      |              ✓              |        ✓        |   ✓   |          | ✓      |
-| Global events             |                      ✓                      |              ✓              |        ✓        |   ✓   |          |        |
-| Rate Limiter              |                      ✓                      |              ✓              |        ✓        |       |          |        |
-| Pause/Resume              |                      ✓                      |              ✓              |        ✓        |   ✓   |          |        |
-| Sandboxed worker          |                      ✓                      |              ✓              |        ✓        |       |          |        |
-| Repeatable jobs           |                      ✓                      |              ✓              |        ✓        |       |          | ✓      |
-| Atomic ops                |                      ✓                      |              ✓              |        ✓        |       | ✓        |        |
-| Persistence               |                      ✓                      |              ✓              |        ✓        |   ✓   | ✓        | ✓      |
-| UI                        |                      ✓                      |              ✓              |        ✓        |   ✓   |          | ✓      |
-| Optimized for             |               Jobs / Messages               |       Jobs / Messages       | Jobs / Messages | Jobs  | Messages | Jobs   |
+| Feature                    | [BullMQ-Pro](https://bullmq.io/#bullmq-pro) | [BullMQ](https://bullmq.io) |      Bull       |  Kue  | Bee      | Agenda |
+| :------------------------- | :-----------------------------------------: | :-------------------------: | :-------------: | :---: | -------- | ------ |
+| Backend                    |                    redis                    |            redis            |      redis      | redis | redis    | mongo  |
+| Observables                |                      ✓                      |                             |                 |       |          |        |
+| Group Rate Limit           |                      ✓                      |                             |                 |       |          |        |
+| Group Support              |                      ✓                      |                             |                 |       |          |        |
+| Batches Support            |                      ✓                      |                             |                 |       |          |        |
+| Parent/Child Dependencies  |                      ✓                      |              ✓              |                 |       |          |        |
+| Deduplication (Debouncing) |                      ✓                      |              ✓              |        ✓        |       |          |        |
+| Deduplication (Throttling) |                      ✓                      |              ✓              |        ✓        |       |          |        |
+| Priorities                 |                      ✓                      |              ✓              |        ✓        |   ✓   |          | ✓      |
+| Concurrency                |                      ✓                      |              ✓              |        ✓        |   ✓   | ✓        | ✓      |
+| Delayed jobs               |                      ✓                      |              ✓              |        ✓        |   ✓   |          | ✓      |
+| Global events              |                      ✓                      |              ✓              |        ✓        |   ✓   |          |        |
+| Rate Limiter               |                      ✓                      |              ✓              |        ✓        |       |          |        |
+| Pause/Resume               |                      ✓                      |              ✓              |        ✓        |   ✓   |          |        |
+| Sandboxed worker           |                      ✓                      |              ✓              |        ✓        |       |          |        |
+| Repeatable jobs            |                      ✓                      |              ✓              |        ✓        |       |          | ✓      |
+| Atomic ops                 |                      ✓                      |              ✓              |        ✓        |       | ✓        |        |
+| Persistence                |                      ✓                      |              ✓              |        ✓        |   ✓   | ✓        | ✓      |
+| UI                         |                      ✓                      |              ✓              |        ✓        |   ✓   |          | ✓      |
+| Optimized for              |               Jobs / Messages               |       Jobs / Messages       | Jobs / Messages | Jobs  | Messages | Jobs   |
 
 ## Contributing
 
