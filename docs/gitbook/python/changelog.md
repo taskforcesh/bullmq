@@ -1,3 +1,10 @@
+## [2.18.1](https://github.com/taskforcesh/bullmq/compare/vpy2.18.0...vpy2.18.1) (2025-12-20)
+
+
+### Bug Fixes
+
+* **flow:** support failParentOnFailure and related dependency options with validation [python] ([#3621](https://github.com/taskforcesh/bullmq/issues/3621)) fixes [#3620](https://github.com/taskforcesh/bullmq/issues/3620) ([9c533c0](https://github.com/taskforcesh/bullmq/commit/9c533c0347865445b7f7df6b1c6e0923d25b4a8f))
+
 # [2.18.0](https://github.com/taskforcesh/bullmq/compare/vpy2.17.0...vpy2.18.0) (2025-12-19)
 
 
