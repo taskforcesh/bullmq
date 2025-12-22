@@ -19,7 +19,7 @@ jobs:
           # check out all branches
           fetch-depth: 0
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v3
+        uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'yarn'
