@@ -85,7 +85,7 @@ removeJobWithChildren = function(prefix, jobId, parentKey, options)
 
         local prev = removeJobFromAnyState(prefix, jobId)
         local deduplicationId = rcall("HGET", jobKey, "deid")
-        removeDeduplicationKeyIfNeededOnRemoval(prefix, jobKey, jobId, deduplicationId)
+        removeDeduplicationKeyIfNeededOnRemoval(prefix, jobId, deduplicationId)
         if removeJobKeys(jobKey) > 0 then
             local metaKey = prefix .. "meta"
             local maxEvents = getOrSetMaxEvents(metaKey)

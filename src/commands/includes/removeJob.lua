@@ -12,7 +12,7 @@ local function removeJob(jobId, hard, baseKey, shouldRemoveDeduplicationKey)
   removeParentDependencyKey(jobKey, hard, nil, baseKey)
   if shouldRemoveDeduplicationKey then
     local deduplicationId = rcall("HGET", jobKey, "deid")
-    removeDeduplicationKeyIfNeededOnRemoval(baseKey, jobKey, jobId, deduplicationId)
+    removeDeduplicationKeyIfNeededOnRemoval(baseKey, jobId, deduplicationId)
   end
   removeJobKeys(jobKey)
 end

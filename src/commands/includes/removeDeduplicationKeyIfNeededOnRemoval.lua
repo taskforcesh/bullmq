@@ -4,7 +4,7 @@
 ]]
 
 local function removeDeduplicationKeyIfNeededOnRemoval(prefixKey,
-  jobKey, jobId, deduplicationId)
+  jobId, deduplicationId)
   if deduplicationId then
     local deduplicationKey = prefixKey .. "de:" .. deduplicationId
     local currentJobId = rcall('GET', deduplicationKey)
