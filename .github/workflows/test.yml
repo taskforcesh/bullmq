@@ -28,7 +28,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
       - name: Use Node.js
         uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v3
         with:
@@ -43,7 +43,7 @@ jobs:
       - run: yarn coverage
       - name: Upload LCOV to Coveralls
         if: ${{ ( github.event_name == 'pull_request' && github.event.pull_request.head.fork == false ) || github.event_name == 'push' }}
-        uses: coverallsapp/github-action@95b1a2355bd0e526ad2fd62da9fd386ad4c98474 # branch=master
+        uses: coverallsapp/github-action@ba6dae83310bbd6d33ff77092650dc40bd444a2a # branch=master
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Check coverage change not below threshold
@@ -73,7 +73,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v3
         with:
@@ -179,7 +179,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
 
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v3
@@ -195,7 +195,7 @@ jobs:
       - run: yarn copy:lua:python
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@61a6322f88396a6271a6ee3565807d608ecaddd1 # v4
+        uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c # v4
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -237,7 +237,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
 
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v3
@@ -249,7 +249,7 @@ jobs:
       - run: yarn copy:lua:python
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@61a6322f88396a6271a6ee3565807d608ecaddd1 # v4
+        uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c # v4
         with:
           python-version: ${{ matrix.python-version }}
 

@@ -73,3 +73,23 @@ class JobOptions(TypedDict, total=False):
     This can be used to implement throttling, debouncing, or simple deduplication
     where jobs with the same deduplication ID are ignored.
     """
+
+    failParentOnFailure: bool
+    """
+    If true, moves parent to failed when this child job fails after all attempts.
+    """
+
+    continueParentOnFailure: bool
+    """
+    If true, starts processing parent job as soon as this child job fails.
+    """
+
+    ignoreDependencyOnFailure: bool
+    """
+    If true, moves the jobId from its parent dependencies to failed dependencies when it fails after all attempts.
+    """
+
+    removeDependencyOnFailure: bool
+    """
+    If true, removes the job from its parent dependencies when it fails after all attempts.
+    """
