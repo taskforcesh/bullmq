@@ -2,11 +2,8 @@ import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 import { v4 } from 'uuid';
-import { Queue, Worker } from '../src/classes';
-import {
-  LockManager,
-  LockManagerWorkerContext,
-} from '../src/classes/lock-manager';
+import { LockManager, Queue, Worker } from '../src/classes';
+import { LockManagerWorkerContext } from '../src/interfaces';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('LockManager', function () {
