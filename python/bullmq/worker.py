@@ -204,12 +204,13 @@ class Worker(EventEmitter):
 
     async def processJob(self, job: Job, token: str):
         try:
+            self.jobs.add((job, token))
+            
             if job.deferredFailure:
                 await job.moveToFailed(UnrecoverableError(job.deferredFailure), token)
                 self.emit("failed", job, UnrecoverableError(job.deferredFailure))
                 return
 
-            self.jobs.add((job, token))
             result = await self.processor(job, token)
             if not self.forceClosing:
                 # Currently we do not support pre-fetching jobs as in NodeJS version.
