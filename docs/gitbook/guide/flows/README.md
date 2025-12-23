@@ -11,14 +11,18 @@ Flows are added to a queue using the `FlowProducer` class.
 In order to create "flows" you must use the [`FlowProducer`](https://api.docs.bullmq.io/classes/v5.FlowProducer.html) class. The [_**`add`**_](https://api.docs.bullmq.io/classes/v5.FlowProducer.html#add) method accepts an object with the following interface:
 
 ```typescript
-interface FlowJob {
+type FlowChildJob = FlowJobBase<Omit<JobsOptions, 'parent'>>;
+
+interface FlowJobBase<T> {
   name: string;
   queueName: string;
   data?: any;
   prefix?: string;
-  opts?: Omit<JobsOptions, 'parent' | 'repeat'>;
-  children?: FlowJob[];
+  opts?: Omit<T, 'repeat' | 'deduplication'>;
+  children?: FlowChildJob[];
 }
+
+type FlowJob = FlowJobBase<JobsOptions>;
 ```
 
 So we can add a flow like this one:
