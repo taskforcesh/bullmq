@@ -475,5 +475,84 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(job.id, "1")
         await queue.close()
 
+    async def test_obliterate_with_force_false_should_fail_with_active_jobs(self):
+        """Test that obliterate without force fails when there are active jobs"""
+        queue = Queue(queueName, {"prefix": prefix})
+        
+        # Add jobs
+        await queue.add("test-job", {"foo": "bar"}, {})
+        job = await queue.add("test-job", {"qux": "baz"}, {})
+        
+        # Create a worker that processes jobs slowly
+        async def process(job: Job, token: str):
+            await asyncio.sleep(1)
+            return "done"
+        
+        worker = Worker(queueName, process, {"prefix": prefix})
+        
+        # Wait a bit for worker to pick up a job
+        await asyncio.sleep(0.2)
+        
+        # Try to obliterate without force - should fail
+        with self.assertRaises(Exception) as context:
+            await queue.obliterate(force=False)
+        
+        self.assertIn("Cannot obliterate queue with active jobs", str(context.exception))
+        
+        await worker.close()
+        await queue.close()
+
+    async def test_obliterate_with_force_true_should_succeed_with_active_jobs(self):
+        """Test that obliterate with force=True succeeds even with active jobs"""
+        queue = Queue(queueName, {"prefix": prefix})
+        
+        # Add jobs
+        await queue.add("test-job", {"foo": "bar"}, {})
+        job = await queue.add("test-job", {"qux": "baz"}, {})
+        await queue.add("test-job", {"foo": "bar2"}, {})
+        
+        # Create a worker that processes jobs slowly
+        async def process(job: Job, token: str):
+            await asyncio.sleep(2)
+            return "done"
+        
+        worker = Worker(queueName, process, {"prefix": prefix})
+        
+        # Wait a bit for worker to pick up a job
+        await asyncio.sleep(0.2)
+        
+        # Verify there are active jobs
+        job_counts = await queue.getJobCounts('active')
+        self.assertGreater(job_counts.get('active', 0), 0)
+        
+        # Obliterate with force=True - should succeed
+        await queue.obliterate(force=True)
+        
+        # Verify all keys are deleted
+        keys = await queue.client.keys(f"{prefix}:{queueName}:*")
+        self.assertEqual(len(keys), 0)
+        
+        await worker.close()
+        await queue.close()
+
+    async def test_obliterate_with_force_true_parameter_conversion(self):
+        """Test that force=True is properly converted to string for Redis"""
+        queue = Queue(queueName, {"prefix": prefix})
+        
+        # Add a few jobs
+        await queue.add("test-job", {"foo": "bar"}, {})
+        await queue.add("test-job", {"foo": "baz"}, {})
+        
+        # This should not raise a DataError about invalid boolean type
+        try:
+            await queue.obliterate(force=True)
+        except Exception as e:
+            # If we get a DataError, the test should fail
+            if "Invalid input of type: 'bool'" in str(e):
+                self.fail(f"force parameter was not properly converted to string: {e}")
+            # Other exceptions are okay (e.g., active jobs error)
+        
+        await queue.close()
+
 if __name__ == '__main__':
     unittest.main()
