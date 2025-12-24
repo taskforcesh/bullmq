@@ -41,6 +41,8 @@ const deletedJobIds = await queue.clean(
 
 Completely obliterates a queue and all of its contents.
 
+{% tabs %}
+{% tab title="TypeScript" %}
 ```typescript
 import { Queue } from 'bullmq';
 
@@ -48,6 +50,83 @@ const queue = new Queue('paint');
 
 await queue.obliterate();
 ```
+{% endtab %}
+
+{% tab title="Python" %}
+```python
+import asyncio
+from bullmq import Queue
+
+async def main():
+    queue = Queue('paint')
+    
+    await queue.obliterate()
+    await queue.close()
+
+asyncio.run(main())
+```
+{% endtab %}
+
+{% tab title="PHP" %}
+```php
+<?php
+use BullMQ\Queue;
+
+$queue = new Queue('paint');
+
+$queue->obliterate();
+
+$queue->close();
+?>
+```
+{% endtab %}
+{% endtabs %}
+
+For more advanced scenarios where you need to force obliteration even with active jobs:
+
+{% tabs %}
+{% tab title="TypeScript" %}
+```typescript
+import { Queue } from 'bullmq';
+
+const queue = new Queue('paint');
+
+// Force obliteration even with active jobs
+await queue.obliterate({ force: true });
+```
+{% endtab %}
+
+{% tab title="Python" %}
+```python
+import asyncio
+from bullmq import Queue
+
+async def main():
+    queue = Queue('paint')
+    
+    # Force obliteration even with active jobs
+    await queue.obliterate(force=True)
+    await queue.close()
+
+asyncio.run(main())
+```
+{% endtab %}
+
+{% tab title="PHP" %}
+```php
+<?php
+use BullMQ\Queue;
+
+$queue = new Queue('paint');
+
+// Force obliteration even with active jobs
+$queue->obliterate(['force' => true]);
+
+$queue->close();
+?>
+```
+{% endtab %}
+{% endtabs %}
 
 {% hint style="warning" %}
 Parent jobs in queues different from the one being obliterated will either stay in **waiting-children** if they
