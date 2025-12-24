@@ -204,6 +204,8 @@ class Worker(EventEmitter):
 
     async def processJob(self, job: Job, token: str):
         try:
+            self.emit("active", job, "waiting")
+
             self.jobs.add((job, token))
             
             if job.deferredFailure:

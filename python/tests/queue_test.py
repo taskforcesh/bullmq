@@ -488,10 +488,14 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(1)
             return "done"
         
-        worker = Worker(queueName, process, {"prefix": prefix})
-        
-        # Wait a bit for worker to pick up a job
-        await asyncio.sleep(0.2)
+        worker = Worker(queueName, process, {"prefix": prefix, "autorun": False})
+
+        active_event = Future()
+        worker.on("active", lambda job, result: active_event.set_result(None))
+
+        asyncio.ensure_future(worker.run())
+
+        await active_event
         
         # Try to obliterate without force - should fail
         with self.assertRaises(Exception) as context:
@@ -516,10 +520,14 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(2)
             return "done"
         
-        worker = Worker(queueName, process, {"prefix": prefix})
-        
-        # Wait a bit for worker to pick up a job
-        await asyncio.sleep(0.2)
+        worker = Worker(queueName, process, {"prefix": prefix, "autorun": False})
+
+        active_event = Future()
+        worker.on("active", lambda job, result: active_event.set_result(None))
+
+        asyncio.ensure_future(worker.run())
+
+        await active_event
         
         # Verify there are active jobs
         job_counts = await queue.getJobCounts('active')
