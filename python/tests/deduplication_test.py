@@ -8,21 +8,22 @@ from bullmq import Queue
 from uuid import uuid4
 
 import asyncio
+import redis.asyncio as redis
 import unittest
 import os
 
-queueName = f"__test_dedup__{uuid4().hex}"
+queueName = ""
 prefix = os.environ.get('BULLMQ_TEST_PREFIX') or "bull"
 
 class TestDeduplication(unittest.IsolatedAsyncioTestCase):
 
-    async def asyncSetUp(self):
-        print("Setting up deduplication test queue")
-        # Delete test queue
-        queue = Queue(queueName, {"prefix": prefix})
-        await queue.pause()
-        await queue.obliterate()
-        await queue.close()
+    def setUp(self):
+        print("Setting up test queue")
+        queueName = f"__test_queue__{uuid4().hex}"
+
+    async def asyncTearDown(self):
+        connection = redis.Redis(host='localhost')
+        await connection.flushdb()
 
     async def test_simple_mode_deduplication(self):
         """Test simple mode where deduplication lasts until job is completed"""
