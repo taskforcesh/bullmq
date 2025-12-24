@@ -481,7 +481,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         
         # Add jobs
         await queue.add("test-job", {"foo": "bar"}, {})
-        job = await queue.add("test-job", {"qux": "baz"}, {})
+        await queue.add("test-job", {"qux": "baz"}, {})
         
         # Create a worker that processes jobs slowly
         async def process(job: Job, token: str):
@@ -508,7 +508,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         
         # Add jobs
         await queue.add("test-job", {"foo": "bar"}, {})
-        job = await queue.add("test-job", {"qux": "baz"}, {})
+        await queue.add("test-job", {"qux": "baz"}, {})
         await queue.add("test-job", {"foo": "bar2"}, {})
         
         # Create a worker that processes jobs slowly
@@ -543,14 +543,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.add("test-job", {"foo": "bar"}, {})
         await queue.add("test-job", {"foo": "baz"}, {})
         
-        # This should not raise a DataError about invalid boolean type
-        try:
-            await queue.obliterate(force=True)
-        except Exception as e:
-            # If we get a DataError, the test should fail
-            if "Invalid input of type: 'bool'" in str(e):
-                self.fail(f"force parameter was not properly converted to string: {e}")
-            # Other exceptions are okay (e.g., active jobs error)
+        await queue.obliterate(force=True)
         
         await queue.close()
 
