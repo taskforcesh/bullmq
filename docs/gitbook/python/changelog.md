@@ -1,3 +1,10 @@
+## [2.18.2](https://github.com/taskforcesh/bullmq/compare/vpy2.18.1...vpy2.18.2) (2025-12-24)
+
+
+### Bug Fixes
+
+* **flow:** resolve KeyError when child job fails with failParentOnFailure option [python] ([#3639](https://github.com/taskforcesh/bullmq/issues/3639)) fixes [#3638](https://github.com/taskforcesh/bullmq/issues/3638) ([7f602e1](https://github.com/taskforcesh/bullmq/commit/7f602e1c6e31070f02c5ee5babbff33f55193551))
+
 ## [2.18.1](https://github.com/taskforcesh/bullmq/compare/vpy2.18.0...vpy2.18.1) (2025-12-20)
 
 
