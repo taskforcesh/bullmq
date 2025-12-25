@@ -1,3 +1,10 @@
+## [2.18.3](https://github.com/taskforcesh/bullmq/compare/vpy2.18.2...vpy2.18.3) (2025-12-25)
+
+
+### Bug Fixes
+
+* **queue:** convert boolean force parameter to string in obliterate method [python] ([#3642](https://github.com/taskforcesh/bullmq/issues/3642)) fixes [#3640](https://github.com/taskforcesh/bullmq/issues/3640) ([706da0d](https://github.com/taskforcesh/bullmq/commit/706da0dc703d6be353d0140f1fd0de7683362e60))
+
 ## [2.18.2](https://github.com/taskforcesh/bullmq/compare/vpy2.18.1...vpy2.18.2) (2025-12-24)
 
 
