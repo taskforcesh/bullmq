@@ -366,6 +366,8 @@ defmodule BullMQ.WorkerCancellationTest do
             {:ok, "task completed"}
           end)
 
+        task_ref = task.ref
+
         # Wait for either completion or cancellation
         receive do
           {:cancel, ^cancel_token, reason} ->
@@ -373,7 +375,9 @@ defmodule BullMQ.WorkerCancellationTest do
             Task.shutdown(task, :brutal_kill)
             {:error, {:cancelled, reason}}
 
-          {^task, result} ->
+          {^task_ref, result} ->
+            # Task.async sends {ref, result}
+            Process.demonitor(task_ref, [:flush])
             send(test_pid, {:task_completed, job.id})
             result
         end

@@ -528,7 +528,7 @@ class Scripts:
         Remove a queue completely
         """
         keys = self.getKeys(['meta', ''])
-        result = await self.commands["obliterate"](keys, args=[count, force or ""])
+        result = await self.commands["obliterate"](keys, args=[count, "force" if force else ""])
         if (result < 0):
             if (result == -1):
                 raise Exception("Cannot obliterate non-paused queue")

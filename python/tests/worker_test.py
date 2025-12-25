@@ -15,18 +15,18 @@ import unittest
 import time
 import os
 
-queueName = f"__test_queue__{uuid4().hex}"
+queueName = ""
 prefix = os.environ.get('BULLMQ_TEST_PREFIX') or "bull"
 
 class TestWorker(unittest.IsolatedAsyncioTestCase):
 
-    async def asyncSetUp(self):
+    def setUp(self):
         print("Setting up test queue")
-        # Delete test queue
-        queue = Queue(queueName, {"prefix": prefix})
-        await queue.pause()
-        await queue.obliterate()
-        await queue.close()
+        queueName = f"__test_queue__{uuid4().hex}"
+
+    async def asyncTearDown(self):
+        connection = redis.Redis(host='localhost')
+        await connection.flushdb()
 
     async def test_process_jobs(self):
         queue = Queue(queueName, {"prefix": prefix})

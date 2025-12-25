@@ -14,18 +14,18 @@ import unittest
 import os
 import time
 
-queueName = f"__test_queue__{uuid4().hex}"
+queueName = ""
 prefix = os.environ.get('BULLMQ_TEST_PREFIX') or "bull"
 
 class TestQueue(unittest.IsolatedAsyncioTestCase):
 
-    async def asyncSetUp(self):
+    def setUp(self):
         print("Setting up test queue")
-        # Delete test queue
-        queue = Queue(queueName, {"prefix": prefix})
-        await queue.pause()
-        await queue.obliterate()
-        await queue.close()
+        queueName = f"__test_queue__{uuid4().hex}"
+
+    async def asyncTearDown(self):
+        connection = redis.Redis(host='localhost')
+        await connection.flushdb()
 
     async def test_connection_str(self):
         queue = Queue(queueName, {"connection": "redis://localhost:6379", "prefix": prefix})
@@ -473,6 +473,86 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         job = await queue.add("test-job", {"foo": "bar"}, {})
 
         self.assertEqual(job.id, "1")
+        await queue.close()
+
+    async def test_obliterate_with_force_false_should_fail_with_active_jobs(self):
+        """Test that obliterate without force fails when there are active jobs"""
+        queue = Queue(queueName, {"prefix": prefix})
+        
+        # Add jobs
+        await queue.add("test-job", {"foo": "bar"}, {})
+        await queue.add("test-job", {"qux": "baz"}, {})
+        
+        # Create a worker that processes jobs slowly
+        async def process(job: Job, token: str):
+            await asyncio.sleep(1)
+            return "done"
+        
+        worker = Worker(queueName, process, {"prefix": prefix, "autorun": False})
+
+        active_event = Future()
+        worker.on("active", lambda job, result: active_event.set_result(None))
+
+        asyncio.ensure_future(worker.run())
+
+        await active_event
+        
+        # Try to obliterate without force - should fail
+        with self.assertRaises(Exception) as context:
+            await queue.obliterate(force=False)
+        
+        self.assertIn("Cannot obliterate queue with active jobs", str(context.exception))
+        
+        await worker.close()
+        await queue.close()
+
+    async def test_obliterate_with_force_true_should_succeed_with_active_jobs(self):
+        """Test that obliterate with force=True succeeds even with active jobs"""
+        queue = Queue(queueName, {"prefix": prefix})
+        
+        # Add jobs
+        await queue.add("test-job", {"foo": "bar"}, {})
+        await queue.add("test-job", {"qux": "baz"}, {})
+        await queue.add("test-job", {"foo": "bar2"}, {})
+        
+        # Create a worker that processes jobs slowly
+        async def process(job: Job, token: str):
+            await asyncio.sleep(2)
+            return "done"
+        
+        worker = Worker(queueName, process, {"prefix": prefix, "autorun": False})
+
+        active_event = Future()
+        worker.on("active", lambda job, result: active_event.set_result(None))
+
+        asyncio.ensure_future(worker.run())
+
+        await active_event
+        
+        # Verify there are active jobs
+        job_counts = await queue.getJobCounts('active')
+        self.assertGreater(job_counts.get('active', 0), 0)
+        
+        # Obliterate with force=True - should succeed
+        await queue.obliterate(force=True)
+        
+        # Verify all keys are deleted
+        keys = await queue.client.keys(f"{prefix}:{queueName}:*")
+        self.assertEqual(len(keys), 0)
+        
+        await worker.close()
+        await queue.close()
+
+    async def test_obliterate_with_force_true_parameter_conversion(self):
+        """Test that force=True is properly converted to string for Redis"""
+        queue = Queue(queueName, {"prefix": prefix})
+        
+        # Add a few jobs
+        await queue.add("test-job", {"foo": "bar"}, {})
+        await queue.add("test-job", {"foo": "baz"}, {})
+        
+        await queue.obliterate(force=True)
+        
         await queue.close()
 
 if __name__ == '__main__':

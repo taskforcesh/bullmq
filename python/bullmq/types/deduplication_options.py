@@ -1,4 +1,4 @@
-from typing import TypedDict, Required
+from typing import TypedDict
 
 
 class DeduplicationOptions(TypedDict, total=False):
@@ -6,7 +6,7 @@ class DeduplicationOptions(TypedDict, total=False):
     Deduplication options.
     """
 
-    id: Required[str]
+    id: str
     """
     Identifier for deduplication.
     
