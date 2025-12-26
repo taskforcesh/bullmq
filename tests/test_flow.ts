@@ -1312,7 +1312,7 @@ describe('flows', () => {
           worker.once('failed', async job => {
             try {
               expect(job!.failedReason).to.be.equal(
-                `Cannot complete job ${job?.id} because it has at least one failed child. moveToWaitingChildren`,
+                `Cannot complete job ${job!.id} because it has at least one failed child. moveToWaitingChildren`,
               );
               resolve();
             } catch (error) {
