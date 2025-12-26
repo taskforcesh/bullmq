@@ -6,7 +6,7 @@ export interface FlowJobBase<T> {
   queueName: string;
   data?: any;
   prefix?: string;
-  opts?: Omit<T, 'repeat'>;
+  opts?: Omit<T, 'repeat' | 'deduplication'>;
   children?: FlowChildJob[];
 }
 

@@ -1,47 +1,12 @@
 import { AbortController } from 'node-abort-controller';
 import { SpanKind, TelemetryAttributes } from '../enums';
-import { Span } from '../interfaces';
+import { LockManagerWorkerContext, Span } from '../interfaces';
 
 export interface LockManagerOptions {
   lockRenewTime: number;
   lockDuration: number;
   workerId: string;
   workerName?: string;
-}
-
-/**
- * Minimal interface that LockManager needs from Worker.
- * This allows LockManager to access worker methods without inheriting from QueueBase.
- */
-export interface LockManagerWorkerContext {
-  /**
-   * Extends locks for multiple jobs.
-   */
-  extendJobLocks(
-    jobIds: string[],
-    tokens: string[],
-    duration: number,
-  ): Promise<string[]>;
-
-  /**
-   * Emits events to worker listeners.
-   */
-  emit(event: string | symbol, ...args: any[]): boolean;
-
-  /**
-   * Wraps code with telemetry tracing.
-   */
-  trace<T>(
-    spanKind: any,
-    operation: string,
-    destination: string,
-    callback: (span?: Span) => Promise<T> | T,
-  ): Promise<T> | T;
-
-  /**
-   * Queue name for telemetry.
-   */
-  name: string;
 }
 
 /**

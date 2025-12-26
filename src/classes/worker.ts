@@ -11,6 +11,7 @@ import {
   GetNextJobOptions,
   IoredisListener,
   JobJsonRaw,
+  LockManagerWorkerContext,
   MinimalQueue,
   RedisClient,
   Span,
@@ -41,7 +42,7 @@ import {
 } from './errors';
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { JobScheduler } from './job-scheduler';
-import { LockManager, LockManagerWorkerContext } from './lock-manager';
+import { LockManager } from './lock-manager';
 
 // 10 seconds is the maximum time a BZPOPMIN can block.
 const maximumBlockTimeout = 10;
