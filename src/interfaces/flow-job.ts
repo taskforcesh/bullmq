@@ -6,11 +6,13 @@ export interface FlowJobBase<T> {
   queueName: string;
   data?: any;
   prefix?: string;
-  opts?: Omit<T, 'repeat' | 'deduplication'>;
+  opts?: Omit<T, 'debounce' | 'deduplication' | 'repeat'>;
   children?: FlowChildJob[];
 }
 
-export type FlowChildJob = FlowJobBase<Omit<JobsOptions, 'parent'>>;
+export type FlowChildJob = FlowJobBase<
+  Omit<JobsOptions, 'debounce' | 'deduplication' | 'parent' | 'repeat'>
+>;
 
 export type FlowJob = FlowJobBase<JobsOptions>;
 
