@@ -52,7 +52,6 @@ local deduplicationKey = args[9]
 local parentData
 
 -- Includes
---- @include "includes/deduplicateJob"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/handleDuplicatedJob"
 --- @include "includes/storeJob"
@@ -80,12 +79,6 @@ else
             parentData, parentDependenciesKey, completedKey, eventsKey,
             maxEvents, timestamp)
     end
-end
-
-local deduplicationJobId = deduplicateJob(opts['de'], jobId, KEYS[3],
-  deduplicationKey, eventsKey, maxEvents, args[1])
-if deduplicationJobId then
-  return deduplicationJobId
 end
 
 -- Store the job.

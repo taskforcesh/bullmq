@@ -254,103 +254,6 @@ describe('flows', () => {
     }).timeout(8000);
   });
 
-  describe('when child is debounced when added again with same debounce id', function () {
-    describe('when ttl is not provided', function () {
-      it('waits until job is finished before removing debounce key', async function () {
-        const parentQueueName = `parent-queue-${v4()}`;
-
-        const flow = new FlowProducer({ connection, prefix });
-        const queueEvents = new QueueEvents(queueName, { connection, prefix });
-        await queueEvents.waitUntilReady();
-
-        const worker = new Worker(
-          queueName,
-          async job => {
-            await delay(100);
-
-            const jobIdFromDebounceKey = await queue.getDebounceJobId(
-              'debounce_id',
-            );
-            expect(jobIdFromDebounceKey).to.be.equal(job.id);
-
-            await flow.add({
-              name: 'parent',
-              data: {},
-              queueName: parentQueueName,
-              children: [
-                {
-                  queueName,
-                  name: 'child0',
-                  data: {},
-                  opts: {
-                    debounce: {
-                      id: 'debounce_id',
-                    },
-                  },
-                },
-              ],
-            });
-
-            await delay(100);
-          },
-          {
-            autorun: false,
-            connection,
-            prefix,
-          },
-        );
-        await worker.waitUntilReady();
-
-        const { children } = await flow.add({
-          name: 'parent',
-          data: {},
-          queueName: parentQueueName,
-          children: [
-            {
-              queueName,
-              name: 'child0',
-              data: {},
-              opts: {
-                debounce: {
-                  id: 'debounce_id',
-                },
-              },
-            },
-          ],
-        });
-
-        let debouncedCounter = 0;
-
-        const completing = new Promise<void>(resolve => {
-          queueEvents.once('completed', ({ jobId }) => {
-            expect(children![0].job.id).to.be.equal(jobId);
-            resolve();
-          });
-
-          queueEvents.on('debounced', ({ jobId }) => {
-            debouncedCounter++;
-          });
-        });
-
-        worker.run();
-
-        await completing;
-
-        const jobIdFromDebounceKey = await queue.getDebounceJobId(
-          'debounce_id',
-        );
-        expect(jobIdFromDebounceKey).to.be.null;
-
-        expect(debouncedCounter).to.be.equal(1);
-
-        await worker.close();
-        await queueEvents.close();
-        await flow.close();
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
-      });
-    });
-  });
-
   it('should process children before the parent', async () => {
     const name = 'child-job';
     const values = [
@@ -383,12 +286,12 @@ describe('flows', () => {
             processed: {},
           });
           expect(nextProcessedCursor).to.be.equal(0);
-          expect(Object.keys(processed)).to.have.length(3);
+          expect(Object.keys(processed!)).to.have.length(3);
 
           const childrenValues = await job.getChildrenValues();
 
           for (let i = 0; i < values.length; i++) {
-            const jobKey = queue.toKey(tree.children[i].job.id);
+            const jobKey = queue.toKey(tree.children![i].job.id!);
             expect(childrenValues[jobKey]).to.be.deep.equal(values[i]);
           }
           resolve();
@@ -431,16 +334,16 @@ describe('flows', () => {
     expect(parentState).to.be.eql('waiting-children');
     expect(children).to.have.length(3);
 
-    expect(children[0].job.id).to.be.ok;
-    expect(children[0].job.data.foo).to.be.eql('bar');
-    expect(children[0].job.parent).to.deep.equal({
+    expect(children![0].job.id).to.be.ok;
+    expect(children![0].job.data.foo).to.be.eql('bar');
+    expect(children![0].job.parent).to.deep.equal({
       id: job.id,
       queueKey: `${prefix}:${parentQueueName}`,
     });
-    expect(children[1].job.id).to.be.ok;
-    expect(children[1].job.data.foo).to.be.eql('baz');
-    expect(children[2].job.id).to.be.ok;
-    expect(children[2].job.data.foo).to.be.eql('qux');
+    expect(children![1].job.id).to.be.ok;
+    expect(children![1].job.data.foo).to.be.eql('baz');
+    expect(children![2].job.id).to.be.ok;
+    expect(children![2].job.data.foo).to.be.eql('qux');
 
     await processingChildren;
     await childrenWorker.close();
@@ -489,12 +392,12 @@ describe('flows', () => {
             processed: {},
           });
           expect(nextProcessedCursor).to.be.equal(0);
-          expect(Object.keys(processed)).to.have.length(2);
+          expect(Object.keys(processed!)).to.have.length(2);
 
           const childrenValues = await job.getChildrenValues();
 
           for (let i = 0; i < values.length; i++) {
-            const jobKey = queue.toKey(tree.children[i].job.id);
+            const jobKey = queue.toKey(tree.children![i].job.id!);
             expect(childrenValues[jobKey]).to.be.deep.equal(values[i]);
           }
           resolve();
@@ -527,7 +430,7 @@ describe('flows', () => {
       ],
       opts: {
         parent: {
-          id: grandparentJob.id,
+          id: grandparentJob.id!,
           queue: `${prefix}:${grandparentQueueName}`,
         },
       },
@@ -958,12 +861,12 @@ describe('flows', () => {
       expect(parentState).to.be.eql('waiting-children');
       expect(children).to.have.length(3);
 
-      expect(children[0].job.id).to.be.ok;
-      expect(children[0].job.data.foo).to.be.eql('bar');
-      expect(children[1].job.id).to.be.ok;
-      expect(children[1].job.data.foo).to.be.eql('baz');
-      expect(children[2].job.id).to.be.ok;
-      expect(children[2].job.data.foo).to.be.eql('qux');
+      expect(children![0].job.id).to.be.ok;
+      expect(children![0].job.data.foo).to.be.eql('bar');
+      expect(children![1].job.id).to.be.ok;
+      expect(children![1].job.data.foo).to.be.eql('baz');
+      expect(children![2].job.id).to.be.ok;
+      expect(children![2].job.data.foo).to.be.eql('qux');
 
       await completed;
       await childrenWorker.close();
@@ -1409,7 +1312,7 @@ describe('flows', () => {
           worker.once('failed', async job => {
             try {
               expect(job!.failedReason).to.be.equal(
-                `Cannot complete job ${job.id} because it has at least one failed child. moveToWaitingChildren`,
+                `Cannot complete job ${job?.id} because it has at least one failed child. moveToWaitingChildren`,
               );
               resolve();
             } catch (error) {
