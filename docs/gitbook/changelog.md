@@ -1,3 +1,10 @@
+## [5.66.4](https://github.com/taskforcesh/bullmq/compare/v5.66.3...v5.66.4) (2025-12-27)
+
+
+### Bug Fixes
+
+* **flow:** remove debounce option from flow producer ([#3646](https://github.com/taskforcesh/bullmq/issues/3646)) ([cc74805](https://github.com/taskforcesh/bullmq/commit/cc74805d5eda14ed684e2111c91de8890e752768))
+
 ## [5.66.3](https://github.com/taskforcesh/bullmq/compare/v5.66.2...v5.66.3) (2025-12-26)
 
 
