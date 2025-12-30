@@ -1349,14 +1349,14 @@ defmodule BullMQ.Scripts do
   @doc """
   Obliterates the queue (removes everything including meta).
   """
-  @spec obliterate(atom(), queue_context(), non_neg_integer()) :: script_result()
-  def obliterate(conn, ctx, count) do
+  @spec obliterate(atom(), queue_context(), non_neg_integer(), boolean()) :: script_result()
+  def obliterate(conn, ctx, count, force \\ false) do
     keys = [
       Keys.meta(ctx),
-      Keys.key(ctx)
+      Keys.key_prefix(ctx)
     ]
 
-    args = [count]
+    args = [count, if(force, do: "force", else: "")]
 
     execute(conn, :obliterate, keys, args)
   end

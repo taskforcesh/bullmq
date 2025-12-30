@@ -102,11 +102,12 @@ end
 if(maxCount > 0) then
   rcall("DEL",
     baseKey .. 'events',
-    baseKey .. 'delay', 
+    baseKey .. 'delay',
     baseKey .. 'stalled-check',
     baseKey .. 'stalled',
     baseKey .. 'id',
     baseKey .. 'pc',
+    baseKey .. 'marker',
     baseKey .. 'meta',
     baseKey .. 'metrics:completed',
     baseKey .. 'metrics:completed:data',
