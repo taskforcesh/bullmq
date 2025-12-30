@@ -125,7 +125,7 @@ asyncio.run(main())
 alias BullMQ.Queue
 
 # Force obliteration even with active jobs
-{:ok, _} = Queue.obliterate("paint", force: true, connection: :redis)
+:ok = Queue.obliterate("paint", force: true, connection: :redis)
 ```
 {% endtab %}
 
