@@ -67,6 +67,14 @@ asyncio.run(main())
 ```
 {% endtab %}
 
+{% tab title="Elixir" %}
+```elixir
+alias BullMQ.Queue
+
+{:ok, _} = Queue.obliterate("paint", connection: :redis)
+```
+{% endtab %}
+
 {% tab title="PHP" %}
 ```php
 <?php
@@ -109,6 +117,15 @@ async def main():
     await queue.close()
 
 asyncio.run(main())
+```
+{% endtab %}
+
+{% tab title="Elixir" %}
+```elixir
+alias BullMQ.Queue
+
+# Force obliteration even with active jobs
+{:ok, _} = Queue.obliterate("paint", force: true, connection: :redis)
 ```
 {% endtab %}
 
