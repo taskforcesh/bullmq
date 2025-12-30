@@ -71,7 +71,7 @@ asyncio.run(main())
 ```elixir
 alias BullMQ.Queue
 
-{:ok, _} = Queue.obliterate("paint", connection: :redis)
+:ok = Queue.obliterate("paint", connection: :redis)
 ```
 {% endtab %}
 
