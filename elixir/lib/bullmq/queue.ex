@@ -1585,12 +1585,20 @@ defmodule BullMQ.Queue do
 
   defp obliterate_loop(conn, ctx, count, force) do
     case Scripts.obliterate(conn, ctx, count, force) do
-      {:ok, 0} -> :ok
+      {:ok, 0} ->
+        :ok
+
       {:ok, cursor} when is_integer(cursor) and cursor > 0 ->
         obliterate_loop(conn, ctx, count, force)
-      {:ok, -1} -> {:error, "Cannot obliterate non-paused queue"}
-      {:ok, -2} -> {:error, "Cannot obliterate queue with active jobs"}
-      {:error, _} = error -> error
+
+      {:ok, -1} ->
+        {:error, "Cannot obliterate non-paused queue"}
+
+      {:ok, -2} ->
+        {:error, "Cannot obliterate queue with active jobs"}
+
+      {:error, _} = error ->
+        error
     end
   end
 

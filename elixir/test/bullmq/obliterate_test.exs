@@ -27,6 +27,7 @@ defmodule BullMQ.ObliterateTest do
       # Stop the connection
       try do
         supervisor_name = :"#{conn_name}_supervisor"
+
         if Process.whereis(supervisor_name) do
           Supervisor.stop(supervisor_name)
         end
@@ -43,6 +44,7 @@ defmodule BullMQ.ObliterateTest do
       {:ok, cleanup_conn} ->
         Redix.command(cleanup_conn, ["FLUSHDB"])
         Redix.stop(cleanup_conn)
+
       _ ->
         :ok
     end
@@ -54,6 +56,7 @@ defmodule BullMQ.ObliterateTest do
         {:ok, keys} = Redix.command(conn, ["KEYS", "#{@prefix}:#{queue_name}:*"])
         Redix.stop(conn)
         keys
+
       _ ->
         []
     end
@@ -68,7 +71,10 @@ defmodule BullMQ.ObliterateTest do
     assert keys == []
   end
 
-  test "should obliterate a queue which is empty but has had jobs in the past", %{queue_name: queue_name, redis: redis} do
+  test "should obliterate a queue which is empty but has had jobs in the past", %{
+    queue_name: queue_name,
+    redis: redis
+  } do
     # Add a job then remove it
     {:ok, job} = Queue.add(queue_name, "test", %{foo: "bar"}, connection: redis, prefix: @prefix)
     assert {:ok, 1} = Queue.remove_job(queue_name, job.id, connection: redis, prefix: @prefix)
@@ -81,11 +87,17 @@ defmodule BullMQ.ObliterateTest do
     assert keys == []
   end
 
-  test "should obliterate a queue with jobs in different statuses", %{queue_name: queue_name, redis: redis} do
+  test "should obliterate a queue with jobs in different statuses", %{
+    queue_name: queue_name,
+    redis: redis
+  } do
     # Add jobs
     {:ok, _job1} = Queue.add(queue_name, "test", %{foo: "bar"}, connection: redis, prefix: @prefix)
     {:ok, _job2} = Queue.add(queue_name, "test", %{foo: "bar2"}, connection: redis, prefix: @prefix)
-    {:ok, _job3} = Queue.add(queue_name, "test", %{foo: "bar3"}, delay: 5000, connection: redis, prefix: @prefix)
+
+    {:ok, _job3} =
+      Queue.add(queue_name, "test", %{foo: "bar3"}, delay: 5000, connection: redis, prefix: @prefix)
+
     {:ok, _job4} = Queue.add(queue_name, "test", %{qux: "baz"}, connection: redis, prefix: @prefix)
 
     # Start worker that fails first job, succeeds second
@@ -103,12 +115,13 @@ defmodule BullMQ.ObliterateTest do
 
     Agent.start_link(fn -> true end, name: first_job)
 
-    {:ok, worker} = Worker.start_link(
-      queue: queue_name,
-      processor: processor,
-      connection: redis,
-      prefix: @prefix
-    )
+    {:ok, worker} =
+      Worker.start_link(
+        queue: queue_name,
+        processor: processor,
+        connection: redis,
+        prefix: @prefix
+      )
 
     # Wait for job to complete
     Process.sleep(200)
@@ -129,7 +142,9 @@ defmodule BullMQ.ObliterateTest do
     {:ok, _job1} = Queue.add(queue_name, "test", %{foo: "bar"}, connection: redis, prefix: @prefix)
     {:ok, _job2} = Queue.add(queue_name, "test", %{qux: "baz"}, connection: redis, prefix: @prefix)
     {:ok, _job3} = Queue.add(queue_name, "test", %{foo: "bar2"}, connection: redis, prefix: @prefix)
-    {:ok, _job4} = Queue.add(queue_name, "test", %{foo: "bar3"}, delay: 5000, connection: redis, prefix: @prefix)
+
+    {:ok, _job4} =
+      Queue.add(queue_name, "test", %{foo: "bar3"}, delay: 5000, connection: redis, prefix: @prefix)
 
     # Start worker that processes slowly and fails first job
     first_job = ref_make()
@@ -146,19 +161,20 @@ defmodule BullMQ.ObliterateTest do
 
     Agent.start_link(fn -> true end, name: first_job)
 
-    {:ok, worker} = Worker.start_link(
-      queue: queue_name,
-      processor: processor,
-      connection: redis,
-      prefix: @prefix
-    )
+    {:ok, worker} =
+      Worker.start_link(
+        queue: queue_name,
+        processor: processor,
+        connection: redis,
+        prefix: @prefix
+      )
 
     # Wait for jobs to start processing
     Process.sleep(100)
 
     # Try to obliterate without force - should fail
     assert {:error, "Cannot obliterate queue with active jobs"} =
-      Queue.obliterate(queue_name, connection: redis, prefix: @prefix)
+             Queue.obliterate(queue_name, connection: redis, prefix: @prefix)
 
     # Verify keys still exist
     keys = get_keys(queue_name)
@@ -168,12 +184,17 @@ defmodule BullMQ.ObliterateTest do
     Agent.stop(first_job)
   end
 
-  test "should obliterate if queue has active jobs using force", %{queue_name: queue_name, redis: redis} do
+  test "should obliterate if queue has active jobs using force", %{
+    queue_name: queue_name,
+    redis: redis
+  } do
     # Add jobs
     {:ok, _job1} = Queue.add(queue_name, "test", %{foo: "bar"}, connection: redis, prefix: @prefix)
     {:ok, _job2} = Queue.add(queue_name, "test", %{qux: "baz"}, connection: redis, prefix: @prefix)
     {:ok, _job3} = Queue.add(queue_name, "test", %{foo: "bar2"}, connection: redis, prefix: @prefix)
-    {:ok, _job4} = Queue.add(queue_name, "test", %{foo: "bar3"}, delay: 5000, connection: redis, prefix: @prefix)
+
+    {:ok, _job4} =
+      Queue.add(queue_name, "test", %{foo: "bar3"}, delay: 5000, connection: redis, prefix: @prefix)
 
     # Start worker that processes slowly and fails first job
     first_job = ref_make()
@@ -190,12 +211,13 @@ defmodule BullMQ.ObliterateTest do
 
     Agent.start_link(fn -> true end, name: first_job)
 
-    {:ok, worker} = Worker.start_link(
-      queue: queue_name,
-      processor: processor,
-      connection: redis,
-      prefix: @prefix
-    )
+    {:ok, worker} =
+      Worker.start_link(
+        queue: queue_name,
+        processor: processor,
+        connection: redis,
+        prefix: @prefix
+      )
 
     # Wait for jobs to start processing
     Process.sleep(200)
@@ -211,12 +233,18 @@ defmodule BullMQ.ObliterateTest do
     Agent.stop(first_job)
   end
 
-  test "should obliterate a queue with high number of jobs in different statuses", %{queue_name: queue_name, redis: redis} do
+  test "should obliterate a queue with high number of jobs in different statuses", %{
+    queue_name: queue_name,
+    redis: redis
+  } do
     # Add 30 jobs (reduced from 300 for faster testing)
-    jobs_1 = for i <- 1..30 do
-      {:ok, job} = Queue.add(queue_name, "test", %{foo: "barLoop#{i}"}, connection: redis, prefix: @prefix)
-      job
-    end
+    jobs_1 =
+      for i <- 1..30 do
+        {:ok, job} =
+          Queue.add(queue_name, "test", %{foo: "barLoop#{i}"}, connection: redis, prefix: @prefix)
+
+        job
+      end
 
     _last_completed_job = List.last(jobs_1)
 
@@ -232,12 +260,13 @@ defmodule BullMQ.ObliterateTest do
       end
     end
 
-    {:ok, worker} = Worker.start_link(
-      queue: queue_name,
-      processor: processor,
-      connection: redis,
-      prefix: @prefix
-    )
+    {:ok, worker} =
+      Worker.start_link(
+        queue: queue_name,
+        processor: processor,
+        connection: redis,
+        prefix: @prefix
+      )
 
     # Wait for first batch to complete
     Process.sleep(200)
@@ -247,7 +276,8 @@ defmodule BullMQ.ObliterateTest do
 
     # Add 30 more jobs that will fail
     for i <- 31..60 do
-      {:ok, _job} = Queue.add(queue_name, "test", %{foo: "barLoop#{i}"}, connection: redis, prefix: @prefix)
+      {:ok, _job} =
+        Queue.add(queue_name, "test", %{foo: "barLoop#{i}"}, connection: redis, prefix: @prefix)
     end
 
     # Wait for some failures
@@ -258,7 +288,12 @@ defmodule BullMQ.ObliterateTest do
 
     # Add 50 delayed jobs (reduced from 1623)
     for i <- 61..110 do
-      {:ok, _job} = Queue.add(queue_name, "test", %{foo: "barLoop#{i}"}, delay: 10000, connection: redis, prefix: @prefix)
+      {:ok, _job} =
+        Queue.add(queue_name, "test", %{foo: "barLoop#{i}"},
+          delay: 10000,
+          connection: redis,
+          prefix: @prefix
+        )
     end
 
     # Obliterate
@@ -273,12 +308,13 @@ defmodule BullMQ.ObliterateTest do
 
   test "should obliterate with GenServer queue instance", %{queue_name: queue_name, redis: redis} do
     # Start queue as GenServer
-    {:ok, queue_pid} = Queue.start_link(
-      name: String.to_atom(queue_name),
-      queue: queue_name,
-      connection: redis,
-      prefix: @prefix
-    )
+    {:ok, queue_pid} =
+      Queue.start_link(
+        name: String.to_atom(queue_name),
+        queue: queue_name,
+        connection: redis,
+        prefix: @prefix
+      )
 
     # Add some jobs
     {:ok, _job1} = Queue.add(queue_pid, "test", %{foo: "bar"})
@@ -315,7 +351,8 @@ defmodule BullMQ.ObliterateTest do
   test "should handle custom count parameter", %{queue_name: queue_name, redis: redis} do
     # Add several jobs
     for i <- 1..10 do
-      {:ok, _job} = Queue.add(queue_name, "test", %{foo: "bar#{i}"}, connection: redis, prefix: @prefix)
+      {:ok, _job} =
+        Queue.add(queue_name, "test", %{foo: "bar#{i}"}, connection: redis, prefix: @prefix)
     end
 
     # Obliterate with custom count
