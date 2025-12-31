@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/taskforcesh/bullmq/compare/vex1.1.0...vex1.2.0) (2025-12-31)
+
+
+### Features
+
+* **queue:** support obliterate method [elixir] ([#3657](https://github.com/taskforcesh/bullmq/issues/3657)) ([ede9fcf](https://github.com/taskforcesh/bullmq/commit/ede9fcf72a713f4de8941270251c7b51427484b4))
+
 # [1.1.0](https://github.com/taskforcesh/bullmq/compare/vex1.0.1...vex1.1.0) (2025-12-14)
 
 
