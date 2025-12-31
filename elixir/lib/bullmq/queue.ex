@@ -1538,6 +1538,71 @@ defmodule BullMQ.Queue do
   end
 
   @doc """
+  Completely obliterates a queue and all of its contents irreversibly.
+
+  This method will pause the queue and requires that there are no active jobs.
+  It is possible to bypass this requirement using the "force" option.
+
+  Note: This operation requires iterating on all the jobs stored in the queue
+  and can be slow for very large queues.
+
+  ## Options
+
+    * `:force` - Force obliteration even with active jobs (default: false)
+    * `:count` - Max number of jobs to remove per iteration (default: 1000)
+    * `:connection` - Redis connection (required for stateless usage)
+    * `:prefix` - Key prefix (default: "bull")
+
+  ## Examples
+
+      :ok = BullMQ.Queue.obliterate("my_queue", connection: :redis)
+      :ok = BullMQ.Queue.obliterate("my_queue", force: true, connection: :redis)
+  """
+  @spec obliterate(atom() | pid() | String.t(), keyword()) :: :ok | {:error, term()}
+  def obliterate(queue, opts \\ [])
+
+  def obliterate(queue, opts) when is_atom(queue) or is_pid(queue) do
+    GenServer.call(queue, {:obliterate, opts})
+  end
+
+  def obliterate(queue, opts) when is_binary(queue) do
+    conn = Keyword.fetch!(opts, :connection)
+    prefix = Keyword.get(opts, :prefix, "bull")
+    force = Keyword.get(opts, :force, false)
+    count = Keyword.get(opts, :count, 1000)
+    ctx = Keys.new(queue, prefix: prefix)
+
+    # First pause the queue
+    case Scripts.pause(conn, ctx, true) do
+      {:ok, _} ->
+        # Keep obliterating until complete
+        obliterate_loop(conn, ctx, count, force)
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  defp obliterate_loop(conn, ctx, count, force) do
+    case Scripts.obliterate(conn, ctx, count, force) do
+      {:ok, 0} ->
+        :ok
+
+      {:ok, cursor} when is_integer(cursor) and cursor > 0 ->
+        obliterate_loop(conn, ctx, count, force)
+
+      {:ok, -1} ->
+        {:error, "Cannot obliterate non-paused queue"}
+
+      {:ok, -2} ->
+        {:error, "Cannot obliterate queue with active jobs"}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  @doc """
   Removes a job from the queue.
 
   ## Options
@@ -1802,6 +1867,12 @@ defmodule BullMQ.Queue do
   def handle_call({:drain, opts}, _from, state) do
     merged_opts = Keyword.merge([connection: state.connection, prefix: state.prefix], opts)
     result = drain(state.name, merged_opts)
+    {:reply, result, state}
+  end
+
+  def handle_call({:obliterate, opts}, _from, state) do
+    merged_opts = Keyword.merge([connection: state.connection, prefix: state.prefix], opts)
+    result = obliterate(state.name, merged_opts)
     {:reply, result, state}
   end
 
