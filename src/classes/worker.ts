@@ -340,7 +340,11 @@ export class Worker<
       this.clientName() + (this.opts.name ? `:w:${this.opts.name}` : '');
     this.blockingConnection = new RedisConnection(
       isRedisInstance(opts.connection)
-        ? (<Redis>opts.connection).duplicate({ connectionName })
+        ? (<Redis>opts.connection).isCluster
+          ? (<Redis>opts.connection).duplicate(undefined, {
+              redisOptions: { connectionName },
+            })
+          : (<Redis>opts.connection).duplicate({ connectionName })
         : { ...opts.connection, connectionName },
       {
         shared: false,
