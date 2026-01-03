@@ -5,7 +5,8 @@ import { QueueBase } from './queue-base';
 import { Job } from './job';
 import { clientCommandMessageReg, QUEUE_EVENT_SUFFIX } from '../utils';
 import { JobState, JobType } from '../types';
-import { JobJsonRaw, Metrics, QueueMeta } from '../interfaces';
+import { JobJsonRaw, Metrics, QueueMeta, RedisClient } from '../interfaces';
+import { Cluster } from 'ioredis';
 
 /**
  * Provides different getters for different aspects of a queue.
@@ -508,9 +509,27 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
   > {
     const client = await this.client;
     try {
-      const clients = (await client.client('LIST')) as string;
-      const list = this.parseClientList(clients, matcher);
-      return list;
+      if (client.isCluster) {
+        const clusterNodes = (client as Cluster).nodes();
+        const clientsPerNode: { [index: string]: string }[][] = [];
+        for (let index = 0; index < clusterNodes.length; index++) {
+          const node = clusterNodes[index];
+          const clients = (await node.client('LIST')) as string;
+          const list = this.parseClientList(clients, matcher);
+          clientsPerNode.push(list);
+        }
+        const nodeWithTheMostClients = clientsPerNode.reduce(
+          (prev, current) => {
+            return prev.length > current.length ? prev : current;
+          },
+          [],
+        );
+        return nodeWithTheMostClients;
+      } else {
+        const clients = (await client.client('LIST')) as string;
+        const list = this.parseClientList(clients, matcher);
+        return list;
+      }
     } catch (err) {
       if (!clientCommandMessageReg.test((<Error>err).message)) {
         throw err;
