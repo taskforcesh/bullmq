@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import { URL } from 'url';
-import { Redis } from 'ioredis';
+import { Cluster, Redis } from 'ioredis';
 import * as path from 'path';
 import { v4 } from 'uuid';
 
@@ -341,7 +341,7 @@ export class Worker<
     this.blockingConnection = new RedisConnection(
       isRedisInstance(opts.connection)
         ? (<Redis>opts.connection).isCluster
-          ? (<Redis>opts.connection).duplicate(undefined, {
+          ? (<Cluster>opts.connection).duplicate(undefined, {
               redisOptions: { connectionName },
             })
           : (<Redis>opts.connection).duplicate({ connectionName })
