@@ -555,5 +555,126 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         
         await queue.close()
 
+    async def test_drain_count_added_unprocessed_jobs(self):
+        """Test drain removes all waiting jobs but leaves infrastructure keys"""
+        queue = Queue(queueName, {"prefix": prefix})
+        max_jobs = 100
+        
+        # Add jobs with priorities
+        for i in range(1, max_jobs + 1):
+            await queue.add("test", {"foo": "bar", "num": i}, {"priority": i})
+        
+        # Check initial counts
+        initial_count = await queue.getJobCountByTypes("waiting", "prioritized")
+        self.assertEqual(initial_count, max_jobs)
+        
+        prioritized_count = await queue.getJobCounts("prioritized")
+        self.assertEqual(prioritized_count["prioritized"], max_jobs)
+        
+        # Drain the queue
+        await queue.drain()
+        
+        # Check that all jobs are removed
+        count_after_drain = await queue.getJobCountByTypes("waiting", "prioritized")
+        self.assertEqual(count_after_drain, 0)
+        
+        # Check that infrastructure keys remain
+        keys = await queue.client.keys(f"{prefix}:{queueName}:*")
+        self.assertEqual(len(keys), 5)
+        
+        # Verify expected infrastructure keys exist
+        key_types = []
+        for key in keys:
+            key_type = key.split(':')[2]
+            key_types.append(key_type)
+        
+        expected_keys = ['marker', 'events', 'meta', 'pc', 'id']
+        for expected_key in expected_keys:
+            self.assertIn(expected_key, key_types)
+        
+        await queue.close()
+
+    async def test_drain_delayed_false(self):
+        """Test drain with delayed=False keeps delayed jobs"""
+        queue = Queue(queueName, {"prefix": prefix})
+        max_jobs = 50
+        max_delayed_jobs = 50
+        
+        # Add regular jobs
+        for i in range(1, max_jobs + 1):
+            await queue.add("test", {"foo": "bar", "num": i}, {})
+        
+        # Add delayed jobs
+        for i in range(1, max_delayed_jobs + 1):
+            await queue.add("test", {"foo": "bar", "num": i}, {"delay": 10000})
+        
+        # Check initial count
+        initial_count = await queue.getJobCountByTypes("waiting", "delayed")
+        self.assertEqual(initial_count, max_jobs + max_delayed_jobs)
+        
+        # Drain without delayed jobs
+        await queue.drain(delayed=False)
+        
+        # Check that only delayed jobs remain
+        count_after_drain = await queue.getJobCountByTypes("waiting", "delayed")
+        self.assertEqual(count_after_drain, max_delayed_jobs)
+        
+        await queue.close()
+
+    async def test_drain_delayed_true(self):
+        """Test drain with delayed=True removes all jobs including delayed"""
+        queue = Queue(queueName, {"prefix": prefix})
+        max_jobs = 50
+        max_delayed_jobs = 50
+        
+        # Add regular jobs
+        for i in range(1, max_jobs + 1):
+            await queue.add("test", {"foo": "bar", "num": i}, {})
+        
+        # Add delayed jobs
+        for i in range(1, max_delayed_jobs + 1):
+            await queue.add("test", {"foo": "bar", "num": i}, {"delay": 10000})
+        
+        # Check initial count
+        initial_count = await queue.getJobCountByTypes("waiting", "delayed")
+        self.assertEqual(initial_count, max_jobs + max_delayed_jobs)
+        
+        # Drain including delayed jobs
+        await queue.drain(delayed=True)
+        
+        # Check that all jobs are removed
+        count_after_drain = await queue.getJobCountByTypes("waiting", "delayed")
+        self.assertEqual(count_after_drain, 0)
+        
+        await queue.close()
+
+    async def test_drain_paused_queue(self):
+        """Test drain removes paused jobs when queue is paused"""
+        queue = Queue(queueName, {"prefix": prefix})
+        max_jobs = 50
+        
+        # Pause the queue first
+        await queue.pause()
+        
+        # Add jobs (they will go to paused state)
+        for i in range(1, max_jobs + 1):
+            await queue.add("test", {"foo": "bar", "num": i}, {})
+        
+        # Check initial count
+        initial_count = await queue.getJobCountByTypes("paused")
+        self.assertEqual(initial_count, max_jobs)
+        
+        paused_counts = await queue.getJobCounts("paused")
+        self.assertEqual(paused_counts["paused"], max_jobs)
+        
+        # Drain the queue
+        await queue.drain()
+        
+        # Check that all jobs are removed
+        count_after_drain = await queue.getJobCountByTypes("paused")
+        self.assertEqual(count_after_drain, 0)
+        
+        await queue.close()
+
 if __name__ == '__main__':
     unittest.main()
