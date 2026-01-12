@@ -1,3 +1,10 @@
+## [5.66.5](https://github.com/taskforcesh/bullmq/compare/v5.66.4...v5.66.5) (2026-01-12)
+
+
+### Bug Fixes
+
+* **deps:** update dependency ioredis to v5.9.1 ([#3676](https://github.com/taskforcesh/bullmq/issues/3676)) fixes [#3667](https://github.com/taskforcesh/bullmq/issues/3667) ([661c581](https://github.com/taskforcesh/bullmq/commit/661c581270186bc405967b91326daff061370d03))
+
 ## [5.66.4](https://github.com/taskforcesh/bullmq/compare/v5.66.3...v5.66.4) (2025-12-27)
 
 
