@@ -1,3 +1,10 @@
+# [2.19.0](https://github.com/taskforcesh/bullmq/compare/vpy2.18.3...vpy2.19.0) (2026-01-13)
+
+
+### Features
+
+* **queue:** support drain method [python] ([#3673](https://github.com/taskforcesh/bullmq/issues/3673)) ([21ab9cc](https://github.com/taskforcesh/bullmq/commit/21ab9cc5df2947e49aa132994dfe89e043b7082d))
+
 ## [2.18.3](https://github.com/taskforcesh/bullmq/compare/vpy2.18.2...vpy2.18.3) (2025-12-25)
 
 
