@@ -28,7 +28,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
       - name: Use Node.js
         uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6
         with:
@@ -73,7 +73,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6
         with:
@@ -105,7 +105,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3 # v3
+        uses: actions/checkout@v6
       - name: Use Node.js ${{ env.node-version }}
         uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6
         with:
@@ -135,7 +135,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3 # v3
+        uses: actions/checkout@v6
       - name: Use Node.js ${{ env.node-version }}
         uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6
         with:
@@ -179,7 +179,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6
@@ -237,7 +237,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6
@@ -284,7 +284,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6
@@ -346,7 +346,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6
