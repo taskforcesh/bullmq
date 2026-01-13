@@ -161,6 +161,15 @@ class Queue(EventEmitter):
             if cursor is None or cursor == 0 or cursor == "0":
                 break
 
+    async def drain(self, delayed: bool = False):
+        """
+        Drains the queue, removes all jobs that are waiting
+        or delayed, but not active, completed or failed.
+        
+        @param delayed: Pass True if it should also clean the delayed jobs.
+        """
+        await self.scripts.drain(delayed)
+
     async def retryJobs(self, opts: RetryJobsOptions = {}):
         """
         Retry all the failed or completed jobs.

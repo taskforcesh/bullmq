@@ -38,6 +38,7 @@ class Scripts:
             "addPrioritizedJob": self.redisClient.register_script(self.getScript("addPrioritizedJob-9.lua")),
             "changePriority": self.redisClient.register_script(self.getScript("changePriority-7.lua")),
             "cleanJobsInSet": self.redisClient.register_script(self.getScript("cleanJobsInSet-3.lua")),
+            "drain": self.redisClient.register_script(self.getScript("drain-5.lua")),
             "extendLock": self.redisClient.register_script(self.getScript("extendLock-2.lua")),
             "getCounts": self.redisClient.register_script(self.getScript("getCounts-1.lua")),
             "getCountsPerPriority": self.redisClient.register_script(self.getScript("getCountsPerPriority-4.lua")),
@@ -535,6 +536,17 @@ class Scripts:
             if (result == -2):
                 raise Exception("Cannot obliterate queue with active jobs")
         return result
+
+    async def drain(self, delayed: bool = False):
+        """
+        Drains the queue, removes all jobs that are waiting
+        or delayed, but not active, completed or failed.
+        
+        @param delayed: Pass True if it should also clean the delayed jobs.
+        """
+        keys = self.getKeys(['wait', 'paused', 'delayed', 'prioritized', 'repeat'])
+        args = [self.keys[''], '1' if delayed else '0']
+        await self.commands["drain"](keys, args=args)
 
     def moveJobsToWaitArgs(self, state: str, count: int, timestamp: int) -> int:
         keys = self.getKeys(
