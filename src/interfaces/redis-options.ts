@@ -1,7 +1,7 @@
 import type * as IORedis from 'ioredis';
 
 export interface BaseOptions {
-  skipVersionCheck?: boolean;
+  skipVersionCheck?: boolean | undefined;
   url?: string | undefined;
 }
 
