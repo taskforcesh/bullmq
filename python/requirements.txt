@@ -11,5 +11,5 @@ pytest-timeout==2.4.0
 redis==6.2.0
 semver==3.0.4
 six==1.16.0
-virtualenv==20.26.6
+virtualenv==20.36.1
 virtualenv-clone==0.5.7
