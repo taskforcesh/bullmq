@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/taskforcesh/bullmq/compare/vex1.2.0...vex1.2.1) (2026-01-14)
+
+
+### Bug Fixes
+
+* **scripts:** copy lua scripts before releasing [elixir] ([#3685](https://github.com/taskforcesh/bullmq/issues/3685)) fixes [#3681](https://github.com/taskforcesh/bullmq/issues/3681) ([5bcd4fb](https://github.com/taskforcesh/bullmq/commit/5bcd4fbe0eb725a95b878f97b95c74106e7dff0f))
+
 # [1.2.0](https://github.com/taskforcesh/bullmq/compare/vex1.1.0...vex1.2.0) (2025-12-31)
 
 
