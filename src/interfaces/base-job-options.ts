@@ -1,5 +1,5 @@
 import { BackoffOptions } from './backoff-options';
-import { KeepJobs } from './keep-jobs';
+import { KeepJobs } from '../types/keep-jobs';
 import { ParentOptions } from './parent-options';
 import { RepeatOptions } from './repeat-options';
 
