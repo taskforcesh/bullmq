@@ -199,7 +199,9 @@ jobs:
         with:
           elixir-version: '1.17'
           otp-version: '27.x'
-      - run: yarn copy:lua:elixir
+      - name: Copy Lua scripts for Elixir
+        if: ${{ contains(env.commitmsg, '[elixir]') || contains(env.commitmsg, '(elixir)') }}
+        run: yarn copy:lua:elixir
       - name: Install Elixir dependencies
         if: ${{ contains(env.commitmsg, '[elixir]') || contains(env.commitmsg, '(elixir)') }}
         working-directory: elixir
