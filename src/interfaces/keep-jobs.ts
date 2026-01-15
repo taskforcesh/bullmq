@@ -5,14 +5,19 @@
  * specified, then the jobs kept will be the ones that satisfies both
  * properties.
  */
-export interface KeepJobs {
+export type KeepJobs = {
+  /**
+   * Maximum count of jobs to be kept.
+   */
+  count?: number;
+} & {
   /**
    * Maximum age in seconds for job to be kept.
    */
   age?: number;
 
   /**
-   * Maximum count of jobs to be kept.
+   * Maximum quantity of jobs to be removed.
    */
-  count?: number;
-}
+  limit?: number;
+};
