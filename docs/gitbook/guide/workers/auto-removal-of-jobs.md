@@ -46,6 +46,28 @@ worker = Worker(
 ```
 
 {% endtab %}
+
+{% tab title="Elixir" %}
+
+```elixir
+defmodule MyWorker do
+  use BullMQ.Worker
+
+  def process_job(_job) do
+    # do some work
+    :ok
+  end
+end
+
+{:ok, worker} = BullMQ.Worker.start_link(
+  queue: "myQueueName",
+  processor: &MyWorker.process_job/1,
+  connection: connection,
+  remove_on_fail: %{count: 0}
+)
+```
+
+{% endtab %}
 {% endtabs %}
 
 {% hint style="warning" %}
@@ -92,6 +114,29 @@ worker = Worker(
         "removeOnComplete": {"count": 1000},
         "removeOnFail": {"count": 5000},
     },
+)
+```
+
+{% endtab %}
+
+{% tab title="Elixir" %}
+
+```elixir
+defmodule MyWorker do
+  use BullMQ.Worker
+
+  def process_job(_job) do
+    # do some work
+    :ok
+  end
+end
+
+{:ok, worker} = BullMQ.Worker.start_link(
+  queue: "myQueueName",
+  processor: &MyWorker.process_job/1,
+  connection: connection,
+  remove_on_complete: %{count: 1000},
+  remove_on_fail: %{count: 5000}
 )
 ```
 
@@ -152,6 +197,36 @@ worker = Worker(
             "limit": 50,  # remove up to 50 jobs per cleanup iteration
         },
     },
+)
+```
+
+{% endtab %}
+
+{% tab title="Elixir" %}
+
+```elixir
+defmodule MyWorker do
+  use BullMQ.Worker
+
+  def process_job(_job) do
+    # do some work
+    :ok
+  end
+end
+
+{:ok, worker} = BullMQ.Worker.start_link(
+  queue: "myQueueName",
+  processor: &MyWorker.process_job/1,
+  connection: connection,
+  remove_on_complete: %{
+    age: 3600,    # keep up to 1 hour
+    count: 1000,  # keep up to 1000 jobs
+    limit: 100    # remove up to 100 jobs per cleanup iteration
+  },
+  remove_on_fail: %{
+    age: 24 * 3600,  # keep up to 24 hours
+    limit: 50        # remove up to 50 jobs per cleanup iteration
+  }
 )
 ```
 
