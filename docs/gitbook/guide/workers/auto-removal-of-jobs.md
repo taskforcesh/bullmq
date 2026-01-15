@@ -16,7 +16,7 @@ const myWorker = new Worker(
   },
   {
     connection,
-    removeOnFail: { count: 0 }
+    removeOnFail: { count: 0 },
   },
 );
 ```
@@ -38,14 +38,14 @@ const myWorker = new Worker(
   {
     connection,
     removeOnComplete: { count: 1000 },
-    removeOnFail: { count: 5000 }
+    removeOnFail: { count: 5000 },
   },
 );
 ```
 
 ### Keep jobs based on their age
 
-Another possibility is to keep jobs up to a certain age. The `removeOn` option accepts a [`KeepJobs`](https://api.docs.bullmq.io/interfaces/v5.KeepJobs.html) object, that includes an `age` and a `count` fields. The `age` is used to specify how old jobs to keep (in seconds), and the `count` can be used to limit the total amount to keep. The `count` option is useful in cases we get an unexpected amount of jobs in a very short time, in this case we may just want to limit to a certain amount to avoid running out of memory.
+Another possibility is to keep jobs up to a certain age. The `removeOn` option accepts a [`KeepJobs`](https://api.docs.bullmq.io/interfaces/v5.KeepJobs.html) object, that includes `age`, `count`, and `limit` fields. The `age` is used to specify how old jobs to keep (in seconds), the `count` can be used to limit the total amount to keep, and the `limit` controls how many jobs are removed per cleanup iteration. The `count` option is useful in cases we get an unexpected amount of jobs in a very short time, in this case we may just want to limit to a certain amount to avoid running out of memory. The `limit` option helps control the performance impact of cleanup operations by limiting how many jobs are processed at once.
 
 ```typescript
 const myWorker = new Worker(
@@ -58,10 +58,12 @@ const myWorker = new Worker(
     removeOnComplete: {
       age: 3600, // keep up to 1 hour
       count: 1000, // keep up to 1000 jobs
+      limit: 100, // remove up to 100 jobs per cleanup iteration
     },
     removeOnFail: {
       age: 24 * 3600, // keep up to 24 hours
-    }
+      limit: 50, // remove up to 50 jobs per cleanup iteration
+    },
   },
 );
 ```
