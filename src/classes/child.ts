@@ -175,6 +175,10 @@ export class Child extends EventEmitter {
   private async initChild() {
     const onComplete = new Promise<void>((resolve, reject) => {
       const onMessageHandler = (msg: any) => {
+        if (!Object.values(ParentCommand).includes(msg.cmd)) {
+          return;
+        }
+
         if (msg.cmd === ParentCommand.InitCompleted) {
           resolve();
         } else if (msg.cmd === ParentCommand.InitFailed) {
