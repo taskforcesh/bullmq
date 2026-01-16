@@ -40,7 +40,10 @@ class Queue(EventEmitter):
         @param data: Arbitrary data to append to the job.
         @param opts: Job options that affects how the job is going to be processed.
         """
-        job = Job(self, name, data, opts)
+        merged_opts = {}
+        merged_opts.update(self.jobsOpts)
+        merged_opts.update(opts)
+        job = Job(self, name, data, merged_opts)
         job_id = await self.scripts.addJob(job)
         job.id = job_id
         return job

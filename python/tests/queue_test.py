@@ -676,5 +676,34 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         
         await queue.close()
 
+    async def test_default_job_options(self):
+        """Test that defaultJobOptions are applied to jobs added to the queue"""
+        default_attempts = 5
+        default_delay = 2000
+        queue = Queue(queueName, {
+            "prefix": prefix,
+            "defaultJobOptions": {
+                "attempts": default_attempts,
+                "delay": default_delay
+            }
+        })
+        
+        # Add a job without specifying options
+        job1 = await queue.add("test-job", {"foo": "bar"}, {})
+        
+        # Verify that default options were applied
+        self.assertEqual(job1.attempts, default_attempts)
+        self.assertEqual(job1.delay, default_delay)
+        
+        # Add a job with custom options that should override defaults
+        custom_attempts = 10
+        job2 = await queue.add("test-job", {"foo": "baz"}, {"attempts": custom_attempts})
+        
+        # Verify that custom options override defaults
+        self.assertEqual(job2.attempts, custom_attempts)
+        self.assertEqual(job2.delay, default_delay)  # Should still use default delay
+        
+        await queue.close()
+
 if __name__ == '__main__':
     unittest.main()
