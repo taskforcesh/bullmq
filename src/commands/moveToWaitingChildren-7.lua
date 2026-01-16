@@ -88,7 +88,7 @@ if rcall("EXISTS", jobKey) == 1 then
       end
   
       return 1
-    end    
+    end
   end
 end
 
