@@ -689,7 +689,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         })
         
         # Add a job without specifying options
-        job1 = await queue.add("test-job", {"foo": "bar"}, {})
+        job1 = await queue.add("test-job", {"foo": "bar"})
         
         # Verify that default options were applied
         self.assertEqual(job1.attempts, default_attempts)
