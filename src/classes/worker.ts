@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import { URL } from 'url';
+import { fileURLToPath, URL } from 'url';
 import { Redis } from 'ioredis';
 import * as path from 'path';
 import { v4 } from 'uuid';
@@ -300,7 +300,7 @@ export class Worker<
         }
 
         // Separate paths so that bundling tools can resolve dependencies easier
-        const dirname = path.dirname(module.filename || __filename);
+        const dirname = path.dirname(fileURLToPath(import.meta.url) || __filename);
         const workerThreadsMainFile = path.join(dirname, 'main-worker.js');
         const spawnProcessMainFile = path.join(dirname, 'main.js');
 
