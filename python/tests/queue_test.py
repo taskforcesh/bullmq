@@ -678,9 +678,10 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
 
     async def test_default_job_options(self):
         """Test that defaultJobOptions are applied to jobs added to the queue"""
+        queue_name = f"__test_queue__{uuid4().hex}"
         default_attempts = 5
         default_delay = 2000
-        queue = Queue(queueName, {
+        queue = Queue(queue_name, {
             "prefix": prefix,
             "defaultJobOptions": {
                 "attempts": default_attempts,
