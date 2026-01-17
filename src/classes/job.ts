@@ -58,8 +58,7 @@ export class Job<
   DataType = any,
   ReturnType = any,
   NameType extends string = string,
-> implements MinimalJob<DataType, ReturnType, NameType>
-{
+> implements MinimalJob<DataType, ReturnType, NameType> {
   /**
    * It includes the prefix, the namespace separator :, and queue name.
    * @see {@link https://www.gnu.org/software/gawk/manual/html_node/Qualified-Names.html}
@@ -1338,6 +1337,10 @@ export class Job<
    * @returns
    */
   async moveToDelayed(timestamp: number, token?: string): Promise<void> {
+    if (this.token && !token) {
+      throw new Error(`Missing token for job ${this.id}. moveToDelayed`);
+    }
+
     const now = Date.now();
     const delay = timestamp - now;
     const finalDelay = delay > 0 ? delay : 0;
@@ -1364,6 +1367,12 @@ export class Job<
     token: string,
     opts: MoveToWaitingChildrenOpts = {},
   ): Promise<boolean> {
+    if (this.token && !token) {
+      throw new Error(
+        `Missing token for job ${this.id}. moveToWaitingChildren`,
+      );
+    }
+
     const movedToWaitingChildren = await this.scripts.moveToWaitingChildren(
       this.id,
       token,
