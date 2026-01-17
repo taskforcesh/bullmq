@@ -1,7 +1,7 @@
 defmodule BullMQ.MixProject do
   use Mix.Project
 
-  @version "1.2.0"
+  @version "1.2.2"
   @source_url "https://github.com/taskforcesh/bullmq"
   @description "A powerful, fast, and robust job queue for Elixir backed by Redis"
 
@@ -104,9 +104,9 @@ defmodule BullMQ.MixProject do
   defp package do
     [
       name: "bullmq",
-      # Note: Lua scripts are embedded at compile time from ../rawScripts,
-      # so they don't need to be included in the package files.
-      files: ~w(lib .formatter.exs mix.exs README.md LICENSE CHANGELOG.md),
+      # Note: Lua scripts must be included in priv/scripts for the package to work.
+      # They are copied from ../rawScripts via `yarn copy:lua:elixir` before release.
+      files: ~w(lib priv .formatter.exs mix.exs README.md LICENSE CHANGELOG.md),
       licenses: ["MIT"],
       links: %{
         "GitHub" => @source_url,
