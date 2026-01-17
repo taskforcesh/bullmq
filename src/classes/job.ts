@@ -722,13 +722,8 @@ export class Job<
       SpanKind.INTERNAL,
       'complete',
       this.queue.name,
-      async (span, dstPropagationMedatadata) => {
+      async span => {
         this.setSpanJobAttributes(span);
-
-        let tm;
-        if (!this.opts?.telemetry?.omitContext && dstPropagationMedatadata) {
-          tm = dstPropagationMedatadata;
-        }
 
         await this.queue.waitUntilReady();
 
