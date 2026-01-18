@@ -35,7 +35,7 @@ jobs:
           node-version: ${{ env.node-version }}
           cache: 'yarn'
       - name: Start Redis
-        uses: supercharge/redis-github-action@f63fe516254d0af5df91755a4488274c2e71e38c # 1.5.0
+        uses: supercharge/redis-github-action@bc274cb7238cd63a45029db04ee48c07a72609fd # 1.8.1
         with:
           redis-version: ${{ env.redis-version }}
       - run: yarn install --frozen-lockfile --non-interactive
@@ -80,7 +80,7 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'yarn'
       - name: Start Redis
-        uses: supercharge/redis-github-action@f63fe516254d0af5df91755a4488274c2e71e38c # 1.5.0
+        uses: supercharge/redis-github-action@bc274cb7238cd63a45029db04ee48c07a72609fd # 1.8.1
         with:
           redis-version: ${{ matrix.redis-version }}
       - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
@@ -187,7 +187,7 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'yarn'
       - name: Start Redis
-        uses: supercharge/redis-github-action@f63fe516254d0af5df91755a4488274c2e71e38c # 1.5.0
+        uses: supercharge/redis-github-action@bc274cb7238cd63a45029db04ee48c07a72609fd # 1.8.1
         with:
           redis-version: ${{ matrix.redis-version }}
       - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
@@ -293,7 +293,7 @@ jobs:
           cache: 'yarn'
 
       - name: Start Redis
-        uses: supercharge/redis-github-action@f63fe516254d0af5df91755a4488274c2e71e38c # 1.5.0
+        uses: supercharge/redis-github-action@bc274cb7238cd63a45029db04ee48c07a72609fd # 1.8.1
         with:
           redis-version: ${{ matrix.redis-version }}
 
@@ -355,7 +355,7 @@ jobs:
           cache: 'yarn'
 
       - name: Start Redis
-        uses: supercharge/redis-github-action@f63fe516254d0af5df91755a4488274c2e71e38c # 1.5.0
+        uses: supercharge/redis-github-action@bc274cb7238cd63a45029db04ee48c07a72609fd # 1.8.1
         with:
           redis-version: 7-alpine
 
