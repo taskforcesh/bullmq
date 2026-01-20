@@ -150,11 +150,13 @@ defmodule BullMQ.Worker do
                  ],
                  remove_on_complete: [
                    type: {:or, [:boolean, :pos_integer, :map]},
-                   doc: "Auto-removal configuration for completed jobs. Can be boolean, integer (count), or map with age/count/limit keys."
+                   doc:
+                     "Auto-removal configuration for completed jobs. Can be boolean, integer (count), or map with age/count/limit keys."
                  ],
                  remove_on_fail: [
                    type: {:or, [:boolean, :pos_integer, :map]},
-                   doc: "Auto-removal configuration for failed jobs. Can be boolean, integer (count), or map with age/count/limit keys."
+                   doc:
+                     "Auto-removal configuration for failed jobs. Can be boolean, integer (count), or map with age/count/limit keys."
                  ],
                  # Event callbacks
                  on_completed: [
