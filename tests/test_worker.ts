@@ -1704,7 +1704,7 @@ describe('workers', function () {
 
       it('should keep jobs with age 10 and limit 2 with removeOnComplete', async () => {
         const age = 10;
-        const limit = 1;
+        const limit = 2;
         await testWorkerRemoveOnFinish({ age, limit }, age);
       });
 
