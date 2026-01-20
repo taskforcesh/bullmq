@@ -800,7 +800,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(1.2)  # Wait for jobs to age beyond 1 second
         
         # Add a new job to trigger potential cleanup
-        trigger_job = await queue.add("trigger", {"index": "trigger"})
+        await queue.add("trigger", {"index": "trigger"})
         await asyncio.sleep(0.5)  # Let it process
 
         # Check completed jobs count after aging and trigger
