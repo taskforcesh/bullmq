@@ -1368,7 +1368,6 @@ describe('workers', function () {
       const worker = new Worker(
         queueName,
         async job => {
-          clock.tick(1);
           await job.log('test log');
           if (fail) {
             throw new Error('job failed');

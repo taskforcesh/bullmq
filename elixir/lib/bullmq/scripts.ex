@@ -999,6 +999,19 @@ defmodule BullMQ.Scripts do
   defp normalize_keep_jobs(%{"count" => _} = m), do: m
   defp normalize_keep_jobs(%{age: n}), do: %{"age" => n}
   defp normalize_keep_jobs(%{"age" => _} = m), do: m
+  defp normalize_keep_jobs(%{limit: n}), do: %{"limit" => n}
+  defp normalize_keep_jobs(%{"limit" => _} = m), do: m
+
+  # Handle maps with multiple keys (age + count, age + limit, etc.)
+  defp normalize_keep_jobs(m) when is_map(m) do
+    # Convert atom keys to string keys and keep the map as-is
+    # This handles cases like %{age: 1000, limit: 5}
+    for {k, v} <- m, into: %{} do
+      key = if is_atom(k), do: Atom.to_string(k), else: k
+      {key, v}
+    end
+  end
+
   defp normalize_keep_jobs(_), do: %{"count" => -1}
 
   # Build msgpacked fields to update on the job (for stacktrace)
