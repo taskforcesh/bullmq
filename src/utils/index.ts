@@ -19,6 +19,12 @@ import * as semver from 'semver';
 
 import { SpanKind, TelemetryAttributes } from '../enums';
 
+export {
+  parseSearchQuery,
+  translateRegexToLuaPattern,
+  SearchQuery,
+} from './search-query-parser';
+
 export const errorObject: { [index: string]: any } = { value: null };
 
 export function tryCatch(
@@ -50,6 +56,10 @@ export function isEmpty(obj: object): boolean {
     }
   }
   return true;
+}
+
+export function isObject(obj: any): obj is Record<string, any> {
+  return typeof obj === 'object' && !Array.isArray(obj) && obj !== null;
 }
 
 export function array2obj(arr: string[]): Record<string, string> {

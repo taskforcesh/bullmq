@@ -26,6 +26,7 @@ import {
   RetryJobOpts,
   RetryOptions,
   ScriptQueueContext,
+  JobSearchRawResponse,
 } from '../interfaces';
 import {
   JobsOptions,
@@ -47,6 +48,7 @@ import {
 import { ChainableCommander } from 'ioredis';
 import { version as packageVersion } from '../version';
 import { UnrecoverableError } from './errors';
+import { v4 } from 'uuid';
 export type JobData = [JobJsonRaw | number, string?];
 
 export class Scripts {
@@ -883,6 +885,41 @@ export class Scripts {
     const args = this.getRangesArgs(types, start, end, asc);
 
     return await this.execCommand(client, 'getRanges', args);
+  }
+
+  private searchArgs(
+    type: JobType,
+    query: object,
+    count: number,
+    asc: boolean,
+    cursorId: string,
+    batchSize: number,
+  ): (string | number)[] {
+    const queueKeys = this.queue.keys;
+    const transformedType = type == 'waiting' ? 'wait' : type;
+    const key = queueKeys[transformedType];
+    const cursorKey = this.queue.toKey(`search-cursor:${cursorId}`);
+
+    const keys: (string | number)[] = [key, cursorKey];
+    const queryValue = JSON.stringify(query);
+    const args = [queryValue, count, asc ? '1' : '0', batchSize];
+
+    return keys.concat(args);
+  }
+
+  async search(
+    type: JobType,
+    query: object,
+    count = 10,
+    asc = false,
+    cursorId: string = null,
+    batchSize = 50,
+  ): Promise<JobSearchRawResponse> {
+    const client = await this.queue.client;
+    cursorId = cursorId || v4();
+    const args = this.searchArgs(type, query, count, asc, cursorId, batchSize);
+
+    return await this.execCommand(client, 'search', args);
   }
 
   private getCountsArgs(types: JobType[]): (string | number)[] {
