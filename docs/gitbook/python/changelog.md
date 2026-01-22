@@ -1,3 +1,10 @@
+## [2.19.1](https://github.com/taskforcesh/bullmq/compare/vpy2.19.0...vpy2.19.1) (2026-01-22)
+
+
+### Performance Improvements
+
+* **job:** apply limit when removing jobs by max age (python) (elixir) ([#3694](https://github.com/taskforcesh/bullmq/issues/3694)) fixes [#3672](https://github.com/taskforcesh/bullmq/issues/3672) ([a8fc316](https://github.com/taskforcesh/bullmq/commit/a8fc316c0989bd3edb54577ceb02bff0c600aa93))
+
 # [2.19.0](https://github.com/taskforcesh/bullmq/compare/vpy2.18.3...vpy2.19.0) (2026-01-13)
 
 
