@@ -206,6 +206,12 @@ class Worker(EventEmitter):
         try:
             self.emit("active", job, "waiting")
 
+            # Set worker-level remove options on job if not already set
+            if "removeOnComplete" not in job.opts and "removeOnComplete" in self.opts:
+                job.opts["removeOnComplete"] = self.opts["removeOnComplete"]
+            if "removeOnFail" not in job.opts and "removeOnFail" in self.opts:
+                job.opts["removeOnFail"] = self.opts["removeOnFail"]
+
             self.jobs.add((job, token))
             
             if job.deferredFailure:
@@ -215,8 +221,6 @@ class Worker(EventEmitter):
 
             result = await self.processor(job, token)
             if not self.forceClosing:
-                # Currently we do not support pre-fetching jobs as in NodeJS version.
-                # nextJob = await self.scripts.moveToCompleted(job, result, job.opts.get("removeOnComplete", False), token, fetchNext=not self.closing)
                 await self.scripts.moveToCompleted(job, result, job.opts.get("removeOnComplete", False), token, fetchNext=False)
                 job.returnvalue = result
                 job.attemptsMade = job.attemptsMade + 1
