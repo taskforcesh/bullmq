@@ -1,3 +1,10 @@
+## [2.19.2](https://github.com/taskforcesh/bullmq/compare/vpy2.19.1...vpy2.19.2) (2026-01-22)
+
+
+### Bug Fixes
+
+* **queue:** add missing defaultJobOptions field to QueueBaseOptions TypedDict [python] ([#3702](https://github.com/taskforcesh/bullmq/issues/3702)) fixes [#3695](https://github.com/taskforcesh/bullmq/issues/3695) ([61504f1](https://github.com/taskforcesh/bullmq/commit/61504f12fe591295fea5b087a6b7c533465e8653))
+
 ## [2.19.1](https://github.com/taskforcesh/bullmq/compare/vpy2.19.0...vpy2.19.1) (2026-01-22)
 
 
