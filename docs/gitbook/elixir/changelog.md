@@ -1,3 +1,10 @@
+## [1.2.3](https://github.com/taskforcesh/bullmq/compare/vex1.2.2...vex1.2.3) (2026-01-22)
+
+
+### Performance Improvements
+
+* **job:** apply limit when removing jobs by max age (python) (elixir) ([#3694](https://github.com/taskforcesh/bullmq/issues/3694)) fixes [#3672](https://github.com/taskforcesh/bullmq/issues/3672) ([a8fc316](https://github.com/taskforcesh/bullmq/commit/a8fc316c0989bd3edb54577ceb02bff0c600aa93))
+
 ## [1.2.2](https://github.com/taskforcesh/bullmq/compare/vex1.2.1...vex1.2.2) (2026-01-14)
 
 
