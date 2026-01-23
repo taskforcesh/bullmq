@@ -7,7 +7,7 @@ defmodule BullMQ.QueueGettersTest do
   """
   use ExUnit.Case, async: false
 
-  alias BullMQ.{Queue, RedisConnection}
+  alias BullMQ.{Queue, RedisConnection, Worker}
 
   @moduletag :integration
 
@@ -477,6 +477,80 @@ defmodule BullMQ.QueueGettersTest do
     test "returns list (may be empty)", %{conn: conn, queue_name: queue_name, prefix: prefix} do
       {:ok, workers} = Queue.get_workers(queue_name, connection: conn, prefix: prefix)
       assert is_list(workers)
+    end
+
+    test "returns list when using cluster_connections", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
+      {:ok, workers} =
+        Queue.get_workers(queue_name,
+          connection: conn,
+          cluster_connections: [conn],
+          prefix: prefix
+        )
+
+      assert is_list(workers)
+    end
+
+    test "includes worker client name when worker is started", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
+      {:ok, worker} =
+        Worker.start_link(
+          name: :worker_list_test,
+          queue: queue_name,
+          connection: conn,
+          prefix: prefix,
+          processor: fn _job -> :ok end,
+          autorun: true
+        )
+
+      # allow the blocking connection to set its client name
+      Process.sleep(50)
+
+      {:ok, workers} = Queue.get_workers(queue_name, connection: conn, prefix: prefix)
+
+      expected = "#{prefix}:#{queue_name}:w:worker_list_test"
+
+      assert Enum.any?(workers, fn worker_info ->
+               (worker_info["name"] || "") == expected
+             end)
+
+      :ok = Worker.close(worker)
+    end
+
+    test "reapplies worker client name on reconnect", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
+      {:ok, worker} =
+        Worker.start_link(
+          name: :worker_reconnect_test,
+          queue: queue_name,
+          connection: conn,
+          prefix: prefix,
+          processor: fn _job -> :ok end,
+          autorun: true
+        )
+
+      Process.sleep(50)
+
+      state = :sys.get_state(worker)
+      blocking_conn = state.blocking_conn
+
+      expected = "#{prefix}:#{queue_name}:w:worker_reconnect_test"
+
+      :telemetry.execute([:redix, :connection], %{}, %{connection: blocking_conn})
+
+      {:ok, name} = Redix.command(blocking_conn, ["CLIENT", "GETNAME"])
+      assert name == expected
+
+      :ok = Worker.close(worker)
     end
   end
 
