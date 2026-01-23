@@ -57,6 +57,9 @@ class Worker(EventEmitter):
         self.limitUntil = 0
         self.drained = False
         self.qualifiedName = self.scripts.queue_keys.getQueueQualifiedName(name)
+        self.workerName = opts.get("name")
+        self.clientName = self.qualifiedName + (f":w:{self.workerName}" if self.workerName else "")
+        self._client_name_set = False
 
         if processor:
             if opts.get("autorun", True):
@@ -65,6 +68,8 @@ class Worker(EventEmitter):
     async def run(self):
         if self.running:
             raise Exception("Worker is already running")
+
+        await self._ensure_client_names()
 
         self.timer = Timer(
             (self.opts.get("lockDuration") / 2) / 1000, self.extendLocks, self.emit)
@@ -123,6 +128,7 @@ class Worker(EventEmitter):
         @param token: worker token to be assigned to retrieved job
         @returns a Job or undefined if no job was available in the queue.
         """
+        await self._ensure_client_names()
         if not self.waiting and self.drained:
             self.waiting = self.waitForJob()
 
@@ -182,6 +188,14 @@ class Worker(EventEmitter):
             else:
                 return 0
         return 0
+
+    async def _ensure_client_names(self):
+        if self._client_name_set:
+            return
+
+        await self.redisConnection.set_client_name(self.clientName)
+        await self.blockingRedisConnection.set_client_name(self.clientName)
+        self._client_name_set = True
 
     def getBlockTimeout(self, block_until: int):
         if block_until:
