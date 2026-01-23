@@ -136,10 +136,7 @@
       "@commitlint/config-conventional"
     ]
   },
-  "resolutions": {
-    "glob": "13.0.0",
-    "js-yaml": "4.1.1"
-  },
+  "resolutions": {},
   "lint-staged": {
     "*.{js,ts}": "npm run eslint:fix"
   },
