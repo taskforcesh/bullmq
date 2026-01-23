@@ -648,6 +648,22 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         
         await queue.close()
 
+    async def test_get_prioritized_jobs(self):
+        """Test getPrioritized method retrieves prioritized jobs"""
+        queue = Queue(queueName, {"prefix": prefix})
+        
+        # Add jobs with priorities
+        for i in range(8):
+            await queue.add("test", {"idx": i}, {"priority": i + 1})
+        
+        # Get prioritized jobs
+        prioritized_jobs = await queue.getPrioritized()
+        
+        # Verify we got all 8 jobs
+        self.assertEqual(len(prioritized_jobs), 8)
+        
+        await queue.close()
+
     async def test_drain_paused_queue(self):
         """Test drain removes paused jobs when queue is paused"""
         queue = Queue(queueName, {"prefix": prefix})
