@@ -22,6 +22,9 @@
     "@semantic-release/release-notes-generator": "14.1.0",
     "semantic-release": "25.0.2"
   },
+  "resolutions": {
+    "undici": "7.19.0"
+  },
   "commitlint": {
     "extends": [
       "@commitlint/config-conventional"

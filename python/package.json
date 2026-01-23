@@ -27,6 +27,9 @@
     "semantic-release": "25.0.2",
     "semantic-release-pypi": "5.1.3"
   },
+  "resolutions": {
+    "undici": "7.19.0"
+  },
   "commitlint": {
     "extends": [
       "@commitlint/config-conventional"
