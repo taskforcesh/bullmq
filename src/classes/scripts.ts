@@ -21,7 +21,6 @@ import {
   ParentKeyOpts,
   RedisClient,
   WorkerOptions,
-  KeepJobs,
   MoveToDelayedOpts,
   RepeatableOptions,
   RetryJobOpts,
@@ -34,6 +33,7 @@ import {
   JobType,
   FinishedStatus,
   FinishedPropValAttribute,
+  KeepJobs,
   RedisJobOptions,
   JobProgress,
 } from '../types';
