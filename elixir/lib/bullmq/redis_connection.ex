@@ -349,7 +349,6 @@ defmodule BullMQ.RedisConnection do
     end
   end
 
-
   @doc """
   Gets the underlying redis options for creating new connections.
   """
