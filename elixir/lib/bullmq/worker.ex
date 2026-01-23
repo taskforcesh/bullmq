@@ -879,41 +879,6 @@ defmodule BullMQ.Worker do
     {:stop, {:lock_manager_crashed, reason}, state}
   end
 
-  defp worker_client_name(state) do
-    case state.name do
-      nil -> "#{state.prefix}:#{state.queue_name}"
-      name -> "#{state.prefix}:#{state.queue_name}:w:#{to_string(name)}"
-    end
-  end
-
-  defp set_worker_client_name(blocking_conn, state) do
-    client_name = worker_client_name(state)
-
-    case RedisConnection.set_client_name(blocking_conn, client_name) do
-      :ok -> :ok
-      {:error, _} -> :ok
-    end
-  end
-
-  defp attach_worker_client_name_handler(blocking_conn, state) do
-    client_name = worker_client_name(state)
-    handler_id = {:bullmq_worker_client_name, self(), make_ref()}
-
-    case :telemetry.attach(
-           handler_id,
-           [:redix, :connection],
-           fn _event, _measurements, metadata, _config ->
-             if metadata.connection == blocking_conn do
-               _ = RedisConnection.set_client_name(blocking_conn, client_name)
-             end
-           end,
-           :no_config
-         ) do
-      :ok -> handler_id
-      {:error, _} -> nil
-    end
-  end
-
   def handle_info(:fetch_jobs, %{closing: true} = state) do
     {:noreply, state}
   end
@@ -1049,6 +1014,41 @@ defmodule BullMQ.Worker do
   # Note: LockManager exits are handled separately above
   def handle_info({:EXIT, _pid, _reason}, state) do
     {:noreply, state}
+  end
+
+  defp worker_client_name(state) do
+    case state.name do
+      nil -> "#{state.prefix}:#{state.queue_name}"
+      name -> "#{state.prefix}:#{state.queue_name}:w:#{to_string(name)}"
+    end
+  end
+
+  defp set_worker_client_name(blocking_conn, state) do
+    client_name = worker_client_name(state)
+
+    case RedisConnection.set_client_name(blocking_conn, client_name) do
+      :ok -> :ok
+      {:error, _} -> :ok
+    end
+  end
+
+  defp attach_worker_client_name_handler(blocking_conn, state) do
+    client_name = worker_client_name(state)
+    handler_id = {:bullmq_worker_client_name, self(), make_ref()}
+
+    case :telemetry.attach(
+           handler_id,
+           [:redix, :connection],
+           fn _event, _measurements, metadata, _config ->
+             if metadata.connection == blocking_conn do
+               _ = RedisConnection.set_client_name(blocking_conn, client_name)
+             end
+           end,
+           :no_config
+         ) do
+      :ok -> handler_id
+      {:error, _} -> nil
+    end
   end
 
   @impl true
