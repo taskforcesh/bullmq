@@ -103,7 +103,7 @@
     "mocha": "11.7.5",
     "mocha-lcov-reporter": "1.3.0",
     "moment": "2.30.1",
-    "prettier": "3.7.4",
+    "prettier": "3.8.1",
     "pretty-quick": "4.2.2",
     "progress": "2.0.3",
     "rimraf": "6.1.2",
