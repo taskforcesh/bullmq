@@ -1,3 +1,5 @@
+## [5.67.1](https://github.com/taskforcesh/bullmq/compare/v5.67.0...v5.67.1) (2026-01-24)
+
 # [5.67.0](https://github.com/taskforcesh/bullmq/compare/v5.66.7...v5.67.0) (2026-01-24)
 
 
