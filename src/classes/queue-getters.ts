@@ -518,13 +518,13 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
           const list = this.parseClientList(clients, matcher);
           clientsPerNode.push(list);
         }
-        const nodeWithTheMostClients = clientsPerNode.reduce(
+        const clientsFromNodeWithMostConnections = clientsPerNode.reduce(
           (prev, current) => {
             return prev.length > current.length ? prev : current;
           },
           [],
         );
-        return nodeWithTheMostClients;
+        return clientsFromNodeWithMostConnections;
       } else {
         const clients = (await client.client('LIST')) as string;
         const list = this.parseClientList(clients, matcher);
