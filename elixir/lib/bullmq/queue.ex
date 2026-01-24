@@ -1324,19 +1324,56 @@ defmodule BullMQ.Queue do
   def get_workers(queue, opts) when is_binary(queue) do
     conn = Keyword.fetch!(opts, :connection)
     prefix = Keyword.get(opts, :prefix, "bull")
+    cluster_connections = Keyword.get(opts, :cluster_connections, [])
 
     client_name_prefix = "#{prefix}:#{queue}"
 
-    case RedisConnection.command(conn, ["CLIENT", "LIST"]) do
+    matcher = fn client ->
+      name = client["name"] || ""
+      name == client_name_prefix or String.starts_with?(name, "#{client_name_prefix}:w:")
+    end
+
+    client_list_result =
+      case cluster_connections do
+        connections when is_list(connections) and length(connections) > 0 ->
+          lists =
+            Enum.reduce(connections, [], fn connection, acc ->
+              case RedisConnection.command(connection, ["CLIENT", "LIST"]) do
+                {:ok, list} when is_binary(list) ->
+                  parsed =
+                    list
+                    |> String.split(~r/\r?\n/, trim: true)
+                    |> Enum.map(&parse_client_info/1)
+                    |> Enum.filter(matcher)
+
+                  [parsed | acc]
+
+                _ ->
+                  acc
+              end
+            end)
+
+          case lists do
+            [] -> {:ok, ""}
+            _ -> {:ok, Enum.max_by(lists, &length/1)}
+          end
+
+        _ ->
+          RedisConnection.command(conn, ["CLIENT", "LIST"])
+      end
+
+    case client_list_result do
+      {:ok, list} when is_list(list) ->
+        {:ok,
+         list
+         |> Enum.map(fn client -> Map.put(client, "queue", queue) end)}
+
       {:ok, client_list} when is_binary(client_list) ->
         workers =
           client_list
           |> String.split(~r/\r?\n/, trim: true)
           |> Enum.map(&parse_client_info/1)
-          |> Enum.filter(fn client ->
-            name = client["name"] || ""
-            name == client_name_prefix or String.starts_with?(name, "#{client_name_prefix}:w:")
-          end)
+          |> Enum.filter(matcher)
           |> Enum.map(fn client ->
             Map.put(client, "queue", queue)
           end)

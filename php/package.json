@@ -30,6 +30,12 @@
       "@commitlint/config-conventional"
     ]
   },
+  "resolutions": {
+    "diff": "8.0.3",
+    "lodash": "4.17.23",
+    "lodash-es": "4.17.23",
+    "undici": "7.19.0"
+  },
   "release": {
     "tagFormat": "vphp${version}",
     "plugins": [
