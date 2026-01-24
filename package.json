@@ -137,8 +137,12 @@
     ]
   },
   "resolutions": {
+    "diff": "8.0.3",
     "glob": "13.0.0",
-    "js-yaml": "4.1.1"
+    "js-yaml": "4.1.1",
+    "lodash": "4.17.23",
+    "lodash-es": "4.17.23",
+    "undici": "7.19.0"
   },
   "lint-staged": {
     "*.{js,ts}": "npm run eslint:fix"

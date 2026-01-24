@@ -226,6 +226,7 @@ defmodule BullMQ.Worker do
           keys: Keys.queue_context(),
           token: String.t(),
           blocking_conn: pid() | nil,
+          client_name_telemetry_id: term() | nil,
           stalled_timer: reference() | nil,
           lock_manager: pid() | nil,
           opts: map(),
@@ -249,6 +250,7 @@ defmodule BullMQ.Worker do
     :processor,
     :keys,
     :blocking_conn,
+    :client_name_telemetry_id,
     :stalled_timer,
     :lock_manager,
     :on_completed,
@@ -652,6 +654,7 @@ defmodule BullMQ.Worker do
       telemetry: Keyword.get(opts, :telemetry),
       remove_on_complete: Keyword.get(opts, :remove_on_complete),
       remove_on_fail: Keyword.get(opts, :remove_on_fail),
+      client_name_telemetry_id: nil,
       # Event callbacks
       on_completed: Keyword.get(opts, :on_completed),
       on_failed: Keyword.get(opts, :on_failed),
@@ -810,6 +813,8 @@ defmodule BullMQ.Worker do
     # Create blocking connection for BRPOPLPUSH
     case RedisConnection.blocking_connection(state.connection) do
       {:ok, blocking_conn} ->
+        set_worker_client_name(blocking_conn, state)
+        client_name_telemetry_id = attach_worker_client_name_handler(blocking_conn, state)
         # Start stalled job checker
         stalled_timer = schedule_stalled_check(state.stalled_interval)
 
@@ -836,6 +841,7 @@ defmodule BullMQ.Worker do
           state
           | running: true,
             blocking_conn: blocking_conn,
+            client_name_telemetry_id: client_name_telemetry_id,
             stalled_timer: stalled_timer,
             lock_manager: lock_manager
         }
@@ -1010,6 +1016,41 @@ defmodule BullMQ.Worker do
     {:noreply, state}
   end
 
+  defp worker_client_name(state) do
+    case state.name do
+      nil -> "#{state.prefix}:#{state.queue_name}"
+      name -> "#{state.prefix}:#{state.queue_name}:w:#{to_string(name)}"
+    end
+  end
+
+  defp set_worker_client_name(blocking_conn, state) do
+    client_name = worker_client_name(state)
+
+    case RedisConnection.set_client_name(blocking_conn, client_name) do
+      :ok -> :ok
+      {:error, _} -> :ok
+    end
+  end
+
+  defp attach_worker_client_name_handler(blocking_conn, state) do
+    client_name = worker_client_name(state)
+    handler_id = {:bullmq_worker_client_name, self(), make_ref()}
+
+    case :telemetry.attach(
+           handler_id,
+           [:redix, :connection],
+           fn _event, _measurements, metadata, _config ->
+             if metadata.connection == blocking_conn do
+               _ = RedisConnection.set_client_name(blocking_conn, client_name)
+             end
+           end,
+           :no_config
+         ) do
+      :ok -> handler_id
+      {:error, _} -> nil
+    end
+  end
+
   @impl true
   def terminate(_reason, state) do
     cleanup(state)
@@ -1161,6 +1202,7 @@ defmodule BullMQ.Worker do
       # Create a temporary blocking connection
       case RedisConnection.blocking_connection(state.connection) do
         {:ok, temp_conn} ->
+          set_worker_client_name(temp_conn, state)
           result = do_wait_for_job(temp_conn, marker_key, timeout_seconds)
           RedisConnection.close_blocking(state.connection, temp_conn)
           result
@@ -1668,6 +1710,10 @@ defmodule BullMQ.Worker do
     # Close blocking connection
     if state.blocking_conn do
       RedisConnection.close_blocking(state.connection, state.blocking_conn)
+    end
+
+    if state.client_name_telemetry_id do
+      :telemetry.detach(state.client_name_telemetry_id)
     end
 
     :ok

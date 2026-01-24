@@ -3,7 +3,7 @@ from typing import Union
 from bullmq.event_emitter import EventEmitter
 from bullmq.redis_connection import RedisConnection
 from bullmq.types import QueueBaseOptions, RetryJobsOptions, JobOptions, PromoteJobsOptions
-from bullmq.utils import extract_result
+from bullmq.utils import extract_result, is_redis_cluster, get_cluster_nodes, get_node_client
 from bullmq.scripts import Scripts
 from bullmq.job import Job
 
@@ -116,6 +116,87 @@ class Queue(EventEmitter):
         Returns the time to live for a rate limited key in milliseconds.
         """
         return self.client.pttl(self.keys["limiter"])
+
+    async def get_workers(self):
+        """
+        Get the worker list related to the queue. i.e. all the known
+        workers that are available to process jobs for this queue.
+        Note: Some Redis providers do not support CLIENT LIST.
+        """
+        client_name_prefix = self.qualifiedName
+
+        def matcher(name: str):
+            return name == client_name_prefix or name.startswith(f"{client_name_prefix}:w:")
+
+        return await self._base_get_clients(matcher)
+
+    async def get_workers_count(self):
+        workers = await self.get_workers()
+        return len(workers)
+
+    async def _base_get_clients(self, matcher):
+        client = self.client
+        try:
+            if is_redis_cluster(client):
+                nodes = get_cluster_nodes(client)
+                clients_per_node = []
+                for node in nodes:
+                    node_client = get_node_client(node)
+                    client_list = await self._get_client_list(node_client)
+                    clients_per_node.append(self._parse_client_list(client_list, matcher))
+
+                if not clients_per_node:
+                    return []
+
+                return max(clients_per_node, key=len)
+
+            client_list = await self._get_client_list(client)
+            return self._parse_client_list(client_list, matcher)
+        except Exception as err:
+            message = str(err)
+            if "unknown command" in message and "CLIENT" in message:
+                return [{"name": "CLIENT LIST not supported"}]
+            raise
+
+    async def _get_client_list(self, client):
+        if hasattr(client, "client_list"):
+            return await client.client_list()
+        return await client.execute_command("CLIENT", "LIST")
+
+    def _parse_client_list(self, client_list, matcher):
+        if isinstance(client_list, bytes):
+            client_list = client_list.decode()
+
+        clients = []
+        if isinstance(client_list, list):
+            clients = client_list
+        elif isinstance(client_list, str):
+            lines = client_list.splitlines()
+            for line in lines:
+                if not line:
+                    continue
+                client = {}
+                for key_value in line.split(" "):
+                    if "=" not in key_value:
+                        continue
+                    key, value = key_value.split("=", 1)
+                    client[key] = value
+                clients.append(client)
+
+        result = []
+        for client in clients:
+            name = ""
+            if isinstance(client, dict):
+                name = client.get("name") or ""
+                if isinstance(name, bytes):
+                    name = name.decode()
+            if matcher(name):
+                client_copy = dict(client)
+                client_copy["rawname"] = name
+                client_copy["name"] = self.name
+                result.append(client_copy)
+
+        return result
 
     async def getJobLogs(self, job_id:str, start = 0, end = -1, asc = True):
         """

@@ -8,7 +8,7 @@ from redis.exceptions import (
    TimeoutError
 )
 import warnings
-from bullmq.utils import isRedisVersionLowerThan
+from bullmq.utils import isRedisVersionLowerThan, is_redis_cluster, get_cluster_nodes, get_node_client
 
 class RedisConnection:
     """
@@ -72,3 +72,34 @@ class RedisConnection:
             "canDoubleTimeout": not isRedisVersionLowerThan(self.version, '6.0.0')
         }
         return self.version
+
+    async def set_client_name(self, name: str):
+        if not name:
+            return
+
+        self.client_name = name
+
+        if is_redis_cluster(self.conn):
+            nodes = get_cluster_nodes(self.conn)
+            for node in nodes:
+                node_client = get_node_client(node)
+                self._set_client_name_on_pool(node_client, name)
+                await self._set_client_name_on_client(node_client, name)
+        else:
+            self._set_client_name_on_pool(self.conn, name)
+            await self._set_client_name_on_client(self.conn, name)
+
+    async def _set_client_name_on_client(self, client, name: str):
+        if hasattr(client, "client_setname"):
+            await client.client_setname(name)
+        else:
+            await client.execute_command("CLIENT", "SETNAME", name)
+
+    def _set_client_name_on_pool(self, client, name: str):
+        pool = getattr(client, "connection_pool", None)
+        if pool is None:
+            return
+
+        connection_kwargs = getattr(pool, "connection_kwargs", None)
+        if isinstance(connection_kwargs, dict):
+            connection_kwargs["client_name"] = name

@@ -4,6 +4,10 @@ import redis.asyncio as redis
 
 
 class WorkerOptions(TypedDict, total=False):
+    name: str
+    """
+    Optional worker name used to set the Redis client name.
+    """
     autorun: bool
     """
     Condition to start processor at instance creation
