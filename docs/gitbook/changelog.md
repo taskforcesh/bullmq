@@ -1,3 +1,10 @@
+# [5.67.0](https://github.com/taskforcesh/bullmq/compare/v5.66.7...v5.67.0) (2026-01-24)
+
+
+### Features
+
+* **job:** add job name and id as telemetry attributes in complete, retry, delay and failed spans ([#3707](https://github.com/taskforcesh/bullmq/issues/3707)) ref [#3692](https://github.com/taskforcesh/bullmq/issues/3692) ([6294b36](https://github.com/taskforcesh/bullmq/commit/6294b36f775c20f7d43387d9bde3185629e88df4))
+
 ## [5.66.7](https://github.com/taskforcesh/bullmq/compare/v5.66.6...v5.66.7) (2026-01-23)
 
 
