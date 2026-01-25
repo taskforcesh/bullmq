@@ -213,12 +213,10 @@ defmodule BullMQ.JobScheduler do
         :ok
 
       {:error, {:invalid_scheduler_id, message}} = error ->
-        require Logger
         Logger.error("[BullMQ.JobScheduler] #{message}")
         error
 
       {:error, reason} = error ->
-        require Logger
         Logger.error("[BullMQ.JobScheduler] Invalid scheduler_id: #{inspect(reason)}")
         error
     end
@@ -256,7 +254,6 @@ defmodule BullMQ.JobScheduler do
             end
 
           {:error, reason} = error ->
-            require Logger
             Logger.error("[BullMQ.JobScheduler] Invalid repeat options: #{inspect(reason)}")
             error
         end
