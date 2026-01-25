@@ -41,3 +41,49 @@ def object_to_flat_array(obj: dict[str, Any]) -> list[Any]:
         arr.append(key)
         arr.append(value)
     return arr
+
+
+def is_redis_cluster(client: Any) -> bool:
+    try:
+        from redis.asyncio.cluster import RedisCluster
+    except Exception:
+        RedisCluster = None
+
+    if RedisCluster is not None and isinstance(client, RedisCluster):
+        return True
+
+    return bool(
+        getattr(client, "is_cluster", False)
+        or getattr(client, "isCluster", False)
+        or getattr(client, "nodes_manager", None)
+    )
+
+
+def get_cluster_nodes(client: Any) -> list[Any]:
+    if hasattr(client, "get_nodes") and callable(getattr(client, "get_nodes")):
+        try:
+            return list(client.get_nodes())
+        except Exception:
+            return []
+
+    nodes_manager = getattr(client, "nodes_manager", None)
+    if nodes_manager is not None and hasattr(nodes_manager, "nodes_cache"):
+        try:
+            return list(nodes_manager.nodes_cache.values())
+        except Exception:
+            return []
+
+    if hasattr(client, "nodes") and callable(getattr(client, "nodes")):
+        try:
+            return list(client.nodes())
+        except Exception:
+            return []
+
+    return []
+
+
+def get_node_client(node: Any) -> Any:
+    for attr in ("client", "redis", "connection", "redis_connection"):
+        if hasattr(node, attr):
+            return getattr(node, attr)
+    return node

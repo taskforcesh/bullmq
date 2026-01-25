@@ -107,6 +107,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
     local maxMetricsSize = opts['maxMetricsSize']
     local maxCount = opts['keepJobs']['count']
     local maxAge = opts['keepJobs']['age']
+    local maxLimit = opts['keepJobs']['limit'] or 1000
 
     local jobAttributes = rcall("HMGET", jobIdKey, "parentKey", "parent", "deid")
     local parentKey = jobAttributes[1] or ""
@@ -175,7 +176,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
 
         -- Remove old jobs?
         if maxAge ~= nil then
-            removeJobsByMaxAge(timestamp, maxAge, targetSet, prefix)
+            removeJobsByMaxAge(timestamp, maxAge, targetSet, prefix, maxLimit)
         end
 
         if maxCount ~= nil and maxCount > 0 then

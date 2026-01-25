@@ -1,3 +1,24 @@
+## [2.19.3](https://github.com/taskforcesh/bullmq/compare/vpy2.19.2...vpy2.19.3) (2026-01-24)
+
+
+### Bug Fixes
+
+* fix worker connection name on cluster [#3340](https://github.com/taskforcesh/bullmq/issues/3340) ([#3660](https://github.com/taskforcesh/bullmq/issues/3660)) ([fa22e84](https://github.com/taskforcesh/bullmq/commit/fa22e844d29961db95df58f2ae63b440d71c11f6))
+
+## [2.19.2](https://github.com/taskforcesh/bullmq/compare/vpy2.19.1...vpy2.19.2) (2026-01-22)
+
+
+### Bug Fixes
+
+* **queue:** add missing defaultJobOptions field to QueueBaseOptions TypedDict [python] ([#3702](https://github.com/taskforcesh/bullmq/issues/3702)) fixes [#3695](https://github.com/taskforcesh/bullmq/issues/3695) ([61504f1](https://github.com/taskforcesh/bullmq/commit/61504f12fe591295fea5b087a6b7c533465e8653))
+
+## [2.19.1](https://github.com/taskforcesh/bullmq/compare/vpy2.19.0...vpy2.19.1) (2026-01-22)
+
+
+### Performance Improvements
+
+* **job:** apply limit when removing jobs by max age (python) (elixir) ([#3694](https://github.com/taskforcesh/bullmq/issues/3694)) fixes [#3672](https://github.com/taskforcesh/bullmq/issues/3672) ([a8fc316](https://github.com/taskforcesh/bullmq/commit/a8fc316c0989bd3edb54577ceb02bff0c600aa93))
+
 # [2.19.0](https://github.com/taskforcesh/bullmq/compare/vpy2.18.3...vpy2.19.0) (2026-01-13)
 
 

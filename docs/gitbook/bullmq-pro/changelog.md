@@ -1,16 +1,43 @@
+## [7.41.1](https://github.com/taskforcesh/bullmq-pro/compare/v7.41.0...v7.41.1) (2026-01-19)
+
+
+### Bug Fixes
+
+* **types:** export all pro types ([#400](https://github.com/taskforcesh/bullmq-pro/issues/400)) ([8055d53](https://github.com/taskforcesh/bullmq-pro/commit/8055d539b51e3f3c3c68a0c74adbb0d6e867a34e))
+
 # [7.41.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.40.3...v7.41.0) (2025-12-28)
+
+
+### Bug Fixes
+
+* **flow:** remove deduplication option from flow producer ([#3637](https://github.com/taskforcesh/bullmq/issues/3637)) ([f60c172](https://github.com/taskforcesh/bullmq/commit/f60c172725ab29c0159b804ae0b9d691105689c4))
+* **telemetry:** send most updated attemptsMade value when finishing ([#3623](https://github.com/taskforcesh/bullmq/issues/3623)) ([1380a16](https://github.com/taskforcesh/bullmq/commit/1380a16fa45c70f0bc5b938efdf178b33a19cac1))
+* **deps:** pin dependencies ([#3609](https://github.com/taskforcesh/bullmq/issues/3609)) ([5fbf778](https://github.com/taskforcesh/bullmq/commit/5fbf778f0b8f58b90e82f9020c041f3248b0b269))
 
 
 ### Features
 
-* **deps:** upgrade bullmq to v5.66.3 ([#397](https://github.com/taskforcesh/bullmq-pro/issues/397)) ([e588bef](https://github.com/taskforcesh/bullmq-pro/commit/e588bef039a4de8fda16b4e27caec1056247b18a))
+* **job:** allow resetting attemptsMade and attemptsStarted attributes on retry ([#3596](https://github.com/taskforcesh/bullmq/issues/3596)) ref [#2152](https://github.com/taskforcesh/bullmq/issues/2152) ([241d847](https://github.com/taskforcesh/bullmq/commit/241d847fbc798d957bf25ccfaa5c9ec96928a4ae))
 
 ## [7.40.3](https://github.com/taskforcesh/bullmq-pro/compare/v7.40.2...v7.40.3) (2025-12-08)
 
 
 ### Bug Fixes
 
-* **deps:** upgrade bullmq to v5.65.1 and address js-yaml and glob ([#389](https://github.com/taskforcesh/bullmq-pro/issues/389)) ([db12dfd](https://github.com/taskforcesh/bullmq-pro/commit/db12dfda63135ed3f3799a6ca4d52c16ebadd205))
+* **job:** remove deferredFailure when moving job to failed
+* **stalled:** prevent lock errors while job is not longer in active state ([#3579](https://github.com/taskforcesh/bullmq/issues/3579)) ([a8b9d76](https://github.com/taskforcesh/bullmq/commit/a8b9d76496afa5e913f823cf8c68eb428f6dd757))
+* **connection:** consider error code when checking connection error ([#3537](https://github.com/taskforcesh/bullmq/issues/3537)) ([045f3e7](https://github.com/taskforcesh/bullmq/commit/045f3e7a5d8edb85e1adbe82eb9e20ef33ad491b))
+
+
+### Features
+
+* **job:** support removeDeduplicationKey method ([#3575](https://github.com/taskforcesh/bullmq/issues/3575)) ([b059cfc](https://github.com/taskforcesh/bullmq/commit/b059cfcba48524446a62fd29785142c3d1edc30d))
+* **worker:** add job cancellation ([#3564](https://github.com/taskforcesh/bullmq/issues/3564)) ([f41f5d0](https://github.com/taskforcesh/bullmq/commit/f41f5d0c64afe7707ad8c23a86cb9228c4d45671))
+
+
+### Performance Improvements
+
+* **worker:** promote delayed jobs while queue is rate limited ([#3561](https://github.com/taskforcesh/bullmq/issues/3561)) ([a474801](https://github.com/taskforcesh/bullmq/commit/a47480111a2f1238a57ea9bfbab44f7de958227f))
 
 ## [7.40.2](https://github.com/taskforcesh/bullmq-pro/compare/v7.40.1...v7.40.2) (2025-11-25)
 

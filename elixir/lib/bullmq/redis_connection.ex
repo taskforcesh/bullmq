@@ -332,6 +332,24 @@ defmodule BullMQ.RedisConnection do
   end
 
   @doc """
+  Sets the Redis client name on a connection or pid.
+  """
+  @spec set_client_name(connection() | pid(), String.t()) :: :ok | {:error, term()}
+  def set_client_name(conn, name) when is_pid(conn) do
+    case Redix.command(conn, ["CLIENT", "SETNAME", name]) do
+      {:ok, _} -> :ok
+      {:error, _} = error -> error
+    end
+  end
+
+  def set_client_name(conn, name) do
+    case command(conn, ["CLIENT", "SETNAME", name]) do
+      {:ok, _} -> :ok
+      {:error, _} = error -> error
+    end
+  end
+
+  @doc """
   Gets the underlying redis options for creating new connections.
   """
   @spec get_redis_opts(connection()) :: keyword()

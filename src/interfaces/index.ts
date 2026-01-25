@@ -7,7 +7,6 @@ export * from './flow-job';
 export * from './ioredis-events';
 export * from './job-json';
 export * from './job-scheduler-json';
-export * from './keep-jobs';
 export * from './lock-manager-worker-context';
 export * from './metrics-options';
 export * from './metrics';

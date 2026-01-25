@@ -2,7 +2,7 @@ import { AdvancedOptions } from './advanced-options';
 import { QueueBaseOptions } from './queue-options';
 import { RateLimiterOptions } from './rate-limiter-options';
 import { MetricsOptions } from './metrics-options';
-import { KeepJobs } from './keep-jobs';
+import { KeepJobs } from '../types/keep-jobs';
 import { Telemetry } from './telemetry';
 import { SandboxedOptions } from './sandboxed-options';
 

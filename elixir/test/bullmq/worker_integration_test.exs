@@ -183,6 +183,72 @@ defmodule BullMQ.WorkerIntegrationTest do
       Worker.close(worker)
       Agent.stop(counter)
     end
+
+    @tag :integration
+    @tag timeout: 15_000
+    test "worker removes completed jobs with age and limit options", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      test_pid = self()
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            # Simulate some work
+            Process.sleep(50)
+            {:ok, job.data["value"]}
+          end,
+          remove_on_complete: %{age: 1, limit: 5},
+          on_completed: fn _job, _result ->
+            send(test_pid, :completed)
+          end
+        )
+
+      # Add multiple jobs to test removal behavior
+      jobs =
+        Enum.map(1..10, fn i ->
+          {"test-job", %{value: i}, []}
+        end)
+
+      {:ok, _} = Queue.add_bulk(queue_name, jobs, connection: conn, prefix: @test_prefix)
+
+      # Wait for all jobs to complete
+      for _ <- 1..10, do: assert_receive(:completed, 5_000)
+
+      # Check initial state
+      {:ok, counts_before} = Queue.get_counts(queue_name, connection: conn, prefix: @test_prefix)
+      IO.puts("Completed jobs before aging: #{counts_before.completed}")
+
+      # Allow time for cleanup to happen (jobs older than 1 second)
+      Process.sleep(1200)
+
+      # Add one more job to trigger cleanup
+      {:ok, _} =
+        Queue.add(queue_name, "trigger-cleanup", %{value: 11},
+          connection: conn,
+          prefix: @test_prefix
+        )
+
+      assert_receive(:completed, 5_000)
+
+      # Check that only some jobs remain (due to limit: 5 per cleanup iteration)
+      {:ok, counts} = Queue.get_counts(queue_name, connection: conn, prefix: @test_prefix)
+      IO.puts("Completed jobs after cleanup: #{counts.completed}")
+
+      # Should have fewer than 11 completed jobs due to age-based cleanup with limit
+      # With limit: 5, up to 5 jobs should be removed per cleanup iteration
+      # Since all 10 original jobs are older than 1 second, cleanup should remove some jobs
+      # Should have removed some jobs
+      assert counts.completed < 11
+      # Should have at least 1 job (the trigger job)
+      assert counts.completed >= 1
+
+      Worker.close(worker)
+    end
   end
 
   # ---------------------------------------------------------------------------

@@ -13,6 +13,7 @@ import {
   RedisClient,
   RetryOptions,
   WorkerOptions,
+  Span,
 } from '../interfaces';
 import {
   FinishedStatus,
@@ -39,7 +40,7 @@ import { Backoffs } from './backoffs';
 import { Scripts } from './scripts';
 import { UnrecoverableError } from './errors/unrecoverable-error';
 import type { QueueEvents } from './queue-events';
-import { SpanKind } from '../enums';
+import { SpanKind, TelemetryAttributes } from '../enums';
 
 const logger = debuglog('bull');
 
@@ -58,8 +59,7 @@ export class Job<
   DataType = any,
   ReturnType = any,
   NameType extends string = string,
-> implements MinimalJob<DataType, ReturnType, NameType>
-{
+> implements MinimalJob<DataType, ReturnType, NameType> {
   /**
    * It includes the prefix, the namespace separator :, and queue name.
    * @see {@link https://www.gnu.org/software/gawk/manual/html_node/Qualified-Names.html}
@@ -722,11 +722,8 @@ export class Job<
       SpanKind.INTERNAL,
       'complete',
       this.queue.name,
-      async (span, dstPropagationMedatadata) => {
-        let tm;
-        if (!this.opts?.telemetry?.omitContext && dstPropagationMedatadata) {
-          tm = dstPropagationMedatadata;
-        }
+      async span => {
+        this.setSpanJobAttributes(span);
 
         await this.queue.waitUntilReady();
 
@@ -813,6 +810,8 @@ export class Job<
       this.getSpanOperation(shouldRetry, retryDelay),
       this.queue.name,
       async (span, dstPropagationMedatadata) => {
+        this.setSpanJobAttributes(span);
+
         let tm;
         if (!this.opts?.telemetry?.omitContext && dstPropagationMedatadata) {
           tm = dstPropagationMedatadata;
@@ -1559,6 +1558,13 @@ export class Job<
         this.stacktrace = this.stacktrace.slice(-this.opts.stackTraceLimit);
       }
     }
+  }
+
+  private setSpanJobAttributes(span?: Span) {
+    span?.setAttributes({
+      [TelemetryAttributes.JobName]: this.name,
+      [TelemetryAttributes.JobId]: this.id,
+    });
   }
 }
 

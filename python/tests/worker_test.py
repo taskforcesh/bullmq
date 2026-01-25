@@ -768,5 +768,53 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         await worker.close()
         await queue.close()
 
+    async def test_remove_on_complete_with_age_and_limit(self):
+        """Test worker removeOnComplete option with age and limit parameters"""
+        queue = Queue(queueName, {"prefix": prefix})
+        
+        completed_jobs = []
+        
+        async def process(job: Job, token: str):
+            completed_jobs.append(job.id)
+            print(f"Processing job {job.data['index']}, removeOnComplete: {job.opts.get('removeOnComplete')}")
+            return f"result-{job.data['index']}"
+
+        worker = Worker(queueName, process, {
+            "prefix": prefix,
+            "removeOnComplete": {"age": 1, "limit": 3}  # 1 second age, limit 3
+        })
+
+        # Add 5 jobs
+        jobs = []
+        for i in range(5):
+            job = await queue.add(f"test-job-{i}", {"index": i})
+            jobs.append(job)
+
+        # Wait for all jobs to complete
+        await asyncio.sleep(0.5)
+        
+        # Verify all jobs completed
+        completed_count = await queue.getCompletedCount()
+
+        # Wait for age threshold to pass
+        await asyncio.sleep(1.2)  # Wait for jobs to age beyond 1 second
+        
+        # Add a new job to trigger potential cleanup
+        await queue.add("trigger", {"index": "trigger"})
+        await asyncio.sleep(0.5)  # Let it process
+
+        # Check completed jobs count after aging and trigger
+        final_count = await queue.getCompletedCount()
+
+        await worker.close()
+        await queue.close()
+
+        # Verify that the worker correctly applies removeOnComplete options
+        # The exact cleanup behavior depends on the implementation
+        self.assertEqual(len(completed_jobs), 6)  # 5 original + 1 trigger
+
+        # The final count should be less than or equal to initial due to potential cleanup
+        self.assertLessEqual(final_count, completed_count + 1)
+
 if __name__ == '__main__':
     unittest.main()

@@ -148,6 +148,16 @@ defmodule BullMQ.Worker do
                    default: true,
                    doc: "Whether to start processing jobs automatically."
                  ],
+                 remove_on_complete: [
+                   type: {:or, [:boolean, :pos_integer, :map]},
+                   doc:
+                     "Auto-removal configuration for completed jobs. Can be boolean, integer (count), or map with age/count/limit keys."
+                 ],
+                 remove_on_fail: [
+                   type: {:or, [:boolean, :pos_integer, :map]},
+                   doc:
+                     "Auto-removal configuration for failed jobs. Can be boolean, integer (count), or map with age/count/limit keys."
+                 ],
                  # Event callbacks
                  on_completed: [
                    type: {:or, [{:fun, 2}, nil]},
@@ -216,10 +226,13 @@ defmodule BullMQ.Worker do
           keys: Keys.queue_context(),
           token: String.t(),
           blocking_conn: pid() | nil,
+          client_name_telemetry_id: term() | nil,
           stalled_timer: reference() | nil,
           lock_manager: pid() | nil,
           opts: map(),
           telemetry: module() | nil,
+          remove_on_complete: term() | nil,
+          remove_on_fail: term() | nil,
           # Event callbacks (like Node.js worker.on('completed', ...))
           on_completed: (Job.t(), term() -> any()) | nil,
           on_failed: (Job.t(), String.t() -> any()) | nil,
@@ -237,6 +250,7 @@ defmodule BullMQ.Worker do
     :processor,
     :keys,
     :blocking_conn,
+    :client_name_telemetry_id,
     :stalled_timer,
     :lock_manager,
     :on_completed,
@@ -247,6 +261,8 @@ defmodule BullMQ.Worker do
     :on_stalled,
     :on_lock_renewal_failed,
     :telemetry,
+    :remove_on_complete,
+    :remove_on_fail,
     prefix: "bull",
     concurrency: @default_concurrency,
     lock_duration: @default_lock_duration,
@@ -636,6 +652,9 @@ defmodule BullMQ.Worker do
       token: generate_token(),
       opts: Map.new(opts),
       telemetry: Keyword.get(opts, :telemetry),
+      remove_on_complete: Keyword.get(opts, :remove_on_complete),
+      remove_on_fail: Keyword.get(opts, :remove_on_fail),
+      client_name_telemetry_id: nil,
       # Event callbacks
       on_completed: Keyword.get(opts, :on_completed),
       on_failed: Keyword.get(opts, :on_failed),
@@ -794,6 +813,8 @@ defmodule BullMQ.Worker do
     # Create blocking connection for BRPOPLPUSH
     case RedisConnection.blocking_connection(state.connection) do
       {:ok, blocking_conn} ->
+        set_worker_client_name(blocking_conn, state)
+        client_name_telemetry_id = attach_worker_client_name_handler(blocking_conn, state)
         # Start stalled job checker
         stalled_timer = schedule_stalled_check(state.stalled_interval)
 
@@ -820,6 +841,7 @@ defmodule BullMQ.Worker do
           state
           | running: true,
             blocking_conn: blocking_conn,
+            client_name_telemetry_id: client_name_telemetry_id,
             stalled_timer: stalled_timer,
             lock_manager: lock_manager
         }
@@ -994,6 +1016,41 @@ defmodule BullMQ.Worker do
     {:noreply, state}
   end
 
+  defp worker_client_name(state) do
+    case state.name do
+      nil -> "#{state.prefix}:#{state.queue_name}"
+      name -> "#{state.prefix}:#{state.queue_name}:w:#{to_string(name)}"
+    end
+  end
+
+  defp set_worker_client_name(blocking_conn, state) do
+    client_name = worker_client_name(state)
+
+    case RedisConnection.set_client_name(blocking_conn, client_name) do
+      :ok -> :ok
+      {:error, _} -> :ok
+    end
+  end
+
+  defp attach_worker_client_name_handler(blocking_conn, state) do
+    client_name = worker_client_name(state)
+    handler_id = {:bullmq_worker_client_name, self(), make_ref()}
+
+    case :telemetry.attach(
+           handler_id,
+           [:redix, :connection],
+           fn _event, _measurements, metadata, _config ->
+             if metadata.connection == blocking_conn do
+               _ = RedisConnection.set_client_name(blocking_conn, client_name)
+             end
+           end,
+           :no_config
+         ) do
+      :ok -> handler_id
+      {:error, _} -> nil
+    end
+  end
+
   @impl true
   def terminate(_reason, state) do
     cleanup(state)
@@ -1145,6 +1202,7 @@ defmodule BullMQ.Worker do
       # Create a temporary blocking connection
       case RedisConnection.blocking_connection(state.connection) do
         {:ok, temp_conn} ->
+          set_worker_client_name(temp_conn, state)
           result = do_wait_for_job(temp_conn, marker_key, timeout_seconds)
           RedisConnection.close_blocking(state.connection, temp_conn)
           result
@@ -1406,7 +1464,7 @@ defmodule BullMQ.Worker do
             job.id,
             job.token,
             return_value,
-            build_move_opts(state.opts, job)
+            build_move_opts(state, job)
           )
       end
 
@@ -1515,7 +1573,7 @@ defmodule BullMQ.Worker do
           job.id,
           job.token,
           error_message,
-          build_move_opts(state.opts, job) ++ [stacktrace: formatted_stacktrace]
+          build_move_opts(state, job) ++ [stacktrace: formatted_stacktrace]
         )
       end
 
@@ -1557,35 +1615,19 @@ defmodule BullMQ.Worker do
   end
 
   # Build options for move_to_finished/completed/failed calls
-  defp build_move_opts(worker_opts, job) when is_map(worker_opts) do
+  defp build_move_opts(state, job) do
     [
-      lock_duration: Map.get(worker_opts, :lock_duration, 30_000),
+      lock_duration: state.lock_duration,
       fetch_next: true,
-      name: Map.get(worker_opts, :name),
+      name: state.name,
       attempts: get_job_opt(job, :attempts, "attempts", 0),
-      limiter: Map.get(worker_opts, :limiter),
-      remove_on_complete: Map.get(worker_opts, :remove_on_complete, %{"count" => -1}),
-      remove_on_fail: Map.get(worker_opts, :remove_on_fail, %{"count" => -1}),
-      fail_parent_on_failure: Map.get(worker_opts, :fail_parent_on_failure, false),
-      continue_parent_on_failure: Map.get(worker_opts, :continue_parent_on_failure, false),
-      ignore_dependency_on_failure: Map.get(worker_opts, :ignore_dependency_on_failure, false),
-      remove_dependency_on_failure: Map.get(worker_opts, :remove_dependency_on_failure, false)
-    ]
-  end
-
-  defp build_move_opts(worker_opts, job) when is_list(worker_opts) do
-    [
-      lock_duration: Keyword.get(worker_opts, :lock_duration, 30_000),
-      fetch_next: true,
-      name: Keyword.get(worker_opts, :name),
-      attempts: get_job_opt(job, :attempts, "attempts", 0),
-      limiter: Keyword.get(worker_opts, :limiter),
-      remove_on_complete: Keyword.get(worker_opts, :remove_on_complete, %{"count" => -1}),
-      remove_on_fail: Keyword.get(worker_opts, :remove_on_fail, %{"count" => -1}),
-      fail_parent_on_failure: Keyword.get(worker_opts, :fail_parent_on_failure, false),
-      continue_parent_on_failure: Keyword.get(worker_opts, :continue_parent_on_failure, false),
-      ignore_dependency_on_failure: Keyword.get(worker_opts, :ignore_dependency_on_failure, false),
-      remove_dependency_on_failure: Keyword.get(worker_opts, :remove_dependency_on_failure, false)
+      limiter: state.limiter,
+      remove_on_complete: state.remove_on_complete || %{"count" => -1},
+      remove_on_fail: state.remove_on_fail || %{"count" => -1},
+      fail_parent_on_failure: false,
+      continue_parent_on_failure: false,
+      ignore_dependency_on_failure: false,
+      remove_dependency_on_failure: false
     ]
   end
 
@@ -1668,6 +1710,10 @@ defmodule BullMQ.Worker do
     # Close blocking connection
     if state.blocking_conn do
       RedisConnection.close_blocking(state.connection, state.blocking_conn)
+    end
+
+    if state.client_name_telemetry_id do
+      :telemetry.detach(state.client_name_telemetry_id)
     end
 
     :ok
