@@ -93,13 +93,14 @@ defmodule BullMQ.Telemetry.OpenTelemetry do
   @behaviour BullMQ.Telemetry.Behaviour
 
   # Suppress warnings for optional OpenTelemetry dependencies
-  @compile {:no_warn_undefined, [
-    :opentelemetry,
-    :otel_ctx,
-    :otel_tracer,
-    :otel_span,
-    :otel_propagator_text_map
-  ]}
+  @compile {:no_warn_undefined,
+            [
+              :opentelemetry,
+              :otel_ctx,
+              :otel_tracer,
+              :otel_span,
+              :otel_propagator_text_map
+            ]}
 
   @doc """
   Checks if OpenTelemetry is available and properly configured.

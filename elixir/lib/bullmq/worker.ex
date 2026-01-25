@@ -1758,7 +1758,8 @@ defmodule BullMQ.Worker do
           # Limit reached, don't schedule next job
           :ok
 
-        Map.get(repeat_opts, "endDate") && System.system_time(:millisecond) > Map.get(repeat_opts, "endDate") ->
+        Map.get(repeat_opts, "endDate") &&
+            System.system_time(:millisecond) > Map.get(repeat_opts, "endDate") ->
           # End date passed, don't schedule next job
           :ok
 
