@@ -37,7 +37,12 @@ export class ChildProcessor {
     let processor;
     try {
       const { default: processorFn } = await import(processorFile);
-      processor = processorFn;
+
+      if (processorFn instanceof Promise) {
+        processor = await processorFn;
+      } else {
+        processor = processorFn;
+      }
 
       if (processor.default) {
         // support es2015 module.
