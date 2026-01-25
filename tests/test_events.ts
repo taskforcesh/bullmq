@@ -852,7 +852,7 @@ describe('events', function () {
   });
 
   describe('when publishing custom events', function () {
-    it('emits waiting when a job has been added', async () => {
+    it('emits custom event', async () => {
       const queueName2 = `test-${v4()}`;
       const queueEventsProducer = new QueueEventsProducer(queueName2, {
         connection,
@@ -893,6 +893,51 @@ describe('events', function () {
       await queueEventsProducer.close();
       await queueEvents2.close();
       await removeAllQueueData(new IORedis(redisHost), queueName2);
+    });
+
+    describe('when published event is an object', function () {
+      it('deserialize event', async () => {
+        const queueName2 = `test-${v4()}`;
+        const queueEventsProducer = new QueueEventsProducer(queueName2, {
+          connection,
+          prefix,
+        });
+        const queueEvents2 = new QueueEvents(queueName2, {
+          autorun: false,
+          connection,
+          prefix,
+          lastEventId: '0-0',
+        });
+        await queueEvents2.waitUntilReady();
+
+        interface CustomListener extends QueueEventsListener {
+          example: (args: { custom: { foo: string } }, id: string) => void;
+        }
+        const customEvent = new Promise<void>(resolve => {
+          queueEvents2.on<CustomListener>('example', async ({ custom }) => {
+            await delay(250);
+            await expect(custom.foo).to.be.equal('value');
+            resolve();
+          });
+        });
+
+        interface CustomEventPayload {
+          eventName: string;
+          custom: { foo: string };
+        }
+
+        await queueEventsProducer.publishEvent<CustomEventPayload>({
+          eventName: 'example',
+          custom: { foo: 'value' },
+        });
+
+        queueEvents2.run();
+        await customEvent;
+
+        await queueEventsProducer.close();
+        await queueEvents2.close();
+        await removeAllQueueData(new IORedis(redisHost), queueName2);
+      });
     });
   });
 });
