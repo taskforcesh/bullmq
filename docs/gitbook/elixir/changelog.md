@@ -3,7 +3,7 @@
 
 ### Bug Fixes
 
-* fix worker connection name on cluster [#3340](https://github.com/taskforcesh/bullmq/issues/3340) ([#3660](https://github.com/taskforcesh/bullmq/issues/3660)) ([fa22e84](https://github.com/taskforcesh/bullmq/commit/fa22e844d29961db95df58f2ae63b440d71c11f6))
+* fix worker connection name on cluster [#3340](https://github.com/taskforcesh/bullmq/issues/3340) (elixir) (python) ([#3660](https://github.com/taskforcesh/bullmq/issues/3660)) ([fa22e84](https://github.com/taskforcesh/bullmq/commit/fa22e844d29961db95df58f2ae63b440d71c11f6))
 
 ## [1.2.3](https://github.com/taskforcesh/bullmq/compare/vex1.2.2...vex1.2.3) (2026-01-22)
 
