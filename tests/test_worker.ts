@@ -3973,6 +3973,58 @@ describe('workers', function () {
         });
       });
 
+      describe('when moveToDelayed is called without token', () => {
+        it('should throw an error immediately', async function () {
+          const worker = new Worker(
+            queueName,
+            async job => {
+              await job.moveToDelayed(Date.now());
+            },
+            { connection, prefix },
+          );
+
+          await worker.waitUntilReady();
+
+          await queue.add('test', {});
+
+          await new Promise<void>(resolve => {
+            worker.on('failed', (job, err) => {
+              expect(err.message).to.include('Missing token');
+              expect(err.message).to.include('moveToDelayed');
+              resolve();
+            });
+          });
+
+          await worker.close();
+        });
+      });
+
+      describe('when moveToWaitingChildren is called without token', () => {
+        it('should throw an error immediately', async function () {
+          const worker = new Worker(
+            queueName,
+            async job => {
+              await job.moveToWaitingChildren('');
+            },
+            { connection, prefix },
+          );
+
+          await worker.waitUntilReady();
+
+          await queue.add('test', {});
+
+          await new Promise<void>(resolve => {
+            worker.on('failed', (job, err) => {
+              expect(err.message).to.include('Missing token');
+              expect(err.message).to.include('moveToWaitingChildren');
+              resolve();
+            });
+          });
+
+          await worker.close();
+        });
+      });
+
       describe('when moving job to waiting in one step', () => {
         it('should retry job right away, keeping the current step', async function () {
           this.timeout(1000);
