@@ -136,9 +136,6 @@
       "@commitlint/config-conventional"
     ]
   },
-  "resolutions": {
-    "undici": "7.19.1"
-  },
   "lint-staged": {
     "*.{js,ts}": "npm run eslint:fix"
   },
