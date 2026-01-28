@@ -30,7 +30,7 @@
     "copy:lua:elixir": "cpx \"./rawScripts/*.lua\" ./elixir/priv/scripts",
     "copy:lua:php": "cpx \"./rawScripts/*.lua\" ./php/src/commands",
     "copy:main:type": "cpx \"./dist/esm/classes/main.d.ts\" ./dist/cjs/classes && cpx \"./dist/esm/classes/main-worker.d.ts\" ./dist/cjs/classes",
-    "coverage": "c8 --reporter=text --reporter=lcovonly npm run test",
+    "coverage": "vitest run --no-file-parallelism --coverage",
     "docs": "typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts",
     "docs:json": "typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts --json ./apiVersions/v5.json --name v5",
     "dc:up": "docker-compose -f docker-compose.yml up -d",
@@ -52,7 +52,6 @@
     "test:vitest": "vitest run --no-file-parallelism",
     "test:vitest:watch": "vitest",
     "test:vitest:ui": "vitest --ui",
-    "test:vitest:coverage": "vitest run --coverage",
     "test:bun": "bun run vitest run --no-file-parallelism",
     "test:watch": "vitest --watch",
     "transform:commands": "node ./scripts/commandTransform.js ./rawScripts ./src/scripts",
@@ -87,7 +86,6 @@
     "@typescript-eslint/eslint-plugin": "8.53.1",
     "@typescript-eslint/parser": "8.53.1",
     "@vitest/coverage-v8": "^4.0.18",
-    "c8": "10.1.3",
     "coveralls-next": "6.0.1",
     "cpx2": "8.0.0",
     "eslint": "9.39.2",
@@ -113,21 +111,6 @@
     "typedoc": "0.28.16",
     "typescript": "5.9.3",
     "vitest": "^4.0.18"
-  },
-  "c8": {
-    "all": true,
-    "check-coverage": true,
-    "lines": 80,
-    "functions": 80,
-    "branches": 70,
-    "statements": 80,
-    "exclude": [
-      "src/enums/*.ts",
-      "src/interfaces/*.ts"
-    ],
-    "include": [
-      "src/**/*.ts"
-    ]
   },
   "commitlint": {
     "extends": [

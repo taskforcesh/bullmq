@@ -32,6 +32,13 @@ export default defineConfig({
       include: ['src/**/*.ts'],
       exclude: ['src/enums/*.ts', 'src/interfaces/*.ts'],
       reporter: ['text', 'lcov'],
+      // Coverage thresholds (migrated from c8 config)
+      thresholds: {
+        lines: 80,
+        functions: 80,
+        branches: 70,
+        statements: 80,
+      },
     },
 
     // Globals (describe, it, expect, etc.) - we'll use explicit imports instead
