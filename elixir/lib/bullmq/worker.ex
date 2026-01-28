@@ -1734,19 +1734,18 @@ defmodule BullMQ.Worker do
   end
 
   # Schedule the next iteration of a repeatable job
-  # This is called after a job with repeat_job_key completes
+  # This is called when a job with repeat_job_key starts processing
   defp schedule_next_repeatable_job(%Job{repeat_job_key: nil}, _state), do: :ok
   defp schedule_next_repeatable_job(%Job{repeat_job_key: ""}, _state), do: :ok
 
   defp schedule_next_repeatable_job(%Job{repeat_job_key: scheduler_id} = job, state) do
     # Check if this is a new-style job scheduler (key without many colons)
     # Old style: "schedulerId:pattern:tz:..." (5+ parts)
-    # New style: "schedulerId" (simple key)
+    # New style: "schedulerId" (simple key, fewer than 5 colon-separated parts)
     key_parts = String.split(scheduler_id, ":")
 
     if length(key_parts) < 5 do
       # New style job scheduler - call updateJobScheduler
-      # Get repeat options from job.opts
       repeat_opts = get_repeat_opts(job)
 
       # Check if we've hit the iteration limit
@@ -1754,57 +1753,79 @@ defmodule BullMQ.Worker do
       limit = Map.get(repeat_opts, "limit")
       next_count = count + 1
 
-      if limit && next_count > limit do
-        # Limit reached, don't schedule next job
-        Logger.debug("[BullMQ.Worker] Scheduler #{scheduler_id} reached limit #{limit}")
-        :ok
-      else
-        # Check end date
-        now = System.system_time(:millisecond)
-        end_date = Map.get(repeat_opts, "endDate")
+      cond do
+        limit && next_count > limit ->
+          # Limit reached, don't schedule next job
+          :ok
 
-        if end_date && now > end_date do
+        Map.get(repeat_opts, "endDate") &&
+            System.system_time(:millisecond) > Map.get(repeat_opts, "endDate") ->
           # End date passed, don't schedule next job
-          Logger.debug("[BullMQ.Worker] Scheduler #{scheduler_id} passed end date")
           :ok
-        else
-          # Schedule the next iteration
-          spawn(fn ->
-            try do
-              # Calculate next execution time (will be refined by Lua script for 'every' jobs)
-              # placeholder, Lua script calculates real value
-              next_millis = now + 1000
 
-              # Build job options for the next iteration with updated count
-              job_opts = build_scheduler_job_opts(job, next_count)
-              packed_opts = Msgpax.pack!(job_opts, iodata: false)
-
-              # Get template data (use job's current data)
-              template_data = Jason.encode!(job.data || %{})
-
-              Scripts.update_job_scheduler(
-                state.connection,
-                state.keys,
-                scheduler_id,
-                next_millis,
-                template_data,
-                packed_opts,
-                job.id
-              )
-            rescue
-              e ->
-                Logger.error(
-                  "[BullMQ.Worker] Failed to schedule next repeatable job: #{Exception.message(e)}"
-                )
-            end
-          end)
-
-          :ok
-        end
+        true ->
+          # Schedule the next iteration in a separate process to not block job processing
+          schedule_next_iteration(job, scheduler_id, next_count, state)
       end
     else
+      # Old-style repeatable job format detected - these are not supported
+      # by the new job scheduler system
+      Logger.warning(
+        "[BullMQ.Worker] Job #{job.id} has repeat_job_key with #{length(key_parts)} colon-separated parts. " <>
+          "Job scheduler IDs must have fewer than 5 colon-separated parts. " <>
+          "Next iteration will not be scheduled."
+      )
+
       :ok
     end
+  end
+
+  # Schedules the next iteration of a job scheduler in a separate process
+  defp schedule_next_iteration(job, scheduler_id, next_count, state) do
+    spawn(fn ->
+      try do
+        now = System.system_time(:millisecond)
+        # Placeholder next_millis - Lua script calculates the real value based on 'every' interval
+        next_millis = now + 1000
+
+        job_opts = build_scheduler_job_opts(job, next_count)
+        packed_opts = Msgpax.pack!(job_opts, iodata: false)
+        template_data = Jason.encode!(job.data || %{})
+
+        case Scripts.update_job_scheduler(
+               state.connection,
+               state.keys,
+               scheduler_id,
+               next_millis,
+               template_data,
+               packed_opts,
+               job.id
+             ) do
+          {:ok, nil} ->
+            # This can happen if: scheduler doesn't exist in Redis, job.id doesn't match
+            # the expected format, or next job already exists (duplicate)
+            Logger.warning(
+              "[BullMQ.Worker] Failed to schedule next iteration for scheduler '#{scheduler_id}': " <>
+                "scheduler may not exist or job ID mismatch (job.id=#{job.id})"
+            )
+
+          {:ok, _next_job_id} ->
+            :ok
+
+          {:error, reason} ->
+            Logger.error(
+              "[BullMQ.Worker] Error scheduling next iteration for scheduler '#{scheduler_id}': #{inspect(reason)}"
+            )
+        end
+      rescue
+        e ->
+          Logger.error(
+            "[BullMQ.Worker] Exception scheduling next iteration: #{Exception.message(e)}"
+          )
+      end
+    end)
+
+    :ok
   end
 
   # Extract repeat options from job opts

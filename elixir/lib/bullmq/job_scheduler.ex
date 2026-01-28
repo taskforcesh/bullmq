@@ -207,36 +207,59 @@ defmodule BullMQ.JobScheduler do
     prefix = Keyword.get(opts, :prefix, "bull")
     ctx = Keys.new(queue_name, prefix: prefix)
 
-    # Validate options
-    with :ok <- validate_repeat_opts(repeat_opts) do
-      # Check iteration limit
-      iteration_count = Map.get(repeat_opts, :count, 0) + 1
-      limit = Map.get(repeat_opts, :limit)
+    # Validate scheduler_id format
+    case validate_scheduler_id(scheduler_id) do
+      :ok ->
+        :ok
 
-      if limit && iteration_count > limit do
-        {:error, :limit_reached}
-      else
-        # Check end date
-        now = System.system_time(:millisecond)
-        end_date = normalize_date(Map.get(repeat_opts, :end_date))
+      {:error, {:invalid_scheduler_id, message}} = error ->
+        Logger.error("[BullMQ.JobScheduler] #{message}")
+        error
 
-        if end_date && now > end_date do
-          {:error, :end_date_reached}
-        else
-          do_upsert(
-            conn,
-            ctx,
-            queue_name,
-            scheduler_id,
-            repeat_opts,
-            job_name,
-            job_data,
-            opts,
-            now,
-            prefix
-          )
+      {:error, reason} = error ->
+        Logger.error("[BullMQ.JobScheduler] Invalid scheduler_id: #{inspect(reason)}")
+        error
+    end
+    |> case do
+      :ok ->
+        case validate_repeat_opts(repeat_opts) do
+          :ok ->
+            # Check iteration limit
+            iteration_count = Map.get(repeat_opts, :count, 0) + 1
+            limit = Map.get(repeat_opts, :limit)
+
+            if limit && iteration_count > limit do
+              {:error, :limit_reached}
+            else
+              # Check end date
+              now = System.system_time(:millisecond)
+              end_date = normalize_date(Map.get(repeat_opts, :end_date))
+
+              if end_date && now > end_date do
+                {:error, :end_date_reached}
+              else
+                do_upsert(
+                  conn,
+                  ctx,
+                  queue_name,
+                  scheduler_id,
+                  repeat_opts,
+                  job_name,
+                  job_data,
+                  opts,
+                  now,
+                  prefix
+                )
+              end
+            end
+
+          {:error, reason} = error ->
+            Logger.error("[BullMQ.JobScheduler] Invalid repeat options: #{inspect(reason)}")
+            error
         end
-      end
+
+      error ->
+        error
     end
   end
 
@@ -525,6 +548,31 @@ defmodule BullMQ.JobScheduler do
   # ---------------------------------------------------------------------------
   # Private Functions
   # ---------------------------------------------------------------------------
+
+  # Validate scheduler_id format to prevent confusion with legacy repeatable jobs
+  # Legacy format used 5+ colon-separated parts (e.g., "name:pattern:tz:endDate:every")
+  # New job scheduler IDs must have fewer than 5 colon-separated parts
+  defp validate_scheduler_id(scheduler_id) when is_binary(scheduler_id) do
+    parts = String.split(scheduler_id, ":")
+
+    cond do
+      scheduler_id == "" ->
+        {:error, :empty_scheduler_id}
+
+      length(parts) >= 5 ->
+        {:error,
+         {:invalid_scheduler_id,
+          "Scheduler ID '#{scheduler_id}' contains #{length(parts)} colon-separated parts. " <>
+            "Job scheduler IDs must have fewer than 5 colon-separated parts to avoid confusion " <>
+            "with legacy repeatable jobs. Consider using a different separator (e.g., '_' or '-') " <>
+            "or removing trailing colons."}}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp validate_scheduler_id(_), do: {:error, :scheduler_id_must_be_string}
 
   defp validate_repeat_opts(%{pattern: _, every: _}) do
     {:error, :both_pattern_and_every}

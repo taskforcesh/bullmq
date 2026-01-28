@@ -268,7 +268,7 @@ class Scripts:
             "completed": "zrange",
             "delayed": "zrange",
             "failed": "zrange",
-            "priority": "zrange",
+            "prioritized": "zrange",
             "repeat": "zrange",
             "waiting-children": "zrange",
             "active": "lrange",

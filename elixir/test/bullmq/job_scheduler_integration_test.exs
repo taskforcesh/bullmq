@@ -107,6 +107,114 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
 
       assert {:error, :immediately_with_start_date} = result
     end
+
+    @tag :integration
+    test "rejects scheduler ID with 5 colon-separated parts", %{conn: conn, queue_name: queue_name} do
+      result =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "part1:part2:part3:part4:part5",
+          %{every: 1000},
+          "test-job",
+          %{},
+          prefix: @test_prefix
+        )
+
+      assert {:error, {:invalid_scheduler_id, message}} = result
+      assert message =~ "contains 5 colon-separated parts"
+      assert message =~ "fewer than 5"
+    end
+
+    @tag :integration
+    test "rejects scheduler ID with trailing colon creating 5 parts", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      result =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "part1:part2:part3:part4:",
+          %{every: 1000},
+          "test-job",
+          %{},
+          prefix: @test_prefix
+        )
+
+      assert {:error, {:invalid_scheduler_id, message}} = result
+      assert message =~ "contains 5 colon-separated parts"
+    end
+
+    @tag :integration
+    test "rejects scheduler ID with more than 5 colon-separated parts", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      result =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "a:b:c:d:e:f:g",
+          %{every: 1000},
+          "test-job",
+          %{},
+          prefix: @test_prefix
+        )
+
+      assert {:error, {:invalid_scheduler_id, message}} = result
+      assert message =~ "contains 7 colon-separated parts"
+    end
+
+    @tag :integration
+    test "rejects empty scheduler ID", %{conn: conn, queue_name: queue_name} do
+      result =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "",
+          %{every: 1000},
+          "test-job",
+          %{},
+          prefix: @test_prefix
+        )
+
+      assert {:error, :empty_scheduler_id} = result
+    end
+
+    @tag :integration
+    test "accepts scheduler ID with 4 colon-separated parts", %{conn: conn, queue_name: queue_name} do
+      {:ok, job} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "part1:part2:part3:part4",
+          %{every: 1000},
+          "test-job",
+          %{},
+          prefix: @test_prefix
+        )
+
+      assert job.id =~ "repeat:part1:part2:part3:part4:"
+      assert job.repeat_job_key == "part1:part2:part3:part4"
+    end
+
+    @tag :integration
+    test "accepts scheduler ID with no colons", %{conn: conn, queue_name: queue_name} do
+      {:ok, job} =
+        JobScheduler.upsert(
+          conn,
+          queue_name,
+          "simple-scheduler-id",
+          %{every: 1000},
+          "test-job",
+          %{},
+          prefix: @test_prefix
+        )
+
+      assert job.id =~ "repeat:simple-scheduler-id:"
+      assert job.repeat_job_key == "simple-scheduler-id"
+    end
   end
 
   # ---------------------------------------------------------------------------

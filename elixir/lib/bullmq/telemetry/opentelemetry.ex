@@ -92,11 +92,15 @@ defmodule BullMQ.Telemetry.OpenTelemetry do
 
   @behaviour BullMQ.Telemetry.Behaviour
 
-  # Check if OpenTelemetry is available at compile time
-  @otel_available Code.ensure_loaded?(:opentelemetry)
-  @otel_tracer_available Code.ensure_loaded?(:otel_tracer)
-  @otel_ctx_available Code.ensure_loaded?(:otel_ctx)
-  @otel_propagator_available Code.ensure_loaded?(:otel_propagator_text_map)
+  # Suppress warnings for optional OpenTelemetry dependencies
+  @compile {:no_warn_undefined,
+            [
+              :opentelemetry,
+              :otel_ctx,
+              :otel_tracer,
+              :otel_span,
+              :otel_propagator_text_map
+            ]}
 
   @doc """
   Checks if OpenTelemetry is available and properly configured.
@@ -108,8 +112,11 @@ defmodule BullMQ.Telemetry.OpenTelemetry do
   """
   @spec available?() :: boolean()
   def available? do
-    @otel_available and @otel_tracer_available and @otel_ctx_available and
-      @otel_propagator_available
+    # Use runtime checks to avoid compile-time type warnings when deps aren't installed
+    Code.ensure_loaded?(:opentelemetry) and
+      Code.ensure_loaded?(:otel_tracer) and
+      Code.ensure_loaded?(:otel_ctx) and
+      Code.ensure_loaded?(:otel_propagator_text_map)
   end
 
   # Get the tracer - returns a noop tracer if SDK isn't configured
