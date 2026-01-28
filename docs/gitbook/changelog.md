@@ -1,3 +1,10 @@
+## [5.67.2](https://github.com/taskforcesh/bullmq/compare/v5.67.1...v5.67.2) (2026-01-28)
+
+
+### Bug Fixes
+
+* **deps:** use caret versioning for ioredis dependency ([#3719](https://github.com/taskforcesh/bullmq/issues/3719)) fixes [#3718](https://github.com/taskforcesh/bullmq/issues/3718) ([de0fca8](https://github.com/taskforcesh/bullmq/commit/de0fca894f47d8aa2b2c66ca9475e526ca477508))
+
 ## [5.67.1](https://github.com/taskforcesh/bullmq/compare/v5.67.0...v5.67.1) (2026-01-24)
 
 
