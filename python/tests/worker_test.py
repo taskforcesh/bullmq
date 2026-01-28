@@ -773,7 +773,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         queue = Queue(queueName, {"prefix": prefix})
         
         completed_jobs = []
-        
+
         async def process(job: Job, token: str):
             completed_jobs.append(job.id)
             print(f"Processing job {job.data['index']}, removeOnComplete: {job.opts.get('removeOnComplete')}")
@@ -792,13 +792,13 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
 
         # Wait for all jobs to complete
         await asyncio.sleep(0.5)
-        
+
         # Verify all jobs completed
         completed_count = await queue.getCompletedCount()
 
         # Wait for age threshold to pass
         await asyncio.sleep(1.2)  # Wait for jobs to age beyond 1 second
-        
+
         # Add a new job to trigger potential cleanup
         await queue.add("trigger", {"index": "trigger"})
         await asyncio.sleep(0.5)  # Let it process
