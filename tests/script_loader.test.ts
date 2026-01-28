@@ -48,7 +48,19 @@ describe('scriptLoader', () => {
       expect(expectedPath).toEqual(actual);
     });
 
-    // TODO: This test relies on module.paths which is CommonJS-specific and doesn't work under ESM/Vitest
+    /**
+     * SKIPPED: This test relies on `module.paths` which is a CommonJS-specific feature.
+     * In ESM (which Vitest uses), `module.paths` is undefined because ESM uses a different
+     * module resolution algorithm based on import.meta.url.
+     *
+     * To make this work with ESM, the ScriptLoader would need to:
+     * 1. Accept an explicit project root path in its constructor, OR
+     * 2. Use import.meta.url to determine the project root, OR
+     * 3. Use a package like 'find-up' to locate package.json
+     *
+     * For now, users needing absolute path mappings should use explicit paths
+     * rather than the '~' shorthand.
+     */
     it.skip('mappings can be absolute based on project root', () => {
       const expectedPath = path.join(
         getRootPath(),
@@ -85,7 +97,14 @@ describe('scriptLoader', () => {
       expect(expectedPath).toEqual(actual);
     });
 
-    // TODO: This test relies on module.paths which is CommonJS-specific and doesn't work under ESM/Vitest
+    /**
+     * SKIPPED: Same issue as 'mappings can be absolute based on project root' above.
+     * The '~' path substitution relies on `module.paths` to find the project root,
+     * which is not available in ESM environments.
+     *
+     * Workaround: Use explicit absolute paths or relative paths from __dirname
+     * instead of the '~' shorthand when running under ESM/Vitest.
+     */
     it.skip('substitutes ~ with the project root', () => {
       const expectedPath = path.join(getRootPath(), '/scripts/actual.lua');
       const actual = loader.resolvePath('~/scripts/actual.lua');

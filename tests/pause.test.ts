@@ -135,14 +135,14 @@ describe('Pause', () => {
 
     queueEvents.on('paused', async (args, eventId) => {
       isPaused = false;
-      expect(Object.keys(args)).toHaveLength(0);
-      expect(eventId).to.be.a.string;
+      expect(args).toEqual({});
+      expect(eventId).toBeTypeOf('string');
       await queue.resume();
     });
 
     queueEvents.on('resumed', (args, eventId) => {
-      expect(Object.keys(args)).toHaveLength(0);
-      expect(eventId).to.be.a.string;
+      expect(args).toEqual({});
+      expect(eventId).toBeTypeOf('string');
       isResumed = true;
     });
 
@@ -321,7 +321,7 @@ describe('Pause', () => {
         await queue.pause();
 
         const finish = new Date().getTime();
-        expect(finish - start).to.be.lt(1000);
+        expect(finish - start).toBeLessThan(1000);
         resolve();
       });
     });

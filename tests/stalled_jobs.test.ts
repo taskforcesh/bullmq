@@ -205,7 +205,7 @@ describe('stalled jobs', () => {
         worker2.on(
           'failed',
           after(concurrency, async (job, failedReason, prev) => {
-            expect(job?.finishedOn).to.be.an('number');
+            expect(job?.finishedOn).toBeTypeOf('number');
             expect(job?.attemptsStarted).toBe(2);
             expect(job?.attemptsMade).toBe(1);
             expect(job?.stalledCounter).toBe(1);
