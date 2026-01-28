@@ -1,3 +1,10 @@
+## [1.2.5](https://github.com/taskforcesh/bullmq/compare/vex1.2.4...vex1.2.5) (2026-01-27)
+
+
+### Bug Fixes
+
+* **scheduler:** fix job scheduler not creating subsequent iterations [elixir] ([#3729](https://github.com/taskforcesh/bullmq/issues/3729)) ([3bd23d9](https://github.com/taskforcesh/bullmq/commit/3bd23d990c780ff0808d79499edd803084d2efe8))
+
 ## [1.2.4](https://github.com/taskforcesh/bullmq/compare/vex1.2.3...vex1.2.4) (2026-01-24)
 
 
