@@ -2,29 +2,37 @@ import { FlowProducer, Queue, Worker, QueueEvents } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
-import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
+import {
+  describe,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
+  it,
+  expect,
+} from 'vitest';
+
 import { v4 } from 'uuid';
-import { expect } from 'chai';
 
 const NoopProc = () => Promise.resolve();
 
-describe('stalled jobs', function () {
+describe('stalled jobs', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queue: Queue;
   let queueName: string;
 
   let connection: IORedis;
-  before(async function () {
+  beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
-  beforeEach(async function () {
+  beforeEach(async () => {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection, prefix });
   });
 
-  afterEach(async function () {
+  afterEach(async () => {
     await queue.close();
     await removeAllQueueData(new IORedis(redisHost), queueName);
   });
@@ -33,8 +41,8 @@ describe('stalled jobs', function () {
     await connection.quit();
   });
 
-  it('process stalled jobs when starting a queue', async function () {
-    this.timeout(5000);
+  it('process stalled jobs when starting a queue', async () => {
+    // TODO: Move timeout to test options: { timeout: 5000 }
 
     const queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
@@ -86,7 +94,7 @@ describe('stalled jobs', function () {
       worker2.on(
         'stalled',
         after(concurrency, (jobId, prev) => {
-          expect(prev).to.be.equal('active');
+          expect(prev).toBe('active');
           resolve();
         }),
       );
@@ -99,7 +107,7 @@ describe('stalled jobs', function () {
       worker2.on(
         'completed',
         after(concurrency, job => {
-          expect(job.stalledCounter).to.be.equal(1);
+          expect(job.stalledCounter).toBe(1);
           resolve();
         }),
       );
@@ -143,9 +151,9 @@ describe('stalled jobs', function () {
     await worker.close();
   });
 
-  describe('when stalled jobs stall more than allowable stalled limit', function () {
-    it('moves jobs to failed', async function () {
-      this.timeout(6000);
+  describe('when stalled jobs stall more than allowable stalled limit', () => {
+    it('moves jobs to failed', async () => {
+      // TODO: Move timeout to test options: { timeout: 6000 }
 
       const queueEvents = new QueueEvents(queueName, { connection, prefix });
       await queueEvents.waitUntilReady();
@@ -198,11 +206,11 @@ describe('stalled jobs', function () {
           'failed',
           after(concurrency, async (job, failedReason, prev) => {
             expect(job?.finishedOn).to.be.an('number');
-            expect(job?.attemptsStarted).to.be.equal(2);
-            expect(job?.attemptsMade).to.be.equal(1);
-            expect(job?.stalledCounter).to.be.equal(1);
-            expect(prev).to.be.equal('active');
-            expect(failedReason.message).to.be.equal(errorMessage);
+            expect(job?.attemptsStarted).toBe(2);
+            expect(job?.attemptsMade).toBe(1);
+            expect(job?.stalledCounter).toBe(1);
+            expect(prev).toBe('active');
+            expect(failedReason.message).toBe(errorMessage);
             resolve();
           }),
         );
@@ -210,7 +218,7 @@ describe('stalled jobs', function () {
 
       const globalAllFailed = new Promise<void>(resolve => {
         queueEvents.on('failed', ({ failedReason }) => {
-          expect(failedReason).to.be.equal(errorMessage);
+          expect(failedReason).toBe(errorMessage);
           resolve();
         });
       });
@@ -222,9 +230,9 @@ describe('stalled jobs', function () {
       await worker2.close();
     });
 
-    describe('when retrying jobs', function () {
-      it('keeps stalledCounter', async function () {
-        this.timeout(6000);
+    describe('when retrying jobs', () => {
+      it('keeps stalledCounter', async () => {
+        // TODO: Move timeout to test options: { timeout: 6000 }
 
         const queueEvents = new QueueEvents(queueName, { connection, prefix });
         await queueEvents.waitUntilReady();
@@ -276,11 +284,11 @@ describe('stalled jobs', function () {
           worker2.on(
             'failed',
             after(concurrency, async (job, failedReason, prev) => {
-              expect(job?.attemptsStarted).to.be.equal(2);
-              expect(job?.attemptsMade).to.be.equal(1);
-              expect(job?.stalledCounter).to.be.equal(1);
-              expect(prev).to.be.equal('active');
-              expect(failedReason.message).to.be.equal(errorMessage);
+              expect(job?.attemptsStarted).toBe(2);
+              expect(job?.attemptsMade).toBe(1);
+              expect(job?.stalledCounter).toBe(1);
+              expect(prev).toBe('active');
+              expect(failedReason.message).toBe(errorMessage);
               resolve();
             }),
           );
@@ -290,9 +298,9 @@ describe('stalled jobs', function () {
           worker2.on(
             'completed',
             after(concurrency, async (job, result) => {
-              expect(job?.attemptsStarted).to.be.equal(3);
-              expect(job?.attemptsMade).to.be.equal(2);
-              expect(job?.stalledCounter).to.be.equal(1);
+              expect(job?.attemptsStarted).toBe(3);
+              expect(job?.attemptsMade).toBe(2);
+              expect(job?.stalledCounter).toBe(1);
               resolve();
             }),
           );
@@ -300,7 +308,7 @@ describe('stalled jobs', function () {
 
         const globalAllFailed = new Promise<void>(resolve => {
           queueEvents.on('failed', ({ failedReason }) => {
-            expect(failedReason).to.be.equal(errorMessage);
+            expect(failedReason).toBe(errorMessage);
             resolve();
           });
         });
@@ -319,8 +327,8 @@ describe('stalled jobs', function () {
       });
     });
 
-    it('moves jobs to failed with maxStalledCount > 1', async function () {
-      this.timeout(8000);
+    it('moves jobs to failed with maxStalledCount > 1', async () => {
+      // TODO: Move timeout to test options: { timeout: 8000 }
 
       const queueEvents = new QueueEvents(queueName, { connection, prefix });
       await queueEvents.waitUntilReady();
@@ -364,11 +372,11 @@ describe('stalled jobs', function () {
             worker.on(
               'failed',
               after(concurrency, async (job, failedReason, prev) => {
-                expect(job?.attemptsStarted).to.be.equal(4);
-                expect(job?.attemptsMade).to.be.equal(1);
-                expect(job?.stalledCounter).to.be.equal(3);
-                expect(prev).to.be.equal('active');
-                expect(failedReason.message).to.be.equal(errorMessage);
+                expect(job?.attemptsStarted).toBe(4);
+                expect(job?.attemptsMade).toBe(1);
+                expect(job?.stalledCounter).toBe(3);
+                expect(prev).toBe('active');
+                expect(failedReason.message).toBe(errorMessage);
                 resolve();
               }),
             );
@@ -376,7 +384,7 @@ describe('stalled jobs', function () {
 
           const globalAllFailed = new Promise<void>(resolve => {
             queueEvents.on('failed', ({ failedReason }) => {
-              expect(failedReason).to.be.equal(errorMessage);
+              expect(failedReason).toBe(errorMessage);
               resolve();
             });
           });
@@ -402,9 +410,9 @@ describe('stalled jobs', function () {
       await queueEvents.close();
     });
 
-    describe('when failParentOnFailure is provided as true', function () {
-      it('should move parent to failed when child is moved to failed', async function () {
-        this.timeout(6000);
+    describe('when failParentOnFailure is provided as true', () => {
+      it('should move parent to failed when child is moved to failed', async () => {
+        // TODO: Move timeout to test options: { timeout: 6000 }
         const concurrency = 4;
         const parentQueueName = `parent-queue-${v4()}`;
 
@@ -477,8 +485,8 @@ describe('stalled jobs', function () {
           worker2.on(
             'failed',
             after(concurrency, async (job, failedReason, prev) => {
-              expect(prev).to.be.equal('active');
-              expect(failedReason.message).to.be.equal(errorMessage);
+              expect(prev).toBe('active');
+              expect(failedReason.message).toBe(errorMessage);
               resolve();
             }),
           );
@@ -486,8 +494,8 @@ describe('stalled jobs', function () {
 
         const parentFailure = new Promise<void>(resolve => {
           parentWorker.once('failed', async (job, failedReason, prev) => {
-            expect(prev).to.be.equal('active');
-            expect(failedReason.message).to.be.equal(
+            expect(prev).toBe('active');
+            expect(failedReason.message).toBe(
               `child ${prefix}:${queueName}:${children[0].job.id!} failed`,
             );
             resolve();
@@ -504,9 +512,9 @@ describe('stalled jobs', function () {
       });
     });
 
-    describe('when continueParentOnFailure is provided as true', function () {
-      it('should start processing parent when child is moved to failed', async function () {
-        this.timeout(6000);
+    describe('when continueParentOnFailure is provided as true', () => {
+      it('should start processing parent when child is moved to failed', async () => {
+        // TODO: Move timeout to test options: { timeout: 6000 }
         const concurrency = 4;
         const parentQueueName = `parent-queue-${v4()}`;
 
@@ -576,9 +584,9 @@ describe('stalled jobs', function () {
             after(concurrency, async (job, failedReason, prev) => {
               try {
                 const parentState = await parent.getState();
-                expect(parentState).to.be.equal('waiting');
-                expect(prev).to.be.equal('active');
-                expect(failedReason.message).to.be.equal(errorMessage);
+                expect(parentState).toBe('waiting');
+                expect(prev).toBe('active');
+                expect(failedReason.message).toBe(errorMessage);
                 resolve();
               } catch (err) {
                 reject(err);
@@ -596,9 +604,9 @@ describe('stalled jobs', function () {
       });
     });
 
-    describe('when ignoreDependencyOnFailure is provided as true', function () {
-      it('should move parent to waiting when child is moved to failed and save child failedReason', async function () {
-        this.timeout(6000);
+    describe('when ignoreDependencyOnFailure is provided as true', () => {
+      it('should move parent to waiting when child is moved to failed and save child failedReason', async () => {
+        // TODO: Move timeout to test options: { timeout: 6000 }
         const concurrency = 4;
         const parentQueueName = `parent-queue-${v4()}`;
 
@@ -668,9 +676,9 @@ describe('stalled jobs', function () {
             after(concurrency, async (job, failedReason, prev) => {
               const parentState = await parent.getState();
 
-              expect(parentState).to.be.equal('waiting');
-              expect(prev).to.be.equal('active');
-              expect(failedReason.message).to.be.equal(errorMessage);
+              expect(parentState).toBe('waiting');
+              expect(prev).toBe('active');
+              expect(failedReason.message).toBe(errorMessage);
               resolve();
             }),
           );
@@ -678,7 +686,7 @@ describe('stalled jobs', function () {
 
         await allFailed;
         const ignoredChildrenValues = await parent.getIgnoredChildrenFailures();
-        expect(ignoredChildrenValues).to.deep.equal({
+        expect(ignoredChildrenValues).toEqual({
           [`${queue.qualifiedName}:${children[0].job.id}`]:
             'job stalled more than allowable limit',
         });
@@ -690,9 +698,9 @@ describe('stalled jobs', function () {
       });
     });
 
-    describe('when removeDependencyOnFailure is provided as true', function () {
-      it('should move parent to waiting when child is moved to failed', async function () {
-        this.timeout(6000);
+    describe('when removeDependencyOnFailure is provided as true', () => {
+      it('should move parent to waiting when child is moved to failed', async () => {
+        // TODO: Move timeout to test options: { timeout: 6000 }
         const concurrency = 4;
         const parentQueueName = `parent-queue-${v4()}`;
 
@@ -762,9 +770,9 @@ describe('stalled jobs', function () {
             after(concurrency, async (job, failedReason, prev) => {
               const parentState = await parent.getState();
 
-              expect(parentState).to.be.equal('waiting');
-              expect(prev).to.be.equal('active');
-              expect(failedReason.message).to.be.equal(errorMessage);
+              expect(parentState).toBe('waiting');
+              expect(prev).toBe('active');
+              expect(failedReason.message).toBe(errorMessage);
               resolve();
             }),
           );
@@ -779,9 +787,9 @@ describe('stalled jobs', function () {
       });
     });
 
-    describe('when removeOnFail is provided as a number', function () {
-      it('keeps the specified number of jobs in failed', async function () {
-        this.timeout(6000);
+    describe('when removeOnFail is provided as a number', () => {
+      it('keeps the specified number of jobs in failed', async () => {
+        // TODO: Move timeout to test options: { timeout: 6000 }
         const concurrency = 4;
 
         const worker = new Worker(
@@ -833,11 +841,11 @@ describe('stalled jobs', function () {
             'failed',
             after(concurrency, async (job, failedReason, prev) => {
               const failedCount = await queue.getFailedCount();
-              expect(failedCount).to.equal(3);
+              expect(failedCount).toBe(3);
 
-              expect(job.data.index).to.be.equal(0);
-              expect(prev).to.be.equal('active');
-              expect(failedReason.message).to.be.equal(errorMessage);
+              expect(job.data.index).toBe(0);
+              expect(prev).toBe('active');
+              expect(failedReason.message).toBe(errorMessage);
               resolve();
             }),
           );
@@ -849,10 +857,10 @@ describe('stalled jobs', function () {
       });
     });
 
-    describe('when removeOnFail is provided as boolean', function () {
-      describe('when removeOnFail is provided as true', function () {
-        it('removes all job keys', async function () {
-          this.timeout(6000);
+    describe('when removeOnFail is provided as boolean', () => {
+      describe('when removeOnFail is provided as true', () => {
+        it('removes all job keys', async () => {
+          // TODO: Move timeout to test options: { timeout: 6000 }
 
           const queueEvents = new QueueEvents(queueName, {
             connection,
@@ -907,11 +915,11 @@ describe('stalled jobs', function () {
             worker2.on(
               'failed',
               after(concurrency, async (job, failedReason, prev) => {
-                expect(job?.attemptsStarted).to.be.equal(2);
-                expect(job?.attemptsMade).to.be.equal(1);
-                expect(job?.stalledCounter).to.be.equal(1);
-                expect(prev).to.be.equal('active');
-                expect(failedReason.message).to.be.equal(errorMessage);
+                expect(job?.attemptsStarted).toBe(2);
+                expect(job?.attemptsMade).toBe(1);
+                expect(job?.stalledCounter).toBe(1);
+                expect(prev).toBe('active');
+                expect(failedReason.message).toBe(errorMessage);
                 resolve();
               }),
             );
@@ -919,7 +927,7 @@ describe('stalled jobs', function () {
 
           const globalAllFailed = new Promise<void>(resolve => {
             queueEvents.on('failed', ({ failedReason }) => {
-              expect(failedReason).to.be.equal(errorMessage);
+              expect(failedReason).toBe(errorMessage);
               resolve();
             });
           });
@@ -943,8 +951,8 @@ describe('stalled jobs', function () {
         });
       });
 
-      it('keeps the jobs with removeOnFail as false in failed', async function () {
-        this.timeout(6000);
+      it('keeps the jobs with removeOnFail as false in failed', async () => {
+        // TODO: Move timeout to test options: { timeout: 6000 }
         const concurrency = 4;
 
         const worker = new Worker(
@@ -995,14 +1003,14 @@ describe('stalled jobs', function () {
           worker2.on(
             'failed',
             after(concurrency, async (job, failedReason, prev) => {
-              expect(job?.attemptsStarted).to.be.equal(2);
-              expect(job?.attemptsMade).to.be.equal(1);
-              expect(job?.stalledCounter).to.be.equal(1);
+              expect(job?.attemptsStarted).toBe(2);
+              expect(job?.attemptsMade).toBe(1);
+              expect(job?.stalledCounter).toBe(1);
               const failedCount = await queue.getFailedCount();
-              expect(failedCount).to.equal(2);
+              expect(failedCount).toBe(2);
 
-              expect(prev).to.be.equal('active');
-              expect(failedReason.message).to.be.equal(errorMessage);
+              expect(prev).toBe('active');
+              expect(failedReason.message).toBe(errorMessage);
               resolve();
             }),
           );
@@ -1014,9 +1022,9 @@ describe('stalled jobs', function () {
       });
     });
 
-    describe('when removeOnFail is provided as a object', function () {
-      it('keeps the specified number of jobs in failed respecting the age', async function () {
-        this.timeout(6000);
+    describe('when removeOnFail is provided as a object', () => {
+      it('keeps the specified number of jobs in failed respecting the age', async () => {
+        // TODO: Move timeout to test options: { timeout: 6000 }
         const concurrency = 4;
 
         const worker = new Worker(
@@ -1073,11 +1081,11 @@ describe('stalled jobs', function () {
           worker2.on('failed', async (job, failedReason, prev) => {
             if (job.id == '4') {
               const failedCount = await queue.getFailedCount();
-              expect(failedCount).to.equal(2);
+              expect(failedCount).toBe(2);
 
-              expect(job.data.index).to.be.equal(3);
-              expect(prev).to.be.equal('active');
-              expect(failedReason.message).to.be.equal(errorMessage);
+              expect(job.data.index).toBe(3);
+              expect(prev).toBe('active');
+              expect(failedReason.message).toBe(errorMessage);
               resolve();
             }
           });
@@ -1090,8 +1098,8 @@ describe('stalled jobs', function () {
     });
   });
 
-  it('jobs not stalled while lock is extended', async function () {
-    this.timeout(5000);
+  it('jobs not stalled while lock is extended', async () => {
+    // TODO: Move timeout to test options: { timeout: 5000 }
     const numJobs = 4;
 
     const concurrency = 4;
@@ -1137,7 +1145,7 @@ describe('stalled jobs', function () {
     await delay(500); // Wait for jobs to become active
 
     const active = await queue.getActiveCount();
-    expect(active).to.be.equal(4);
+    expect(active).toBe(4);
 
     await worker.close(true);
 

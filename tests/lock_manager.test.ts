@@ -1,18 +1,26 @@
-import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
-import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
+import {
+  describe,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
+  it,
+  expect,
+} from 'vitest';
+
 import { v4 } from 'uuid';
 import { LockManager, Queue, Worker } from '../src/classes';
 import { LockManagerWorkerContext } from '../src/interfaces';
 import { delay, removeAllQueueData } from '../src/utils';
 
-describe('LockManager', function () {
+describe('LockManager', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
   let connection: IORedis;
 
-  before(async function () {
+  beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
@@ -36,9 +44,9 @@ describe('LockManager', function () {
         workerName: 'test-worker',
       });
 
-      expect(lockManager).to.be.instanceOf(LockManager);
-      expect(lockManager.isRunning()).to.be.false;
-      expect(lockManager.getActiveJobCount()).to.equal(0);
+      expect(lockManager).toBeInstanceOf(LockManager);
+      expect(lockManager.isRunning()).toBe(false);
+      expect(lockManager.getActiveJobCount()).toBe(0);
     });
   });
 
@@ -57,13 +65,13 @@ describe('LockManager', function () {
         workerId: 'worker-1',
       });
 
-      expect(lockManager.isRunning()).to.be.false;
+      expect(lockManager.isRunning()).toBe(false);
 
       lockManager.start();
-      expect(lockManager.isRunning()).to.be.true;
+      expect(lockManager.isRunning()).toBe(true);
 
       await lockManager.close();
-      expect(lockManager.isRunning()).to.be.false;
+      expect(lockManager.isRunning()).toBe(false);
     });
 
     it('should not start if already closed', async () => {
@@ -83,7 +91,7 @@ describe('LockManager', function () {
       await lockManager.close();
       lockManager.start();
 
-      expect(lockManager.isRunning()).to.be.false;
+      expect(lockManager.isRunning()).toBe(false);
     });
 
     it('should not start timer if lockRenewTime is 0', () => {
@@ -101,7 +109,7 @@ describe('LockManager', function () {
       });
 
       lockManager.start();
-      expect(lockManager.isRunning()).to.be.false;
+      expect(lockManager.isRunning()).toBe(false);
     });
 
     it('should handle multiple close calls gracefully', async () => {
@@ -122,7 +130,7 @@ describe('LockManager', function () {
       await lockManager.close();
       await lockManager.close(); // Second close should not throw
 
-      expect(lockManager.isRunning()).to.be.false;
+      expect(lockManager.isRunning()).toBe(false);
     });
   });
 
@@ -141,19 +149,19 @@ describe('LockManager', function () {
         workerId: 'worker-1',
       });
 
-      expect(lockManager.getActiveJobCount()).to.equal(0);
+      expect(lockManager.getActiveJobCount()).toBe(0);
 
       lockManager.trackJob('job-1', 'token-1', Date.now());
-      expect(lockManager.getActiveJobCount()).to.equal(1);
+      expect(lockManager.getActiveJobCount()).toBe(1);
 
       lockManager.trackJob('job-2', 'token-2', Date.now());
-      expect(lockManager.getActiveJobCount()).to.equal(2);
+      expect(lockManager.getActiveJobCount()).toBe(2);
 
       lockManager.untrackJob('job-1');
-      expect(lockManager.getActiveJobCount()).to.equal(1);
+      expect(lockManager.getActiveJobCount()).toBe(1);
 
       lockManager.untrackJob('job-2');
-      expect(lockManager.getActiveJobCount()).to.equal(0);
+      expect(lockManager.getActiveJobCount()).toBe(0);
     });
 
     it('should not track jobs after being closed', async () => {
@@ -173,7 +181,7 @@ describe('LockManager', function () {
       await lockManager.close();
 
       lockManager.trackJob('job-1', 'token-1', Date.now());
-      expect(lockManager.getActiveJobCount()).to.equal(0);
+      expect(lockManager.getActiveJobCount()).toBe(0);
     });
 
     it('should clear all tracked jobs when closed', async () => {
@@ -192,10 +200,10 @@ describe('LockManager', function () {
 
       lockManager.trackJob('job-1', 'token-1', Date.now());
       lockManager.trackJob('job-2', 'token-2', Date.now());
-      expect(lockManager.getActiveJobCount()).to.equal(2);
+      expect(lockManager.getActiveJobCount()).toBe(2);
 
       await lockManager.close();
-      expect(lockManager.getActiveJobCount()).to.equal(0);
+      expect(lockManager.getActiveJobCount()).toBe(0);
     });
 
     it('should ignore empty job ids', () => {
@@ -213,13 +221,13 @@ describe('LockManager', function () {
       });
 
       lockManager.trackJob('', 'token-1', Date.now());
-      expect(lockManager.getActiveJobCount()).to.equal(0);
+      expect(lockManager.getActiveJobCount()).toBe(0);
     });
   });
 
   describe('lock renewal', () => {
-    it('should extend locks for tracked jobs', async function () {
-      this.timeout(10000);
+    it('should extend locks for tracked jobs', async () => {
+      // TODO: Move timeout to test options: { timeout: 10000 }
 
       let extendCallCount = 0;
       const extendedJobIds: string[][] = [];
@@ -228,8 +236,8 @@ describe('LockManager', function () {
         extendJobLocks: async (jobIds, tokens, duration) => {
           extendCallCount++;
           extendedJobIds.push(jobIds);
-          expect(tokens).to.have.lengthOf(jobIds.length);
-          expect(duration).to.equal(30000);
+          expect(tokens).toHaveLength(jobIds.length);
+          expect(duration).toBe(30000);
           return []; // No errors
         },
         emit: () => true,
@@ -253,13 +261,15 @@ describe('LockManager', function () {
       await delay(600);
 
       expect(extendCallCount).to.be.gte(1);
-      expect(extendedJobIds.flat()).to.include.members(['job-1', 'job-2']);
+      expect(extendedJobIds.flat()).toEqual(
+        expect.arrayContaining(['job-1', 'job-2']),
+      );
 
       await lockManager.close();
     });
 
-    it('should emit error when lock extension fails', async function () {
-      this.timeout(5000);
+    it('should emit error when lock extension fails', async () => {
+      // TODO: Move timeout to test options: { timeout: 5000 }
 
       const emittedErrors: Error[] = [];
 
@@ -292,15 +302,15 @@ describe('LockManager', function () {
       await delay(300);
 
       expect(emittedErrors).to.have.lengthOf.at.least(1);
-      expect(emittedErrors[0].message).to.include(
+      expect(emittedErrors[0].message).toContain(
         'could not renew lock for job job-1',
       );
 
       await lockManager.close();
     });
 
-    it('should emit error when extendJobLocks throws', async function () {
-      this.timeout(5000);
+    it('should emit error when extendJobLocks throws', async () => {
+      // TODO: Move timeout to test options: { timeout: 5000 }
 
       const emittedErrors: Error[] = [];
       const testError = new Error('Redis connection failed');
@@ -334,13 +344,13 @@ describe('LockManager', function () {
       await delay(300);
 
       expect(emittedErrors).to.have.lengthOf.at.least(1);
-      expect(emittedErrors[0]).to.equal(testError);
+      expect(emittedErrors[0]).toBe(testError);
 
       await lockManager.close();
     });
 
-    it('should not extend locks if no jobs need renewal', async function () {
-      this.timeout(5000);
+    it('should not extend locks if no jobs need renewal', async () => {
+      // TODO: Move timeout to test options: { timeout: 5000 }
 
       let extendCallCount = 0;
 
@@ -371,13 +381,13 @@ describe('LockManager', function () {
       await delay(300);
 
       // Should not have called extend yet
-      expect(extendCallCount).to.equal(0);
+      expect(extendCallCount).toBe(0);
 
       await lockManager.close();
     });
 
-    it('should update timestamps for jobs without initial timestamp', async function () {
-      this.timeout(5000);
+    it('should update timestamps for jobs without initial timestamp', async () => {
+      // TODO: Move timeout to test options: { timeout: 5000 }
 
       const mockWorkerContext: LockManagerWorkerContext = {
         extendJobLocks: async () => [],
@@ -400,7 +410,7 @@ describe('LockManager', function () {
       await delay(250);
 
       // Job should still be tracked
-      expect(lockManager.getActiveJobCount()).to.equal(1);
+      expect(lockManager.getActiveJobCount()).toBe(1);
 
       await lockManager.close();
     });
@@ -410,18 +420,18 @@ describe('LockManager', function () {
     let queue: Queue;
     let queueName: string;
 
-    beforeEach(async function () {
+    beforeEach(async () => {
       queueName = `test-lock-manager-${v4()}`;
       queue = new Queue(queueName, { connection, prefix });
     });
 
-    afterEach(async function () {
+    afterEach(async () => {
       await queue.close();
       await removeAllQueueData(new IORedis(redisHost), queueName);
     });
 
-    it('should track jobs during processing', async function () {
-      this.timeout(10000);
+    it('should track jobs during processing', async () => {
+      // TODO: Move timeout to test options: { timeout: 10000 }
 
       let lockManagerInstance: any;
       let maxTrackedJobs = 0;
@@ -472,13 +482,13 @@ describe('LockManager', function () {
       expect(maxTrackedJobs).to.be.lte(3);
 
       // After completion, no jobs should be tracked
-      expect(lockManagerInstance.getActiveJobCount()).to.equal(0);
+      expect(lockManagerInstance.getActiveJobCount()).toBe(0);
 
       await worker.close();
     });
 
-    it('should untrack jobs on failure', async function () {
-      this.timeout(10000);
+    it('should untrack jobs on failure', async () => {
+      // TODO: Move timeout to test options: { timeout: 10000 }
 
       let lockManagerInstance: any;
 
@@ -508,13 +518,13 @@ describe('LockManager', function () {
       await delay(50);
 
       // Job should be untracked after failure
-      expect(lockManagerInstance.getActiveJobCount()).to.equal(0);
+      expect(lockManagerInstance.getActiveJobCount()).toBe(0);
 
       await worker.close();
     });
 
-    it('should continue renewing locks for long-running jobs', async function () {
-      this.timeout(15000);
+    it('should continue renewing locks for long-running jobs', async () => {
+      // TODO: Move timeout to test options: { timeout: 15000 }
 
       let lockRenewalCount = 0;
       let lockManagerInstance: any;
@@ -559,8 +569,8 @@ describe('LockManager', function () {
       await worker.close();
     });
 
-    it('should handle lock manager closure during worker shutdown', async function () {
-      this.timeout(10000);
+    it('should handle lock manager closure during worker shutdown', async () => {
+      // TODO: Move timeout to test options: { timeout: 10000 }
 
       const worker = new Worker(
         queueName,
@@ -578,18 +588,18 @@ describe('LockManager', function () {
 
       const lockManagerInstance = (worker as any).lockManager;
 
-      expect(lockManagerInstance.isRunning()).to.be.true;
+      expect(lockManagerInstance.isRunning()).toBe(true);
 
       await worker.close();
 
-      expect(lockManagerInstance.isRunning()).to.be.false;
-      expect(lockManagerInstance.getActiveJobCount()).to.equal(0);
+      expect(lockManagerInstance.isRunning()).toBe(false);
+      expect(lockManagerInstance.getActiveJobCount()).toBe(0);
     });
   });
 
   describe('telemetry', () => {
-    it('should call trace when extending locks', async function () {
-      this.timeout(5000);
+    it('should call trace when extending locks', async () => {
+      // TODO: Move timeout to test options: { timeout: 5000 }
 
       let traceCalled = false;
 
@@ -598,8 +608,8 @@ describe('LockManager', function () {
         emit: () => true,
         trace: async (spanKind, operation, destination, callback) => {
           traceCalled = true;
-          expect(operation).to.equal('extendLocks');
-          expect(destination).to.equal('test-queue');
+          expect(operation).toBe('extendLocks');
+          expect(destination).toBe('test-queue');
           return callback();
         },
         name: 'test-queue',
@@ -619,7 +629,7 @@ describe('LockManager', function () {
 
       await delay(300);
 
-      expect(traceCalled).to.be.true;
+      expect(traceCalled).toBe(true);
 
       await lockManager.close();
     });

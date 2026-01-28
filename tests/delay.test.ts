@@ -1,31 +1,39 @@
 import { after } from 'lodash';
-import { describe, beforeEach, it, before, after as afterAll } from 'mocha';
-import { expect } from 'chai';
+import {
+  describe,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
+  it,
+  expect,
+} from 'vitest';
+
 import { default as IORedis } from 'ioredis';
 import { v4 } from 'uuid';
 import { Queue, Job, Worker, QueueEvents } from '../src/classes';
 import { removeAllQueueData, delay } from '../src/utils';
 
-describe('Delayed jobs', function () {
+describe('Delayed jobs', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
-  this.timeout(15000);
+  // TODO: Move timeout to test options: { timeout: 15000 }
 
   let queue: Queue;
   let queueName: string;
 
   let connection;
-  before(async function () {
+  beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
-  beforeEach(async function () {
+  beforeEach(async () => {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection, prefix });
     await queue.waitUntilReady();
   });
 
-  afterEach(async function () {
+  afterEach(async () => {
     await queue.close();
     await removeAllQueueData(new IORedis(redisHost), queueName);
   });
@@ -34,7 +42,7 @@ describe('Delayed jobs', function () {
     await connection.quit();
   });
 
-  it('should process a delayed job only after delayed time', async function () {
+  it('should process a delayed job only after delayed time', async () => {
     const delay = 1000;
     const margin = 1.2;
 
@@ -67,14 +75,14 @@ describe('Delayed jobs', function () {
           expect(
             job.processedOn! - job.timestamp,
             'processedOn is not within margin',
-          ).to.be.lessThan(delay * margin);
+          ).toBeLessThan(delay * margin);
 
           const jobs = await queue.getWaiting();
-          expect(jobs.length).to.be.equal(0);
+          expect(jobs.length).toBe(0);
 
           const delayedJobs = await queue.getDelayed();
-          expect(delayedJobs.length).to.be.equal(0);
-          expect(publishHappened).to.be.eql(true);
+          expect(delayedJobs.length).toBe(0);
+          expect(publishHappened).toEqual(true);
           resolve();
         } catch (err) {
           reject(err);
@@ -84,10 +92,10 @@ describe('Delayed jobs', function () {
 
     const job = await queue.add('test', { delayed: 'foobar' }, { delay });
 
-    expect(job.id).to.be.ok;
-    expect(job.data.delayed).to.be.eql('foobar');
-    expect(job.opts.delay).to.be.eql(delay);
-    expect(job.delay).to.be.eql(delay);
+    expect(job.id).toBeTruthy();
+    expect(job.data.delayed).toEqual('foobar');
+    expect(job.opts.delay).toEqual(delay);
+    expect(job.delay).toEqual(delay);
 
     await delayed;
     await completed;
@@ -95,8 +103,8 @@ describe('Delayed jobs', function () {
     await worker.close();
   });
 
-  describe('when markers are deleted', function () {
-    it('should process a delayed job without getting stuck', async function () {
+  describe('when markers are deleted', () => {
+    it('should process a delayed job without getting stuck', async () => {
       const delayTime = 6000;
       const margin = 1.2;
 
@@ -130,14 +138,14 @@ describe('Delayed jobs', function () {
             expect(
               job.processedOn! - job.timestamp,
               'processedOn is not within margin',
-            ).to.be.lessThan(delayTime * margin);
+            ).toBeLessThan(delayTime * margin);
 
             const jobs = await queue.getWaiting();
-            expect(jobs.length).to.be.equal(0);
+            expect(jobs.length).toBe(0);
 
             const delayedJobs = await queue.getDelayed();
-            expect(delayedJobs.length).to.be.equal(0);
-            expect(publishHappened).to.be.eql(true);
+            expect(delayedJobs.length).toBe(0);
+            expect(publishHappened).toEqual(true);
             resolve();
           } catch (err) {
             reject(err);
@@ -151,10 +159,10 @@ describe('Delayed jobs', function () {
         { delay: delayTime },
       );
 
-      expect(job.id).to.be.ok;
-      expect(job.data.delayed).to.be.eql('foobar');
-      expect(job.opts.delay).to.be.eql(delayTime);
-      expect(job.delay).to.be.eql(delayTime);
+      expect(job.id).toBeTruthy();
+      expect(job.data.delayed).toEqual('foobar');
+      expect(job.opts.delay).toEqual(delayTime);
+      expect(job.delay).toEqual(delayTime);
 
       await delayed;
 
@@ -173,28 +181,28 @@ describe('Delayed jobs', function () {
     });
   });
 
-  describe('when delay is provided as 0', function () {
-    describe('when priority is not provided', function () {
-      it('should add job directly into wait state', async function () {
+  describe('when delay is provided as 0', () => {
+    describe('when priority is not provided', () => {
+      it('should add job directly into wait state', async () => {
         const job = await queue.add('test', {}, { delay: 0 });
 
         const state = await job.getState();
-        expect(state).to.be.eql('waiting');
+        expect(state).toEqual('waiting');
       });
     });
 
-    describe('when priority is provided', function () {
-      it('should add job directly into prioritized state', async function () {
+    describe('when priority is provided', () => {
+      it('should add job directly into prioritized state', async () => {
         const job = await queue.add('test', {}, { delay: 0, priority: 1 });
 
         const state = await job.getState();
-        expect(state).to.be.eql('prioritized');
+        expect(state).toEqual('prioritized');
       });
     });
   });
 
-  describe('when queue is paused', function () {
-    it('should keep moving delayed jobs to waiting', async function () {
+  describe('when queue is paused', () => {
+    it('should keep moving delayed jobs to waiting', async () => {
       const delayTime = 2500;
       const margin = 1.2;
 
@@ -228,7 +236,7 @@ describe('Delayed jobs', function () {
     });
   });
 
-  it('should process a delayed job added after an initial long delayed job', async function () {
+  it('should process a delayed job added after an initial long delayed job', async () => {
     const oneYearDelay = 1000 * 60 * 60 * 24 * 365; // One year.
     const delayTime = 1000;
     const margin = 1.2;
@@ -262,14 +270,14 @@ describe('Delayed jobs', function () {
           expect(
             job.processedOn! - job.timestamp,
             'processedOn is not within margin',
-          ).to.be.lessThan(delayTime * margin);
+          ).toBeLessThan(delayTime * margin);
 
           const jobs = await queue.getWaiting();
-          expect(jobs.length).to.be.equal(0);
+          expect(jobs.length).toBe(0);
 
           const delayedJobs = await queue.getDelayed();
-          expect(delayedJobs.length).to.be.equal(1);
-          expect(publishHappened).to.be.eql(true);
+          expect(delayedJobs.length).toBe(1);
+          expect(publishHappened).toEqual(true);
           resolve();
         } catch (err) {
           reject(err);
@@ -287,23 +295,23 @@ describe('Delayed jobs', function () {
       { delay: delayTime },
     );
 
-    expect(job.id).to.be.ok;
-    expect(job.data.delayed).to.be.eql('foobar');
-    expect(job.opts.delay).to.be.eql(delayTime);
-    expect(job.delay).to.be.eql(delayTime);
+    expect(job.id).toBeTruthy();
+    expect(job.data.delayed).toEqual('foobar');
+    expect(job.opts.delay).toEqual(delayTime);
+    expect(job.delay).toEqual(delayTime);
 
     await delayed;
     await completed;
 
     const count = await queue.getJobCountByTypes('active');
-    expect(count).to.be.equal(0);
+    expect(count).toBe(0);
 
     await queueEvents.close();
     await worker.close();
   });
 
-  it('should process delayed jobs in correct order respecting delay', async function () {
-    this.timeout(7500);
+  it('should process delayed jobs in correct order respecting delay', async () => {
+    // TODO: Move timeout to test options: { timeout: 7500 }
     let order = 0;
     const numJobs = 12;
     const margin = 1.2;
@@ -314,14 +322,14 @@ describe('Delayed jobs', function () {
       processor = async (job: Job) => {
         order++;
         try {
-          expect(order).to.be.equal(job.data.order);
+          expect(order).toBe(job.data.order);
           expect(job.processedOn! - job.timestamp).to.be.greaterThanOrEqual(
             job.opts.delay,
           );
           expect(
             job.processedOn! - job.timestamp,
             'processedOn is not within margin',
-          ).to.be.lessThan(job.opts.delay * margin);
+          ).toBeLessThan(job.opts.delay * margin);
 
           if (order === numJobs) {
             resolve();
@@ -354,8 +362,8 @@ describe('Delayed jobs', function () {
     await worker.close();
   });
 
-  it('should process delayed jobs with several workers respecting delay', async function () {
-    this.timeout(30000);
+  it('should process delayed jobs with several workers respecting delay', async () => {
+    // TODO: Move timeout to test options: { timeout: 30000 }
     let count = 0;
     const numJobs = 50;
     const margin = 1.3;
@@ -376,7 +384,7 @@ describe('Delayed jobs', function () {
             delayed,
             'waited at least delay time',
           ).to.be.greaterThanOrEqual(job.opts.delay);
-          expect(delayed, 'processedOn is not within margin').to.be.lessThan(
+          expect(delayed, 'processedOn is not within margin').toBeLessThan(
             job.opts.delay * margin,
           );
 
@@ -425,7 +433,7 @@ describe('Delayed jobs', function () {
   });
 
   // Add test where delays overlap so that we can see that indeed the jobs are processed concurrently.
-  it('should process delayed jobs concurrently respecting delay and concurrency', async function () {
+  it('should process delayed jobs concurrently respecting delay and concurrency', async () => {
     const delay_ = 250;
     const concurrency = 100;
     const margin = 2;
@@ -446,7 +454,7 @@ describe('Delayed jobs', function () {
             expect(
               delayed,
               'waited less than delay time and margin',
-            ).to.be.lessThan(delay_ * margin);
+            ).toBeLessThan(delay_ * margin);
           } catch (err) {
             console.error(err);
             reject(err);
@@ -471,7 +479,7 @@ describe('Delayed jobs', function () {
     await worker.close();
   });
 
-  describe('when failed jobs are retried and moved to delayed', function () {
+  describe('when failed jobs are retried and moved to delayed', () => {
     it('processes jobs without getting stuck', async () => {
       const countJobs = 2;
       const concurrency = 50;
@@ -523,16 +531,16 @@ describe('Delayed jobs', function () {
 
       await completed;
 
-      expect(processedJobs.length).to.be.equal(countJobs);
+      expect(processedJobs.length).toBe(countJobs);
 
       const count = await queue.getJobCountByTypes('failed', 'wait', 'delayed');
-      expect(count).to.be.equal(0);
+      expect(count).toBe(0);
 
       await worker.close();
-    }).timeout(4000);
+    }); // TODO: Add { timeout: 4000 } to the it() options
   });
 
-  it('should process delayed jobs with exact same timestamps in correct order (FIFO)', async function () {
+  it('should process delayed jobs with exact same timestamps in correct order (FIFO)', async () => {
     let order = 1;
     const numJobs = 43;
 
@@ -542,7 +550,7 @@ describe('Delayed jobs', function () {
         queueName,
         async (job: Job) => {
           try {
-            expect(order).to.be.equal(job.data.order);
+            expect(order).toBe(job.data.order);
 
             if (order === numJobs) {
               resolve();
@@ -577,8 +585,8 @@ describe('Delayed jobs', function () {
     await worker!.close();
   });
 
-  describe('when autorun option is provided as false', function () {
-    it('should process a delayed job only after delayed time', async function () {
+  describe('when autorun option is provided as false', () => {
+    it('should process a delayed job only after delayed time', async () => {
       const delay = 1000;
       const queueEvents = new QueueEvents(queueName, { connection, prefix });
       await queueEvents.waitUntilReady();
@@ -605,11 +613,11 @@ describe('Delayed jobs', function () {
           try {
             expect(Date.now() > timestamp + delay);
             const jobs = await queue.getWaiting();
-            expect(jobs.length).to.be.equal(0);
+            expect(jobs.length).toBe(0);
 
             const delayedJobs = await queue.getDelayed();
-            expect(delayedJobs.length).to.be.equal(0);
-            expect(publishHappened).to.be.eql(true);
+            expect(delayedJobs.length).toBe(0);
+            expect(publishHappened).toEqual(true);
             resolve();
           } catch (err) {
             reject(err);
@@ -619,9 +627,9 @@ describe('Delayed jobs', function () {
 
       const job = await queue.add('test', { delayed: 'foobar' }, { delay });
 
-      expect(job.id).to.be.ok;
-      expect(job.data.delayed).to.be.eql('foobar');
-      expect(job.opts.delay).to.be.eql(delay);
+      expect(job.id).toBeTruthy();
+      expect(job.data.delayed).toEqual('foobar');
+      expect(job.opts.delay).toEqual(delay);
 
       worker.run();
 

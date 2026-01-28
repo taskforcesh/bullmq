@@ -1,6 +1,6 @@
-import { expect } from 'chai';
 import { ChildPool } from '../src/classes';
 import { join } from 'path';
+import { describe, beforeEach, afterEach, it, expect } from 'vitest';
 
 const NoopProc = () => {};
 describe('Child pool for Child Processes', () => {
@@ -34,43 +34,43 @@ function sandboxProcessTests(
     it('should return same child if free', async () => {
       const processor = __dirname + '/fixtures/fixture_processor_bar.js';
       const child = await pool.retain(processor, NoopProc);
-      expect(child).to.be.ok;
+      expect(child).toBeTruthy();
       pool.release(child);
-      expect(pool.retained).to.be.empty;
+      expect(Object.keys(pool.retained)).toHaveLength(0);
       const newChild = await pool.retain(processor, NoopProc);
-      expect(child).to.be.eql(newChild);
+      expect(child).toEqual(newChild);
     });
 
     it('should return a new child if reused the last free one', async () => {
       const processor = __dirname + '/fixtures/fixture_processor_bar.js';
       let child = await pool.retain(processor, NoopProc);
-      expect(child).to.be.ok;
+      expect(child).toBeTruthy();
       pool.release(child);
-      expect(pool.retained).to.be.empty;
+      expect(Object.keys(pool.retained)).toHaveLength(0);
       let newChild = await pool.retain(processor, NoopProc);
-      expect(child).to.be.eql(newChild);
+      expect(child).toEqual(newChild);
       child = newChild;
       newChild = await pool.retain(processor, NoopProc);
-      expect(child).not.to.be.eql(newChild);
+      expect(child).not.toEqual(newChild);
     });
 
     it('should return a new child if none free', async () => {
       const processor = __dirname + '/fixtures/fixture_processor_bar.js';
       const child = await pool.retain(processor, NoopProc);
-      expect(child).to.be.ok;
-      expect(pool.retained).not.to.be.empty;
+      expect(child).toBeTruthy();
+      expect(Object.keys(pool.retained).length).toBeGreaterThan(0);
       const newChild = await pool.retain(processor, NoopProc);
-      expect(child).to.not.be.eql(newChild);
+      expect(child).not.toEqual(newChild);
     });
 
     it('should return a new child if killed', async () => {
       const processor = __dirname + '/fixtures/fixture_processor_bar.js';
       const child = await pool.retain(processor, NoopProc);
-      expect(child).to.be.ok;
+      expect(child).toBeTruthy();
       await pool.kill(child);
-      expect(pool.retained).to.be.empty;
+      expect(Object.keys(pool.retained)).toHaveLength(0);
       const newChild = await pool.retain(processor, NoopProc);
-      expect(child).to.not.be.eql(newChild);
+      expect(child).not.toEqual(newChild);
     });
 
     it('should return a new child if many retained and none free', async () => {
@@ -83,10 +83,10 @@ function sandboxProcessTests(
         pool.retain(processor, NoopProc),
         pool.retain(processor, NoopProc),
       ]);
-      expect(children).to.have.length(6);
+      expect(children).toHaveLength(6);
       const child = await pool.retain(processor, NoopProc);
-      expect(children).not.to.include(child);
-    }).timeout(10000);
+      expect(children).not.toContain(child);
+    }); // TODO: Add { timeout: 10000 } to the it() options
 
     it('should return an old child if many retained and one free', async () => {
       const processor = __dirname + '/fixtures/fixture_processor_bar.js';
@@ -99,20 +99,20 @@ function sandboxProcessTests(
         pool.retain(processor, NoopProc),
       ]);
 
-      expect(children).to.have.length(6);
+      expect(children).toHaveLength(6);
       pool.release(children[0]);
       const child = await pool.retain(processor);
-      expect(children).to.include(child);
-    }).timeout(10000);
+      expect(children).toContain(child);
+    }); // TODO: Add { timeout: 10000 } to the it() options
 
     it('should consume execArgv array from process', async () => {
       const processor = __dirname + '/fixtures/fixture_processor_bar.js';
       process.execArgv.push('--no-warnings');
 
       const child = await pool.retain(processor, NoopProc);
-      expect(child).to.be.ok;
+      expect(child).toBeTruthy();
       if (!useWorkerThreads) {
-        expect(child.childProcess.spawnargs).to.include('--no-warnings');
+        expect(child.childProcess.spawnargs).toContain('--no-warnings');
       }
     });
   });

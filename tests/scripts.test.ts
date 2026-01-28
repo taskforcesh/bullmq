@@ -1,11 +1,19 @@
-import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
-import { describe, beforeEach, it, before, after as afterAll } from 'mocha';
+import {
+  describe,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
+  it,
+  expect,
+} from 'vitest';
+
 import { v4 } from 'uuid';
 import { Queue } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
 
-describe('scripts', function () {
+describe('scripts', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
@@ -13,17 +21,17 @@ describe('scripts', function () {
   let queueName: string;
 
   let connection;
-  before(async function () {
+  beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
-  beforeEach(async function () {
+  beforeEach(async () => {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection, prefix });
     await queue.waitUntilReady();
   });
 
-  afterEach(async function () {
+  afterEach(async () => {
     await queue.close();
     await removeAllQueueData(new IORedis(redisHost), queueName);
   });
@@ -62,7 +70,7 @@ describe('scripts', function () {
 
       page.items = page.items.sort((a, b) => a.id.localeCompare(b.id));
 
-      expect(page).to.be.eql({
+      expect(page).toEqual({
         items: [
           { id: 'a' },
           { id: 'b' },
@@ -91,9 +99,9 @@ describe('scripts', function () {
 
       const page = await scripts.paginate(testSet, { start: 3, end: 7 });
 
-      expect(page.items).to.have.lengthOf(5);
-      expect(page.cursor).to.be.eql('0');
-      expect(page.total).to.be.eql(members.length);
+      expect(page.items).toHaveLength(5);
+      expect(page.cursor).toEqual('0');
+      expect(page.total).toEqual(members.length);
     });
 
     it('should paginate a large set in pages of given size', async () => {
@@ -117,8 +125,8 @@ describe('scripts', function () {
         const start = i * pageSize;
         const end = start + pageSize - 1;
         const page = await scripts.paginate(testSet, { start, end });
-        expect(page.items).to.have.lengthOf(pageSize);
-        expect(page.total).to.be.eql(totalItems);
+        expect(page.items).toHaveLength(pageSize);
+        expect(page.total).toEqual(totalItems);
         pagedItems.push(...page.items);
       }
 
@@ -126,7 +134,7 @@ describe('scripts', function () {
         .map(i => ({ id: parseInt(i.id) }))
         .sort((a, b) => a.id - b.id);
 
-      expect(sortedItems).to.be.eql(items.map(i => ({ id: i })));
+      expect(sortedItems).toEqual(items.map(i => ({ id: i })));
     });
   });
 
@@ -157,7 +165,7 @@ describe('scripts', function () {
 
       const page = await scripts.paginate(testHash, { start: 0, end: 9 });
 
-      expect(page).to.be.eql({
+      expect(page).toEqual({
         items: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'].map(key => ({
           id: key,
           v: key,
@@ -187,13 +195,13 @@ describe('scripts', function () {
 
       const page = await scripts.paginate(testHash, { start: 3, end: 7 });
 
-      expect(page.items).to.have.lengthOf(5);
+      expect(page.items).toHaveLength(5);
 
-      expect(page.items).to.be.eql(
+      expect(page.items).toEqual(
         ['d', 'e', 'f', 'g', 'h'].map(key => ({ id: key, v: key })),
       );
 
-      expect(page).to.be.eql({
+      expect(page).toEqual({
         items: ['d', 'e', 'f', 'g', 'h'].map(key => ({ id: key, v: key })),
         jobs: [],
         cursor: '0',
@@ -228,8 +236,8 @@ describe('scripts', function () {
         const end = start + pageSize - 1;
 
         const page = await scripts.paginate(testHash, { start, end });
-        expect(page.items).to.have.lengthOf(pageSize);
-        expect(page.total).to.be.eql(totalItems);
+        expect(page.items).toHaveLength(pageSize);
+        expect(page.total).toEqual(totalItems);
         pagedItems.push(...page.items);
       }
 
@@ -242,7 +250,7 @@ describe('scripts', function () {
         itemsObject[key] = parseInt(itemsObject[key]);
       }
 
-      expect(itemsObject).to.be.eql(items);
+      expect(itemsObject).toEqual(items);
     });
   });
 });

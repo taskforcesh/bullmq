@@ -1,6 +1,14 @@
-import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
-import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
+import {
+  describe,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
+  it,
+  expect,
+} from 'vitest';
+
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
 
@@ -12,29 +20,30 @@ const ONE_SECOND = 1000;
 const ONE_MINUTE = 60 * ONE_SECOND;
 const ONE_HOUR = 60 * ONE_MINUTE;
 
-describe('metrics', function () {
+describe('metrics', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
-  this.timeout(10000);
+  // TODO: Move timeout to test options: { timeout: 10000 }
   let repeat: Repeat;
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
+  let clock: sinon.SinonFakeTimers;
 
   let connection;
-  before(async function () {
+  beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
-  beforeEach(function () {
-    this.clock = sinon.useFakeTimers({
+  beforeEach(() => {
+    clock = sinon.useFakeTimers({
       shouldClearNativeTimers: true,
       toFake: ['Date', 'setTimeout', 'clearTimeout'],
     });
   });
 
-  beforeEach(async function () {
+  beforeEach(async () => {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection, prefix });
     repeat = new Repeat(queueName, { connection, prefix });
@@ -42,8 +51,8 @@ describe('metrics', function () {
     await queueEvents.waitUntilReady();
   });
 
-  afterEach(async function () {
-    this.clock.restore();
+  afterEach(async () => {
+    clock.restore();
     await queue.close();
     await repeat.close();
     await queueEvents.close();
@@ -54,10 +63,10 @@ describe('metrics', function () {
     await connection.quit();
   });
 
-  it('should gather metrics for completed jobs', async function () {
+  it('should gather metrics for completed jobs', async () => {
     const date = new Date('2017-02-07 9:24:00');
-    this.clock.setSystemTime(date);
-    this.clock.tick(0);
+    clock.setSystemTime(date);
+    clock.tick(0);
 
     const timmings = [
       0,
@@ -86,7 +95,7 @@ describe('metrics', function () {
     const worker = new Worker(
       queueName,
       async job => {
-        this.clock.tick(timmings[job.data.index]);
+        clock.tick(timmings[job.data.index]);
       },
       {
         connection,
@@ -125,17 +134,17 @@ describe('metrics', function () {
       timmings.reduce((sum, timing) => sum + timing, 0) / ONE_MINUTE,
     );
 
-    expect(metrics.meta.count).to.be.equal(numJobs);
-    expect(metrics.data.length).to.be.equal(numPoints);
-    expect(metrics.count).to.be.equal(metrics.data.length);
-    expect(processed).to.be.equal(numJobs);
+    expect(metrics.meta.count).toBe(numJobs);
+    expect(metrics.data.length).toBe(numPoints);
+    expect(metrics.count).toBe(metrics.data.length);
+    expect(processed).toBe(numJobs);
     expect(metrics.data).to.be.deep.equal(fixture);
   });
 
   it('should only keep metrics for "maxDataPoints"', async function () {
     const date = new Date('2017-02-07 9:24:00');
-    this.clock.setSystemTime(date);
-    this.clock.tick(0);
+    clock.setSystemTime(date);
+    clock.tick(0);
 
     const timmings = [
       0, // For the fixtures to work we need to use 0 as first timing
@@ -161,7 +170,7 @@ describe('metrics', function () {
     const worker = new Worker(
       queueName,
       async job => {
-        this.clock.tick(timmings[job.data.index]);
+        clock.tick(timmings[job.data.index]);
       },
       {
         connection,
@@ -196,17 +205,17 @@ describe('metrics', function () {
 
     const metrics = await queue.getMetrics('completed');
 
-    expect(metrics.meta.count).to.be.equal(numJobs);
-    expect(metrics.data.length).to.be.equal(MetricsTime.FIFTEEN_MINUTES);
-    expect(metrics.count).to.be.equal(metrics.data.length);
-    expect(processed).to.be.equal(numJobs);
+    expect(metrics.meta.count).toBe(numJobs);
+    expect(metrics.data.length).toBe(MetricsTime.FIFTEEN_MINUTES);
+    expect(metrics.count).toBe(metrics.data.length);
+    expect(processed).toBe(numJobs);
     expect(metrics.data).to.be.deep.equal(fixture);
   });
 
-  it('should gather metrics for failed jobs', async function () {
+  it('should gather metrics for failed jobs', async () => {
     const date = new Date('2017-02-07 9:24:00');
-    this.clock.setSystemTime(date);
-    this.clock.tick(0);
+    clock.setSystemTime(date);
+    clock.tick(0);
 
     const timmings = [
       0, // For the fixtures to work we need to use 0 as first timing
@@ -226,7 +235,7 @@ describe('metrics', function () {
     const worker = new Worker(
       queueName,
       async job => {
-        this.clock.tick(timmings[job.data.index]);
+        clock.tick(timmings[job.data.index]);
         throw new Error('test');
       },
       {
@@ -266,17 +275,17 @@ describe('metrics', function () {
       timmings.reduce((sum, timing) => sum + timing, 0) / ONE_MINUTE,
     );
 
-    expect(metrics.meta.count).to.be.equal(numJobs);
-    expect(metrics.data.length).to.be.equal(numPoints);
-    expect(metrics.count).to.be.equal(metrics.data.length);
-    expect(processed).to.be.equal(numJobs);
+    expect(metrics.meta.count).toBe(numJobs);
+    expect(metrics.data.length).toBe(numPoints);
+    expect(metrics.count).toBe(metrics.data.length);
+    expect(processed).toBe(numJobs);
     expect(metrics.data).to.be.deep.equal(fixture);
   });
 
-  it('should get metrics with pagination', async function () {
+  it('should get metrics with pagination', async () => {
     const date = new Date('2017-02-07 9:24:00');
-    this.clock.setSystemTime(date);
-    this.clock.tick(0);
+    clock.setSystemTime(date);
+    clock.tick(0);
 
     const timmings = [
       0,
@@ -297,7 +306,7 @@ describe('metrics', function () {
     const worker = new Worker(
       queueName,
       async job => {
-        this.clock.tick(timmings[job.data.index]);
+        clock.tick(timmings[job.data.index]);
       },
       {
         connection,
@@ -330,7 +339,7 @@ describe('metrics', function () {
 
     await closing;
 
-    expect(processed).to.be.equal(numJobs);
+    expect(processed).toBe(numJobs);
 
     const numPoints = Math.floor(
       timmings.reduce((sum, timing) => sum + timing, 0) / ONE_MINUTE,
@@ -346,10 +355,8 @@ describe('metrics', function () {
         skip,
         skip + pageSize - 1,
       );
-      expect(metrics.meta.count).to.be.equal(numJobs);
-      expect(metrics.data.length).to.be.equal(
-        Math.min(numPoints - skip, pageSize),
-      );
+      expect(metrics.meta.count).toBe(numJobs);
+      expect(metrics.data.length).toBe(Math.min(numPoints - skip, pageSize));
 
       data.push(...metrics.data);
       skip += pageSize;

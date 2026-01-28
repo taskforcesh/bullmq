@@ -1,6 +1,14 @@
-import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
-import { describe, beforeEach, it, before, after as afterAll } from 'mocha';
+import {
+  describe,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
+  it,
+  expect,
+} from 'vitest';
+
 import { after } from 'lodash';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
@@ -8,7 +16,7 @@ import { FlowProducer, Job, Queue, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 import { version as currentPackageVersion } from '../src/version';
 
-describe('queues', function () {
+describe('queues', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   const sandbox = sinon.createSandbox();
@@ -17,17 +25,17 @@ describe('queues', function () {
   let queueName: string;
 
   let connection: IORedis;
-  before(async function () {
+  beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
-  beforeEach(async function () {
+  beforeEach(async () => {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection, prefix });
     await queue.waitUntilReady();
   });
 
-  afterEach(async function () {
+  afterEach(async () => {
     sandbox.restore();
     await queue.close();
     await removeAllQueueData(new IORedis(redisHost), queueName);
@@ -37,8 +45,8 @@ describe('queues', function () {
     await connection.quit();
   });
 
-  describe('use generics', function () {
-    it('should be able to use generics', async function () {
+  describe('use generics', () => {
+    it('should be able to use generics', async () => {
       const queue = new Queue<{ foo: string; bar: number }>(queueName, {
         prefix,
         connection,
@@ -46,24 +54,24 @@ describe('queues', function () {
 
       const job = await queue.add(queueName, { foo: 'bar', bar: 1 });
       const job2 = await queue.getJob(job.id!);
-      expect(job2?.data.foo).to.be.eql('bar');
-      expect(job2?.data.bar).to.be.eql(1);
+      expect(job2?.data.foo).toEqual('bar');
+      expect(job2?.data.bar).toEqual(1);
       await queue.close();
     });
 
-    it('should resolve Job<any, any, string> when no generics provided', async function () {
+    it('should resolve Job<any, any, string> when no generics provided', async () => {
       await queue.add('test-job', { foo: 'bar', num: 123 });
 
       const jobs = await queue.getJobs(['waiting']);
 
-      expect(jobs).to.be.an('array');
-      expect(jobs.length).to.be.at.least(1);
-      expect(jobs[0]).to.be.instanceOf(Job);
+      expect(jobs).toBeInstanceOf(Array);
+      expect(jobs.length).toBeGreaterThanOrEqual(1);
+      expect(jobs[0]).toBeInstanceOf(Job);
     });
   });
 
-  describe('when removing a job', function () {
-    it('should emit removed event', async function () {
+  describe('when removing a job', () => {
+    it('should emit removed event', async () => {
       const queue = new Queue<{ foo: string; bar: number }>(queueName, {
         prefix,
         connection,
@@ -72,7 +80,7 @@ describe('queues', function () {
       const job = await queue.add(queueName, { foo: 'bar', bar: 1 });
       const removed = new Promise<void>(resolve => {
         queue.on('removed', (jobId: string) => {
-          expect(jobId).to.be.eql(job.id);
+          expect(jobId).toEqual(job.id);
           resolve();
         });
       });
@@ -85,8 +93,8 @@ describe('queues', function () {
   it('should return the queue version', async () => {
     const queue = new Queue(queueName, { connection });
     const version = await queue.getVersion();
-    expect(version.startsWith('bullmq')).to.be.true;
-    expect(version.endsWith(`:${currentPackageVersion}`)).to.be.true;
+    expect(version.startsWith('bullmq')).toBe(true);
+    expect(version.endsWith(`:${currentPackageVersion}`)).toBe(true);
     return queue.close();
   });
 
@@ -94,53 +102,53 @@ describe('queues', function () {
     const exQueueName = `test-${v4()}`;
     const queue = new Queue(exQueueName, { connection, skipMetasUpdate: true });
     const version = await queue.getVersion();
-    expect(version).to.be.equal(null);
+    expect(version).toBe(null);
     await queue.close();
     await removeAllQueueData(new IORedis(redisHost), exQueueName);
   });
 
-  describe('.getMeta', function () {
-    it('should return global concurrency', async function () {
+  describe('.getMeta', () => {
+    it('should return global concurrency', async () => {
       await queue.setGlobalConcurrency(1);
       const config = await queue.getMeta();
 
-      expect(config).to.be.deep.include({
+      expect(config).toMatchObject({
         maxLenEvents: 10000,
         paused: false,
         concurrency: 1,
       });
-      expect(config.version?.startsWith('bullmq')).to.be.true;
-      expect(config.version?.endsWith(`:${currentPackageVersion}`)).to.be.true;
+      expect(config.version?.startsWith('bullmq')).toBe(true);
+      expect(config.version?.endsWith(`:${currentPackageVersion}`)).toBe(true);
 
       await queue.close();
     });
 
-    it('should return global rate limit', async function () {
+    it('should return global rate limit', async () => {
       await queue.setGlobalRateLimit(1, 500);
       const config = await queue.getMeta();
 
-      expect(config).to.be.deep.include({
+      expect(config).toMatchObject({
         maxLenEvents: 10000,
         paused: false,
         max: 1,
         duration: 500,
       });
-      expect(config.version?.startsWith('bullmq')).to.be.true;
-      expect(config.version?.endsWith(`:${currentPackageVersion}`)).to.be.true;
+      expect(config.version?.startsWith('bullmq')).toBe(true);
+      expect(config.version?.endsWith(`:${currentPackageVersion}`)).toBe(true);
 
       await queue.close();
     });
 
-    it('should return paused', async function () {
+    it('should return paused', async () => {
       await queue.pause();
       const config = await queue.getMeta();
 
-      expect(config).to.be.deep.include({
+      expect(config).toMatchObject({
         maxLenEvents: 10000,
         paused: true,
       });
-      expect(config.version?.startsWith('bullmq')).to.be.true;
-      expect(config.version?.endsWith(`:${currentPackageVersion}`)).to.be.true;
+      expect(config.version?.startsWith('bullmq')).toBe(true);
+      expect(config.version?.endsWith(`:${currentPackageVersion}`)).toBe(true);
 
       await queue.close();
     });
@@ -148,10 +156,10 @@ describe('queues', function () {
 
   describe('.add', () => {
     describe('when jobId is provided as integer', () => {
-      it('throws error', async function () {
+      it('throws error', async () => {
         await expect(
           queue.add('test', { foo: 1 }, { jobId: '2' }),
-        ).to.be.rejectedWith('Custom Id cannot be integers');
+        ).rejects.toThrow('Custom Id cannot be integers');
       });
     });
 
@@ -159,32 +167,32 @@ describe('queues', function () {
       it('throws an error', async () => {
         await expect(
           queue.add('test', { foo: 1 }, { jobId: '1:0' }),
-        ).to.be.rejectedWith('Custom Id cannot contain :');
+        ).rejects.toThrow('Custom Id cannot contain :');
       });
     });
   });
 
   describe('when queue name contains :', () => {
-    it('throws an error', function () {
+    it('throws an error', async () => {
       expect(
         () =>
           new Queue('name:test', {
             connection,
             prefix,
           }),
-      ).to.throw('Queue name cannot contain :');
+      ).toThrow('Queue name cannot contain :');
     });
   });
 
   describe('when empty name is provided', () => {
-    it('throws an error', function () {
+    it('throws an error', async () => {
       expect(
         () =>
           new Queue('', {
             connection,
             prefix,
           }),
-      ).to.throw('Queue name must be provided');
+      ).toThrow('Queue name must be provided');
     });
   });
 
@@ -199,23 +207,23 @@ describe('queues', function () {
       await Promise.all(added);
 
       const count = await queue.count();
-      expect(count).to.be.eql(maxJobs);
+      expect(count).toEqual(maxJobs);
       const priorityCount = await queue.getJobCountByTypes('prioritized');
-      expect(priorityCount).to.be.eql(maxJobs);
+      expect(priorityCount).toEqual(maxJobs);
 
       await queue.drain();
       const countAfterEmpty = await queue.count();
-      expect(countAfterEmpty).to.be.eql(0);
+      expect(countAfterEmpty).toEqual(0);
 
       const client = await queue.client;
       const keys = await client.keys(`${prefix}:${queue.name}:*`);
-      expect(keys.length).to.be.eql(5);
+      expect(keys.length).toEqual(5);
 
       for (const key of keys) {
         const type = key.split(':')[2];
-        expect(['marker', 'events', 'meta', 'pc', 'id']).to.include(type);
+        expect(['marker', 'events', 'meta', 'pc', 'id']).toContain(type);
       }
-    }).timeout(10000);
+    }); // TODO: Add { timeout: 10000 } to the it() options
 
     describe('when having a flow', async () => {
       describe('when parent belongs to same queue', async () => {
@@ -237,21 +245,21 @@ describe('queues', function () {
             });
 
             const count = await queue.count();
-            expect(count).to.be.eql(4);
+            expect(count).toEqual(4);
 
             await queue.drain();
 
             const client = await queue.client;
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-            expect(keys.length).to.be.eql(4);
+            expect(keys.length).toEqual(4);
             for (const key of keys) {
               const type = key.split(':')[2];
-              expect(['events', 'meta', 'id', 'marker']).to.include(type);
+              expect(['events', 'meta', 'id', 'marker']).toContain(type);
             }
 
             const countAfterEmpty = await queue.count();
-            expect(countAfterEmpty).to.be.eql(0);
+            expect(countAfterEmpty).toEqual(0);
 
             await flow.close();
           });
@@ -271,21 +279,21 @@ describe('queues', function () {
             });
 
             const count = await queue.count();
-            expect(count).to.be.eql(2);
+            expect(count).toEqual(2);
 
             await queue.drain();
 
             const client = await queue.client;
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-            expect(keys.length).to.be.eql(4);
+            expect(keys.length).toEqual(4);
             for (const key of keys) {
               const type = key.split(':')[2];
-              expect(['id', 'meta', 'marker', 'events']).to.include(type);
+              expect(['id', 'meta', 'marker', 'events']).toContain(type);
             }
 
             const countAfterEmpty = await queue.count();
-            expect(countAfterEmpty).to.be.eql(0);
+            expect(countAfterEmpty).toEqual(0);
 
             await flow.close();
           });
@@ -317,17 +325,17 @@ describe('queues', function () {
             });
 
             const count = await queue.count();
-            expect(count).to.be.eql(1);
+            expect(count).toEqual(1);
 
             await queue.drain();
 
             const client = await queue.client;
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-            expect(keys.length).to.be.eql(6);
+            expect(keys.length).toEqual(6);
 
             const countAfterEmpty = await queue.count();
-            expect(countAfterEmpty).to.be.eql(1);
+            expect(countAfterEmpty).toEqual(1);
 
             await flow.close();
             await childrenQueue.close();
@@ -360,29 +368,29 @@ describe('queues', function () {
             });
 
             const count = await queue.count();
-            expect(count).to.be.eql(3);
+            expect(count).toEqual(3);
 
             await queue.drain();
 
             const client = await queue.client;
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-            expect(keys.length).to.be.eql(4);
+            expect(keys.length).toEqual(4);
             for (const key of keys) {
               const type = key.split(':')[2];
-              expect(['id', 'meta', 'events', 'marker']).to.include(type);
+              expect(['id', 'meta', 'events', 'marker']).toContain(type);
             }
 
             const countAfterEmpty = await queue.count();
-            expect(countAfterEmpty).to.be.eql(0);
+            expect(countAfterEmpty).toEqual(0);
 
             const childrenFailedCount =
               await queue.getJobCountByTypes('failed');
-            expect(childrenFailedCount).to.be.eql(0);
+            expect(childrenFailedCount).toEqual(0);
 
             const parentWaitCount =
               await parentQueue.getJobCountByTypes('wait');
-            expect(parentWaitCount).to.be.eql(1);
+            expect(parentWaitCount).toEqual(1);
             await parentQueue.close();
             await flow.close();
             await removeAllQueueData(new IORedis(redisHost), parentQueueName);
@@ -409,28 +417,28 @@ describe('queues', function () {
             });
 
             const count = await queue.count();
-            expect(count).to.be.eql(1);
+            expect(count).toEqual(1);
 
             await queue.drain();
 
             const client = await queue.client;
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-            expect(keys.length).to.be.eql(4);
+            expect(keys.length).toEqual(4);
             for (const key of keys) {
               const type = key.split(':')[2];
-              expect(['id', 'meta', 'events', 'marker']).to.include(type);
+              expect(['id', 'meta', 'events', 'marker']).toContain(type);
             }
 
             const countAfterEmpty = await queue.count();
-            expect(countAfterEmpty).to.be.eql(0);
+            expect(countAfterEmpty).toEqual(0);
 
             const failedCount = await queue.getJobCountByTypes('failed');
-            expect(failedCount).to.be.eql(0);
+            expect(failedCount).toEqual(0);
 
             const parentWaitCount =
               await parentQueue.getJobCountByTypes('wait');
-            expect(parentWaitCount).to.be.eql(1);
+            expect(parentWaitCount).toEqual(1);
             await parentQueue.close();
             await flow.close();
             await removeAllQueueData(new IORedis(redisHost), parentQueueName);
@@ -459,10 +467,10 @@ describe('queues', function () {
         await Promise.all(added);
         await Promise.all(delayed);
         const count = await queue.count();
-        expect(count).to.be.eql(maxJobs + maxDelayedJobs);
+        expect(count).toEqual(maxJobs + maxDelayedJobs);
         await queue.drain(false);
         const countAfterEmpty = await queue.count();
-        expect(countAfterEmpty).to.be.eql(50);
+        expect(countAfterEmpty).toEqual(50);
       });
     });
 
@@ -486,10 +494,10 @@ describe('queues', function () {
         await Promise.all(added);
         await Promise.all(delayed);
         const count = await queue.count();
-        expect(count).to.be.eql(maxJobs + maxDelayedJobs);
+        expect(count).toEqual(maxJobs + maxDelayedJobs);
         await queue.drain(true);
         const countAfterEmpty = await queue.count();
-        expect(countAfterEmpty).to.be.eql(0);
+        expect(countAfterEmpty).toEqual(0);
       });
     });
 
@@ -505,12 +513,12 @@ describe('queues', function () {
 
         await Promise.all(added);
         const count = await queue.count();
-        expect(count).to.be.eql(maxJobs);
+        expect(count).toEqual(maxJobs);
         const count2 = await queue.getJobCounts('paused');
-        expect(count2.paused).to.be.eql(maxJobs);
+        expect(count2.paused).toEqual(maxJobs);
         await queue.drain();
         const countAfterEmpty = await queue.count();
-        expect(countAfterEmpty).to.be.eql(0);
+        expect(countAfterEmpty).toEqual(0);
       });
     });
   });
@@ -523,7 +531,7 @@ describe('queues', function () {
 
       const count = await client.zcard(`${prefix}:${queue.name}:priority`);
 
-      expect(count).to.be.eql(2);
+      expect(count).toEqual(2);
 
       await queue.removeDeprecatedPriorityKey();
 
@@ -531,7 +539,7 @@ describe('queues', function () {
         `${prefix}:${queue.name}:priority`,
       );
 
-      expect(updatedCount).to.be.eql(0);
+      expect(updatedCount).toEqual(0);
     });
   });
 
@@ -556,7 +564,7 @@ describe('queues', function () {
       let order = 0;
       const failing = new Promise<void>(resolve => {
         worker.on('failed', job => {
-          expect(order).to.be.eql(job!.data.idx);
+          expect(order).toEqual(job!.data.idx);
           if (order === jobCount - 1) {
             resolve();
           }
@@ -571,12 +579,12 @@ describe('queues', function () {
       await failing;
 
       const failedCount = await queue.getJobCounts('failed');
-      expect(failedCount.failed).to.be.equal(jobCount);
+      expect(failedCount.failed).toBe(jobCount);
 
       order = 0;
       const completing = new Promise<void>(resolve => {
         worker.on('completed', job => {
-          expect(order).to.be.eql(job.data.idx);
+          expect(order).toEqual(job.data.idx);
           if (order === jobCount - 1) {
             resolve();
           }
@@ -590,13 +598,13 @@ describe('queues', function () {
       await completing;
 
       const completedCount = await queue.getJobCounts('completed');
-      expect(completedCount.completed).to.be.equal(jobCount);
+      expect(completedCount.completed).toBe(jobCount);
 
       await worker.close();
     });
 
     describe('when completed state is provided', () => {
-      it('retries all completed jobs', async function () {
+      it('retries all completed jobs', async () => {
         await queue.waitUntilReady();
         const jobCount = 8;
 
@@ -622,7 +630,7 @@ describe('queues', function () {
         await completing1;
 
         const completedCount1 = await queue.getJobCounts('completed');
-        expect(completedCount1.completed).to.be.equal(jobCount);
+        expect(completedCount1.completed).toBe(jobCount);
 
         const completing2 = new Promise(resolve => {
           worker.on('completed', after(jobCount, resolve));
@@ -631,12 +639,12 @@ describe('queues', function () {
         await queue.retryJobs({ count: 2, state: 'completed' });
 
         const completedCount2 = await queue.getJobCounts('completed');
-        expect(completedCount2.completed).to.be.equal(0);
+        expect(completedCount2.completed).toBe(0);
 
         await completing2;
 
         const completedCount = await queue.getJobCounts('completed');
-        expect(completedCount.completed).to.be.equal(jobCount);
+        expect(completedCount.completed).toBe(jobCount);
 
         await worker.close();
       });
@@ -664,7 +672,7 @@ describe('queues', function () {
         let timestamp;
         const failing = new Promise<void>(resolve => {
           worker.on('failed', job => {
-            expect(order).to.be.eql(job!.data.idx);
+            expect(order).toEqual(job!.data.idx);
             if (job!.data.idx === jobCount / 2 - 1) {
               timestamp = Date.now();
             }
@@ -682,12 +690,12 @@ describe('queues', function () {
         await failing;
 
         const failedCount = await queue.getJobCounts('failed');
-        expect(failedCount.failed).to.be.equal(jobCount);
+        expect(failedCount.failed).toBe(jobCount);
 
         order = 0;
         const completing = new Promise<void>(resolve => {
           worker.on('completed', job => {
-            expect(order).to.be.eql(job.data.idx);
+            expect(order).toEqual(job.data.idx);
             if (order === jobCount / 2 - 1) {
               resolve();
             }
@@ -701,8 +709,8 @@ describe('queues', function () {
         await completing;
 
         const count = await queue.getJobCounts('completed', 'failed');
-        expect(count.completed).to.be.equal(jobCount / 2);
-        expect(count.failed).to.be.equal(jobCount / 2);
+        expect(count.completed).toBe(jobCount / 2);
+        expect(count.failed).toBe(jobCount / 2);
 
         await worker.close();
       });
@@ -729,7 +737,7 @@ describe('queues', function () {
         let order = 0;
         const failing = new Promise<void>(resolve => {
           worker.on('failed', job => {
-            expect(order).to.be.eql(job!.data.idx);
+            expect(order).toEqual(job!.data.idx);
             if (order === jobCount - 1) {
               resolve();
             }
@@ -744,7 +752,7 @@ describe('queues', function () {
         await failing;
 
         const failedCount = await queue.getJobCounts('failed');
-        expect(failedCount.failed).to.be.equal(jobCount);
+        expect(failedCount.failed).toBe(jobCount);
 
         order = 0;
 
@@ -753,7 +761,7 @@ describe('queues', function () {
         await queue.retryJobs({ count: 2 });
 
         const pausedCount = await queue.getJobCounts('paused');
-        expect(pausedCount.paused).to.be.equal(jobCount);
+        expect(pausedCount.paused).toBe(jobCount);
 
         await worker.close();
       });
@@ -770,12 +778,12 @@ describe('queues', function () {
       }
 
       const delayedCount = await queue.getJobCounts('delayed');
-      expect(delayedCount.delayed).to.be.equal(jobCount);
+      expect(delayedCount.delayed).toBe(jobCount);
 
       await queue.promoteJobs();
 
       const waitingCount = await queue.getJobCounts('waiting');
-      expect(waitingCount.waiting).to.be.equal(jobCount);
+      expect(waitingCount.waiting).toBe(jobCount);
 
       const worker = new Worker(
         queueName,
@@ -793,7 +801,7 @@ describe('queues', function () {
       await completing;
 
       const promotedCount = await queue.getJobCounts('delayed');
-      expect(promotedCount.delayed).to.be.equal(0);
+      expect(promotedCount.delayed).toBe(0);
 
       await worker.close();
     });

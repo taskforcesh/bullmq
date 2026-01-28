@@ -1,6 +1,15 @@
 import { expect, assert } from 'chai';
 import { default as IORedis } from 'ioredis';
-import { after, beforeEach, describe, it, before } from 'mocha';
+import {
+  describe,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
+  it,
+  expect,
+} from 'vitest';
+
 import { v4 } from 'uuid';
 import { FlowProducer, Job, JobScheduler, Queue, Worker } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
@@ -94,8 +103,8 @@ describe('Telemetry', () => {
     }
 
     setSpanOnContext(ctx: any, omitContext?: boolean): any {
-      context['getSpan'] = () => this;
-      return { ...context, getMetadata_span: this['name'] };
+      ctx['getSpan'] = () => this;
+      return { ...ctx, getMetadata_span: this['name'] };
     }
 
     addEvent(name: string, attributes?: Attributes): void {}
@@ -121,11 +130,11 @@ describe('Telemetry', () => {
   let queueName: string;
 
   let connection;
-  before(async function () {
+  beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
-  beforeEach(async function () {
+  beforeEach(async () => {
     queueName = `test-${v4()}`;
     telemetryClient = new MockTelemetry('mockTracer');
 
@@ -136,12 +145,12 @@ describe('Telemetry', () => {
     });
   });
 
-  afterEach(async function () {
+  afterEach(async () => {
     await queue.close();
     await removeAllQueueData(new IORedis(redisHost), queueName);
   });
 
-  after(async function () {
+  afterAll(async () => {
     await connection.quit();
   });
 
@@ -152,12 +161,10 @@ describe('Telemetry', () => {
       const activeContext = telemetryClient.contextManager.active();
 
       const span = activeContext.getSpan?.() as MockSpan;
-      expect(span).to.be.an.instanceOf(MockSpan);
-      expect(span.name).to.equal(`add ${queueName}.testJob`);
-      expect(span.options?.kind).to.equal(SpanKind.PRODUCER);
-      expect(span.attributes[TelemetryAttributes.QueueName]).to.equal(
-        queueName,
-      );
+      expect(span).toBeInstanceOf(MockSpan);
+      expect(span.name).toBe(`add ${queueName}.testJob`);
+      expect(span.options?.kind).toBe(SpanKind.PRODUCER);
+      expect(span.attributes[TelemetryAttributes.QueueName]).toBe(queueName);
     });
 
     it('should correctly handle errors and record them in telemetry', async () => {
@@ -198,15 +205,13 @@ describe('Telemetry', () => {
 
       const activeContext = telemetryClient.contextManager.active();
       const span = activeContext.getSpan?.() as MockSpan;
-      expect(span).to.be.an.instanceOf(MockSpan);
-      expect(span.name).to.equal(`addBulk ${queueName}`);
-      expect(span.options?.kind).to.equal(SpanKind.PRODUCER);
-      expect(span.attributes[TelemetryAttributes.BulkNames]).to.deep.equal(
+      expect(span).toBeInstanceOf(MockSpan);
+      expect(span.name).toBe(`addBulk ${queueName}`);
+      expect(span.options?.kind).toBe(SpanKind.PRODUCER);
+      expect(span.attributes[TelemetryAttributes.BulkNames]).toEqual(
         jobs.map(job => job.name),
       );
-      expect(span.attributes[TelemetryAttributes.BulkCount]).to.equal(
-        jobs.length,
-      );
+      expect(span.attributes[TelemetryAttributes.BulkCount]).toBe(jobs.length);
     });
 
     it('should correctly handle errors and record them in telemetry for addBulk', async () => {
@@ -247,14 +252,14 @@ describe('Telemetry', () => {
 
       const activeContext = telemetryClient.contextManager.active();
       const span = activeContext.getSpan?.() as MockSpan;
-      expect(span).to.be.an.instanceOf(MockSpan);
-      expect(span.name).to.equal(`add ${queueName}.repeatable-job`);
-      expect(span.options?.kind).to.equal(SpanKind.PRODUCER);
-      expect(span.attributes[TelemetryAttributes.JobSchedulerId]).to.equal(
+      expect(span).toBeInstanceOf(MockSpan);
+      expect(span.name).toBe(`add ${queueName}.repeatable-job`);
+      expect(span.options?.kind).toBe(SpanKind.PRODUCER);
+      expect(span.attributes[TelemetryAttributes.JobSchedulerId]).toBe(
         jobSchedulerId,
       );
-      expect(span.attributes[TelemetryAttributes.JobId]).to.be.a('string');
-      expect(span.attributes[TelemetryAttributes.JobId]).to.include(
+      expect(span.attributes[TelemetryAttributes.JobId]).toBeTypeOf('string');
+      expect(span.attributes[TelemetryAttributes.JobId]).toContain(
         `repeat:${jobSchedulerId}:`,
       );
     });
@@ -312,14 +317,14 @@ describe('Telemetry', () => {
 
       const span = startSpanSpy.returnValues[0] as MockSpan;
 
-      expect(span).to.be.an.instanceOf(MockSpan);
-      expect(span.name).to.equal(`process ${queueName}`);
-      expect(span.options?.kind).to.equal(SpanKind.CONSUMER);
-      expect(span.attributes[TelemetryAttributes.WorkerId]).to.equal(worker.id);
-      expect(span.attributes[TelemetryAttributes.WorkerName]).to.equal(
+      expect(span).toBeInstanceOf(MockSpan);
+      expect(span.name).toBe(`process ${queueName}`);
+      expect(span.options?.kind).toBe(SpanKind.CONSUMER);
+      expect(span.attributes[TelemetryAttributes.WorkerId]).toBe(worker.id);
+      expect(span.attributes[TelemetryAttributes.WorkerName]).toBe(
         'testWorker',
       );
-      expect(span.attributes[TelemetryAttributes.JobId]).to.equal(job.id);
+      expect(span.attributes[TelemetryAttributes.JobId]).toBe(job.id);
 
       moveToCompletedStub.restore();
       await worker.close();
@@ -341,7 +346,7 @@ describe('Telemetry', () => {
 
       const workerActiveContext = telemetryClient.contextManager.active();
       const queueActiveContext = telemetryClient.contextManager.active();
-      expect(workerActiveContext).to.equal(queueActiveContext);
+      expect(workerActiveContext).toBe(queueActiveContext);
 
       moveToCompletedStub.restore();
       await worker.close();
@@ -377,12 +382,10 @@ describe('Telemetry', () => {
 
       const span = traceSpy.returnValues[0] as MockSpan;
 
-      expect(span).to.be.an.instanceOf(MockSpan);
-      expect(span.name).to.equal(`addFlow ${queueName}`);
-      expect(span.options?.kind).to.equal(SpanKind.PRODUCER);
-      expect(span.attributes[TelemetryAttributes.FlowName]).to.equal(
-        testFlow.name,
-      );
+      expect(span).toBeInstanceOf(MockSpan);
+      expect(span.name).toBe(`addFlow ${queueName}`);
+      expect(span.options?.kind).toBe(SpanKind.PRODUCER);
+      expect(span.attributes[TelemetryAttributes.FlowName]).toBe(testFlow.name);
 
       traceSpy.restore();
       await flowProducer.close();
@@ -463,13 +466,13 @@ describe('Telemetry', () => {
 
       const span = traceSpy.returnValues[0] as MockSpan;
 
-      expect(span).to.be.an.instanceOf(MockSpan);
-      expect(span.name).to.equal('addBulkFlows');
-      expect(span.options?.kind).to.equal(SpanKind.PRODUCER);
-      expect(span.attributes[TelemetryAttributes.BulkNames]).to.equal(
+      expect(span).toBeInstanceOf(MockSpan);
+      expect(span.name).toBe('addBulkFlows');
+      expect(span.options?.kind).toBe(SpanKind.PRODUCER);
+      expect(span.attributes[TelemetryAttributes.BulkNames]).toBe(
         testFlows.map(flow => flow.name).join(','),
       );
-      expect(span.attributes[TelemetryAttributes.BulkCount]).to.equal(
+      expect(span.attributes[TelemetryAttributes.BulkCount]).toBe(
         testFlows.length,
       );
 
@@ -552,7 +555,7 @@ describe('Telemetry', () => {
 
       await processing;
 
-      expect(fromMetadataSpy.callCount).to.equal(0);
+      expect(fromMetadataSpy.callCount).toBe(0);
       await worker.close();
     });
 
@@ -574,11 +577,11 @@ describe('Telemetry', () => {
         },
       ];
       const addedJos = await queue.addBulk(jobs);
-      expect(addedJos).to.have.length(1);
+      expect(addedJos).toHaveLength(1);
 
       await processing;
 
-      expect(fromMetadataSpy.callCount).to.equal(0);
+      expect(fromMetadataSpy.callCount).toBe(0);
       await worker.close();
     });
 
@@ -607,7 +610,7 @@ describe('Telemetry', () => {
 
       await processing;
 
-      expect(fromMetadataSpy.callCount).to.equal(0);
+      expect(fromMetadataSpy.callCount).toBe(0);
       await worker.close();
     });
 
@@ -649,7 +652,7 @@ describe('Telemetry', () => {
 
       await processing;
 
-      expect(fromMetadataSpy.callCount).to.equal(0);
+      expect(fromMetadataSpy.callCount).toBe(0);
       await flowProducer.close();
       await worker.close();
     });
