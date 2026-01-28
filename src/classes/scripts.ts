@@ -2,7 +2,6 @@
  * Includes all the scripts needed by the queue and jobs.
  */
 
-/*eslint-env node */
 'use strict';
 import { Packr } from 'msgpackr';
 

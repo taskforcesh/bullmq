@@ -1,4 +1,3 @@
-/*eslint-env node */
 'use strict';
 
 import { QueueBase } from './queue-base';

@@ -5259,7 +5259,7 @@ describe('workers', () => {
     });
   });
 
-  describe('non-blocking', async () => {
+  describe('non-blocking', () => {
     it('should block by default', async () => {
       const worker = new Worker(queueName, null, { connection, prefix });
       const token = 'my-token';

@@ -1,4 +1,3 @@
-/*eslint-env node */
 'use strict';
 
 import { default as IORedis } from 'ioredis';
