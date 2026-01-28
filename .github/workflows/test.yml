@@ -125,7 +125,7 @@ jobs:
 
     services:
       dragonflydb:
-        image: docker.dragonflydb.io/dragonflydb/dragonfly:v1.24.0
+        image: docker.dragonflydb.io/dragonflydb/dragonfly:v1.36.0
         env:
           DFLY_cluster_mode: emulated
           DFLY_lock_on_hashtags: true
@@ -227,7 +227,7 @@ jobs:
 
     services:
       dragonflydb:
-        image: docker.dragonflydb.io/dragonflydb/dragonfly:v1.24.0
+        image: docker.dragonflydb.io/dragonflydb/dragonfly:v1.36.0
         env:
           DFLY_cluster_mode: emulated
           DFLY_lock_on_hashtags: true
