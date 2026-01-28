@@ -1,3 +1,10 @@
+## [2.19.4](https://github.com/taskforcesh/bullmq/compare/vpy2.19.3...vpy2.19.4) (2026-01-28)
+
+
+### Bug Fixes
+
+* use prioritized key name instead of priority [python] ([#3717](https://github.com/taskforcesh/bullmq/issues/3717)) fixes [#3716](https://github.com/taskforcesh/bullmq/issues/3716) ([f824c01](https://github.com/taskforcesh/bullmq/commit/f824c01c53d57e75d7b57efce7a124adffed9dfa))
+
 ## [2.19.3](https://github.com/taskforcesh/bullmq/compare/vpy2.19.2...vpy2.19.3) (2026-01-24)
 
 
