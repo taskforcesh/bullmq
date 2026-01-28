@@ -15,13 +15,22 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
     return this.Job.fromId(this, jobId) as Promise<JobBase>;
   }
 
+  private resolveAliasJobType(type: string) {
+    const typeToAliases: Record<string, string> = {
+      'waiting': 'wait',
+      'repeat': 'delayed'
+    };
+
+    return typeToAliases[type] || type;
+  }
+
   private commandByType(
     types: JobType[],
     count: boolean,
     callback: (key: string, dataType: string) => void,
   ) {
     return types.map((type: string) => {
-      type = type === 'waiting' ? 'wait' : type; // alias
+      type = this.resolveAliasJobType(type);
 
       const key = this.toKey(type);
 
