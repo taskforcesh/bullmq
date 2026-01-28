@@ -1,4 +1,3 @@
-import { expect, assert } from 'chai';
 import { default as IORedis } from 'ioredis';
 import {
   describe,
@@ -182,10 +181,9 @@ describe('Telemetry', () => {
       try {
         await queue.add('testJob', { someData: 'testData' }, opts);
       } catch (e) {
-        assert(recordExceptionSpy.calledOnce);
+        expect(recordExceptionSpy.calledOnce).toBe(true);
         const recordedError = recordExceptionSpy.firstCall.args[0];
-        assert.equal(
-          recordedError.message,
+        expect(recordedError.message).toBe(
           'End date must be greater than current timestamp',
         );
       } finally {
@@ -230,9 +228,9 @@ describe('Telemetry', () => {
           },
         ]);
       } catch (e) {
-        assert(recordExceptionSpy.calledOnce);
+        expect(recordExceptionSpy.calledOnce).toBe(true);
         const recordedError = recordExceptionSpy.firstCall.args[0];
-        assert.equal(recordedError.message, 'Custom Id cannot be integers');
+        expect(recordedError.message).toBe('Custom Id cannot be integers');
       } finally {
         recordExceptionSpy.restore();
       }
@@ -285,9 +283,9 @@ describe('Telemetry', () => {
           { data: { foo: 'bar' } },
         );
       } catch (e) {
-        assert(recordExceptionSpy.calledOnce);
+        expect(recordExceptionSpy.calledOnce).toBe(true);
         const recordedError = recordExceptionSpy.firstCall.args[0];
-        assert.equal(recordedError.message, errMessage);
+        expect(recordedError.message).toBe(errMessage);
       } finally {
         JobScheduler.prototype.createNextJob = originalCreateNextJob;
         recordExceptionSpy.restore();
@@ -412,10 +410,9 @@ describe('Telemetry', () => {
           opts: { parent: { id: 'invalidParentId', queue: 'invalidQueue' } },
         });
       } catch (e) {
-        assert(recordExceptionSpy.calledOnce);
+        expect(recordExceptionSpy.calledOnce).toBe(true);
         const recordedError = recordExceptionSpy.firstCall.args[0];
-        assert.equal(
-          recordedError.message,
+        expect(recordedError.message).toBe(
           'Failed to add flow due to invalid parent configuration',
         );
       } finally {
@@ -511,10 +508,9 @@ describe('Telemetry', () => {
       try {
         await flowProducer.addBulk(invalidFlows);
       } catch (e) {
-        assert(recordExceptionSpy.calledOnce);
+        expect(recordExceptionSpy.calledOnce).toBe(true);
         const recordedError = recordExceptionSpy.firstCall.args[0];
-        assert.equal(
-          recordedError.message,
+        expect(recordedError.message).toBe(
           'Failed to add bulk flows due to invalid parent configuration',
         );
       } finally {
