@@ -631,7 +631,7 @@ describe('workers', function () {
     await worker.close();
   });
 
-  it('does not process a job that is being processed when a new queue starts', async () => {
+  it('does not process a job that is being processed when a new queue starts', async function () {
     this.timeout(12000);
     let err;
 
@@ -1957,7 +1957,7 @@ describe('workers', function () {
     });
   });
 
-  describe('when sharing a redis connection between workers', function () {
+  describe('when sharing a redis connection between workers', () => {
     it('should not close the connection', async () => {
       const connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
 
@@ -1991,7 +1991,7 @@ describe('workers', function () {
       });
     });
 
-    describe('when connection is passed into a queue', function () {
+    describe('when connection is passed into a queue', () => {
       it('should not close the connection', async () => {
         const connection = new IORedis(redisHost, {
           maxRetriesPerRequest: null,
@@ -2041,7 +2041,7 @@ describe('workers', function () {
     });
   });
 
-  describe('when autorun option is provided as false', function () {
+  describe('when autorun option is provided as false', () => {
     it('processes several jobs serially using process option as false', async () => {
       let counter = 1;
       const maxJobs = 10;
@@ -2080,7 +2080,7 @@ describe('workers', function () {
       await worker.close();
     });
 
-    describe('when process function is not defined', function () {
+    describe('when process function is not defined', () => {
       it('throws error', async () => {
         const worker = new Worker(queueName, undefined, {
           autorun: false,
@@ -2097,7 +2097,7 @@ describe('workers', function () {
       });
     });
 
-    describe('when run method is called when worker is running', function () {
+    describe('when run method is called when worker is running', () => {
       it('throws error', async () => {
         const maxJobs = 10;
         const worker = new Worker(queueName, NoopProc, {
@@ -2449,7 +2449,7 @@ describe('workers', function () {
     await worker.close();
   });
 
-  it('max stalled count cannot be less than zero', function () {
+  it('max stalled count cannot be less than zero', async function () {
     this.timeout(4000);
     expect(
       () =>
@@ -2461,7 +2461,7 @@ describe('workers', function () {
     ).to.throw('maxStalledCount must be greater or equal than 0');
   });
 
-  it('max started attempts cannot be less than zero', function () {
+  it('max started attempts cannot be less than zero', async function () {
     this.timeout(4000);
     expect(
       () =>
@@ -2473,7 +2473,7 @@ describe('workers', function () {
     ).to.throw('maxStartedAttempts must be greater or equal than 0');
   });
 
-  it('stalled interval cannot be zero', function () {
+  it('stalled interval cannot be zero', async function () {
     this.timeout(4000);
     expect(
       () =>
@@ -2485,7 +2485,7 @@ describe('workers', function () {
     ).to.throw('stalledInterval must be greater than 0');
   });
 
-  it('drain delay cannot be zero', function () {
+  it('drain delay cannot be zero', async function () {
     this.timeout(4000);
     expect(
       () =>
@@ -5252,7 +5252,7 @@ describe('workers', function () {
     });
   });
 
-  describe('non-blocking', async () => {
+  describe('non-blocking', () => {
     it('should block by default', async () => {
       const worker = new Worker(queueName, null, { connection, prefix });
       const token = 'my-token';
