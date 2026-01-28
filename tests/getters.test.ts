@@ -1,8 +1,16 @@
 'use strict';
 
-import { expect } from 'chai';
 import { after } from 'lodash';
-import { describe, beforeEach, it, before, after as afterAll } from 'mocha';
+import {
+  describe,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
+  it,
+  expect,
+} from 'vitest';
+
 import * as sinon from 'sinon';
 
 import { default as IORedis } from 'ioredis';
@@ -10,23 +18,23 @@ import { v4 } from 'uuid';
 import { FlowProducer, Queue, QueueEvents, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
-describe('Jobs getters', function () {
+describe('Jobs getters', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queue: Queue;
   let queueName: string;
 
-  let connection: IORedis;
-  before(async function () {
+  let connection;
+  beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
-  beforeEach(async function () {
+  beforeEach(async () => {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection, prefix });
   });
 
-  afterEach(async function () {
+  afterEach(async () => {
     await queue.close();
     await removeAllQueueData(new IORedis(redisHost), queueName);
   });
@@ -36,28 +44,28 @@ describe('Jobs getters', function () {
   });
 
   describe('.getQueueEvents', () => {
-    it('gets all queueEvents for this queue', async function () {
+    it('gets all queueEvents for this queue', async () => {
       const queueEvent = new QueueEvents(queueName, { connection, prefix });
       await queueEvent.waitUntilReady();
       await delay(10);
 
       const queueEvents = await queue.getQueueEvents();
-      expect(queueEvents).to.have.length(1);
+      expect(queueEvents).toHaveLength(1);
 
       const queueEvent2 = new QueueEvents(queueName, { connection, prefix });
       await queueEvent2.waitUntilReady();
       await delay(10);
 
       const nextQueueEvents = await queue.getQueueEvents();
-      expect(nextQueueEvents).to.have.length(2);
+      expect(nextQueueEvents).toHaveLength(2);
 
       await queueEvent.close();
       await queueEvent2.close();
-    }).timeout(8000);
+    }); // TODO: Add { timeout: 8000 } to the it() options
   });
 
   describe('.getWorkers', () => {
-    it('gets all workers for this queue only', async function () {
+    it('gets all workers for this queue only', async () => {
       const worker = new Worker(queueName, async () => {}, {
         autorun: false,
         connection,
@@ -70,7 +78,7 @@ describe('Jobs getters', function () {
       });
 
       const workers = await queue.getWorkers();
-      expect(workers).to.have.length(1);
+      expect(workers).toHaveLength(1);
 
       const worker2 = new Worker(queueName, async () => {}, {
         autorun: false,
@@ -84,16 +92,16 @@ describe('Jobs getters', function () {
       });
 
       const nextWorkers = await queue.getWorkers();
-      expect(nextWorkers).to.have.length(2);
+      expect(nextWorkers).toHaveLength(2);
 
       const nextWorkersCount = await queue.getWorkersCount();
-      expect(nextWorkersCount).to.be.equal(2);
+      expect(nextWorkersCount).toBe(2);
 
       await worker.close();
       await worker2.close();
     });
 
-    it('gets all workers including their names', async function () {
+    it('gets all workers including their names', async () => {
       const worker = new Worker(queueName, async () => {}, {
         autorun: false,
         connection,
@@ -103,10 +111,10 @@ describe('Jobs getters', function () {
       await worker.waitUntilReady();
 
       const workers = await queue.getWorkers();
-      expect(workers).to.have.length(1);
+      expect(workers).toHaveLength(1);
 
       const workersCount = await queue.getWorkersCount();
-      expect(workersCount).to.be.equal(1);
+      expect(workersCount).toBe(1);
 
       const worker2 = new Worker(queueName, async () => {}, {
         autorun: false,
@@ -117,10 +125,10 @@ describe('Jobs getters', function () {
       await worker2.waitUntilReady();
 
       const nextWorkers = await queue.getWorkers();
-      expect(nextWorkers).to.have.length(2);
+      expect(nextWorkers).toHaveLength(2);
 
       const nextWorkersCount = await queue.getWorkersCount();
-      expect(nextWorkersCount).to.be.equal(2);
+      expect(nextWorkersCount).toBe(2);
 
       const rawnames = nextWorkers.map(nextWorker => {
         const workerValues = nextWorker.rawname.split(':');
@@ -128,14 +136,14 @@ describe('Jobs getters', function () {
       });
 
       // Check that the worker names are included in the response on the rawname property
-      expect(rawnames).to.include('worker1');
-      expect(rawnames).to.include('worker2');
+      expect(rawnames).toContain('worker1');
+      expect(rawnames).toContain('worker2');
 
       await worker.close();
       await worker2.close();
     });
 
-    it('gets only workers related only to one queue', async function () {
+    it('gets only workers related only to one queue', async () => {
       const queueName2 = `${queueName}2`;
       const queue2 = new Queue(queueName2, { connection, prefix });
       const worker = new Worker(queueName, async () => {}, {
@@ -160,16 +168,16 @@ describe('Jobs getters', function () {
       });
 
       const workers = await queue.getWorkers();
-      expect(workers).to.have.length(1);
+      expect(workers).toHaveLength(1);
 
       const workersCount = await queue.getWorkersCount();
-      expect(workersCount).to.be.equal(1);
+      expect(workersCount).toBe(1);
 
       const workers2 = await queue2.getWorkers();
-      expect(workers2).to.have.length(1);
+      expect(workers2).toHaveLength(1);
 
       const workersCount2 = await queue2.getWorkersCount();
-      expect(workersCount2).to.be.equal(1);
+      expect(workersCount2).toBe(1);
 
       await queue2.close();
       await worker.close();
@@ -179,7 +187,7 @@ describe('Jobs getters', function () {
 
     describe('when sharing connection', () => {
       // Test is very flaky on CI, so we skip it for now.
-      it('gets all workers for a given queue', async function () {
+      it('gets all workers for a given queue', async () => {
         const ioredisConnection = new IORedis({
           host: redisHost,
           maxRetriesPerRequest: null,
@@ -199,7 +207,7 @@ describe('Jobs getters', function () {
         });
 
         const workers = await queue.getWorkers();
-        expect(workers).to.have.length(1);
+        expect(workers).toHaveLength(1);
 
         const worker2 = new Worker(queueName, async () => {}, {
           connection: ioredisConnection,
@@ -214,7 +222,7 @@ describe('Jobs getters', function () {
         });
 
         const nextWorkers = await queue.getWorkers();
-        expect(nextWorkers).to.have.length(2);
+        expect(nextWorkers).toHaveLength(2);
 
         await worker.close();
         await worker2.close();
@@ -223,7 +231,7 @@ describe('Jobs getters', function () {
     });
 
     describe('when disconnection happens', () => {
-      it('gets all workers even after reconnection', async function () {
+      it('gets all workers even after reconnection', async () => {
         const worker = new Worker(queueName, async () => {}, {
           autorun: false,
           connection,
@@ -237,18 +245,18 @@ describe('Jobs getters', function () {
         const client = await worker.waitUntilReady();
 
         const workers = await queue.getWorkers();
-        expect(workers).to.have.length(1);
+        expect(workers).toHaveLength(1);
 
         await client.disconnect();
         await delay(10);
 
         const nextWorkers = await queue.getWorkers();
-        expect(nextWorkers).to.have.length(0);
+        expect(nextWorkers).toHaveLength(0);
 
         await client.connect();
         await delay(20);
         const nextWorkers2 = await queue.getWorkers();
-        expect(nextWorkers2).to.have.length(1);
+        expect(nextWorkers2).toHaveLength(1);
 
         await worker.close();
       });
@@ -256,24 +264,24 @@ describe('Jobs getters', function () {
   });
 
   describe('.getJobState', () => {
-    it('gets current job state', async function () {
+    it('gets current job state', async () => {
       const job = await queue.add('test', { foo: 'bar' });
 
       const jobState = await queue.getJobState(job.id!);
 
-      expect(jobState).to.be.equal('waiting');
+      expect(jobState).toBe('waiting');
     });
   });
 
-  it('should get waiting jobs', async function () {
+  it('should get waiting jobs', async () => {
     await queue.add('test', { foo: 'bar' });
     await queue.add('test', { baz: 'qux' });
 
     const jobs = await queue.getWaiting();
     expect(jobs).to.be.a('array');
-    expect(jobs.length).to.be.equal(2);
-    expect(jobs[0].data.foo).to.be.equal('bar');
-    expect(jobs[1].data.baz).to.be.equal('qux');
+    expect(jobs.length).toBe(2);
+    expect(jobs[0].data.foo).toBe('bar');
+    expect(jobs[1].data.baz).toBe('qux');
   });
 
   it('should get all waiting jobs when no range is provided', async () => {
@@ -287,21 +295,21 @@ describe('Jobs getters', function () {
     const jobsWithoutProvidingRange = await queue.getWaiting();
     const allJobs = await queue.getWaiting(0, -1);
 
-    expect(allJobs.length).to.be.equal(4);
-    expect(jobsWithoutProvidingRange.length).to.be.equal(allJobs.length);
+    expect(allJobs.length).toBe(4);
+    expect(jobsWithoutProvidingRange.length).toBe(allJobs.length);
 
-    expect(allJobs[0].data.foo).to.be.equal('bar');
-    expect(allJobs[1].data.baz).to.be.equal('qux');
-    expect(allJobs[2].data.bar).to.be.equal('qux');
-    expect(allJobs[3].data.baz).to.be.equal('xuq');
+    expect(allJobs[0].data.foo).toBe('bar');
+    expect(allJobs[1].data.baz).toBe('qux');
+    expect(allJobs[2].data.bar).toBe('qux');
+    expect(allJobs[3].data.baz).toBe('xuq');
 
-    expect(jobsWithoutProvidingRange[0].data.foo).to.be.equal('bar');
-    expect(jobsWithoutProvidingRange[1].data.baz).to.be.equal('qux');
-    expect(jobsWithoutProvidingRange[2].data.bar).to.be.equal('qux');
-    expect(jobsWithoutProvidingRange[3].data.baz).to.be.equal('xuq');
+    expect(jobsWithoutProvidingRange[0].data.foo).toBe('bar');
+    expect(jobsWithoutProvidingRange[1].data.baz).toBe('qux');
+    expect(jobsWithoutProvidingRange[2].data.bar).toBe('qux');
+    expect(jobsWithoutProvidingRange[3].data.baz).toBe('xuq');
   });
 
-  it('should get paused jobs', async function () {
+  it('should get paused jobs', async () => {
     await queue.pause();
     await Promise.all([
       queue.add('test', { foo: 'bar' }),
@@ -309,19 +317,19 @@ describe('Jobs getters', function () {
     ]);
     const jobs = await queue.getWaiting();
     expect(jobs).to.be.a('array');
-    expect(jobs.length).to.be.equal(2);
-    expect(jobs[0].data.foo).to.be.equal('bar');
-    expect(jobs[1].data.baz).to.be.equal('qux');
+    expect(jobs.length).toBe(2);
+    expect(jobs[0].data.foo).toBe('bar');
+    expect(jobs[1].data.baz).toBe('qux');
   });
 
-  it('should get active jobs', async function () {
+  it('should get active jobs', async () => {
     let processor;
     const processing = new Promise<void>(resolve => {
       processor = async () => {
         const jobs = await queue.getActive();
         expect(jobs).to.be.a('array');
-        expect(jobs.length).to.be.equal(1);
-        expect(jobs[0].data.foo).to.be.equal('bar');
+        expect(jobs.length).toBe(1);
+        expect(jobs[0].data.foo).toBe('bar');
         resolve();
       };
     });
@@ -337,13 +345,13 @@ describe('Jobs getters', function () {
     const data = { foo: 'sup!' };
     const job = await queue.add('test', data);
     const returnedJob = await queue.getJob(job.id!);
-    expect(returnedJob!.data).to.eql(data);
-    expect(returnedJob!.id).to.be.eql(job.id);
+    expect(returnedJob!.data).toEqual(data);
+    expect(returnedJob!.id).toEqual(job.id);
   });
 
   it('should get undefined for nonexistent specific job', async () => {
     const returnedJob = await queue.getJob('test');
-    expect(returnedJob).to.be.equal(undefined);
+    expect(returnedJob).toBe(undefined);
   });
 
   it('should get completed jobs', async () => {
@@ -362,7 +370,7 @@ describe('Jobs getters', function () {
           expect(jobs).to.be.a('array');
 
           // We need a "empty completed" kind of function.
-          //expect(jobs.length).to.be.equal(2);
+          //expect(jobs.length).toBe(2);
           await worker.close();
           resolve();
         }
@@ -393,7 +401,7 @@ describe('Jobs getters', function () {
         if (counter === 0) {
           const jobs = await queue.getFailed();
           expect(jobs).to.be.a('array');
-          expect(jobs).to.have.length(2);
+          expect(jobs).toHaveLength(2);
           await worker.close();
           resolve();
         }
@@ -418,7 +426,7 @@ describe('Jobs getters', function () {
 
         const count = await queue.count();
 
-        expect(count).to.be.equal(9);
+        expect(count).toBe(9);
       });
     });
   });
@@ -433,7 +441,7 @@ describe('Jobs getters', function () {
 
       const prioritizedJobs = await queue.getPrioritized();
 
-      expect(prioritizedJobs.length).to.be.equal(8);
+      expect(prioritizedJobs.length).toBe(8);
     });
   });
 
@@ -447,7 +455,7 @@ describe('Jobs getters', function () {
 
       const prioritizedCount = await queue.getPrioritizedCount();
 
-      expect(prioritizedCount).to.be.equal(8);
+      expect(prioritizedCount).toBe(8);
     });
   });
 
@@ -470,9 +478,9 @@ describe('Jobs getters', function () {
           const allJobs = await queue.getFailed(0, -1);
 
           expect(allJobs).to.be.a('array');
-          expect(allJobs).to.have.length(4);
+          expect(allJobs).toHaveLength(4);
           expect(jobsWithoutProvidingRange).to.be.a('array');
-          expect(jobsWithoutProvidingRange).to.have.length(allJobs.length);
+          expect(jobsWithoutProvidingRange).toHaveLength(allJobs.length);
           await worker.close();
           resolve();
         }),
@@ -496,7 +504,7 @@ describe('Jobs getters', function () {
     });
 
     queue.on('failed', function(job, error) {
-      expect(error.message).to.be.eql('operation timed out');
+      expect(error.message).toEqual('operation timed out');
       done();
     });
 
@@ -514,41 +522,44 @@ describe('Jobs getters', function () {
   });
   */
 
-  it('should return all completed jobs when not setting start/end', function (done) {
+  it('should return all completed jobs when not setting start/end', async () => {
     const worker = new Worker(queueName, async () => {}, {
       connection,
       prefix,
     });
 
-    worker.on(
-      'completed',
-      after(3, async function () {
-        try {
-          const jobs = await queue.getJobs('completed');
-          expect(jobs).to.be.an('array').that.have.length(3);
-          expect(jobs[0]).to.have.property('finishedOn');
-          expect(jobs[1]).to.have.property('finishedOn');
-          expect(jobs[2]).to.have.property('finishedOn');
+    await new Promise<void>((resolve, reject) => {
+      worker.on(
+        'completed',
+        after(3, async function () {
+          try {
+            const jobs = await queue.getJobs('completed');
+            expect(jobs).toBeInstanceOf(Array);
+            expect(jobs).toHaveLength(3);
+            expect(jobs[0]).toHaveProperty('finishedOn');
+            expect(jobs[1]).toHaveProperty('finishedOn');
+            expect(jobs[2]).toHaveProperty('finishedOn');
 
-          expect(jobs[0]).to.have.property('processedOn');
-          expect(jobs[1]).to.have.property('processedOn');
-          expect(jobs[2]).to.have.property('processedOn');
+            expect(jobs[0]).toHaveProperty('processedOn');
+            expect(jobs[1]).toHaveProperty('processedOn');
+            expect(jobs[2]).toHaveProperty('processedOn');
 
-          await worker.close();
-          done();
-        } catch (err) {
-          await worker.close();
-          done(err);
-        }
-      }),
-    );
+            await worker.close();
+            resolve();
+          } catch (err) {
+            await worker.close();
+            reject(err);
+          }
+        }),
+      );
 
-    queue.add('test', { foo: 1 });
-    queue.add('test', { foo: 2 });
-    queue.add('test', { foo: 3 });
+      queue.add('test', { foo: 1 });
+      queue.add('test', { foo: 2 });
+      queue.add('test', { foo: 3 });
+    });
   });
 
-  it('should return all failed jobs when not setting start/end', function (done) {
+  it('should return all failed jobs when not setting start/end', async () => {
     const worker = new Worker(
       queueName,
       async () => {
@@ -557,121 +568,132 @@ describe('Jobs getters', function () {
       { connection, prefix },
     );
 
-    worker.on(
-      'failed',
-      after(3, async function () {
-        try {
-          queue;
-          const jobs = await queue.getJobs('failed');
-          expect(jobs).to.be.an('array').that.has.length(3);
-          expect(jobs[0]).to.have.property('finishedOn');
-          expect(jobs[1]).to.have.property('finishedOn');
-          expect(jobs[2]).to.have.property('finishedOn');
+    await new Promise<void>((resolve, reject) => {
+      worker.on(
+        'failed',
+        after(3, async function () {
+          try {
+            const jobs = await queue.getJobs('failed');
+            expect(jobs).toBeInstanceOf(Array);
+            expect(jobs).toHaveLength(3);
+            expect(jobs[0]).toHaveProperty('finishedOn');
+            expect(jobs[1]).toHaveProperty('finishedOn');
+            expect(jobs[2]).toHaveProperty('finishedOn');
 
-          expect(jobs[0]).to.have.property('processedOn');
-          expect(jobs[1]).to.have.property('processedOn');
-          expect(jobs[2]).to.have.property('processedOn');
-          await worker.close();
-          done();
-        } catch (err) {
-          done(err);
-        }
-      }),
-    );
+            expect(jobs[0]).toHaveProperty('processedOn');
+            expect(jobs[1]).toHaveProperty('processedOn');
+            expect(jobs[2]).toHaveProperty('processedOn');
+            await worker.close();
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        }),
+      );
 
-    queue.add('test', { foo: 1 });
-    queue.add('test', { foo: 2 });
-    queue.add('test', { foo: 3 });
+      queue.add('test', { foo: 1 });
+      queue.add('test', { foo: 2 });
+      queue.add('test', { foo: 3 });
+    });
   });
 
-  it('should return subset of jobs when setting positive range', function (done) {
+  it('should return subset of jobs when setting positive range', async () => {
     const worker = new Worker(queueName, async () => {}, {
       connection,
       prefix,
     });
 
-    worker.on(
-      'completed',
-      after(3, async function () {
-        try {
-          const jobs = await queue.getJobs('completed', 1, 2, true);
-          expect(jobs).to.be.an('array').that.has.length(2);
-          expect(jobs[0].data.foo).to.be.eql(2);
-          expect(jobs[1].data.foo).to.be.eql(3);
-          expect(jobs[0]).to.have.property('finishedOn');
-          expect(jobs[1]).to.have.property('finishedOn');
-          expect(jobs[0]).to.have.property('processedOn');
-          expect(jobs[1]).to.have.property('processedOn');
-          await worker.close();
-          done();
-        } catch (err) {
-          done(err);
-        }
-      }),
-    );
+    await new Promise<void>((resolve, reject) => {
+      worker.on(
+        'completed',
+        after(3, async function () {
+          try {
+            const jobs = await queue.getJobs('completed', 1, 2, true);
+            expect(jobs).toBeInstanceOf(Array);
+            expect(jobs).toHaveLength(2);
+            expect(jobs[0].data.foo).toEqual(2);
+            expect(jobs[1].data.foo).toEqual(3);
+            expect(jobs[0]).toHaveProperty('finishedOn');
+            expect(jobs[1]).toHaveProperty('finishedOn');
+            expect(jobs[0]).toHaveProperty('processedOn');
+            expect(jobs[1]).toHaveProperty('processedOn');
+            await worker.close();
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        }),
+      );
 
-    queue.add('test', { foo: 1 });
-    queue.add('test', { foo: 2 });
-    queue.add('test', { foo: 3 });
+      queue.add('test', { foo: 1 });
+      queue.add('test', { foo: 2 });
+      queue.add('test', { foo: 3 });
+    });
   });
 
-  it('should return subset of jobs when setting a negative range', function (done) {
+  it('should return subset of jobs when setting a negative range', async () => {
     const worker = new Worker(queueName, async () => {}, {
       connection,
       prefix,
     });
 
-    worker.on(
-      'completed',
-      after(3, async function () {
-        try {
-          const jobs = await queue.getJobs('completed', -3, -1, true);
-          expect(jobs).to.be.an('array').that.has.length(3);
-          expect(jobs[0].data.foo).to.be.equal(1);
-          expect(jobs[1].data.foo).to.be.eql(2);
-          expect(jobs[2].data.foo).to.be.eql(3);
-          await worker.close();
-          done();
-        } catch (err) {
-          done(err);
-        }
-      }),
-    );
+    await new Promise<void>((resolve, reject) => {
+      worker.on(
+        'completed',
+        after(3, async function () {
+          try {
+            const jobs = await queue.getJobs('completed', -3, -1, true);
+            expect(jobs).toBeInstanceOf(Array);
+            expect(jobs).toHaveLength(3);
+            expect(jobs[0].data.foo).toBe(1);
+            expect(jobs[1].data.foo).toEqual(2);
+            expect(jobs[2].data.foo).toEqual(3);
+            await worker.close();
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        }),
+      );
 
-    queue.add('test', { foo: 1 });
-    queue.add('test', { foo: 2 });
-    queue.add('test', { foo: 3 });
+      queue.add('test', { foo: 1 });
+      queue.add('test', { foo: 2 });
+      queue.add('test', { foo: 3 });
+    });
   });
 
-  it('should return subset of jobs when range overflows', function (done) {
+  it('should return subset of jobs when range overflows', async () => {
     const worker = new Worker(queueName, async job => {}, {
       connection,
       prefix,
     });
 
-    worker.on(
-      'completed',
-      after(3, async function () {
-        try {
-          const jobs = await queue.getJobs('completed', -300, 99999, true);
-          expect(jobs).to.be.an('array').that.has.length(3);
-          expect(jobs[0].data.foo).to.be.equal(1);
-          expect(jobs[1].data.foo).to.be.eql(2);
-          expect(jobs[2].data.foo).to.be.eql(3);
-          await worker.close();
-          done();
-        } catch (err) {
-          done(err);
-        }
-      }),
-    );
+    await new Promise<void>((resolve, reject) => {
+      worker.on(
+        'completed',
+        after(3, async function () {
+          try {
+            const jobs = await queue.getJobs('completed', -300, 99999, true);
+            expect(jobs).toBeInstanceOf(Array);
+            expect(jobs).toHaveLength(3);
+            expect(jobs[0].data.foo).toBe(1);
+            expect(jobs[1].data.foo).toEqual(2);
+            expect(jobs[2].data.foo).toEqual(3);
+            await worker.close();
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        }),
+      );
 
-    queue.add('test', { foo: 1 });
-    queue.add('test', { foo: 2 });
-    queue.add('test', { foo: 3 });
+      queue.add('test', { foo: 1 });
+      queue.add('test', { foo: 2 });
+      queue.add('test', { foo: 3 });
+    });
   });
 
-  it('should return jobs for multiple types', function (done) {
+  it('should return jobs for multiple types', async () => {
     let counter = 0;
     const worker = new Worker(
       queueName,
@@ -685,23 +707,25 @@ describe('Jobs getters', function () {
       { connection, prefix },
     );
 
-    worker.on(
-      'completed',
-      after(2, async function () {
-        try {
-          const jobs = await queue.getJobs(['completed', 'waiting']);
-          expect(jobs).to.be.an('array');
-          expect(jobs).to.have.length(3);
-          await worker.close();
-          done();
-        } catch (err) {
-          done(err);
-        }
-      }),
-    );
+    await new Promise<void>((resolve, reject) => {
+      worker.on(
+        'completed',
+        after(2, async function () {
+          try {
+            const jobs = await queue.getJobs(['completed', 'waiting']);
+            expect(jobs).toBeInstanceOf(Array);
+            expect(jobs).toHaveLength(3);
+            await worker.close();
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        }),
+      );
 
-    queue.add('test', { foo: 1 });
-    queue.add('test', { foo: 2 });
+      queue.add('test', { foo: 1 });
+      queue.add('test', { foo: 2 });
+    });
   });
 
   describe('when marker is present', () => {
@@ -712,9 +736,9 @@ describe('Jobs getters', function () {
 
         const jobs = await queue.getJobs(['waiting']);
 
-        expect(jobs).to.be.an('array');
-        expect(jobs).to.have.length(1);
-        expect(jobs[0].name).to.be.equal('test2');
+        expect(jobs).toBeInstanceOf(Array);
+        expect(jobs).toHaveLength(1);
+        expect(jobs[0].name).toBe('test2');
       });
     });
 
@@ -724,21 +748,21 @@ describe('Jobs getters', function () {
 
         const jobs = await queue.getJobs(['waiting']);
 
-        expect(jobs).to.be.an('array');
-        expect(jobs).to.have.length(0);
+        expect(jobs).toBeInstanceOf(Array);
+        expect(jobs).toHaveLength(0);
       });
     });
   });
 
-  it('should return deduplicated jobs for duplicates types', async function () {
+  it('should return deduplicated jobs for duplicates types', async () => {
     await queue.add('test', { foo: 1 });
     const jobs = await queue.getJobs(['wait', 'waiting', 'waiting']);
 
-    expect(jobs).to.be.an('array');
-    expect(jobs).to.have.length(1);
+    expect(jobs).toBeInstanceOf(Array);
+    expect(jobs).toHaveLength(1);
   });
 
-  it('should return jobs for all types', function (done) {
+  it('should return jobs for all types', async () => {
     let counter = 0;
     const worker = new Worker(
       queueName,
@@ -752,29 +776,31 @@ describe('Jobs getters', function () {
       { connection, prefix },
     );
 
-    worker.on(
-      'completed',
-      after(2, async function () {
-        try {
-          const jobs = await queue.getJobs();
-          expect(jobs).to.be.an('array');
-          expect(jobs).to.have.length(3);
-          await worker.close();
-          done();
-        } catch (err) {
-          done(err);
-        }
-      }),
-    );
+    await new Promise<void>((resolve, reject) => {
+      worker.on(
+        'completed',
+        after(2, async function () {
+          try {
+            const jobs = await queue.getJobs();
+            expect(jobs).toBeInstanceOf(Array);
+            expect(jobs).toHaveLength(3);
+            await worker.close();
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        }),
+      );
 
-    queue.add('test', { foo: 1 });
-    queue.add('test', { foo: 2 });
+      queue.add('test', { foo: 1 });
+      queue.add('test', { foo: 2 });
+    });
   });
 
-  it('should return 0 if queue is empty', async function () {
+  it('should return 0 if queue is empty', async () => {
     const count = await queue.getJobCountByTypes();
-    expect(count).to.be.a('number');
-    expect(count).to.be.equal(0);
+    expect(count).toBeTypeOf('number');
+    expect(count).toBe(0);
   });
 
   describe('.getJobCounts', () => {
@@ -821,7 +847,7 @@ describe('Jobs getters', function () {
       await completing;
 
       const counts = await queue.getJobCounts();
-      expect(counts).to.be.eql({
+      expect(counts).toEqual({
         active: 1,
         completed: 1,
         delayed: 1,
@@ -852,7 +878,7 @@ describe('Jobs getters', function () {
 
       const counts = await queue.getCountsPerPriority([0, 1, 2, 3]);
 
-      expect(counts).to.be.eql({
+      expect(counts).toEqual({
         '0': 11,
         '1': 11,
         '2': 10,
@@ -876,7 +902,7 @@ describe('Jobs getters', function () {
 
         const counts = await queue.getCountsPerPriority([0, 1, 2, 3]);
 
-        expect(counts).to.be.eql({
+        expect(counts).toEqual({
           '0': 11,
           '1': 11,
           '2': 10,
@@ -908,19 +934,19 @@ describe('Jobs getters', function () {
         -1,
       );
 
-      expect(result.items).to.be.an('array').that.has.length(4);
-      expect(result.jobs).to.be.an('array').that.has.length(4);
-      expect(result.total).to.be.equal(4);
+      expect(result.items).toBeInstanceOf(Array).that.has.length(4);
+      expect(result.jobs).toBeInstanceOf(Array).that.has.length(4);
+      expect(result.total).toBe(4);
 
       for (const job of result.jobs) {
-        expect(job).to.have.property('opts');
-        expect(job).to.have.property('data');
-        expect(job).to.have.property('delay');
-        expect(job).to.have.property('priority');
-        expect(job).to.have.property('parent');
-        expect(job).to.have.property('parentKey');
-        expect(job).to.have.property('name');
-        expect(job).to.have.property('timestamp');
+        expect(job).toHaveProperty('opts');
+        expect(job).toHaveProperty('data');
+        expect(job).toHaveProperty('delay');
+        expect(job).toHaveProperty('priority');
+        expect(job).toHaveProperty('parent');
+        expect(job).toHaveProperty('parentKey');
+        expect(job).toHaveProperty('name');
+        expect(job).toHaveProperty('timestamp');
       }
 
       const result2 = await queue.getDependencies(
@@ -930,8 +956,8 @@ describe('Jobs getters', function () {
         2,
       );
 
-      expect(result2.items).to.be.an('array').that.has.length(3);
-      expect(result2.total).to.be.equal(4);
+      expect(result2.items).toBeInstanceOf(Array).that.has.length(3);
+      expect(result2.total).toBe(4);
 
       await flowProducer.close();
     });
@@ -975,8 +1001,8 @@ describe('Jobs getters', function () {
         -1,
       );
 
-      expect(result.items).to.be.an('array').that.has.length(0);
-      expect(result.total).to.be.equal(0);
+      expect(result.items).toBeInstanceOf(Array).that.has.length(0);
+      expect(result.total).toBe(0);
 
       const result2 = await queue.getDependencies(
         flow.job.id!,
@@ -985,19 +1011,19 @@ describe('Jobs getters', function () {
         -1,
       );
 
-      expect(result2.items).to.be.an('array').that.has.length(4);
-      expect(result2.jobs).to.be.an('array').that.has.length(4);
-      expect(result2.total).to.be.equal(4);
+      expect(result2.items).toBeInstanceOf(Array).that.has.length(4);
+      expect(result2.jobs).toBeInstanceOf(Array).that.has.length(4);
+      expect(result2.total).toBe(4);
 
       for (const job of result2.jobs) {
-        expect(job).to.have.property('opts');
-        expect(job).to.have.property('data');
-        expect(job).to.have.property('delay');
-        expect(job).to.have.property('priority');
-        expect(job).to.have.property('parent');
-        expect(job).to.have.property('parentKey');
-        expect(job).to.have.property('name');
-        expect(job).to.have.property('timestamp');
+        expect(job).toHaveProperty('opts');
+        expect(job).toHaveProperty('data');
+        expect(job).toHaveProperty('delay');
+        expect(job).toHaveProperty('priority');
+        expect(job).toHaveProperty('parent');
+        expect(job).toHaveProperty('parentKey');
+        expect(job).toHaveProperty('name');
+        expect(job).toHaveProperty('timestamp');
       }
 
       await worker.close();
@@ -1023,15 +1049,15 @@ describe('Jobs getters', function () {
       sinon.stub(queue, 'getJobCounts').resolves(counts);
       const metrics = await queue.exportPrometheusMetrics();
 
-      expect(metrics).to.include(
+      expect(metrics).toContain(
         '# HELP bullmq_job_count Number of jobs in the queue by state',
       );
-      expect(metrics).to.include('# TYPE bullmq_job_count gauge');
+      expect(metrics).toContain('# TYPE bullmq_job_count gauge');
 
       // Verify all states are present
       for (const [state, count] of Object.entries(counts)) {
         const expectedLine = `bullmq_job_count{queue="${queueName}", state="${state}"} ${count}`;
-        expect(metrics).to.include(expectedLine);
+        expect(metrics).toContain(expectedLine);
       }
     });
 
@@ -1051,16 +1077,16 @@ describe('Jobs getters', function () {
       sinon.stub(queue, 'getJobCounts').resolves(counts);
       const metrics = await queue.exportPrometheusMetrics({ env, server });
 
-      expect(metrics).to.include(
+      expect(metrics).toContain(
         '# HELP bullmq_job_count Number of jobs in the queue by state',
       );
-      expect(metrics).to.include('# TYPE bullmq_job_count gauge');
+      expect(metrics).toContain('# TYPE bullmq_job_count gauge');
 
       // Verify all states are present
       for (const [state, count] of Object.entries(counts)) {
         // eslint-disable-next-line max-len
         const expectedLine = `bullmq_job_count{queue="${queueName}", state="${state}", env="${env}", server="${server}"} ${count}`;
-        expect(metrics).to.include(expectedLine);
+        expect(metrics).toContain(expectedLine);
       }
     });
 
@@ -1071,7 +1097,7 @@ describe('Jobs getters', function () {
       const metrics = await queue.exportPrometheusMetrics();
       expect(
         metrics.split('\n').filter(l => l.startsWith('bullmq_job_count')),
-      ).to.have.lengthOf(0);
+      ).toHaveLength(0);
     });
   });
 });

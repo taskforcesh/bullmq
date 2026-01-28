@@ -145,6 +145,36 @@ jobs:
       - run: yarn build
       - run: BULLMQ_TEST_PREFIX={b} yarn test
 
+  bun-redis:
+    runs-on: ubuntu-latest
+
+    name: testing bun@${{ matrix.bun-version }}, redis@${{ matrix.redis-version }}
+
+    strategy:
+      matrix:
+        bun-version: [latest]
+        redis-version: [7-alpine]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ matrix.bun-version }}
+      - name: Use Node.js for yarn
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6
+        with:
+          node-version: lts/*
+          cache: 'yarn'
+      - name: Start Redis
+        uses: supercharge/redis-github-action@bc274cb7238cd63a45029db04ee48c07a72609fd # 1.8.1
+        with:
+          redis-version: ${{ matrix.redis-version }}
+      - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
+      - run: yarn build
+      - run: yarn test:bun
+
   # node-upstash:
   #   runs-on: ubuntu-latest
   #   continue-on-error: true

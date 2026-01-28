@@ -1,5 +1,15 @@
 import { default as IORedis } from 'ioredis';
 import {
+  describe,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
+  it,
+  expect,
+} from 'vitest';
+
+import {
   FlowProducer,
   QueueEvents,
   Queue,
@@ -7,10 +17,10 @@ import {
   RateLimitError,
 } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
-import { beforeEach, describe, it, after as afterAll } from 'mocha';
+
 import { v4 } from 'uuid';
-import { expect } from 'chai';
-import * as ProgressBar from 'progress';
+
+import ProgressBar from 'progress';
 import { after } from 'lodash';
 
 describe('Concurrency', () => {
@@ -19,7 +29,7 @@ describe('Concurrency', () => {
   let queueName: string;
 
   let connection;
-  before(async function () {
+  beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
@@ -48,7 +58,7 @@ describe('Concurrency', () => {
     }
 
     const noConcurrency = await queue.getGlobalConcurrency();
-    expect(noConcurrency).to.be.null;
+    expect(noConcurrency).toBeNull();
 
     await queue.addBulk(jobsData);
     await queue.setGlobalConcurrency(1);
@@ -70,7 +80,7 @@ describe('Concurrency', () => {
             await delay(100);
             bar.tick();
             parallelJobs--;
-            expect(parallelJobs).to.be.eql(0);
+            expect(parallelJobs).toEqual(0);
             if (count == numJobs) {
               resolve();
             }
@@ -99,11 +109,11 @@ describe('Concurrency', () => {
     await processing;
 
     const globalConcurrency = await queue.getGlobalConcurrency();
-    expect(globalConcurrency).to.be.eql(1);
+    expect(globalConcurrency).toEqual(1);
 
     await worker.close();
     await queue.close();
-  }).timeout(16000);
+  }); // TODO: Add { timeout: 16000 } to the it() options
 
   it('should run max concurrency for jobs added', async () => {
     const queue = new Queue(queueName, { connection, prefix });
@@ -135,7 +145,7 @@ describe('Concurrency', () => {
             count++;
             parallelJobs++;
             await delay(100);
-            expect(parallelJobs).to.be.eql(2);
+            expect(parallelJobs).toEqual(2);
             await delay(100);
             bar.tick();
             parallelJobs--;
@@ -167,13 +177,13 @@ describe('Concurrency', () => {
     await processing;
 
     const globalConcurrency = await queue.getGlobalConcurrency();
-    expect(globalConcurrency).to.be.null;
+    expect(globalConcurrency).toBeNull();
 
     await worker.close();
     await queue.close();
-  }).timeout(4000);
+  }); // TODO: Add { timeout: 4000 } to the it() options
 
-  it('emits drained global event only once when worker is idle', async function () {
+  it('emits drained global event only once when worker is idle', async () => {
     const queue = new Queue(queueName, { connection, prefix });
     const worker = new Worker(
       queueName,
@@ -205,13 +215,13 @@ describe('Concurrency', () => {
     await delay(4000);
 
     const jobs = await queue.getJobCountByTypes('completed');
-    expect(jobs).to.be.equal(2);
-    expect(counterDrainedEvents).to.be.equal(1);
+    expect(jobs).toBe(2);
+    expect(counterDrainedEvents).toBe(1);
 
     await worker.close();
     await queue.close();
     await queueEvents.close();
-  }).timeout(6000);
+  }); // TODO: Add { timeout: 6000 } to the it() options
 
   describe('when global dynamic limit is used', () => {
     it('should run max concurrency for jobs added respecting global dynamic limit', async () => {
@@ -373,7 +383,7 @@ describe('Concurrency', () => {
         await queueEvents.close();
         await worker.close();
         await queue.close();
-      }).timeout(4000);
+      }); // TODO: Add { timeout: 4000 } to the it() options
     });
   });
 
@@ -436,7 +446,7 @@ describe('Concurrency', () => {
               await delay(100);
               bar.tick();
               parallelJobs--;
-              expect(parallelJobs).to.be.eql(0);
+              expect(parallelJobs).toEqual(0);
               await job.moveToWaitingChildren(token!);
               if (count == numJobs + 3) {
                 resolve();
@@ -466,7 +476,7 @@ describe('Concurrency', () => {
       await flow.close();
       await worker.close();
       await queue.close();
-    }).timeout(16000);
+    }); // TODO: Add { timeout: 16000 } to the it() options
   });
 
   it('should automatically process stalled jobs respecting group order', async () => {
@@ -538,7 +548,7 @@ describe('Concurrency', () => {
       worker2.on(
         'stalled',
         after(globalConcurrency, (jobId, prev) => {
-          expect(prev).to.be.equal('active');
+          expect(prev).toBe('active');
           resolve();
         }),
       );
@@ -558,7 +568,7 @@ describe('Concurrency', () => {
       const job = processedJobs[index++];
       sum += Number(job.data);
       if (i % 2 == 0) {
-        expect(sum).to.be.equal(1);
+        expect(sum).toBe(1);
         sum = 0;
       }
     }
@@ -610,11 +620,11 @@ describe('Concurrency', () => {
 
       await processing;
 
-      expect(processedJobs.length).to.be.equal(numJobs);
+      expect(processedJobs.length).toBe(numJobs);
 
       await worker.close();
       await queue.close();
-    }).timeout(20000);
+    }); // TODO: Add { timeout: 20000 } to the it() options
 
     describe('when backoff is 0', () => {
       it('processes jobs without getting stuck', async () => {
@@ -662,7 +672,7 @@ describe('Concurrency', () => {
 
         await processing;
 
-        expect(processedJobs.length).to.be.equal(numJobs);
+        expect(processedJobs.length).toBe(numJobs);
 
         await worker.close();
         await queue.close();
@@ -671,7 +681,7 @@ describe('Concurrency', () => {
   });
 
   describe('when lock is expired and removing a job in active state', () => {
-    it('does not get stuck in max state', async function () {
+    it('does not get stuck in max state', async () => {
       const globalConcurrency = 1;
       const queue = new Queue(queueName, {
         connection,
@@ -694,13 +704,13 @@ describe('Concurrency', () => {
       }
       const job1 = await worker.getNextJob(token);
       const state = await job1!.getState();
-      expect(state).to.be.equal('active');
+      expect(state).toBe('active');
       await delay(50);
       let isMaxed = await queue.isMaxed();
-      expect(isMaxed).to.be.true;
+      expect(isMaxed).toBe(true);
       await job1!.remove();
       isMaxed = await queue.isMaxed();
-      expect(isMaxed).to.be.false;
+      expect(isMaxed).toBe(false);
       await worker.close();
       await queue.close();
     });

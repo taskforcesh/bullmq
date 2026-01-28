@@ -1,12 +1,20 @@
-import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
-import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
+import {
+  describe,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
+  it,
+  expect,
+} from 'vitest';
+
 import { v4 } from 'uuid';
 import { Queue, QueueEvents, FlowProducer, Worker, Job } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
-describe('Obliterate', function () {
+describe('Obliterate', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
@@ -15,7 +23,7 @@ describe('Obliterate', function () {
   let queueName: string;
 
   let connection;
-  before(async function () {
+  beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
@@ -26,7 +34,7 @@ describe('Obliterate', function () {
     await queueEvents.waitUntilReady();
   });
 
-  afterEach(async function () {
+  afterEach(async () => {
     await queue.close();
     await queueEvents.close();
     await removeAllQueueData(new IORedis(redisHost), queueName);
@@ -44,7 +52,7 @@ describe('Obliterate', function () {
     const client = await queue.client;
     const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-    expect(keys.length).to.be.eql(0);
+    expect(keys.length).toEqual(0);
   });
 
   it('should obliterate a queue which is empty but has had jobs in the past', async () => {
@@ -57,7 +65,7 @@ describe('Obliterate', function () {
 
     const client = await queue.client;
     const keys = await client.keys(`${prefix}:${queue.name}:*`);
-    expect(keys.length).to.be.eql(0);
+    expect(keys.length).toEqual(0);
   });
 
   it('should obliterate a queue with jobs in different statuses', async () => {
@@ -87,7 +95,7 @@ describe('Obliterate', function () {
     await queue.obliterate();
     const client = await queue.client;
     const keys = await client.keys(`${prefix}:${queue.name}:*`);
-    expect(keys.length).to.be.eql(0);
+    expect(keys.length).toEqual(0);
 
     await worker.close();
   });
@@ -112,20 +120,20 @@ describe('Obliterate', function () {
           });
 
           const count = await queue.count();
-          expect(count).to.be.eql(4);
+          expect(count).toEqual(4);
 
           await queue.obliterate();
 
           const client = await queue.client;
           const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-          expect(keys.length).to.be.eql(0);
+          expect(keys.length).toEqual(0);
 
           const countAfterEmpty = await queue.count();
-          expect(countAfterEmpty).to.be.eql(0);
+          expect(countAfterEmpty).toEqual(0);
 
           const failedCount = await queue.getJobCountByTypes('failed');
-          expect(failedCount).to.be.eql(0);
+          expect(failedCount).toEqual(0);
 
           await flow.close();
         });
@@ -177,7 +185,7 @@ describe('Obliterate', function () {
           const client = await queue.client;
           const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-          expect(keys.length).to.be.eql(0);
+          expect(keys.length).toEqual(0);
 
           await worker.close();
           await flow.close();
@@ -210,17 +218,17 @@ describe('Obliterate', function () {
           });
 
           const count = await queue.count();
-          expect(count).to.be.eql(1);
+          expect(count).toEqual(1);
 
           await queue.obliterate();
 
           const client = await queue.client;
           const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-          expect(keys.length).to.be.eql(3);
+          expect(keys.length).toEqual(3);
 
           const countAfterEmpty = await queue.count();
-          expect(countAfterEmpty).to.be.eql(1);
+          expect(countAfterEmpty).toEqual(1);
           await childrenQueue.close();
           await flow.close();
         });
@@ -252,29 +260,29 @@ describe('Obliterate', function () {
           });
 
           const count = await queue.count();
-          expect(count).to.be.eql(3);
+          expect(count).toEqual(3);
 
           await queue.obliterate();
 
           const client = await queue.client;
           const keys = await client.keys(`${prefix}:${queueName}:*`);
 
-          expect(keys.length).to.be.eql(0);
+          expect(keys.length).toEqual(0);
 
           const eventsCount = await client.xlen(
             `${prefix}:${parentQueueName}:events`,
           );
 
-          expect(eventsCount).to.be.eql(2); // added and waiting-children events
+          expect(eventsCount).toEqual(2); // added and waiting-children events
 
           const countAfterEmpty = await queue.count();
-          expect(countAfterEmpty).to.be.eql(0);
+          expect(countAfterEmpty).toEqual(0);
 
           const childrenFailedCount = await queue.getJobCountByTypes('failed');
-          expect(childrenFailedCount).to.be.eql(0);
+          expect(childrenFailedCount).toEqual(0);
 
           const parentWaitCount = await parentQueue.getJobCountByTypes('wait');
-          expect(parentWaitCount).to.be.eql(1);
+          expect(parentWaitCount).toEqual(1);
           await parentQueue.close();
           await flow.close();
           await removeAllQueueData(new IORedis(redisHost), parentQueueName);
@@ -301,23 +309,23 @@ describe('Obliterate', function () {
           });
 
           const count = await queue.count();
-          expect(count).to.be.eql(1);
+          expect(count).toEqual(1);
 
           await queue.obliterate();
 
           const client = await queue.client;
           const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-          expect(keys.length).to.be.eql(0);
+          expect(keys.length).toEqual(0);
 
           const countAfterEmpty = await queue.count();
-          expect(countAfterEmpty).to.be.eql(0);
+          expect(countAfterEmpty).toEqual(0);
 
           const failedCount = await queue.getJobCountByTypes('failed');
-          expect(failedCount).to.be.eql(0);
+          expect(failedCount).toEqual(0);
 
           const parentWaitCount = await parentQueue.getJobCountByTypes('wait');
-          expect(parentWaitCount).to.be.eql(1);
+          expect(parentWaitCount).toEqual(1);
           await parentQueue.close();
           await flow.close();
           await removeAllQueueData(new IORedis(redisHost), parentQueueName);
@@ -351,7 +359,7 @@ describe('Obliterate', function () {
 
     await job.waitUntilFinished(queueEvents);
 
-    await expect(queue.obliterate()).to.be.rejectedWith(
+    await expect(queue.obliterate()).rejects.toThrow(
       'Cannot obliterate queue with active jobs',
     );
     const client = await queue.client;
@@ -388,7 +396,7 @@ describe('Obliterate', function () {
     await queue.obliterate({ force: true });
     const client = await queue.client;
     const keys = await client.keys(`${prefix}:${queue.name}:*`);
-    expect(keys.length).to.be.eql(0);
+    expect(keys.length).toEqual(0);
 
     await worker.close();
   });
@@ -407,12 +415,12 @@ describe('Obliterate', function () {
     );
 
     const repeatableJobs = await queue.getRepeatableJobs();
-    expect(repeatableJobs).to.have.length(1);
+    expect(repeatableJobs).toHaveLength(1);
 
     await queue.obliterate();
     const client = await queue.client;
     const keys = await client.keys(`${prefix}:${queue.name}:*`);
-    expect(keys.length).to.be.eql(0);
+    expect(keys.length).toEqual(0);
   });
 
   it('should remove job logs', async () => {
@@ -435,14 +443,14 @@ describe('Obliterate', function () {
     await queue.obliterate({ force: true });
 
     const { logs } = await queue.getJobLogs(job.id!);
-    expect(logs).to.have.length(0);
+    expect(logs).toHaveLength(0);
 
     await queueEvents.close();
     await worker.close();
   });
 
-  it('should obliterate a queue with high number of jobs in different statuses', async function () {
-    this.timeout(6000);
+  it('should obliterate a queue with high number of jobs in different statuses', async () => {
+    // TODO: Move timeout to test options: { timeout: 6000 }
     const arr1: Promise<Job<any, any, string>>[] = [];
     for (let i = 0; i < 300; i++) {
       arr1.push(queue.add('test', { foo: `barLoop${i}` }));
@@ -473,9 +481,9 @@ describe('Obliterate', function () {
 
     const [lastFailedJob] = (await Promise.all(arr2)).splice(-1);
 
-    await expect(
-      lastFailedJob.waitUntilFinished(queueEvents),
-    ).to.be.eventually.rejectedWith('failed job');
+    await expect(lastFailedJob.waitUntilFinished(queueEvents)).rejects.toThrow(
+      'failed job',
+    );
 
     await worker.close();
 
@@ -488,6 +496,6 @@ describe('Obliterate', function () {
     await queue.obliterate();
     const client = await queue.client;
     const keys = await client.keys(`${prefix}:${queue.name}*`);
-    expect(keys.length).to.be.eql(0);
+    expect(keys.length).toEqual(0);
   });
 });

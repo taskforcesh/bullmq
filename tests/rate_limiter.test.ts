@@ -1,7 +1,15 @@
-import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after, every } from 'lodash';
-import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
+import {
+  describe,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
+  it,
+  expect,
+} from 'vitest';
+
 import { v4 } from 'uuid';
 import {
   FlowProducer,
@@ -14,7 +22,7 @@ import {
 } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
-describe('Rate Limiter', function () {
+describe('Rate Limiter', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queue: Queue;
@@ -22,18 +30,18 @@ describe('Rate Limiter', function () {
   let queueEvents: QueueEvents;
 
   let connection: IORedis;
-  before(async function () {
+  beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
-  beforeEach(async function () {
+  beforeEach(async () => {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
   });
 
-  afterEach(async function () {
+  afterEach(async () => {
     await queue.close();
     await queueEvents.close();
     await removeAllQueueData(new IORedis(redisHost), queueName);
@@ -43,8 +51,8 @@ describe('Rate Limiter', function () {
     await connection.quit();
   });
 
-  it('should not put a job into the delayed queue when limit is hit', async function () {
-    this.timeout(6000);
+  it('should not put a job into the delayed queue when limit is hit', async () => {
+    // TODO: Move timeout to test options: { timeout: 6000 }
     const numJobs = 5;
     const worker = new Worker(
       queueName,
@@ -74,13 +82,13 @@ describe('Rate Limiter', function () {
     await delay(100);
 
     const delayedCount = await queue.getDelayedCount();
-    expect(delayedCount).to.equal(0);
+    expect(delayedCount).toBe(0);
     await worker.close();
   });
 
   describe('when setting rate limit globally', () => {
-    it('should obey the rate limit', async function () {
-      this.timeout(7000);
+    it('should obey the rate limit', async () => {
+      // TODO: Move timeout to test options: { timeout: 7000 }
 
       const numJobs = 10;
 
@@ -89,7 +97,7 @@ describe('Rate Limiter', function () {
         async () => {
           const currentTtl = await queue.getRateLimitTtl();
           expect(currentTtl).to.be.lessThanOrEqual(500);
-          expect(currentTtl).to.be.greaterThan(200);
+          expect(currentTtl).toBeGreaterThan(200);
         },
         {
           connection,
@@ -100,7 +108,7 @@ describe('Rate Limiter', function () {
       await queue.setGlobalRateLimit(1, 500);
       const globalRateLimit = await queue.getGlobalRateLimit();
 
-      expect(globalRateLimit).to.deep.equal({ max: 1, duration: 500 });
+      expect(globalRateLimit).toEqual({ max: 1, duration: 500 });
 
       const result = new Promise<void>((resolve, reject) => {
         queueEvents.on(
@@ -135,8 +143,8 @@ describe('Rate Limiter', function () {
     });
 
     describe('when rate limit is removed', () => {
-      it('should execute jobs without rate limit', async function () {
-        this.timeout(2000);
+      it('should execute jobs without rate limit', async () => {
+        // TODO: Move timeout to test options: { timeout: 2000 }
 
         const numJobs = 10;
 
@@ -144,7 +152,7 @@ describe('Rate Limiter', function () {
           queueName,
           async () => {
             const currentTtl = await queue.getRateLimitTtl();
-            expect(currentTtl).to.be.equal(-2); // -2 means no rate limit
+            expect(currentTtl).toBe(-2); // -2 means no rate limit
           },
           {
             connection,
@@ -157,7 +165,7 @@ describe('Rate Limiter', function () {
 
         const globalRateLimit = await queue.getGlobalRateLimit();
 
-        expect(globalRateLimit).to.be.null;
+        expect(globalRateLimit).toBeNull();
 
         const result = new Promise<void>((resolve, reject) => {
           queueEvents.on(
@@ -193,9 +201,7 @@ describe('Rate Limiter', function () {
     });
   });
 
-  it('should obey the rate limit', async function () {
-    this.timeout(15000);
-
+  it('should obey the rate limit', { timeout: 15000 }, async () => {
     const numJobs = 10;
 
     const worker = new Worker(queueName, async () => {}, {
@@ -239,8 +245,8 @@ describe('Rate Limiter', function () {
     await worker.close();
   });
 
-  it('should respect processing time without adding limiter delay', async function () {
-    this.timeout(12000);
+  it('should respect processing time without adding limiter delay', async () => {
+    // TODO: Move timeout to test options: { timeout: 12000 }
 
     const numJobs = 40;
 
@@ -290,7 +296,7 @@ describe('Rate Limiter', function () {
     await worker.close();
   });
 
-  it('should quickly close a worker even with slow rate-limit', async function () {
+  it('should quickly close a worker even with slow rate-limit', async () => {
     const limiter = { max: 1, duration: 60 * 1000 };
     const worker = new Worker(queueName, async () => {}, {
       connection,
@@ -304,8 +310,8 @@ describe('Rate Limiter', function () {
   });
 
   describe('when a job never completed', () => {
-    it('should not block the rate limit', async function () {
-      this.timeout(20000);
+    it('should not block the rate limit', async () => {
+      // TODO: Move timeout to test options: { timeout: 20000 }
       const numJobs = 20;
       const queue = new Queue(queueName, {
         prefix,
@@ -364,8 +370,8 @@ describe('Rate Limiter', function () {
   });
 
   describe('when queue is paused between rate limit', () => {
-    it('should add active jobs to paused', async function () {
-      this.timeout(20000);
+    it('should add active jobs to paused', async () => {
+      // TODO: Move timeout to test options: { timeout: 20000 }
 
       const numJobs = 4;
 
@@ -412,9 +418,9 @@ describe('Rate Limiter', function () {
       await delay(500);
 
       const counts = await queue.getJobCounts('paused', 'completed', 'wait');
-      expect(counts).to.have.property('paused', numJobs - 1);
-      expect(counts).to.have.property('completed', 1);
-      expect(counts).to.have.property('wait', 0);
+      expect(counts).toHaveProperty('paused', numJobs - 1);
+      expect(counts).toHaveProperty('completed', 1);
+      expect(counts).toHaveProperty('wait', 0);
 
       await worker1.close();
       await worker2.close();
@@ -424,8 +430,7 @@ describe('Rate Limiter', function () {
   });
 
   describe('when using flows', () => {
-    it('should obey the rate limit per queue', async function () {
-      this.timeout(20000);
+    it('should obey the rate limit per queue', { timeout: 20000 }, async () => {
       const name = 'child-job';
       const parentQueueName = `parent-queue-${v4()}`;
       const parentQueueEvents = new QueueEvents(parentQueueName, {
@@ -534,8 +539,8 @@ describe('Rate Limiter', function () {
     });
   });
 
-  it('should obey the rate limit with max value greater than 1', async function () {
-    this.timeout(20000);
+  it('should obey the rate limit with max value greater than 1', async () => {
+    // TODO: Move timeout to test options: { timeout: 20000 }
 
     const numJobs = 10;
 
@@ -583,8 +588,8 @@ describe('Rate Limiter', function () {
   });
 
   describe('when dynamic limit is used', () => {
-    it('should obey the rate limit', async function () {
-      this.timeout(5000);
+    it('should obey the rate limit', async () => {
+      // TODO: Move timeout to test options: { timeout: 5000 }
 
       const numJobs = 10;
       const dynamicLimit = 250;
@@ -592,7 +597,7 @@ describe('Rate Limiter', function () {
       const margin = 0.95; // 5% margin for CI
 
       const ttl = await queue.getRateLimitTtl();
-      expect(ttl).to.be.equal(-2);
+      expect(ttl).toBe(-2);
 
       const worker = new Worker(
         queueName,
@@ -601,7 +606,7 @@ describe('Rate Limiter', function () {
             await worker.rateLimit(dynamicLimit);
             const currentTtl = await queue.getRateLimitTtl();
             expect(currentTtl).to.be.lessThanOrEqual(250);
-            expect(currentTtl).to.be.greaterThan(100);
+            expect(currentTtl).toBeGreaterThan(100);
             throw Worker.RateLimitError();
           }
         },
@@ -682,7 +687,7 @@ describe('Rate Limiter', function () {
 
         const failing = new Promise<void>(resolve => {
           worker.on('error', err => {
-            expect(err.message).to.be.equal(
+            expect(err.message).toBe(
               `Missing key for job ${job.id}. moveJobFromActiveToWait`,
             );
             resolve();
@@ -695,19 +700,19 @@ describe('Rate Limiter', function () {
 
         await failing;
         await worker.close();
-      }).timeout(4000);
+      }); // TODO: Add { timeout: 4000 } to the it() options
     });
 
     describe('when rate limit is too low', () => {
-      it('should move job to wait anyway', async function () {
-        this.timeout(4000);
+      it('should move job to wait anyway', async () => {
+        // TODO: Move timeout to test options: { timeout: 4000 }
 
         const numJobs = 10;
         const dynamicLimit = 1;
         const duration = 100;
 
         const ttl = await queue.getRateLimitTtl();
-        expect(ttl).to.be.equal(-2);
+        expect(ttl).toBe(-2);
 
         const worker = new Worker(
           queueName,
@@ -763,14 +768,14 @@ describe('Rate Limiter', function () {
 
     describe('when passing maxJobs when getting rate limit ttl', () => {
       describe('when rate limit counter is lower than maxJobs', () => {
-        it('should returns 0', async function () {
-          this.timeout(4000);
+        it('should returns 0', async () => {
+          // TODO: Move timeout to test options: { timeout: 4000 }
 
           const numJobs = 1;
           const duration = 100;
 
           const ttl = await queue.getRateLimitTtl();
-          expect(ttl).to.be.equal(-2);
+          expect(ttl).toBe(-2);
 
           const worker = new Worker(
             queueName,
@@ -778,7 +783,7 @@ describe('Rate Limiter', function () {
               if (job.attemptsStarted === 1) {
                 delay(50);
                 const currentTtl = await queue.getRateLimitTtl(2);
-                expect(currentTtl).to.be.equal(0);
+                expect(currentTtl).toBe(0);
               }
             },
             {
@@ -823,14 +828,14 @@ describe('Rate Limiter', function () {
       });
 
       describe('when rate limit counter is greater than maxJobs', () => {
-        it('should returns at least rate limit duration', async function () {
-          this.timeout(4000);
+        it('should returns at least rate limit duration', async () => {
+          // TODO: Move timeout to test options: { timeout: 4000 }
 
           const numJobs = 10;
           const duration = 100;
 
           const ttl = await queue.getRateLimitTtl();
-          expect(ttl).to.be.equal(-2);
+          expect(ttl).toBe(-2);
 
           const worker = new Worker(
             queueName,
@@ -884,7 +889,7 @@ describe('Rate Limiter', function () {
     });
 
     describe('when reaching max attempts and we want to move the job to failed', () => {
-      it('should throw Unrecoverable error', async function () {
+      it('should throw Unrecoverable error', async () => {
         const dynamicLimit = 550;
         const duration = 100;
 
@@ -935,8 +940,8 @@ describe('Rate Limiter', function () {
     });
 
     describe('when priority is provided', () => {
-      it('should obey the rate limit respecting priority', async function () {
-        this.timeout(6000);
+      it('should obey the rate limit respecting priority', async () => {
+        // TODO: Move timeout to test options: { timeout: 6000 }
 
         let extraCount = 3;
         let priority = 9;
@@ -973,7 +978,7 @@ describe('Rate Limiter', function () {
             // after every job has been completed
             after(numJobs, async args => {
               try {
-                expect(args.jobId).to.be.equal('1');
+                expect(args.jobId).toBe('1');
                 resolve();
               } catch (err) {
                 reject(err);
@@ -994,8 +999,8 @@ describe('Rate Limiter', function () {
       });
 
       describe('when priority is the same for some jobs', () => {
-        it('should get jobs in fifo order', async function () {
-          this.timeout(6000);
+        it('should get jobs in fifo order', async () => {
+          // TODO: Move timeout to test options: { timeout: 6000 }
 
           const numJobs = 4;
           const dynamicLimit = 500;
@@ -1025,15 +1030,15 @@ describe('Rate Limiter', function () {
           await delay(dynamicLimit / 2);
 
           const jobs = await queue.getJobs(['prioritized'], 0, -1, true);
-          expect(jobs.map(x => x.name)).to.eql(['1', '2', '3', '4']);
+          expect(jobs.map(x => x.name)).toEqual(['1', '2', '3', '4']);
 
           await worker.close();
         });
       });
 
       describe('when priority is different for some jobs', () => {
-        it('should get jobs in fifo order', async function () {
-          this.timeout(6000);
+        it('should get jobs in fifo order', async () => {
+          // TODO: Move timeout to test options: { timeout: 6000 }
 
           const numJobs = 4;
           const dynamicLimit = 250;
@@ -1062,7 +1067,7 @@ describe('Rate Limiter', function () {
           await delay(dynamicLimit * 4);
 
           const jobs = await queue.getJobs(['prioritized'], 0, -1, true);
-          expect(jobs.map(x => x.name)).to.eql(['1', '3', '2', '4']);
+          expect(jobs.map(x => x.name)).toEqual(['1', '3', '2', '4']);
 
           await worker.close();
         });
@@ -1070,7 +1075,7 @@ describe('Rate Limiter', function () {
     });
 
     describe('when queue is paused', () => {
-      it('moves job to paused', async function () {
+      it('moves job to paused', async () => {
         const dynamicLimit = 250;
         const duration = 100;
 
@@ -1113,22 +1118,22 @@ describe('Rate Limiter', function () {
         await result;
 
         const pausedCount = await queue.getJobCountByTypes('paused');
-        expect(pausedCount).to.equal(1);
+        expect(pausedCount).toBe(1);
 
         await worker.close();
       });
     });
 
     describe('when removing rate limit', () => {
-      it('should process jobs normally', async function () {
-        this.timeout(5000);
+      it('should process jobs normally', async () => {
+        // TODO: Move timeout to test options: { timeout: 5000 }
 
         const numJobs = 2;
         const dynamicLimit = 10000;
         const duration = 1000;
 
         const ttl = await queue.getRateLimitTtl();
-        expect(ttl).to.be.equal(-2);
+        expect(ttl).toBe(-2);
 
         const worker = new Worker(queueName, async () => {}, {
           autorun: false,
@@ -1177,8 +1182,8 @@ describe('Rate Limiter', function () {
       });
 
       describe('when maximumRateLimitDelay is reached', () => {
-        it('should continue processing jobs', async function () {
-          this.timeout(50000);
+        it('should continue processing jobs', async () => {
+          // TODO: Move timeout to test options: { timeout: 50000 }
 
           const numJobs = 4;
           const duration = 10000;
@@ -1207,7 +1212,7 @@ describe('Rate Limiter', function () {
           await queue.addBulk(jobs);
 
           const waitingCountBeforeRun = await queue.getWaitingCount();
-          expect(waitingCountBeforeRun).to.be.equal(4);
+          expect(waitingCountBeforeRun).toBe(4);
 
           worker.run();
 
@@ -1218,7 +1223,7 @@ describe('Rate Limiter', function () {
           await completing;
 
           const completedCountAfterRLRemoval = await queue.getCompletedCount();
-          expect(completedCountAfterRLRemoval).to.be.equal(4);
+          expect(completedCountAfterRLRemoval).toBe(4);
 
           await worker.close();
         });
@@ -1227,14 +1232,14 @@ describe('Rate Limiter', function () {
   });
 
   describe('when there are delayed jobs to promote', () => {
-    it('should promote jobs after maximumRateLimitDelay', async function () {
-      this.timeout(5000);
+    it('should promote jobs after maximumRateLimitDelay', async () => {
+      // TODO: Move timeout to test options: { timeout: 5000 }
 
       const numJobs = 2;
       const duration = 10000;
 
       const ttl = await queue.getRateLimitTtl();
-      expect(ttl).to.be.equal(-2);
+      expect(ttl).toBe(-2);
 
       const worker = new Worker(queueName, async () => {}, {
         autorun: false,
@@ -1261,27 +1266,27 @@ describe('Rate Limiter', function () {
       await queue.addBulk(delayedJobs);
 
       const waitingCountBeforeRun = await queue.getWaitingCount();
-      expect(waitingCountBeforeRun).to.be.equal(2);
+      expect(waitingCountBeforeRun).toBe(2);
       const delayedCountBeforeRun = await queue.getDelayedCount();
-      expect(delayedCountBeforeRun).to.be.equal(2);
+      expect(delayedCountBeforeRun).toBe(2);
 
       worker.run();
 
       await delay(3100);
 
       const waitingCountAfterMaxRLDelay = await queue.getWaitingCount();
-      expect(waitingCountAfterMaxRLDelay).to.be.equal(3);
+      expect(waitingCountAfterMaxRLDelay).toBe(3);
       const delayedCountAfterMaxRLDelay = await queue.getDelayedCount();
-      expect(delayedCountAfterMaxRLDelay).to.be.equal(0);
+      expect(delayedCountAfterMaxRLDelay).toBe(0);
 
       await worker.close();
     });
   });
 
   describe('when there are more added jobs than max limiter', () => {
-    it('processes jobs as max limiter from the beginning', async function () {
+    it('processes jobs as max limiter from the beginning', async () => {
       const numJobs = 400;
-      this.timeout(5000);
+      // TODO: Move timeout to test options: { timeout: 5000 }
       let parallelJobs = 0;
 
       const processor = async () => {
@@ -1328,9 +1333,9 @@ describe('Rate Limiter', function () {
     });
 
     describe('when rate limit is max 1', () => {
-      it('processes jobs as max limiter from the beginning', async function () {
+      it('processes jobs as max limiter from the beginning', async () => {
         const numJobs = 5;
-        this.timeout(8000);
+        // TODO: Move timeout to test options: { timeout: 8000 }
         let parallelJobs = 0;
 
         const processor = async () => {
@@ -1378,8 +1383,8 @@ describe('Rate Limiter', function () {
     });
   });
 
-  it('should obey priority', async function () {
-    this.timeout(10000);
+  it('should obey priority', async () => {
+    // TODO: Move timeout to test options: { timeout: 10000 }
 
     const numJobs = 10;
     const priorityBuckets: { [key: string]: number } = {

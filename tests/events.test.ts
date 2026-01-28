@@ -1,8 +1,17 @@
 import { default as IORedis } from 'ioredis';
 import { v4 } from 'uuid';
-import { expect } from 'chai';
+import {
+  describe,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
+  it,
+  expect,
+} from 'vitest';
+
 import { after } from 'lodash';
-import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
+
 import {
   FlowProducer,
   Queue,
@@ -13,21 +22,21 @@ import {
 } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
-describe('events', function () {
+describe('events', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
-  this.timeout(8000);
+  // TODO: Move timeout to test options: { timeout: 8000 }
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  let connection: IORedis;
-  before(async function () {
+  let connection;
+  beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
-  beforeEach(async function () {
+  beforeEach(async () => {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
@@ -35,7 +44,7 @@ describe('events', function () {
     await queueEvents.waitUntilReady();
   });
 
-  afterEach(async function () {
+  afterEach(async () => {
     await queue.close();
     await queueEvents.close();
     await removeAllQueueData(new IORedis(redisHost), queueName);
@@ -45,7 +54,7 @@ describe('events', function () {
     await connection.quit();
   });
 
-  describe('when autorun option is provided as false', function () {
+  describe('when autorun option is provided as false', () => {
     it('emits waiting when a job has been added', async () => {
       const queueName2 = `test-${v4()}`;
       const queue2 = new Queue(queueName2, { connection, prefix });
@@ -68,11 +77,11 @@ describe('events', function () {
 
       await queue2.close();
       await queueEvents2.close();
-      await expect(running).to.have.been.fulfilled;
+      await expect(running).resolves.toBeUndefined();
       await removeAllQueueData(new IORedis(redisHost), queueName2);
     });
 
-    describe('when run method is called when queueEvent is running', function () {
+    describe('when run method is called when queueEvent is running', () => {
       it('throws error', async () => {
         const queueName2 = `test-${v4()}`;
         const queue2 = new Queue(queueName2, { connection, prefix });
@@ -87,19 +96,19 @@ describe('events', function () {
 
         await queue2.add('test', { foo: 'bar' });
 
-        await expect(queueEvents2.run()).to.be.rejectedWith(
+        await expect(queueEvents2.run()).rejects.toThrow(
           'Queue Events is already running.',
         );
 
         await queue2.close();
         await queueEvents2.close();
-        await expect(running).to.have.been.fulfilled;
+        await expect(running).resolves.toBeUndefined();
         await removeAllQueueData(new IORedis(redisHost), queueName2);
       });
     });
   });
 
-  it('should emit waiting when a job has been added', async function () {
+  it('should emit waiting when a job has been added', async () => {
     const waiting = new Promise<void>(resolve => {
       queue.on('waiting', job => {
         expect(job.id).to.be.string;
@@ -112,7 +121,7 @@ describe('events', function () {
     await waiting;
   });
 
-  it('should emit global waiting event when a job has been added', async function () {
+  it('should emit global waiting event when a job has been added', async () => {
     await delay(100);
     const waiting = new Promise(resolve => {
       queueEvents.on('waiting', resolve);
@@ -123,8 +132,8 @@ describe('events', function () {
     await waiting;
   });
 
-  describe('when jobs are cleaned', function () {
-    it('emits cleaned global event', async function () {
+  describe('when jobs are cleaned', () => {
+    it('emits cleaned global event', async () => {
       const worker = new Worker(
         queueName,
         async () => {
@@ -149,7 +158,7 @@ describe('events', function () {
       const cleaned = new Promise<void>((resolve, reject) => {
         queueEvents.once('cleaned', async ({ count }) => {
           try {
-            expect(count).to.be.eql('50');
+            expect(count).toEqual('50');
             resolve();
           } catch (error) {
             reject(error);
@@ -168,13 +177,13 @@ describe('events', function () {
       await cleaned;
 
       const actualCount = await queue.count();
-      expect(actualCount).to.be.equal(0);
+      expect(actualCount).toBe(0);
 
       await worker.close();
     });
   });
 
-  it('emits drained global event when all jobs have been processed', async function () {
+  it('emits drained global event when all jobs have been processed', async () => {
     const worker = new Worker(queueName, async () => {}, {
       drainDelay: 1,
       connection,
@@ -202,8 +211,8 @@ describe('events', function () {
     await worker.close();
   });
 
-  describe('when concurrency is greater than 1', function () {
-    it('emits drained global event when all jobs have been processed', async function () {
+  describe('when concurrency is greater than 1', () => {
+    it('emits drained global event when all jobs have been processed', async () => {
       const worker = new Worker(
         queueName,
         async () => {
@@ -234,13 +243,13 @@ describe('events', function () {
       await drained;
 
       const jobs = await queue.getJobCountByTypes('completed');
-      expect(jobs).to.be.equal(4);
+      expect(jobs).toBe(4);
 
       await worker.close();
     });
   });
 
-  it('emits drained global event only once when worker is idle', async function () {
+  it('emits drained global event only once when worker is idle', async () => {
     const worker = new Worker(
       queueName,
       async () => {
@@ -274,13 +283,13 @@ describe('events', function () {
     await delay(2000);
 
     const jobs = await queue.getJobCountByTypes('completed');
-    expect(jobs).to.be.equal(4);
-    expect(counterDrainedEvents).to.be.equal(2);
+    expect(jobs).toBe(4);
+    expect(counterDrainedEvents).toBe(2);
 
     await worker.close();
   });
 
-  it('emits drained event in worker when all jobs have been processed', async function () {
+  it('emits drained event in worker when all jobs have been processed', async () => {
     const worker = new Worker(queueName, async () => {}, {
       drainDelay: 1,
       connection,
@@ -303,12 +312,12 @@ describe('events', function () {
     await delay(10);
 
     const jobs = await queue.getJobCountByTypes('completed');
-    expect(jobs).to.be.equal(2);
+    expect(jobs).toBe(2);
 
     await worker.close();
   });
 
-  it('emits error event when there is an error on other events', async function () {
+  it('emits error event when there is an error on other events', async () => {
     const worker = new Worker(queueName, async () => {}, {
       drainDelay: 1,
       connection,
@@ -331,13 +340,13 @@ describe('events', function () {
     await error;
 
     const jobs = await queue.getJobCountByTypes('completed');
-    expect(jobs).to.be.equal(1);
+    expect(jobs).toBe(1);
 
     await worker.close();
   });
 
-  describe('when one job is added', function () {
-    it('emits added event', async function () {
+  describe('when one job is added', () => {
+    it('emits added event', async () => {
       const worker = new Worker(
         queueName,
         async () => {
@@ -354,8 +363,8 @@ describe('events', function () {
 
       const added = new Promise<void>(resolve => {
         queueEvents.once('added', ({ jobId, name }) => {
-          expect(jobId).to.be.equal('1');
-          expect(name).to.be.equal(testName);
+          expect(jobId).toBe('1');
+          expect(name).toBe(testName);
           resolve();
         });
 
@@ -368,8 +377,8 @@ describe('events', function () {
     });
   });
 
-  describe('when job has been added again', function () {
-    it('emits duplicated event', async function () {
+  describe('when job has been added again', () => {
+    it('emits duplicated event', async () => {
       const testName = 'test';
       const worker = new Worker(
         queueName,
@@ -394,7 +403,7 @@ describe('events', function () {
 
       await new Promise<void>(resolve => {
         queueEvents.once('duplicated', ({ jobId }) => {
-          expect(jobId).to.be.equal('a1');
+          expect(jobId).toBe('a1');
           resolve();
         });
       });
@@ -425,8 +434,8 @@ describe('events', function () {
     await worker.close();
   });
 
-  describe('when one job is a parent', function () {
-    it('emits waiting-children and waiting event', async function () {
+  describe('when one job is a parent', () => {
+    it('emits waiting-children and waiting event', async () => {
       const worker = new Worker(queueName, async () => {}, {
         drainDelay: 1,
         connection,
@@ -451,8 +460,8 @@ describe('events', function () {
           try {
             const job = await queue.getJob(jobId);
             const state = await job.getState();
-            expect(state).to.be.equal('waiting-children');
-            expect(job.name).to.be.equal(name);
+            expect(state).toBe('waiting-children');
+            expect(job.name).toBe(name);
             resolve();
           } catch (err) {
             reject(err);
@@ -464,7 +473,7 @@ describe('events', function () {
         queueEvents.on('waiting', async ({ jobId, prev }) => {
           try {
             const job = await queue.getJob(jobId);
-            expect(prev).to.be.equal('waiting-children');
+            expect(prev).toBe('waiting-children');
             if (job.name === name) {
               resolve();
             }
@@ -503,22 +512,22 @@ describe('events', function () {
     let state: string;
     await delay(50); // additional delay since XREAD from '$' is unstable
     queueEvents.on('waiting', function ({ jobId }) {
-      expect(jobId).to.be.equal('1');
-      expect(state).to.be.undefined;
+      expect(jobId).toBe('1');
+      expect(state).toBeUndefined();
       state = 'waiting';
     });
     queueEvents.once('active', function ({ jobId, prev }) {
-      expect(jobId).to.be.equal('1');
-      expect(prev).to.be.equal('waiting');
-      expect(state).to.be.equal('waiting');
+      expect(jobId).toBe('1');
+      expect(prev).toBe('waiting');
+      expect(state).toBe('waiting');
       state = 'active';
     });
 
     const completed = new Promise<void>(resolve => {
       queueEvents.once('completed', async function ({ jobId, returnvalue }) {
-        expect(jobId).to.be.equal('1');
-        expect(returnvalue).to.be.null;
-        expect(state).to.be.equal('active');
+        expect(jobId).toBe('1');
+        expect(returnvalue).toBeNull();
+        expect(state).toBe('active');
         resolve();
       });
     });
@@ -545,14 +554,14 @@ describe('events', function () {
 
       const eventsLength = await client.xlen(trimmedQueue.keys.events);
 
-      expect(eventsLength).to.be.eql(0);
+      expect(eventsLength).toEqual(0);
 
       await trimmedQueue.close();
       await removeAllQueueData(new IORedis(redisHost), queueName);
     });
   });
 
-  describe('when maxLen is 0', function () {
+  describe('when maxLen is 0', () => {
     it('should trim events automatically', async () => {
       const trimmedQueue = new Queue(queueName, {
         connection,
@@ -600,8 +609,8 @@ describe('events', function () {
         '-',
       );
 
-      expect(drained).to.be.equal('drained');
-      expect(completed).to.be.equal('completed');
+      expect(drained).toBe('drained');
+      expect(completed).toBe('completed');
 
       const eventsLength = await client.xlen(trimmedQueue.keys.events);
 
@@ -613,7 +622,7 @@ describe('events', function () {
     });
   });
 
-  describe('when maxLen is greater than 0', function () {
+  describe('when maxLen is greater than 0', () => {
     it('should trim events so its length is at least the threshold', async () => {
       const numJobs = 80;
       const trimmedQueue = new Queue(queueName, {
@@ -667,7 +676,7 @@ describe('events', function () {
       await removeAllQueueData(new IORedis(redisHost), queueName);
     });
 
-    describe('when jobs are moved to delayed', function () {
+    describe('when jobs are moved to delayed', () => {
       it('should trim events so its length is at least the threshold', async () => {
         const numJobs = 80;
         const trimmedQueue = new Queue(queueName, {
@@ -726,7 +735,7 @@ describe('events', function () {
       });
     });
 
-    describe('when jobs are retried immediately', function () {
+    describe('when jobs are retried immediately', () => {
       it('should trim events so its length is at least the threshold', async () => {
         const numJobs = 80;
         const trimmedQueue = new Queue(queueName, {
@@ -757,7 +766,7 @@ describe('events', function () {
           queueEvents.on('waiting', async ({ jobId, prev }) => {
             try {
               if (prev) {
-                expect(prev).to.be.eql('active');
+                expect(prev).toEqual('active');
                 if (jobId === numJobs + '') {
                   resolve();
                 }
@@ -839,19 +848,19 @@ describe('events', function () {
 
     let eventsLength = await client.xlen(trimmedQueue.keys.events);
 
-    expect(eventsLength).to.be.equal(8);
+    expect(eventsLength).toBe(8);
 
     await trimmedQueue.trimEvents(0);
 
     eventsLength = await client.xlen(trimmedQueue.keys.events);
 
-    expect(eventsLength).to.be.equal(0);
+    expect(eventsLength).toBe(0);
 
     await trimmedQueue.close();
     await removeAllQueueData(new IORedis(redisHost), queueName);
   });
 
-  describe('when publishing custom events', function () {
+  describe('when publishing custom events', () => {
     it('emits waiting when a job has been added', async () => {
       const queueName2 = `test-${v4()}`;
       const queueEventsProducer = new QueueEventsProducer(queueName2, {
@@ -872,7 +881,7 @@ describe('events', function () {
       const customEvent = new Promise<void>(resolve => {
         queueEvents2.on<CustomListener>('example', async ({ custom }) => {
           await delay(250);
-          await expect(custom).to.be.equal('value');
+          await expect(custom).toBe('value');
           resolve();
         });
       });

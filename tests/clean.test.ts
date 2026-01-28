@@ -1,7 +1,15 @@
-import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
-import { beforeEach, describe, it, after as afterAll } from 'mocha';
+import {
+  describe,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
+  it,
+  expect,
+} from 'vitest';
+
 import { v4 } from 'uuid';
 import {
   FlowProducer,
@@ -20,7 +28,7 @@ describe('Cleaner', () => {
   let queueName: string;
 
   let connection;
-  before(async function () {
+  beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
@@ -32,7 +40,7 @@ describe('Cleaner', () => {
     await queue.waitUntilReady();
   });
 
-  afterEach(async function () {
+  afterEach(async () => {
     await queue.close();
     await queueEvents.close();
     await removeAllQueueData(new IORedis(redisHost), queueName);
@@ -45,15 +53,15 @@ describe('Cleaner', () => {
   it('should clean an empty queue', async () => {
     const waitCleaned = new Promise<void>(resolve => {
       queue.on('cleaned', (jobs, type) => {
-        expect(type).to.be.eql('completed');
-        expect(jobs.length).to.be.eql(0);
+        expect(type).toEqual('completed');
+        expect(jobs.length).toEqual(0);
         resolve();
       });
     });
 
     const jobs = await queue.clean(0, 0);
 
-    expect(jobs.length).to.be.eql(0);
+    expect(jobs.length).toEqual(0);
 
     await waitCleaned;
   });
@@ -86,7 +94,7 @@ describe('Cleaner', () => {
     await delay(10);
 
     const jobs = await queue.clean(0, 0);
-    expect(jobs.length).to.be.eql(2);
+    expect(jobs.length).toEqual(2);
 
     await worker.close();
   });
@@ -96,9 +104,9 @@ describe('Cleaner', () => {
     await queue.add('test', { some: 'data' });
     await delay(100);
     const deletedJobs = await queue.clean(0, 100, 'wait');
-    expect(deletedJobs).to.have.length(2);
+    expect(deletedJobs).toHaveLength(2);
     const remainingJobsCount = await queue.count();
-    expect(remainingJobsCount).to.be.eql(0);
+    expect(remainingJobsCount).toEqual(0);
   });
 
   it('should only remove a job outside of the grace period', async () => {
@@ -115,7 +123,7 @@ describe('Cleaner', () => {
     await queue.clean(100, 100);
     await delay(100);
     const jobs = await queue.getCompleted();
-    expect(jobs.length).to.be.eql(1);
+    expect(jobs.length).toEqual(1);
 
     await worker.close();
   });
@@ -126,17 +134,17 @@ describe('Cleaner', () => {
 
     const count1 = await queue.count();
 
-    expect(count1).to.be.eql(2);
+    expect(count1).toEqual(2);
 
     const cleaned = await queue.clean(5000, 2, 'wait');
-    expect(cleaned.length).to.be.eql(0);
+    expect(cleaned.length).toEqual(0);
 
     const cleaned2 = await queue.clean(5000, 2, 'wait');
-    expect(cleaned2.length).to.be.eql(0);
+    expect(cleaned2.length).toEqual(0);
 
     const count2 = await queue.count();
 
-    expect(count2).to.be.eql(2);
+    expect(count2).toEqual(2);
   });
 
   it('should clean all failed jobs', async () => {
@@ -171,9 +179,9 @@ describe('Cleaner', () => {
     await delay(50);
 
     const jobs = await queue.clean(0, 0, 'failed');
-    expect(jobs.length).to.be.eql(2);
+    expect(jobs.length).toEqual(2);
     const count = await queue.count();
-    expect(count).to.be.eql(0);
+    expect(count).toEqual(0);
 
     await worker.close();
   });
@@ -212,9 +220,9 @@ describe('Cleaner', () => {
       await delay(50);
 
       const jobs = await queue.clean(0, 0, 'failed');
-      expect(jobs.length).to.be.eql(3);
+      expect(jobs.length).toEqual(3);
       const count = await queue.count();
-      expect(count).to.be.eql(1);
+      expect(count).toEqual(1);
 
       await worker.close();
     });
@@ -251,9 +259,9 @@ describe('Cleaner', () => {
       await delay(50);
 
       const jobs = await queue.clean(0, 0, 'completed');
-      expect(jobs.length).to.be.eql(3);
+      expect(jobs.length).toEqual(3);
       const count = await queue.count();
-      expect(count).to.be.eql(1);
+      expect(count).toEqual(1);
 
       await worker.close();
     });
@@ -264,9 +272,9 @@ describe('Cleaner', () => {
     await queue.add('test', { some: 'data' });
     await delay(100);
     const jobs = await queue.clean(0, 0, 'wait');
-    expect(jobs.length).to.be.eql(2);
+    expect(jobs.length).toEqual(2);
     const count = await queue.count();
-    expect(count).to.be.eql(0);
+    expect(count).toEqual(0);
   });
 
   it('should clean all delayed jobs when limit is given', async () => {
@@ -274,9 +282,9 @@ describe('Cleaner', () => {
     await queue.add('test', { some: 'data' }, { delay: 5000 });
     await delay(100);
     const jobs = await queue.clean(0, 1000, 'delayed');
-    expect(jobs.length).to.be.eql(2);
+    expect(jobs.length).toEqual(2);
     const count = await queue.count();
-    expect(count).to.be.eql(0);
+    expect(count).toEqual(0);
   });
 
   it('should clean all prioritized jobs when limit is given', async () => {
@@ -284,9 +292,9 @@ describe('Cleaner', () => {
     await queue.add('test', { some: 'data' }, { priority: 5001 });
     await delay(100);
     const jobs = await queue.clean(0, 1000, 'prioritized');
-    expect(jobs.length).to.be.eql(2);
+    expect(jobs.length).toEqual(2);
     const count = await queue.count();
-    expect(count).to.be.eql(0);
+    expect(count).toEqual(0);
   });
 
   describe('when prioritized state is provided', async () => {
@@ -296,9 +304,9 @@ describe('Cleaner', () => {
       await queue.add('test', { some: 'data' }, { priority: 3 });
       await delay(100);
       const jobs = await queue.clean(0, 1, 'prioritized');
-      expect(jobs.length).to.be.eql(1);
+      expect(jobs.length).toEqual(1);
       const count = await queue.getJobCounts('prioritized');
-      expect(count.prioritized).to.be.eql(2);
+      expect(count.prioritized).toEqual(2);
     });
   });
 
@@ -308,9 +316,9 @@ describe('Cleaner', () => {
       await queue.add('test', { some: 'data' }, { delay: 5000 });
       await delay(100);
       const jobs = await queue.clean(0, 0, 'delayed');
-      expect(jobs.length).to.be.eql(2);
+      expect(jobs.length).toEqual(2);
       const count = await queue.count();
-      expect(count).to.be.eql(0);
+      expect(count).toEqual(0);
     });
 
     it('does not clean anything if all jobs are in grace period', async () => {
@@ -318,9 +326,9 @@ describe('Cleaner', () => {
       await queue.add('test', { some: 'data' }, { delay: 5000 });
       await delay(100);
       const jobs = await queue.clean(5000, 2, 'delayed');
-      expect(jobs.length).to.be.eql(0);
+      expect(jobs.length).toEqual(0);
       const count = await queue.count();
-      expect(count).to.be.eql(2);
+      expect(count).toEqual(2);
     });
   });
 
@@ -343,24 +351,24 @@ describe('Cleaner', () => {
           });
 
           const count = await queue.count();
-          expect(count).to.be.eql(4);
+          expect(count).toEqual(4);
 
           await queue.clean(0, 0, 'wait');
 
           const client = await queue.client;
           const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-          expect(keys.length).to.be.eql(4);
+          expect(keys.length).toEqual(4);
           for (const key of keys) {
             const type = key.split(':')[2];
-            expect(['meta', 'events', 'marker', 'id']).to.include(type);
+            expect(['meta', 'events', 'marker', 'id']).toContain(type);
           }
 
           const countAfterEmpty = await queue.count();
-          expect(countAfterEmpty).to.be.eql(0);
+          expect(countAfterEmpty).toEqual(0);
 
           const failedCount = await queue.getJobCountByTypes('failed');
-          expect(failedCount).to.be.eql(0);
+          expect(failedCount).toEqual(0);
           await flow.close();
         });
       });
@@ -402,16 +410,14 @@ describe('Cleaner', () => {
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
             // Expected keys: meta, id, stalled-check and events
-            expect(keys.length).to.be.eql(4);
+            expect(keys.length).toEqual(4);
             for (const key of keys) {
               const type = key.split(':')[2];
-              expect(['meta', 'id', 'stalled-check', 'events']).to.include(
-                type,
-              );
+              expect(['meta', 'id', 'stalled-check', 'events']).toContain(type);
             }
 
             const jobs = await queue.getJobCountByTypes('completed');
-            expect(jobs).to.be.equal(0);
+            expect(jobs).toBe(0);
 
             await worker.close();
             await flow.close();
@@ -458,23 +464,25 @@ describe('Cleaner', () => {
 
             const suffixes = keys.map(key => key.split(':')[2]);
             // Expected keys: meta, id, stalled-check, events, failed and job
-            expect(suffixes).to.include.members([
-              'meta',
-              'id',
-              'stalled-check',
-              'events',
-              'failed',
-              tree.job.id!,
-            ]);
+            expect(suffixes).toEqual(
+              expect.arrayContaining([
+                'meta',
+                'id',
+                'stalled-check',
+                'events',
+                'failed',
+                tree.job.id!,
+              ]),
+            );
 
             const parentState = await tree.job.getState();
-            expect(parentState).to.be.equal('failed');
+            expect(parentState).toBe('failed');
 
             const job = queue.getJob(tree.job.id!);
-            expect(job).to.not.be.undefined;
+            expect(job).toBeDefined();
 
             const jobs = await queue.getJobCountByTypes('completed');
-            expect(jobs).to.be.equal(0);
+            expect(jobs).toBe(0);
 
             await worker.close();
             await flow.close();
@@ -531,13 +539,13 @@ describe('Cleaner', () => {
             `${prefix}:${queue.name}:${tree.job.id}*`,
           );
 
-          expect(keys.length).to.be.eql(0);
+          expect(keys.length).toEqual(0);
 
           const jobs = await queue.getJobCountByTypes('completed');
-          expect(jobs).to.be.equal(2);
+          expect(jobs).toBe(2);
 
           const parentState = await tree.job.getState();
-          expect(parentState).to.be.equal('unknown');
+          expect(parentState).toBe('unknown');
 
           await worker.close();
           await flow.close();
@@ -569,17 +577,17 @@ describe('Cleaner', () => {
           });
 
           const count = await queue.count();
-          expect(count).to.be.eql(1);
+          expect(count).toEqual(1);
 
           await queue.clean(0, 0, 'wait');
 
           const client = await queue.client;
           const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-          expect(keys.length).to.be.eql(6);
+          expect(keys.length).toEqual(6);
 
           const countAfterEmpty = await queue.count();
-          expect(countAfterEmpty).to.be.eql(1);
+          expect(countAfterEmpty).toEqual(1);
 
           await flow.close();
           await childrenQueue.close();
@@ -587,8 +595,8 @@ describe('Cleaner', () => {
       });
 
       describe('when creating children at runtime and call clean when parent is active', () => {
-        it('does not delete parent record', async function () {
-          this.timeout(4000);
+        it('does not delete parent record', async () => {
+          // TODO: Move timeout to test options: { timeout: 4000 }
 
           enum Step {
             Initial,
@@ -673,14 +681,14 @@ describe('Cleaner', () => {
           });
 
           const job = await queue.getJob(parent.id!);
-          expect(job).to.not.be.undefined;
+          expect(job).toBeDefined();
 
           const jobs = await queue.getJobCountByTypes('completed');
-          expect(jobs).to.be.equal(0);
+          expect(jobs).toBe(0);
 
           const parentState = await parent.getState();
 
-          expect(parentState).to.be.equal('active');
+          expect(parentState).toBe('active');
 
           await worker.close();
         });
@@ -711,33 +719,33 @@ describe('Cleaner', () => {
           });
 
           const count = await queue.count();
-          expect(count).to.be.eql(3);
+          expect(count).toEqual(3);
 
           await queue.clean(0, 0, 'wait');
 
           const client = await queue.client;
           const keys = await client.keys(`${prefix}:${queueName}:*`);
 
-          expect(keys.length).to.be.eql(4);
+          expect(keys.length).toEqual(4);
           for (const key of keys) {
             const type = key.split(':')[2];
-            expect(['meta', 'events', 'marker', 'id']).to.include(type);
+            expect(['meta', 'events', 'marker', 'id']).toContain(type);
           }
 
           const eventsCount = await client.xlen(
             `${prefix}:${parentQueueName}:events`,
           );
 
-          expect(eventsCount).to.be.eql(2); // added and waiting-children events
+          expect(eventsCount).toEqual(2); // added and waiting-children events
 
           const countAfterEmpty = await queue.count();
-          expect(countAfterEmpty).to.be.eql(0);
+          expect(countAfterEmpty).toEqual(0);
 
           const childrenFailedCount = await queue.getJobCountByTypes('failed');
-          expect(childrenFailedCount).to.be.eql(0);
+          expect(childrenFailedCount).toEqual(0);
 
           const parentWaitCount = await parentQueue.getJobCountByTypes('wait');
-          expect(parentWaitCount).to.be.eql(1);
+          expect(parentWaitCount).toEqual(1);
           await parentQueue.close();
           await flow.close();
           await removeAllQueueData(new IORedis(redisHost), parentQueueName);
@@ -770,26 +778,26 @@ describe('Cleaner', () => {
           });
 
           const count = await queue.count();
-          expect(count).to.be.eql(1);
+          expect(count).toEqual(1);
 
           const priorityCount = await queue.getJobCounts('prioritized');
-          expect(priorityCount.prioritized).to.be.eql(1);
+          expect(priorityCount.prioritized).toEqual(1);
 
           await queue.clean(0, 0, 'prioritized');
 
           const client = await queue.client;
           const keys = await client.keys(`${prefix}:${queueName}:*`);
 
-          expect(keys.length).to.be.eql(5);
+          expect(keys.length).toEqual(5);
 
           const countAfterEmpty = await queue.count();
-          expect(countAfterEmpty).to.be.eql(0);
+          expect(countAfterEmpty).toEqual(0);
 
           const failedCount = await queue.getJobCountByTypes('failed');
-          expect(failedCount).to.be.eql(0);
+          expect(failedCount).toEqual(0);
 
           const parentWaitCount = await parentQueue.getJobCountByTypes('wait');
-          expect(parentWaitCount).to.be.eql(1);
+          expect(parentWaitCount).toEqual(1);
           await parentQueue.close();
           await flow.close();
           await removeAllQueueData(new IORedis(redisHost), parentQueueName);
@@ -816,9 +824,9 @@ describe('Cleaner', () => {
     await delay(100);
     await client.hdel(`${prefix}:${queueName}:1`, 'timestamp');
     const jobs = await queue.clean(0, 0, 'failed');
-    expect(jobs.length).to.be.eql(2);
+    expect(jobs.length).toEqual(2);
     const failed = await queue.getFailed();
-    expect(failed.length).to.be.eql(0);
+    expect(failed.length).toEqual(0);
 
     await worker.close();
   });
@@ -833,24 +841,24 @@ describe('Cleaner', () => {
     await delay(100);
 
     const counts = await queue.getJobCounts();
-    expect(counts).to.have.property('waiting');
-    expect(counts.waiting).to.be.eql(3);
+    expect(counts).toHaveProperty('waiting');
+    expect(counts.waiting).toEqual(3);
 
     const cleanedWithWait = await queue.clean(0, 2, 'wait');
-    expect(cleanedWithWait.length).to.be.eql(2);
+    expect(cleanedWithWait.length).toEqual(2);
 
     const remainingCount = await queue.count();
-    expect(remainingCount).to.be.eql(1);
+    expect(remainingCount).toEqual(1);
 
     await queue.add('test', { some: 'data' });
     await queue.add('test', { some: 'data' });
     await delay(100);
 
     const cleanedWithWaiting = await queue.clean(0, 10, 'waiting');
-    expect(cleanedWithWaiting.length).to.be.eql(3);
+    expect(cleanedWithWaiting.length).toEqual(3);
 
     const finalCount = await queue.count();
-    expect(finalCount).to.be.eql(0);
+    expect(finalCount).toEqual(0);
   });
 
   it('should emit correct events for both "wait" and "waiting" clean operations', async () => {
@@ -870,9 +878,9 @@ describe('Cleaner', () => {
 
     await queue.clean(0, 1, 'wait');
 
-    expect(cleanedEventFired).to.be.true;
-    expect(cleanedType).to.be.eql('wait');
-    expect(cleanedJobs.length).to.be.eql(1);
+    expect(cleanedEventFired).toBe(true);
+    expect(cleanedType).toEqual('wait');
+    expect(cleanedJobs.length).toEqual(1);
 
     cleanedEventFired = false;
     cleanedType = '';
@@ -880,8 +888,8 @@ describe('Cleaner', () => {
 
     await queue.clean(0, 1, 'waiting');
 
-    expect(cleanedEventFired).to.be.true;
-    expect(cleanedType).to.be.eql('wait');
-    expect(cleanedJobs.length).to.be.eql(1);
+    expect(cleanedEventFired).toBe(true);
+    expect(cleanedType).toEqual('wait');
+    expect(cleanedJobs.length).toEqual(1);
   });
 });

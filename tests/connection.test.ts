@@ -1,6 +1,15 @@
-import { expect } from 'chai';
 import { default as IORedis, RedisOptions } from 'ioredis';
 import { v4 } from 'uuid';
+import {
+  describe,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
+  it,
+  expect,
+} from 'vitest';
+
 import {
   Queue,
   Job,
@@ -10,14 +19,6 @@ import {
   RedisConnection,
 } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
-import {
-  before,
-  describe,
-  it,
-  beforeEach,
-  afterEach,
-  after as afterAll,
-} from 'mocha';
 
 import * as sinon from 'sinon';
 
@@ -25,7 +26,7 @@ describe('RedisConnection', () => {
   describe('constructor', () => {
     it('initializes with default extraOptions when none provided', () => {
       const connection = new RedisConnection({});
-      expect((connection as any).extraOptions).to.deep.equal({
+      expect((connection as any).extraOptions).toEqual({
         shared: false,
         blocking: true,
         skipVersionCheck: false,
@@ -41,7 +42,7 @@ describe('RedisConnection', () => {
         skipWaitingForReady: true,
       };
       const connection = new RedisConnection({}, options);
-      expect((connection as any).extraOptions).to.deep.include(options);
+      expect((connection as any).extraOptions).toMatchObject(options);
     });
 
     describe('when skipVersionCheck is set as true', () => {
@@ -51,7 +52,7 @@ describe('RedisConnection', () => {
         });
         await (connection as any).initializing;
 
-        expect((connection as any).redisVersion).to.be.equal('5.0.0');
+        expect((connection as any).redisVersion).toBe('5.0.0');
       });
     });
   });
@@ -59,7 +60,7 @@ describe('RedisConnection', () => {
   describe('blocking option', () => {
     it('sets maxRetriesPerRequest to null when blocking is true', () => {
       const connection = new RedisConnection({}, { blocking: true });
-      expect((connection as any).opts.maxRetriesPerRequest).to.be.null;
+      expect((connection as any).opts.maxRetriesPerRequest).toBeNull();
     });
 
     it('preserves maxRetriesPerRequest when blocking is false', () => {
@@ -67,7 +68,7 @@ describe('RedisConnection', () => {
         { maxRetriesPerRequest: 10 },
         { blocking: false },
       );
-      expect((connection as any).opts.maxRetriesPerRequest).to.equal(10);
+      expect((connection as any).opts.maxRetriesPerRequest).toBe(10);
     });
   });
 
@@ -87,7 +88,7 @@ describe('RedisConnection', () => {
     it('skips waiting for ready when skipWaitingForReady is true', async () => {
       const connection = new RedisConnection({}, { skipWaitingForReady: true });
       const client = await connection.client;
-      expect(waitUntilReadyStub.called).to.be.false;
+      expect(waitUntilReadyStub.called).toBe(false);
     });
 
     it('awaits ready state when skipWaitingForReady is false', async () => {
@@ -96,7 +97,7 @@ describe('RedisConnection', () => {
         { skipWaitingForReady: false },
       );
       const client = await connection.client;
-      expect(waitUntilReadyStub.calledOnce).to.be.true;
+      expect(waitUntilReadyStub.calledOnce).toBe(true);
     });
   });
 
@@ -112,7 +113,7 @@ describe('RedisConnection', () => {
 
     it('uses non-blocking connection by default', () => {
       const queue = new Queue('test');
-      expect((<any>queue).connection.extraOptions.blocking).to.be.false;
+      expect((<any>queue).connection.extraOptions.blocking).toBe(false);
     });
 
     it('uses shared connection if provided Redis instance', () => {
@@ -121,7 +122,7 @@ describe('RedisConnection', () => {
       const queue = new Queue('test', {
         connection,
       });
-      expect((<any>queue).connection.extraOptions.shared).to.be.true;
+      expect((<any>queue).connection.extraOptions.shared).toBe(true);
 
       connection.disconnect();
     });
@@ -130,7 +131,7 @@ describe('RedisConnection', () => {
   describe('Worker', () => {
     it('initializes blockingConnection with blocking: true', async () => {
       const worker = new Worker('test', async () => {}, { connection: {} });
-      expect((<any>worker).blockingConnection.extraOptions.blocking).to.be.true;
+      expect((<any>worker).blockingConnection.extraOptions.blocking).toBe(true);
       await worker.close();
     });
 
@@ -138,7 +139,7 @@ describe('RedisConnection', () => {
       const connection = new IORedis({ maxRetriesPerRequest: null });
 
       const worker = new Worker('test', async () => {}, { connection });
-      expect((<any>worker).blockingConnection.extraOptions.shared).to.be.false;
+      expect((<any>worker).blockingConnection.extraOptions.shared).toBe(false);
 
       await worker.close();
       connection.disconnect();
@@ -149,8 +150,8 @@ describe('RedisConnection', () => {
 
       const worker = new Worker('test', async () => {}, { connection });
 
-      expect((<any>worker).connection.extraOptions.blocking).to.be.false;
-      expect((<any>worker).blockingConnection.extraOptions.blocking).to.be.true;
+      expect((<any>worker).connection.extraOptions.blocking).toBe(false);
+      expect((<any>worker).blockingConnection.extraOptions.blocking).toBe(true);
 
       await worker.close();
       connection.disconnect();
@@ -160,7 +161,7 @@ describe('RedisConnection', () => {
   describe('FlowProducer', () => {
     it('uses non-blocking connection', async () => {
       const flowProducer = new FlowProducer();
-      expect((<any>flowProducer).connection.extraOptions.blocking).to.be.false;
+      expect((<any>flowProducer).connection.extraOptions.blocking).toBe(false);
       await flowProducer.close();
     });
 
@@ -170,7 +171,7 @@ describe('RedisConnection', () => {
       const flowProducer = new FlowProducer({
         connection,
       });
-      expect((<any>flowProducer).connection.extraOptions.shared).to.be.true;
+      expect((<any>flowProducer).connection.extraOptions.shared).toBe(true);
 
       connection.disconnect();
     });
@@ -184,16 +185,16 @@ describe('connection', () => {
   let queueName: string;
 
   let connection;
-  before(async function () {
+  beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
-  beforeEach(async function () {
+  beforeEach(async () => {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection, prefix });
   });
 
-  afterEach(async function () {
+  afterEach(async () => {
     await queue.close();
     await removeAllQueueData(new IORedis(redisHost), queueName);
   });
@@ -213,7 +214,7 @@ describe('connection', () => {
       });
 
       const client = await queue.waitUntilReady();
-      expect(client.status).to.be.eql('ready');
+      expect(client.status).toEqual('ready');
 
       await queue.close();
     });
@@ -230,7 +231,7 @@ describe('connection', () => {
       try {
         await queue.waitUntilReady();
       } catch (error) {
-        expect(error.code).to.be.equal('ECONNREFUSED');
+        expect(error.code).toBe('ECONNREFUSED');
       }
     });
 
@@ -246,7 +247,7 @@ describe('connection', () => {
       });
 
       const client = await queue.waitUntilReady();
-      expect(client.status).to.be.eql('ready');
+      expect(client.status).toEqual('ready');
 
       await queue.close();
     });
@@ -265,7 +266,7 @@ describe('connection', () => {
       try {
         await queue.waitUntilReady();
       } catch (error) {
-        expect(error.code).to.be.equal('ECONNREFUSED');
+        expect(error.code).toBe('ECONNREFUSED');
       }
     });
   });
@@ -277,7 +278,7 @@ describe('connection', () => {
         keyPrefix: 'bullmq',
       });
 
-      expect(() => new QueueBase(queueName, { connection })).to.throw(
+      expect(() => new QueueBase(queueName, { connection })).toThrow(
         'BullMQ: ioredis does not support ioredis prefixes, use the prefix option instead.',
       );
       await connection.disconnect();
@@ -292,7 +293,7 @@ describe('connection', () => {
         },
       );
 
-      expect(() => new QueueBase(queueName, { connection })).to.throw(
+      expect(() => new QueueBase(queueName, { connection })).toThrow(
         'BullMQ: ioredis does not support ioredis prefixes, use the prefix option instead.',
       );
       await connection.disconnect();
@@ -309,7 +310,7 @@ describe('connection', () => {
 
         const options = connection.options;
 
-        expect(options.maxRetriesPerRequest).to.be.equal(null);
+        expect(options.maxRetriesPerRequest).toBe(null);
 
         await queue.close();
       }
@@ -326,7 +327,7 @@ describe('connection', () => {
 
       const options = <RedisOptions>(await queue.client).options;
 
-      expect(options.maxRetriesPerRequest).to.be.equal(20);
+      expect(options.maxRetriesPerRequest).toBe(20);
 
       await queue.close();
       await connection2.quit();
@@ -388,7 +389,7 @@ describe('connection', () => {
     const client = queue['connection']['_client'];
     await queue.close();
 
-    expect(client.status).to.be.eql('end');
+    expect(client.status).toEqual('end');
   });
 
   it('should recover from a connection loss', async () => {
@@ -396,7 +397,7 @@ describe('connection', () => {
 
     const processing = new Promise<void>(resolve => {
       processor = async (job: Job) => {
-        expect(job.data.foo).to.be.equal('bar');
+        expect(job.data.foo).toBe('bar');
         resolve();
       };
     });
@@ -436,7 +437,7 @@ describe('connection', () => {
       processor = async (job: Job) => {
         try {
           if (count == 0) {
-            expect(job.data.foo).to.be.equal('bar');
+            expect(job.data.foo).toBe('bar');
           } else {
             resolve();
           }
@@ -508,14 +509,14 @@ describe('connection', () => {
         return testQueue.add({ foo: 'bar' });
       })
       .then(() => {
-        expect(testQueue.client).to.be.eql(client);
-        expect(testQueue.eclient).to.be.eql(subscriber);
+        expect(testQueue.client).toEqual(client);
+        expect(testQueue.eclient).toEqual(subscriber);
 
         return testQueue.close();
       })
       .then(() => {
-        expect(client.status).to.be.eql('ready');
-        expect(subscriber.status).to.be.eql('ready');
+        expect(client.status).toEqual('ready');
+        expect(subscriber.status).toEqual('ready');
         return Promise.all([client.quit(), subscriber.quit()]);
       });
   });
@@ -526,7 +527,7 @@ describe('connection', () => {
       connection: { port: 1234, host: '127.0.0.1', retryStrategy: () => null },
     });
 
-    await expect(queueFail.waitUntilReady()).to.be.eventually.rejectedWith(
+    await expect(queueFail.waitUntilReady()).rejects.toThrow(
       'connect ECONNREFUSED 127.0.0.1:1234',
     );
   });
@@ -539,7 +540,7 @@ describe('connection', () => {
     const waitingErrorEvent = new Promise<void>((resolve, reject) => {
       queueFail.on('error', (err: Error) => {
         try {
-          expect(err.message).to.equal('connect ECONNREFUSED 127.0.0.1:1234');
+          expect(err.message).toBe('connect ECONNREFUSED 127.0.0.1:1234');
           resolve();
         } catch (err) {
           reject(err);
@@ -557,11 +558,11 @@ describe('connection', () => {
 
     queueFail.on('error', () => {});
 
-    await expect(queueFail.waitUntilReady()).to.be.rejectedWith(
+    await expect(queueFail.waitUntilReady()).rejects.toThrow(
       'connect ECONNREFUSED 127.0.0.1:1234',
     );
 
-    await expect(queueFail.close()).to.be.eventually.equal(undefined);
+    await expect(queueFail.close()).resolves.toBeUndefined();
   });
 
   it('should close if connection is failing', async () => {
@@ -573,10 +574,10 @@ describe('connection', () => {
       },
     });
 
-    await expect(queueFail.waitUntilReady()).to.be.eventually.rejectedWith(
+    await expect(queueFail.waitUntilReady()).rejects.toThrow(
       'connect ECONNREFUSED 127.0.0.1:1234',
     );
 
-    await expect(queueFail.close()).to.be.eventually.equal(undefined);
+    await expect(queueFail.close()).resolves.toBeUndefined();
   });
 });

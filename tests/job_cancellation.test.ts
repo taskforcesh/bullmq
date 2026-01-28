@@ -1,18 +1,19 @@
-import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import {
   describe,
   beforeEach,
   afterEach,
+  beforeAll,
+  afterAll,
   it,
-  before,
-  after as afterAll,
-} from 'mocha';
+  expect,
+} from 'vitest';
+
 import { v4 } from 'uuid';
 import { Queue, QueueEvents, Worker, UnrecoverableError } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
-describe('Job Cancellation', function () {
+describe('Job Cancellation', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
@@ -21,18 +22,18 @@ describe('Job Cancellation', function () {
   let queueName: string;
 
   let connection: IORedis;
-  before(async function () {
+  beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
-  beforeEach(async function () {
+  beforeEach(async () => {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
   });
 
-  afterEach(async function () {
+  afterEach(async () => {
     await queue.close();
     await queueEvents.close();
     await removeAllQueueData(new IORedis(redisHost), queueName);
@@ -43,7 +44,7 @@ describe('Job Cancellation', function () {
   });
 
   describe('Basic Cancellation', () => {
-    it('should cancel a running job using abort event (recommended)', async function () {
+    it('should cancel a running job using abort event (recommended)', async () => {
       let jobStarted = false;
       let jobCancelled = false;
 
@@ -94,19 +95,19 @@ describe('Job Cancellation', function () {
       // Wait for the job to fail
       await new Promise<void>(resolve => {
         worker.on('failed', (failedJob, err) => {
-          expect(failedJob!.id).to.equal(job.id);
-          expect(err.message).to.equal('Job was cancelled');
+          expect(failedJob!.id).toBe(job.id);
+          expect(err.message).toBe('Job was cancelled');
           resolve();
         });
       });
 
-      expect(jobStarted).to.be.true;
-      expect(jobCancelled).to.be.true;
+      expect(jobStarted).toBe(true);
+      expect(jobCancelled).toBe(true);
 
       await worker.close();
     });
 
-    it('should cancel a running job using polling (alternative)', async function () {
+    it('should cancel a running job using polling (alternative)', async () => {
       let jobStarted = false;
       let jobCancelled = false;
 
@@ -142,24 +143,24 @@ describe('Job Cancellation', function () {
 
       // Cancel the job
       const cancelled = worker.cancelJob(job.id!);
-      expect(cancelled).to.be.true;
+      expect(cancelled).toBe(true);
 
       // Wait for the job to fail
       await new Promise<void>(resolve => {
         worker.on('failed', (failedJob, err) => {
-          expect(failedJob?.id).to.equal(job.id);
-          expect(err.message).to.equal('Job was cancelled');
+          expect(failedJob?.id).toBe(job.id);
+          expect(err.message).toBe('Job was cancelled');
           resolve();
         });
       });
 
-      expect(jobStarted).to.be.true;
-      expect(jobCancelled).to.be.true;
+      expect(jobStarted).toBe(true);
+      expect(jobCancelled).toBe(true);
 
       await worker.close();
     });
 
-    it('should interrupt async operations with abort event', async function () {
+    it('should interrupt async operations with abort event', async () => {
       let operationStarted = false;
       let operationCancelled = false;
 
@@ -202,18 +203,18 @@ describe('Job Cancellation', function () {
 
       await new Promise<void>(resolve => {
         worker.on('failed', (failedJob, err) => {
-          expect(err.message).to.equal('Operation cancelled');
+          expect(err.message).toBe('Operation cancelled');
           resolve();
         });
       });
 
-      expect(operationStarted).to.be.true;
-      expect(operationCancelled).to.be.true;
+      expect(operationStarted).toBe(true);
+      expect(operationCancelled).toBe(true);
 
       await worker.close();
     });
 
-    it('should return false when cancelling a non-existent job', async function () {
+    it('should return false when cancelling a non-existent job', async () => {
       const worker = new Worker(
         queueName,
         async () => {
@@ -226,12 +227,12 @@ describe('Job Cancellation', function () {
       await worker.waitUntilReady();
 
       const cancelled = worker.cancelJob('non-existent-job-id');
-      expect(cancelled).to.be.false;
+      expect(cancelled).toBe(false);
 
       await worker.close();
     });
 
-    it('should return false when cancelling a job that has already completed', async function () {
+    it('should return false when cancelling a job that has already completed', async () => {
       let jobCompleted = false;
 
       const worker = new Worker(
@@ -258,18 +259,18 @@ describe('Job Cancellation', function () {
       // Add small delay to ensure untracking is complete
       await delay(10);
 
-      expect(jobCompleted).to.be.true;
+      expect(jobCompleted).toBe(true);
 
       // Job should not be tracked after completion
       const cancelled = worker.cancelJob(job.id!);
-      expect(cancelled).to.be.false;
+      expect(cancelled).toBe(false);
 
       await worker.close();
     });
   });
 
   describe('Cancel All Jobs', () => {
-    it('should cancel all active jobs', async function () {
+    it('should cancel all active jobs', async () => {
       const numJobs = 5;
       const cancelledJobs = new Set<string>();
 
@@ -313,7 +314,7 @@ describe('Job Cancellation', function () {
 
       // Get active job IDs before cancelling
       const activeJobs = await queue.getActive();
-      expect(activeJobs).to.have.lengthOf(numJobs);
+      expect(activeJobs).toHaveLength(numJobs);
 
       // Cancel all jobs
       worker.cancelAllJobs();
@@ -329,14 +330,14 @@ describe('Job Cancellation', function () {
         });
       });
 
-      expect(cancelledJobs.size).to.equal(numJobs);
+      expect(cancelledJobs.size).toBe(numJobs);
 
       await worker.close();
     });
   });
 
   describe('AbortSignal Integration', () => {
-    it('should work with fetch-like APIs that accept abort signal', async function () {
+    it('should work with fetch-like APIs that accept abort signal', async () => {
       let abortSignalReceived = false;
       let signalWasAborted = false;
 
@@ -381,13 +382,13 @@ describe('Job Cancellation', function () {
         worker.on('failed', () => resolve());
       });
 
-      expect(abortSignalReceived).to.be.true;
-      expect(signalWasAborted).to.be.true;
+      expect(abortSignalReceived).toBe(true);
+      expect(signalWasAborted).toBe(true);
 
       await worker.close();
     });
 
-    it('should work with processor that ignores signal (backward compatibility)', async function () {
+    it('should work with processor that ignores signal (backward compatibility)', async () => {
       let jobCompleted = false;
 
       const worker = new Worker(
@@ -412,12 +413,12 @@ describe('Job Cancellation', function () {
       // Wait for completion
       await waitingOnCompleted;
 
-      expect(jobCompleted).to.be.true;
+      expect(jobCompleted).toBe(true);
 
       await worker.close();
     });
 
-    it('should handle signal.aborted check in async operations', async function () {
+    it('should handle signal.aborted check in async operations', async () => {
       let iterations = 0;
       let wasAborted = false;
 
@@ -459,15 +460,15 @@ describe('Job Cancellation', function () {
         worker.on('failed', () => resolve());
       });
 
-      expect(wasAborted).to.be.true;
-      expect(iterations).to.be.lessThan(100);
+      expect(wasAborted).toBe(true);
+      expect(iterations).toBeLessThan(100);
 
       await worker.close();
     });
   });
 
   describe('Lock Renewal Failure', () => {
-    it('should allow manual cancellation on lockRenewalFailed event', async function () {
+    it('should allow manual cancellation on lockRenewalFailed event', async () => {
       let lockRenewalFailedEmitted = false;
       let signalAborted = false;
 
@@ -512,14 +513,14 @@ describe('Job Cancellation', function () {
         worker.on('failed', () => resolve());
       });
 
-      expect(signalAborted).to.be.true;
+      expect(signalAborted).toBe(true);
 
       await worker.close();
     });
   });
 
   describe('Get Active Jobs', () => {
-    it('should return list of active job IDs using queue.getActive()', async function () {
+    it('should return list of active job IDs using queue.getActive()', async () => {
       const numJobs = 3;
 
       const worker = new Worker(
@@ -555,18 +556,18 @@ describe('Job Cancellation', function () {
       await waitingOnActive;
 
       const activeJobs = await queue.getActive();
-      expect(activeJobs).to.have.lengthOf(numJobs);
+      expect(activeJobs).toHaveLength(numJobs);
 
       // Verify the IDs match
       const jobIds = jobs.map(j => j.id!);
       for (const activeJob of activeJobs) {
-        expect(jobIds).to.include(activeJob.id);
+        expect(jobIds).toContain(activeJob.id);
       }
 
       await worker.close();
     });
 
-    it('should return empty array when no jobs are active', async function () {
+    it('should return empty array when no jobs are active', async () => {
       const worker = new Worker(
         queueName,
         async () => {
@@ -578,12 +579,12 @@ describe('Job Cancellation', function () {
       await worker.waitUntilReady();
 
       const activeJobs = await queue.getActive();
-      expect(activeJobs).to.be.an('array').that.is.empty;
+      expect(activeJobs).toBeInstanceOf(Array).that.is.empty;
 
       await worker.close();
     });
 
-    it('should update active jobs list as jobs complete', async function () {
+    it('should update active jobs list as jobs complete', async () => {
       const worker = new Worker(
         queueName,
         async () => {
@@ -613,7 +614,7 @@ describe('Job Cancellation', function () {
       await waitingOnActive;
 
       let activeJobs = await queue.getActive();
-      expect(activeJobs.length).to.equal(2);
+      expect(activeJobs.length).toBe(2);
 
       // Wait for jobs to complete
       await new Promise<void>(resolve => {
@@ -630,14 +631,14 @@ describe('Job Cancellation', function () {
       await delay(10);
 
       activeJobs = await queue.getActive();
-      expect(activeJobs.length).to.equal(0);
+      expect(activeJobs.length).toBe(0);
 
       await worker.close();
     });
   });
 
   describe('Edge Cases', () => {
-    it('should handle cancellation of job that throws error', async function () {
+    it('should handle cancellation of job that throws error', async () => {
       let errorThrown = false;
       let abortReceived = false;
 
@@ -673,13 +674,13 @@ describe('Job Cancellation', function () {
         worker.on('failed', () => resolve());
       });
 
-      expect(abortReceived).to.be.true;
-      expect(errorThrown).to.be.true;
+      expect(abortReceived).toBe(true);
+      expect(errorThrown).toBe(true);
 
       await worker.close();
     });
 
-    it('should handle concurrent cancellations', async function () {
+    it('should handle concurrent cancellations', async () => {
       const worker = new Worker(
         queueName,
         async (job, token, signal) => {
@@ -710,9 +711,9 @@ describe('Job Cancellation', function () {
       const result3 = worker.cancelJob(job.id!);
 
       // First should succeed, subsequent calls should still work
-      expect(result1).to.be.true;
-      expect(result2).to.be.true; // Signal can be aborted multiple times
-      expect(result3).to.be.true;
+      expect(result1).toBe(true);
+      expect(result2).toBe(true); // Signal can be aborted multiple times
+      expect(result3).toBe(true);
 
       await new Promise<void>(resolve => {
         worker.on('failed', () => resolve());
@@ -721,7 +722,7 @@ describe('Job Cancellation', function () {
       await worker.close();
     });
 
-    it('should handle cancellation with UnrecoverableError', async function () {
+    it('should handle cancellation with UnrecoverableError', async () => {
       const worker = new Worker(
         queueName,
         async (job, token, signal) => {
@@ -750,8 +751,8 @@ describe('Job Cancellation', function () {
 
       await new Promise<void>(resolve => {
         worker.on('failed', (failedJob, err) => {
-          expect(err).to.be.instanceOf(UnrecoverableError);
-          expect(err.message).to.include('cancelled');
+          expect(err).toBeInstanceOf(UnrecoverableError);
+          expect(err.message).toContain('cancelled');
           resolve();
         });
       });
@@ -759,7 +760,7 @@ describe('Job Cancellation', function () {
       await worker.close();
     });
 
-    it('should work with multiple workers processing same queue', async function () {
+    it('should work with multiple workers processing same queue', async () => {
       let worker1JobId: string | undefined;
       let worker2JobId: string | undefined;
 
@@ -805,12 +806,12 @@ describe('Job Cancellation', function () {
 
       // Get active jobs from queue
       const activeJobs = await queue.getActive();
-      expect(activeJobs.length).to.be.greaterThan(0);
+      expect(activeJobs.length).toBeGreaterThan(0);
 
       // Cancel jobs on each worker
       if (worker1JobId) {
         const cancelled = worker1.cancelJob(worker1JobId);
-        expect(cancelled).to.be.true;
+        expect(cancelled).toBe(true);
       }
 
       await worker1.close();
@@ -819,7 +820,7 @@ describe('Job Cancellation', function () {
   });
 
   describe('Signal Properties', () => {
-    it('should not create AbortController when processor does not use signal', async function () {
+    it('should not create AbortController when processor does not use signal', async () => {
       let jobCompleted = false;
 
       // Processor with only 1 parameter (job) - no signal
@@ -843,16 +844,16 @@ describe('Job Cancellation', function () {
 
       await waitingOnCompleted;
 
-      expect(jobCompleted).to.be.true;
+      expect(jobCompleted).toBe(true);
 
       // Verify AbortController was not created by checking the internal state
       // The lockManager should detect that processor doesn't use signal
-      expect((worker as any).processorAcceptsSignal).to.be.false;
+      expect((worker as any).processorAcceptsSignal).toBe(false);
 
       await worker.close();
     });
 
-    it('should create AbortController when processor uses signal parameter', async function () {
+    it('should create AbortController when processor uses signal parameter', async () => {
       let signalReceived = false;
 
       // Processor with 3 parameters including signal
@@ -876,20 +877,20 @@ describe('Job Cancellation', function () {
 
       await waitingOnCompleted;
 
-      expect(signalReceived).to.be.true;
-      expect((worker as any).processorAcceptsSignal).to.be.true;
+      expect(signalReceived).toBe(true);
+      expect((worker as any).processorAcceptsSignal).toBe(true);
 
       await worker.close();
     });
 
-    it('should provide working AbortSignal with aborted property', async function () {
+    it('should provide working AbortSignal with aborted property', async () => {
       let signalWasAborted = false;
 
       const worker = new Worker(
         queueName,
         async (job, token, signal) => {
-          expect(signal).to.not.be.undefined;
-          expect(signal?.aborted).to.be.false;
+          expect(signal).toBeDefined();
+          expect(signal?.aborted).toBe(false);
 
           // Wait for cancellation
           await delay(100);
@@ -921,12 +922,12 @@ describe('Job Cancellation', function () {
         worker.on('failed', () => resolve());
       });
 
-      expect(signalWasAborted).to.be.true;
+      expect(signalWasAborted).toBe(true);
 
       await worker.close();
     });
 
-    it('should work with signal event listener', async function () {
+    it('should work with signal event listener', async () => {
       let abortEventFired = false;
 
       const worker = new Worker(
@@ -967,12 +968,12 @@ describe('Job Cancellation', function () {
         worker.on('failed', () => resolve());
       });
 
-      expect(abortEventFired).to.be.true;
+      expect(abortEventFired).toBe(true);
 
       await worker.close();
     });
 
-    it('should support cancellation reason', async function () {
+    it('should support cancellation reason', async () => {
       let receivedReason: string | undefined;
       let jobWasCancelled = false;
 
@@ -1011,13 +1012,13 @@ describe('Job Cancellation', function () {
         worker.on('failed', () => resolve());
       });
 
-      expect(jobWasCancelled).to.be.true;
-      expect(receivedReason).to.equal(customReason);
+      expect(jobWasCancelled).toBe(true);
+      expect(receivedReason).toBe(customReason);
 
       await worker.close();
     });
 
-    it('should catch error from moveToFailed when lock is lost', async function () {
+    it('should catch error from moveToFailed when lock is lost', async () => {
       let failedEventCount = 0;
       let errorEventCount = 0;
       let errorMessage = '';
@@ -1065,11 +1066,11 @@ describe('Job Cancellation', function () {
       await waitingOnActive;
 
       // The failed event should NOT be emitted because moveToFailed threw
-      expect(failedEventCount).to.equal(0);
+      expect(failedEventCount).toBe(0);
 
       // An error event should be emitted for the moveToFailed failure
-      expect(errorEventCount).to.be.greaterThan(0);
-      expect(errorMessage).to.include('could not lock job');
+      expect(errorEventCount).toBeGreaterThan(0);
+      expect(errorMessage).toContain('could not lock job');
 
       await worker.close();
     });

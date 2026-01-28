@@ -1,11 +1,19 @@
-import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
-import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
+import {
+  describe,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
+  it,
+  expect,
+} from 'vitest';
+
 import { v4 } from 'uuid';
 import { Job, Queue, QueueEvents, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
-describe('Pause', function () {
+describe('Pause', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
@@ -14,18 +22,18 @@ describe('Pause', function () {
   let queueEvents: QueueEvents;
 
   let connection;
-  before(async function () {
+  beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
-  beforeEach(async function () {
+  beforeEach(async () => {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
   });
 
-  afterEach(async function () {
+  afterEach(async () => {
     await queue.close();
     await queueEvents.close();
     await removeAllQueueData(new IORedis(redisHost), queueName);
@@ -35,7 +43,7 @@ describe('Pause', function () {
     await connection.quit();
   });
 
-  it('should not process delayed jobs', async function () {
+  it('should not process delayed jobs', async () => {
     let processed = false;
 
     const worker = new Worker(
@@ -51,17 +59,17 @@ describe('Pause', function () {
     await queue.add('test', {}, { delay: 300 });
     const counts = await queue.getJobCounts('waiting', 'delayed');
 
-    expect(counts).to.have.property('waiting', 0);
-    expect(counts).to.have.property('delayed', 1);
+    expect(counts).toHaveProperty('waiting', 0);
+    expect(counts).toHaveProperty('delayed', 1);
 
     await delay(500);
     if (processed) {
       throw new Error('should not process delayed jobs in paused queue.');
     }
     const counts2 = await queue.getJobCounts('waiting', 'paused', 'delayed');
-    expect(counts2).to.have.property('waiting', 0);
-    expect(counts2).to.have.property('paused', 1);
-    expect(counts2).to.have.property('delayed', 0);
+    expect(counts2).toHaveProperty('waiting', 0);
+    expect(counts2).toHaveProperty('paused', 1);
+    expect(counts2).toHaveProperty('delayed', 0);
 
     await worker.close();
   });
@@ -72,8 +80,8 @@ describe('Pause', function () {
     let counter = 2;
     const processPromise = new Promise<void>(resolve => {
       process = async (job: Job) => {
-        expect(isPaused).to.be.eql(false);
-        expect(job.data.foo).to.be.equal('paused');
+        expect(isPaused).toEqual(false);
+        expect(job.data.foo).toBe('paused');
         counter--;
         if (counter === 0) {
           resolve();
@@ -105,15 +113,15 @@ describe('Pause', function () {
     const processPromise = new Promise<void>((resolve, reject) => {
       process = async (job: Job) => {
         try {
-          expect(isPaused).to.be.eql(false);
-          expect(job.data.foo).to.be.equal('paused');
+          expect(isPaused).toEqual(false);
+          expect(job.data.foo).toBe('paused');
 
           if (first) {
             first = false;
             isPaused = true;
             return queue.pause();
           } else {
-            expect(isResumed).to.be.eql(true);
+            expect(isResumed).toEqual(true);
             await queue.close();
             resolve();
           }
@@ -127,14 +135,14 @@ describe('Pause', function () {
 
     queueEvents.on('paused', async (args, eventId) => {
       isPaused = false;
-      expect(args).to.be.empty;
-      expect(eventId).to.be.a.string;
+      expect(args).toEqual({});
+      expect(eventId).toBeTypeOf('string');
       await queue.resume();
     });
 
     queueEvents.on('resumed', (args, eventId) => {
-      expect(args).to.be.empty;
-      expect(eventId).to.be.a.string;
+      expect(args).toEqual({});
+      expect(eventId).toBeTypeOf('string');
       isResumed = true;
     });
 
@@ -153,7 +161,7 @@ describe('Pause', function () {
     let process;
     const processPromise = new Promise<void>(resolve => {
       process = async () => {
-        expect(worker.isPaused()).to.be.eql(false);
+        expect(worker.isPaused()).toEqual(false);
         counter--;
         if (counter === 0) {
           await queue.close();
@@ -174,8 +182,8 @@ describe('Pause', function () {
     await queue.add('test', { foo: 'paused' });
     await queue.add('test', { foo: 'paused' });
 
-    expect(counter).to.be.eql(2);
-    expect(worker.isPaused()).to.be.eql(true);
+    expect(counter).toEqual(2);
+    expect(worker.isPaused()).toEqual(true);
 
     await worker.resume();
 
@@ -209,20 +217,20 @@ describe('Pause', function () {
     await worker.pause();
 
     let active = await queue.getJobCountByTypes('active');
-    expect(active).to.be.eql(0);
-    expect(worker.isPaused()).to.be.eql(true);
+    expect(active).toEqual(0);
+    expect(worker.isPaused()).toEqual(true);
 
     // One job from the 10 posted above will be processed, so we expect 9 jobs pending
     let paused = await queue.getJobCountByTypes('delayed', 'waiting');
-    expect(paused).to.be.eql(9);
+    expect(paused).toEqual(9);
 
     await queue.add('test', {});
 
     active = await queue.getJobCountByTypes('active');
-    expect(active).to.be.eql(0);
+    expect(active).toEqual(0);
 
     paused = await queue.getJobCountByTypes('paused', 'waiting', 'delayed');
-    expect(paused).to.be.eql(10);
+    expect(paused).toEqual(10);
 
     await worker.close();
   });
@@ -261,9 +269,9 @@ describe('Pause', function () {
     await Promise.all([worker1.pause(), worker2.pause()]);
 
     const count = await queue.getJobCounts('active', 'waiting', 'completed');
-    expect(count.active).to.be.eql(0);
-    expect(count.waiting).to.be.eql(2);
-    expect(count.completed).to.be.eql(2);
+    expect(count.active).toEqual(0);
+    expect(count.waiting).toEqual(2);
+    expect(count.completed).toEqual(2);
 
     return Promise.all([worker1.close(), worker2.close()]);
   });
@@ -287,14 +295,14 @@ describe('Pause', function () {
     await queue.add('test', 2);
 
     const count = await queue.getJobCounts('active', 'waiting', 'completed');
-    expect(count.active).to.be.eql(0);
-    expect(count.waiting).to.be.eql(1);
-    expect(count.completed).to.be.eql(1);
+    expect(count.active).toEqual(0);
+    expect(count.waiting).toEqual(1);
+    expect(count.completed).toEqual(1);
 
     return worker.close();
   });
 
-  it('pauses fast when queue is drained', async function () {
+  it('pauses fast when queue is drained', async () => {
     const worker = new Worker(
       queueName,
       async () => {
@@ -313,7 +321,7 @@ describe('Pause', function () {
         await queue.pause();
 
         const finish = new Date().getTime();
-        expect(finish - start).to.be.lt(1000);
+        expect(finish - start).toBeLessThan(1000);
         resolve();
       });
     });
@@ -327,14 +335,14 @@ describe('Pause', function () {
   it('gets the right response from isPaused', async () => {
     await queue.pause();
     const isPausedQueuePaused = await queue.isPaused();
-    expect(isPausedQueuePaused).to.be.true;
+    expect(isPausedQueuePaused).toBe(true);
 
     await queue.resume();
     const isResumedQueuePaused = await queue.isPaused();
-    expect(isResumedQueuePaused).to.be.false;
+    expect(isResumedQueuePaused).toBe(false);
   });
 
-  it('should pause and resume worker without error', async function () {
+  it('should pause and resume worker without error', async () => {
     const worker = new Worker(
       queueName,
       async () => {
@@ -353,7 +361,7 @@ describe('Pause', function () {
     await delay(10);
 
     return worker.close();
-  }).timeout(8000);
+  }); // TODO: Add { timeout: 8000 } to the it() options
 
   describe('when backoff is 0', () => {
     it('moves job into paused queue', async () => {
@@ -382,9 +390,9 @@ describe('Pause', function () {
         queueEvents.on('waiting', async ({ prev }) => {
           try {
             if (prev) {
-              expect(prev).to.be.eql('active');
+              expect(prev).toEqual('active');
               const count = await queue.getJobCountByTypes('paused');
-              expect(count).to.be.equal(1);
+              expect(count).toBe(1);
               await queue.resume();
               resolve();
             }

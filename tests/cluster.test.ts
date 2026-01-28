@@ -1,12 +1,20 @@
-import { expect } from 'chai';
 import { default as IORedis, Cluster, Redis } from 'ioredis';
-import { describe, beforeEach, it, before, after as afterAll } from 'mocha';
+import {
+  describe,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
+  it,
+  expect,
+} from 'vitest';
+
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
 import { Queue, Worker } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
 
-describe('Cluster support', function () {
+describe('Cluster support', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
@@ -16,16 +24,16 @@ describe('Cluster support', function () {
   let queueName: string;
   let connection: IORedis;
 
-  before(async function () {
+  beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
-  beforeEach(async function () {
+  beforeEach(async () => {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection, prefix });
   });
 
-  afterEach(async function () {
+  afterEach(async () => {
     sandbox.restore();
     await queue.close();
     await removeAllQueueData(new IORedis(redisHost), queueName);
@@ -51,7 +59,7 @@ describe('Cluster support', function () {
 
   describe('Worker connection name on cluster', () => {
     describe('when connection is a cluster instance', () => {
-      it('should use Cluster.duplicate with redisOptions for connectionName', async function () {
+      it('should use Cluster.duplicate with redisOptions for connectionName', async () => {
         const duplicatedConnection = {
           on: sinon.stub(),
           once: sinon.stub(),
@@ -95,21 +103,22 @@ describe('Cluster support', function () {
         });
 
         // Verify that duplicate was called with the correct arguments for cluster
-        expect((mockClusterConnection.duplicate as sinon.SinonStub).calledOnce)
-          .to.be.true;
+        expect(
+          (mockClusterConnection.duplicate as sinon.SinonStub).calledOnce,
+        ).toBe(true);
         const duplicateCall = (
           mockClusterConnection.duplicate as sinon.SinonStub
         ).getCall(0);
 
         // First argument should be undefined for cluster
-        expect(duplicateCall.args[0]).to.be.undefined;
+        expect(duplicateCall.args[0]).toBeUndefined();
 
         // Second argument should contain redisOptions with connectionName
-        expect(duplicateCall.args[1]).to.have.property('redisOptions');
-        expect(duplicateCall.args[1].redisOptions).to.have.property(
+        expect(duplicateCall.args[1]).toHaveProperty('redisOptions');
+        expect(duplicateCall.args[1].redisOptions).toHaveProperty(
           'connectionName',
         );
-        expect(duplicateCall.args[1].redisOptions.connectionName).to.include(
+        expect(duplicateCall.args[1].redisOptions.connectionName).toContain(
           `:w:${workerName}`,
         );
 
@@ -118,7 +127,7 @@ describe('Cluster support', function () {
     });
 
     describe('when connection is a regular Redis instance', () => {
-      it('should use Redis.duplicate with connectionName directly', async function () {
+      it('should use Redis.duplicate with connectionName directly', async () => {
         const duplicatedConnection = {
           on: sinon.stub(),
           once: sinon.stub(),
@@ -169,8 +178,8 @@ describe('Cluster support', function () {
         ).getCall(0);
 
         // First argument should be an object with connectionName for regular Redis
-        expect(duplicateCall.args[0]).to.have.property('connectionName');
-        expect(duplicateCall.args[0].connectionName).to.include(
+        expect(duplicateCall.args[0]).toHaveProperty('connectionName');
+        expect(duplicateCall.args[0].connectionName).toContain(
           `:w:${workerName}`,
         );
 
@@ -179,7 +188,7 @@ describe('Cluster support', function () {
     });
 
     describe('when worker has a name option', () => {
-      it('should include worker name in connection name for cluster', async function () {
+      it('should include worker name in connection name for cluster', async () => {
         const workerName = 'myWorker';
         const duplicatedConnection = {
           on: sinon.stub(),
@@ -220,13 +229,14 @@ describe('Cluster support', function () {
           name: workerName,
         });
 
-        expect((mockClusterConnection.duplicate as sinon.SinonStub).calledOnce)
-          .to.be.true;
+        expect(
+          (mockClusterConnection.duplicate as sinon.SinonStub).calledOnce,
+        ).toBe(true);
         const duplicateCall = (
           mockClusterConnection.duplicate as sinon.SinonStub
         ).getCall(0);
 
-        expect(duplicateCall.args[1].redisOptions.connectionName).to.include(
+        expect(duplicateCall.args[1].redisOptions.connectionName).toContain(
           `:w:${workerName}`,
         );
 
@@ -237,7 +247,7 @@ describe('Cluster support', function () {
 
   describe('getWorkers on cluster', () => {
     describe('when client is a cluster', () => {
-      it('should fetch client list from all cluster nodes', async function () {
+      it('should fetch client list from all cluster nodes', async () => {
         const clientName = getClientName(queueName);
         const clientListNode1 = buildClientList([
           buildClientLine(
@@ -293,9 +303,9 @@ describe('Cluster support', function () {
         const workers = await queue.getWorkers();
 
         // Should return workers from the node with the most matching clients (node2)
-        expect(workers).to.have.length(2);
-        expect(workers[0]).to.have.property('name', queueName);
-        expect(workers[1]).to.have.property('name', queueName);
+        expect(workers).toHaveLength(2);
+        expect(workers[0]).toHaveProperty('name', queueName);
+        expect(workers[1]).toHaveProperty('name', queueName);
 
         // Verify all nodes were queried
         expect((mockNode1.client as sinon.SinonStub).calledWith('LIST')).to.be
@@ -306,7 +316,7 @@ describe('Cluster support', function () {
           .true;
       });
 
-      it('should return workers from node with most matching connections', async function () {
+      it('should return workers from node with most matching connections', async () => {
         const clientName = getClientName(queueName);
         // Simulate a scenario where connections are redirected to one node
         const clientListNode1 = buildClientList([
@@ -357,10 +367,10 @@ describe('Cluster support', function () {
         const workers = await queue.getWorkers();
 
         // Should return 3 workers from node2 (the one with most connections)
-        expect(workers).to.have.length(3);
+        expect(workers).toHaveLength(3);
       });
 
-      it('should return empty array when no matching workers found on any node', async function () {
+      it('should return empty array when no matching workers found on any node', async () => {
         const clientListNode1 = buildClientList([
           buildClientLine(
             'id=1',
@@ -396,12 +406,12 @@ describe('Cluster support', function () {
 
         const workers = await queue.getWorkers();
 
-        expect(workers).to.have.length(0);
+        expect(workers).toHaveLength(0);
       });
     });
 
     describe('when client is not a cluster', () => {
-      it('should fetch client list from single node as before', async function () {
+      it('should fetch client list from single node as before', async () => {
         const worker = new Worker(queueName, async () => {}, {
           autorun: false,
           connection,
@@ -415,8 +425,8 @@ describe('Cluster support', function () {
         });
 
         const workers = await queue.getWorkers();
-        expect(workers).to.have.length(1);
-        expect(workers[0]).to.have.property('name', queueName);
+        expect(workers).toHaveLength(1);
+        expect(workers[0]).toHaveProperty('name', queueName);
 
         await worker.close();
       });
@@ -424,7 +434,7 @@ describe('Cluster support', function () {
   });
 
   describe('getQueueEvents on cluster', () => {
-    it('should fetch queue events from all cluster nodes and return from node with most matches', async function () {
+    it('should fetch queue events from all cluster nodes and return from node with most matches', async () => {
       const clientName = getClientName(queueName);
       const clientListNode1 = buildClientList([
         buildClientLine(
@@ -468,12 +478,12 @@ describe('Cluster support', function () {
       const queueEvents = await queue.getQueueEvents();
 
       // Should return 2 queue events from node2 (the one with most connections)
-      expect(queueEvents).to.have.length(2);
+      expect(queueEvents).toHaveLength(2);
     });
   });
 
   describe('getWorkersCount on cluster', () => {
-    it('should return correct count from cluster', async function () {
+    it('should return correct count from cluster', async () => {
       const clientName = getClientName(queueName);
       const clientListNode1 = buildClientList([
         buildClientLine(
@@ -517,13 +527,13 @@ describe('Cluster support', function () {
       const workersCount = await queue.getWorkersCount();
 
       // Should return 2 (from node2 which has the most workers)
-      expect(workersCount).to.be.equal(2);
+      expect(workersCount).toBe(2);
     });
   });
 
   describe('edge cases', () => {
     describe('when cluster has only one node', () => {
-      it('should return workers from that single node', async function () {
+      it('should return workers from that single node', async () => {
         const clientName = getClientName(queueName);
         const clientListNode1 = buildClientList([
           buildClientLine(
@@ -555,12 +565,12 @@ describe('Cluster support', function () {
 
         const workers = await queue.getWorkers();
 
-        expect(workers).to.have.length(2);
+        expect(workers).toHaveLength(2);
       });
     });
 
     describe('when all nodes have equal number of matching workers', () => {
-      it('should return workers from the first node with maximum count', async function () {
+      it('should return workers from the first node with maximum count', async () => {
         const clientName = getClientName(queueName);
         const clientListNode1 = buildClientList([
           buildClientLine(
@@ -610,12 +620,12 @@ describe('Cluster support', function () {
         const workers = await queue.getWorkers();
 
         // Should return 2 workers (from the first node with max count)
-        expect(workers).to.have.length(2);
+        expect(workers).toHaveLength(2);
       });
     });
 
     describe('when cluster has workers without names (unnamed workers)', () => {
-      it('should include unnamed workers in the result', async function () {
+      it('should include unnamed workers in the result', async () => {
         const clientName = getClientName(queueName);
         // Named worker
         const clientListNode1 = buildClientList([
@@ -661,12 +671,12 @@ describe('Cluster support', function () {
         const workers = await queue.getWorkers();
 
         // Should return 2 workers from node2 (1 unnamed + 1 named)
-        expect(workers).to.have.length(2);
+        expect(workers).toHaveLength(2);
       });
     });
 
     describe('when cluster nodes return empty client lists', () => {
-      it('should return empty array', async function () {
+      it('should return empty array', async () => {
         const mockNode1 = {
           client: sinon.stub().resolves(''),
         };
@@ -685,7 +695,7 @@ describe('Cluster support', function () {
 
         const workers = await queue.getWorkers();
 
-        expect(workers).to.have.length(0);
+        expect(workers).toHaveLength(0);
       });
     });
   });
