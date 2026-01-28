@@ -3,7 +3,7 @@ import { default as IORedis, Cluster, Redis } from 'ioredis';
 import { describe, beforeEach, it, before, after as afterAll } from 'mocha';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
-import { Queue, Worker, RedisConnection } from '../src/classes';
+import { Queue, Worker } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
 
 describe('Cluster support', function () {

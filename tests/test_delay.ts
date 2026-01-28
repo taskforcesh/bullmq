@@ -14,7 +14,7 @@ describe('Delayed jobs', function () {
   let queue: Queue;
   let queueName: string;
 
-  let connection;
+  let connection: IORedis;
   before(async function () {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });

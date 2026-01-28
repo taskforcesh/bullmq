@@ -22,7 +22,7 @@ describe('metrics', function () {
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  let connection;
+  let connection: IORedis;
   before(async function () {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });

@@ -1,4 +1,3 @@
-/*eslint-env node */
 'use strict';
 
 import { expect } from 'chai';
@@ -17,7 +16,7 @@ describe('Jobs getters', function () {
   let queue: Queue;
   let queueName: string;
 
-  let connection;
+  let connection: IORedis;
   before(async function () {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
