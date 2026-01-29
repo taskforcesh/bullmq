@@ -1,38 +1,39 @@
 'use strict';
 
-import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
 import {
-  afterEach,
-  beforeEach,
   describe,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
   it,
-  before,
-  after as afterAll,
-} from 'mocha';
+  expect,
+} from 'vitest';
+
 import { v4 } from 'uuid';
 import { Job, Queue, QueueEvents, Worker } from '../src/classes';
 import { JobsOptions } from '../src/types';
 import { delay, getParentKey, removeAllQueueData } from '../src/utils';
 
-describe('Job', function () {
+describe('Job', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
   let queue: Queue;
   let queueName: string;
-  let connection: IORedis;
-  before(async function () {
+  let connection;
+  beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
-  beforeEach(async function () {
+  beforeEach(async () => {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection, prefix });
   });
 
-  afterEach(async function () {
+  afterEach(async () => {
     await queue.close();
     await removeAllQueueData(new IORedis(redisHost), queueName);
   });
@@ -41,13 +42,13 @@ describe('Job', function () {
     await connection.quit();
   });
 
-  describe('.create', function () {
+  describe('.create', () => {
     const timestamp = 1234567890;
     let job: Job;
     let data: any;
     let opts: JobsOptions;
 
-    beforeEach(async function () {
+    beforeEach(async () => {
       data = { foo: 'bar' };
       opts = { timestamp };
 
@@ -55,30 +56,30 @@ describe('Job', function () {
       job = createdJob;
     });
 
-    it('saves the job in redis', async function () {
+    it('saves the job in redis', async () => {
       const storedJob = await Job.fromId(queue, job.id);
-      expect(storedJob).to.have.property('id');
-      expect(storedJob).to.have.property('data');
+      expect(storedJob).toHaveProperty('id');
+      expect(storedJob).toHaveProperty('data');
 
-      expect(storedJob.data.foo).to.be.equal('bar');
-      expect(storedJob.opts).to.be.an('object');
-      expect(storedJob.opts.timestamp).to.be.equal(timestamp);
+      expect(storedJob.data.foo).toBe('bar');
+      expect(storedJob.opts).toBeTypeOf('object');
+      expect(storedJob.opts.timestamp).toBe(timestamp);
     });
 
-    it('should use the custom jobId if one is provided', async function () {
+    it('should use the custom jobId if one is provided', async () => {
       const customJobId = 'customjob';
       const createdJob = await Job.create(queue, 'test', data, {
         jobId: customJobId,
       });
-      expect(createdJob.id).to.be.equal(customJobId);
+      expect(createdJob.id).toBe(customJobId);
     });
 
-    describe('when custom jobId is provided as empty string', function () {
-      it('should ignore the empty custom id and generates a numeric id', async function () {
+    describe('when custom jobId is provided as empty string', () => {
+      it('should ignore the empty custom id and generates a numeric id', async () => {
         const job = await Job.create(queue, 'test', data, {
           jobId: '',
         });
-        expect(job.id).to.be.equal('2');
+        expect(job.id).toBe('2');
       });
     });
 
@@ -87,14 +88,14 @@ describe('Job', function () {
       const opts = { sizeLimit: 20 };
       const createdJob = await Job.create(queue, 'test', data, opts);
       expect(createdJob).to.not.be.null;
-      expect(createdJob).to.have.property('opts');
-      expect(createdJob.opts.sizeLimit).to.be.equal(20);
+      expect(createdJob).toHaveProperty('opts');
+      expect(createdJob.opts.sizeLimit).toBe(20);
     });
 
     it('should set default size limit and fail due to size limit exception', async () => {
       const data = { foo: 'bar' }; // 13 bytes
       const opts = { sizeLimit: 12 };
-      await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+      await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
         `The size of job test exceeds the limit ${opts.sizeLimit} bytes`,
       );
     });
@@ -102,7 +103,7 @@ describe('Job', function () {
     it('should set default size limit with non-ascii data and fail due to size limit exception', async () => {
       const data = { foo: 'βÅ®' }; // 16 bytes
       const opts = { sizeLimit: 15 };
-      await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+      await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
         `The size of job test exceeds the limit ${opts.sizeLimit} bytes`,
       );
     });
@@ -110,7 +111,7 @@ describe('Job', function () {
     it('should set custom job id and default size limit and fail due to size limit exception', async () => {
       const data = { foo: 'bar' }; // 13 bytes
       const opts = { sizeLimit: 12, jobId: 'customJobId' };
-      await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+      await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
         `The size of job test exceeds the limit ${opts.sizeLimit} bytes`,
       );
     });
@@ -122,7 +123,7 @@ describe('Job', function () {
         const opts: JobsOptions = {
           parent: { id: parentId, queue: `${prefix}:${queueName}` },
         };
-        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+        await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
           `Missing key for parent job ${prefix}:${queueName}:${parentId}. addJob`,
         );
       });
@@ -132,7 +133,7 @@ describe('Job', function () {
       it('throws an error', async () => {
         const data = { foo: 'bar' };
         const opts = { repeat: { every: 200 }, delay: 1000 };
-        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+        await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
           'Delay and repeat options could not be used together',
         );
       });
@@ -145,7 +146,7 @@ describe('Job', function () {
           removeDependencyOnFailure: true,
           failParentOnFailure: true,
         };
-        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+        await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
           'The following options cannot be used together: removeDependencyOnFailure, failParentOnFailure',
         );
       });
@@ -158,7 +159,7 @@ describe('Job', function () {
           removeDependencyOnFailure: true,
           ignoreDependencyOnFailure: true,
         };
-        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+        await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
           'The following options cannot be used together: removeDependencyOnFailure, ignoreDependencyOnFailure',
         );
       });
@@ -171,7 +172,7 @@ describe('Job', function () {
           ignoreDependencyOnFailure: true,
           failParentOnFailure: true,
         };
-        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+        await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
           'The following options cannot be used together: failParentOnFailure, ignoreDependencyOnFailure',
         );
       });
@@ -181,7 +182,7 @@ describe('Job', function () {
       it('throws an error', async () => {
         const data = { foo: 'bar' };
         const opts = { priority: 1.1 };
-        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+        await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
           'Priority should not be float',
         );
       });
@@ -191,7 +192,7 @@ describe('Job', function () {
       it('throws an error', async () => {
         const data = { foo: 'bar' };
         const opts = { priority: 2097153 };
-        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+        await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
           'Priority should be between 0 and 2097152',
         );
       });
@@ -201,7 +202,7 @@ describe('Job', function () {
       it('throws an error', async () => {
         const data = { foo: 'bar' };
         const opts = { deduplication: { id: '' } };
-        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+        await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
           'Deduplication id must be provided',
         );
       });
@@ -211,7 +212,7 @@ describe('Job', function () {
       it('throws an error', async () => {
         const data = { foo: 'bar' };
         const opts = { debounce: { id: '' } };
-        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+        await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
           'Debounce id must be provided',
         );
       });
@@ -221,7 +222,7 @@ describe('Job', function () {
       it('throws an error', async () => {
         const data = { foo: 'bar' };
         const opts = { backoff: { type: 'fixed', jitter: -1 } };
-        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+        await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
           'Jitter should be between 0 and 1',
         );
       });
@@ -231,7 +232,7 @@ describe('Job', function () {
       it('throws an error', async () => {
         const data = { foo: 'bar' };
         const opts = { backoff: { type: 'fixed', jitter: 5 } };
-        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+        await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
           'Jitter should be between 0 and 1',
         );
       });
@@ -247,9 +248,9 @@ describe('Job', function () {
       const json = JSON.stringify(job);
       const parsed = JSON.parse(json);
       expect(parsed).to.have.deep.property('data', data);
-      expect(parsed).to.have.property('name', 'test');
-      expect(parsed).to.have.property('returnvalue', 1);
-      expect(parsed).to.have.property('progress', 20);
+      expect(parsed).toHaveProperty('name', 'test');
+      expect(parsed).toHaveProperty('returnvalue', 1);
+      expect(parsed).toHaveProperty('progress', 20);
     });
 
     it('omits the queue property to avoid a circular json error on node 8', async () => {
@@ -257,7 +258,7 @@ describe('Job', function () {
       const job = await Job.create(queue, 'test', data);
       const json = JSON.stringify(job);
       const parsed = JSON.parse(json);
-      expect(parsed).not.to.have.property('queue');
+      expect(parsed).not.toHaveProperty('queue');
     });
 
     it('should correctly handle zero passed as data', async () => {
@@ -274,7 +275,7 @@ describe('Job', function () {
           queueName,
           async job => {
             try {
-              expect(job.data).to.be.equal(0);
+              expect(job.data).toBe(0);
             } catch (err) {
               reject(err);
             }
@@ -294,8 +295,8 @@ describe('Job', function () {
     });
   });
 
-  describe('.update', function () {
-    it('should allow updating job data', async function () {
+  describe('.update', () => {
+    it('should allow updating job data', async () => {
       const job = await Job.create<{ foo?: string; baz?: string }>(
         queue,
         'test',
@@ -306,29 +307,29 @@ describe('Job', function () {
       await job.updateData({ baz: 'qux' });
 
       const updatedJob = await Job.fromId(queue, job.id);
-      expect(updatedJob.data).to.be.eql({ baz: 'qux' });
+      expect(updatedJob.data).toEqual({ baz: 'qux' });
     });
 
     describe('when job is removed', () => {
-      it('throws error', async function () {
+      it('throws error', async () => {
         const job = await Job.create(queue, 'test', { foo: 'bar' });
         await job.remove();
-        await expect(job.updateData({ foo: 'baz' })).to.be.rejectedWith(
+        await expect(job.updateData({ foo: 'baz' })).rejects.toThrow(
           `Missing key for job ${job.id}. updateData`,
         );
       });
     });
   });
 
-  describe('.remove', function () {
-    it('removes the job from redis', async function () {
+  describe('.remove', () => {
+    it('removes the job from redis', async () => {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
       await job.remove();
       const storedJob = await Job.fromId(queue, job.id);
-      expect(storedJob).to.be.equal(undefined);
+      expect(storedJob).toBe(undefined);
     });
 
-    it('removes processed hash', async function () {
+    it('removes processed hash', async () => {
       const client = await queue.client;
       const values = [{ idx: 0, bar: 'something' }];
       const token = 'my-token';
@@ -357,7 +358,7 @@ describe('Job', function () {
       const child1 = (await childrenWorker.getNextJob(token2)) as Job;
 
       const isActive = await job.isActive();
-      expect(isActive).to.be.equal(true);
+      expect(isActive).toBe(true);
 
       await child1.moveToCompleted('return value', token2);
 
@@ -366,13 +367,13 @@ describe('Job', function () {
       await job.remove();
 
       const storedJob = await Job.fromId(parentQueue, job.id);
-      expect(storedJob).to.be.equal(undefined);
+      expect(storedJob).toBe(undefined);
 
       const processed = await client.hgetall(
         `${prefix}:${parentQueueName}:${parentId}:processed`,
       );
 
-      expect(processed).to.deep.equal({});
+      expect(processed).toEqual({});
 
       await childrenWorker.close();
       await parentWorker.close();
@@ -380,8 +381,8 @@ describe('Job', function () {
       await removeAllQueueData(new IORedis(redisHost), parentQueueName);
     });
 
-    it('removes 4000 jobs in time rage of 4000ms', async function () {
-      this.timeout(8000);
+    it('removes 4000 jobs in time rage of 4000ms', async () => {
+      // TODO: Move timeout to test options: { timeout: 8000 }
       const numJobs = 4000;
 
       // Create waiting jobs
@@ -408,45 +409,45 @@ describe('Job', function () {
       await Promise.all(delayedJobs.map(job => job.remove()));
       await Promise.all(waitingJobs.map(job => job.remove()));
 
-      expect(Date.now() - startTime).to.be.lessThan(4000);
+      expect(Date.now() - startTime).toBeLessThan(4000);
 
       const countJobs = await queue.getJobCountByTypes('waiting', 'delayed');
-      expect(countJobs).to.be.equal(0);
+      expect(countJobs).toBe(0);
     });
   });
 
   // TODO: Add more remove tests
 
-  describe('.progressProgress', function () {
-    it('can set and get progress as number', async function () {
+  describe('.progressProgress', () => {
+    it('can set and get progress as number', async () => {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
       await job.updateProgress(42);
       const storedJob = await Job.fromId(queue, job.id!);
-      expect(storedJob!.progress).to.be.equal(42);
+      expect(storedJob!.progress).toBe(42);
     });
 
-    it('can set and get progress as object', async function () {
+    it('can set and get progress as object', async () => {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
       await job.updateProgress({ total: 120, completed: 40 });
       const storedJob = await Job.fromId(queue, job.id!);
-      expect(storedJob!.progress).to.eql({ total: 120, completed: 40 });
+      expect(storedJob!.progress).toEqual({ total: 120, completed: 40 });
     });
 
-    it('can set and get progress as string', async function () {
+    it('can set and get progress as string', async () => {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
       await job.updateProgress('hello, world!');
       const storedJob = await Job.fromId(queue, job.id!);
-      expect(storedJob!.progress).to.eql('hello, world!');
+      expect(storedJob!.progress).toEqual('hello, world!');
     });
 
-    it('can set and get progress as boolean', async function () {
+    it('can set and get progress as boolean', async () => {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
       await job.updateProgress(false);
       let storedJob = await Job.fromId(queue, job.id!);
-      expect(storedJob!.progress).to.eql(false);
+      expect(storedJob!.progress).toEqual(false);
       await job.updateProgress(true);
       storedJob = await Job.fromId(queue, job.id!);
-      expect(storedJob!.progress).to.eql(true);
+      expect(storedJob!.progress).toEqual(true);
     });
 
     it('can set progress as number using the Queue instance', async () => {
@@ -456,8 +457,8 @@ describe('Job', function () {
         queue.on(
           'progress',
           (jobId: string, progress: string | boolean | number | object) => {
-            expect(jobId).to.be.eql(job.id);
-            expect(progress).to.be.eql(42);
+            expect(jobId).toEqual(job.id);
+            expect(progress).toEqual(42);
             resolve();
           },
         );
@@ -466,23 +467,23 @@ describe('Job', function () {
       await progress;
 
       const storedJob = await Job.fromId(queue, job.id!);
-      expect(storedJob!.progress).to.be.equal(42);
+      expect(storedJob!.progress).toBe(42);
     });
 
     it('can set progress as object using the Queue instance', async () => {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
       await queue.updateJobProgress(job.id!, { total: 120, completed: 40 });
       const storedJob = await Job.fromId(queue, job.id!);
-      expect(storedJob!.progress).to.eql({ total: 120, completed: 40 });
+      expect(storedJob!.progress).toEqual({ total: 120, completed: 40 });
     });
 
     describe('when job is removed', () => {
-      it('throws error', async function () {
+      it('throws error', async () => {
         const job = await Job.create(queue, 'test', { foo: 'bar' });
         await job.remove();
         await expect(
           job.updateProgress({ total: 120, completed: 40 }),
-        ).to.be.rejectedWith(`Missing key for job ${job.id}. updateProgress`);
+        ).rejects.toThrow(`Missing key for job ${job.id}. updateProgress`);
       });
     });
   });
@@ -497,15 +498,15 @@ describe('Job', function () {
       await job.log(firstLog);
       await job.log(secondLog);
       const logs = await queue.getJobLogs(job.id);
-      expect(logs).to.be.eql({ logs: [firstLog, secondLog], count: 2 });
+      expect(logs).toEqual({ logs: [firstLog, secondLog], count: 2 });
       const firstSavedLog = await queue.getJobLogs(job.id, 0, 0, true);
-      expect(firstSavedLog).to.be.eql({ logs: [firstLog], count: 2 });
+      expect(firstSavedLog).toEqual({ logs: [firstLog], count: 2 });
       const secondSavedLog = await queue.getJobLogs(job.id, 1, 1);
-      expect(secondSavedLog).to.be.eql({ logs: [secondLog], count: 2 });
+      expect(secondSavedLog).toEqual({ logs: [secondLog], count: 2 });
       await job.remove();
 
       const logsRemoved = await queue.getJobLogs(job.id);
-      expect(logsRemoved).to.be.eql({ logs: [], count: 0 });
+      expect(logsRemoved).toEqual({ logs: [], count: 0 });
     });
 
     it('can log two rows with text in desc order', async () => {
@@ -517,15 +518,15 @@ describe('Job', function () {
       await job.log(firstLog);
       await job.log(secondLog);
       const logs = await queue.getJobLogs(job.id, 0, -1, false);
-      expect(logs).to.be.eql({ logs: [secondLog, firstLog], count: 2 });
+      expect(logs).toEqual({ logs: [secondLog, firstLog], count: 2 });
       const secondSavedLog = await queue.getJobLogs(job.id, 0, 0, false);
-      expect(secondSavedLog).to.be.eql({ logs: [secondLog], count: 2 });
+      expect(secondSavedLog).toEqual({ logs: [secondLog], count: 2 });
       const firstSavedLog = await queue.getJobLogs(job.id, 1, 1, false);
-      expect(firstSavedLog).to.be.eql({ logs: [firstLog], count: 2 });
+      expect(firstSavedLog).toEqual({ logs: [firstLog], count: 2 });
       await job.remove();
 
       const logsRemoved = await queue.getJobLogs(job.id);
-      expect(logsRemoved).to.be.eql({ logs: [], count: 0 });
+      expect(logsRemoved).toEqual({ logs: [], count: 0 });
     });
 
     it('should preserve up to keepLogs latest entries', async () => {
@@ -541,22 +542,22 @@ describe('Job', function () {
       );
 
       const count1 = await job.log(firstLog);
-      expect(count1).to.be.equal(1);
+      expect(count1).toBe(1);
 
       const logs1 = await queue.getJobLogs(job.id!);
-      expect(logs1).to.be.eql({ logs: [firstLog], count: 1 });
+      expect(logs1).toEqual({ logs: [firstLog], count: 1 });
 
       const count2 = await job.log(secondLog);
-      expect(count2).to.be.equal(2);
+      expect(count2).toBe(2);
 
       const logs2 = await queue.getJobLogs(job.id!);
-      expect(logs2).to.be.eql({ logs: [firstLog, secondLog], count: 2 });
+      expect(logs2).toEqual({ logs: [firstLog, secondLog], count: 2 });
 
       const count3 = await job.log(thirdLog);
-      expect(count3).to.be.equal(2);
+      expect(count3).toBe(2);
 
       const logs3 = await queue.getJobLogs(job.id!);
-      expect(logs3).to.be.eql({ logs: [secondLog, thirdLog], count: 2 });
+      expect(logs3).toEqual({ logs: [secondLog, thirdLog], count: 2 });
     });
 
     it('should allow to add job logs from Queue instance', async () => {
@@ -570,14 +571,14 @@ describe('Job', function () {
 
       const logs = await queue.getJobLogs(job.id!);
 
-      expect(logs).to.be.eql({ logs: [firstLog, secondLog], count: 2 });
+      expect(logs).toEqual({ logs: [firstLog, secondLog], count: 2 });
     });
 
     describe('when job is removed', () => {
-      it('throws error', async function () {
+      it('throws error', async () => {
         const job = await Job.create(queue, 'test', { foo: 'bar' });
         await job.remove();
-        await expect(job.log('oneLog')).to.be.rejectedWith(
+        await expect(job.log('oneLog')).rejects.toThrow(
           `Missing key for job ${job.id}. addLog`,
         );
       });
@@ -594,12 +595,12 @@ describe('Job', function () {
       await job.log(firstLog);
       await job.log(secondLog);
       const logs = await queue.getJobLogs(job.id);
-      expect(logs).to.be.eql({ logs: [firstLog, secondLog], count: 2 });
+      expect(logs).toEqual({ logs: [firstLog, secondLog], count: 2 });
 
       await job.clearLogs();
 
       const logsRemoved = await queue.getJobLogs(job.id);
-      expect(logsRemoved).to.be.eql({ logs: [], count: 0 });
+      expect(logsRemoved).toEqual({ logs: [], count: 0 });
     });
 
     it('can preserve up to keepLogs latest entries', async () => {
@@ -614,7 +615,7 @@ describe('Job', function () {
       await job.log(thirdLog);
 
       const logs1 = await queue.getJobLogs(job.id);
-      expect(logs1).to.be.eql({
+      expect(logs1).toEqual({
         logs: [firstLog, secondLog, thirdLog],
         count: 3,
       });
@@ -622,7 +623,7 @@ describe('Job', function () {
       await job.clearLogs(4);
 
       const logs2 = await queue.getJobLogs(job.id);
-      expect(logs2).to.be.eql({
+      expect(logs2).toEqual({
         logs: [firstLog, secondLog, thirdLog],
         count: 3,
       });
@@ -630,7 +631,7 @@ describe('Job', function () {
       await job.clearLogs(3);
 
       const logs3 = await queue.getJobLogs(job.id);
-      expect(logs3).to.be.eql({
+      expect(logs3).toEqual({
         logs: [firstLog, secondLog, thirdLog],
         count: 3,
       });
@@ -638,31 +639,31 @@ describe('Job', function () {
       await job.clearLogs(2);
 
       const logs4 = await queue.getJobLogs(job.id);
-      expect(logs4).to.be.eql({ logs: [secondLog, thirdLog], count: 2 });
+      expect(logs4).toEqual({ logs: [secondLog, thirdLog], count: 2 });
 
       await job.clearLogs(0);
 
       const logsRemoved = await queue.getJobLogs(job.id);
-      expect(logsRemoved).to.be.eql({ logs: [], count: 0 });
+      expect(logsRemoved).toEqual({ logs: [], count: 0 });
     });
   });
 
-  describe('.moveToCompleted', function () {
-    it('marks the job as completed and returns new job', async function () {
+  describe('.moveToCompleted', () => {
+    it('marks the job as completed and returns new job', async () => {
       const worker = new Worker(queueName, null, { connection, prefix });
       const token = 'my-token';
       await Job.create(queue, 'test', { foo: 'bar' });
       const job2 = await Job.create(queue, 'test', { baz: 'qux' });
       const job1 = (await worker.getNextJob(token)) as Job;
       const isCompleted = await job1.isCompleted();
-      expect(isCompleted).to.be.equal(false);
+      expect(isCompleted).toBe(false);
       const state = await job1.getState();
-      expect(state).to.be.equal('active');
+      expect(state).toBe('active');
       const job1Id = await job1.moveToCompleted('succeeded', token, true);
       const isJob1Completed = await job1.isCompleted();
-      expect(isJob1Completed).to.be.equal(true);
-      expect(job1.returnvalue).to.be.equal('succeeded');
-      expect(job1Id[1]).to.be.equal(job2.id);
+      expect(isJob1Completed).toBe(true);
+      expect(job1.returnvalue).toBe('succeeded');
+      expect(job1Id[1]).toBe(job2.id);
       await worker.close();
     });
 
@@ -670,7 +671,7 @@ describe('Job', function () {
      * Verify moveToFinished use default value for opts.maxLenEvents
      * if it does not exist in meta key (or entire meta key is missing).
      */
-    it('should not fail if queue meta key is missing', async function () {
+    it('should not fail if queue meta key is missing', async () => {
       const worker = new Worker(queueName, null, { connection, prefix });
       const token = 'my-token';
       await Job.create(queue, 'test', { color: 'red' });
@@ -679,7 +680,7 @@ describe('Job', function () {
       await client.del(queue.toKey('meta'));
       await job.moveToCompleted('done', '0', false);
       const state = await job.getState();
-      expect(state).to.be.equal('completed');
+      expect(state).toBe('completed');
       await worker.close();
     });
 
@@ -727,14 +728,12 @@ describe('Job', function () {
       const job = (await parentWorker.getNextJob(token)) as Job;
       const { unprocessed } = await parent.getDependencies();
 
-      expect(unprocessed).to.have.length(2);
+      expect(unprocessed).toHaveLength(2);
 
       const isActive = await job.isActive();
-      expect(isActive).to.be.equal(true);
+      expect(isActive).toBe(true);
 
-      await expect(
-        job.moveToCompleted('return value', token),
-      ).to.be.rejectedWith(
+      await expect(job.moveToCompleted('return value', token)).rejects.toThrow(
         `Job ${job.id} has pending dependencies. moveToFinished`,
       );
 
@@ -742,11 +741,11 @@ describe('Job', function () {
         `${prefix}:${parentQueueName}:${job.id}:lock`,
       );
 
-      expect(lock).to.be.equal(token);
+      expect(lock).toBe(token);
 
       const isCompleted = await job.isCompleted();
 
-      expect(isCompleted).to.be.false;
+      expect(isCompleted).toBe(false);
 
       await childrenWorker.close();
       await parentWorker.close();
@@ -755,43 +754,43 @@ describe('Job', function () {
     });
   });
 
-  describe('.moveToFailed', function () {
-    it('marks the job as failed', async function () {
+  describe('.moveToFailed', () => {
+    it('marks the job as failed', async () => {
       const worker = new Worker(queueName, null, { connection, prefix });
       const token = 'my-token';
       await Job.create(queue, 'test', { foo: 'bar' });
       const job = (await worker.getNextJob(token)) as Job;
       const isFailed = await job.isFailed();
-      expect(isFailed).to.be.equal(false);
+      expect(isFailed).toBe(false);
       await job.moveToFailed(new Error('test error'), '0', true);
       const isFailed2 = await job.isFailed();
-      expect(isFailed2).to.be.equal(true);
+      expect(isFailed2).toBe(true);
       expect(job.stacktrace).not.be.equal(null);
-      expect(job.stacktrace.length).to.be.equal(1);
-      expect(job.stacktrace[0]).to.include('test_job.ts');
+      expect(job.stacktrace.length).toBe(1);
+      expect(job.stacktrace[0]).toContain('job.test.ts');
       await worker.close();
     });
 
-    describe('when using a custom error', function () {
-      it('marks the job as failed', async function () {
+    describe('when using a custom error', () => {
+      it('marks the job as failed', async () => {
         class CustomError extends Error {}
         const worker = new Worker(queueName, null, { connection, prefix });
         const token = 'my-token';
         await Job.create(queue, 'test', { foo: 'bar' });
         const job = (await worker.getNextJob(token)) as Job;
         const isFailed = await job.isFailed();
-        expect(isFailed).to.be.equal(false);
+        expect(isFailed).toBe(false);
         await job.moveToFailed(new CustomError('test error'), '0', true);
         const isFailed2 = await job.isFailed();
-        expect(isFailed2).to.be.equal(true);
+        expect(isFailed2).toBe(true);
         expect(job.stacktrace).not.be.equal(null);
-        expect(job.stacktrace.length).to.be.equal(1);
-        expect(job.stacktrace[0]).to.include('test_job.ts');
+        expect(job.stacktrace.length).toBe(1);
+        expect(job.stacktrace[0]).toContain('job.test.ts');
         await worker.close();
       });
     });
 
-    it('moves the job to wait for retry if attempts are given', async function () {
+    it('moves the job to wait for retry if attempts are given', async () => {
       const queueEvents = new QueueEvents(queueName, { connection, prefix });
       await queueEvents.waitUntilReady();
       const worker = new Worker(queueName, null, { connection, prefix });
@@ -801,7 +800,7 @@ describe('Job', function () {
       const job = (await worker.getNextJob(token)) as Job;
 
       const isFailed = await job.isFailed();
-      expect(isFailed).to.be.equal(false);
+      expect(isFailed).toBe(false);
 
       const waiting = new Promise(resolve => {
         queueEvents.on('waiting', resolve);
@@ -812,18 +811,18 @@ describe('Job', function () {
       await waiting;
 
       const isFailed2 = await job.isFailed();
-      expect(isFailed2).to.be.equal(false);
+      expect(isFailed2).toBe(false);
       expect(job.stacktrace).not.be.equal(null);
-      expect(job.stacktrace.length).to.be.equal(1);
+      expect(job.stacktrace.length).toBe(1);
       const isWaiting = await job.isWaiting();
-      expect(isWaiting).to.be.equal(true);
+      expect(isWaiting).toBe(true);
 
       await queueEvents.close();
       await worker.close();
     });
 
-    describe('when job is not in active state', function () {
-      it('throws an error', async function () {
+    describe('when job is not in active state', () => {
+      it('throws an error', async () => {
         const queueEvents = new QueueEvents(queueName, { connection, prefix });
         await queueEvents.waitUntilReady();
 
@@ -834,20 +833,18 @@ describe('Job', function () {
           { attempts: 3 },
         );
         const isFailed = await job.isFailed();
-        expect(isFailed).to.be.equal(false);
+        expect(isFailed).toBe(false);
 
         await expect(
           job.moveToFailed(new Error('test error'), '0', true),
-        ).to.be.rejectedWith(
-          `Job ${job.id} is not in the active state. retryJob`,
-        );
+        ).rejects.toThrow(`Job ${job.id} is not in the active state. retryJob`);
 
         await queueEvents.close();
       });
     });
 
-    describe('when job is removed', function () {
-      it('should not save stacktrace', async function () {
+    describe('when job is removed', () => {
+      it('should not save stacktrace', async () => {
         const client = await queue.client;
         const worker = new Worker(queueName, null, {
           connection,
@@ -863,42 +860,42 @@ describe('Job', function () {
 
         await expect(
           job.moveToFailed(new Error('test error'), '0'),
-        ).to.be.rejectedWith(`Missing key for job ${job.id}. moveToFinished`);
+        ).rejects.toThrow(`Missing key for job ${job.id}. moveToFinished`);
 
         const processed = await client.hgetall(
           `${prefix}:${queueName}:${job.id}`,
         );
 
-        expect(processed).to.deep.equal({});
+        expect(processed).toEqual({});
 
         await worker.close();
       });
     });
 
-    describe('when attempts made equal to attempts given', function () {
-      it('marks the job as failed', async function () {
+    describe('when attempts made equal to attempts given', () => {
+      it('marks the job as failed', async () => {
         const worker = new Worker(queueName, null, { connection, prefix });
         const token = 'my-token';
         await Job.create(queue, 'test', { foo: 'bar' }, { attempts: 1 });
         const job = (await worker.getNextJob(token)) as Job;
         const isFailed = await job.isFailed();
 
-        expect(isFailed).to.be.equal(false);
+        expect(isFailed).toBe(false);
 
         await job.moveToFailed(new Error('test error'), '0', true);
         const state = await job.getState();
         const isFailed2 = await job.isFailed();
 
-        expect(isFailed2).to.be.equal(true);
-        expect(state).to.be.equal('failed');
+        expect(isFailed2).toBe(true);
+        expect(state).toBe('failed');
         expect(job.stacktrace).not.be.equal(null);
-        expect(job.stacktrace.length).to.be.equal(1);
+        expect(job.stacktrace.length).toBe(1);
         await worker.close();
       });
     });
 
-    describe('when attempts are given and backoff is non zero', function () {
-      it('moves the job to delayed for retry', async function () {
+    describe('when attempts are given and backoff is non zero', () => {
+      it('moves the job to delayed for retry', async () => {
         const worker = new Worker(queueName, null, { connection, prefix });
         const token = 'my-token';
         await Job.create(
@@ -910,23 +907,23 @@ describe('Job', function () {
         const job = (await worker.getNextJob(token)) as Job;
         const isFailed = await job.isFailed();
 
-        expect(isFailed).to.be.equal(false);
+        expect(isFailed).toBe(false);
 
         await job.moveToFailed(new Error('test error'), token, true);
         const state = await job.getState();
         const isFailed2 = await job.isFailed();
 
-        expect(isFailed2).to.be.equal(false);
+        expect(isFailed2).toBe(false);
         expect(job.stacktrace).not.be.equal(null);
-        expect(job.stacktrace.length).to.be.equal(1);
+        expect(job.stacktrace.length).toBe(1);
         const isDelayed = await job.isDelayed();
-        expect(isDelayed).to.be.equal(true);
-        expect(state).to.be.equal('delayed');
+        expect(isDelayed).toBe(true);
+        expect(state).toBe('delayed');
         await worker.close();
       });
     });
 
-    it('applies stacktrace limit on failure', async function () {
+    it('applies stacktrace limit on failure', async () => {
       const worker = new Worker(queueName, null, { connection, prefix });
       const token = 'my-token';
       const stackTraceLimit = 1;
@@ -938,28 +935,28 @@ describe('Job', function () {
       );
       const job = (await worker.getNextJob(token)) as Job;
       const isFailed = await job.isFailed();
-      expect(isFailed).to.be.equal(false);
+      expect(isFailed).toBe(false);
       // first time failed.
       await job.moveToFailed(new Error('failed once'), '0', true);
       const isFailed1 = await job.isFailed();
       const stackTrace1 = job.stacktrace[0];
-      expect(isFailed1).to.be.false;
+      expect(isFailed1).toBe(false);
       expect(job.stacktrace).not.be.equal(null);
-      expect(job.stacktrace.length).to.be.equal(stackTraceLimit);
+      expect(job.stacktrace.length).toBe(stackTraceLimit);
       // second time failed.
       const again = (await worker.getNextJob(token)) as Job;
       await again.moveToFailed(new Error('failed twice'), '0', true);
       const isFailed2 = await again.isFailed();
       const stackTrace2 = again.stacktrace[0];
-      expect(isFailed2).to.be.true;
-      expect(again.name).to.be.equal(job.name);
-      expect(again.stacktrace.length).to.be.equal(stackTraceLimit);
+      expect(isFailed2).toBe(true);
+      expect(again.name).toBe(job.name);
+      expect(again.stacktrace.length).toBe(stackTraceLimit);
       expect(stackTrace1).not.be.equal(stackTrace2);
       await worker.close();
     });
 
-    describe('when stackTraceLimit is provided as 0', function () {
-      it('keep stacktrace empty', async function () {
+    describe('when stackTraceLimit is provided as 0', () => {
+      it('keep stacktrace empty', async () => {
         const worker = new Worker(queueName, null, { connection, prefix });
         const token = 'my-token';
         const stackTraceLimit = 0;
@@ -971,24 +968,24 @@ describe('Job', function () {
         );
         const job = (await worker.getNextJob(token)) as Job;
         const isFailed = await job.isFailed();
-        expect(isFailed).to.be.equal(false);
+        expect(isFailed).toBe(false);
         // first time failed.
         await job.moveToFailed(new Error('failed once'), '0', true);
         const isFailed1 = await job.isFailed();
-        expect(isFailed1).to.be.false;
-        expect(job.stacktrace.length).to.be.equal(stackTraceLimit);
+        expect(isFailed1).toBe(false);
+        expect(job.stacktrace.length).toBe(stackTraceLimit);
         // second time failed.
         const again = (await worker.getNextJob(token)) as Job;
         await again.moveToFailed(new Error('failed twice'), '0', true);
         const isFailed2 = await again.isFailed();
-        expect(isFailed2).to.be.true;
-        expect(again.name).to.be.equal(job.name);
-        expect(again.stacktrace.length).to.be.equal(stackTraceLimit);
+        expect(isFailed2).toBe(true);
+        expect(again.name).toBe(job.name);
+        expect(again.stacktrace.length).toBe(stackTraceLimit);
         await worker.close();
       });
     });
 
-    it('saves error stacktrace', async function () {
+    it('saves error stacktrace', async () => {
       const worker = new Worker(queueName, null, { connection, prefix });
       const token = 'my-token';
       await Job.create(queue, 'test', { foo: 'bar' });
@@ -996,30 +993,30 @@ describe('Job', function () {
       const id = job.id;
       await job.moveToFailed(new Error('test error'), '0');
       const sameJob = await queue.getJob(id!);
-      expect(sameJob).to.be.ok;
+      expect(sameJob).toBeTruthy();
       expect(sameJob.stacktrace).to.be.not.empty;
       await worker.close();
     });
   });
 
   describe('.moveToWait', () => {
-    it('moves job to wait from active', async function () {
+    it('moves job to wait from active', async () => {
       const worker = new Worker(queueName, null, { connection, prefix });
       const token = 'my-token';
       await Job.create(queue, 'test', { foo: 'bar' });
       const job = (await worker.getNextJob(token)) as Job;
       const isWaiting = await job.isWaiting();
-      expect(isWaiting).to.be.equal(false);
+      expect(isWaiting).toBe(false);
       await job.moveToWait(token);
       const isisWaiting2 = await job.isWaiting();
-      expect(isisWaiting2).to.be.equal(true);
+      expect(isisWaiting2).toBe(true);
       await worker.close();
     });
   });
 
   describe('.changeDelay', () => {
-    it('can change delay of a delayed job', async function () {
-      this.timeout(8000);
+    it('can change delay of a delayed job', async () => {
+      // TODO: Move timeout to test options: { timeout: 8000 }
 
       const worker = new Worker(queueName, async () => {}, {
         connection,
@@ -1045,13 +1042,13 @@ describe('Job', function () {
       );
 
       const isDelayed = await job.isDelayed();
-      expect(isDelayed).to.be.equal(true);
+      expect(isDelayed).toBe(true);
 
       await job.changeDelay(2000);
 
       const isDelayedAfterChangeDelay = await job.isDelayed();
-      expect(isDelayedAfterChangeDelay).to.be.equal(true);
-      expect(job.delay).to.be.equal(2000);
+      expect(isDelayedAfterChangeDelay).toBe(true);
+      expect(job.delay).toBe(2000);
 
       await completing;
 
@@ -1061,9 +1058,9 @@ describe('Job', function () {
     it('should not change delay if a job is not delayed', async () => {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
       const isDelayed = await job.isDelayed();
-      expect(isDelayed).to.be.equal(false);
+      expect(isDelayed).toBe(false);
 
-      await expect(job.changeDelay(2000)).to.be.rejectedWith(
+      await expect(job.changeDelay(2000)).rejects.toThrow(
         `Job ${job.id} is not in the delayed state. changeDelay`,
       );
     });
@@ -1082,14 +1079,14 @@ describe('Job', function () {
             { priority: 16 },
           );
 
-          expect(job.priority).to.be.eql(16);
+          expect(job.priority).toEqual(16);
 
           await job.changePriority({
             priority: 0,
             lifo: true,
           });
 
-          expect(job.priority).to.be.eql(0);
+          expect(job.priority).toEqual(0);
 
           const worker = new Worker(
             queueName,
@@ -1104,7 +1101,7 @@ describe('Job', function () {
             worker.on(
               'completed',
               after(2, job => {
-                expect(job.name).to.be.eql('test1');
+                expect(job.name).toEqual('test1');
                 resolve();
               }),
             );
@@ -1147,7 +1144,7 @@ describe('Job', function () {
             worker.on(
               'completed',
               after(2, job => {
-                expect(job.name).to.be.eql('test1');
+                expect(job.name).toEqual('test1');
                 resolve();
               }),
             );
@@ -1163,7 +1160,7 @@ describe('Job', function () {
     });
 
     describe('when job is in prioritized state', () => {
-      it('can change priority of a job', async function () {
+      it('can change priority of a job', async () => {
         await Job.create(queue, 'test1', { foo: 'bar' }, { priority: 8 });
         const job = await Job.create(
           queue,
@@ -1180,9 +1177,9 @@ describe('Job', function () {
           queueName,
           async (job: Job) => {
             if (job.name === 'test1') {
-              expect(job.priority).to.be.eql(8);
+              expect(job.priority).toEqual(8);
             } else {
-              expect(job.priority).to.be.eql(1);
+              expect(job.priority).toEqual(1);
             }
             await delay(20);
           },
@@ -1194,7 +1191,7 @@ describe('Job', function () {
           worker.on(
             'completed',
             after(2, job => {
-              expect(job.name).to.be.eql('test1');
+              expect(job.name).toEqual('test1');
               resolve();
             }),
           );
@@ -1234,7 +1231,7 @@ describe('Job', function () {
             worker.on(
               'completed',
               after(2, job => {
-                expect(job.name).to.be.eql('test1');
+                expect(job.name).toEqual('test1');
                 resolve();
               }),
             );
@@ -1277,7 +1274,7 @@ describe('Job', function () {
           worker.on(
             'completed',
             after(2, job => {
-              expect(job.name).to.be.eql('test1');
+              expect(job.name).toEqual('test1');
               resolve();
             }),
           );
@@ -1311,8 +1308,8 @@ describe('Job', function () {
           'priority',
         );
 
-        expect(count).to.be.eql(0);
-        expect(priority).to.be.eql('10');
+        expect(count).toEqual(0);
+        expect(priority).toEqual('10');
       });
     });
 
@@ -1321,7 +1318,7 @@ describe('Job', function () {
         const job = await Job.create(queue, 'test', { foo: 'bar' });
         await job.remove();
 
-        await expect(job.changePriority({ priority: 2 })).to.be.rejectedWith(
+        await expect(job.changePriority({ priority: 2 })).rejects.toThrow(
           `Missing key for job ${job.id}. changePriority`,
         );
       });
@@ -1337,18 +1334,18 @@ describe('Job', function () {
         { delay: 1500 },
       );
       const isDelayed = await job.isDelayed();
-      expect(isDelayed).to.be.equal(true);
+      expect(isDelayed).toBe(true);
       await job.promote();
-      expect(job.delay).to.be.equal(0);
+      expect(job.delay).toBe(0);
 
       const isDelayedAfterPromote = await job.isDelayed();
-      expect(isDelayedAfterPromote).to.be.equal(false);
+      expect(isDelayedAfterPromote).toBe(false);
       const isWaiting = await job.isWaiting();
-      expect(isWaiting).to.be.equal(true);
+      expect(isWaiting).toBe(true);
     });
 
-    it('should process a promoted job according to its priority', async function () {
-      this.timeout(5000);
+    it('should process a promoted job according to its priority', async () => {
+      // TODO: Move timeout to test options: { timeout: 5000 }
       const completed: string[] = [];
       const worker = new Worker(
         queueName,
@@ -1365,7 +1362,7 @@ describe('Job', function () {
           'completed',
           after(4, () => {
             try {
-              expect(completed).to.be.eql(['a', 'b', 'c', 'd']);
+              expect(completed).toEqual(['a', 'b', 'c', 'd']);
               resolve();
             } catch (err) {
               reject(err);
@@ -1393,9 +1390,9 @@ describe('Job', function () {
     it('should not promote a job that is not delayed', async () => {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
       const isDelayed = await job.isDelayed();
-      expect(isDelayed).to.be.equal(false);
+      expect(isDelayed).toBe(false);
 
-      await expect(job.promote()).to.be.rejectedWith(
+      await expect(job.promote()).rejects.toThrow(
         `Job ${job.id} is not in the delayed state. promote`,
       );
     });
@@ -1412,24 +1409,24 @@ describe('Job', function () {
           },
         );
         const isDelayed = await job.isDelayed();
-        expect(isDelayed).to.be.equal(true);
+        expect(isDelayed).toBe(true);
         await job.promote();
-        expect(job.delay).to.be.equal(0);
+        expect(job.delay).toBe(0);
 
         const worker = new Worker(queueName, null, { connection, prefix });
 
         const currentJob1 = (await worker.getNextJob('token')) as Job;
-        expect(currentJob1).to.not.be.undefined;
+        expect(currentJob1).toBeDefined();
 
         await currentJob1.moveToCompleted('succeeded', 'token', true);
 
         const delayedCount = await queue.getDelayedCount();
-        expect(delayedCount).to.be.equal(1);
+        expect(delayedCount).toBe(1);
 
         const isDelayedAfterPromote = await job.isDelayed();
-        expect(isDelayedAfterPromote).to.be.equal(false);
+        expect(isDelayedAfterPromote).toBe(false);
         const isCompleted = await job.isCompleted();
-        expect(isCompleted).to.be.equal(true);
+        expect(isCompleted).toBe(true);
         await worker.close();
       });
 
@@ -1445,7 +1442,7 @@ describe('Job', function () {
             },
           );
           const isDelayed = await job.isDelayed();
-          expect(isDelayed).to.be.equal(true);
+          expect(isDelayed).toBe(true);
 
           await queue.add(
             'test',
@@ -1457,25 +1454,25 @@ describe('Job', function () {
             },
           );
           const delayedCount = await queue.getDelayedCount();
-          expect(delayedCount).to.be.equal(1);
+          expect(delayedCount).toBe(1);
 
           await job.promote();
-          expect(job.delay).to.be.equal(0);
+          expect(job.delay).toBe(0);
 
           const worker = new Worker(queueName, null, { connection, prefix });
           const currentJob1 = (await worker.getNextJob('token')) as Job;
-          expect(currentJob1).to.not.be.undefined;
+          expect(currentJob1).toBeDefined();
 
           await currentJob1.moveToCompleted('succeeded', 'token', true);
           const completedCount = await queue.getCompletedCount();
           const delayedCountAfterPromote = await queue.getDelayedCount();
-          expect(completedCount).to.be.equal(1);
-          expect(delayedCountAfterPromote).to.be.equal(1);
+          expect(completedCount).toBe(1);
+          expect(delayedCountAfterPromote).toBe(1);
 
           const completedCountAfterRestart = await queue.getCompletedCount();
           const delayedCountAfterRestart = await queue.getDelayedCount();
-          expect(completedCountAfterRestart).to.be.equal(1);
-          expect(delayedCountAfterRestart).to.be.equal(1);
+          expect(completedCountAfterRestart).toBe(1);
+          expect(delayedCountAfterRestart).toBe(1);
 
           await queue.add(
             'test',
@@ -1489,8 +1486,8 @@ describe('Job', function () {
 
           const completedCountAfterReAddition = await queue.getCompletedCount();
           const delayedCountAfterReAddition = await queue.getDelayedCount();
-          expect(completedCountAfterReAddition).to.be.equal(1);
-          expect(delayedCountAfterReAddition).to.be.equal(1);
+          expect(completedCountAfterReAddition).toBe(1);
+          expect(delayedCountAfterReAddition).toBe(1);
           await worker.close();
         });
       });
@@ -1509,13 +1506,13 @@ describe('Job', function () {
         await delayedJob.promote();
 
         const pausedJobsCount = await queue.getJobCountByTypes('paused');
-        expect(pausedJobsCount).to.be.equal(2);
+        expect(pausedJobsCount).toBe(2);
         await queue.resume();
 
         const waitingJobsCount = await queue.getWaitingCount();
-        expect(waitingJobsCount).to.be.equal(2);
+        expect(waitingJobsCount).toBe(2);
         const delayedJobsNewState = await delayedJob.getState();
-        expect(delayedJobsNewState).to.be.equal('waiting');
+        expect(delayedJobsNewState).toBe('waiting');
       });
     });
 
@@ -1531,13 +1528,13 @@ describe('Job', function () {
         await delayedJob.promote();
 
         const pausedJobsCount = await queue.getJobCountByTypes('paused');
-        expect(pausedJobsCount).to.be.equal(1);
+        expect(pausedJobsCount).toBe(1);
         await queue.resume();
 
         const waitingJobsCount = await queue.getWaitingCount();
-        expect(waitingJobsCount).to.be.equal(1);
+        expect(waitingJobsCount).toBe(1);
         const delayedJobsNewState = await delayedJob.getState();
-        expect(delayedJobsNewState).to.be.equal('waiting');
+        expect(delayedJobsNewState).toBe('waiting');
       });
     });
   });
@@ -1549,29 +1546,29 @@ describe('Job', function () {
       const job = await queue.add('job1', { foo: 'bar' }, { delay: 1000 });
       const delayedState = await job.getState();
 
-      expect(delayedState).to.be.equal('delayed');
+      expect(delayedState).toBe('delayed');
 
       await queue.pause();
       await job.promote();
       await queue.resume();
       const waitingState = await job.getState();
 
-      expect(waitingState).to.be.equal('waiting');
+      expect(waitingState).toBe('waiting');
 
       const currentJob1 = (await worker.getNextJob(token)) as Job;
-      expect(currentJob1).to.not.be.undefined;
+      expect(currentJob1).toBeDefined();
 
       await currentJob1.moveToFailed(new Error('test error'), token, true);
       const failedState = await currentJob1.getState();
       await queue.add('job2', { foo: 'foo' });
       const job2 = (await worker.getNextJob(token)) as Job;
 
-      expect(failedState).to.be.equal('failed');
+      expect(failedState).toBe('failed');
 
       await job2.moveToCompleted('succeeded', token, true);
       const completedState = await job2.getState();
 
-      expect(completedState).to.be.equal('completed');
+      expect(completedState).toBe('completed');
       await worker.close();
     });
   });
@@ -1581,8 +1578,8 @@ describe('Job', function () {
   //
   /*
   const scripts = require('../lib/scripts');
-  it('get job status', function() {
-    this.timeout(12000);
+  it('get job status', async () => {
+    // TODO: Move timeout to test options: { timeout: 12000 }
 
     const client = new redis();
     return Job.create(queue, { foo: 'baz' })
@@ -1680,19 +1677,19 @@ describe('Job', function () {
   });
   */
 
-  describe('.finished', function () {
+  describe('.finished', () => {
     let queueEvents: QueueEvents;
 
-    beforeEach(async function () {
+    beforeEach(async () => {
       queueEvents = new QueueEvents(queueName, { connection, prefix });
       await queueEvents.waitUntilReady();
     });
 
-    afterEach(async function () {
+    afterEach(async () => {
       await queueEvents.close();
     });
 
-    it('should resolve when the job has been completed', async function () {
+    it('should resolve when the job has been completed', async () => {
       const worker = new Worker(queueName, async () => 'qux', {
         connection,
         prefix,
@@ -1702,13 +1699,13 @@ describe('Job', function () {
 
       const result = await job.waitUntilFinished(queueEvents);
 
-      expect(result).to.be.equal('qux');
+      expect(result).toBe('qux');
 
       await worker.close();
     });
 
     describe('when job was added with removeOnComplete', async () => {
-      it('rejects with missing key for job message', async function () {
+      it('rejects with missing key for job message', async () => {
         const worker = new Worker(
           queueName,
           async () => {
@@ -1726,9 +1723,9 @@ describe('Job', function () {
           worker.on('completed', async (job: Job) => {
             try {
               const gotJob = await queue.getJob(job.id!);
-              expect(gotJob).to.be.equal(undefined);
+              expect(gotJob).toBe(undefined);
               const counts = await queue.getJobCounts('completed');
-              expect(counts.completed).to.be.equal(0);
+              expect(counts.completed).toBe(0);
               resolve();
             } catch (err) {
               reject(err);
@@ -1744,7 +1741,7 @@ describe('Job', function () {
 
         await completed;
 
-        await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith(
+        await expect(job.waitUntilFinished(queueEvents)).rejects.toThrow(
           `Missing key for job ${queue.toKey(job.id!)}. isFinished`,
         );
 
@@ -1752,7 +1749,7 @@ describe('Job', function () {
       });
     });
 
-    it('should resolve when the job has been completed and return object', async function () {
+    it('should resolve when the job has been completed and return object', async () => {
       const worker = new Worker(queueName, async () => ({ resultFoo: 'bar' }), {
         connection,
         prefix,
@@ -1762,13 +1759,13 @@ describe('Job', function () {
 
       const result = await job.waitUntilFinished(queueEvents);
 
-      expect(result).to.be.an('object');
+      expect(result).toBeTypeOf('object');
       expect(result.resultFoo).equal('bar');
 
       await worker.close();
     });
 
-    it('should resolve when the job has been delayed and completed and return object', async function () {
+    it('should resolve when the job has been delayed and completed and return object', async () => {
       const worker = new Worker(
         queueName,
         async () => {
@@ -1782,13 +1779,13 @@ describe('Job', function () {
       await delay(600);
 
       const result = await job.waitUntilFinished(queueEvents);
-      expect(result).to.be.an('object');
+      expect(result).toBeTypeOf('object');
       expect(result.resultFoo).equal('bar');
 
       await worker.close();
     });
 
-    it('should resolve when the job has been completed and return string', async function () {
+    it('should resolve when the job has been completed and return string', async () => {
       const worker = new Worker(queueName, async () => 'a string', {
         connection,
         prefix,
@@ -1804,7 +1801,7 @@ describe('Job', function () {
       await worker.close();
     });
 
-    it('should reject when the job has been failed', async function () {
+    it('should reject when the job has been failed', async () => {
       const worker = new Worker(
         queueName,
         async () => {
@@ -1816,14 +1813,14 @@ describe('Job', function () {
 
       const job = await queue.add('test', { foo: 'bar' });
 
-      await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith(
+      await expect(job.waitUntilFinished(queueEvents)).rejects.toThrow(
         'test error',
       );
 
       await worker.close();
     });
 
-    it('should resolve directly if already processed', async function () {
+    it('should resolve directly if already processed', async () => {
       const worker = new Worker(queueName, async () => ({ resultFoo: 'bar' }), {
         connection,
         prefix,
@@ -1834,13 +1831,13 @@ describe('Job', function () {
       await delay(500);
       const result = await job.waitUntilFinished(queueEvents);
 
-      expect(result).to.be.an('object');
+      expect(result).toBeTypeOf('object');
       expect(result.resultFoo).equal('bar');
 
       await worker.close();
     });
 
-    it('should reject directly if already processed', async function () {
+    it('should reject directly if already processed', async () => {
       const worker = new Worker(
         queueName,
         async () => {

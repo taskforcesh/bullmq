@@ -1,7 +1,14 @@
-import { expect } from 'chai';
 import { after } from 'lodash';
 import { default as IORedis } from 'ioredis';
-import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
+import {
+  describe,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
+  it,
+  expect,
+} from 'vitest';
 
 import { v4 } from 'uuid';
 import { Job, Queue, QueueEvents, Repeat, Worker } from '../src/classes';
@@ -11,17 +18,17 @@ const ONE_SECOND = 1000;
 const ONE_MINUTE = 60 * ONE_SECOND;
 const ONE_HOUR = 60 * ONE_MINUTE;
 
-describe('Job Scheduler Stress', function () {
+describe('Job Scheduler Stress', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
-  this.timeout(10000);
+  // TODO: Move timeout to test options: { timeout: 10000 }
   let repeat: Repeat;
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
 
   let connection: IORedis;
-  before(async function () {
+  beforeAll(async () => {
     connection = new IORedis(redisHost, {
       maxRetriesPerRequest: null,
       enableReadyCheck: false,
@@ -30,7 +37,7 @@ describe('Job Scheduler Stress', function () {
     });
   });
 
-  beforeEach(async function () {
+  beforeEach(async () => {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection, prefix });
     repeat = new Repeat(queueName, { connection, prefix });
@@ -39,7 +46,7 @@ describe('Job Scheduler Stress', function () {
     await queueEvents.waitUntilReady();
   });
 
-  afterEach(async function () {
+  afterEach(async () => {
     try {
       await queue.close();
       await repeat.close();
@@ -112,11 +119,11 @@ describe('Job Scheduler Stress', function () {
     }
 
     const repeatableJobs = await queue.getJobSchedulers();
-    expect(repeatableJobs).to.have.length(1);
+    expect(repeatableJobs).toHaveLength(1);
 
     const counts = await queue.getJobCounts();
 
-    expect(counts).to.be.eql({
+    expect(counts).toEqual({
       active: 0,
       completed: 0,
       delayed: 1,
@@ -163,7 +170,7 @@ describe('Job Scheduler Stress', function () {
     await waitingCompleted;
 
     const diff = Date.now() - timestamp;
-    expect(diff).to.be.lessThan(ONE_SECOND);
+    expect(diff).toBeLessThan(ONE_SECOND);
     try {
       await worker.close();
     } catch (error) {
@@ -218,11 +225,11 @@ describe('Job Scheduler Stress', function () {
     }
 
     const repeatableJobs = await queue.getJobSchedulers();
-    expect(repeatableJobs).to.have.length(1);
+    expect(repeatableJobs).toHaveLength(1);
 
     const counts = await queue.getJobCounts();
 
-    expect(counts).to.be.eql({
+    expect(counts).toEqual({
       active: 0,
       completed: 1,
       delayed: 1,
@@ -233,7 +240,7 @@ describe('Job Scheduler Stress', function () {
       'waiting-children': 0,
     });
 
-    expect(completedJobs).to.be.eql(1);
+    expect(completedJobs).toEqual(1);
     try {
       await queue.close();
     } catch (error) {
@@ -241,117 +248,119 @@ describe('Job Scheduler Stress', function () {
     }
   });
 
-  it('should properly update job data and options when upserting job scheduler multiple times', async function () {
-    this.timeout(30000); // Increase timeout for this longer test
+  it(
+    'should properly update job data and options when upserting job scheduler multiple times',
+    { timeout: 30000 },
+    async () => {
+      const jobSchedulerId = 'update-test-scheduler';
+      const processedJobs: any[] = [];
+      const expectedDataSequence = ['first', 'second'];
+      let currentSequenceIndex = 0;
 
-    const jobSchedulerId = 'update-test-scheduler';
-    const processedJobs: any[] = [];
-    const expectedDataSequence = ['first', 'second'];
-    let currentSequenceIndex = 0;
+      const worker = new Worker(
+        queueName,
+        async job => {
+          processedJobs.push({
+            name: job.name,
+            data: job.data,
+            processedAt: Date.now(),
+          });
 
-    const worker = new Worker(
-      queueName,
-      async job => {
-        processedJobs.push({
-          name: job.name,
-          data: job.data,
-          processedAt: Date.now(),
-        });
-
-        // Validate that job data is updated correctly
-        if (processedJobs.length > 3) {
-          // Allow some initial jobs to process
-          const expectedKey =
-            expectedDataSequence[
-              currentSequenceIndex % expectedDataSequence.length
-            ];
-          expect(job.data.key).to.equal(
-            expectedKey,
-            `Expected job data key to be '${expectedKey}' but got '${job.data.key}' for job #${processedJobs.length}`,
-          );
-        }
-      },
-      { connection, prefix },
-    );
-
-    await worker.waitUntilReady();
-
-    // First upsert - create scheduler with initial data
-    await queue.upsertJobScheduler(
-      jobSchedulerId,
-      { every: 1000 },
-      {
-        name: 'my-name-1',
-        data: { key: 'first' },
-      },
-    );
-
-    // Let a few jobs process with the first data
-    await delay(3500); // Allow 3-4 jobs to process
-
-    const jobsAfterFirst = processedJobs.length;
-    expect(jobsAfterFirst).to.be.gte(3);
-
-    // Verify all initial jobs have the correct data
-    for (let i = 0; i < jobsAfterFirst; i++) {
-      expect(processedJobs[i].data.key).to.equal('first');
-      expect(processedJobs[i].name).to.equal('my-name-1');
-    }
-
-    // Second upsert - update data and timing
-    const every2 = 500;
-    currentSequenceIndex = 1;
-    await queue.upsertJobScheduler(
-      jobSchedulerId,
-      { every: every2 }, // Change timing
-      {
-        name: 'my-name-2',
-        data: { key: 'second' },
-      },
-    );
-
-    // Let jobs process with updated data
-    await delay(6500); // Allow 3 more jobs to process at new interval
-
-    const jobsAfterSecond = processedJobs.length;
-    expect(jobsAfterSecond).to.be.gt(jobsAfterFirst);
-
-    // Verify that jobs after the update have the new data
-    // Note: There might be 1-2 jobs in transition that still have old data
-    const newJobs = processedJobs.slice(jobsAfterFirst + 2); // Skip transition jobs
-    expect(newJobs.length).to.be.gte(1);
-
-    for (const job of newJobs) {
-      expect(job.data.key).to.equal(
-        'second',
-        `Job should have updated data 'second' but has '${job.data.key}'`,
+          // Validate that job data is updated correctly
+          if (processedJobs.length > 3) {
+            // Allow some initial jobs to process
+            const expectedKey =
+              expectedDataSequence[
+                currentSequenceIndex % expectedDataSequence.length
+              ];
+            expect(job.data.key).toBe(
+              expectedKey,
+              `Expected job data key to be '${expectedKey}' but got '${job.data.key}' for job #${processedJobs.length}`,
+            );
+          }
+        },
+        { connection, prefix },
       );
-      expect(job.name).to.equal('my-name-2');
-    }
 
-    // We close the worker first, to avoid a possible edge case where
-    // a job has been exactly moved to active but still not added the next delayed job
-    try {
-      await worker.close();
-    } catch (error) {
-      // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
-    }
+      await worker.waitUntilReady();
 
-    // Verify job scheduler metadata was updated correctly
-    const schedulers = await queue.getJobSchedulers();
-    expect(schedulers).to.have.length(1);
-    expect(schedulers[0].key).to.equal(jobSchedulerId);
-    expect(schedulers[0].every).to.equal(every2);
+      // First upsert - create scheduler with initial data
+      await queue.upsertJobScheduler(
+        jobSchedulerId,
+        { every: 1000 },
+        {
+          name: 'my-name-1',
+          data: { key: 'first' },
+        },
+      );
 
-    // Verify that only one delayed job exists (proper replacement)
-    const delayedJobs = await queue.getDelayed();
-    expect(delayedJobs).to.have.length(1);
-    expect(delayedJobs[0].data.key).to.equal('second');
-    expect(delayedJobs[0].name).to.equal('my-name-2');
-  });
+      // Let a few jobs process with the first data
+      await delay(3500); // Allow 3-4 jobs to process
 
-  it('should handle rapid successive upserts without creating duplicate schedulers', async function () {
-    this.timeout(15000);
+      const jobsAfterFirst = processedJobs.length;
+      expect(jobsAfterFirst).to.be.gte(3);
+
+      // Verify all initial jobs have the correct data
+      for (let i = 0; i < jobsAfterFirst; i++) {
+        expect(processedJobs[i].data.key).toBe('first');
+        expect(processedJobs[i].name).toBe('my-name-1');
+      }
+
+      // Second upsert - update data and timing
+      const every2 = 500;
+      currentSequenceIndex = 1;
+      await queue.upsertJobScheduler(
+        jobSchedulerId,
+        { every: every2 }, // Change timing
+        {
+          name: 'my-name-2',
+          data: { key: 'second' },
+        },
+      );
+
+      // Let jobs process with updated data
+      await delay(6500); // Allow 3 more jobs to process at new interval
+
+      const jobsAfterSecond = processedJobs.length;
+      expect(jobsAfterSecond).to.be.gt(jobsAfterFirst);
+
+      // Verify that jobs after the update have the new data
+      // Note: There might be 1-2 jobs in transition that still have old data
+      const newJobs = processedJobs.slice(jobsAfterFirst + 2); // Skip transition jobs
+      expect(newJobs.length).to.be.gte(1);
+
+      for (const job of newJobs) {
+        expect(job.data.key).toBe(
+          'second',
+          `Job should have updated data 'second' but has '${job.data.key}'`,
+        );
+        expect(job.name).toBe('my-name-2');
+      }
+
+      // We close the worker first, to avoid a possible edge case where
+      // a job has been exactly moved to active but still not added the next delayed job
+      try {
+        await worker.close();
+      } catch (error) {
+        // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
+      }
+
+      // Verify job scheduler metadata was updated correctly
+      const schedulers = await queue.getJobSchedulers();
+      expect(schedulers).toHaveLength(1);
+      expect(schedulers[0].key).toBe(jobSchedulerId);
+      expect(schedulers[0].every).toBe(every2);
+
+      // Verify that only one delayed job exists (proper replacement)
+      const delayedJobs = await queue.getDelayed();
+      expect(delayedJobs).toHaveLength(1);
+      expect(delayedJobs[0].data.key).toBe('second');
+      expect(delayedJobs[0].name).toBe('my-name-2');
+    },
+  );
+
+  it('should handle rapid successive upserts without creating duplicate schedulers', async () => {
+    // TODO: Move timeout to test options: { timeout: 15000 }
 
     const jobSchedulerId = 'rapid-upsert-test';
     const processedJobs: any[] = [];
@@ -397,17 +406,17 @@ describe('Job Scheduler Stress', function () {
 
     // Verify only one scheduler exists
     const schedulers = await queue.getJobSchedulers();
-    expect(schedulers).to.have.length(1);
-    expect(schedulers[0].key).to.equal(jobSchedulerId);
+    expect(schedulers).toHaveLength(1);
+    expect(schedulers[0].key).toBe(jobSchedulerId);
 
     // Verify only one delayed job exists
     const delayedJobs = await queue.getDelayed();
-    expect(delayedJobs).to.have.length(1);
+    expect(delayedJobs).toHaveLength(1);
 
     // The final job should reflect the last upsert
     const finalDelayedJob = delayedJobs[0];
-    expect(finalDelayedJob.data.iteration).to.equal(4);
-    expect(finalDelayedJob.name).to.equal('iteration-4');
+    expect(finalDelayedJob.data.iteration).toBe(4);
+    expect(finalDelayedJob.name).toBe('iteration-4');
 
     // Verify no duplicate events were emitted
     let duplicateEventCount = 0;
@@ -416,7 +425,7 @@ describe('Job Scheduler Stress', function () {
     });
 
     await delay(1000);
-    expect(duplicateEventCount).to.equal(0);
+    expect(duplicateEventCount).toBe(0);
 
     try {
       await worker.close();
@@ -426,7 +435,7 @@ describe('Job Scheduler Stress', function () {
   });
 
   describe("when using 'every' option and jobs are moved to active some time after delay", function () {
-    it('should repeat every 2 seconds and start immediately', async function () {
+    it('should repeat every 2 seconds and start immediately', async () => {
       let iterationCount = 0;
       const MINIMUM_DELAY_THRESHOLD_MS = 1850;
       const DELAY = 2000;
@@ -503,8 +512,8 @@ describe('Job Scheduler Stress', function () {
     });
   });
 
-  describe('when disconnection happens', function () {
-    it('should retry to update job scheduler', async function () {
+  describe('when disconnection happens', () => {
+    it('should retry to update job scheduler', async () => {
       let iterationCount = 0;
       const DELAY = 500;
 

@@ -1,6 +1,14 @@
-import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
-import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
+import {
+  describe,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
+  it,
+  expect,
+} from 'vitest';
+
 import { v4 } from 'uuid';
 import {
   Job,
@@ -23,16 +31,16 @@ describe('flows', () => {
   let queueName: string;
 
   let connection: IORedis;
-  before(async function () {
+  beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
-  beforeEach(async function () {
+  beforeEach(async () => {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection, prefix });
   });
 
-  afterEach(async function () {
+  afterEach(async () => {
     await queue.close();
     await removeAllQueueData(new IORedis(redisHost), queueName);
   });
@@ -81,7 +89,7 @@ describe('flows', () => {
           try {
             if (job.name === 'parent') {
               const { processed } = await job.getDependenciesCount();
-              expect(processed).to.equal(1);
+              expect(processed).toBe(1);
               resolve();
             }
           } catch (err) {
@@ -137,17 +145,15 @@ describe('flows', () => {
           try {
             if (job.name === 'parent') {
               const { processed } = await job.getDependencies();
-              expect(Object.keys(processed!).length).to.equal(2);
+              expect(Object.keys(processed!).length).toBe(2);
               const { queueQualifiedName, id, name } = children![0].job;
-              expect(processed![`${queueQualifiedName}:${id}`]).to.equal(name);
+              expect(processed![`${queueQualifiedName}:${id}`]).toBe(name);
               const {
                 queueQualifiedName: queueQualifiedName2,
                 id: id2,
                 name: name2,
               } = children![1].job;
-              expect(processed![`${queueQualifiedName2}:${id2}`]).to.equal(
-                name2,
-              );
+              expect(processed![`${queueQualifiedName2}:${id2}`]).toBe(name2);
               resolve();
             }
           } catch (err) {
@@ -226,17 +232,15 @@ describe('flows', () => {
           try {
             if (job.name === 'parent') {
               const { processed } = await job.getDependencies();
-              expect(Object.keys(processed!).length).to.equal(2);
+              expect(Object.keys(processed!).length).toBe(2);
               const { queueQualifiedName, id, name } = children![0].job;
-              expect(processed![`${queueQualifiedName}:${id}`]).to.equal(name);
+              expect(processed![`${queueQualifiedName}:${id}`]).toBe(name);
               const {
                 queueQualifiedName: queueQualifiedName2,
                 id: id2,
                 name: name2,
               } = children![1].job;
-              expect(processed![`${queueQualifiedName2}:${id2}`]).to.equal(
-                name2,
-              );
+              expect(processed![`${queueQualifiedName2}:${id2}`]).toBe(name2);
               resolve();
             }
           } catch (err) {
@@ -248,10 +252,10 @@ describe('flows', () => {
       await completed;
       const remainingJobCount = await queue.getCompletedCount();
 
-      expect(remainingJobCount).to.equal(1);
+      expect(remainingJobCount).toBe(1);
       await worker.close();
       await flow.close();
-    }).timeout(8000);
+    }); // TODO: Add { timeout: 8000 } to the it() options
   });
 
   it('should process children before the parent', async () => {
@@ -285,8 +289,8 @@ describe('flows', () => {
           const { processed, nextProcessedCursor } = await job.getDependencies({
             processed: {},
           });
-          expect(nextProcessedCursor).to.be.equal(0);
-          expect(Object.keys(processed!)).to.have.length(3);
+          expect(nextProcessedCursor).toBe(0);
+          expect(Object.keys(processed!)).toHaveLength(3);
 
           const childrenValues = await job.getChildrenValues();
 
@@ -325,25 +329,25 @@ describe('flows', () => {
       ],
     });
 
-    expect(tree).to.have.property('job');
-    expect(tree).to.have.property('children');
+    expect(tree).toHaveProperty('job');
+    expect(tree).toHaveProperty('children');
 
     const { children, job } = tree;
     const parentState = await job.getState();
 
-    expect(parentState).to.be.eql('waiting-children');
-    expect(children).to.have.length(3);
+    expect(parentState).toEqual('waiting-children');
+    expect(children).toHaveLength(3);
 
-    expect(children![0].job.id).to.be.ok;
-    expect(children![0].job.data.foo).to.be.eql('bar');
-    expect(children![0].job.parent).to.deep.equal({
+    expect(children![0].job.id).toBeTruthy();
+    expect(children![0].job.data.foo).toEqual('bar');
+    expect(children![0].job.parent).toEqual({
       id: job.id,
       queueKey: `${prefix}:${parentQueueName}`,
     });
-    expect(children![1].job.id).to.be.ok;
-    expect(children![1].job.data.foo).to.be.eql('baz');
-    expect(children![2].job.id).to.be.ok;
-    expect(children![2].job.data.foo).to.be.eql('qux');
+    expect(children![1].job.id).toBeTruthy();
+    expect(children![1].job.data.foo).toEqual('baz');
+    expect(children![2].job.id).toBeTruthy();
+    expect(children![2].job.data.foo).toEqual('qux');
 
     await processingChildren;
     await childrenWorker.close();
@@ -391,8 +395,8 @@ describe('flows', () => {
           const { processed, nextProcessedCursor } = await job.getDependencies({
             processed: {},
           });
-          expect(nextProcessedCursor).to.be.equal(0);
-          expect(Object.keys(processed!)).to.have.length(2);
+          expect(nextProcessedCursor).toBe(0);
+          expect(Object.keys(processed!)).toHaveLength(2);
 
           const childrenValues = await job.getChildrenValues();
 
@@ -436,18 +440,18 @@ describe('flows', () => {
       },
     });
 
-    expect(tree).to.have.property('job');
-    expect(tree).to.have.property('children');
+    expect(tree).toHaveProperty('job');
+    expect(tree).toHaveProperty('children');
 
     const { children, job } = tree;
 
-    expect(job.parentKey).to.be.equal(
+    expect(job.parentKey).toBe(
       `${prefix}:${grandparentQueueName}:${grandparentJob.id}`,
     );
     const parentState = await job.getState();
 
-    expect(parentState).to.be.eql('waiting-children');
-    expect(children).to.have.length(2);
+    expect(parentState).toEqual('waiting-children');
+    expect(children).toHaveLength(2);
 
     await processingChildren;
     await childrenWorker.close();
@@ -483,13 +487,13 @@ describe('flows', () => {
         const relationshipIsBroken =
           await children![0].job.removeChildDependency();
 
-        expect(relationshipIsBroken).to.be.true;
-        expect(children![0].job.parent).to.be.undefined;
-        expect(children![0].job.parentKey).to.be.undefined;
+        expect(relationshipIsBroken).toBe(true);
+        expect(children![0].job.parent).toBeUndefined();
+        expect(children![0].job.parentKey).toBeUndefined();
 
         const parentState = await job.getState();
 
-        expect(parentState).to.be.equal('waiting');
+        expect(parentState).toBe('waiting');
 
         const worker = new Worker(
           queueName,
@@ -506,10 +510,10 @@ describe('flows', () => {
               if (job.name === 'parent') {
                 const { unprocessed, processed, ignored, failed } =
                   await job.getDependenciesCount();
-                expect(ignored).to.equal(0);
-                expect(failed).to.equal(0);
-                expect(unprocessed).to.equal(0);
-                expect(processed).to.equal(0);
+                expect(ignored).toBe(0);
+                expect(failed).toBe(0);
+                expect(unprocessed).toBe(0);
+                expect(processed).toBe(0);
                 resolve();
               }
             } catch (err) {
@@ -551,13 +555,13 @@ describe('flows', () => {
         const relationshipIsBroken =
           await children![0].job.removeChildDependency();
 
-        expect(relationshipIsBroken).to.be.true;
-        expect(children![0].job.parent).to.be.undefined;
-        expect(children![0].job.parentKey).to.be.undefined;
+        expect(relationshipIsBroken).toBe(true);
+        expect(children![0].job.parent).toBeUndefined();
+        expect(children![0].job.parentKey).toBeUndefined();
 
         const parentState = await job.getState();
 
-        expect(parentState).to.be.equal('waiting-children');
+        expect(parentState).toBe('waiting-children');
 
         const worker = new Worker(
           queueName,
@@ -574,8 +578,8 @@ describe('flows', () => {
               if (job.name === 'parent') {
                 const { unprocessed, processed } =
                   await job.getDependenciesCount();
-                expect(unprocessed).to.equal(0);
-                expect(processed).to.equal(1);
+                expect(unprocessed).toBe(0);
+                expect(processed).toBe(1);
                 resolve();
               }
             } catch (err) {
@@ -616,9 +620,7 @@ describe('flows', () => {
 
         await job.remove({ removeChildren: false });
 
-        await expect(
-          children![0].job.removeChildDependency(),
-        ).to.be.rejectedWith(
+        await expect(children![0].job.removeChildDependency()).rejects.toThrow(
           `Missing key for parent job ${
             children![0].job.parentKey
           }. removeChildDependency`,
@@ -653,9 +655,7 @@ describe('flows', () => {
 
         await children![0].job.remove();
 
-        await expect(
-          children![0].job.removeChildDependency(),
-        ).to.be.rejectedWith(
+        await expect(children![0].job.removeChildDependency()).rejects.toThrow(
           `Missing key for job ${children![0].job.id}. removeChildDependency`,
         );
 
@@ -675,12 +675,12 @@ describe('flows', () => {
           processed: {},
           ignored: {},
         });
-        expect(values).to.deep.include({
+        expect(values).toMatchObject({
           processed: {},
           nextProcessedCursor: 0,
         });
-        expect(Object.keys(values.ignored!).length).to.be.equal(3);
-        expect(values.nextIgnoredCursor).to.be.equal(0);
+        expect(Object.keys(values.ignored!).length).toBe(3);
+        expect(values.nextIgnoredCursor).toBe(0);
       };
 
       const parentWorker = new Worker(parentQueueName, parentProcessor, {
@@ -705,7 +705,7 @@ describe('flows', () => {
         parentWorker.on('completed', async (job: Job) => {
           expect(job.finishedOn).to.be.string;
           const counts = await parentQueue.getJobCounts('completed');
-          expect(counts.completed).to.be.equal(1);
+          expect(counts.completed).toBe(1);
           resolve();
         });
       });
@@ -737,31 +737,31 @@ describe('flows', () => {
         ],
       });
 
-      expect(tree).to.have.property('job');
-      expect(tree).to.have.property('children');
+      expect(tree).toHaveProperty('job');
+      expect(tree).toHaveProperty('children');
 
       const { children, job } = tree;
       const parentState = await job.getState();
 
-      expect(parentState).to.be.eql('waiting-children');
-      expect(children).to.have.length(3);
+      expect(parentState).toEqual('waiting-children');
+      expect(children).toHaveLength(3);
 
-      expect(children[0].job.id).to.be.ok;
-      expect(children[0].job.data.foo).to.be.eql('bar');
-      expect(children[1].job.id).to.be.ok;
-      expect(children[1].job.data.foo).to.be.eql('baz');
-      expect(children[2].job.id).to.be.ok;
-      expect(children[2].job.data.foo).to.be.eql('qux');
+      expect(children[0].job.id).toBeTruthy();
+      expect(children[0].job.data.foo).toEqual('bar');
+      expect(children[1].job.id).toBeTruthy();
+      expect(children[1].job.data.foo).toEqual('baz');
+      expect(children[2].job.id).toBeTruthy();
+      expect(children[2].job.data.foo).toEqual('qux');
 
       await completed;
 
       const { ignored } = await job.getDependenciesCount({ ignored: true });
 
-      expect(ignored).to.be.equal(3);
+      expect(ignored).toBe(3);
 
       const ignoredChildrenValues = await job.getIgnoredChildrenFailures();
 
-      expect(ignoredChildrenValues).to.deep.equal({
+      expect(ignoredChildrenValues).toEqual({
         [`${queue.qualifiedName}:${children[0].job.id}`]: 'error',
         [`${queue.qualifiedName}:${children[1].job.id}`]: 'error',
         [`${queue.qualifiedName}:${children[2].job.id}`]: 'error',
@@ -771,7 +771,7 @@ describe('flows', () => {
         id: job.id!,
         queueName: parentQueueName,
       });
-      expect(flowTree.children?.length).to.be.equal(3);
+      expect(flowTree.children?.length).toBe(3);
 
       await childrenWorker.close();
       await parentWorker.close();
@@ -779,7 +779,7 @@ describe('flows', () => {
       await parentQueue.close();
 
       await removeAllQueueData(new IORedis(redisHost), parentQueueName);
-    }).timeout(8000);
+    }); // TODO: Add { timeout: 8000 } to the it() options
   });
 
   describe('when removeDependencyOnFailure is provided', async () => {
@@ -792,7 +792,7 @@ describe('flows', () => {
         const values = await job.getDependencies({
           processed: {},
         });
-        expect(values).to.deep.equal({
+        expect(values).toEqual({
           processed: {},
           nextProcessedCursor: 0,
         });
@@ -820,7 +820,7 @@ describe('flows', () => {
         parentWorker.on('completed', async (job: Job) => {
           expect(job.finishedOn).to.be.string;
           const counts = await parentQueue.getJobCounts('completed');
-          expect(counts.completed).to.be.equal(1);
+          expect(counts.completed).toBe(1);
           resolve();
         });
       });
@@ -852,21 +852,21 @@ describe('flows', () => {
         ],
       });
 
-      expect(tree).to.have.property('job');
-      expect(tree).to.have.property('children');
+      expect(tree).toHaveProperty('job');
+      expect(tree).toHaveProperty('children');
 
       const { children, job } = tree;
       const parentState = await job.getState();
 
-      expect(parentState).to.be.eql('waiting-children');
-      expect(children).to.have.length(3);
+      expect(parentState).toEqual('waiting-children');
+      expect(children).toHaveLength(3);
 
-      expect(children![0].job.id).to.be.ok;
-      expect(children![0].job.data.foo).to.be.eql('bar');
-      expect(children![1].job.id).to.be.ok;
-      expect(children![1].job.data.foo).to.be.eql('baz');
-      expect(children![2].job.id).to.be.ok;
-      expect(children![2].job.data.foo).to.be.eql('qux');
+      expect(children![0].job.id).toBeTruthy();
+      expect(children![0].job.data.foo).toEqual('bar');
+      expect(children![1].job.id).toBeTruthy();
+      expect(children![1].job.data.foo).toEqual('baz');
+      expect(children![2].job.id).toBeTruthy();
+      expect(children![2].job.data.foo).toEqual('qux');
 
       await completed;
       await childrenWorker.close();
@@ -875,12 +875,12 @@ describe('flows', () => {
       await parentQueue.close();
 
       await removeAllQueueData(new IORedis(redisHost), parentQueueName);
-    }).timeout(8000);
+    }); // TODO: Add { timeout: 8000 } to the it() options
   });
 
   describe('when chaining flows at runtime using step jobs', () => {
-    it('should wait children as one step of the parent job', async function () {
-      this.timeout(8000);
+    it('should wait children as one step of the parent job', async () => {
+      // TODO: Move timeout to test options: { timeout: 8000 }
       const childrenQueueName = `children-queue-${v4()}`;
       const grandchildrenQueueName = `grandchildren-queue-${v4()}`;
 
@@ -986,7 +986,7 @@ describe('flows', () => {
 
       await new Promise<void>(resolve => {
         worker.on('completed', job => {
-          expect(job.returnvalue).to.equal(Step.Finish);
+          expect(job.returnvalue).toBe(Step.Finish);
           resolve();
         });
       });
@@ -1000,7 +1000,7 @@ describe('flows', () => {
     });
 
     describe('when parent has pending children to be processed when trying to move it to completed', () => {
-      it('should fail parent with pending dependencies error', async function () {
+      it('should fail parent with pending dependencies error', async () => {
         const childrenQueueName = `children-queue-${v4()}`;
 
         enum Step {
@@ -1064,8 +1064,8 @@ describe('flows', () => {
           queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
             try {
               if (jobId === job.id) {
-                expect(prev).to.be.equal('active');
-                expect(failedReason).to.be.equal(
+                expect(prev).toBe('active');
+                expect(failedReason).toBe(
                   `Job ${jobId} has pending dependencies. moveToFinished`,
                 );
                 resolve();
@@ -1086,7 +1086,7 @@ describe('flows', () => {
       });
 
       describe('when parent has pending children to be processed when trying to move it to completed', () => {
-        it('should fail parent with pending dependencies error', async function () {
+        it('should fail parent with pending dependencies error', async () => {
           const childrenQueueName = `children-queue-${v4()}`;
 
           enum Step {
@@ -1152,8 +1152,8 @@ describe('flows', () => {
             queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
               try {
                 if (jobId === job.id) {
-                  expect(prev).to.be.equal('active');
-                  expect(failedReason).to.be.equal(
+                  expect(prev).toBe('active');
+                  expect(failedReason).toBe(
                     `Job ${jobId} has pending dependencies. moveToFinished`,
                   );
                   resolve();
@@ -1176,7 +1176,7 @@ describe('flows', () => {
     });
 
     describe('when parent is not in waiting-children state when one child with failParentOnFailure failed', () => {
-      it('should fail parent when trying to move it to waiting children', async function () {
+      it('should fail parent when trying to move it to waiting children', async () => {
         const childrenQueueName = `children-queue-${v4()}`;
         const grandchildrenQueueName = `grandchildren-queue-${v4()}`;
 
@@ -1287,14 +1287,14 @@ describe('flows', () => {
           queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
             try {
               if (jobId === job.id) {
-                expect(prev).to.be.equal('active');
-                expect(failedReason).to.be.equal(
+                expect(prev).toBe('active');
+                expect(failedReason).toBe(
                   `Cannot complete job ${jobId} because it has at least one failed child. moveToWaitingChildren`,
                 );
                 const activeCount = await queue.getActiveCount();
-                expect(activeCount).to.be.equal(0);
+                expect(activeCount).toBe(0);
                 const childrenCounts = await job.getDependenciesCount();
-                expect(childrenCounts).to.deep.equal({
+                expect(childrenCounts).toEqual({
                   processed: 0,
                   unprocessed: 0,
                   ignored: 0,
@@ -1311,7 +1311,7 @@ describe('flows', () => {
         const workerFailedEvent = new Promise<void>((resolve, rejects) => {
           worker.once('failed', async job => {
             try {
-              expect(job!.failedReason).to.be.equal(
+              expect(job!.failedReason).toBe(
                 `Cannot complete job ${job!.id} because it has at least one failed child. moveToWaitingChildren`,
               );
               resolve();
@@ -1332,7 +1332,7 @@ describe('flows', () => {
       });
 
       describe('when parent has another parent', () => {
-        it('should fail parent and grandparent when trying to move it to waiting children', async function () {
+        it('should fail parent and grandparent when trying to move it to waiting children', async () => {
           const childrenQueueName = `children-queue-${v4()}`;
           const grandchildrenQueueName = `grandchildren-queue-${v4()}`;
 
@@ -1469,12 +1469,12 @@ describe('flows', () => {
           const failed = new Promise<void>(resolve => {
             queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
               if (jobId === job.id) {
-                expect(prev).to.be.equal('active');
-                expect(failedReason).to.be.equal(
+                expect(prev).toBe('active');
+                expect(failedReason).toBe(
                   `Cannot complete job ${jobId} because it has at least one failed child. moveToWaitingChildren`,
                 );
                 const childrenCounts = await job.getDependenciesCount();
-                expect(childrenCounts).to.deep.equal({
+                expect(childrenCounts).toEqual({
                   processed: 0,
                   unprocessed: 0,
                   ignored: 0,
@@ -1487,7 +1487,7 @@ describe('flows', () => {
 
           const workerFailedEvent = new Promise<void>(resolve => {
             worker.once('failed', async job => {
-              expect(job!.failedReason).to.be.equal(
+              expect(job!.failedReason).toBe(
                 `Cannot complete job ${job.id} because it has at least one failed child. moveToWaitingChildren`,
               );
               resolve();
@@ -1507,7 +1507,7 @@ describe('flows', () => {
     });
 
     describe('when parent failed before moving to waiting-children', () => {
-      it('should fail parent with last error', async function () {
+      it('should fail parent with last error', async () => {
         const childrenQueueName = `children-queue-${v4()}`;
         const grandchildrenQueueName = `grandchildren-queue-${v4()}`;
 
@@ -1604,8 +1604,8 @@ describe('flows', () => {
         const failed = new Promise<void>(resolve => {
           queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
             if (jobId === job.id) {
-              expect(prev).to.be.equal('active');
-              expect(failedReason).to.be.equal('fail');
+              expect(prev).toBe('active');
+              expect(failedReason).toBe('fail');
               resolve();
             }
           });
@@ -1684,14 +1684,14 @@ describe('flows', () => {
         ],
       });
 
-      expect(tree).to.have.property('job');
-      expect(tree).to.have.property('children');
+      expect(tree).toHaveProperty('job');
+      expect(tree).toHaveProperty('children');
 
       const { children, job } = tree;
       const parentState = await job.getState();
 
-      expect(parentState).to.be.eql('waiting-children');
-      expect(children).to.have.length(1);
+      expect(parentState).toEqual('waiting-children');
+      expect(children).toHaveLength(1);
 
       await processingParent;
 
@@ -1701,7 +1701,7 @@ describe('flows', () => {
 
       const count = await queue.getJobCountByTypes('completed');
 
-      expect(count).to.be.eql(3);
+      expect(count).toEqual(3);
     });
   });
 
@@ -1734,8 +1734,8 @@ describe('flows', () => {
         const { processed, nextProcessedCursor } = await job.getDependencies({
           processed: {},
         });
-        expect(nextProcessedCursor).to.be.equal(0);
-        expect(Object.keys(processed)).to.have.length(3);
+        expect(nextProcessedCursor).toBe(0);
+        expect(Object.keys(processed)).toHaveLength(3);
 
         const childrenValues = await job.getChildrenValues();
 
@@ -1760,9 +1760,9 @@ describe('flows', () => {
         parentWorker.on('completed', async (job: Job) => {
           expect(job.finishedOn).to.be.string;
           const gotJob = await parentQueue.getJob(job.id);
-          expect(gotJob).to.be.undefined;
+          expect(gotJob).toBeUndefined();
           const counts = await parentQueue.getJobCounts('completed');
-          expect(counts.completed).to.be.equal(0);
+          expect(counts.completed).toBe(0);
           resolve();
         });
       });
@@ -1790,25 +1790,25 @@ describe('flows', () => {
         },
       );
 
-      expect(tree).to.have.property('job');
-      expect(tree).to.have.property('children');
+      expect(tree).toHaveProperty('job');
+      expect(tree).toHaveProperty('children');
 
       const { children, job } = tree;
       const parentState = await job.getState();
 
-      expect(parentState).to.be.eql('waiting-children');
-      expect(children).to.have.length(3);
+      expect(parentState).toEqual('waiting-children');
+      expect(children).toHaveLength(3);
 
-      expect(children[0].job.id).to.be.ok;
-      expect(children[0].job.data.foo).to.be.eql('bar');
-      expect(children[0].job.parent).to.deep.equal({
+      expect(children[0].job.id).toBeTruthy();
+      expect(children[0].job.data.foo).toEqual('bar');
+      expect(children[0].job.parent).toEqual({
         id: job.id,
         queueKey: `${prefix}:${parentQueueName}`,
       });
-      expect(children[1].job.id).to.be.ok;
-      expect(children[1].job.data.foo).to.be.eql('baz');
-      expect(children[2].job.id).to.be.ok;
-      expect(children[2].job.data.foo).to.be.eql('qux');
+      expect(children[1].job.id).toBeTruthy();
+      expect(children[1].job.data.foo).toEqual('baz');
+      expect(children[2].job.id).toBeTruthy();
+      expect(children[2].job.data.foo).toEqual('qux');
 
       await processingChildren;
       await childrenWorker.close();
@@ -1845,7 +1845,7 @@ describe('flows', () => {
         resolve =>
           (childrenProcessor = async (job: Job) => {
             if (job.data.idx !== undefined) {
-              expect(job.data.idx).to.be.equal(processedChildren);
+              expect(job.data.idx).toBe(processedChildren);
               processedChildren++;
 
               if (processedChildren == values.length) {
@@ -1876,11 +1876,11 @@ describe('flows', () => {
         const { processed, nextProcessedCursor } = await job.getDependencies({
           processed: {},
         });
-        expect(nextProcessedCursor).to.be.equal(0);
-        expect(Object.keys(processed)).to.have.length(3);
+        expect(nextProcessedCursor).toBe(0);
+        expect(Object.keys(processed)).toHaveLength(3);
 
         const childrenValues = await job.getChildrenValues();
-        expect(Object.keys(childrenValues).length).to.be.equal(3);
+        expect(Object.keys(childrenValues).length).toBe(3);
       };
 
       const parentWorker = new Worker(parentQueueName, parentProcessor, {
@@ -1908,9 +1908,9 @@ describe('flows', () => {
         parentWorker.on('completed', async (job: Job) => {
           expect(job.finishedOn).to.be.string;
           const gotJob = await parentQueue.getJob(job.id);
-          expect(gotJob).to.be.undefined;
+          expect(gotJob).toBeUndefined();
           const counts = await parentQueue.getJobCounts('completed');
-          expect(counts.completed).to.be.equal(0);
+          expect(counts.completed).toBe(0);
           resolve();
         });
       });
@@ -1975,25 +1975,25 @@ describe('flows', () => {
         },
       );
 
-      expect(tree).to.have.property('job');
-      expect(tree).to.have.property('children');
+      expect(tree).toHaveProperty('job');
+      expect(tree).toHaveProperty('children');
 
       const { children, job } = tree;
       const parentState = await job.getState();
 
-      expect(parentState).to.be.eql('waiting-children');
-      expect(children).to.have.length(3);
+      expect(parentState).toEqual('waiting-children');
+      expect(children).toHaveLength(3);
 
-      expect(children[0].job.id).to.be.ok;
-      expect(children[0].job.data.foo).to.be.eql('baz');
-      expect(children[0].job.parent).to.deep.equal({
+      expect(children[0].job.id).toBeTruthy();
+      expect(children[0].job.data.foo).toEqual('baz');
+      expect(children[0].job.parent).toEqual({
         id: job.id,
         queueKey: `${prefix}:${parentQueueName}`,
       });
-      expect(children[1].job.id).to.be.ok;
-      expect(children[1].job.data.foo).to.be.eql('qux');
-      expect(children[2].job.id).to.be.ok;
-      expect(children[2].job.data.foo).to.be.eql('bar');
+      expect(children[1].job.id).toBeTruthy();
+      expect(children[1].job.data.foo).toEqual('qux');
+      expect(children[2].job.id).toBeTruthy();
+      expect(children[2].job.data.foo).toEqual('bar');
 
       await processingGrandChildren;
 
@@ -2011,7 +2011,7 @@ describe('flows', () => {
 
       await removeAllQueueData(new IORedis(redisHost), parentQueueName);
       await removeAllQueueData(new IORedis(redisHost), grandchildrenQueueName);
-    }).timeout(8000);
+    }); // TODO: Add { timeout: 8000 } to the it() options
   });
 
   describe('when backoff strategy is provided', async () => {
@@ -2086,17 +2086,17 @@ describe('flows', () => {
         ],
       });
 
-      expect(tree).to.have.property('job');
-      expect(tree).to.have.property('children');
+      expect(tree).toHaveProperty('job');
+      expect(tree).toHaveProperty('children');
 
       const { children, job } = tree;
       const parentState = await job.getState();
 
-      expect(parentState).to.be.eql('waiting-children');
-      expect(children).to.have.length(1);
+      expect(parentState).toEqual('waiting-children');
+      expect(children).toHaveLength(1);
 
-      expect(children[0].job.id).to.be.ok;
-      expect(children[0].job.data.foo).to.be.eql('bar');
+      expect(children[0].job.id).toBeTruthy();
+      expect(children[0].job.data.foo).toEqual('bar');
 
       await processingChildren;
       await childrenWorker.close();
@@ -2194,14 +2194,14 @@ describe('flows', () => {
 
       const state = await tree.job.getState();
 
-      expect(state).to.be.equal('completed');
+      expect(state).toBe('completed');
 
       await worker.close();
       await flow.close();
     });
 
-    it('processes parent jobs added while a child job is active', async function () {
-      this.timeout(10_000);
+    it('processes parent jobs added while a child job is active', async () => {
+      // TODO: Move timeout to test options: { timeout: 10_000 }
 
       const worker = new Worker(
         queueName,
@@ -2259,7 +2259,7 @@ describe('flows', () => {
 
       const state = await tree.job.getState();
 
-      expect(state).to.be.equal('completed');
+      expect(state).toBe('completed');
 
       await worker.close();
       await flow.close();
@@ -2305,7 +2305,7 @@ describe('flows', () => {
               },
             },
           ),
-        ).to.be.rejectedWith(
+        ).rejects.toThrow(
           `The parent job ${prefix}:${queueName}:wed cannot be replaced. addJob`,
         );
 
@@ -2378,7 +2378,7 @@ describe('flows', () => {
         await delay(1000);
         const state = await tree.job.getState();
 
-        expect(state).to.be.equal('completed');
+        expect(state).toBe('completed');
 
         await worker.close();
         await flow.close();
@@ -2422,8 +2422,8 @@ describe('flows', () => {
               await job.getDependencies({
                 processed: {},
               });
-            expect(nextProcessedCursor).to.be.equal(0);
-            expect(Object.keys(processed)).to.have.length(1);
+            expect(nextProcessedCursor).toBe(0);
+            expect(Object.keys(processed)).toHaveLength(1);
 
             const childrenValues = await job.getChildrenValues();
 
@@ -2458,17 +2458,17 @@ describe('flows', () => {
         children: [{ name, data: { idx: 0, foo: 'bar' }, queueName }],
       });
 
-      expect(tree).to.have.property('job');
-      expect(tree).to.have.property('children');
+      expect(tree).toHaveProperty('job');
+      expect(tree).toHaveProperty('children');
 
       const { children, job } = tree;
       const parentState = await job.getState();
 
-      expect(parentState).to.be.eql('waiting-children');
-      expect(children).to.have.length(1);
+      expect(parentState).toEqual('waiting-children');
+      expect(children).toHaveLength(1);
 
-      expect(children[0].job.id).to.be.ok;
-      expect(children[0].job.data.foo).to.be.eql('bar');
+      expect(children[0].job.id).toBeTruthy();
+      expect(children[0].job.data.foo).toEqual('bar');
 
       await processingChildren;
       await childrenWorker.close();
@@ -2508,7 +2508,7 @@ describe('flows', () => {
         childrenProcessor = async (job: Job) => {
           processedChildren++;
           await delay(25);
-          expect(processedChildren).to.be.equal(job.data.order);
+          expect(processedChildren).toBe(job.data.order);
 
           if (processedChildren === 3) {
             resolve();
@@ -2521,7 +2521,7 @@ describe('flows', () => {
         grandChildrenProcessor = async (job: Job) => {
           processedGrandChildren++;
           await delay(25);
-          expect(processedGrandChildren).to.be.equal(job.data.order);
+          expect(processedGrandChildren).toBe(job.data.order);
 
           if (processedGrandChildren === 3) {
             resolve();
@@ -2537,8 +2537,8 @@ describe('flows', () => {
               await job.getDependencies({
                 processed: {},
               });
-            expect(nextProcessedCursor).to.be.equal(0);
-            expect(Object.keys(processed)).to.have.length(3);
+            expect(nextProcessedCursor).toBe(0);
+            expect(Object.keys(processed)).toHaveLength(3);
 
             const childrenValues = await job.getChildrenValues();
 
@@ -2620,14 +2620,14 @@ describe('flows', () => {
         ],
       });
 
-      expect(tree).to.have.property('job');
-      expect(tree).to.have.property('children');
+      expect(tree).toHaveProperty('job');
+      expect(tree).toHaveProperty('children');
 
       const { children, job } = tree;
       const parentState = await job.getState();
 
-      expect(parentState).to.be.eql('waiting-children');
-      expect(children).to.have.length(3);
+      expect(parentState).toEqual('waiting-children');
+      expect(children).toHaveLength(3);
 
       grandChildrenWorker.run();
 
@@ -2646,7 +2646,7 @@ describe('flows', () => {
 
       await removeAllQueueData(new IORedis(redisHost), parentQueueName);
       await removeAllQueueData(new IORedis(redisHost), grandChildrenQueueName);
-    }).timeout(8000);
+    }); // TODO: Add { timeout: 8000 } to the it() options
   });
 
   describe('when failParentOnFailure option is provided', async () => {
@@ -2741,8 +2741,8 @@ describe('flows', () => {
         const failed = new Promise<void>(resolve => {
           queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
             if (jobId === tree.job.id) {
-              expect(prev).to.be.equal('active');
-              expect(failedReason).to.be.equal(
+              expect(prev).toBe('active');
+              expect(failedReason).toBe(
                 `child ${prefix}:${queueName}:${tree.children[1].job.id} failed`,
               );
               resolve();
@@ -2750,13 +2750,13 @@ describe('flows', () => {
           });
         });
 
-        expect(tree).to.have.property('job');
-        expect(tree).to.have.property('children');
+        expect(tree).toHaveProperty('job');
+        expect(tree).toHaveProperty('children');
 
         const { children, job } = tree;
         const parentState = await job.getState();
 
-        expect(parentState).to.be.eql('waiting-children');
+        expect(parentState).toEqual('waiting-children');
 
         await processingChildren;
         await failed;
@@ -2765,13 +2765,13 @@ describe('flows', () => {
           failed: true,
         });
 
-        expect(failedCount).to.be.equal(1);
+        expect(failedCount).toBe(1);
 
         const flowTree = await flow.getFlow({
           id: job.id!,
           queueName: parentQueueName,
         });
-        expect(flowTree.children?.length).to.be.equal(2);
+        expect(flowTree.children?.length).toBe(2);
 
         const { children: grandChildren } = children[1];
         const updatedGrandchildJob = await grandChildrenQueue.getJob(
@@ -2779,22 +2779,22 @@ describe('flows', () => {
         );
         const grandChildState = await updatedGrandchildJob.getState();
 
-        expect(grandChildState).to.be.eql('failed');
-        expect(updatedGrandchildJob.failedReason).to.be.eql('failed');
+        expect(grandChildState).toEqual('failed');
+        expect(updatedGrandchildJob.failedReason).toEqual('failed');
 
         const updatedParentJob = await queue.getJob(children[1].job.id);
         const updatedParentState = await updatedParentJob.getState();
 
-        expect(updatedParentState).to.be.eql('failed');
-        expect(updatedParentJob.failedReason).to.be.eql(
+        expect(updatedParentState).toEqual('failed');
+        expect(updatedParentJob.failedReason).toEqual(
           `child ${prefix}:${grandChildrenQueueName}:${updatedGrandchildJob.id} failed`,
         );
 
         const updatedGrandparentJob = await parentQueue.getJob(job.id);
         const updatedGrandparentState = await updatedGrandparentJob.getState();
 
-        expect(updatedGrandparentState).to.be.eql('failed');
-        expect(updatedGrandparentJob.failedReason).to.be.eql(
+        expect(updatedGrandparentState).toEqual('failed');
+        expect(updatedGrandparentJob.failedReason).toEqual(
           `child ${prefix}:${queueName}:${updatedParentJob.id} failed`,
         );
 
@@ -2919,9 +2919,9 @@ describe('flows', () => {
         const failed = new Promise<void>((resolve, reject) => {
           queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
             try {
-              expect(jobId).to.be.equal(job.id);
-              expect(prev).to.be.equal('active');
-              expect(failedReason).to.be.equal(
+              expect(jobId).toBe(job.id);
+              expect(prev).toBe('active');
+              expect(failedReason).toBe(
                 `child ${prefix}:${childrenQueueName}:${childId} failed`,
               );
               resolve();
@@ -3059,9 +3059,9 @@ describe('flows', () => {
         const failed = new Promise<void>((resolve, reject) => {
           queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
             try {
-              expect(jobId).to.be.equal(job.id);
-              expect(prev).to.be.equal('active');
-              expect(failedReason).to.be.equal(
+              expect(jobId).toBe(job.id);
+              expect(prev).toBe('active');
+              expect(failedReason).toBe(
                 `child ${prefix}:${childrenQueueName}:${childId} failed`,
               );
               resolve();
@@ -3184,8 +3184,8 @@ describe('flows', () => {
         const failing = new Promise<void>(resolve => {
           queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
             if (jobId === tree.job.id) {
-              expect(prev).to.be.equal('active');
-              expect(failedReason).to.be.equal(
+              expect(prev).toBe('active');
+              expect(failedReason).toBe(
                 `child ${prefix}:${queueName}:${tree.children[1].job.id} failed`,
               );
               resolve();
@@ -3193,20 +3193,20 @@ describe('flows', () => {
           });
         });
 
-        expect(tree).to.have.property('job');
-        expect(tree).to.have.property('children');
+        expect(tree).toHaveProperty('job');
+        expect(tree).toHaveProperty('children');
 
         const { children, job } = tree;
         const parentState = await job.getState();
 
-        expect(parentState).to.be.eql('waiting-children');
+        expect(parentState).toEqual('waiting-children');
 
         await processingChildren;
         await failing;
 
         const { failed } = await job.getDependenciesCount({ failed: true });
 
-        expect(failed).to.be.equal(1);
+        expect(failed).toBe(1);
 
         const { children: grandChildren } = children[1];
         const updatedGrandchildJob = await grandChildrenQueue.getJob(
@@ -3214,17 +3214,17 @@ describe('flows', () => {
         );
         const grandChildState = await updatedGrandchildJob.getState();
 
-        expect(grandChildState).to.be.eql('failed');
-        expect(updatedGrandchildJob.failedReason).to.be.eql('failed');
+        expect(grandChildState).toEqual('failed');
+        expect(updatedGrandchildJob.failedReason).toEqual('failed');
 
         const updatedParentJob = await queue.getJob(children[1].job.id);
-        expect(updatedParentJob).to.be.undefined;
+        expect(updatedParentJob).toBeUndefined();
 
         const updatedGrandparentJob = await parentQueue.getJob(job.id);
         const updatedGrandparentState = await updatedGrandparentJob.getState();
 
-        expect(updatedGrandparentState).to.be.eql('failed');
-        expect(updatedGrandparentJob.failedReason).to.be.eql(
+        expect(updatedGrandparentState).toEqual('failed');
+        expect(updatedGrandparentJob.failedReason).toEqual(
           `child ${prefix}:${queueName}:${children[1].job.id} failed`,
         );
 
@@ -3322,8 +3322,8 @@ describe('flows', () => {
           queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
             try {
               if (jobId === tree!.children![0].job.id) {
-                expect(prev).to.be.equal('active');
-                expect(failedReason).to.be.equal(
+                expect(prev).toBe('active');
+                expect(failedReason).toBe(
                   `child ${prefix}:${grandChildrenQueueName}:${
                     tree!.children![0].children![0].job.id
                   } failed`,
@@ -3344,13 +3344,13 @@ describe('flows', () => {
           });
         });
 
-        expect(tree).to.have.property('job');
-        expect(tree).to.have.property('children');
+        expect(tree).toHaveProperty('job');
+        expect(tree).toHaveProperty('children');
 
         const { children, job } = tree;
         const parentState = await job.getState();
 
-        expect(parentState).to.be.eql('waiting-children');
+        expect(parentState).toEqual('waiting-children');
 
         await processingChildren;
         await failed;
@@ -3360,21 +3360,21 @@ describe('flows', () => {
           grandChildren[0].job.id,
         );
         const grandChildState = await updatedGrandchildJob.getState();
-        expect(grandChildState).to.be.eql('failed');
-        expect(updatedGrandchildJob.failedReason).to.be.eql('failed');
+        expect(grandChildState).toEqual('failed');
+        expect(updatedGrandchildJob.failedReason).toEqual('failed');
 
         const updatedParentJob = await queue.getJob(children[0].job.id);
         const updatedParentState = await updatedParentJob.getState();
 
-        expect(updatedParentState).to.be.eql('failed');
-        expect(updatedParentJob.failedReason).to.be.eql(
+        expect(updatedParentState).toEqual('failed');
+        expect(updatedParentJob.failedReason).toEqual(
           `child ${prefix}:${grandChildrenQueueName}:${updatedGrandchildJob.id} failed`,
         );
 
         const updatedGrandparentJob = await parentQueue.getJob(job.id);
         const updatedGrandparentState = await updatedGrandparentJob.getState();
 
-        expect(updatedGrandparentState).to.be.eql('waiting');
+        expect(updatedGrandparentState).toEqual('waiting');
 
         await parentQueue.close();
         await grandChildrenQueue.close();
@@ -3388,7 +3388,7 @@ describe('flows', () => {
           new IORedis(redisHost),
           grandChildrenQueueName,
         );
-      }).timeout(8000);
+      }); // TODO: Add { timeout: 8000 } to the it() options
     });
 
     describe('when ignoreDependencyOnFailure is provided', async () => {
@@ -3470,8 +3470,8 @@ describe('flows', () => {
           queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
             try {
               if (jobId === tree!.children![0].job.id) {
-                expect(prev).to.be.equal('active');
-                expect(failedReason).to.be.equal(
+                expect(prev).toBe('active');
+                expect(failedReason).toBe(
                   `child ${prefix}:${grandChildrenQueueName}:${
                     tree!.children![0].children![0].job.id
                   } failed`,
@@ -3492,13 +3492,13 @@ describe('flows', () => {
           });
         });
 
-        expect(tree).to.have.property('job');
-        expect(tree).to.have.property('children');
+        expect(tree).toHaveProperty('job');
+        expect(tree).toHaveProperty('children');
 
         const { children, job } = tree;
         const parentState = await job.getState();
 
-        expect(parentState).to.be.eql('waiting-children');
+        expect(parentState).toEqual('waiting-children');
 
         await processingChildren;
         await failed;
@@ -3508,30 +3508,30 @@ describe('flows', () => {
           grandChildren[0].job.id,
         );
         const grandChildState = await updatedGrandchildJob.getState();
-        expect(grandChildState).to.be.eql('failed');
-        expect(updatedGrandchildJob.failedReason).to.be.eql('failed');
+        expect(grandChildState).toEqual('failed');
+        expect(updatedGrandchildJob.failedReason).toEqual('failed');
 
         const updatedParentJob = await queue.getJob(children[0].job.id);
         const updatedParentState = await updatedParentJob.getState();
 
-        expect(updatedParentState).to.be.eql('failed');
-        expect(updatedParentJob.failedReason).to.be.eql(
+        expect(updatedParentState).toEqual('failed');
+        expect(updatedParentJob.failedReason).toEqual(
           `child ${prefix}:${grandChildrenQueueName}:${updatedGrandchildJob.id} failed`,
         );
 
         const values = await tree.job.getDependencies();
-        expect(Object.keys(values.ignored!).length).to.be.equal(1);
+        expect(Object.keys(values.ignored!).length).toBe(1);
 
         const updatedGrandparentJob = await parentQueue.getJob(job.id);
         const updatedGrandparentState = await updatedGrandparentJob.getState();
 
-        expect(updatedGrandparentState).to.be.eql('waiting');
+        expect(updatedGrandparentState).toEqual('waiting');
 
         const ignoredChildrenValues =
           await updatedGrandparentJob.getIgnoredChildrenFailures();
 
         const failedReason = `child ${prefix}:${grandChildrenQueueName}:${updatedGrandchildJob.id} failed`;
-        expect(ignoredChildrenValues).to.deep.equal({
+        expect(ignoredChildrenValues).toEqual({
           [`${queue.qualifiedName}:${children[0].job.id}`]: failedReason,
         });
 
@@ -3547,7 +3547,7 @@ describe('flows', () => {
           new IORedis(redisHost),
           grandChildrenQueueName,
         );
-      }).timeout(8000);
+      }); // TODO: Add { timeout: 8000 } to the it() options
     });
   });
 
@@ -3582,10 +3582,10 @@ describe('flows', () => {
               const children = await job.getFailedChildrenValues();
               const childKey = `${child.queueQualifiedName}:${child.id}`;
 
-              expect(children[childKey]).to.be.equal('failed');
+              expect(children[childKey]).toBe('failed');
 
               const childrenCounts = await job.getDependenciesCount();
-              expect(childrenCounts).to.deep.equal({
+              expect(childrenCounts).toEqual({
                 processed: 0,
                 unprocessed: 0,
                 ignored: 1,
@@ -3671,7 +3671,7 @@ describe('flows', () => {
             try {
               const failedChildren = await job.getFailedChildrenValues();
               const childKey = `${childToFail.queueQualifiedName}:${childToFail.id}`;
-              expect(failedChildren[childKey]).to.be.equal('failed');
+              expect(failedChildren[childKey]).toBe('failed');
               resolve();
             } catch (err) {
               reject(err);
@@ -3764,7 +3764,7 @@ describe('flows', () => {
             try {
               const failedChildren = await job.getFailedChildrenValues();
               const childKey = `${childToFail.queueQualifiedName}:${childToFail.id}`;
-              expect(failedChildren[childKey]).to.be.equal('failed');
+              expect(failedChildren[childKey]).toBe('failed');
               resolve();
             } catch (err) {
               reject(err);
@@ -3842,7 +3842,7 @@ describe('flows', () => {
               const children = await job.getFailedChildrenValues();
               const childKey = `${child.queueQualifiedName}:${child.id}`;
 
-              expect(children[childKey]).to.be.equal('failed');
+              expect(children[childKey]).toBe('failed');
               resolve();
             } catch (err) {
               reject(err);
@@ -3870,10 +3870,10 @@ describe('flows', () => {
         childrenWorker.on('failed', async () => {
           try {
             const delayedCount = await parentQueue.getDelayedCount();
-            expect(delayedCount).to.be.equal(1);
+            expect(delayedCount).toBe(1);
 
             const waitingCount = await parentQueue.getWaitingCount();
-            expect(waitingCount).to.be.equal(0);
+            expect(waitingCount).toBe(0);
             resolve();
           } catch (err) {
             reject(err);
@@ -3934,13 +3934,13 @@ describe('flows', () => {
         childrenWorker.on('failed', async () => {
           try {
             const prioritizedCount = await parentQueue.getPrioritizedCount();
-            expect(prioritizedCount).to.be.equal(1);
+            expect(prioritizedCount).toBe(1);
 
             const delayedCount = await parentQueue.getDelayedCount();
-            expect(delayedCount).to.be.equal(0);
+            expect(delayedCount).toBe(0);
 
             const waitingCount = await parentQueue.getWaitingCount();
-            expect(waitingCount).to.be.equal(0);
+            expect(waitingCount).toBe(0);
             resolve();
           } catch (err) {
             reject(err);
@@ -3961,7 +3961,7 @@ describe('flows', () => {
               const children = await job.getFailedChildrenValues();
               const childKey = `${child.queueQualifiedName}:${child.id}`;
 
-              expect(children[childKey]).to.be.equal('failed');
+              expect(children[childKey]).toBe('failed');
               resolve();
             } catch (err) {
               reject(err);
@@ -4021,7 +4021,7 @@ describe('flows', () => {
               processed: { cursor: nextProcessedCursor, count: 50 },
             });
           expect(Object.keys(processed2).length).lessThanOrEqual(22);
-          expect(nextCursor2).to.be.equal(0);
+          expect(nextCursor2).toBe(0);
 
           resolve();
         } catch (err) {
@@ -4055,14 +4055,14 @@ describe('flows', () => {
       children: otherValues,
     });
 
-    expect(tree).to.have.property('job');
-    expect(tree).to.have.property('children');
+    expect(tree).toHaveProperty('job');
+    expect(tree).toHaveProperty('children');
 
     const { children, job } = tree;
     const parentState = await job.getState();
 
-    expect(parentState).to.be.eql('waiting-children');
-    expect(children).to.have.length(values.length);
+    expect(parentState).toEqual('waiting-children');
+    expect(children).toHaveLength(values.length);
 
     await processingChildren;
     await childrenWorker.close();
@@ -4110,26 +4110,26 @@ describe('flows', () => {
       prefix,
     });
 
-    expect(tree).to.have.property('job');
-    expect(tree).to.have.property('children');
+    expect(tree).toHaveProperty('job');
+    expect(tree).toHaveProperty('children');
 
     const { children, job } = tree;
     const isWaitingChildren = await job.isWaitingChildren();
 
-    expect(isWaitingChildren).to.be.true;
-    expect(children).to.have.length(1);
+    expect(isWaitingChildren).toBe(true);
+    expect(children).toHaveLength(1);
 
-    expect(children[0].job.id).to.be.ok;
-    expect(children[0].job.data.foo).to.be.eql('bar');
-    expect(children[0].job.queueName).to.be.eql(queueName);
-    expect(children[0].children).to.have.length(1);
+    expect(children[0].job.id).toBeTruthy();
+    expect(children[0].job.data.foo).toEqual('bar');
+    expect(children[0].job.queueName).toEqual(queueName);
+    expect(children[0].children).toHaveLength(1);
 
-    expect(children[0].children[0].job.id).to.be.ok;
-    expect(children[0].children[0].job.queueName).to.be.eql(queueName);
-    expect(children[0].children[0].job.data.foo).to.be.eql('baz');
+    expect(children[0].children[0].job.id).toBeTruthy();
+    expect(children[0].children[0].job.queueName).toEqual(queueName);
+    expect(children[0].children[0].job.data.foo).toEqual('baz');
 
-    expect(children[0].children[0].children[0].job.id).to.be.ok;
-    expect(children[0].children[0].children[0].job.data.foo).to.be.eql('qux');
+    expect(children[0].children[0].children[0].job.id).toBeTruthy();
+    expect(children[0].children[0].children[0].job.data.foo).toEqual('qux');
 
     await flow.close();
 
@@ -4183,27 +4183,27 @@ describe('flows', () => {
       prefix,
     });
 
-    expect(tree).to.have.property('job');
-    expect(tree).to.have.property('children');
+    expect(tree).toHaveProperty('job');
+    expect(tree).toHaveProperty('children');
 
     const { children, job } = tree;
     const isWaitingChildren = await job.isWaitingChildren();
 
-    expect(isWaitingChildren).to.be.true;
+    expect(isWaitingChildren).toBe(true);
     expect(children.length).to.be.greaterThanOrEqual(2);
 
-    expect(children[0].job.id).to.be.ok;
-    expect(children[0].children).to.be.undefined;
+    expect(children[0].job.id).toBeTruthy();
+    expect(children[0].children).toBeUndefined();
 
-    expect(children[1].job.id).to.be.ok;
-    expect(children[1].children).to.be.undefined;
+    expect(children[1].job.id).toBeTruthy();
+    expect(children[1].children).toBeUndefined();
 
     await flow.close();
 
     await removeAllQueueData(new IORedis(redisHost), topQueueName);
   });
 
-  describe('when prefix is not provided in getFlow', function () {
+  describe('when prefix is not provided in getFlow', () => {
     it('should get a flow tree using default prefix from FlowProducer', async () => {
       const name = 'child-job';
       const topQueueName = `parent-queue-${v4()}`;
@@ -4238,26 +4238,26 @@ describe('flows', () => {
         queueName: topQueueName,
       });
 
-      expect(tree).to.have.property('job');
-      expect(tree).to.have.property('children');
+      expect(tree).toHaveProperty('job');
+      expect(tree).toHaveProperty('children');
 
       const { children, job } = tree;
       const isWaitingChildren = await job.isWaitingChildren();
 
-      expect(isWaitingChildren).to.be.true;
-      expect(children).to.have.length(1);
+      expect(isWaitingChildren).toBe(true);
+      expect(children).toHaveLength(1);
 
-      expect(children[0].job.id).to.be.ok;
-      expect(children[0].job.data.foo).to.be.eql('bar');
-      expect(children[0].job.queueName).to.be.eql(queueName);
-      expect(children[0].children).to.have.length(1);
+      expect(children[0].job.id).toBeTruthy();
+      expect(children[0].job.data.foo).toEqual('bar');
+      expect(children[0].job.queueName).toEqual(queueName);
+      expect(children[0].children).toHaveLength(1);
 
-      expect(children[0].children[0].job.id).to.be.ok;
-      expect(children[0].children[0].job.queueName).to.be.eql(queueName);
-      expect(children[0].children[0].job.data.foo).to.be.eql('baz');
+      expect(children[0].children[0].job.id).toBeTruthy();
+      expect(children[0].children[0].job.queueName).toEqual(queueName);
+      expect(children[0].children[0].job.data.foo).toEqual('baz');
 
-      expect(children[0].children[0].children[0].job.id).to.be.ok;
-      expect(children[0].children[0].children[0].job.data.foo).to.be.eql('qux');
+      expect(children[0].children[0].children[0].job.id).toBeTruthy();
+      expect(children[0].children[0].children[0].job.data.foo).toEqual('qux');
 
       await flow.close();
 
@@ -4265,7 +4265,7 @@ describe('flows', () => {
     });
   });
 
-  describe('when parent has removeOnComplete as true', function () {
+  describe('when parent has removeOnComplete as true', () => {
     it('removes processed data', async () => {
       const name = 'child-job';
       const values = [
@@ -4300,8 +4300,8 @@ describe('flows', () => {
               await job.getDependencies({
                 processed: {},
               });
-            expect(nextProcessedCursor).to.be.equal(0);
-            expect(Object.keys(processed!)).to.have.length(3);
+            expect(nextProcessedCursor).toBe(0);
+            expect(Object.keys(processed!)).toHaveLength(3);
 
             const childrenValues = await job.getChildrenValues();
 
@@ -4334,8 +4334,8 @@ describe('flows', () => {
             const gotJob = await parentQueue.getJob(job.id);
             const { processed } = await job.getDependencies();
 
-            expect(gotJob).to.be.equal(undefined);
-            expect(Object.keys(processed!).length).to.be.equal(0);
+            expect(gotJob).toBe(undefined);
+            expect(Object.keys(processed!).length).toBe(0);
             resolve();
           } catch (err) {
             reject(err);
@@ -4358,14 +4358,14 @@ describe('flows', () => {
         ],
       });
 
-      expect(tree).to.have.property('job');
-      expect(tree).to.have.property('children');
+      expect(tree).toHaveProperty('job');
+      expect(tree).toHaveProperty('children');
 
       const { children, job } = tree;
       const parentState = await job.getState();
 
-      expect(parentState).to.be.eql('waiting-children');
-      expect(children).to.have.length(3);
+      expect(parentState).toEqual('waiting-children');
+      expect(children).toHaveLength(3);
 
       await processingChildren;
       await childrenWorker.close();
@@ -4406,8 +4406,8 @@ describe('flows', () => {
       children: [],
     });
 
-    expect(tree).to.have.property('job');
-    expect(tree).to.not.have.property('children');
+    expect(tree).toHaveProperty('job');
+    expect(tree).not.toHaveProperty('children');
 
     await processingParent;
     await parentWorker.close();
@@ -4449,8 +4449,8 @@ describe('flows', () => {
           try {
             const { processed, unprocessed } = await job.getDependenciesCount();
 
-            expect(processed).to.be.equal(3);
-            expect(unprocessed).to.be.equal(0);
+            expect(processed).toBe(3);
+            expect(unprocessed).toBe(0);
 
             const childrenValues = await job.getChildrenValues();
 
@@ -4488,24 +4488,24 @@ describe('flows', () => {
       ],
     });
 
-    expect(tree).to.have.property('job');
-    expect(tree).to.have.property('children');
+    expect(tree).toHaveProperty('job');
+    expect(tree).toHaveProperty('children');
 
     const { children, job } = tree;
     const parentState = await job.getState();
 
-    expect(parentState).to.be.eql('waiting-children');
-    expect(children).to.have.length(3);
+    expect(parentState).toEqual('waiting-children');
+    expect(children).toHaveLength(3);
 
     const { unprocessed } = await job.getDependencies();
 
-    expect(unprocessed.length).to.be.greaterThan(0);
-    expect(children[0].job.id).to.be.ok;
-    expect(children[0].job.data.foo).to.be.eql('bar');
-    expect(children[1].job.id).to.be.ok;
-    expect(children[1].job.data.foo).to.be.eql('baz');
-    expect(children[2].job.id).to.be.ok;
-    expect(children[2].job.data.foo).to.be.eql('qux');
+    expect(unprocessed.length).toBeGreaterThan(0);
+    expect(children[0].job.id).toBeTruthy();
+    expect(children[0].job.data.foo).toEqual('bar');
+    expect(children[1].job.id).toBeTruthy();
+    expect(children[1].job.data.foo).toEqual('baz');
+    expect(children[2].job.id).toBeTruthy();
+    expect(children[2].job.data.foo).toEqual('qux');
 
     await processingChildren;
     await childrenWorker.close();
@@ -4537,7 +4537,7 @@ describe('flows', () => {
           const childrenValues = await job.getChildrenValues();
           const waitingChildrenCount = await queue.getWaitingChildrenCount();
 
-          expect(job.data.idx).to.be.eql(values.length - 1 - processedChildren);
+          expect(job.data.idx).toEqual(values.length - 1 - processedChildren);
           switch (job.data.idx) {
             case 0:
               {
@@ -4572,7 +4572,7 @@ describe('flows', () => {
       (parentProcessor = async (job: Job) => {
         try {
           const { processed } = await job.getDependencies();
-          expect(Object.keys(processed)).to.have.length(1);
+          expect(Object.keys(processed)).toHaveLength(1);
 
           const childrenValues = await job.getChildrenValues();
 
@@ -4619,26 +4619,24 @@ describe('flows', () => {
       ],
     });
 
-    expect(tree).to.have.property('job');
-    expect(tree).to.have.property('children');
+    expect(tree).toHaveProperty('job');
+    expect(tree).toHaveProperty('children');
 
     const { children, job } = tree;
     const isWaitingChildren = await job.isWaitingChildren();
 
-    expect(isWaitingChildren).to.be.true;
-    expect(children).to.have.length(1);
+    expect(isWaitingChildren).toBe(true);
+    expect(children).toHaveLength(1);
 
-    expect(children![0].job.id).to.be.ok;
-    expect(children![0].job.data.foo).to.be.eql('bar');
-    expect(children![0].children).to.have.length(1);
+    expect(children![0].job.id).toBeTruthy();
+    expect(children![0].job.data.foo).toEqual('bar');
+    expect(children![0].children).toHaveLength(1);
 
-    expect(children![0].children![0].job.id).to.be.ok;
-    expect(children![0].children![0].job.data.foo).to.be.eql('baz');
+    expect(children![0].children![0].job.id).toBeTruthy();
+    expect(children![0].children![0].job.data.foo).toEqual('baz');
 
-    expect(children![0].children![0].children![0].job.id).to.be.ok;
-    expect(children![0].children![0].children![0].job.data.foo).to.be.eql(
-      'qux',
-    );
+    expect(children![0].children![0].children![0].job.id).toBeTruthy();
+    expect(children![0].children![0].children![0].job.data.foo).toEqual('qux');
 
     await processingChildren;
     await childrenWorker.close();
@@ -4679,10 +4677,10 @@ describe('flows', () => {
 
     const client = await flow.client;
     const metaTop = await client.hgetall(`${prefix}:${topQueueName}:meta`);
-    expect(metaTop).to.deep.include({ 'opts.maxLenEvents': '10000' });
+    expect(metaTop).toMatchObject({ 'opts.maxLenEvents': '10000' });
 
     const metaChildren = await client.hgetall(`${prefix}:${queueName}:meta`);
-    expect(metaChildren).to.deep.include({
+    expect(metaChildren).toMatchObject({
       'opts.maxLenEvents': '10000',
     });
 
@@ -4719,7 +4717,7 @@ describe('flows', () => {
           try {
             const milliseconds = delay - Date.now();
             expect(milliseconds).to.be.lessThanOrEqual(3000);
-            expect(milliseconds).to.be.greaterThan(2000);
+            expect(milliseconds).toBeGreaterThan(2000);
             resolve();
           } catch (error) {
             console.error(error);
@@ -4738,7 +4736,7 @@ describe('flows', () => {
         (parentProcessor = async (job: Job) => {
           try {
             const { processed } = await job.getDependencies();
-            expect(Object.keys(processed)).to.have.length(1);
+            expect(Object.keys(processed)).toHaveLength(1);
 
             const childrenValues = await job.getChildrenValues();
 
@@ -4777,17 +4775,17 @@ describe('flows', () => {
         },
       });
 
-      expect(tree).to.have.property('job');
-      expect(tree).to.have.property('children');
+      expect(tree).toHaveProperty('job');
+      expect(tree).toHaveProperty('children');
 
       const { children, job } = tree;
       const isWaitingChildren = await job.isWaitingChildren();
 
-      expect(isWaitingChildren).to.be.true;
-      expect(children).to.have.length(1);
+      expect(isWaitingChildren).toBe(true);
+      expect(children).toHaveLength(1);
 
-      expect(children[0].job.id).to.be.ok;
-      expect(children[0].job.data.foo).to.be.eql('bar');
+      expect(children[0].job.id).toBeTruthy();
+      expect(children[0].job.data.foo).toEqual('bar');
 
       childrenWorker.run();
       parentWorker.run();
@@ -4798,14 +4796,14 @@ describe('flows', () => {
 
       const isDelayed = await job.isDelayed();
 
-      expect(isDelayed).to.be.true;
+      expect(isDelayed).toBe(true);
       await processingTop;
       await parentWorker.close();
       await queueEvents.close();
       await flow.close();
 
       await removeAllQueueData(new IORedis(redisHost), topQueueName);
-    }).timeout(4500);
+    }); // TODO: Add { timeout: 4500 } to the it() options
   });
 
   describe('when children have delay', () => {
@@ -4838,7 +4836,7 @@ describe('flows', () => {
         (parentProcessor = async (job: Job) => {
           try {
             const { processed } = await job.getDependencies();
-            expect(Object.keys(processed)).to.have.length(1);
+            expect(Object.keys(processed)).toHaveLength(1);
 
             const childrenValues = await job.getChildrenValues();
 
@@ -4876,21 +4874,21 @@ describe('flows', () => {
         ],
       });
 
-      expect(tree).to.have.property('job');
-      expect(tree).to.have.property('children');
+      expect(tree).toHaveProperty('job');
+      expect(tree).toHaveProperty('children');
 
       const { children, job } = tree;
       const isWaitingChildren = await job.isWaitingChildren();
 
-      expect(isWaitingChildren).to.be.true;
-      expect(children).to.have.length(1);
+      expect(isWaitingChildren).toBe(true);
+      expect(children).toHaveLength(1);
 
-      expect(children[0].job.id).to.be.ok;
-      expect(children[0].job.data.foo).to.be.eql('bar');
+      expect(children[0].job.id).toBeTruthy();
+      expect(children[0].job.data.foo).toEqual('bar');
 
       const isDelayed = await children![0].job.isDelayed();
 
-      expect(isDelayed).to.be.true;
+      expect(isDelayed).toBe(true);
 
       await completed;
 
@@ -4931,22 +4929,22 @@ describe('flows', () => {
       children: [{ name, data: { idx: 0, foo: 'bar' }, queueName }],
     });
 
-    expect(tree).to.have.property('job');
-    expect(tree).to.have.property('children');
+    expect(tree).toHaveProperty('job');
+    expect(tree).toHaveProperty('children');
 
     const { children } = tree;
 
-    expect(children).to.have.length(1);
+    expect(children).toHaveLength(1);
 
-    expect(children![0].job.id).to.be.ok;
-    expect(children![0].job.data.foo).to.be.eql('bar');
+    expect(children![0].job.id).toBeTruthy();
+    expect(children![0].job.data.foo).toEqual('bar');
 
     await processingChildren;
     await childrenWorker.close();
 
     const parentQueue = new Queue(parentQueueName, { connection, prefix });
     const numJobs = await parentQueue.getWaitingCount();
-    expect(numJobs).to.be.equal(0);
+    expect(numJobs).toBe(0);
 
     await flow.close();
     await parentQueue.close();
@@ -4993,15 +4991,15 @@ describe('flows', () => {
       children: [{ name, data: { idx: 0, foo: 'bar' }, queueName }],
     });
 
-    expect(tree).to.have.property('job');
-    expect(tree).to.have.property('children');
+    expect(tree).toHaveProperty('job');
+    expect(tree).toHaveProperty('children');
 
     const { children } = tree;
 
-    expect(children).to.have.length(1);
+    expect(children).toHaveLength(1);
 
-    expect(children![0].job.id).to.be.ok;
-    expect(children![0].job.data.foo).to.be.eql('bar');
+    expect(children![0].job.id).toBeTruthy();
+    expect(children![0].job.data.foo).toEqual('bar');
 
     await processingChildren;
     await childrenWorker.close();
@@ -5009,7 +5007,7 @@ describe('flows', () => {
     await delay(500);
 
     let numJobs = await parentQueue.getWaitingCount();
-    expect(numJobs).to.be.equal(1);
+    expect(numJobs).toBe(1);
 
     await parentQueue.resume();
 
@@ -5017,7 +5015,7 @@ describe('flows', () => {
     await parentWorker.close();
 
     numJobs = await parentQueue.getWaitingCount();
-    expect(numJobs).to.be.equal(0);
+    expect(numJobs).toBe(0);
 
     await flow.close();
     await parentQueue.close();
@@ -5061,8 +5059,8 @@ describe('flows', () => {
               await job.getDependencies({
                 processed: {},
               });
-            expect(nextProcessedCursor).to.be.equal(0);
-            expect(Object.keys(processed)).to.have.length(2);
+            expect(nextProcessedCursor).toBe(0);
+            expect(Object.keys(processed)).toHaveLength(2);
 
             const childrenValues = await job.getChildrenValues();
 
@@ -5108,18 +5106,18 @@ describe('flows', () => {
         },
       ]);
 
-      expect(tree).to.have.property('job');
-      expect(tree).to.have.property('children');
+      expect(tree).toHaveProperty('job');
+      expect(tree).toHaveProperty('children');
 
       const { children, job } = tree;
 
-      expect(job.parentKey).to.be.equal(
+      expect(job.parentKey).toBe(
         `${prefix}:${grandparentQueueName}:${grandparentJob.id}`,
       );
       const parentState = await job.getState();
 
-      expect(parentState).to.be.eql('waiting-children');
-      expect(children).to.have.length(2);
+      expect(parentState).toEqual('waiting-children');
+      expect(children).toHaveLength(2);
 
       await processingChildren;
       await childrenWorker.close();
@@ -5209,31 +5207,31 @@ describe('flows', () => {
         },
       ]);
 
-      expect(trees).to.have.length(2);
+      expect(trees).toHaveLength(2);
 
-      expect(trees[0]).to.have.property('job');
-      expect(trees[0]).to.have.property('children');
+      expect(trees[0]).toHaveProperty('job');
+      expect(trees[0]).toHaveProperty('children');
 
-      expect(trees[1]).to.have.property('job');
-      expect(trees[1]).to.have.property('children');
+      expect(trees[1]).toHaveProperty('job');
+      expect(trees[1]).toHaveProperty('children');
 
       const firstJob = trees[0];
       const isFirstJobWaitingChildren = await firstJob.job.isWaitingChildren();
-      expect(isFirstJobWaitingChildren).to.be.true;
-      expect(firstJob.children).to.have.length(1);
+      expect(isFirstJobWaitingChildren).toBe(true);
+      expect(firstJob.children).toHaveLength(1);
 
-      expect(firstJob.children[0].job.id).to.be.ok;
-      expect(firstJob.children[0].job.data.foo).to.be.eql('bar');
-      expect(firstJob.children).to.have.length(1);
+      expect(firstJob.children[0].job.id).toBeTruthy();
+      expect(firstJob.children[0].job.data.foo).toEqual('bar');
+      expect(firstJob.children).toHaveLength(1);
 
       const secondJob = trees[1];
       const isSecondJobWaitingChildren =
         await secondJob.job.isWaitingChildren();
-      expect(isSecondJobWaitingChildren).to.be.true;
-      expect(secondJob.children).to.have.length(1);
+      expect(isSecondJobWaitingChildren).toBe(true);
+      expect(secondJob.children).toHaveLength(1);
 
-      expect(secondJob.children[0].job.id).to.be.ok;
-      expect(secondJob.children[0].job.data.foo).to.be.eql('baz');
+      expect(secondJob.children[0].job.id).toBeTruthy();
+      expect(secondJob.children[0].job.data.foo).toEqual('baz');
 
       const parentWorker = new Worker(rootQueueName, rootProcessor, {
         connection,
@@ -5323,10 +5321,10 @@ describe('flows', () => {
                   const childJob = await Job.fromId(queue, child.job.id!);
 
                   if (!processed.includes(child.job.id!)) {
-                    expect(childJob).to.be.undefined;
+                    expect(childJob).toBeUndefined();
                   } else {
-                    expect(childJob).to.be.ok;
-                    expect(childJob!.parent).to.deep.equal({
+                    expect(childJob).toBeTruthy();
+                    expect(childJob!.parent).toEqual({
                       id: tree.job.id,
                       queueKey: `${prefix}:${parentQueueName}`,
                     });
@@ -5401,13 +5399,13 @@ describe('flows', () => {
       await completing;
 
       const childrenJobs = await queue.getJobCountByTypes('completed');
-      expect(childrenJobs).to.be.equal(numChildren);
+      expect(childrenJobs).toBe(numChildren);
 
       // We try to remove now, but no children should be removed as they are all completed
       await tree.job.removeUnprocessedChildren();
 
       const jobs = await queue.getJobCountByTypes('completed');
-      expect(jobs).to.be.equal(numChildren);
+      expect(jobs).toBe(numChildren);
 
       await flow.close();
       await childrenWorker.close();
@@ -5437,21 +5435,17 @@ describe('flows', () => {
         ],
       });
 
-      expect(await tree.job.getState()).to.be.equal('waiting-children');
+      expect(await tree.job.getState()).toBe('waiting-children');
 
-      expect(await tree.children[0].job.getState()).to.be.equal('waiting');
-      expect(await tree.children[1].job.getState()).to.be.equal(
-        'waiting-children',
-      );
+      expect(await tree.children[0].job.getState()).toBe('waiting');
+      expect(await tree.children[1].job.getState()).toBe('waiting-children');
 
-      expect(await tree.children[1].children[0].job.getState()).to.be.equal(
-        'waiting',
-      );
+      expect(await tree.children[1].children[0].job.getState()).toBe('waiting');
 
       for (let i = 0; i < tree.children.length; i++) {
         const child = tree.children[i];
         const childJob = await Job.fromId(queue, child.job.id);
-        expect(childJob.parent).to.deep.equal({
+        expect(childJob.parent).toEqual({
           id: tree.job.id,
           queueKey: `${prefix}:${parentQueueName}`,
         });
@@ -5461,20 +5455,20 @@ describe('flows', () => {
 
       const parentQueue = new Queue(parentQueueName, { connection, prefix });
       const parentJob = await Job.fromId(parentQueue, tree.job.id);
-      expect(parentJob).to.be.undefined;
+      expect(parentJob).toBeUndefined();
 
       for (let i = 0; i < tree.children.length; i++) {
         const child = tree.children[i];
         const childJob = await Job.fromId(queue, child.job.id);
-        expect(childJob).to.be.undefined;
+        expect(childJob).toBeUndefined();
       }
 
-      expect(await tree.children[0].job.getState()).to.be.equal('unknown');
-      expect(await tree.children[1].job.getState()).to.be.equal('unknown');
-      expect(await tree.job.getState()).to.be.equal('unknown');
+      expect(await tree.children[0].job.getState()).toBe('unknown');
+      expect(await tree.children[1].job.getState()).toBe('unknown');
+      expect(await tree.job.getState()).toBe('unknown');
 
       const jobs = await queue.getJobCountByTypes('waiting');
-      expect(jobs).to.be.equal(0);
+      expect(jobs).toBe(0);
 
       await flow.close();
       await parentQueue.close();
@@ -5502,21 +5496,19 @@ describe('flows', () => {
           ],
         });
 
-        expect(await tree.job.getState()).to.be.equal('waiting-children');
+        expect(await tree.job.getState()).toBe('waiting-children');
 
-        expect(await tree.children[0].job.getState()).to.be.equal('waiting');
-        expect(await tree.children[1].job.getState()).to.be.equal(
-          'waiting-children',
-        );
+        expect(await tree.children[0].job.getState()).toBe('waiting');
+        expect(await tree.children[1].job.getState()).toBe('waiting-children');
 
-        expect(await tree.children[1].children[0].job.getState()).to.be.equal(
+        expect(await tree.children[1].children[0].job.getState()).toBe(
           'waiting',
         );
 
         for (let i = 0; i < tree.children.length; i++) {
           const child = tree.children[i];
           const childJob = await Job.fromId(queue, child.job.id);
-          expect(childJob.parent).to.deep.equal({
+          expect(childJob.parent).toEqual({
             id: tree.job.id,
             queueKey: `${prefix}:${parentQueueName}`,
           });
@@ -5526,22 +5518,20 @@ describe('flows', () => {
 
         const parentQueue = new Queue(parentQueueName, { connection, prefix });
         const parentJob = await Job.fromId(parentQueue, tree.job.id);
-        expect(parentJob).to.be.undefined;
+        expect(parentJob).toBeUndefined();
 
         for (let i = 0; i < tree.children.length; i++) {
           const child = tree.children[i];
           const childJob = await Job.fromId(queue, child.job.id);
-          expect(childJob).to.not.be.undefined;
+          expect(childJob).toBeDefined();
         }
 
-        expect(await tree.children[0].job.getState()).to.be.equal('waiting');
-        expect(await tree.children[1].job.getState()).to.be.equal(
-          'waiting-children',
-        );
-        expect(await tree.job.getState()).to.be.equal('unknown');
+        expect(await tree.children[0].job.getState()).toBe('waiting');
+        expect(await tree.children[1].job.getState()).toBe('waiting-children');
+        expect(await tree.job.getState()).toBe('unknown');
 
         const jobs = await queue.getJobCountByTypes('waiting');
-        expect(jobs).to.be.equal(2);
+        expect(jobs).toBe(2);
 
         await flow.close();
         await parentQueue.close();
@@ -5570,21 +5560,19 @@ describe('flows', () => {
           ],
         });
 
-        expect(await tree.job.getState()).to.be.equal('waiting-children');
+        expect(await tree.job.getState()).toBe('waiting-children');
 
-        expect(await tree.children[0].job.getState()).to.be.equal('waiting');
-        expect(await tree.children[1].job.getState()).to.be.equal(
-          'waiting-children',
-        );
+        expect(await tree.children[0].job.getState()).toBe('waiting');
+        expect(await tree.children[1].job.getState()).toBe('waiting-children');
 
-        expect(await tree.children[1].children[0].job.getState()).to.be.equal(
+        expect(await tree.children[1].children[0].job.getState()).toBe(
           'waiting',
         );
 
         for (let i = 0; i < tree.children.length; i++) {
           const child = tree.children[i];
           const childJob = await Job.fromId(queue, child.job.id);
-          expect(childJob.parent).to.deep.equal({
+          expect(childJob.parent).toEqual({
             id: tree.job.id,
             queueKey: `${prefix}:${parentQueueName}`,
           });
@@ -5616,20 +5604,20 @@ describe('flows', () => {
 
         const parentQueue = new Queue(parentQueueName, { connection, prefix });
         const parentJob = await Job.fromId(parentQueue, tree.job.id);
-        expect(parentJob).to.be.undefined;
+        expect(parentJob).toBeUndefined();
 
         for (let i = 0; i < tree.children.length; i++) {
           const child = tree.children[i];
           const childJob = await Job.fromId(queue, child.job.id);
-          expect(childJob).to.be.undefined;
+          expect(childJob).toBeUndefined();
         }
 
         const jobs = await queue.getJobCountByTypes('completed');
-        expect(jobs).to.be.equal(0);
+        expect(jobs).toBe(0);
 
-        expect(await tree.children[0].job.getState()).to.be.equal('unknown');
-        expect(await tree.children[1].job.getState()).to.be.equal('unknown');
-        expect(await tree.job.getState()).to.be.equal('unknown');
+        expect(await tree.children[0].job.getState()).toBe('unknown');
+        expect(await tree.children[1].job.getState()).toBe('unknown');
+        expect(await tree.job.getState()).toBe('unknown');
 
         await flow.close();
         await childrenWorker.close();
@@ -5669,26 +5657,26 @@ describe('flows', () => {
             ],
           });
 
-          expect(await tree.job.getState()).to.be.equal('waiting-children');
-          expect(await tree.children![0].job.getState()).to.be.equal(
+          expect(await tree.job.getState()).toBe('waiting-children');
+          expect(await tree.children![0].job.getState()).toBe(
+            'waiting-children',
+          );
+
+          expect(await tree.children![0].children![0].job.getState()).toBe(
+            'waiting',
+          );
+          expect(await tree.children![0].children![1].job.getState()).toBe(
             'waiting-children',
           );
 
           expect(
-            await tree.children![0].children![0].job.getState(),
-          ).to.be.equal('waiting');
-          expect(
-            await tree.children![0].children![1].job.getState(),
-          ).to.be.equal('waiting-children');
-
-          expect(
             await tree.children![0].children![1].children![0].job.getState(),
-          ).to.be.equal('waiting');
+          ).toBe('waiting');
 
           for (let i = 0; i < tree.children![0].children!.length; i++) {
             const child = tree.children![0].children![i];
             const childJob = await Job.fromId(queue, child.job.id);
-            expect(childJob.parent).to.deep.equal({
+            expect(childJob.parent).toEqual({
               id: tree.children![0].job.id,
               queueKey: `${prefix}:${parentQueueName}`,
             });
@@ -5723,25 +5711,25 @@ describe('flows', () => {
             prefix,
           });
           const parentJob = await Job.fromId(parentQueue, tree.job.id);
-          expect(parentJob).to.be.undefined;
+          expect(parentJob).toBeUndefined();
 
           for (let i = 0; i < tree.children![0].children!.length; i++) {
             const child = tree.children![0].children![i];
             const childJob = await Job.fromId(queue, child.job.id);
-            expect(childJob).to.be.undefined;
+            expect(childJob).toBeUndefined();
           }
 
           const jobs = await queue.getJobCountByTypes('completed');
-          expect(jobs).to.be.equal(0);
+          expect(jobs).toBe(0);
 
-          expect(
-            await tree.children![0].children![0].job.getState(),
-          ).to.be.equal('unknown');
-          expect(
-            await tree.children![0].children![1].job.getState(),
-          ).to.be.equal('unknown');
-          expect(await tree.children![0].job.getState()).to.be.equal('unknown');
-          expect(await tree.job.getState()).to.be.equal('waiting');
+          expect(await tree.children![0].children![0].job.getState()).toBe(
+            'unknown',
+          );
+          expect(await tree.children![0].children![1].job.getState()).toBe(
+            'unknown',
+          );
+          expect(await tree.children![0].job.getState()).toBe('unknown');
+          expect(await tree.job.getState()).toBe('waiting');
 
           await flow.close();
           await childrenWorker.close();
@@ -5785,21 +5773,19 @@ describe('flows', () => {
           ],
         });
 
-        expect(await tree.job.getState()).to.be.equal('waiting-children');
+        expect(await tree.job.getState()).toBe('waiting-children');
 
-        expect(await tree.children[0].job.getState()).to.be.equal('waiting');
-        expect(await tree.children[1].job.getState()).to.be.equal(
-          'waiting-children',
-        );
+        expect(await tree.children[0].job.getState()).toBe('waiting');
+        expect(await tree.children[1].job.getState()).toBe('waiting-children');
 
-        expect(await tree.children[1].children[0].job.getState()).to.be.equal(
+        expect(await tree.children[1].children[0].job.getState()).toBe(
           'waiting',
         );
 
         for (let i = 0; i < tree.children.length; i++) {
           const child = tree.children[i];
           const childJob = await Job.fromId(queue, child.job.id);
-          expect(childJob.parent).to.deep.include({
+          expect(childJob.parent).toMatchObject({
             id: tree.job.id,
             queueKey: `${prefix}:${parentQueueName}`,
           });
@@ -5843,20 +5829,20 @@ describe('flows', () => {
 
         const parentQueue = new Queue(parentQueueName, { connection, prefix });
         const parentJob = await Job.fromId(parentQueue, tree.job.id);
-        expect(parentJob).to.be.undefined;
+        expect(parentJob).toBeUndefined();
 
         for (let i = 0; i < tree.children.length; i++) {
           const child = tree.children[i];
           const childJob = await Job.fromId(queue, child.job.id);
-          expect(childJob).to.be.undefined;
+          expect(childJob).toBeUndefined();
         }
 
         const jobs = await queue.getJobCountByTypes('failed');
-        expect(jobs).to.be.equal(0);
+        expect(jobs).toBe(0);
 
-        expect(await tree.children[0].job.getState()).to.be.equal('unknown');
-        expect(await tree.children[1].job.getState()).to.be.equal('unknown');
-        expect(await tree.job.getState()).to.be.equal('unknown');
+        expect(await tree.children[0].job.getState()).toBe('unknown');
+        expect(await tree.children[1].job.getState()).toBe('unknown');
+        expect(await tree.job.getState()).toBe('unknown');
 
         await flow.close();
         await parentQueueEvents.close();
@@ -5887,16 +5873,16 @@ describe('flows', () => {
       // Get job so that it gets locked.
       const nextJob = await worker.getNextJob('1234');
 
-      expect(nextJob).to.not.be.undefined;
-      expect(await (nextJob as Job).getState()).to.be.equal('active');
+      expect(nextJob).toBeDefined();
+      expect(await (nextJob as Job).getState()).toBe('active');
 
-      await expect(tree.job.remove()).to.be.rejectedWith(
+      await expect(tree.job.remove()).rejects.toThrow(
         `Job ${tree.job.id} could not be removed because it is locked by another worker`,
       );
 
-      expect(await tree.job.getState()).to.be.equal('waiting-children');
-      expect(await tree.children[0].job.getState()).to.be.equal('active');
-      expect(await tree.children[1].job.getState()).to.be.equal('waiting');
+      expect(await tree.job.getState()).toBe('waiting-children');
+      expect(await tree.children[0].job.getState()).toBe('active');
+      expect(await tree.children[1].job.getState()).toBe('waiting');
 
       await flow.close();
       await worker.close();
@@ -5934,11 +5920,11 @@ describe('flows', () => {
       const parentQueue = new Queue(parentQueueName, { connection, prefix });
 
       async function removeChildJob(node: JobNode) {
-        expect(await node.job.getState()).to.be.equal('waiting-children');
+        expect(await node.job.getState()).toBe('waiting-children');
 
         await node.children[0].job.remove();
 
-        expect(await node.job.getState()).to.be.equal('waiting');
+        expect(await node.job.getState()).toBe('waiting');
       }
 
       await removeChildJob(tree.children[0].children[0]);
@@ -5965,17 +5951,17 @@ describe('flows', () => {
         ],
       });
 
-      expect(await tree.job.getState()).to.be.equal('waiting-children');
-      expect(await tree.children![0].job.getState()).to.be.equal('waiting');
+      expect(await tree.job.getState()).toBe('waiting-children');
+      expect(await tree.children![0].job.getState()).toBe('waiting');
 
       await tree.children![0].job.remove();
 
-      expect(await tree.children![0].job.getState()).to.be.equal('unknown');
-      expect(await tree.job.getState()).to.be.equal('waiting-children');
+      expect(await tree.children![0].job.getState()).toBe('unknown');
+      expect(await tree.job.getState()).toBe('waiting-children');
 
       await tree.children![1].job.remove();
-      expect(await tree.children![1].job.getState()).to.be.equal('unknown');
-      expect(await tree.job.getState()).to.be.equal('waiting');
+      expect(await tree.children![1].job.getState()).toBe('unknown');
+      expect(await tree.job.getState()).toBe('waiting');
 
       await flow.close();
       await removeAllQueueData(new IORedis(redisHost), parentQueueName);
@@ -6033,7 +6019,7 @@ describe('flows', () => {
         await completing;
 
         const childrenJobs = await queue.getJobCountByTypes('completed');
-        expect(childrenJobs).to.be.equal(1);
+        expect(childrenJobs).toBe(1);
 
         await flow.close();
         await childrenWorker.close();
@@ -6094,7 +6080,7 @@ describe('flows', () => {
         await completing;
 
         const childrenJobs = await queue.getJobCountByTypes('completed');
-        expect(childrenJobs).to.be.equal(2);
+        expect(childrenJobs).toBe(2);
 
         await flow.close();
         await childrenWorker.close();

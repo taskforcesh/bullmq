@@ -1,6 +1,14 @@
-import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
-import { after, beforeEach, describe, it, before } from 'mocha';
+import {
+  describe,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
+  it,
+  expect,
+} from 'vitest';
+
 import { v4 } from 'uuid';
 import { Queue, QueueEvents, Worker, Job } from '../src/classes';
 import { removeAllQueueData, delay } from '../src/utils';
@@ -13,21 +21,21 @@ describe('bulk jobs', () => {
   let queueName: string;
 
   let connection;
-  before(async function () {
+  beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
-  beforeEach(async function () {
+  beforeEach(async () => {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection, prefix });
   });
 
-  afterEach(async function () {
+  afterEach(async () => {
     await queue.close();
     await removeAllQueueData(new IORedis(redisHost), queueName);
   });
 
-  after(async function () {
+  afterAll(async () => {
     await connection.quit();
   });
 
@@ -38,10 +46,10 @@ describe('bulk jobs', () => {
       resolve =>
         (processor = async (job: Job) => {
           if (job.data.idx === 0) {
-            expect(job.data.foo).to.be.equal('bar');
+            expect(job.data.foo).toBe('bar');
           } else {
-            expect(job.data.idx).to.be.equal(1);
-            expect(job.data.foo).to.be.equal('baz');
+            expect(job.data.idx).toBe(1);
+            expect(job.data.foo).toBe('baz');
             resolve();
           }
         }),
@@ -53,12 +61,12 @@ describe('bulk jobs', () => {
       { name, data: { idx: 0, foo: 'bar' } },
       { name, data: { idx: 1, foo: 'baz' } },
     ]);
-    expect(jobs).to.have.length(2);
+    expect(jobs).toHaveLength(2);
 
-    expect(jobs[0].id).to.be.ok;
-    expect(jobs[0].data.foo).to.be.eql('bar');
-    expect(jobs[1].id).to.be.ok;
-    expect(jobs[1].data.foo).to.be.eql('baz');
+    expect(jobs[0].id).toBeTruthy();
+    expect(jobs[0].data.foo).toEqual('bar');
+    expect(jobs[1].id).toBeTruthy();
+    expect(jobs[1].data.foo).toEqual('baz');
 
     await processing;
     await worker.close();
@@ -100,18 +108,18 @@ describe('bulk jobs', () => {
         },
       },
     ]);
-    expect(jobs).to.have.length(2);
+    expect(jobs).toHaveLength(2);
 
-    expect(jobs[0].id).to.be.ok;
-    expect(jobs[0].data.foo).to.be.eql('bar');
-    expect(jobs[1].id).to.be.ok;
-    expect(jobs[1].data.foo).to.be.eql('baz');
+    expect(jobs[0].id).toBeTruthy();
+    expect(jobs[0].data.foo).toEqual('bar');
+    expect(jobs[1].id).toBeTruthy();
+    expect(jobs[1].data.foo).toEqual('baz');
 
     const { unprocessed } = await parent.getDependenciesCount({
       unprocessed: true,
     });
 
-    expect(unprocessed).to.be.equal(2);
+    expect(unprocessed).toBe(2);
 
     await childrenWorker.close();
     await parentWorker.close();
@@ -119,7 +127,7 @@ describe('bulk jobs', () => {
     await removeAllQueueData(new IORedis(redisHost), parentQueueName);
   });
 
-  it('should keep workers busy', async () => {
+  it('should keep workers busy', { timeout: 10_000 }, async () => {
     const numJobs = 6;
     const queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
@@ -162,7 +170,7 @@ describe('bulk jobs', () => {
     await worker.close();
     await worker2.close();
     await queueEvents.close();
-  }).timeout(10_000);
+  });
 
   it('should process jobs with custom ids', async () => {
     const name = 'test';
@@ -171,10 +179,10 @@ describe('bulk jobs', () => {
       resolve =>
         (processor = async (job: Job) => {
           if (job.data.idx === 0) {
-            expect(job.data.foo).to.be.equal('bar');
+            expect(job.data.foo).toBe('bar');
           } else {
-            expect(job.data.idx).to.be.equal(1);
-            expect(job.data.foo).to.be.equal('baz');
+            expect(job.data.idx).toBe(1);
+            expect(job.data.foo).toBe('baz');
             resolve();
           }
         }),
@@ -186,12 +194,12 @@ describe('bulk jobs', () => {
       { name, data: { idx: 0, foo: 'bar' }, opts: { jobId: 'test1' } },
       { name, data: { idx: 1, foo: 'baz' }, opts: { jobId: 'test2' } },
     ]);
-    expect(jobs).to.have.length(2);
+    expect(jobs).toHaveLength(2);
 
-    expect(jobs[0].id).to.be.eql('test1');
-    expect(jobs[0].data.foo).to.be.eql('bar');
-    expect(jobs[1].id).to.be.eql('test2');
-    expect(jobs[1].data.foo).to.be.eql('baz');
+    expect(jobs[0].id).toEqual('test1');
+    expect(jobs[0].data.foo).toEqual('bar');
+    expect(jobs[1].id).toEqual('test2');
+    expect(jobs[1].data.foo).toEqual('baz');
 
     await processing;
     await worker.close();
