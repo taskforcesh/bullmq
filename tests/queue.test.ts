@@ -223,7 +223,7 @@ describe('queues', () => {
         const type = key.split(':')[2];
         expect(['marker', 'events', 'meta', 'pc', 'id']).toContain(type);
       }
-    }); // TODO: Add { timeout: 10000 } to the it() options
+    });
 
     describe('when having a flow', async () => {
       describe('when parent belongs to same queue', async () => {

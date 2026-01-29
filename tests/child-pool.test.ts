@@ -86,7 +86,7 @@ function sandboxProcessTests(
       expect(children).toHaveLength(6);
       const child = await pool.retain(processor, NoopProc);
       expect(children).not.toContain(child);
-    }); // TODO: Add { timeout: 10000 } to the it() options
+    });
 
     it('should return an old child if many retained and one free', async () => {
       const processor = __dirname + '/fixtures/fixture_processor_bar.js';
@@ -103,7 +103,7 @@ function sandboxProcessTests(
       pool.release(children[0]);
       const child = await pool.retain(processor);
       expect(children).toContain(child);
-    }); // TODO: Add { timeout: 10000 } to the it() options
+    });
 
     it('should consume execArgv array from process', async () => {
       const processor = __dirname + '/fixtures/fixture_processor_bar.js';
