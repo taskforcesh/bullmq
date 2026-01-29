@@ -39,12 +39,12 @@ local function storeJobScheduler(schedulerId, schedulerKey, repeatKey, nextMilli
   if opts['offset'] then
     table.insert(optionalValues, "offset")
     table.insert(optionalValues, opts['offset'])
-  else
-    local offset = rcall("HGET", schedulerKey, "offset")
-    if offset then
-      table.insert(optionalValues, "offset")
-      table.insert(optionalValues, tonumber(offset))
-    end
+  --else
+  --  local offset = rcall("HGET", schedulerKey, "offset")
+ --   if offset then
+ --     table.insert(optionalValues, "offset")
+ --     table.insert(optionalValues, tonumber(offset))
+ --   end
   end
 
   local jsonTemplateOpts = cjson.encode(templateOpts)

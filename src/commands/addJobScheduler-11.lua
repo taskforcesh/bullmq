@@ -31,7 +31,8 @@
 
       Output:
         repeatableKey  - OK
-]] local rcall = redis.call
+]]
+local rcall = redis.call
 local repeatKey = KEYS[1]
 local delayedKey = KEYS[2]
 local waitKey = KEYS[3]
@@ -40,12 +41,9 @@ local metaKey = KEYS[5]
 local prioritizedKey = KEYS[6]
 local eventsKey = KEYS[9]
 
-local nextMillis = ARGV[1]
 local jobSchedulerId = ARGV[3]
 local templateOpts = cmsgpack.unpack(ARGV[5])
-local now = tonumber(ARGV[7])
 local prefixKey = ARGV[8]
-local jobOpts = cmsgpack.unpack(ARGV[6])
 
 -- Includes
 --- @include "includes/addJobFromScheduler"
@@ -53,47 +51,21 @@ local jobOpts = cmsgpack.unpack(ARGV[6])
 --- @include "includes/isQueuePaused"
 --- @include "includes/removeJob"
 --- @include "includes/storeJobScheduler"
---- @include "includes/getJobSchedulerEveryNextMillis"
+
+local schedulerOpts = cmsgpack.unpack(ARGV[2])
+local every = schedulerOpts['every']
+local nextMillis = tonumber(ARGV[1])
 
 -- If we are overriding a repeatable job we must delete the delayed job for
 -- the next iteration.
 local schedulerKey = repeatKey .. ":" .. jobSchedulerId
+local nextDelayedJobKey = schedulerKey .. ":" .. nextMillis
+local nextDelayedJobId = "repeat:" .. jobSchedulerId .. ":" .. nextMillis
+
 local maxEvents = getOrSetMaxEvents(metaKey)
 
-local templateData = ARGV[4]
-
-local prevMillis = rcall("ZSCORE", repeatKey, jobSchedulerId)
-if prevMillis then
-    prevMillis = tonumber(prevMillis)
-end
-local schedulerOpts = cmsgpack.unpack(ARGV[2])
-
-local every = schedulerOpts['every']
-
--- For backwards compatibility we also check the offset from the job itself.
--- could be removed in future major versions.
-local jobOffset = jobOpts['repeat'] and jobOpts['repeat']['offset'] or 0
-local offset = schedulerOpts['offset'] or jobOffset or 0
-local newOffset = offset
-
-local updatedEvery = false
-if every then
-    -- if we changed the 'every' value we need to reset millis to nil
-    local millis = prevMillis
-    if prevMillis then
-        local prevEvery = tonumber(rcall("HGET", schedulerKey, "every"))
-        if prevEvery ~= every then
-            millis = nil
-            updatedEvery = true
-        end
-    end
-
-    local startDate = schedulerOpts['startDate']
-    nextMillis, newOffset = getJobSchedulerEveryNextMillis(millis, every, now, offset, startDate)
-end
-
-local function removeJobFromScheduler(prefixKey, delayedKey, prioritizedKey, waitKey, pausedKey, jobId, metaKey,
-    eventsKey)
+local function removeJobFromScheduler(prefixKey, delayedKey, prioritizedKey, waitKey, pausedKey, jobId,
+    metaKey, eventsKey)
     if rcall("ZSCORE", delayedKey, jobId) then
         removeJob(jobId, true, prefixKey, true --[[remove debounce key]] )
         rcall("ZREM", delayedKey, jobId)
@@ -113,86 +85,64 @@ local function removeJobFromScheduler(prefixKey, delayedKey, prioritizedKey, wai
             return true
         end
     end
-
     return false
 end
 
-local removedPrevJob = false
+local extraDelay = 0
+
+if rcall("EXISTS", nextDelayedJobKey) == 1 then
+    if not removeJobFromScheduler(prefixKey, delayedKey, prioritizedKey, waitKey, pausedKey,
+        nextDelayedJobId, metaKey, eventsKey) then
+
+        local nextExtraDelay = 1
+        local errorCode = -10 --SchedulerJobSlotsBusy
+        if every then
+            local prevEvery = tonumber(rcall("HGET", schedulerKey, "every"))
+            if prevEvery and prevEvery == tonumber(every) then
+                nextExtraDelay = prevEvery
+                errorCode = -11 -- Next slot also has a job, return error code
+            end
+        end
+
+        -- For 'every' case: try next every by adding 1 millisecond to prevent collision
+        local nextMillisCandidate = nextMillis + nextExtraDelay
+        local nextCandidateJobId = "repeat:" .. jobSchedulerId .. ":" .. nextMillisCandidate
+        local nextCandidateJobKey = prefixKey .. nextCandidateJobId
+
+        if rcall("EXISTS", nextCandidateJobKey) == 0 then
+            -- Next slot is free, use it
+            nextMillis = nextMillisCandidate
+            nextDelayedJobId = nextCandidateJobId
+            nextDelayedJobKey = nextCandidateJobKey
+            extraDelay = nextExtraDelay
+        else
+            return errorCode
+        end
+    end
+end
+
+local prevMillis = rcall("ZSCORE", repeatKey, jobSchedulerId)
+
 if prevMillis then
     local currentJobId = "repeat:" .. jobSchedulerId .. ":" .. prevMillis
-    local currentJobKey = schedulerKey .. ":" .. prevMillis
-
-    -- In theory it should always exist the currentJobKey if there is a prevMillis unless something has
-    -- gone really wrong.
-    if rcall("EXISTS", currentJobKey) == 1 then
-        removedPrevJob = removeJobFromScheduler(prefixKey, delayedKey, prioritizedKey, waitKey, pausedKey, currentJobId,
-            metaKey, eventsKey)
+    local currentDelayedJobKey = schedulerKey .. ":" .. prevMillis
+    
+    if currentJobId ~= nextDelayedJobId and rcall("EXISTS", currentDelayedJobKey) == 1 then
+        removeJobFromScheduler(prefixKey, delayedKey, prioritizedKey, waitKey, pausedKey,
+            currentJobId, metaKey, eventsKey)
     end
 end
 
-if removedPrevJob then
-    -- The jobs has been removed and we want to replace it, so lets use the same millis.
-    if every and not updatedEvery then
-        nextMillis = prevMillis
-    end
-else
-    -- Special case where no job was removed, and we need to add the next iteration.
-    schedulerOpts['offset'] = newOffset
-end
+storeJobScheduler(jobSchedulerId, schedulerKey, repeatKey, nextMillis, schedulerOpts, ARGV[4], templateOpts)
 
--- Check for job ID collision with existing jobs (in any state)
-local jobId = "repeat:" .. jobSchedulerId .. ":" .. nextMillis
-local jobKey = prefixKey .. jobId
+rcall("INCR", KEYS[8])
 
--- If there's already a job with this ID, in a state 
--- that is not updatable (active, completed, failed) we must 
--- handle the collision
-local hasCollision = false
-if rcall("EXISTS", jobKey) == 1 then
-    if every then
-        -- For 'every' case: try next time slot to avoid collision
-        local nextSlotMillis = nextMillis + every
-        local nextSlotJobId = "repeat:" .. jobSchedulerId .. ":" .. nextSlotMillis
-        local nextSlotJobKey = prefixKey .. nextSlotJobId
-
-        if rcall("EXISTS", nextSlotJobKey) == 0 then
-            -- Next slot is free, use it
-            nextMillis = nextSlotMillis
-            jobId = nextSlotJobId
-        else
-            -- Next slot also has a job, return error code
-            return -11 -- SchedulerJobSlotsBusy
-        end
-    else
-        hasCollision = true
-    end
-end
-
-local delay = nextMillis - now
-
--- Fast Clamp delay to minimum of 0
-if delay < 0 then
-    delay = 0
-end
-
-local nextJobKey = schedulerKey .. ":" .. nextMillis
-
-if not hasCollision or removedPrevJob then
-    -- jobId already calculated above during collision check
-
-    storeJobScheduler(jobSchedulerId, schedulerKey, repeatKey, nextMillis, schedulerOpts, templateData, templateOpts)
-
-    rcall("INCR", KEYS[8])
-
-    addJobFromScheduler(nextJobKey, jobId, jobOpts, waitKey, pausedKey, KEYS[11], metaKey, prioritizedKey, KEYS[10],
-        delayedKey, KEYS[7], eventsKey, schedulerOpts['name'], maxEvents, now, templateData, jobSchedulerId, delay)
-elseif hasCollision then
-    -- For 'pattern' case: return error code
-    return -10 -- SchedulerJobIdCollision
-end
+addJobFromScheduler(nextDelayedJobKey, nextDelayedJobId, ARGV[6], waitKey, pausedKey,
+    KEYS[11], metaKey, prioritizedKey, KEYS[10], delayedKey, KEYS[7], eventsKey,
+    schedulerOpts['name'], maxEvents, ARGV[7], ARGV[4], jobSchedulerId, extraDelay)
 
 if ARGV[9] ~= "" then
-    rcall("HSET", ARGV[9], "nrjid", jobId)
+    rcall("HSET", ARGV[9], "nrjid", nextDelayedJobId)
 end
 
-return {jobId .. "", delay}
+return nextDelayedJobId .. "" -- convert to string

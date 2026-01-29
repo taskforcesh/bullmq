@@ -388,7 +388,7 @@ export class Scripts {
     delayedJobOpts: JobsOptions,
     // The job id of the job that produced this next iteration
     producerId?: string,
-  ): Promise<[string, number]> {
+  ): Promise<string> {
     const client = await this.queue.client;
     const queueKeys = this.queue.keys;
 
@@ -407,7 +407,7 @@ export class Scripts {
     ];
 
     const args = [
-      nextMillis,
+      nextMillis + (opts.offset || 0),
       pack(opts),
       jobSchedulerId,
       templateData,
@@ -456,6 +456,8 @@ export class Scripts {
     delayedJobOpts: JobsOptions,
     // The job id of the job that produced this next iteration - TODO: remove in next breaking change
     producerId?: string,
+    every?: number,
+    offset?: number,
   ): Promise<string | null> {
     const client = await this.queue.client;
 
@@ -477,13 +479,14 @@ export class Scripts {
     ];
 
     const args = [
-      nextMillis,
+      nextMillis + (offset || 0),
       jobSchedulerId,
       templateData,
       pack(delayedJobOpts),
       Date.now(),
       queueKeys[''],
       producerId,
+      every,
     ];
 
     return this.execCommand(client, 'updateJobScheduler', keys.concat(args));
