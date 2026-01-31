@@ -284,5 +284,27 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         await child_queue.obliterate()
         await child_queue.close()
 
+    async def test_should_accept_connection_in_opts(self):
+        """Test that FlowProducer accepts connection parameter in opts dict"""
+        # This test verifies the fix for issue #3619
+        # FlowProducer should accept connection in opts.get("connection")
+
+        connection_string = "redis://localhost:6379"
+
+        # Test with connection in opts (previously didn't work)
+        flow_with_opts = FlowProducer({}, {"connection": connection_string, "prefix": prefix})
+        self.assertIsNotNone(flow_with_opts.redisConnection)
+        await flow_with_opts.close()
+
+        # Test with connection as first parameter (original working method)
+        flow_with_redis_opts = FlowProducer(connection_string, {"prefix": prefix})
+        self.assertIsNotNone(flow_with_redis_opts.redisConnection)
+        await flow_with_redis_opts.close()
+
+        # Test that opts connection takes precedence over redisOpts
+        flow_with_both = FlowProducer("redis://wrong:6379", {"connection": connection_string, "prefix": prefix})
+        self.assertIsNotNone(flow_with_both.redisConnection)
+        await flow_with_both.close()
+
 if __name__ == '__main__':
     unittest.main()

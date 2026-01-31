@@ -35,7 +35,9 @@ class FlowProducer:
         """
         Initialize a connection
         """
-        self.redisConnection = RedisConnection(redisOpts)
+        # Check opts.get("connection") first to match Queue behavior, fallback to redisOpts
+        connection = opts.get("connection", redisOpts)
+        self.redisConnection = RedisConnection(connection)
         self.client = self.redisConnection.conn
         self.opts: dict = opts
         self.prefix = opts.get("prefix", "bull")
