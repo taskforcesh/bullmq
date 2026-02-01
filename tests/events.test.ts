@@ -31,7 +31,7 @@ describe('events', () => {
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  let connection;
+  let connection: IORedis;
   beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
@@ -447,7 +447,7 @@ describe('events', () => {
       const childrenWorker = new Worker(
         childrenQueueName,
         async () => {
-          await delay(100);
+          await delay(150);
         },
         {
           drainDelay: 1,

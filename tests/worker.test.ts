@@ -8,7 +8,6 @@ import {
   afterAll,
   it,
   expect,
-  vi,
 } from 'vitest';
 
 import * as sinon from 'sinon';
@@ -1068,7 +1067,7 @@ describe('workers', () => {
       });
       await worker.waitUntilReady();
       const client = await worker.client;
-      if (isRedisVersionLowerThan(worker.redisVersion, '7.0.8')) {
+      if (isRedisVersionLowerThan(worker.redisVersion, '7.0.8', 'redis')) {
         await client.bzpopmin(`key`, 0.002);
       } else {
         await client.bzpopmin(`key`, 0.001);
@@ -1183,7 +1182,13 @@ describe('workers', () => {
           });
           await worker.waitUntilReady();
 
-          if (isRedisVersionLowerThan(worker.redisVersion, '7.0.8')) {
+          if (
+            isRedisVersionLowerThan(
+              worker.redisVersion,
+              '7.0.8',
+              worker.databaseType,
+            )
+          ) {
             expect(worker['getBlockTimeout'](0)).toBe(0.002);
           } else {
             expect(worker['getBlockTimeout'](0)).toBe(0.001);
@@ -1219,7 +1224,13 @@ describe('workers', () => {
           });
           await worker.waitUntilReady();
 
-          if (isRedisVersionLowerThan(worker.redisVersion, '7.0.8')) {
+          if (
+            isRedisVersionLowerThan(
+              worker.redisVersion,
+              '7.0.8',
+              worker.databaseType,
+            )
+          ) {
             expect(worker['getBlockTimeout'](Date.now() + 100)).toBeGreaterThan(
               0.002,
             );
@@ -5173,7 +5184,14 @@ describe('workers', () => {
           },
         });
 
-      if (isRedisVersionLowerThan(childrenWorker.redisVersion, '7.2.0')) {
+      if (
+        isRedisVersionLowerThan(
+          childrenWorker.redisVersion,
+          '7.2.0',
+          childrenWorker.databaseType,
+        ) ||
+        childrenWorker.databaseType === 'dragonfly'
+      ) {
         expect(unprocessed1!.length).to.be.greaterThanOrEqual(50);
         expect(nextCursor1).not.toBe(0);
       } else {
@@ -5189,7 +5207,14 @@ describe('workers', () => {
           },
         });
 
-      if (isRedisVersionLowerThan(childrenWorker.redisVersion, '7.2.0')) {
+      if (
+        isRedisVersionLowerThan(
+          childrenWorker.redisVersion,
+          '7.2.0',
+          childrenWorker.databaseType,
+        ) ||
+        childrenWorker.databaseType === 'dragonfly'
+      ) {
         expect(unprocessed2!.length).to.be.lessThanOrEqual(15);
         expect(nextCursor2).toBe(0);
       } else {
