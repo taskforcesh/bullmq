@@ -1979,16 +1979,18 @@ describe('workers', () => {
     it('should not close the connection', async () => {
       const connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
 
-      return new Promise((resolve, reject) => {
+      return new Promise<void>((resolve, reject) => {
         connection.on('ready', async () => {
           const worker1 = new Worker('test-shared', null, {
             connection,
             prefix,
           });
+          await worker1.waitUntilReady();
           const worker2 = new Worker('test-shared', null, {
             connection,
             prefix,
           });
+          await worker2.waitUntilReady();
 
           try {
             // There is no point into checking the ready status after closing
