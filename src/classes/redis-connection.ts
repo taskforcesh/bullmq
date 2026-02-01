@@ -46,7 +46,7 @@ export class RedisConnection extends EventEmitter {
   };
 
   status: 'initializing' | 'ready' | 'closing' | 'closed' = 'initializing';
-  databaseType: DatabaseType = 'redis';
+  private dbType: DatabaseType = 'redis';
 
   protected _client: RedisClient;
 
@@ -254,14 +254,14 @@ export class RedisConnection extends EventEmitter {
     if (this._client['status'] !== 'end') {
       const versionResult = await this.getRedisVersionAndType();
       this.version = versionResult.version;
-      this.databaseType = versionResult.databaseType;
+      this.dbType = versionResult.databaseType;
 
       if (this.skipVersionCheck !== true && !this.closing) {
         if (
           isRedisVersionLowerThan(
             this.version,
             RedisConnection.minimumVersion,
-            this.databaseType,
+            this.dbType,
           )
         ) {
           throw new Error(
@@ -274,7 +274,7 @@ export class RedisConnection extends EventEmitter {
           isRedisVersionLowerThan(
             this.version,
             RedisConnection.recommendedMinimumVersion,
-            this.databaseType,
+            this.dbType,
           )
         ) {
           console.warn(
@@ -288,12 +288,12 @@ export class RedisConnection extends EventEmitter {
         canDoubleTimeout: !isRedisVersionLowerThan(
           this.version,
           '6.0.0',
-          this.databaseType,
+          this.dbType,
         ),
         canBlockFor1Ms: !isRedisVersionLowerThan(
           this.version,
           '7.0.8',
-          this.databaseType,
+          this.dbType,
         ),
       };
 
@@ -464,7 +464,7 @@ export class RedisConnection extends EventEmitter {
     return this.version;
   }
 
-  get dbType(): DatabaseType {
-    return this.databaseType;
+  get databaseType(): DatabaseType {
+    return this.dbType;
   }
 }
