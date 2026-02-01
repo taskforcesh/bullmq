@@ -61,6 +61,9 @@ defmodule BullMQ.RedisConnection do
     pool_size = Keyword.get(opts, :pool_size, @default_pool_size)
     redis_opts = build_redis_opts(opts)
 
+    # Store redis_opts in persistent_term for later retrieval (dedicated connections)
+    :persistent_term.put({__MODULE__, :redis_opts, name}, redis_opts)
+
     children = [
       # Main connection pool for commands
       {NimblePool,
@@ -85,7 +88,16 @@ defmodule BullMQ.RedisConnection do
       #=> {:ok, "value"}
   """
   @spec command(connection(), command(), keyword()) :: {:ok, term()} | {:error, term()}
-  def command(conn, command, opts \\ []) do
+  def command(conn, command, opts \\ [])
+
+  def command({:dedicated, redix_pid}, command, opts) do
+    timeout = Keyword.get(opts, :timeout, @default_timeout)
+    Redix.command(redix_pid, command, timeout: timeout)
+  rescue
+    e -> {:error, e}
+  end
+
+  def command(conn, command, opts) do
     timeout = Keyword.get(opts, :timeout, @default_timeout)
 
     NimblePool.checkout!(
@@ -125,7 +137,16 @@ defmodule BullMQ.RedisConnection do
       #=> {:ok, ["OK", "OK", "value1"]}
   """
   @spec pipeline(connection(), pipeline(), keyword()) :: {:ok, [term()]} | {:error, term()}
-  def pipeline(conn, commands, opts \\ []) do
+  def pipeline(conn, commands, opts \\ [])
+
+  def pipeline({:dedicated, redix_pid}, commands, opts) do
+    timeout = Keyword.get(opts, :timeout, @default_timeout)
+    Redix.pipeline(redix_pid, commands, timeout: timeout)
+  rescue
+    e -> {:error, e}
+  end
+
+  def pipeline(conn, commands, opts) do
     timeout = Keyword.get(opts, :timeout, @default_timeout)
 
     NimblePool.checkout!(
@@ -354,20 +375,10 @@ defmodule BullMQ.RedisConnection do
   """
   @spec get_redis_opts(connection()) :: keyword()
   def get_redis_opts(conn) do
-    # Retrieve opts from supervisor state
-    case Process.whereis(supervisor_name(conn)) do
-      nil ->
-        []
-
-      pid ->
-        case :sys.get_state(pid) do
-          {_, _, _, _, children} when is_list(children) ->
-            # Find the pool child and extract opts
-            []
-
-          _ ->
-            []
-        end
+    # Retrieve opts from persistent_term (stored during init)
+    case :persistent_term.get({__MODULE__, :redis_opts, conn}, nil) do
+      nil -> []
+      opts -> opts
     end
   end
 

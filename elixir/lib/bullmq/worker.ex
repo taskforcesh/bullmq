@@ -891,12 +891,28 @@ defmodule BullMQ.Worker do
     available_slots = state.concurrency - map_size(state.active_jobs)
 
     if available_slots > 0 do
-      # Fetch jobs up to available slots
-      new_state = fetch_and_process_jobs(state, available_slots)
+      # Spawn autonomous worker processes for available slots
+      new_state = spawn_worker_processes(state, available_slots)
       {:noreply, new_state}
     else
       {:noreply, state}
     end
+  end
+
+  def handle_info({:worker_got_job, worker_pid, job}, state) do
+    # A worker successfully fetched a job - track it
+    if state.lock_manager do
+      LockManager.track_job(state.lock_manager, job.id, job.token)
+    end
+
+    active_jobs = Map.put(state.active_jobs, job.id, {job, worker_pid})
+    {:noreply, %{state | active_jobs: active_jobs}}
+  end
+
+  def handle_info({:worker_stopped, _worker_pid}, state) do
+    # A worker process stopped (no more jobs) - try to spawn replacement
+    send(self(), :fetch_jobs)
+    {:noreply, state}
   end
 
   def handle_info({:job_completed, job_id, result}, state) do
@@ -1059,6 +1075,280 @@ defmodule BullMQ.Worker do
 
   # Private functions
 
+  # Spawn autonomous worker processes that handle their own job lifecycle
+  defp spawn_worker_processes(state, 0), do: state
+
+  defp spawn_worker_processes(state, count) do
+    # Get redis opts for creating dedicated connections
+    redis_opts = RedisConnection.get_redis_opts(state.connection)
+
+    # Build context for worker processes (everything they need to operate independently)
+    worker_ctx = %{
+      connection: state.connection,
+      redis_opts: redis_opts,
+      keys: state.keys,
+      token: state.token,
+      processor: state.processor,
+      processor_supports_cancellation: state.processor_supports_cancellation,
+      lock_duration: state.lock_duration,
+      limiter: state.limiter,
+      name: state.name,
+      queue_name: state.queue_name,
+      prefix: state.prefix,
+      telemetry: state.telemetry,
+      remove_on_complete: state.remove_on_complete || %{"count" => -1},
+      remove_on_fail: state.remove_on_fail || %{"count" => -1},
+      coordinator: self()
+    }
+
+    # Spawn all workers in parallel - each will fetch its own first job
+    for _ <- 1..count do
+      spawn_link(fn -> autonomous_worker_init(worker_ctx) end)
+    end
+
+    # Workers will notify us when they get jobs
+    state
+  end
+
+  # Worker initialization - creates dedicated connection and fetches first job
+  defp autonomous_worker_init(ctx) do
+    # Create a dedicated Redix connection for this worker (bypasses NimblePool)
+    ctx = case ctx.redis_opts do
+      [] ->
+        # No redis opts available, fall back to shared connection
+        ctx
+      redis_opts ->
+        case Redix.start_link(redis_opts) do
+          {:ok, redix_pid} ->
+            # Use dedicated connection wrapped in a simple map for Scripts compatibility
+            %{ctx | connection: {:dedicated, redix_pid}}
+          {:error, _} ->
+            # Fall back to shared connection on error
+            ctx
+        end
+    end
+
+    case do_fetch_job(ctx) do
+      {:ok, nil} ->
+        # No jobs available
+        cleanup_dedicated_connection(ctx)
+        send(ctx.coordinator, {:worker_stopped, self()})
+
+      {:ok, job} ->
+        # Notify coordinator that we got a job
+        send(ctx.coordinator, {:worker_got_job, self(), job})
+        autonomous_worker_loop(job, ctx)
+
+      {:rate_limited, _delay} ->
+        # Rate limited on first fetch, notify and exit
+        cleanup_dedicated_connection(ctx)
+        send(ctx.coordinator, {:worker_stopped, self()})
+
+      {:error, _reason} ->
+        cleanup_dedicated_connection(ctx)
+        send(ctx.coordinator, {:worker_stopped, self()})
+    end
+  end
+
+  # Cleanup dedicated connection if one was created
+  defp cleanup_dedicated_connection(%{connection: {:dedicated, pid}}) do
+    Redix.stop(pid)
+  end
+  defp cleanup_dedicated_connection(_ctx), do: :ok
+
+  # Fetch a job directly (used by autonomous workers)
+  defp do_fetch_job(ctx) do
+    opts = [
+      lock_duration: ctx.lock_duration,
+      limiter: ctx.limiter,
+      name: ctx.name && Atom.to_string(ctx.name)
+    ]
+
+    case Scripts.move_to_active(ctx.connection, ctx.keys, ctx.token, opts) do
+      {:ok, [job_data, _job_id, 0, _delay_until]} when job_data in [0, nil, ""] ->
+        {:ok, nil}
+
+      {:ok, [job_data, _job_id, rate_limit_delay, _delay_until]}
+      when job_data in [0, nil, ""] and is_integer(rate_limit_delay) and rate_limit_delay > 0 ->
+        {:rate_limited, rate_limit_delay}
+
+      {:ok, [job_data, job_id, _limit_delay, _delay_until]}
+      when is_list(job_data) and job_data != [] ->
+        job_map = list_to_job_map(job_data)
+        job = Job.from_redis(to_string(job_id), ctx.queue_name, job_map,
+          prefix: ctx.prefix,
+          token: ctx.token,
+          connection: ctx.connection
+        )
+        {:ok, job}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  # Autonomous worker loop - runs in its own process, handles entire job lifecycle
+  # Workers operate independently and only notify coordinator on start/stop for minimal overhead
+  defp autonomous_worker_loop(job, ctx) do
+    # Process the job
+    result = run_processor_sync(job, ctx)
+
+    # Handle result and get next job
+    case handle_job_result(job, result, ctx) do
+      {:continue, next_job} ->
+        # Continue processing next job without coordinator notification
+        autonomous_worker_loop(next_job, ctx)
+
+      :stop ->
+        # No more jobs, cleanup and notify coordinator
+        cleanup_dedicated_connection(ctx)
+        send(ctx.coordinator, {:worker_stopped, self()})
+
+      :retry ->
+        # Job moved to delayed for retry, try to get next job
+        case try_get_next_job(ctx) do
+          {:ok, next_job} ->
+            send(ctx.coordinator, {:worker_got_job, self(), next_job})
+            autonomous_worker_loop(next_job, ctx)
+          _ ->
+            cleanup_dedicated_connection(ctx)
+            send(ctx.coordinator, {:worker_stopped, self()})
+        end
+    end
+  end
+
+  # Try to get next job directly (for retry case)
+  defp try_get_next_job(ctx) do
+    case do_fetch_job(ctx) do
+      {:ok, nil} -> :no_jobs
+      {:ok, job} -> {:ok, job}
+      _ -> :error
+    end
+  end
+
+  # Run processor synchronously (called within worker process)
+  defp run_processor_sync(job, ctx) do
+    processor = ctx.processor
+
+    processor_fn =
+      if ctx.processor_supports_cancellation do
+        cancel_token = CancellationToken.new()
+        fn -> processor.(job, cancel_token) end
+      else
+        fn -> processor.(job) end
+      end
+
+    try do
+      result = processor_fn.()
+      {:ok, result}
+    rescue
+      e ->
+        {:error, Exception.message(e), __STACKTRACE__}
+    catch
+      :exit, reason ->
+        {:error, inspect(reason), __STACKTRACE__}
+
+      :throw, value ->
+        {:error, inspect(value), __STACKTRACE__}
+    end
+  end
+
+  # Handle job result: complete/fail and fetch next job
+  defp handle_job_result(job, {:ok, result}, ctx) do
+    return_value = normalize_result(result)
+
+    case return_value do
+      {:delay, delay_ms} ->
+        Scripts.move_to_delayed(ctx.connection, ctx.keys, job.id, job.token, delay_ms, skip_attempt: true)
+        :stop
+
+      {:rate_limit, delay_ms} ->
+        Scripts.move_to_delayed(ctx.connection, ctx.keys, job.id, job.token, delay_ms, skip_attempt: true)
+        :stop
+
+      :waiting ->
+        Scripts.move_job_from_active_to_wait(ctx.connection, ctx.keys, job.id, job.token)
+        :stop
+
+      :waiting_children ->
+        Scripts.move_to_waiting_children(ctx.connection, ctx.keys, job.id, job.token)
+        :stop
+
+      _ ->
+        # Complete job and get next
+        move_opts = build_worker_move_opts(ctx, job)
+
+        case Scripts.move_to_completed(ctx.connection, ctx.keys, job.id, job.token, return_value, move_opts) do
+          {:ok, [job_data, job_id, _limit_delay, _delay_until]} when is_list(job_data) and job_data != [] ->
+            job_map = list_to_job_map(job_data)
+            next_job = Job.from_redis(to_string(job_id), ctx.queue_name, job_map,
+              prefix: ctx.prefix,
+              token: ctx.token,
+              connection: ctx.connection
+            )
+            {:continue, next_job}
+
+          _ ->
+            :stop
+        end
+    end
+  end
+
+  defp handle_job_result(job, {:error, error_msg, stacktrace}, ctx) do
+    if Job.should_retry?(job) do
+      backoff_delay = Job.calculate_backoff(job)
+      effective_delay = max(backoff_delay, 1)
+
+      Scripts.move_to_delayed(
+        ctx.connection, ctx.keys, job.id, job.token, effective_delay,
+        stacktrace: format_stacktrace(stacktrace)
+      )
+
+      :retry
+    else
+      move_opts = build_worker_move_opts(ctx, job) ++ [stacktrace: format_stacktrace(stacktrace)]
+
+      case Scripts.move_to_failed(ctx.connection, ctx.keys, job.id, job.token, error_msg, move_opts) do
+        {:ok, [job_data, job_id, _limit_delay, _delay_until]} when is_list(job_data) and job_data != [] ->
+          job_map = list_to_job_map(job_data)
+          next_job = Job.from_redis(to_string(job_id), ctx.queue_name, job_map,
+            prefix: ctx.prefix,
+            token: ctx.token,
+            connection: ctx.connection
+          )
+          {:continue, next_job}
+
+        _ ->
+          :stop
+      end
+    end
+  end
+
+  defp normalize_result({:ok, value}), do: value
+  defp normalize_result(:ok), do: nil
+  defp normalize_result({:delay, delay_ms}), do: {:delay, delay_ms}
+  defp normalize_result({:rate_limit, delay_ms}), do: {:rate_limit, delay_ms}
+  defp normalize_result(:waiting), do: :waiting
+  defp normalize_result(:waiting_children), do: :waiting_children
+  defp normalize_result(other), do: other
+
+  defp build_worker_move_opts(ctx, job) do
+    [
+      lock_duration: ctx.lock_duration,
+      fetch_next: true,
+      name: ctx.name,
+      attempts: get_job_opt(job, :attempts, "attempts", 0),
+      limiter: ctx.limiter,
+      remove_on_complete: ctx.remove_on_complete,
+      remove_on_fail: ctx.remove_on_fail,
+      fail_parent_on_failure: false,
+      continue_parent_on_failure: false,
+      ignore_dependency_on_failure: false,
+      remove_dependency_on_failure: false
+    ]
+  end
+
+  # Legacy: kept for backward compatibility with existing code paths
   defp fetch_and_process_jobs(state, count) when count <= 0, do: state
 
   defp fetch_and_process_jobs(state, count) do

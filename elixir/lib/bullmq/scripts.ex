@@ -135,6 +135,13 @@ defmodule BullMQ.Scripts do
                   |> Enum.reject(&is_nil/1)
                   |> Map.new()
 
+  # Precompute SHAs at compile time for all scripts
+  @script_shas @script_by_atom
+               |> Enum.map(fn {atom_name, %{content: content}} ->
+                 {atom_name, :crypto.hash(:sha, content) |> Base.encode16(case: :lower)}
+               end)
+               |> Map.new()
+
   @type script_name :: atom()
   @type script_result :: {:ok, any()} | {:error, any()}
   @type queue_context :: Keys.queue_context()
@@ -238,8 +245,9 @@ defmodule BullMQ.Scripts do
         {:error, {:script_not_found, script_name}}
 
       {script, _expected_key_count} ->
-        # Note: We don't enforce key count here to allow flexibility
-        execute_raw(conn, script, keys, args)
+        # Use cached SHA for better performance
+        sha = get_sha(script_name)
+        execute_with_sha(conn, script, sha, keys, args)
     end
   end
 
@@ -249,6 +257,11 @@ defmodule BullMQ.Scripts do
   @spec execute_raw(atom(), String.t(), [String.t()], [any()]) :: script_result()
   def execute_raw(conn, script, keys, args) do
     sha = sha1(script)
+    execute_with_sha(conn, script, sha, keys, args)
+  end
+
+  # Internal: Execute with pre-computed SHA
+  defp execute_with_sha(conn, script, sha, keys, args) do
     encoded_args = Enum.map(args, &encode_arg/1)
     num_keys = length(keys)
 
@@ -279,15 +292,80 @@ defmodule BullMQ.Scripts do
   @spec build_command(script_name(), [String.t()], [any()]) ::
           {:ok, [String.t()]} | {:error, term()}
   def build_command(script_name, keys, args) when is_atom(script_name) do
-    case get(script_name) do
+    case get_sha(script_name) do
       nil ->
         {:error, {:script_not_found, script_name}}
 
-      {script, _expected_key_count} ->
-        sha = sha1(script)
+      sha ->
         encoded_args = Enum.map(args, &encode_arg/1)
         num_keys = length(keys)
         {:ok, ["EVALSHA", sha, num_keys | keys ++ encoded_args]}
+    end
+  end
+
+  @doc """
+  Gets the precomputed SHA for a script.
+  SHAs are computed at compile time for efficiency.
+  """
+  @spec get_sha(script_name()) :: String.t() | nil
+  def get_sha(script_name) do
+    Map.get(@script_shas, script_name)
+  end
+
+  @doc """
+  Builds multiple add_standard_job commands efficiently by precomputing shared data.
+  Much faster than calling build_add_standard_job_command multiple times.
+
+  Returns a list of {job, command} tuples.
+  """
+  @spec build_bulk_add_commands(queue_context(), [{map() | struct(), map()}]) ::
+          {:ok, [{map() | struct(), [String.t()]}]} | {:error, term()}
+  def build_bulk_add_commands(ctx, jobs_with_opts) do
+    # Precompute shared values (computed once, not per job)
+    sha = get_sha(:add_standard_job)
+    if sha == nil do
+      {:error, {:script_not_found, :add_standard_job}}
+    else
+      # Precompute keys (same for all jobs in queue)
+      keys = [
+        Keys.wait(ctx),
+        Keys.paused(ctx),
+        Keys.meta(ctx),
+        Keys.id(ctx),
+        Keys.completed(ctx),
+        Keys.delayed(ctx),
+        Keys.active(ctx),
+        Keys.events(ctx),
+        Keys.marker(ctx)
+      ]
+      key_prefix = Keys.key_prefix(ctx)
+      num_keys = 9
+
+      # Build commands efficiently
+      results = Enum.map(jobs_with_opts, fn {job, opts} ->
+        timestamp = get_job_timestamp(job) || System.system_time(:millisecond)
+        job_id = get_job_id(job)
+        job_name = get_job_name(job)
+        {parent_key, parent_deps_key, parent} = get_parent_info_full(job)
+        repeat_job_key = get_repeat_job_key(job)
+        deduplication_key = get_deduplication_key(job, ctx)
+
+        packed_args =
+          Msgpax.pack!(
+            [key_prefix, job_id || "", job_name, timestamp,
+             parent_key, parent_deps_key, parent, repeat_job_key, deduplication_key],
+            iodata: false
+          )
+
+        job_data = get_job_data(job) |> Jason.encode!()
+        packed_opts = pack_job_opts(job, opts)
+
+        # Build command directly without going through build_command
+        cmd = ["EVALSHA", sha, num_keys | keys ++ [packed_args, job_data, packed_opts]]
+        {job, cmd}
+      end)
+
+      {:ok, results}
     end
   end
 
@@ -505,7 +583,7 @@ defmodule BullMQ.Scripts do
         cmd
       end)
 
-    # Execute atomically in a transaction (MULTI/EXEC)
+    # Execute using transaction (MULTI/EXEC) for atomicity
     case execute_transaction(conn, commands) do
       {:ok, results} ->
         # Extract job IDs from results

@@ -208,13 +208,10 @@ defmodule BullMQ.Queue do
   end
 
   @doc """
-  Adds multiple jobs to the queue atomically in a single operation.
+  Adds multiple jobs to the queue in a single operation.
 
-  This operation is atomic: either all jobs are added or none are. It uses
-  Redis MULTI/EXEC transactions to ensure atomicity, which is significantly
-  more efficient than calling `add/4` multiple times and provides stronger
-  guarantees. Achieves up to 10x throughput compared to sequential adds
-  (~60,000 jobs/sec vs ~6,000 jobs/sec).
+  Uses Redis pipelining for high throughput. Standard jobs (no delay/priority)
+  are processed via optimized bulk commands achieving ~50,000+ jobs/sec.
 
   ## Arguments
 
@@ -226,18 +223,16 @@ defmodule BullMQ.Queue do
 
     * `:connection` - Redis connection (required when using queue name string)
     * `:prefix` - Queue prefix (default: "bull")
-    * `:pipeline` - Use transactional pipelining for efficiency (default: `true`)
-    * `:chunk_size` - Number of jobs per transaction batch (default: `100`)
-    * `:connection_pool` - List of Redis connections for parallel processing
-    * `:concurrency` - Max parallel tasks (default: `8`, capped by pool size)
+    * `:pipeline` - Use pipelining for efficiency (default: `true`)
+    * `:connection_pool` - List of Redis connections for parallel execution (optional).
+      When provided, commands are distributed across connections for higher throughput.
+      Use this when you need maximum performance and have multiple connections available.
+    * `:max_pipeline_size` - Max commands per pipeline batch (default: `10_000`)
 
-  ## Performance Tips
+  ## Performance
 
-  For maximum throughput when adding large numbers of jobs:
-
-  1. **Transactional pipelining (default)**: Already enabled, ~4x faster than sequential
-  2. **Connection pool**: Provide multiple connections for parallel chunk processing
-  3. **Chunk size**: Default of 100 is optimal for most cases
+  Default single connection: ~50,000 jobs/sec
+  With 4-connection pool: ~70,000+ jobs/sec
 
   ## Examples
 
@@ -253,18 +248,17 @@ defmodule BullMQ.Queue do
       # First, create a pool of connections
       pool = for i <- 1..8 do
         name = :"redis_pool_\#{i}"
-        {:ok, _} = Redix.start_link(host: "localhost", name: name)
+        {:ok, _} = BullMQ.RedisConnection.start_link(host: "localhost", name: name)
         name
       end
 
-      # Then use the pool for parallel processing
+      # Then use the pool for parallel execution (~70K+ jobs/sec)
       {:ok, jobs} = BullMQ.Queue.add_bulk("emails", large_job_list,
-        connection: :redis,
-        connection_pool: pool,
-        chunk_size: 100
+        connection: hd(pool),
+        connection_pool: pool
       )
 
-      # Disable pipelining (sequential mode, slower)
+      # Disable pipelining (sequential mode, much slower)
       {:ok, jobs} = BullMQ.Queue.add_bulk("emails", jobs,
         connection: :redis,
         pipeline: false
@@ -272,8 +266,7 @@ defmodule BullMQ.Queue do
 
   ## Notes
 
-    * All jobs in a batch are added atomically (all or nothing)
-    * Standard jobs (no delay or priority) use optimized transactional pipelining
+    * Standard jobs (no delay or priority) use optimized pipelining
     * Delayed and prioritized jobs fall back to sequential processing
     * Returns `{:error, {:partial_failure, results}}` if some jobs fail
   """
@@ -304,16 +297,10 @@ defmodule BullMQ.Queue do
     end
   end
 
-  # Default chunk size: batch jobs together for efficient pipelining
-  # Larger chunks = fewer round-trips, but less parallelism
-  # 100 is a good balance for most use cases
-  @default_chunk_size 100
-  # Default concurrency for parallel chunk processing
-  @default_bulk_concurrency 8
+  # Maximum jobs per single pipeline call (to avoid Redis timeout)
+  @max_pipeline_size 10_000
 
   defp add_bulk_pipelined(conn, ctx, queue, jobs, opts) do
-    chunk_size = Keyword.get(opts, :chunk_size, @default_chunk_size)
-
     # Separate jobs by type (standard, delayed, prioritized)
     {standard_jobs, other_jobs} =
       Enum.split_with(jobs, fn {_name, _data, job_opts} ->
@@ -323,12 +310,16 @@ defmodule BullMQ.Queue do
         delay == 0 and priority == 0
       end)
 
-    # For standard jobs, use pipelining with concurrent chunks
+    # For standard jobs, use optimized single-pipeline approach
     standard_results =
       if Enum.empty?(standard_jobs) do
         []
       else
-        # Prepare all jobs with their options
+        # Ensure scripts are loaded and SHA is cached
+        Scripts.ensure_scripts_loaded(conn, [:add_standard_job])
+
+        # Prepare jobs with opts for bulk command building
+        # Job.new does not generate client-side IDs - Redis generates via INCR
         jobs_with_opts =
           Enum.map(standard_jobs, fn {name, data, job_opts} ->
             merged_opts = Keyword.merge(opts, job_opts)
@@ -337,53 +328,27 @@ defmodule BullMQ.Queue do
             {job, encoded_opts}
           end)
 
-        # Split into chunks
-        chunks = Enum.chunk_every(jobs_with_opts, chunk_size)
-        num_chunks = length(chunks)
+        # Build all commands efficiently using optimized bulk builder
+        {:ok, jobs_and_commands} = Scripts.build_bulk_add_commands(ctx, jobs_with_opts)
+        {jobs_list, commands} = Enum.unzip(jobs_and_commands)
 
-        # Get connection pool or create single-connection "pool"
-        conn_pool = Keyword.get(opts, :connection_pool, [conn])
-        conn_pool = if is_list(conn_pool), do: conn_pool, else: [conn_pool]
+        # Execute commands - optionally in parallel with connection pool
+        max_pipeline = Keyword.get(opts, :max_pipeline_size, @max_pipeline_size)
+        connection_pool = Keyword.get(opts, :connection_pool)
+        atomic = Keyword.get(opts, :atomic, true)
 
-        # Determine concurrency: min of (requested, num_chunks, pool_size)
-        requested_concurrency = Keyword.get(opts, :concurrency, @default_bulk_concurrency)
+        results = execute_pipeline_commands(conn, commands, max_pipeline, connection_pool, atomic)
 
-        max_concurrency =
-          requested_concurrency
-          # Can't have more concurrency than chunks
-          |> min(num_chunks)
-          # Can't have more concurrency than connections
-          |> min(length(conn_pool))
-          # At least 1
-          |> max(1)
-
-        # Ensure scripts are loaded before concurrent execution
-        Scripts.ensure_scripts_loaded(conn, [:add_standard_job])
-
-        # Process chunks concurrently
-        chunks
-        |> Enum.with_index()
-        |> Task.async_stream(
-          fn {chunk, idx} ->
-            # Round-robin connection selection
-            chunk_conn = Enum.at(conn_pool, rem(idx, length(conn_pool)))
-
-            case Scripts.add_standard_jobs_pipelined(chunk_conn, ctx, chunk) do
-              {:ok, job_ids} ->
-                Enum.zip(chunk, job_ids)
-                |> Enum.map(fn {{job, _opts}, job_id} ->
-                  {:ok, %{job | id: to_string(job_id)}}
-                end)
-
-              {:error, reason} ->
-                Enum.map(chunk, fn _ -> {:error, reason} end)
-            end
-          end,
-          max_concurrency: max_concurrency,
-          timeout: 60_000,
-          ordered: true
-        )
-        |> Enum.flat_map(fn {:ok, results} -> results end)
+        # Match results with jobs
+        Enum.zip(jobs_list, results)
+        |> Enum.map(fn
+          {job, {:ok, job_id}} when is_binary(job_id) or is_integer(job_id) ->
+            {:ok, %{job | id: to_string(job_id)}}
+          {_job, {:error, _} = err} ->
+            err
+          {job, {:ok, other}} ->
+            {:ok, %{job | id: to_string(other)}}
+        end)
       end
 
     # For other jobs (delayed/prioritized), fall back to sequential
@@ -402,6 +367,60 @@ defmodule BullMQ.Queue do
     else
       {:error, {:partial_failure, all_results}}
     end
+  end
+
+  # Execute pipeline commands using either MULTI/EXEC transactions (atomic) or plain pipeline.
+  # Default is atomic (MULTI/EXEC) which provides atomicity with nearly identical performance.
+  # Set atomic: false for slightly higher throughput when atomicity is not required.
+  #
+  # When using connection_pool with atomic: true, each batch is atomic within its connection,
+  # but the overall operation is not atomic across connections.
+  defp execute_pipeline_commands(conn, commands, max_pipeline, nil, atomic) do
+    # Single connection mode (default)
+    execute_fn = if atomic, do: &Scripts.execute_transaction/2, else: &Scripts.execute_pipeline/2
+
+    commands
+    |> Enum.chunk_every(max_pipeline)
+    |> Enum.flat_map(fn command_batch ->
+      case execute_fn.(conn, command_batch) do
+        {:ok, batch_results} -> batch_results
+        {:error, reason} -> Enum.map(command_batch, fn _ -> {:error, reason} end)
+      end
+    end)
+  end
+
+  defp execute_pipeline_commands(_conn, commands, max_pipeline, pool, atomic) when is_list(pool) do
+    # Parallel execution across connection pool
+    execute_fn = if atomic, do: &Scripts.execute_transaction/2, else: &Scripts.execute_pipeline/2
+    pool_size = length(pool)
+
+    # Split commands into chunks for each connection
+    # Each connection gets roughly equal work
+    chunk_size = max(div(length(commands), pool_size), 1)
+
+    commands
+    |> Enum.chunk_every(chunk_size)
+    |> Enum.with_index()
+    |> Task.async_stream(
+      fn {chunk, idx} ->
+        # Round-robin connection assignment
+        pool_conn = Enum.at(pool, rem(idx, pool_size))
+
+        # Execute this chunk's commands (possibly in sub-batches for very large chunks)
+        chunk
+        |> Enum.chunk_every(max_pipeline)
+        |> Enum.flat_map(fn batch ->
+          case execute_fn.(pool_conn, batch) do
+            {:ok, results} -> results
+            {:error, reason} -> Enum.map(batch, fn _ -> {:error, reason} end)
+          end
+        end)
+      end,
+      max_concurrency: pool_size,
+      timeout: 120_000,
+      ordered: true
+    )
+    |> Enum.flat_map(fn {:ok, results} -> results end)
   end
 
   defp add_bulk_sequential(conn, ctx, queue, jobs, opts) do
