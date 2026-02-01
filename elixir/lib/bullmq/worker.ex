@@ -1023,7 +1023,7 @@ defmodule BullMQ.Worker do
   def handle_info({:close_timeout, from}, state) do
     cleanup(state)
     GenServer.reply(from, :ok)
-    {:noreply, %{state | closing: true}}
+    {:stop, :normal, %{state | closing: true}}
   end
 
   # Catch-all for other EXIT signals (e.g., Task processes)

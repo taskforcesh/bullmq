@@ -4,6 +4,7 @@ defmodule BullMQ.HighConcurrencyTest do
 
   @redis_opts [host: "localhost", port: 6379]
   @moduletag timeout: 300_000
+  @moduletag :slow
 
   test "high concurrency 50-1000 with 5x jobs" do
     job_duration_ms = 100
@@ -110,6 +111,8 @@ defmodule BullMQ.HighConcurrencyTest do
     if length(keys) > 0 do
       RedisConnection.command(conn_name, ["DEL" | keys])
     end
+
+    GenServer.stop(conn_name)
 
     %{elapsed: elapsed, max_concurrent: max_concurrent}
   end
