@@ -273,6 +273,7 @@ defmodule BullMQ.Worker do
     paused: false,
     closing: false,
     active_jobs: %{},
+    worker_pids: %{},
     cancellation_tokens: %{},
     processor_supports_cancellation: false,
     token: "",
@@ -906,13 +907,27 @@ defmodule BullMQ.Worker do
     end
 
     active_jobs = Map.put(state.active_jobs, job.id, {job, worker_pid})
-    {:noreply, %{state | active_jobs: active_jobs}}
+    worker_pids = Map.put(state.worker_pids, worker_pid, job.id)
+    {:noreply, %{state | active_jobs: active_jobs, worker_pids: worker_pids}}
   end
 
-  def handle_info({:worker_stopped, _worker_pid}, state) do
-    # A worker process stopped (no more jobs) - try to spawn replacement
+  def handle_info({:worker_job_finished, worker_pid, job_id}, state) do
+    # Autonomous worker finished a job - clean up tracking
+    # The worker handles Redis updates itself, coordinator just tracks state
+    if state.lock_manager do
+      LockManager.untrack_job(state.lock_manager, job_id)
+    end
+
+    active_jobs = Map.delete(state.active_jobs, job_id)
+    worker_pids = Map.delete(state.worker_pids, worker_pid)
+    {:noreply, %{state | active_jobs: active_jobs, worker_pids: worker_pids}}
+  end
+
+  def handle_info({:worker_stopped, worker_pid}, state) do
+    # A worker process stopped (no more jobs) - clean up and try to spawn replacement
+    worker_pids = Map.delete(state.worker_pids, worker_pid)
     send(self(), :fetch_jobs)
-    {:noreply, state}
+    {:noreply, %{state | worker_pids: worker_pids}}
   end
 
   def handle_info({:job_completed, job_id, result}, state) do
@@ -1026,10 +1041,33 @@ defmodule BullMQ.Worker do
     {:stop, :normal, %{state | closing: true}}
   end
 
-  # Catch-all for other EXIT signals (e.g., Task processes)
+  # Handle EXIT signals from autonomous worker processes
   # Note: LockManager exits are handled separately above
-  def handle_info({:EXIT, _pid, _reason}, state) do
-    {:noreply, state}
+  def handle_info({:EXIT, pid, reason}, state) do
+    case Map.get(state.worker_pids, pid) do
+      nil ->
+        # Unknown process, ignore
+        {:noreply, state}
+
+      job_id ->
+        # Autonomous worker crashed - clean up the job it was processing
+        # The job will be picked up by stalled job recovery if needed
+        Logger.warning(
+          "[BullMQ.Worker] Autonomous worker #{inspect(pid)} crashed while processing job #{job_id}: #{inspect(reason)}"
+        )
+
+        if state.lock_manager do
+          LockManager.untrack_job(state.lock_manager, job_id)
+        end
+
+        active_jobs = Map.delete(state.active_jobs, job_id)
+        worker_pids = Map.delete(state.worker_pids, pid)
+
+        # Schedule replacement worker
+        send(self(), :fetch_jobs)
+
+        {:noreply, %{state | active_jobs: active_jobs, worker_pids: worker_pids}}
+    end
   end
 
   defp worker_client_name(state) do
@@ -1113,20 +1151,28 @@ defmodule BullMQ.Worker do
   # Worker initialization - creates dedicated connection and fetches first job
   defp autonomous_worker_init(ctx) do
     # Create a dedicated Redix connection for this worker (bypasses NimblePool)
-    ctx = case ctx.redis_opts do
-      [] ->
-        # No redis opts available, fall back to shared connection
-        ctx
-      redis_opts ->
-        case Redix.start_link(redis_opts) do
-          {:ok, redix_pid} ->
-            # Use dedicated connection wrapped in a simple map for Scripts compatibility
-            %{ctx | connection: {:dedicated, redix_pid}}
-          {:error, _} ->
-            # Fall back to shared connection on error
-            ctx
-        end
-    end
+    ctx =
+      case ctx.redis_opts do
+        [] ->
+          # No redis opts available, fall back to shared connection
+          Logger.debug("[BullMQ.Worker] No redis opts available, using shared connection")
+          ctx
+
+        redis_opts ->
+          case Redix.start_link(redis_opts) do
+            {:ok, redix_pid} ->
+              # Use dedicated connection wrapped in a simple map for Scripts compatibility
+              %{ctx | connection: {:dedicated, redix_pid}}
+
+            {:error, reason} ->
+              # Fall back to shared connection on error
+              Logger.warning(
+                "[BullMQ.Worker] Failed to create dedicated connection: #{inspect(reason)}, falling back to shared connection"
+              )
+
+              ctx
+          end
+      end
 
     case do_fetch_job(ctx) do
       {:ok, nil} ->
@@ -1154,6 +1200,7 @@ defmodule BullMQ.Worker do
   defp cleanup_dedicated_connection(%{connection: {:dedicated, pid}}) do
     Redix.stop(pid)
   end
+
   defp cleanup_dedicated_connection(_ctx), do: :ok
 
   # Fetch a job directly (used by autonomous workers)
@@ -1175,11 +1222,14 @@ defmodule BullMQ.Worker do
       {:ok, [job_data, job_id, _limit_delay, _delay_until]}
       when is_list(job_data) and job_data != [] ->
         job_map = list_to_job_map(job_data)
-        job = Job.from_redis(to_string(job_id), ctx.queue_name, job_map,
-          prefix: ctx.prefix,
-          token: ctx.token,
-          connection: ctx.connection
-        )
+
+        job =
+          Job.from_redis(to_string(job_id), ctx.queue_name, job_map,
+            prefix: ctx.prefix,
+            token: ctx.token,
+            connection: ctx.connection
+          )
+
         {:ok, job}
 
       {:error, _} = error ->
@@ -1188,7 +1238,7 @@ defmodule BullMQ.Worker do
   end
 
   # Autonomous worker loop - runs in its own process, handles entire job lifecycle
-  # Workers operate independently and only notify coordinator on start/stop for minimal overhead
+  # Workers operate independently and notify coordinator for job tracking
   defp autonomous_worker_loop(job, ctx) do
     # Process the job
     result = run_processor_sync(job, ctx)
@@ -1196,20 +1246,26 @@ defmodule BullMQ.Worker do
     # Handle result and get next job
     case handle_job_result(job, result, ctx) do
       {:continue, next_job} ->
-        # Continue processing next job without coordinator notification
+        # Notify coordinator: old job finished, new job started
+        send(ctx.coordinator, {:worker_job_finished, self(), job.id})
+        send(ctx.coordinator, {:worker_got_job, self(), next_job})
         autonomous_worker_loop(next_job, ctx)
 
       :stop ->
-        # No more jobs, cleanup and notify coordinator
+        # No more jobs, notify job finished, cleanup and notify stopped
+        send(ctx.coordinator, {:worker_job_finished, self(), job.id})
         cleanup_dedicated_connection(ctx)
         send(ctx.coordinator, {:worker_stopped, self()})
 
       :retry ->
-        # Job moved to delayed for retry, try to get next job
+        # Job moved to delayed for retry, notify finished and try to get next job
+        send(ctx.coordinator, {:worker_job_finished, self(), job.id})
+
         case try_get_next_job(ctx) do
           {:ok, next_job} ->
             send(ctx.coordinator, {:worker_got_job, self(), next_job})
             autonomous_worker_loop(next_job, ctx)
+
           _ ->
             cleanup_dedicated_connection(ctx)
             send(ctx.coordinator, {:worker_stopped, self()})
@@ -1259,11 +1315,17 @@ defmodule BullMQ.Worker do
 
     case return_value do
       {:delay, delay_ms} ->
-        Scripts.move_to_delayed(ctx.connection, ctx.keys, job.id, job.token, delay_ms, skip_attempt: true)
+        Scripts.move_to_delayed(ctx.connection, ctx.keys, job.id, job.token, delay_ms,
+          skip_attempt: true
+        )
+
         :stop
 
       {:rate_limit, delay_ms} ->
-        Scripts.move_to_delayed(ctx.connection, ctx.keys, job.id, job.token, delay_ms, skip_attempt: true)
+        Scripts.move_to_delayed(ctx.connection, ctx.keys, job.id, job.token, delay_ms,
+          skip_attempt: true
+        )
+
         :stop
 
       :waiting ->
@@ -1278,14 +1340,25 @@ defmodule BullMQ.Worker do
         # Complete job and get next
         move_opts = build_worker_move_opts(ctx, job)
 
-        case Scripts.move_to_completed(ctx.connection, ctx.keys, job.id, job.token, return_value, move_opts) do
-          {:ok, [job_data, job_id, _limit_delay, _delay_until]} when is_list(job_data) and job_data != [] ->
+        case Scripts.move_to_completed(
+               ctx.connection,
+               ctx.keys,
+               job.id,
+               job.token,
+               return_value,
+               move_opts
+             ) do
+          {:ok, [job_data, job_id, _limit_delay, _delay_until]}
+          when is_list(job_data) and job_data != [] ->
             job_map = list_to_job_map(job_data)
-            next_job = Job.from_redis(to_string(job_id), ctx.queue_name, job_map,
-              prefix: ctx.prefix,
-              token: ctx.token,
-              connection: ctx.connection
-            )
+
+            next_job =
+              Job.from_redis(to_string(job_id), ctx.queue_name, job_map,
+                prefix: ctx.prefix,
+                token: ctx.token,
+                connection: ctx.connection
+              )
+
             {:continue, next_job}
 
           _ ->
@@ -1300,7 +1373,11 @@ defmodule BullMQ.Worker do
       effective_delay = max(backoff_delay, 1)
 
       Scripts.move_to_delayed(
-        ctx.connection, ctx.keys, job.id, job.token, effective_delay,
+        ctx.connection,
+        ctx.keys,
+        job.id,
+        job.token,
+        effective_delay,
         stacktrace: format_stacktrace(stacktrace)
       )
 
@@ -1309,13 +1386,17 @@ defmodule BullMQ.Worker do
       move_opts = build_worker_move_opts(ctx, job) ++ [stacktrace: format_stacktrace(stacktrace)]
 
       case Scripts.move_to_failed(ctx.connection, ctx.keys, job.id, job.token, error_msg, move_opts) do
-        {:ok, [job_data, job_id, _limit_delay, _delay_until]} when is_list(job_data) and job_data != [] ->
+        {:ok, [job_data, job_id, _limit_delay, _delay_until]}
+        when is_list(job_data) and job_data != [] ->
           job_map = list_to_job_map(job_data)
-          next_job = Job.from_redis(to_string(job_id), ctx.queue_name, job_map,
-            prefix: ctx.prefix,
-            token: ctx.token,
-            connection: ctx.connection
-          )
+
+          next_job =
+            Job.from_redis(to_string(job_id), ctx.queue_name, job_map,
+              prefix: ctx.prefix,
+              token: ctx.token,
+              connection: ctx.connection
+            )
+
           {:continue, next_job}
 
         _ ->
@@ -1348,99 +1429,7 @@ defmodule BullMQ.Worker do
     ]
   end
 
-  # Legacy: kept for backward compatibility with existing code paths
-  defp fetch_and_process_jobs(state, count) when count <= 0, do: state
-
-  defp fetch_and_process_jobs(state, count) do
-    case fetch_next_job(state) do
-      {:ok, nil} ->
-        # No jobs available, schedule next check
-        Process.send_after(self(), :fetch_jobs, 100)
-        state
-
-      {:ok, job} ->
-        # Start processing the job
-        new_state = start_job_processing(job, state)
-
-        # Try to fetch more jobs if we have capacity
-        if count > 1 do
-          fetch_and_process_jobs(new_state, count - 1)
-        else
-          # Schedule next fetch
-          send(self(), :fetch_jobs)
-          new_state
-        end
-
-      {:rate_limited, delay} ->
-        # Rate limited, wait before retrying
-        Process.send_after(self(), :fetch_jobs, delay)
-        state
-
-      {:error, reason} ->
-        Logger.error("[BullMQ.Worker] Error fetching job: #{inspect(reason)}")
-        Process.send_after(self(), :fetch_jobs, 1_000)
-        state
-    end
-  end
-
-  defp fetch_next_job(state) do
-    opts = [
-      lock_duration: state.lock_duration,
-      limiter: state.limiter,
-      name: state.name && Atom.to_string(state.name)
-    ]
-
-    case Scripts.move_to_active(state.connection, state.keys, state.token, opts) do
-      # No job available (returned as list [0, 0, 0, 0] or [nil, nil, 0, 0])
-      {:ok, [job_data, _job_id, 0, _delay_until]} when job_data in [0, nil, ""] ->
-        {:ok, nil}
-
-      # Rate limited
-      {:ok, [job_data, _job_id, rate_limit_delay, _delay_until]}
-      when job_data in [0, nil, ""] and is_integer(rate_limit_delay) and rate_limit_delay > 0 ->
-        {:rate_limited, rate_limit_delay}
-
-      # Job available - job_data is a list of key-value pairs
-      {:ok, [job_data, job_id, _limit_delay, _delay_until]}
-      when is_list(job_data) and job_data != [] ->
-        # Convert flat list to map (BullMQ returns [key1, val1, key2, val2, ...])
-        job_map = list_to_job_map(job_data)
-
-        job =
-          Job.from_redis(to_string(job_id), state.queue_name, job_map,
-            prefix: state.prefix,
-            token: state.token,
-            connection: state.connection,
-            worker: self()
-          )
-
-        {:ok, job}
-
-      # Legacy tuple format (for backward compatibility)
-      {:ok, {nil, nil, 0, _delay_until}} ->
-        {:ok, nil}
-
-      {:ok, {nil, nil, rate_limit_delay, _delay_until}} when rate_limit_delay > 0 ->
-        {:rate_limited, rate_limit_delay}
-
-      {:ok, {job_data, job_id, _limit_delay, _delay_until}} when not is_nil(job_data) ->
-        job =
-          Job.from_redis(job_id, state.queue_name, job_data,
-            prefix: state.prefix,
-            token: state.token,
-            connection: state.connection,
-            worker: self()
-          )
-
-        {:ok, job}
-
-      {:error, _} = error ->
-        error
-    end
-  end
-
   # Fetch next job for manual processing with a custom token
-  # Unlike fetch_next_job/1 which uses the worker's token, this uses a user-provided token
   defp fetch_next_job_with_token(state, token) do
     script_opts = [
       lock_duration: state.lock_duration,

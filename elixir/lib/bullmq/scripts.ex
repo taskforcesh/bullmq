@@ -321,51 +321,62 @@ defmodule BullMQ.Scripts do
   @spec build_bulk_add_commands(queue_context(), [{map() | struct(), map()}]) ::
           {:ok, [{map() | struct(), [String.t()]}]} | {:error, term()}
   def build_bulk_add_commands(ctx, jobs_with_opts) do
-    # Precompute shared values (computed once, not per job)
-    sha = get_sha(:add_standard_job)
-    if sha == nil do
-      {:error, {:script_not_found, :add_standard_job}}
-    else
-      # Precompute keys (same for all jobs in queue)
-      keys = [
-        Keys.wait(ctx),
-        Keys.paused(ctx),
-        Keys.meta(ctx),
-        Keys.id(ctx),
-        Keys.completed(ctx),
-        Keys.delayed(ctx),
-        Keys.active(ctx),
-        Keys.events(ctx),
-        Keys.marker(ctx)
-      ]
-      key_prefix = Keys.key_prefix(ctx)
-      num_keys = 9
+    case get_sha(:add_standard_job) do
+      nil ->
+        {:error, {:script_not_found, :add_standard_job}}
 
-      # Build commands efficiently
-      results = Enum.map(jobs_with_opts, fn {job, opts} ->
-        timestamp = get_job_timestamp(job) || System.system_time(:millisecond)
-        job_id = get_job_id(job)
-        job_name = get_job_name(job)
-        {parent_key, parent_deps_key, parent} = get_parent_info_full(job)
-        repeat_job_key = get_repeat_job_key(job)
-        deduplication_key = get_deduplication_key(job, ctx)
+      sha ->
+        # Precompute keys (same for all jobs in queue)
+        keys = [
+          Keys.wait(ctx),
+          Keys.paused(ctx),
+          Keys.meta(ctx),
+          Keys.id(ctx),
+          Keys.completed(ctx),
+          Keys.delayed(ctx),
+          Keys.active(ctx),
+          Keys.events(ctx),
+          Keys.marker(ctx)
+        ]
 
-        packed_args =
-          Msgpax.pack!(
-            [key_prefix, job_id || "", job_name, timestamp,
-             parent_key, parent_deps_key, parent, repeat_job_key, deduplication_key],
-            iodata: false
-          )
+        key_prefix = Keys.key_prefix(ctx)
+        num_keys = 9
 
-        job_data = get_job_data(job) |> Jason.encode!()
-        packed_opts = pack_job_opts(job, opts)
+        # Build commands efficiently
+        results =
+          Enum.map(jobs_with_opts, fn {job, opts} ->
+            timestamp = get_job_timestamp(job) || System.system_time(:millisecond)
+            job_id = get_job_id(job)
+            job_name = get_job_name(job)
+            {parent_key, parent_deps_key, parent} = get_parent_info_full(job)
+            repeat_job_key = get_repeat_job_key(job)
+            deduplication_key = get_deduplication_key(job, ctx)
 
-        # Build command directly without going through build_command
-        cmd = ["EVALSHA", sha, num_keys | keys ++ [packed_args, job_data, packed_opts]]
-        {job, cmd}
-      end)
+            packed_args =
+              Msgpax.pack!(
+                [
+                  key_prefix,
+                  job_id || "",
+                  job_name,
+                  timestamp,
+                  parent_key,
+                  parent_deps_key,
+                  parent,
+                  repeat_job_key,
+                  deduplication_key
+                ],
+                iodata: false
+              )
 
-      {:ok, results}
+            job_data = get_job_data(job) |> Jason.encode!()
+            packed_opts = pack_job_opts(job, opts)
+
+            # Build command directly without going through build_command
+            cmd = ["EVALSHA", sha, num_keys | keys ++ [packed_args, job_data, packed_opts]]
+            {job, cmd}
+          end)
+
+        {:ok, results}
     end
   end
 
