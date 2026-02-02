@@ -93,7 +93,9 @@ class Job:
         deduplication = opts.get("deduplication")
         self.deduplication_id = deduplication.get("id") if deduplication and isinstance(deduplication, dict) else None
         
-        self.scripts = Scripts(queue.prefix, queue.name, queue.redisConnection)
+        # Reuse the queue's scripts instance instead of creating a new one per job
+        # This avoids reading 29 Lua files from disk for every job added
+        self.scripts = queue.scripts
         self.queueQualifiedName = queue.qualifiedName
 
     def updateData(self, data):
