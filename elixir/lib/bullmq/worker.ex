@@ -900,7 +900,7 @@ defmodule BullMQ.Worker do
     end
   end
 
-  def handle_info({:worker_got_job, worker_pid, job}, state) do
+  def handle_info({:worker_got_job, worker_pid, job, cancel_token}, state) do
     # A worker successfully fetched a job - track it
     if state.lock_manager do
       LockManager.track_job(state.lock_manager, job.id, job.token)
@@ -908,7 +908,22 @@ defmodule BullMQ.Worker do
 
     active_jobs = Map.put(state.active_jobs, job.id, {job, worker_pid})
     worker_pids = Map.put(state.worker_pids, worker_pid, job.id)
-    {:noreply, %{state | active_jobs: active_jobs, worker_pids: worker_pids}}
+
+    # Track cancellation token if provided (for autonomous workers with cancellation support)
+    cancellation_tokens =
+      if cancel_token do
+        Map.put(state.cancellation_tokens, job.id, {cancel_token, worker_pid})
+      else
+        state.cancellation_tokens
+      end
+
+    {:noreply,
+     %{
+       state
+       | active_jobs: active_jobs,
+         worker_pids: worker_pids,
+         cancellation_tokens: cancellation_tokens
+     }}
   end
 
   def handle_info({:worker_job_finished, worker_pid, job_id}, state) do
@@ -920,14 +935,26 @@ defmodule BullMQ.Worker do
 
     active_jobs = Map.delete(state.active_jobs, job_id)
     worker_pids = Map.delete(state.worker_pids, worker_pid)
-    {:noreply, %{state | active_jobs: active_jobs, worker_pids: worker_pids}}
+    cancellation_tokens = Map.delete(state.cancellation_tokens, job_id)
+
+    new_state = %{
+      state
+      | active_jobs: active_jobs,
+        worker_pids: worker_pids,
+        cancellation_tokens: cancellation_tokens
+    }
+
+    # Check if we're closing and all jobs are done
+    check_closing_or_fetch(new_state)
   end
 
   def handle_info({:worker_stopped, worker_pid}, state) do
     # A worker process stopped (no more jobs) - clean up and try to spawn replacement
     worker_pids = Map.delete(state.worker_pids, worker_pid)
-    send(self(), :fetch_jobs)
-    {:noreply, %{state | worker_pids: worker_pids}}
+
+    # Only try to fetch more jobs if we're not closing
+    new_state = %{state | worker_pids: worker_pids}
+    check_closing_or_fetch(new_state)
   end
 
   def handle_info({:job_completed, job_id, result}, state) do
@@ -1017,18 +1044,18 @@ defmodule BullMQ.Worker do
         {token, processor_pid} ->
           Logger.warning("[BullMQ.Worker] Lock lost for job #{job_id}, cancelling processor")
           CancellationToken.cancel(processor_pid, token, {:lock_lost, job_id})
+      end
 
-          # Also call the user's on_lock_renewal_failed callback if provided
-          if state.on_lock_renewal_failed do
-            try do
-              state.on_lock_renewal_failed.([job_id])
-            rescue
-              e ->
-                Logger.warning(
-                  "[BullMQ.Worker] on_lock_renewal_failed callback failed: #{Exception.message(e)}"
-                )
-            end
-          end
+      # Call the user's on_lock_renewal_failed callback if provided (regardless of token)
+      if state.on_lock_renewal_failed do
+        try do
+          state.on_lock_renewal_failed.([job_id])
+        rescue
+          e ->
+            Logger.warning(
+              "[BullMQ.Worker] on_lock_renewal_failed callback failed: #{Exception.message(e)}"
+            )
+        end
       end
     end)
 
@@ -1136,7 +1163,12 @@ defmodule BullMQ.Worker do
       telemetry: state.telemetry,
       remove_on_complete: state.remove_on_complete || %{"count" => -1},
       remove_on_fail: state.remove_on_fail || %{"count" => -1},
-      coordinator: self()
+      coordinator: self(),
+      # Include callbacks so autonomous workers can emit events
+      on_completed: state.on_completed,
+      on_failed: state.on_failed,
+      on_error: state.on_error,
+      on_active: state.on_active
     }
 
     # Spawn all workers in parallel - each will fetch its own first job
@@ -1181,9 +1213,13 @@ defmodule BullMQ.Worker do
         send(ctx.coordinator, {:worker_stopped, self()})
 
       {:ok, job} ->
-        # Notify coordinator that we got a job
-        send(ctx.coordinator, {:worker_got_job, self(), job})
-        autonomous_worker_loop(job, ctx)
+        # Create cancellation token if processor supports it (need to register before processing)
+        cancel_token =
+          if ctx.processor_supports_cancellation, do: CancellationToken.new(), else: nil
+
+        # Notify coordinator that we got a job (include token for cancellation support)
+        send(ctx.coordinator, {:worker_got_job, self(), job, cancel_token})
+        autonomous_worker_loop(job, ctx, cancel_token)
 
       {:rate_limited, _delay} ->
         # Rate limited on first fetch, notify and exit
@@ -1227,7 +1263,8 @@ defmodule BullMQ.Worker do
           Job.from_redis(to_string(job_id), ctx.queue_name, job_map,
             prefix: ctx.prefix,
             token: ctx.token,
-            connection: ctx.connection
+            connection: ctx.connection,
+            worker: ctx.coordinator
           )
 
         {:ok, job}
@@ -1239,17 +1276,23 @@ defmodule BullMQ.Worker do
 
   # Autonomous worker loop - runs in its own process, handles entire job lifecycle
   # Workers operate independently and notify coordinator for job tracking
-  defp autonomous_worker_loop(job, ctx) do
-    # Process the job
-    result = run_processor_sync(job, ctx)
+  defp autonomous_worker_loop(job, ctx, cancel_token) do
+    # Process the job (pass the pre-created token)
+    result = run_processor_sync(job, ctx, cancel_token)
 
     # Handle result and get next job
     case handle_job_result(job, result, ctx) do
       {:continue, next_job} ->
-        # Notify coordinator: old job finished, new job started
+        # Notify coordinator: old job finished
         send(ctx.coordinator, {:worker_job_finished, self(), job.id})
-        send(ctx.coordinator, {:worker_got_job, self(), next_job})
-        autonomous_worker_loop(next_job, ctx)
+
+        # Create new cancellation token for next job if processor supports it
+        next_cancel_token =
+          if ctx.processor_supports_cancellation, do: CancellationToken.new(), else: nil
+
+        # Notify coordinator about new job (with token)
+        send(ctx.coordinator, {:worker_got_job, self(), next_job, next_cancel_token})
+        autonomous_worker_loop(next_job, ctx, next_cancel_token)
 
       :stop ->
         # No more jobs, notify job finished, cleanup and notify stopped
@@ -1263,8 +1306,12 @@ defmodule BullMQ.Worker do
 
         case try_get_next_job(ctx) do
           {:ok, next_job} ->
-            send(ctx.coordinator, {:worker_got_job, self(), next_job})
-            autonomous_worker_loop(next_job, ctx)
+            # Create new cancellation token for next job if processor supports it
+            next_cancel_token =
+              if ctx.processor_supports_cancellation, do: CancellationToken.new(), else: nil
+
+            send(ctx.coordinator, {:worker_got_job, self(), next_job, next_cancel_token})
+            autonomous_worker_loop(next_job, ctx, next_cancel_token)
 
           _ ->
             cleanup_dedicated_connection(ctx)
@@ -1283,13 +1330,16 @@ defmodule BullMQ.Worker do
   end
 
   # Run processor synchronously (called within worker process)
-  defp run_processor_sync(job, ctx) do
+  # The cancel_token parameter allows passing a pre-created token
+  # (used by autonomous workers who need to register the token before processing)
+  defp run_processor_sync(job, ctx, cancel_token) do
     processor = ctx.processor
 
     processor_fn =
       if ctx.processor_supports_cancellation do
-        cancel_token = CancellationToken.new()
-        fn -> processor.(job, cancel_token) end
+        # Use provided token or create new one
+        token = cancel_token || CancellationToken.new()
+        fn -> processor.(job, token) end
       else
         fn -> processor.(job) end
       end
@@ -1314,6 +1364,10 @@ defmodule BullMQ.Worker do
     return_value = normalize_result(result)
 
     case return_value do
+      {:error, error_reason} ->
+        # Processor returned {:error, reason} - treat as failure
+        handle_job_result(job, {:error, to_string(error_reason), []}, ctx)
+
       {:delay, delay_ms} ->
         Scripts.move_to_delayed(ctx.connection, ctx.keys, job.id, job.token, delay_ms,
           skip_attempt: true
@@ -1350,18 +1404,26 @@ defmodule BullMQ.Worker do
              ) do
           {:ok, [job_data, job_id, _limit_delay, _delay_until]}
           when is_list(job_data) and job_data != [] ->
+            # Emit on_completed callback
+            updated_job = %{job | attempts_made: job.attempts_made + 1}
+            emit_event(ctx.on_completed, [updated_job, return_value])
+
             job_map = list_to_job_map(job_data)
 
             next_job =
               Job.from_redis(to_string(job_id), ctx.queue_name, job_map,
                 prefix: ctx.prefix,
                 token: ctx.token,
-                connection: ctx.connection
+                connection: ctx.connection,
+                worker: ctx.coordinator
               )
 
             {:continue, next_job}
 
           _ ->
+            # Emit on_completed callback even when no next job
+            updated_job = %{job | attempts_made: job.attempts_made + 1}
+            emit_event(ctx.on_completed, [updated_job, return_value])
             :stop
         end
     end
@@ -1371,6 +1433,9 @@ defmodule BullMQ.Worker do
     if Job.should_retry?(job) do
       backoff_delay = Job.calculate_backoff(job)
       effective_delay = max(backoff_delay, 1)
+
+      # Emit on_error callback for retry case
+      emit_event(ctx.on_error, [job, error_msg, nil])
 
       Scripts.move_to_delayed(
         ctx.connection,
@@ -1388,18 +1453,26 @@ defmodule BullMQ.Worker do
       case Scripts.move_to_failed(ctx.connection, ctx.keys, job.id, job.token, error_msg, move_opts) do
         {:ok, [job_data, job_id, _limit_delay, _delay_until]}
         when is_list(job_data) and job_data != [] ->
+          # Emit on_failed callback with failed_reason set
+          updated_job = %{job | attempts_made: job.attempts_made + 1, failed_reason: error_msg}
+          emit_event(ctx.on_failed, [updated_job, error_msg])
+
           job_map = list_to_job_map(job_data)
 
           next_job =
             Job.from_redis(to_string(job_id), ctx.queue_name, job_map,
               prefix: ctx.prefix,
               token: ctx.token,
-              connection: ctx.connection
+              connection: ctx.connection,
+              worker: ctx.coordinator
             )
 
           {:continue, next_job}
 
         _ ->
+          # Emit on_failed callback even when no next job
+          updated_job = %{job | attempts_made: job.attempts_made + 1, failed_reason: error_msg}
+          emit_event(ctx.on_failed, [updated_job, error_msg])
           :stop
       end
     end
