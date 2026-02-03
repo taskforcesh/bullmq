@@ -17,10 +17,6 @@ if TYPE_CHECKING:
 import time
 import json
 import msgpack
-import os
-
-
-basePath = os.path.dirname(os.path.realpath(__file__))
 
 
 class Scripts:
