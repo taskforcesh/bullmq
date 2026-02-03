@@ -995,3 +995,234 @@ describe('Cluster integration tests', () => {
     });
   });
 });
+
+describe('Cluster with authentication integration tests', () => {
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
+
+  // Redis cluster nodes with authentication from docker-compose
+  const clusterAuthNodes = [
+    { host: '127.0.0.1', port: 7101 },
+    { host: '127.0.0.1', port: 7102 },
+    { host: '127.0.0.1', port: 7103 },
+  ];
+
+  const clusterPassword = 'testpassword';
+
+  let cluster: Cluster;
+  let queue: Queue;
+  let queueName: string;
+  let clusterAvailable = false;
+
+  beforeAll(async () => {
+    try {
+      cluster = new Cluster(clusterAuthNodes, {
+        redisOptions: {
+          maxRetriesPerRequest: null,
+          password: clusterPassword,
+        },
+        // NAT mapping for Docker on macOS - map container IPs (172.31.0.x) to localhost
+        natMap: {
+          '172.31.0.11:7101': { host: '127.0.0.1', port: 7101 },
+          '172.31.0.12:7102': { host: '127.0.0.1', port: 7102 },
+          '172.31.0.13:7103': { host: '127.0.0.1', port: 7103 },
+          '172.31.0.14:7104': { host: '127.0.0.1', port: 7104 },
+          '172.31.0.15:7105': { host: '127.0.0.1', port: 7105 },
+          '172.31.0.16:7106': { host: '127.0.0.1', port: 7106 },
+        },
+      });
+
+      // Wait for cluster to be ready with timeout
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Cluster connection timeout'));
+        }, 5000);
+
+        cluster.once('ready', () => {
+          clearTimeout(timeout);
+          clusterAvailable = true;
+          resolve();
+        });
+        cluster.once('error', err => {
+          clearTimeout(timeout);
+          reject(err);
+        });
+      });
+    } catch (err) {
+      console.warn(
+        'Redis cluster with auth not available, skipping cluster auth integration tests:',
+        (err as Error).message,
+      );
+    }
+  }, 10000);
+
+  beforeEach(async ctx => {
+    if (!clusterAvailable) {
+      ctx.skip();
+      return;
+    }
+    // Use hash tag in queue name to ensure all keys hash to the same slot in Redis Cluster
+    queueName = `{test-cluster-auth-${v4()}}`;
+    queue = new Queue(queueName, { connection: cluster, prefix });
+  });
+
+  afterEach(async () => {
+    if (queue) {
+      await queue.close();
+    }
+  });
+
+  afterAll(async () => {
+    if (cluster) {
+      await cluster.quit();
+    }
+  });
+
+  describe('when using a Redis cluster with authentication', () => {
+    it('should add and process jobs with authenticated cluster', async ctx => {
+      if (!clusterAvailable) {
+        ctx.skip();
+        return;
+      }
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          return job.data.value * 2;
+        },
+        {
+          autorun: false,
+          connection: cluster,
+          prefix,
+        },
+      );
+
+      await worker.waitUntilReady();
+
+      const queueEvents = new QueueEvents(queueName, {
+        connection: cluster,
+        prefix,
+      });
+      await queueEvents.waitUntilReady();
+
+      const completing = new Promise<void>(resolve => {
+        queueEvents.once('completed', () => {
+          resolve();
+        });
+      });
+
+      const job = await queue.add('test-job', { value: 21 });
+      expect(job.id).toBeDefined();
+
+      worker.run();
+      await completing;
+
+      const completedJob = await job.getState();
+      expect(completedJob).toBe('completed');
+
+      await queueEvents.close();
+      await worker.close();
+    });
+
+    it('should handle worker blocking connection with authentication', async ctx => {
+      if (!clusterAvailable) {
+        ctx.skip();
+        return;
+      }
+
+      // This test specifically validates that the worker's blocking connection
+      // properly inherits authentication when duplicating the cluster connection
+      const processedJobs: string[] = [];
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          processedJobs.push(job.id!);
+          return 'done';
+        },
+        {
+          connection: cluster,
+          prefix,
+          name: 'auth-test-worker',
+        },
+      );
+
+      // Wait for worker to be ready - this is where the NOAUTH error would occur
+      // if authentication is not properly passed to the duplicated connection
+      await worker.waitUntilReady();
+
+      // Add multiple jobs to test the blocking connection
+      await queue.addBulk([
+        { name: 'job1', data: { id: 1 } },
+        { name: 'job2', data: { id: 2 } },
+        { name: 'job3', data: { id: 3 } },
+      ]);
+
+      // Wait for all jobs to be processed
+      await new Promise<void>(resolve => {
+        let completed = 0;
+        worker.on('completed', () => {
+          completed++;
+          if (completed === 3) {
+            resolve();
+          }
+        });
+      });
+
+      expect(processedJobs).toHaveLength(3);
+
+      await worker.close();
+    });
+
+    it('should handle QueueEvents with authentication', async ctx => {
+      if (!clusterAvailable) {
+        ctx.skip();
+        return;
+      }
+
+      const queueEvents = new QueueEvents(queueName, {
+        connection: cluster,
+        prefix,
+      });
+
+      // This will trigger the duplicate connection for QueueEvents
+      await queueEvents.waitUntilReady();
+
+      const events: string[] = [];
+
+      queueEvents.on('waiting', ({ jobId }) => {
+        events.push(`waiting:${jobId}`);
+      });
+
+      queueEvents.on('completed', ({ jobId }) => {
+        events.push(`completed:${jobId}`);
+      });
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          return 'done';
+        },
+        {
+          connection: cluster,
+          prefix,
+        },
+      );
+
+      await worker.waitUntilReady();
+
+      const job = await queue.add('test-job', { value: 1 });
+
+      // Wait for completion event
+      await new Promise<void>(resolve => {
+        queueEvents.once('completed', () => {
+          resolve();
+        });
+      });
+
+      expect(events).toContain(`completed:${job.id}`);
+
+      await queueEvents.close();
+      await worker.close();
+    });
+  });
+});

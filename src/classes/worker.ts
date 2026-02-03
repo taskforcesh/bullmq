@@ -342,7 +342,10 @@ export class Worker<
       isRedisInstance(opts.connection)
         ? (<Redis>opts.connection).isCluster
           ? (<Cluster>opts.connection).duplicate(undefined, {
-              redisOptions: { connectionName },
+              redisOptions: {
+                ...(<Cluster>opts.connection).options?.redisOptions,
+                connectionName,
+              },
             })
           : (<Redis>opts.connection).duplicate({ connectionName })
         : { ...opts.connection, connectionName },

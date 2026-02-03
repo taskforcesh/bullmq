@@ -1,3 +1,4 @@
+import { Cluster } from 'ioredis';
 import { JobProgress } from '../types';
 import {
   IoredisListener,
@@ -288,7 +289,11 @@ export class QueueEvents extends QueueBase {
       {
         ...opts,
         connection: isRedisInstance(connection)
-          ? (<RedisClient>connection).duplicate()
+          ? (<RedisClient>connection).isCluster
+            ? (<Cluster>connection).duplicate(undefined, {
+                redisOptions: (<Cluster>connection).options?.redisOptions,
+              })
+            : (<RedisClient>connection).duplicate()
           : connection,
       },
       Connection,

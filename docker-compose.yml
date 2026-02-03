@@ -181,9 +181,212 @@ services:
       redis-cluster-net:
         ipv4_address: 172.30.0.10
 
+  # Redis Cluster with Authentication for integration tests
+  # Use `docker-compose --profile cluster-auth up` to start
+  redis-cluster-auth-node-1:
+    image: redis:7-alpine
+    container_name: redis-cluster-auth-node-1
+    profiles: ['cluster-auth']
+    command:
+      [
+        'redis-server',
+        '--port',
+        '7101',
+        '--cluster-enabled',
+        'yes',
+        '--cluster-config-file',
+        'nodes.conf',
+        '--cluster-node-timeout',
+        '5000',
+        '--appendonly',
+        'yes',
+        '--requirepass',
+        'testpassword',
+        '--masterauth',
+        'testpassword',
+      ]
+    ports:
+      - '7101:7101'
+      - '17101:17101'
+    networks:
+      redis-cluster-auth-net:
+        ipv4_address: 172.31.0.11
+
+  redis-cluster-auth-node-2:
+    image: redis:7-alpine
+    container_name: redis-cluster-auth-node-2
+    profiles: ['cluster-auth']
+    command:
+      [
+        'redis-server',
+        '--port',
+        '7102',
+        '--cluster-enabled',
+        'yes',
+        '--cluster-config-file',
+        'nodes.conf',
+        '--cluster-node-timeout',
+        '5000',
+        '--appendonly',
+        'yes',
+        '--requirepass',
+        'testpassword',
+        '--masterauth',
+        'testpassword',
+      ]
+    ports:
+      - '7102:7102'
+      - '17102:17102'
+    networks:
+      redis-cluster-auth-net:
+        ipv4_address: 172.31.0.12
+
+  redis-cluster-auth-node-3:
+    image: redis:7-alpine
+    container_name: redis-cluster-auth-node-3
+    profiles: ['cluster-auth']
+    command:
+      [
+        'redis-server',
+        '--port',
+        '7103',
+        '--cluster-enabled',
+        'yes',
+        '--cluster-config-file',
+        'nodes.conf',
+        '--cluster-node-timeout',
+        '5000',
+        '--appendonly',
+        'yes',
+        '--requirepass',
+        'testpassword',
+        '--masterauth',
+        'testpassword',
+      ]
+    ports:
+      - '7103:7103'
+      - '17103:17103'
+    networks:
+      redis-cluster-auth-net:
+        ipv4_address: 172.31.0.13
+
+  redis-cluster-auth-node-4:
+    image: redis:7-alpine
+    container_name: redis-cluster-auth-node-4
+    profiles: ['cluster-auth']
+    command:
+      [
+        'redis-server',
+        '--port',
+        '7104',
+        '--cluster-enabled',
+        'yes',
+        '--cluster-config-file',
+        'nodes.conf',
+        '--cluster-node-timeout',
+        '5000',
+        '--appendonly',
+        'yes',
+        '--requirepass',
+        'testpassword',
+        '--masterauth',
+        'testpassword',
+      ]
+    ports:
+      - '7104:7104'
+      - '17104:17104'
+    networks:
+      redis-cluster-auth-net:
+        ipv4_address: 172.31.0.14
+
+  redis-cluster-auth-node-5:
+    image: redis:7-alpine
+    container_name: redis-cluster-auth-node-5
+    profiles: ['cluster-auth']
+    command:
+      [
+        'redis-server',
+        '--port',
+        '7105',
+        '--cluster-enabled',
+        'yes',
+        '--cluster-config-file',
+        'nodes.conf',
+        '--cluster-node-timeout',
+        '5000',
+        '--appendonly',
+        'yes',
+        '--requirepass',
+        'testpassword',
+        '--masterauth',
+        'testpassword',
+      ]
+    ports:
+      - '7105:7105'
+      - '17105:17105'
+    networks:
+      redis-cluster-auth-net:
+        ipv4_address: 172.31.0.15
+
+  redis-cluster-auth-node-6:
+    image: redis:7-alpine
+    container_name: redis-cluster-auth-node-6
+    profiles: ['cluster-auth']
+    command:
+      [
+        'redis-server',
+        '--port',
+        '7106',
+        '--cluster-enabled',
+        'yes',
+        '--cluster-config-file',
+        'nodes.conf',
+        '--cluster-node-timeout',
+        '5000',
+        '--appendonly',
+        'yes',
+        '--requirepass',
+        'testpassword',
+        '--masterauth',
+        'testpassword',
+      ]
+    ports:
+      - '7106:7106'
+      - '17106:17106'
+    networks:
+      redis-cluster-auth-net:
+        ipv4_address: 172.31.0.16
+
+  # Initializes the authenticated Redis cluster
+  redis-cluster-auth-init:
+    image: redis:7-alpine
+    container_name: redis-cluster-auth-init
+    profiles: ['cluster-auth']
+    depends_on:
+      - redis-cluster-auth-node-1
+      - redis-cluster-auth-node-2
+      - redis-cluster-auth-node-3
+      - redis-cluster-auth-node-4
+      - redis-cluster-auth-node-5
+      - redis-cluster-auth-node-6
+    command:
+      [
+        'sh',
+        '-c',
+        'sleep 5 && redis-cli -a testpassword --cluster create 172.31.0.11:7101 172.31.0.12:7102 172.31.0.13:7103 172.31.0.14:7104 172.31.0.15:7105 172.31.0.16:7106 --cluster-replicas 1 --cluster-yes',
+      ]
+    networks:
+      redis-cluster-auth-net:
+        ipv4_address: 172.31.0.10
+
 networks:
   redis-cluster-net:
     driver: bridge
     ipam:
       config:
         - subnet: 172.30.0.0/16
+  redis-cluster-auth-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.31.0.0/16
