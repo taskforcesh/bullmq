@@ -91,7 +91,6 @@ class Job:
         # Extract deduplication ID from options
         deduplication = opts.get("deduplication")
         self.deduplication_id = deduplication.get("id") if deduplication and isinstance(deduplication, dict) else None
- 
         # Reuse the queue's Scripts instance instead of creating a new one
         self.scripts = queue.scripts
         self.queueQualifiedName = queue.qualifiedName
