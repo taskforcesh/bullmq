@@ -8,7 +8,52 @@ from redis.exceptions import (
    TimeoutError
 )
 import warnings
+import os
 from bullmq.utils import isRedisVersionLowerThan, is_redis_cluster, get_cluster_nodes, get_node_client
+
+basePath = os.path.dirname(os.path.realpath(__file__))
+
+# Script definitions mapping script names to their file names
+SCRIPT_DEFINITIONS = {
+    "addStandardJob": "addStandardJob-9.lua",
+    "addDelayedJob": "addDelayedJob-6.lua",
+    "addParentJob": "addParentJob-6.lua",
+    "addPrioritizedJob": "addPrioritizedJob-9.lua",
+    "changePriority": "changePriority-7.lua",
+    "cleanJobsInSet": "cleanJobsInSet-3.lua",
+    "drain": "drain-5.lua",
+    "extendLock": "extendLock-2.lua",
+    "getCounts": "getCounts-1.lua",
+    "getCountsPerPriority": "getCountsPerPriority-4.lua",
+    "getRanges": "getRanges-1.lua",
+    "getState": "getState-8.lua",
+    "getStateV2": "getStateV2-8.lua",
+    "isJobInList": "isJobInList-1.lua",
+    "moveStalledJobsToWait": "moveStalledJobsToWait-8.lua",
+    "moveToActive": "moveToActive-11.lua",
+    "moveToDelayed": "moveToDelayed-8.lua",
+    "moveToFinished": "moveToFinished-14.lua",
+    "moveToWaitingChildren": "moveToWaitingChildren-7.lua",
+    "obliterate": "obliterate-2.lua",
+    "pause": "pause-7.lua",
+    "promote": "promote-9.lua",
+    "removeJob": "removeJob-2.lua",
+    "reprocessJob": "reprocessJob-8.lua",
+    "retryJob": "retryJob-11.lua",
+    "moveJobsToWait": "moveJobsToWait-8.lua",
+    "saveStacktrace": "saveStacktrace-1.lua",
+    "updateData": "updateData-1.lua",
+    "updateProgress": "updateProgress-3.lua",
+}
+
+
+def loadScript(name: str) -> str:
+    """
+    Load a Lua script by name from the commands directory.
+    """
+    with open(f"{basePath}/commands/{name}", "r") as file:
+        return file.read()
+
 
 class RedisConnection:
     """
@@ -44,6 +89,19 @@ class RedisConnection:
         else:
             self.conn = redis.from_url(redisOpts, decode_responses=True, retry=retry,
                 retry_on_error=retry_errors)
+
+        self.commands = {}
+        self.loadCommands()
+
+    def loadCommands(self):
+        """
+        Load and register all Lua scripts on the Redis client.
+        This is called once during initialization to avoid re-registering
+        scripts on every Scripts instance creation.
+        """
+        for name, filename in SCRIPT_DEFINITIONS.items():
+            if name not in self.commands:
+                self.commands[name] = self.conn.register_script(loadScript(filename))
 
     def disconnect(self):
         """

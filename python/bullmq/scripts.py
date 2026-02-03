@@ -31,37 +31,7 @@ class Scripts:
         self.keys = {}
         self.redisConnection = redisConnection
         self.redisClient = redisConnection.conn
-        self.commands = {
-            "addStandardJob": self.redisClient.register_script(self.getScript("addStandardJob-9.lua")),
-            "addDelayedJob": self.redisClient.register_script(self.getScript("addDelayedJob-6.lua")),
-            "addParentJob": self.redisClient.register_script(self.getScript("addParentJob-6.lua")),
-            "addPrioritizedJob": self.redisClient.register_script(self.getScript("addPrioritizedJob-9.lua")),
-            "changePriority": self.redisClient.register_script(self.getScript("changePriority-7.lua")),
-            "cleanJobsInSet": self.redisClient.register_script(self.getScript("cleanJobsInSet-3.lua")),
-            "drain": self.redisClient.register_script(self.getScript("drain-5.lua")),
-            "extendLock": self.redisClient.register_script(self.getScript("extendLock-2.lua")),
-            "getCounts": self.redisClient.register_script(self.getScript("getCounts-1.lua")),
-            "getCountsPerPriority": self.redisClient.register_script(self.getScript("getCountsPerPriority-4.lua")),
-            "getRanges": self.redisClient.register_script(self.getScript("getRanges-1.lua")),
-            "getState": self.redisClient.register_script(self.getScript("getState-8.lua")),
-            "getStateV2": self.redisClient.register_script(self.getScript("getStateV2-8.lua")),
-            "isJobInList": self.redisClient.register_script(self.getScript("isJobInList-1.lua")),
-            "moveStalledJobsToWait": self.redisClient.register_script(self.getScript("moveStalledJobsToWait-8.lua")),
-            "moveToActive": self.redisClient.register_script(self.getScript("moveToActive-11.lua")),
-            "moveToDelayed": self.redisClient.register_script(self.getScript("moveToDelayed-8.lua")),
-            "moveToFinished": self.redisClient.register_script(self.getScript("moveToFinished-14.lua")),
-            "moveToWaitingChildren": self.redisClient.register_script(self.getScript("moveToWaitingChildren-7.lua")),
-            "obliterate": self.redisClient.register_script(self.getScript("obliterate-2.lua")),
-            "pause": self.redisClient.register_script(self.getScript("pause-7.lua")),
-            "promote": self.redisClient.register_script(self.getScript("promote-9.lua")),
-            "removeJob": self.redisClient.register_script(self.getScript("removeJob-2.lua")),
-            "reprocessJob": self.redisClient.register_script(self.getScript("reprocessJob-8.lua")),
-            "retryJob": self.redisClient.register_script(self.getScript("retryJob-11.lua")),
-            "moveJobsToWait": self.redisClient.register_script(self.getScript("moveJobsToWait-8.lua")),
-            "saveStacktrace": self.redisClient.register_script(self.getScript("saveStacktrace-1.lua")),
-            "updateData": self.redisClient.register_script(self.getScript("updateData-1.lua")),
-            "updateProgress": self.redisClient.register_script(self.getScript("updateProgress-3.lua")),
-        }
+        self.commands = redisConnection.commands
 
         self.queue_keys = QueueKeys(prefix)
         self.keys = self.queue_keys.getKeys(queueName)
@@ -72,15 +42,6 @@ class Scripts:
 
     def toKey(self, name: str):
         return self.queue_keys.toKey(self.queueName, name)
-
-    def getScript(self, name: str):
-        """
-        Get a script by name
-        """
-        file = open(f"{basePath}/commands/{name}", "r")
-        data = file.read()
-        file.close()
-        return data
 
     def getKeys(self, keys: list[str]):
         def mapKey(key):
