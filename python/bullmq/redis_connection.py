@@ -100,8 +100,7 @@ class RedisConnection:
         scripts on every Scripts instance creation.
         """
         for name, filename in SCRIPT_DEFINITIONS.items():
-            if name not in self.commands:
-                self.commands[name] = self.conn.register_script(loadScript(filename))
+            self.commands[name] = self.conn.register_script(loadScript(filename))
 
     def disconnect(self):
         """
