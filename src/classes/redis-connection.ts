@@ -105,7 +105,7 @@ export class RedisConnection extends EventEmitter {
       }
 
       if (isRedisCluster(this._client)) {
-        this.opts = this._client.options.redisOptions;
+        this.opts = this._client.options.redisOptions || {};
       } else {
         this.opts = this._client.options;
       }

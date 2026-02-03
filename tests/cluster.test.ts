@@ -11,8 +11,8 @@ import {
 
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
-import { Queue, Worker } from '../src/classes';
-import { removeAllQueueData } from '../src/utils';
+import { Queue, Worker, QueueEvents } from '../src/classes';
+import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Cluster support', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
@@ -697,6 +697,301 @@ describe('Cluster support', () => {
 
         expect(workers).toHaveLength(0);
       });
+    });
+  });
+});
+
+describe('Cluster integration tests', () => {
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
+
+  // Redis cluster nodes from docker-compose
+  const clusterNodes = [
+    { host: '127.0.0.1', port: 7001 },
+    { host: '127.0.0.1', port: 7002 },
+    { host: '127.0.0.1', port: 7003 },
+  ];
+
+  let cluster: Cluster;
+  let queue: Queue;
+  let queueName: string;
+  let clusterAvailable = false;
+
+  beforeAll(async () => {
+    try {
+      cluster = new Cluster(clusterNodes, {
+        redisOptions: {
+          maxRetriesPerRequest: null,
+        },
+        // NAT mapping for Docker on macOS - map container IPs (172.30.0.x) to localhost
+        natMap: {
+          '172.30.0.11:7001': { host: '127.0.0.1', port: 7001 },
+          '172.30.0.12:7002': { host: '127.0.0.1', port: 7002 },
+          '172.30.0.13:7003': { host: '127.0.0.1', port: 7003 },
+          '172.30.0.14:7004': { host: '127.0.0.1', port: 7004 },
+          '172.30.0.15:7005': { host: '127.0.0.1', port: 7005 },
+          '172.30.0.16:7006': { host: '127.0.0.1', port: 7006 },
+        },
+      });
+
+      // Wait for cluster to be ready with timeout
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Cluster connection timeout'));
+        }, 5000);
+
+        cluster.once('ready', () => {
+          clearTimeout(timeout);
+          clusterAvailable = true;
+          resolve();
+        });
+        cluster.once('error', err => {
+          clearTimeout(timeout);
+          reject(err);
+        });
+      });
+    } catch (err) {
+      console.warn(
+        'Redis cluster not available, skipping cluster integration tests:',
+        (err as Error).message,
+      );
+    }
+  }, 10000);
+
+  beforeEach(async ctx => {
+    if (!clusterAvailable) {
+      ctx.skip();
+      return;
+    }
+    // Use hash tag in queue name to ensure all keys hash to the same slot in Redis Cluster
+    queueName = `{test-cluster-${v4()}}`;
+    queue = new Queue(queueName, { connection: cluster, prefix });
+  });
+
+  afterEach(async () => {
+    if (queue) {
+      await queue.close();
+    }
+  });
+
+  afterAll(async () => {
+    if (cluster) {
+      await cluster.quit();
+    }
+  });
+
+  describe('when using a real Redis cluster', () => {
+    it('should add and process jobs', async ctx => {
+      if (!clusterAvailable) {
+        ctx.skip();
+        return;
+      }
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await delay(100);
+        },
+        {
+          autorun: false,
+          connection: cluster,
+          prefix,
+        },
+      );
+
+      await worker.waitUntilReady();
+
+      const queueEvents = new QueueEvents(queueName, {
+        connection: cluster,
+        prefix,
+      });
+      await queueEvents.waitUntilReady();
+
+      const completing = new Promise<void>(resolve => {
+        queueEvents.once('completed', ({ jobId }) => {
+          resolve();
+        });
+      });
+
+      const job = await queue.add('test-job', { value: 21 });
+      expect(job.id).toBeDefined();
+
+      worker.run();
+      await completing;
+
+      await queueEvents.close();
+      await worker.close();
+    });
+
+    it('should handle multiple jobs in parallel', async ctx => {
+      if (!clusterAvailable) {
+        ctx.skip();
+        return;
+      }
+
+      const processedJobs: number[] = [];
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          processedJobs.push(job.data.index);
+          return job.data.index;
+        },
+        {
+          connection: cluster,
+          prefix,
+          concurrency: 5,
+        },
+      );
+
+      await worker.waitUntilReady();
+
+      const jobs = await queue.addBulk(
+        Array.from({ length: 10 }, (_, i) => ({
+          name: 'bulk-job',
+          data: { index: i },
+        })),
+      );
+
+      expect(jobs).toHaveLength(10);
+
+      // Wait for all jobs to complete
+      await new Promise<void>(resolve => {
+        let completed = 0;
+        worker.on('completed', () => {
+          completed++;
+          if (completed === 10) {
+            resolve();
+          }
+        });
+      });
+
+      expect(processedJobs).toHaveLength(10);
+
+      await worker.close();
+    });
+
+    it('should get workers from cluster', async ctx => {
+      if (!clusterAvailable) {
+        ctx.skip();
+        return;
+      }
+
+      const workerName = 'cluster-test-worker';
+      const worker = new Worker(queueName, async () => {}, {
+        connection: cluster,
+        prefix,
+        name: workerName,
+      });
+
+      await worker.waitUntilReady();
+
+      const workers = await queue.getWorkers();
+
+      expect(workers.length).toBeGreaterThanOrEqual(1);
+      expect(workers.some(w => w.name === queueName)).toBe(true);
+
+      await worker.close();
+    });
+
+    it('should handle delayed jobs', async ctx => {
+      if (!clusterAvailable) {
+        ctx.skip();
+        return;
+      }
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          return 'delayed-done';
+        },
+        {
+          connection: cluster,
+          prefix,
+        },
+      );
+
+      await worker.waitUntilReady();
+
+      const startTime = Date.now();
+      const job = await queue.add(
+        'delayed-job',
+        { test: true },
+        { delay: 1000 },
+      );
+
+      const result = await new Promise<string>(resolve => {
+        worker.on('completed', (completedJob, returnValue) => {
+          if (completedJob.id === job.id) {
+            resolve(returnValue);
+          }
+        });
+      });
+
+      const elapsed = Date.now() - startTime;
+
+      expect(result).toBe('delayed-done');
+      expect(elapsed).toBeGreaterThanOrEqual(1000);
+
+      await worker.close();
+    });
+
+    it('should handle job retries', async ctx => {
+      if (!clusterAvailable) {
+        ctx.skip();
+        return;
+      }
+
+      let attempts = 0;
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          attempts++;
+          if (attempts < 3) {
+            throw new Error('Retry me');
+          }
+          return 'success';
+        },
+        {
+          connection: cluster,
+          prefix,
+        },
+      );
+
+      await worker.waitUntilReady();
+
+      const job = await queue.add('retry-job', { test: true }, { attempts: 3 });
+
+      const result = await new Promise<string>(resolve => {
+        worker.on('completed', (completedJob, returnValue) => {
+          if (completedJob.id === job.id) {
+            resolve(returnValue);
+          }
+        });
+      });
+
+      expect(result).toBe('success');
+      expect(attempts).toBe(3);
+
+      await worker.close();
+    });
+
+    it('should get queue counts', async ctx => {
+      if (!clusterAvailable) {
+        ctx.skip();
+        return;
+      }
+
+      await queue.addBulk([
+        { name: 'job1', data: {} },
+        { name: 'job2', data: {} },
+        { name: 'job3', data: {} },
+      ]);
+
+      const counts = await queue.getJobCounts('waiting', 'active', 'completed');
+
+      expect(counts.waiting).toBe(3);
+      expect(counts.active).toBe(0);
+      expect(counts.completed).toBe(0);
     });
   });
 });
