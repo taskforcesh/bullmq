@@ -1,4 +1,4 @@
-import { Cluster } from 'ioredis';
+import type { Cluster } from 'ioredis';
 import { JobProgress } from '../types';
 import {
   IoredisListener,

@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import { URL } from 'url';
-import { Cluster, Redis } from 'ioredis';
+import type { Cluster, Redis } from 'ioredis';
 import * as path from 'path';
 import { v4 } from 'uuid';
 
@@ -343,7 +343,7 @@ export class Worker<
         ? (<Redis>opts.connection).isCluster
           ? (<Cluster>opts.connection).duplicate(undefined, {
               redisOptions: {
-                ...(<Cluster>opts.connection).options?.redisOptions,
+                ...((<Cluster>opts.connection).options?.redisOptions || {}),
                 connectionName,
               },
             })
