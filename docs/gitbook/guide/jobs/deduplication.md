@@ -97,7 +97,7 @@ const queueEvents = new QueueEvents('myQueue');
 queueEvents.on(
   'deduplicated',
   ({ jobId, deduplicationId, deduplicatedJobId }, id) => {
-    console.log(`Deduplication event: jobId=${jobId}, deduplicatedJobId=${deduplicatedJobId}, deduplicationId=${deduplicationId}`);
+    console.log(`Deduplication: retained jobId=${jobId}, discarded jobId=${deduplicatedJobId}, deduplicationId=${deduplicationId}`);
   },
 );
 ```
