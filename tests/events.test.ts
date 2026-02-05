@@ -31,7 +31,7 @@ describe('events', () => {
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  let connection;
+  let connection: IORedis;
   beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
@@ -437,6 +437,7 @@ describe('events', () => {
   describe('when one job is a parent', () => {
     it('emits waiting-children and waiting event', async () => {
       const worker = new Worker(queueName, async () => {}, {
+        autorun: false,
         drainDelay: 1,
         connection,
         prefix,
@@ -450,6 +451,7 @@ describe('events', () => {
           await delay(100);
         },
         {
+          autorun: false,
           drainDelay: 1,
           connection,
           prefix,
@@ -459,9 +461,9 @@ describe('events', () => {
         queueEvents.once('waiting-children', async ({ jobId }) => {
           try {
             const job = await queue.getJob(jobId);
-            const state = await job.getState();
+            const state = await job?.getState();
             expect(state).toBe('waiting-children');
-            expect(job.name).toBe(name);
+            expect(job?.name).toBe(name);
             resolve();
           } catch (err) {
             reject(err);
@@ -474,7 +476,7 @@ describe('events', () => {
           try {
             const job = await queue.getJob(jobId);
             expect(prev).toBe('waiting-children');
-            if (job.name === name) {
+            if (job?.name === name) {
               resolve();
             }
           } catch (err) {
@@ -492,6 +494,8 @@ describe('events', () => {
           { name: 'test', data: { foo: 'bar' }, queueName: childrenQueueName },
         ],
       });
+      worker.run();
+      childrenWorker.run();
 
       await waitingChildren;
       await waiting;
