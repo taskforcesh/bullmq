@@ -333,7 +333,7 @@ describe('deduplication', () => {
           async ({ jobId, deduplicationId, deduplicatedJobId }) => {
             try {
               const job = await queue.getJob(jobId);
-              expect(job).toBeDefined()
+              expect(job).toBeDefined();
               expect(jobId).toBe('a1');
               expect(deduplicationId).toBe(dedupId);
 
