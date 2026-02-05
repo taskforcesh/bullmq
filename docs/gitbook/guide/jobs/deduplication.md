@@ -97,17 +97,16 @@ const queueEvents = new QueueEvents('myQueue');
 queueEvents.on(
   'deduplicated',
   ({ jobId, deduplicationId, deduplicatedJobId }, id) => {
-    console.log(`Job ${deduplicatedJobId} was discarded. Job ${jobId} was retained 
-  with deduplication ID ${deduplicationId}`);
+    console.log(`Deduplication event: jobId=${jobId}, deduplicatedJobId=${deduplicatedJobId}, deduplicationId=${deduplicationId}`);
   },
 );
 ```
 
 In this example:
 
-- `jobId`: The Id of the job that will be retained.
+- `jobId`: The Id of the job that is retained. In normal deduplication mode (Simple/Throttle), this is the existing job. When using `deduplication.replace` (Debounce Mode), this is the new job replacing the old one.
 - `deduplicationId`: The deduplication Id that caused the job to be deduplicated.
-- `deduplicatedJobId`: The Id of the job that will be discarded.
+- `deduplicatedJobId`: The Id of the job that is discarded. In normal deduplication mode, this is the new job being rejected. When using `deduplication.replace`, this is the old job being removed.
 
 ## Get Deduplication Job Id
 
