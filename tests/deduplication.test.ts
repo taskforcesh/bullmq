@@ -328,12 +328,17 @@ describe('deduplication', () => {
       const dedupId = 'dedupId';
 
       const waitingEvent = new Promise<void>((resolve, reject) => {
-        queueEvents.on(
+        queueEvents.once(
           'deduplicated',
-          ({ jobId, deduplicationId, deduplicatedJobId }) => {
+          async ({ jobId, deduplicationId, deduplicatedJobId }) => {
             try {
+              const job = await queue.getJob(jobId);
+              expect(job).toBeDefined()
               expect(jobId).toBe('a1');
               expect(deduplicationId).toBe(dedupId);
+
+              const deduplicatedJob = await queue.getJob(deduplicatedJobId);
+              expect(deduplicatedJob).toBeUndefined();
               expect(deduplicatedJobId).toBe('a2');
               resolve();
             } catch (error) {
