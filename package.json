@@ -97,7 +97,7 @@
     "husky": "8.0.3",
     "lint-staged": "16.2.7",
     "madge": "8.0.0",
-    "minimatch": "9.0.5",
+    "minimatch": "10.1.2",
     "moment": "2.30.1",
     "prettier": "3.8.1",
     "pretty-quick": "4.2.2",
