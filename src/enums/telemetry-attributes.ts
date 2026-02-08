@@ -33,6 +33,21 @@ export enum TelemetryAttributes {
   JobFailedReason = 'bullmq.job.failed.reason',
   FlowName = 'bullmq.flow.name',
   JobSchedulerId = 'bullmq.job.scheduler.id',
+  JobStatus = 'bullmq.job.status',
+}
+
+/**
+ * Standard metric names for BullMQ telemetry
+ */
+export enum MetricNames {
+  JobsCompleted = 'bullmq.jobs.completed',
+  JobsFailed = 'bullmq.jobs.failed',
+  JobsDelayed = 'bullmq.jobs.delayed',
+  JobsRetried = 'bullmq.jobs.retried',
+  JobsWaiting = 'bullmq.jobs.waiting',
+  JobsWaitingChildren = 'bullmq.jobs.waiting_children',
+  JobsActive = 'bullmq.jobs.active',
+  JobDuration = 'bullmq.job.duration',
 }
 
 export enum SpanKind {

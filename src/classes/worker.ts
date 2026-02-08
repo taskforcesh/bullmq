@@ -987,6 +987,7 @@ will never work with more accuracy than 1ms. */
                   token,
                   fetchNextCallback,
                   span,
+                  processedOn,
                 );
               },
               { delayInMs: this.opts.runRetryDelay, span },
@@ -1014,6 +1015,7 @@ will never work with more accuracy than 1ms. */
                 token,
                 fetchNextCallback,
                 span,
+                processedOn,
               );
             },
             { delayInMs: this.opts.runRetryDelay, span },
@@ -1032,6 +1034,7 @@ will never work with more accuracy than 1ms. */
                 token,
                 fetchNextCallback,
                 span,
+                processedOn,
               );
             },
             { delayInMs: this.opts.runRetryDelay, span, onlyEmitError: true },
@@ -1070,6 +1073,7 @@ will never work with more accuracy than 1ms. */
     token: string,
     fetchNextCallback = () => true,
     span?: Span,
+    processedOn?: number,
   ) {
     if (!this.connection.closing) {
       const completed = await job.moveToCompleted(
@@ -1102,6 +1106,7 @@ will never work with more accuracy than 1ms. */
     token: string,
     fetchNextCallback = () => true,
     span?: Span,
+    processedOn?: number,
   ) {
     if (!this.connection.closing) {
       // Check if the job was manually rate-limited

@@ -40,7 +40,7 @@ import { Backoffs } from './backoffs';
 import { Scripts } from './scripts';
 import { UnrecoverableError } from './errors/unrecoverable-error';
 import type { QueueEvents } from './queue-events';
-import { SpanKind, TelemetryAttributes } from '../enums';
+import { SpanKind, TelemetryAttributes, MetricNames } from '../enums';
 
 const logger = debuglog('bull');
 
@@ -750,6 +750,8 @@ export class Job<
         ] as number;
         this.attemptsMade += 1;
 
+        this.recordJobMetrics('completed');
+
         return result;
       },
     );
@@ -761,8 +763,13 @@ export class Job<
    * @param token - Worker token used to acquire completed job.
    * @returns Returns pttl.
    */
-  moveToWait(token?: string): Promise<number> {
-    return this.scripts.moveJobFromActiveToWait(this.id, token);
+  async moveToWait(token?: string): Promise<number> {
+    const result = await this.scripts.moveJobFromActiveToWait(this.id, token);
+
+    this.processedOn = Date.now();
+    this.recordJobMetrics('waiting');
+
+    return result;
   }
 
   private async shouldRetryJob(err: Error): Promise<[boolean, number]> {
@@ -837,6 +844,8 @@ export class Job<
               token,
               { fieldsToUpdate },
             );
+
+            this.recordJobMetrics('delayed');
           } else {
             // Retry immediately
             result = await this.scripts.retryJob(
@@ -847,6 +856,8 @@ export class Job<
                 fieldsToUpdate,
               },
             );
+
+            this.recordJobMetrics('retried');
           }
         } else {
           const args = this.scripts.moveToFailedArgs(
@@ -862,6 +873,9 @@ export class Job<
           finishedOn = args[
             this.scripts.moveToFinishedKeys.length + 1
           ] as number;
+
+          // Only record failed metrics when job is not retrying
+          this.recordJobMetrics('failed');
         }
 
         if (finishedOn && typeof finishedOn === 'number') {
@@ -889,6 +903,71 @@ export class Job<
     }
 
     return 'fail';
+  }
+
+  /**
+   * Records job metrics if a meter is configured in telemetry options.
+   *
+   * @param status - The job status
+   */
+  private recordJobMetrics(
+    status:
+      | 'completed'
+      | 'failed'
+      | 'delayed'
+      | 'retried'
+      | 'waiting'
+      | 'waiting-children',
+  ): void {
+    const meter = this.queue.opts?.telemetry?.meter;
+    if (!meter) {
+      return;
+    }
+
+    const attributes = {
+      [TelemetryAttributes.QueueName]: this.queue.name,
+      [TelemetryAttributes.JobName]: this.name,
+      [TelemetryAttributes.JobStatus]: status,
+    };
+
+    // Record counter metric based on status
+    let counterName: string;
+    switch (status) {
+      case 'completed':
+        counterName = MetricNames.JobsCompleted;
+        break;
+      case 'failed':
+        counterName = MetricNames.JobsFailed;
+        break;
+      case 'delayed':
+        counterName = MetricNames.JobsDelayed;
+        break;
+      case 'retried':
+        counterName = MetricNames.JobsRetried;
+        break;
+      case 'waiting':
+        counterName = MetricNames.JobsWaiting;
+        break;
+      case 'waiting-children':
+        counterName = MetricNames.JobsWaitingChildren;
+        break;
+    }
+
+    const counter = meter.createCounter(counterName, {
+      description: `Number of jobs ${status}`,
+      unit: '1',
+    });
+    counter.add(1, attributes);
+
+    // Record duration histogram if processedOn is available
+    if (this.processedOn) {
+      const duration = Date.now() - this.processedOn;
+      const histogram = meter.createHistogram(MetricNames.JobDuration, {
+        description: 'Job processing duration',
+        unit: 'ms',
+      });
+      histogram.record(duration, attributes);
+    }
   }
 
   /**
@@ -1349,6 +1428,9 @@ export class Job<
     );
     this.delay = finalDelay;
 
+    this.processedOn = Date.now();
+    this.recordJobMetrics('delayed');
+
     return movedToDelayed;
   }
 
@@ -1368,6 +1450,11 @@ export class Job<
       token,
       opts,
     );
+
+    if (movedToWaitingChildren) {
+      this.processedOn = Date.now();
+      this.recordJobMetrics('waiting-children');
+    }
 
     return movedToWaitingChildren;
   }
