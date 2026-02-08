@@ -46,7 +46,6 @@ export enum MetricNames {
   JobsRetried = 'bullmq.jobs.retried',
   JobsWaiting = 'bullmq.jobs.waiting',
   JobsWaitingChildren = 'bullmq.jobs.waiting_children',
-  JobsActive = 'bullmq.jobs.active',
   JobDuration = 'bullmq.job.duration',
 }
 
