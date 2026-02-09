@@ -942,7 +942,8 @@ defmodule BullMQ.Worker do
         # 1. moveToActive calls promoteDelayedJobs which moves ready delayed jobs to wait
         # 2. Workers need to call moveToActive periodically to promote delayed jobs
         # Don't just start another blocking wait - let workers do the actual check
-        if not new_state.closing and not new_state.paused do
+        # Note: Use ! instead of not because closing can be a GenServer.from() tuple
+        if !new_state.closing and !new_state.paused do
           send(self(), :fetch_jobs)
           {:noreply, new_state}
         else
