@@ -25,7 +25,7 @@ const originalTree = await flow.add({
   data: {},
   children: [
     {
-      name,
+      name: 'child-job',
       data: { idx: 0, foo: 'bar' },
       queueName: 'childrenQueueName',
       // This child will fail its parent if it fails
