@@ -94,7 +94,9 @@ defmodule BullMQ.IntegrationTest do
 
       jobs =
         for _ <- 1..100 do
-          {:ok, job} = BullMQ.Queue.add(queue_name, "test", %{}, connection: pool_name, prefix: @test_prefix)
+          {:ok, job} =
+            BullMQ.Queue.add(queue_name, "test", %{}, connection: pool_name, prefix: @test_prefix)
+
           job
         end
 
