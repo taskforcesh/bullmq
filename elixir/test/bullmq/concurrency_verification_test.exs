@@ -69,7 +69,9 @@ defmodule BullMQ.ConcurrencyVerificationTest do
     queue_name = "conc_test_#{concurrency}_#{:erlang.unique_integer([:positive])}"
     conn_name = :"conc_conn_#{:erlang.unique_integer([:positive])}"
 
-    {:ok, _} = RedisConnection.start_link(Keyword.merge(@redis_opts, name: conn_name))
+    {:ok, pool_pid} = RedisConnection.start_link(Keyword.merge(@redis_opts, name: conn_name))
+
+    Process.unlink(pool_pid)
 
     # Track concurrent executions
     {:ok, tracker} = Agent.start_link(fn -> %{current: 0, max: 0} end)
@@ -122,12 +124,8 @@ defmodule BullMQ.ConcurrencyVerificationTest do
     Worker.close(worker, timeout: 5000)
     Agent.stop(tracker)
 
-    # Stop the Redis connection (may already be stopped by Worker.close)
-    try do
-      GenServer.stop(conn_name)
-    catch
-      :exit, _ -> :ok
-    end
+    # Close the Redis connection pool (waits for scripts to load)
+    RedisConnection.close(conn_name)
 
     %{elapsed: elapsed, max_concurrent: stats.max}
   end

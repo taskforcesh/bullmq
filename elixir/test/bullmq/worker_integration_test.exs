@@ -19,15 +19,23 @@ defmodule BullMQ.WorkerIntegrationTest do
   @redis_url BullMQ.TestHelper.redis_url()
   @test_prefix BullMQ.TestHelper.test_prefix() <> "_worker"
 
-  setup do
+  # Use setup_all to create a shared cleanup connection that persists across all tests
+  # This avoids creating/destroying connections during on_exit which can cause connection storms
+  setup_all do
+    {:ok, cleanup_conn} = Redix.start_link(@redis_url)
+    %{cleanup_conn: cleanup_conn}
+  end
+
+  setup %{cleanup_conn: cleanup_conn} do
     pool_name = :"worker_pool_#{System.unique_integer([:positive])}"
 
     # Start the connection pool - unlink so test cleanup doesn't cascade
+    # Use pool_size: 1 for tests - minimal connections to avoid overwhelming Redis
     {:ok, pool_pid} =
       BullMQ.RedisConnection.start_link(
         name: pool_name,
         url: @redis_url,
-        pool_size: 5
+        pool_size: 1
       )
 
     Process.unlink(pool_pid)
@@ -35,25 +43,18 @@ defmodule BullMQ.WorkerIntegrationTest do
     queue_name = "worker-queue-#{System.unique_integer([:positive])}"
 
     on_exit(fn ->
-      # Stop the pool first
-      try do
-        Supervisor.stop(pool_pid, :normal, 1000)
-      catch
-        :exit, _ -> :ok
-      end
+      # Close the pool
+      BullMQ.RedisConnection.close(pool_name)
 
-      # Clean up Redis keys
-      case Redix.start_link(@redis_url) do
-        {:ok, cleanup_conn} ->
-          case Redix.command(cleanup_conn, ["KEYS", "#{@test_prefix}:*"]) do
-            {:ok, keys} when keys != [] ->
-              Redix.command(cleanup_conn, ["DEL" | keys])
+      # Allow time for OS/Docker to release sockets - macOS/Docker needs this
+      Process.sleep(50)
 
-            _ ->
-              :ok
-          end
-
-          Redix.stop(cleanup_conn)
+      # Clean up Redis keys using the shared cleanup connection
+      # Note: We don't create new connections here to avoid connection storms
+      # The cleanup_conn from setup_all handles this
+      case Redix.command(cleanup_conn, ["KEYS", "#{@test_prefix}:*"]) do
+        {:ok, keys} when keys != [] ->
+          Redix.command(cleanup_conn, ["DEL" | keys])
 
         _ ->
           :ok

@@ -22,9 +22,18 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
 
   setup do
     {:ok, conn} = Redix.start_link(@redis_url)
+    Process.unlink(conn)
     queue_name = "scheduler-queue-#{System.unique_integer([:positive])}"
 
     on_exit(fn ->
+      # Stop the test connection
+      try do
+        Redix.stop(conn)
+      catch
+        :exit, _ -> :ok
+      end
+
+      # Cleanup after test
       case Redix.start_link(@redis_url) do
         {:ok, cleanup_conn} ->
           case Redix.command(cleanup_conn, ["KEYS", "#{@test_prefix}:*"]) do
@@ -1051,7 +1060,7 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
       # Cleanup
       BullMQ.Worker.close(worker)
       Agent.stop(counter)
-      Supervisor.stop(pool_pid, :normal, 1000)
+      BullMQ.RedisConnection.close(pool_name)
     end
 
     @tag :integration
@@ -1121,7 +1130,7 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
       # Cleanup
       BullMQ.Worker.close(worker)
       Agent.stop(counter)
-      Supervisor.stop(pool_pid, :normal, 1000)
+      BullMQ.RedisConnection.close(pool_name)
     end
 
     @tag :integration
@@ -1187,7 +1196,7 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
 
       # Cleanup
       BullMQ.Worker.close(worker)
-      Supervisor.stop(pool_pid, :normal, 1000)
+      BullMQ.RedisConnection.close(pool_name)
     end
 
     @tag :integration
@@ -1271,7 +1280,7 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
       # Cleanup
       BullMQ.Worker.close(worker)
       Agent.stop(versions)
-      Supervisor.stop(pool_pid, :normal, 1000)
+      BullMQ.RedisConnection.close(pool_name)
     end
 
     @tag :integration
@@ -1336,7 +1345,7 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
       # Cleanup
       BullMQ.Worker.close(worker)
       Agent.stop(counter)
-      Supervisor.stop(pool_pid, :normal, 1000)
+      BullMQ.RedisConnection.close(pool_name)
     end
   end
 
@@ -1390,7 +1399,7 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
 
       # Cleanup
       BullMQ.Worker.close(worker)
-      Supervisor.stop(pool_pid, :normal, 1000)
+      BullMQ.RedisConnection.close(pool_name)
     end
 
     @tag :integration
@@ -1446,7 +1455,7 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
 
       # Cleanup
       BullMQ.Worker.close(worker)
-      Supervisor.stop(pool_pid, :normal, 1000)
+      BullMQ.RedisConnection.close(pool_name)
     end
   end
 
@@ -1529,7 +1538,7 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
       # Cleanup
       BullMQ.Worker.close(worker)
       Agent.stop(processed)
-      Supervisor.stop(pool_pid, :normal, 1000)
+      BullMQ.RedisConnection.close(pool_name)
     end
   end
 end

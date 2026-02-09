@@ -33,11 +33,8 @@ defmodule BullMQ.QueueEventsIntegrationTest do
     queue_name = "events-queue-#{System.unique_integer([:positive])}"
 
     on_exit(fn ->
-      try do
-        Supervisor.stop(pool_pid, :normal, 1000)
-      catch
-        :exit, _ -> :ok
-      end
+      # Close the pool (waits for scripts to load)
+      BullMQ.RedisConnection.close(pool_name)
 
       case Redix.start_link(@redis_url) do
         {:ok, cleanup_conn} ->

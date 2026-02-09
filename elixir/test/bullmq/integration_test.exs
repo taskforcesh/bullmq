@@ -17,11 +17,21 @@ defmodule BullMQ.IntegrationTest do
     # Start Redis connection for this test
     {:ok, conn} = Redix.start_link(@redis_url)
 
+    # Unlink so test process death doesn't cascade
+    Process.unlink(conn)
+
     # Clean up test keys before each test
     cleanup_keys(conn)
 
     on_exit(fn ->
-      # Cleanup after test - need a fresh connection since conn may be closed
+      # Stop the test connection
+      try do
+        Redix.stop(conn)
+      catch
+        :exit, _ -> :ok
+      end
+
+      # Cleanup after test - need a fresh connection since conn is now closed
       case Redix.start_link(@redis_url) do
         {:ok, cleanup_conn} ->
           cleanup_keys(cleanup_conn)
@@ -75,16 +85,27 @@ defmodule BullMQ.IntegrationTest do
     end
 
     @tag :integration
-    test "job IDs are unique", %{conn: _conn} do
+    test "job IDs are unique when added to queue", %{conn: _conn} do
       queue_name = "test-unique-#{System.unique_integer([:positive])}"
+      pool_name = :"unique_test_pool_#{System.unique_integer([:positive])}"
+
+      # Start a proper connection pool (Queue.add requires RedisConnection, not raw Redix)
+      {:ok, _pool} = BullMQ.RedisConnection.start_link(name: pool_name, url: @redis_url)
 
       jobs =
         for _ <- 1..100 do
-          Job.new(queue_name, "test", %{})
+          {:ok, job} = BullMQ.Queue.add(queue_name, "test", %{}, connection: pool_name, prefix: @test_prefix)
+          job
         end
 
       ids = Enum.map(jobs, & &1.id)
-      assert length(Enum.uniq(ids)) == 100
+      assert length(ids) == 100
+      assert length(Enum.uniq(ids)) == 100, "All job IDs should be unique"
+
+      # IDs should be sequential integers (as strings)
+      assert ids == Enum.map(1..100, &Integer.to_string/1)
+
+      BullMQ.RedisConnection.close(pool_name)
     end
 
     @tag :integration
