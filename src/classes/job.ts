@@ -766,7 +766,6 @@ export class Job<
   async moveToWait(token?: string): Promise<number> {
     const result = await this.scripts.moveJobFromActiveToWait(this.id, token);
 
-    this.processedOn = Date.now();
     this.recordJobMetrics('waiting');
 
     return result;
