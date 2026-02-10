@@ -1423,7 +1423,6 @@ export class Job<
     );
     this.delay = finalDelay;
 
-    this.processedOn = Date.now();
     this.recordJobMetrics('delayed');
 
     return movedToDelayed;
