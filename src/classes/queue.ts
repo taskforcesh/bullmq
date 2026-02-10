@@ -247,7 +247,7 @@ export class Queue<
           ...this.opts,
           connection: await this.client,
         });
-        this._repeat.on('error', e => this.emit.bind(this, e));
+        this._repeat.on('error', this.emit.bind(this, 'error'));
       }
       resolve(this._repeat);
     });
@@ -260,7 +260,7 @@ export class Queue<
           ...this.opts,
           connection: await this.client,
         });
-        this._jobScheduler.on('error', e => this.emit.bind(this, e));
+        this._jobScheduler.on('error', this.emit.bind(this, 'error'));
       }
       resolve(this._jobScheduler);
     });
