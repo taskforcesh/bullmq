@@ -23,6 +23,11 @@ defmodule BullMQ.WorkerIntegrationTest do
   # This avoids creating/destroying connections during on_exit which can cause connection storms
   setup_all do
     {:ok, cleanup_conn} = Redix.start_link(@redis_url)
+
+    on_exit(fn ->
+      Redix.stop(cleanup_conn)
+    end)
+
     %{cleanup_conn: cleanup_conn}
   end
 

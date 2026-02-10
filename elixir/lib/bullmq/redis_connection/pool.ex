@@ -39,8 +39,8 @@ defmodule BullMQ.RedisConnection.Pool do
 
         {:error, %Redix.ConnectionError{reason: reason}} = _error
         when reason in [:eaddrnotavail, :econnrefused, :timeout] and retries_left > 0 ->
-          # Transient error - wait and retry with exponential backoff
-          delay = @init_retry_base_delay * attempt
+          # Transient error - wait and retry with exponential backoff (capped at 3.2s)
+          delay = min(@init_retry_base_delay * :math.pow(2, attempt - 1), 3200) |> trunc()
           Process.sleep(delay)
           start_link_with_retry(redis_opts, retries_left - 1, attempt + 1)
 

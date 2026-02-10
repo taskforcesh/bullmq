@@ -224,6 +224,11 @@ defmodule BullMQ.Queue do
     * `:connection` - Redis connection (required when using queue name string)
     * `:prefix` - Queue prefix (default: "bull")
     * `:pipeline` - Use pipelining for efficiency (default: `true`)
+    * `:atomic` - Wrap pipeline batches in MULTI/EXEC transactions (default: `true`).
+      When `true`, each pipeline batch is executed atomically. When using `:connection_pool`,
+      each connection's batch is atomic independently, but the overall bulk operation across
+      all connections is **not** atomic. Set to `false` for slightly higher throughput when
+      atomicity is not required.
     * `:connection_pool` - List of Redis connections for parallel execution (optional).
       When provided, commands are distributed across connections for higher throughput.
       Use this when you need maximum performance and have multiple connections available.

@@ -801,7 +801,7 @@ defmodule BullMQ.Worker do
     new_state = %{state | closing: true, paused: true}
 
     if force or map_size(state.active_jobs) == 0 do
-      cleanup(new_state)
+      # Let terminate/2 handle cleanup
       {:stop, :normal, :ok, new_state}
     else
       # Wait for active jobs with timeout
@@ -1120,7 +1120,7 @@ defmodule BullMQ.Worker do
   end
 
   def handle_info({:close_timeout, from}, state) do
-    cleanup(state)
+    # Let terminate/2 handle cleanup
     GenServer.reply(from, :ok)
     {:stop, :normal, %{state | closing: true}}
   end
@@ -2052,21 +2052,30 @@ defmodule BullMQ.Worker do
     timeout_seconds = get_block_timeout(state)
 
     # Spawn a process to do the blocking wait
+    # Wrapped in try/catch to ensure result is always sent back, preventing
+    # waiting_for_jobs from getting stuck if the spawned process crashes
     spawn_link(fn ->
       result =
-        if blocking_conn && Process.alive?(blocking_conn) do
-          do_blocking_wait(blocking_conn, marker_key, timeout_seconds)
-        else
-          # No blocking connection available, use a temporary one
-          case RedisConnection.blocking_connection(state.connection) do
-            {:ok, temp_conn} ->
-              result = do_blocking_wait(temp_conn, marker_key, timeout_seconds)
-              RedisConnection.close_blocking(state.connection, temp_conn)
-              result
+        try do
+          if blocking_conn && Process.alive?(blocking_conn) do
+            do_blocking_wait(blocking_conn, marker_key, timeout_seconds)
+          else
+            # No blocking connection available, use a temporary one
+            case RedisConnection.blocking_connection(state.connection) do
+              {:ok, temp_conn} ->
+                res = do_blocking_wait(temp_conn, marker_key, timeout_seconds)
+                RedisConnection.close_blocking(state.connection, temp_conn)
+                res
 
-            {:error, reason} ->
-              {:error, reason}
+              {:error, reason} ->
+                {:error, reason}
+            end
           end
+        rescue
+          e -> {:error, {:exception, Exception.message(e)}}
+        catch
+          :exit, reason -> {:error, {:exit, reason}}
+          :throw, value -> {:error, {:throw, value}}
         end
 
       send(coordinator, {:blocking_wait_result, result})

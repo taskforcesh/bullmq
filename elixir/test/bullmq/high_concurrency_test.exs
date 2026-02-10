@@ -112,7 +112,7 @@ defmodule BullMQ.HighConcurrencyTest do
       RedisConnection.command(conn_name, ["DEL" | keys])
     end
 
-    GenServer.stop(conn_name)
+    RedisConnection.close(conn_name)
 
     %{elapsed: elapsed, max_concurrent: max_concurrent}
   end
