@@ -931,28 +931,24 @@ export class Job<
     };
 
     // Record counter metric based on status
-    let counterName: string;
-    switch (status) {
-      case 'completed':
-        counterName = MetricNames.JobsCompleted;
-        break;
-      case 'failed':
-        counterName = MetricNames.JobsFailed;
-        break;
-      case 'delayed':
-        counterName = MetricNames.JobsDelayed;
-        break;
-      case 'retried':
-        counterName = MetricNames.JobsRetried;
-        break;
-      case 'waiting':
-        counterName = MetricNames.JobsWaiting;
-        break;
-      case 'waiting-children':
-        counterName = MetricNames.JobsWaitingChildren;
-        break;
-    }
+    const statusToCounterName: Record<
+      | 'completed'
+      | 'failed'
+      | 'delayed'
+      | 'retried'
+      | 'waiting'
+      | 'waiting-children',
+      MetricNames
+    > = {
+      completed: MetricNames.JobsCompleted,
+      failed: MetricNames.JobsFailed,
+      delayed: MetricNames.JobsDelayed,
+      retried: MetricNames.JobsRetried,
+      waiting: MetricNames.JobsWaiting,
+      'waiting-children': MetricNames.JobsWaitingChildren,
+    };
 
+    const counterName = statusToCounterName[status];
     const counter = meter.createCounter(counterName, {
       description: `Number of jobs ${status}`,
       unit: '1',
