@@ -1446,7 +1446,6 @@ export class Job<
     );
 
     if (movedToWaitingChildren) {
-      this.processedOn = Date.now();
       this.recordJobMetrics('waiting-children');
     }
 
