@@ -232,6 +232,8 @@ defmodule BullMQ.Worker do
           paused: boolean(),
           closing: boolean(),
           active_jobs: map(),
+          worker_pids: map(),
+          in_flight_workers: MapSet.t(pid()),
           cancellation_tokens: map(),
           keys: Keys.queue_context(),
           token: String.t(),
@@ -284,6 +286,7 @@ defmodule BullMQ.Worker do
     closing: false,
     active_jobs: %{},
     worker_pids: %{},
+    in_flight_workers: MapSet.new(),
     cancellation_tokens: %{},
     processor_supports_cancellation: false,
     # Track if we're currently doing a blocking wait for jobs
@@ -910,7 +913,10 @@ defmodule BullMQ.Worker do
   end
 
   def handle_info(:fetch_jobs, state) do
-    available_slots = state.concurrency - map_size(state.active_jobs)
+    # Count both active jobs and in-flight workers (spawned but not yet with a job)
+    # to prevent spawning more than concurrency workers
+    in_use = map_size(state.active_jobs) + MapSet.size(state.in_flight_workers)
+    available_slots = state.concurrency - in_use
 
     if available_slots > 0 do
       # Spawn autonomous worker processes for available slots
@@ -965,6 +971,8 @@ defmodule BullMQ.Worker do
 
     active_jobs = Map.put(state.active_jobs, job.id, {job, worker_pid})
     worker_pids = Map.put(state.worker_pids, worker_pid, job.id)
+    # Worker is no longer "in flight" - it's now actively processing a job
+    in_flight_workers = MapSet.delete(state.in_flight_workers, worker_pid)
 
     # Track cancellation token if provided (for autonomous workers with cancellation support)
     cancellation_tokens =
@@ -979,6 +987,7 @@ defmodule BullMQ.Worker do
        state
        | active_jobs: active_jobs,
          worker_pids: worker_pids,
+         in_flight_workers: in_flight_workers,
          cancellation_tokens: cancellation_tokens
      }}
   end
@@ -1008,9 +1017,11 @@ defmodule BullMQ.Worker do
   def handle_info({:worker_stopped, worker_pid}, state) do
     # A worker process stopped (no more jobs) - clean up and try to spawn replacement
     worker_pids = Map.delete(state.worker_pids, worker_pid)
+    # Also remove from in_flight in case it never got a job
+    in_flight_workers = MapSet.delete(state.in_flight_workers, worker_pid)
 
     # Only try to fetch more jobs if we're not closing
-    new_state = %{state | worker_pids: worker_pids}
+    new_state = %{state | worker_pids: worker_pids, in_flight_workers: in_flight_workers}
     check_closing_or_fetch(new_state)
   end
 
@@ -1128,29 +1139,41 @@ defmodule BullMQ.Worker do
   # Handle EXIT signals from autonomous worker processes
   # Note: LockManager exits are handled separately above
   def handle_info({:EXIT, pid, reason}, state) do
-    case Map.get(state.worker_pids, pid) do
-      nil ->
-        # Unknown process, ignore
-        {:noreply, state}
+    # Check if this is an in-flight worker (spawned but hasn't got a job yet)
+    if MapSet.member?(state.in_flight_workers, pid) do
+      Logger.warning(
+        "[BullMQ.Worker] In-flight worker #{inspect(pid)} crashed before getting a job: #{inspect(reason)}"
+      )
 
-      job_id ->
-        # Autonomous worker crashed - clean up the job it was processing
-        # The job will be picked up by stalled job recovery if needed
-        Logger.warning(
-          "[BullMQ.Worker] Autonomous worker #{inspect(pid)} crashed while processing job #{job_id}: #{inspect(reason)}"
-        )
+      in_flight_workers = MapSet.delete(state.in_flight_workers, pid)
+      # Schedule replacement worker
+      send(self(), :fetch_jobs)
+      {:noreply, %{state | in_flight_workers: in_flight_workers}}
+    else
+      case Map.get(state.worker_pids, pid) do
+        nil ->
+          # Unknown process, ignore
+          {:noreply, state}
 
-        if state.lock_manager do
-          LockManager.untrack_job(state.lock_manager, job_id)
-        end
+        job_id ->
+          # Autonomous worker crashed - clean up the job it was processing
+          # The job will be picked up by stalled job recovery if needed
+          Logger.warning(
+            "[BullMQ.Worker] Autonomous worker #{inspect(pid)} crashed while processing job #{job_id}: #{inspect(reason)}"
+          )
 
-        active_jobs = Map.delete(state.active_jobs, job_id)
-        worker_pids = Map.delete(state.worker_pids, pid)
+          if state.lock_manager do
+            LockManager.untrack_job(state.lock_manager, job_id)
+          end
 
-        # Schedule replacement worker
-        send(self(), :fetch_jobs)
+          active_jobs = Map.delete(state.active_jobs, job_id)
+          worker_pids = Map.delete(state.worker_pids, pid)
 
-        {:noreply, %{state | active_jobs: active_jobs, worker_pids: worker_pids}}
+          # Schedule replacement worker
+          send(self(), :fetch_jobs)
+
+          {:noreply, %{state | active_jobs: active_jobs, worker_pids: worker_pids}}
+      end
     end
   end
 
@@ -1232,12 +1255,16 @@ defmodule BullMQ.Worker do
     }
 
     # Spawn all workers in parallel - each will fetch its own first job
-    for _ <- 1..count do
-      spawn_link(fn -> autonomous_worker_init(worker_ctx) end)
-    end
+    # Track them immediately to prevent over-spawning on concurrent :fetch_jobs
+    spawned_pids =
+      for _ <- 1..count do
+        spawn_link(fn -> autonomous_worker_init(worker_ctx) end)
+      end
 
-    # Workers will notify us when they get jobs
-    state
+    # Add spawned workers to in_flight set
+    in_flight_workers = Enum.reduce(spawned_pids, state.in_flight_workers, &MapSet.put(&2, &1))
+
+    %{state | in_flight_workers: in_flight_workers}
   end
 
   # Worker initialization - fetches first job and starts processing loop
@@ -2234,7 +2261,7 @@ defmodule BullMQ.Worker do
   end
 
   defp cleanup(state) do
-    # Stop all autonomous worker processes
+    # Stop all autonomous worker processes (both active and in-flight)
     # Send explicit shutdown so workers can exit gracefully
     worker_refs =
       for {worker_pid, _job_id} <- state.worker_pids, Process.alive?(worker_pid), into: %{} do
@@ -2242,7 +2269,16 @@ defmodule BullMQ.Worker do
         {worker_pid, Process.monitor(worker_pid)}
       end
 
-    Enum.each(worker_refs, fn {_pid, ref} ->
+    # Also shutdown in-flight workers (spawned but haven't got a job yet)
+    in_flight_refs =
+      for worker_pid <- state.in_flight_workers, Process.alive?(worker_pid), into: %{} do
+        send(worker_pid, :shutdown)
+        {worker_pid, Process.monitor(worker_pid)}
+      end
+
+    all_refs = Map.merge(worker_refs, in_flight_refs)
+
+    Enum.each(all_refs, fn {_pid, ref} ->
       receive do
         {:DOWN, ^ref, :process, _pid, _reason} -> :ok
       after

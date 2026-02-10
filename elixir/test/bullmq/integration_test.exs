@@ -91,6 +91,7 @@ defmodule BullMQ.IntegrationTest do
 
       # Start a proper connection pool (Queue.add requires RedisConnection, not raw Redix)
       {:ok, _pool} = BullMQ.RedisConnection.start_link(name: pool_name, url: @redis_url)
+      on_exit(fn -> BullMQ.RedisConnection.close(pool_name) end)
 
       jobs =
         for _ <- 1..100 do
@@ -106,8 +107,6 @@ defmodule BullMQ.IntegrationTest do
 
       # IDs should be sequential integers (as strings)
       assert ids == Enum.map(1..100, &Integer.to_string/1)
-
-      BullMQ.RedisConnection.close(pool_name)
     end
 
     @tag :integration

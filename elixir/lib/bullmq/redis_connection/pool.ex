@@ -1,17 +1,18 @@
 defmodule BullMQ.RedisConnection.Pool do
   @moduledoc false
 
-  @spec pool_name(atom() | pid() | String.t()) :: atom()
+  # Connection names must be atoms to avoid atom table leaks.
+  # Atoms are not garbage collected, so allowing arbitrary strings/pids
+  # would risk exhausting the atom table in long-running applications.
+
+  @spec pool_name(atom()) :: atom()
   def pool_name(name) when is_atom(name), do: :"#{name}_pool"
-  def pool_name(name), do: :"#{name}_pool"
 
-  @spec supervisor_name(atom() | pid() | String.t()) :: atom()
+  @spec supervisor_name(atom()) :: atom()
   def supervisor_name(name) when is_atom(name), do: :"#{name}_sup"
-  def supervisor_name(name), do: :"#{name}_sup"
 
-  @spec registry_name(atom() | pid() | String.t()) :: atom()
+  @spec registry_name(atom()) :: atom()
   def registry_name(name) when is_atom(name), do: :"#{name}_registry"
-  def registry_name(name), do: :"#{name}_registry"
 
   # NimblePool worker implementation
   defmodule Worker do

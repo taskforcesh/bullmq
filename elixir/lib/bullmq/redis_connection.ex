@@ -91,6 +91,7 @@ defmodule BullMQ.RedisConnection do
 
   @default_pool_size 10
   @default_timeout 5000
+  @minimum_redis_version {6, 2, 0}
 
   @type connection :: atom() | pid()
   @type command :: [binary() | integer()]
@@ -105,6 +106,8 @@ defmodule BullMQ.RedisConnection do
 
     case Supervisor.start_link(__MODULE__, opts, name: Pool.supervisor_name(name)) do
       {:ok, pid} ->
+        # Check Redis version before loading scripts
+        check_redis_version!(name)
         # Load scripts synchronously - connection isn't ready until scripts are loaded
         load_scripts(name)
         {:ok, pid}
@@ -153,6 +156,70 @@ defmodule BullMQ.RedisConnection do
     end
 
     :ok
+  end
+
+  # Checks that Redis version meets minimum requirements (6.2+)
+  # Required for BZPOPMIN float timeout support and other features
+  defp check_redis_version!(conn) do
+    case command(conn, ["INFO", "server"]) do
+      {:ok, info} ->
+        version = parse_redis_version(info)
+
+        if version_lt?(version, @minimum_redis_version) do
+          {min_major, min_minor, _} = @minimum_redis_version
+          {major, minor, patch} = version
+
+          raise ArgumentError,
+                "BullMQ requires Redis version #{min_major}.#{min_minor}.0 or higher. " <>
+                  "Current version: #{major}.#{minor}.#{patch}"
+        end
+
+        :ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "BullMQ: Could not check Redis version for #{inspect(conn)}: #{inspect(reason)}. " <>
+            "Proceeding without version check."
+        )
+
+        :ok
+    end
+  end
+
+  # Parses Redis version from INFO server output
+  defp parse_redis_version(info) when is_binary(info) do
+    case Regex.run(~r/redis_version:([\d.]+)/, info) do
+      [_, version_str] ->
+        parts =
+          version_str
+          |> String.split(".")
+          |> Enum.take(3)
+          |> Enum.map(&String.to_integer/1)
+
+        case parts do
+          [major, minor, patch] -> {major, minor, patch}
+          [major, minor] -> {major, minor, 0}
+          [major] -> {major, 0, 0}
+          _ -> {0, 0, 0}
+        end
+
+      _ ->
+        {0, 0, 0}
+    end
+  end
+
+  defp parse_redis_version(_), do: {0, 0, 0}
+
+  # Compares two version tuples, returns true if v1 < v2
+  defp version_lt?({maj1, min1, patch1}, {maj2, min2, patch2}) do
+    cond do
+      maj1 < maj2 -> true
+      maj1 > maj2 -> false
+      min1 < min2 -> true
+      min1 > min2 -> false
+      patch1 < patch2 -> true
+      true -> false
+    end
   end
 
   # Loads all BullMQ Lua scripts into Redis script cache.
@@ -224,6 +291,8 @@ defmodule BullMQ.RedisConnection do
     )
   rescue
     e -> {:error, e}
+  catch
+    :exit, reason -> {:error, {:exit, reason}}
   end
 
   @doc """
@@ -273,6 +342,8 @@ defmodule BullMQ.RedisConnection do
     )
   rescue
     e -> {:error, e}
+  catch
+    :exit, reason -> {:error, {:exit, reason}}
   end
 
   @doc """
@@ -346,6 +417,8 @@ defmodule BullMQ.RedisConnection do
     end
   rescue
     e -> {:error, e}
+  catch
+    :exit, reason -> {:error, {:exit, reason}}
   end
 
   @doc """
@@ -374,6 +447,8 @@ defmodule BullMQ.RedisConnection do
     )
   rescue
     e -> {:error, e}
+  catch
+    :exit, reason -> {:error, {:exit, reason}}
   end
 
   @doc """
@@ -406,6 +481,8 @@ defmodule BullMQ.RedisConnection do
     )
   rescue
     e -> {:error, e}
+  catch
+    :exit, reason -> {:error, {:exit, reason}}
   end
 
   @doc """
