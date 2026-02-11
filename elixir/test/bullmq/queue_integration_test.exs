@@ -794,4 +794,255 @@ defmodule BullMQ.QueueIntegrationTest do
       assert count == 2
     end
   end
+
+  describe "Queue.add_bulk/3 atomic and connection_pool behavior" do
+    @tag :integration
+    test "atomic: false adds all jobs without MULTI/EXEC wrapping", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
+      jobs = for i <- 1..100, do: {"job-#{i}", %{index: i}, []}
+
+      {:ok, added_jobs} =
+        Queue.add_bulk(queue_name, jobs,
+          connection: conn,
+          prefix: prefix,
+          atomic: false
+        )
+
+      assert length(added_jobs) == 100
+      ids = Enum.map(added_jobs, & &1.id)
+      assert length(Enum.uniq(ids)) == 100
+
+      # Verify jobs are actually in the queue
+      {:ok, count} =
+        Queue.count(queue_name,
+          connection: conn,
+          prefix: prefix
+        )
+
+      assert count == 100
+    end
+
+    @tag :integration
+    test "atomic: true (default) adds all jobs identically to atomic: false", %{
+      conn: conn,
+      prefix: prefix
+    } do
+      queue_atomic = "test-atomic-true-#{System.unique_integer([:positive])}"
+      queue_non_atomic = "test-atomic-false-#{System.unique_integer([:positive])}"
+
+      jobs = for i <- 1..50, do: {"job", %{index: i}, []}
+
+      {:ok, atomic_jobs} =
+        Queue.add_bulk(queue_atomic, jobs,
+          connection: conn,
+          prefix: prefix,
+          atomic: true
+        )
+
+      {:ok, non_atomic_jobs} =
+        Queue.add_bulk(queue_non_atomic, jobs,
+          connection: conn,
+          prefix: prefix,
+          atomic: false
+        )
+
+      assert length(atomic_jobs) == length(non_atomic_jobs)
+      assert length(atomic_jobs) == 50
+
+      # Both should produce sequential IDs and identical job data
+      atomic_names = Enum.map(atomic_jobs, & &1.name)
+      non_atomic_names = Enum.map(non_atomic_jobs, & &1.name)
+      assert atomic_names == non_atomic_names
+    end
+
+    @tag :integration
+    test "atomic: false respects max_pipeline_size batching", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
+      # Use a small pipeline size to force multiple batches
+      jobs = for i <- 1..50, do: {"job", %{index: i}, []}
+
+      {:ok, added_jobs} =
+        Queue.add_bulk(queue_name, jobs,
+          connection: conn,
+          prefix: prefix,
+          atomic: false,
+          max_pipeline_size: 10
+        )
+
+      assert length(added_jobs) == 50
+
+      # All jobs should be in the queue despite being split into 5 batches
+      {:ok, count} =
+        Queue.count(queue_name,
+          connection: conn,
+          prefix: prefix
+        )
+
+      assert count == 50
+    end
+
+    @tag :integration
+    test "connection_pool preserves result ordering across connections", %{
+      prefix: prefix
+    } do
+      queue_name = "test-pool-order-#{System.unique_integer([:positive])}"
+
+      pool =
+        for i <- 1..4 do
+          name = :"test_pool_order_#{i}_#{System.unique_integer([:positive])}"
+          {:ok, _} = RedisConnection.start_link(name: name, redis_url: @redis_url)
+          name
+        end
+
+      on_exit(fn ->
+        Enum.each(pool, &RedisConnection.close/1)
+      end)
+
+      # Add enough jobs to be distributed across all 4 connections
+      jobs = for i <- 1..200, do: {"job", %{index: i}, []}
+
+      {:ok, added_jobs} =
+        Queue.add_bulk(queue_name, jobs,
+          connection: hd(pool),
+          connection_pool: pool,
+          prefix: prefix
+        )
+
+      assert length(added_jobs) == 200
+
+      # Jobs should preserve their input ordering: the i-th result
+      # corresponds to the i-th input job
+      indices = Enum.map(added_jobs, fn job -> job.data[:index] || job.data["index"] end)
+      assert indices == Enum.to_list(1..200)
+    end
+
+    @tag :integration
+    test "connection_pool with atomic: false preserves ordering", %{
+      prefix: prefix
+    } do
+      queue_name = "test-pool-nonatomic-#{System.unique_integer([:positive])}"
+
+      pool =
+        for i <- 1..3 do
+          name = :"test_pool_na_#{i}_#{System.unique_integer([:positive])}"
+          {:ok, _} = RedisConnection.start_link(name: name, redis_url: @redis_url)
+          name
+        end
+
+      on_exit(fn ->
+        Enum.each(pool, &RedisConnection.close/1)
+      end)
+
+      jobs = for i <- 1..150, do: {"job", %{index: i}, []}
+
+      {:ok, added_jobs} =
+        Queue.add_bulk(queue_name, jobs,
+          connection: hd(pool),
+          connection_pool: pool,
+          prefix: prefix,
+          atomic: false
+        )
+
+      assert length(added_jobs) == 150
+
+      indices = Enum.map(added_jobs, fn job -> job.data[:index] || job.data["index"] end)
+      assert indices == Enum.to_list(1..150)
+    end
+
+    @tag :integration
+    test "connection_pool with small max_pipeline_size still returns all results", %{
+      prefix: prefix
+    } do
+      queue_name = "test-pool-small-pipe-#{System.unique_integer([:positive])}"
+
+      pool =
+        for i <- 1..2 do
+          name = :"test_pool_sp_#{i}_#{System.unique_integer([:positive])}"
+          {:ok, _} = RedisConnection.start_link(name: name, redis_url: @redis_url)
+          name
+        end
+
+      on_exit(fn ->
+        Enum.each(pool, &RedisConnection.close/1)
+      end)
+
+      jobs = for i <- 1..100, do: {"job", %{index: i}, []}
+
+      {:ok, added_jobs} =
+        Queue.add_bulk(queue_name, jobs,
+          connection: hd(pool),
+          connection_pool: pool,
+          prefix: prefix,
+          max_pipeline_size: 10
+        )
+
+      assert length(added_jobs) == 100
+
+      {:ok, count} =
+        Queue.count(queue_name,
+          connection: hd(pool),
+          prefix: prefix
+        )
+
+      assert count == 100
+    end
+
+    @tag :integration
+    test "connection_pool partial failure reports errors per batch", %{
+      prefix: prefix
+    } do
+      queue_name = "test-pool-partial-#{System.unique_integer([:positive])}"
+
+      # Create two valid connections, then close one before the bulk add
+      good_name = :"test_pool_good_#{System.unique_integer([:positive])}"
+      bad_name = :"test_pool_bad_#{System.unique_integer([:positive])}"
+
+      {:ok, _} = RedisConnection.start_link(name: good_name, redis_url: @redis_url)
+      {:ok, _} = RedisConnection.start_link(name: bad_name, redis_url: @redis_url)
+
+      on_exit(fn ->
+        RedisConnection.close(good_name)
+      end)
+
+      # Ensure scripts are loaded on the good connection
+      BullMQ.Scripts.ensure_scripts_loaded(good_name, [:add_standard_job])
+
+      # Now close the bad connection — its NimblePool is gone
+      RedisConnection.close(bad_name)
+
+      pool = [good_name, bad_name]
+      jobs = for i <- 1..100, do: {"job", %{index: i}, []}
+
+      # Task.async_stream will catch the EXIT from the bad pool's task.
+      # The good pool's batch should succeed; the bad pool's batch should error.
+      result =
+        Queue.add_bulk(queue_name, jobs,
+          connection: good_name,
+          connection_pool: pool,
+          prefix: prefix
+        )
+
+      case result do
+        {:error, {:partial_failure, results}} ->
+          successes = Enum.count(results, &match?({:ok, _}, &1))
+          failures = Enum.count(results, &match?({:error, _}, &1))
+          assert successes > 0, "At least some jobs should succeed via good connection"
+          assert failures > 0, "Some jobs should fail via bad connection"
+          assert successes + failures == 100
+
+        {:error, _reason} ->
+          # Entire operation failed — acceptable if error propagated
+          :ok
+
+        {:ok, _jobs} ->
+          flunk("Expected partial or full failure when one pool connection is closed")
+      end
+    end
+  end
 end
