@@ -2,7 +2,7 @@
 
 When jobs are added to a queue, they will be in different statuses during their lifetime. BullMQ provides methods to retrieve information and jobs from the different statuses.
 
-<figure><img src="../../.gitbook/assets/simple-architecture.png" alt=""><figcaption><p>Lifecycle of a job</p></figcaption></figure>
+<figure><img src="../../.gitbook/assets/simple-architecture.png" alt="Diagram of the lifecycle of a BullMQ job in the queue"><figcaption><p>Lifecycle of a job</p></figcaption></figure>
 
 #### Job Counts
 
