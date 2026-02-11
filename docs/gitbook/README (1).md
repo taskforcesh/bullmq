@@ -45,7 +45,7 @@ Jobs are added to the queue and can be processed at any time, with at least one 
 
 ```typescript
 import { Worker } from 'bullmq';
-import IORedis from 'ioredis';
+import IORedis from '@sinianluoye/ioredis';
 
 const connection = new IORedis({ maxRetriesPerRequest: null });
 
@@ -85,7 +85,7 @@ Sometimes you need to listen to all the workers events in a given place, for thi
 ```typescript
 import { QueueEvents } from 'bullmq';
 
-const queueEvents = new QueueEvents("my-queue-name");
+const queueEvents = new QueueEvents('my-queue-name');
 
 queueEvents.on('waiting', ({ jobId }) => {
   console.log(`A job with ID ${jobId} is waiting`);
@@ -109,7 +109,7 @@ You may also access the timestamp of the event, which looks like "1580456039332-
 ```typescript
 import { QueueEvents } from 'bullmq';
 
-const queueEvents = new QueueEvents("my-queue-name");
+const queueEvents = new QueueEvents('my-queue-name');
 
 queueEvents.on('progress', ({ jobId, data }, timestamp) => {
   console.log(`${jobId} reported progress ${data} at ${timestamp}`);

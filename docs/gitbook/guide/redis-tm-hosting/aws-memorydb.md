@@ -10,7 +10,7 @@ There are some considerations to take care when using MemoryDB though.
 The easiest way to use MemoryDB with BullMQ is to first instantiate a IORedis Cluster instance, and then use that connection as an option to your workers or queue instances, for example:
 
 ```typescript
-import { Cluster } from 'ioredis';
+import { Cluster } from '@sinianluoye/ioredis';
 import { Worker } from 'bullmq';
 
 const connection = new Cluster(

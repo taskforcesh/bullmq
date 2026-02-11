@@ -1,4 +1,4 @@
-import { default as IORedis, Cluster, Redis } from 'ioredis';
+import { default as IORedis, Cluster, Redis } from '@sinianluoye/ioredis';
 import {
   describe,
   beforeEach,

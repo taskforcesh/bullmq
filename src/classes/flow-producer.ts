@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { Redis, ChainableCommander } from 'ioredis';
+import { Redis, ChainableCommander } from '@sinianluoye/ioredis';
 import { v4 } from 'uuid';
 import {
   FlowJob,

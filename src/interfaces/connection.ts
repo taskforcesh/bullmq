@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { Cluster, Redis } from 'ioredis';
+import { Cluster, Redis } from '@sinianluoye/ioredis';
 
 export type RedisClient = Redis | Cluster;
 

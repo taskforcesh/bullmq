@@ -5,7 +5,7 @@ import { Job } from './job';
 import { clientCommandMessageReg, QUEUE_EVENT_SUFFIX } from '../utils';
 import { JobState, JobType } from '../types';
 import { JobJsonRaw, Metrics, QueueMeta, RedisClient } from '../interfaces';
-import type { Cluster } from 'ioredis';
+import type { Cluster } from '@sinianluoye/ioredis';
 
 /**
  * Provides different getters for different aspects of a queue.

@@ -1,13 +1,13 @@
 {
-  "name": "bullmq",
-  "version": "5.67.3",
-  "description": "Queue for messages and jobs based on Redis",
+  "name": "@sinianluoye/bullmq",
+  "version": "5.67.3-alpha.0",
+  "description": "A copy from bullmq, use @sinianluoye/ioredis, Queue for messages and jobs based on Redis",
   "homepage": "https://bullmq.io/",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
   "source": "./src/index.ts",
-  "author": "Taskforce.sh Inc.",
+  "author": "sinianluoye <sinianluoye@outlook.com>",
   "license": "MIT",
   "keywords": [
     "bull",
@@ -59,8 +59,8 @@
     "tsc:all": "tsc && tsc -p tsconfig-cjs.json"
   },
   "dependencies": {
+    "@sinianluoye/ioredis": "5.9.2-alpha.0",
     "cron-parser": "4.9.0",
-    "ioredis": "5.9.2",
     "msgpackr": "1.11.5",
     "node-abort-controller": "3.1.1",
     "semver": "7.7.3",
@@ -122,7 +122,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/taskforcesh/bullmq.git"
+    "url": "https://github.com/sinianluoye/bullmq.git"
   },
   "release": {
     "plugins": [

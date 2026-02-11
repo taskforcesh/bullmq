@@ -1,11 +1,11 @@
-import { Cluster, Redis } from 'ioredis';
+import { Cluster, Redis } from '@sinianluoye/ioredis';
 
 // Note: this Polyfill is only needed for Node versions < 15.4.0
 import { AbortController } from 'node-abort-controller';
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
+import { CONNECTION_CLOSED_ERROR_MSG } from '@sinianluoye/ioredis/built/utils';
 import {
   ChildMessage,
   ContextManager,

@@ -1,6 +1,6 @@
 'use strict';
 
-import { default as IORedis } from 'ioredis';
+import { default as IORedis } from '@sinianluoye/ioredis';
 import { after } from 'lodash';
 import {
   describe,

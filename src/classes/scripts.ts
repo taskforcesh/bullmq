@@ -43,7 +43,7 @@ import {
   isRedisVersionLowerThan,
   objectToFlatArray,
 } from '../utils';
-import { ChainableCommander } from 'ioredis';
+import { ChainableCommander } from '@sinianluoye/ioredis';
 import { version as packageVersion } from '../version';
 import { UnrecoverableError } from './errors';
 export type JobData = [JobJsonRaw | number, string?];

@@ -1,8 +1,8 @@
 import { EventEmitter } from 'events';
-import { default as IORedis } from 'ioredis';
+import { default as IORedis } from '@sinianluoye/ioredis';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
+import { CONNECTION_CLOSED_ERROR_MSG } from '@sinianluoye/ioredis/built/utils';
 import { ConnectionOptions, RedisOptions, RedisClient } from '../interfaces';
 import {
   decreaseMaxListeners,

@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import { URL } from 'url';
-import type { Cluster, Redis } from 'ioredis';
+import type { Cluster, Redis } from '@sinianluoye/ioredis';
 import * as path from 'path';
 import { v4 } from 'uuid';
 

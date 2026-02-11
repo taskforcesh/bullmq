@@ -5,7 +5,7 @@
 'use strict';
 
 const { WaitingChildrenError, Queue } = require('../../dist/cjs/classes');
-const IORedis = require('ioredis');
+const IORedis = require('@sinianluoye/ioredis');
 const delay = require('./delay');
 
 const Step = {

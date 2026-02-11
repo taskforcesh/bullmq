@@ -13,7 +13,7 @@ import {
 
 import * as sinon from 'sinon';
 
-import { default as IORedis } from 'ioredis';
+import { default as IORedis } from '@sinianluoye/ioredis';
 import { v4 } from 'uuid';
 import { FlowProducer, Queue, QueueEvents, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';

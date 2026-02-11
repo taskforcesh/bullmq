@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { default as IORedis } from 'ioredis';
+import { default as IORedis } from '@sinianluoye/ioredis';
 import {
   describe,
   beforeEach,

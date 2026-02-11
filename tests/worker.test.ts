@@ -1,4 +1,4 @@
-import { default as IORedis } from 'ioredis';
+import { default as IORedis } from '@sinianluoye/ioredis';
 import { after, times } from 'lodash';
 import {
   describe,

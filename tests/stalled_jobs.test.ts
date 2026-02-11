@@ -1,6 +1,6 @@
 import { FlowProducer, Queue, Worker, QueueEvents } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
-import { default as IORedis } from 'ioredis';
+import { default as IORedis } from '@sinianluoye/ioredis';
 import { after } from 'lodash';
 import {
   describe,

@@ -9,7 +9,7 @@ import {
   expect,
 } from 'vitest';
 
-import { default as IORedis } from 'ioredis';
+import { default as IORedis } from '@sinianluoye/ioredis';
 import { v4 } from 'uuid';
 import { Queue, Job, Worker, QueueEvents } from '../src/classes';
 import { removeAllQueueData, delay } from '../src/utils';

@@ -27,7 +27,7 @@ const myWorker = new Worker('myqueue', async job => {}, {
 
 ```typescript
 import { Queue } from 'bullmq';
-import IORedis from 'ioredis';
+import IORedis from '@sinianluoye/ioredis';
 
 const connection = new IORedis();
 
@@ -38,7 +38,7 @@ const mySecondQueue = new Queue('mySecondQueue', { connection });
 
 ```typescript
 import { Worker } from 'bullmq';
-import IORedis from 'ioredis';
+import IORedis from '@sinianluoye/ioredis';
 
 const connection = new IORedis({ maxRetriesPerRequest: null });
 

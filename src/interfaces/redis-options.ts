@@ -1,4 +1,4 @@
-import type * as IORedis from 'ioredis';
+import type * as IORedis from '@sinianluoye/ioredis';
 
 export interface BaseOptions {
   skipVersionCheck?: boolean;

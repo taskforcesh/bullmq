@@ -1,4 +1,4 @@
-import { default as IORedis, RedisOptions } from 'ioredis';
+import { default as IORedis, RedisOptions } from '@sinianluoye/ioredis';
 import { v4 } from 'uuid';
 import {
   describe,
