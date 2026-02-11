@@ -1,0 +1,38 @@
+---
+config:
+  layout: elk
+  look: neo
+---
+stateDiagram
+  direction TB
+  state jobAdded <<choice>>
+  state delayChoice <<choice>>
+  state priorityChoice <<choice>>
+  state errorChoice <<choice>>
+  state jobFinished <<join>>
+  state workerPickup <<join>>
+  [*] --> jobAdded:job added
+  jobAdded --> WaitingChildren:when there are children
+  jobAdded --> delayChoice:when there aren't children
+  delayChoice --> priorityChoice:when delay is 0
+  delayChoice --> Delayed:when delay is greater than 0
+  priorityChoice --> Prioritized:when priority is greater than 0
+  priorityChoice --> Wait:when priority is 0
+  WaitingChildren --> delayChoice:when all children are completed
+  WaitingChildren --> priorityChoice:when one child fails and failParentOnFailure
+  Delayed --> priorityChoice
+  errorChoice --> delayChoice:when backoff strategy enable
+  errorChoice --> Delayed:when manual call moveToDelayed
+  errorChoice --> priorityChoice:when manual call moveToWait or dynamic rate limit is applied
+  errorChoice --> Failed:error is Unrecoverable or all attempts made are consumed or all attempts started are consumed)
+  Prioritized --> workerPickup
+  Wait --> workerPickup
+  workerPickup --> Active:it's picked by a worker no rate limited, no paused, no reached max concurrency
+  Active --> errorChoice:when error is thrown
+  Active --> Failed:contains deferred error
+  Active --> WaitingChildren:manual call moveToWaitingChildren
+  Active --> Completed:no error is thrown
+  Completed --> jobFinished
+  Failed --> jobFinished
+  jobFinished --> [*]:job finished
+  WaitingChildren:Waiting-children
