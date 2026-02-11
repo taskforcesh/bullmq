@@ -1,3 +1,10 @@
+## [2.19.5](https://github.com/taskforcesh/bullmq/compare/vpy2.19.4...vpy2.19.5) (2026-02-11)
+
+
+### Performance Improvements
+
+* **job:** reuse registered scripts [python] ([#3757](https://github.com/taskforcesh/bullmq/issues/3757)) ([715d0a5](https://github.com/taskforcesh/bullmq/commit/715d0a5074864ed0c12a384e41740b219382ac80))
+
 ## [2.19.4](https://github.com/taskforcesh/bullmq/compare/vpy2.19.3...vpy2.19.4) (2026-01-28)
 
 
