@@ -105,8 +105,7 @@ describe('RedisConnection', () => {
       });
       const client = await connection.client;
 
-      // When using an existing client with blocking: true, a duplicate is created
-      // which inherits the clientInfoTag from the original client
+      // When using an existing client, RedisConnection uses it as-is, preserving its original clientInfoTag
       expect(client.options.clientInfoTag).toBe(customTag);
 
       await connection.close();
