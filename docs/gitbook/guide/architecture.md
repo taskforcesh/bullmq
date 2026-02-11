@@ -8,7 +8,7 @@ description: >-
 
 In order to use the full potential of Bull queues, it is important to understand the lifecycle of a job. From the moment a producer calls the [`add`](https://api.docs.bullmq.io/classes/v5.Queue.html#add) method on a `Queue` instance, a job enters a lifecycle where it will be in different states, until its completion or failure (although technically a failed job could be retried and get a new lifecycle).
 
-<figure><img src="../.gitbook/assets/simple-architecture.png" alt=""><figcaption><p>Lifecycle of a job - Queue</p></figcaption></figure>
+<figure><img src="../.gitbook/assets/simple-architecture.png" alt="Diagram showing the lifecycle of a job in a queue, including wait, prioritized, delayed, active, completed, and failed states"><figcaption><p>Lifecycle of a job - Queue</p></figcaption></figure>
 
 When a job is added to a queue it can be in one of three states:
 - **“wait”**: a waiting list, where all jobs must enter before they can be processed.
@@ -23,6 +23,6 @@ The next state for a job is the **“active”** state. The active state is repr
 
 Another way to add a job is by the [`add`](https://api.docs.bullmq.io/classes/v5.FlowProducer.html#add) method on a flow producer instance.
 
-<figure><img src="../.gitbook/assets/flow-architecture.png" alt=""><figcaption><p>Lifecycle of a job - Flow Producer</p></figcaption></figure>
+<figure><img src="../.gitbook/assets/flow-architecture.png" alt="Diagram showing the lifecycle of a job in a flow producer, including wait, prioritized, delayed, waiting-children, active, completed, and failed states"><figcaption><p>Lifecycle of a job - Flow Producer</p></figcaption></figure>
 
 When a job is added by a flow producer, it can be in one of three states, it can either be in the **“wait”** or **“prioritized“** or **“delayed“** status, when there aren't children, or it can be in a **“waiting-children”** status: a waiting-children status implies that the job is waiting for all its children to be completed, however, a waiting-children job will not be processed directly, instead it will be placed at the waiting list or at delayed set (if `delay` is provided) or at prioritized set (if `delay` is 0 and `priority` is greater than 0) as soon as the last child is marked as completed.
