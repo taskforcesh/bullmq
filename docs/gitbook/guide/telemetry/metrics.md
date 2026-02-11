@@ -113,6 +113,55 @@ interface BullMQOtelOptions {
 }
 ```
 
+## Custom Metric Options
+
+BullMQOtel allows you to pre-configure counters and histograms with custom options before passing the telemetry instance to a Worker or Queue. Once a metric is created with custom options, BullMQ will reuse it and the default options defined internally will be ignored.
+
+This is useful when you want to customize metric descriptions, units, or other OpenTelemetry metric options:
+
+```typescript
+import { BullMQOtel } from 'bullmq-otel';
+import { Worker } from 'bullmq';
+
+const telemetry = new BullMQOtel({
+  tracerName: 'my-app',
+  meterName: 'my-app',
+  version: '1.0.0',
+  enableMetrics: true,
+});
+
+// Pre-configure a counter with custom options
+// This will be reused by BullMQ, ignoring its default options
+telemetry.meter.createCounter('bullmq.jobs.completed', {
+  description: 'Custom description for completed jobs',
+  unit: '1',
+});
+
+// Pre-configure the duration histogram with custom options
+telemetry.meter.createHistogram('bullmq.job.duration', {
+  description: 'Custom job processing duration',
+  unit: 's', // Using seconds instead of default milliseconds
+});
+
+const worker = new Worker(
+  'myQueue',
+  async job => {
+    return 'some value';
+  },
+  {
+    connection: {
+      host: '127.0.0.1',
+      port: 6379,
+    },
+    telemetry,
+  },
+);
+```
+
+{% hint style="info" %}
+The `BullMQOTelMeter` caches all created counters and histograms by name. When BullMQ internally calls `createCounter` or `createHistogram` with the same name, the cached instance is returned, effectively ignoring the default options passed by BullMQ.
+{% endhint %}
+
 ## Backward Compatibility
 
 The original constructor signature is still supported for backward compatibility:
