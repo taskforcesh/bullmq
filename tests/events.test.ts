@@ -448,7 +448,7 @@ describe('events', () => {
       const childrenWorker = new Worker(
         childrenQueueName,
         async () => {
-          await delay(100);
+          await delay(150);
         },
         {
           autorun: false,

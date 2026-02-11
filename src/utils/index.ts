@@ -18,6 +18,7 @@ import { EventEmitter } from 'events';
 import * as semver from 'semver';
 
 import { SpanKind, TelemetryAttributes } from '../enums';
+import { DatabaseType } from 'src/types';
 
 export const errorObject: { [index: string]: any } = { value: null };
 
@@ -177,7 +178,14 @@ export async function removeAllQueueData(
     stream.on('error', error => reject(error));
   });
   await removing;
-  await client.quit();
+  // Handle connection close with better error handling for Dragonfly
+  try {
+    await client.quit();
+  } catch (error) {
+    if (isNotConnectionError(error as Error)) {
+      throw error;
+    }
+  }
 }
 
 export function getParentKey(opts: ParentOptions): string | undefined {
@@ -236,10 +244,15 @@ export const childSend = (
 export const isRedisVersionLowerThan = (
   currentVersion: string,
   minimumVersion: string,
+  currentDatabaseType: DatabaseType,
+  desiredDatabaseType: DatabaseType = 'redis',
 ): boolean => {
-  const version = semver.valid(semver.coerce(currentVersion)) as string;
+  if (currentDatabaseType === desiredDatabaseType) {
+    const version = semver.valid(semver.coerce(currentVersion)) as string;
 
-  return semver.lt(version, minimumVersion);
+    return semver.lt(version, minimumVersion);
+  }
+  return false;
 };
 
 export const parseObjectValues = (obj: {
