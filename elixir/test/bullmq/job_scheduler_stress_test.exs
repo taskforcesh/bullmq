@@ -21,9 +21,18 @@ defmodule BullMQ.JobSchedulerStressTest do
 
   setup do
     {:ok, conn} = Redix.start_link(@redis_url)
+    Process.unlink(conn)
     queue_name = "stress-queue-#{System.unique_integer([:positive])}"
 
     on_exit(fn ->
+      # Stop the test connection
+      try do
+        Redix.stop(conn)
+      catch
+        :exit, _ -> :ok
+      end
+
+      # Cleanup after test
       case Redix.start_link(@redis_url) do
         {:ok, cleanup_conn} ->
           case Redix.command(cleanup_conn, ["KEYS", "#{@test_prefix}:*"]) do

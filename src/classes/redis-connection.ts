@@ -14,6 +14,7 @@ import {
 } from '../utils';
 import { version as packageVersion } from '../version';
 import * as scripts from '../scripts';
+import { DatabaseType } from '../types';
 
 const overrideMessage = [
   'BullMQ: WARNING! Your redis options maxRetriesPerRequest must be null',
@@ -45,6 +46,7 @@ export class RedisConnection extends EventEmitter {
   };
 
   status: 'initializing' | 'ready' | 'closing' | 'closed' = 'initializing';
+  private dbType: DatabaseType = 'redis';
 
   protected _client: RedisClient;
 
@@ -261,10 +263,17 @@ export class RedisConnection extends EventEmitter {
     this.loadCommands(this.packageVersion);
 
     if (this._client['status'] !== 'end') {
-      this.version = await this.getRedisVersion();
+      const versionResult = await this.getRedisVersionAndType();
+      this.version = versionResult.version;
+      this.dbType = versionResult.databaseType;
+
       if (this.skipVersionCheck !== true && !this.closing) {
         if (
-          isRedisVersionLowerThan(this.version, RedisConnection.minimumVersion)
+          isRedisVersionLowerThan(
+            this.version,
+            RedisConnection.minimumVersion,
+            this.dbType,
+          )
         ) {
           throw new Error(
             `Redis version needs to be greater or equal than ${RedisConnection.minimumVersion} ` +
@@ -276,6 +285,7 @@ export class RedisConnection extends EventEmitter {
           isRedisVersionLowerThan(
             this.version,
             RedisConnection.recommendedMinimumVersion,
+            this.dbType,
           )
         ) {
           console.warn(
@@ -286,8 +296,16 @@ export class RedisConnection extends EventEmitter {
       }
 
       this.capabilities = {
-        canDoubleTimeout: !isRedisVersionLowerThan(this.version, '6.0.0'),
-        canBlockFor1Ms: !isRedisVersionLowerThan(this.version, '7.0.8'),
+        canDoubleTimeout: !isRedisVersionLowerThan(
+          this.version,
+          '6.0.0',
+          this.dbType,
+        ),
+        canBlockFor1Ms: !isRedisVersionLowerThan(
+          this.version,
+          '7.0.8',
+          this.dbType,
+        ),
       };
 
       this.status = 'ready';
@@ -370,9 +388,15 @@ export class RedisConnection extends EventEmitter {
     }
   }
 
-  private async getRedisVersion() {
+  private async getRedisVersionAndType(): Promise<{
+    version: string;
+    databaseType: DatabaseType;
+  }> {
     if (this.skipVersionCheck) {
-      return RedisConnection.minimumVersion;
+      return {
+        version: RedisConnection.minimumVersion,
+        databaseType: 'redis',
+      };
     }
 
     const doc = await this._client.info();
@@ -380,26 +404,78 @@ export class RedisConnection extends EventEmitter {
     const maxMemoryPolicyPrefix = 'maxmemory_policy:';
     const lines = doc.split(/\r?\n/);
     let redisVersion;
+    let databaseType: DatabaseType = 'redis';
 
+    // Detect database type from server info
     for (let i = 0; i < lines.length; i++) {
-      if (lines[i].indexOf(maxMemoryPolicyPrefix) === 0) {
-        const maxMemoryPolicy = lines[i].substr(maxMemoryPolicyPrefix.length);
+      const line = lines[i];
+
+      // Check for Dragonfly
+      if (
+        line.includes('dragonfly_version:') ||
+        line.includes('server:Dragonfly')
+      ) {
+        databaseType = 'dragonfly';
+        // For Dragonfly, extract version from dragonfly_version field
+        if (line.indexOf('dragonfly_version:') === 0) {
+          redisVersion = line.substr('dragonfly_version:'.length);
+        }
+      }
+      // Check for Valkey
+      else if (
+        line.includes('valkey_version:') ||
+        line.includes('server:Valkey')
+      ) {
+        databaseType = 'valkey';
+        // For Valkey, extract version from valkey_version field
+        if (line.indexOf('valkey_version:') === 0) {
+          redisVersion = line.substr('valkey_version:'.length);
+        }
+      }
+      // Standard Redis version detection
+      else if (line.indexOf(redisPrefix) === 0) {
+        redisVersion = line.substr(redisPrefix.length);
+        // Keep Redis as default unless we find evidence of other databases above
+        if (databaseType === 'redis') {
+          databaseType = 'redis';
+        }
+      }
+
+      if (line.indexOf(maxMemoryPolicyPrefix) === 0) {
+        const maxMemoryPolicy = line.substr(maxMemoryPolicyPrefix.length);
         if (maxMemoryPolicy !== 'noeviction') {
           console.warn(
             `IMPORTANT! Eviction policy is ${maxMemoryPolicy}. It should be "noeviction"`,
           );
         }
       }
+    }
 
-      if (lines[i].indexOf(redisPrefix) === 0) {
-        redisVersion = lines[i].substr(redisPrefix.length);
+    // Fallback version detection if specific database version field wasn't found
+    if (!redisVersion) {
+      // Try to find any version field as fallback
+      for (const line of lines) {
+        if (line.includes('version:')) {
+          const parts = line.split(':');
+          if (parts.length >= 2) {
+            redisVersion = parts[1];
+            break;
+          }
+        }
       }
     }
 
-    return redisVersion;
+    return {
+      version: redisVersion || RedisConnection.minimumVersion,
+      databaseType,
+    };
   }
 
   get redisVersion(): string {
     return this.version;
+  }
+
+  get databaseType(): DatabaseType {
+    return this.dbType;
   }
 }

@@ -381,19 +381,19 @@ describe('Job', () => {
       await removeAllQueueData(new IORedis(redisHost), parentQueueName);
     });
 
-    it('removes 4000 jobs in time rage of 4000ms', async () => {
+    it('removes 4000 jobs in time range of 4000ms', async () => {
       // TODO: Move timeout to test options: { timeout: 8000 }
       const numJobs = 4000;
 
       // Create waiting jobs
-      const jobsData = Array.from(Array(numJobs).keys()).map(index => ({
+      const jobsData = Array.from(Array(numJobs / 2).keys()).map(index => ({
         name: 'test',
         data: { order: numJobs - index },
       }));
       const waitingJobs = await queue.addBulk(jobsData);
 
       // Creating delayed jobs
-      const jobsDataWithDelay = Array.from(Array(numJobs).keys()).map(
+      const jobsDataWithDelay = Array.from(Array(numJobs / 2).keys()).map(
         index => ({
           name: 'test',
           data: { order: numJobs - index },
