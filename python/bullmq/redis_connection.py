@@ -9,6 +9,15 @@ from redis.exceptions import (
 )
 import warnings
 from bullmq.utils import isRedisVersionLowerThan, is_redis_cluster, get_cluster_nodes, get_node_client
+from bullmq import __version__ as package_version
+
+def _get_driver_info_options():
+    """
+    Get driver info options for Redis client identification.
+    See: https://redis.io/docs/latest/commands/client-setinfo/
+    """
+    driver_info = redis.DriverInfo().add_upstream_driver("bullmq", package_version)
+    return {"driver_info": driver_info}
 
 class RedisConnection:
     """
@@ -28,6 +37,8 @@ class RedisConnection:
         retry = Retry(ExponentialBackoff(cap=20, base=1), 20)
         retry_errors = [BusyLoadingError, ConnectionError, TimeoutError]
 
+        driver_info_options = _get_driver_info_options()
+
         if isinstance(redisOpts, redis.Redis):
             self.conn = redisOpts
         elif isinstance(redisOpts, dict):
@@ -38,12 +49,12 @@ class RedisConnection:
                 "password": None,
                 "username": None,
             }
-            finalOpts = {**defaultOpts, **redisOpts}
+            finalOpts = {**defaultOpts, **redisOpts, **driver_info_options}
 
             self.conn = redis.Redis(decode_responses=True, retry=retry, retry_on_error=retry_errors, **finalOpts)
         else:
             self.conn = redis.from_url(redisOpts, decode_responses=True, retry=retry,
-                retry_on_error=retry_errors)
+                retry_on_error=retry_errors, **driver_info_options)
 
     def disconnect(self):
         """

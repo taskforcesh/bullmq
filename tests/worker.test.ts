@@ -5358,4 +5358,17 @@ describe('workers', () => {
 
     await worker.close();
   });
+
+  it('should set clientInfoTag on blocking connection', async () => {
+    const worker = new Worker(queueName, NoopProc, {
+      connection,
+    });
+    await worker.waitUntilReady();
+
+    const blockingClient = (worker as any).blockingConnection;
+    const client = await blockingClient.client;
+    expect(client.options.clientInfoTag).toMatch(/^bullmq_v\d+\.\d+\.\d+$/);
+
+    await worker.close();
+  });
 });

@@ -17,6 +17,7 @@ import {
   Span,
   WorkerOptions,
 } from '../interfaces';
+import { version as packageVersion } from '../version';
 import { JobProgress } from '../types';
 import { Processor } from '../types/processor';
 import {
@@ -338,6 +339,10 @@ export class Worker<
 
     const connectionName =
       this.clientName() + (this.opts.name ? `:w:${this.opts.name}` : '');
+
+    // Set clientInfoTag for Redis driver identification if not already provided on the original client
+    const clientInfoTag = `bullmq_v${packageVersion}`;
+
     this.blockingConnection = new RedisConnection(
       isRedisInstance(opts.connection)
         ? (<Redis>opts.connection).isCluster
@@ -345,9 +350,17 @@ export class Worker<
               redisOptions: {
                 ...((<Cluster>opts.connection).options?.redisOptions || {}),
                 connectionName,
+                clientInfoTag:
+                  (<Cluster>opts.connection).options?.redisOptions
+                    ?.clientInfoTag ?? clientInfoTag,
               },
             })
-          : (<Redis>opts.connection).duplicate({ connectionName })
+          : (<Redis>opts.connection).duplicate({
+              connectionName,
+              clientInfoTag:
+                (<Redis>opts.connection).options?.clientInfoTag ??
+                clientInfoTag,
+            })
         : { ...opts.connection, connectionName },
       {
         shared: false,
