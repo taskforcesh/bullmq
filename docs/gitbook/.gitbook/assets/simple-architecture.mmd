@@ -10,7 +10,7 @@ stateDiagram
   state errorChoice <<choice>>
   state jobFinished <<join>>
   state workerPickup <<join>>
-  [*] --> delayChoice:job aded
+  [*] --> delayChoice: job added
   delayChoice --> priorityChoice:when delay is 0
   delayChoice --> Delayed:when delay is greater than 0
   priorityChoice --> Prioritized:when priority is greater than 0
