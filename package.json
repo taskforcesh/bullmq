@@ -63,7 +63,7 @@
     "ioredis": "5.9.2",
     "msgpackr": "1.11.5",
     "node-abort-controller": "3.1.1",
-    "semver": "7.7.3",
+    "semver": "7.7.4",
     "tslib": "2.8.1",
     "uuid": "11.1.0"
   },
