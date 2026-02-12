@@ -18,7 +18,7 @@ import { EventEmitter } from 'events';
 import * as semver from 'semver';
 
 import { SpanKind, TelemetryAttributes } from '../enums';
-import { DatabaseType } from 'src/types';
+import { DatabaseType } from '../types';
 
 export const errorObject: { [index: string]: any } = { value: null };
 
