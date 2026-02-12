@@ -10,7 +10,7 @@ import {
 } from 'vitest';
 
 import { v4 } from 'uuid';
-import { FlowProducer, Job, JobScheduler, Queue, Worker } from '../src/classes';
+import { FlowProducer, JobScheduler, Queue, Worker } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
 import {
   Telemetry,
@@ -21,9 +21,13 @@ import {
   Attributes,
   Exception,
   Time,
+  Meter,
+  Counter,
+  Histogram,
+  MetricOptions,
 } from '../src/interfaces';
 import * as sinon from 'sinon';
-import { SpanKind, TelemetryAttributes } from '../src/enums';
+import { SpanKind, TelemetryAttributes, MetricNames } from '../src/enums';
 
 describe('Telemetry', () => {
   type ExtendedException = Exception & {
@@ -33,13 +37,56 @@ describe('Telemetry', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
+  class MockCounter implements Counter {
+    public values: { value: number; attributes?: Attributes }[] = [];
+
+    add(value: number, attributes?: Attributes): void {
+      this.values.push({ value, attributes });
+    }
+  }
+
+  class MockHistogram implements Histogram {
+    public values: { value: number; attributes?: Attributes }[] = [];
+
+    record(value: number, attributes?: Attributes): void {
+      this.values.push({ value, attributes });
+    }
+  }
+
+  class MockMeter implements Meter {
+    public counters: Map<string, MockCounter> = new Map();
+    public histograms: Map<string, MockHistogram> = new Map();
+
+    createCounter(name: string, options?: MetricOptions): Counter {
+      let counter = this.counters.get(name);
+      if (!counter) {
+        counter = new MockCounter();
+        this.counters.set(name, counter);
+      }
+      return counter;
+    }
+
+    createHistogram(name: string, options?: MetricOptions): Histogram {
+      let histogram = this.histograms.get(name);
+      if (!histogram) {
+        histogram = new MockHistogram();
+        this.histograms.set(name, histogram);
+      }
+      return histogram;
+    }
+  }
+
   class MockTelemetry<Context = any> implements Telemetry<Context> {
     public tracer: Tracer<Context>;
     public contextManager: ContextManager<Context>;
+    public meter?: Meter;
 
-    constructor(name: string) {
+    constructor(name: string, enableMetrics = false) {
       this.tracer = new MockTracer();
       this.contextManager = new MockContextManager();
+      if (enableMetrics) {
+        this.meter = new MockMeter();
+      }
     }
   }
 
@@ -123,12 +170,12 @@ describe('Telemetry', () => {
     end(): void {}
   }
 
-  let telemetryClient;
+  let telemetryClient: MockTelemetry;
 
   let queue: Queue;
   let queueName: string;
 
-  let connection;
+  let connection: IORedis;
   beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
@@ -651,6 +698,225 @@ describe('Telemetry', () => {
       expect(fromMetadataSpy.callCount).toBe(0);
       await flowProducer.close();
       await worker.close();
+    });
+  });
+
+  describe('Metrics', () => {
+    let metricsTelemetryClient: MockTelemetry;
+    let metricsQueue: Queue;
+
+    beforeEach(async () => {
+      metricsTelemetryClient = new MockTelemetry('mockTracer', true);
+      metricsQueue = new Queue(queueName, {
+        connection,
+        prefix,
+        telemetry: metricsTelemetryClient,
+      });
+    });
+
+    afterEach(async () => {
+      await metricsQueue.close();
+    });
+
+    it('should record metrics when job is completed', async () => {
+      const worker = new Worker(
+        queueName,
+        async () => {
+          return 'completed';
+        },
+        {
+          connection,
+          prefix,
+          telemetry: metricsTelemetryClient,
+        },
+      );
+
+      await worker.waitUntilReady();
+
+      await metricsQueue.add('testJob', { foo: 'bar' });
+
+      await new Promise<void>(resolve => {
+        worker.on('completed', () => resolve());
+      });
+
+      const meter = metricsTelemetryClient.meter as MockMeter;
+      expect(meter).toBeDefined();
+
+      const completedCounter = meter.counters.get(MetricNames.JobsCompleted);
+      expect(completedCounter).toBeDefined();
+      expect(completedCounter!.values.length).toBeGreaterThan(0);
+      expect(completedCounter!.values[0].value).toBe(1);
+      expect(completedCounter!.values[0].attributes).toMatchObject({
+        [TelemetryAttributes.QueueName]: queueName,
+        [TelemetryAttributes.JobName]: 'testJob',
+        [TelemetryAttributes.JobStatus]: 'completed',
+      });
+
+      await worker.close();
+    });
+
+    it('should record metrics when job fails', async () => {
+      const worker = new Worker(
+        queueName,
+        async () => {
+          throw new Error('Job failed');
+        },
+        {
+          connection,
+          prefix,
+          telemetry: metricsTelemetryClient,
+        },
+      );
+
+      await worker.waitUntilReady();
+
+      await metricsQueue.add('testJob', { foo: 'bar' });
+
+      await new Promise<void>(resolve => {
+        worker.on('failed', () => resolve());
+      });
+
+      const meter = metricsTelemetryClient.meter as MockMeter;
+      expect(meter).toBeDefined();
+
+      const failedCounter = meter.counters.get(MetricNames.JobsFailed);
+      expect(failedCounter).toBeDefined();
+      expect(failedCounter!.values.length).toBeGreaterThan(0);
+      expect(failedCounter!.values[0].value).toBe(1);
+      expect(failedCounter!.values[0].attributes).toMatchObject({
+        [TelemetryAttributes.QueueName]: queueName,
+        [TelemetryAttributes.JobName]: 'testJob',
+        [TelemetryAttributes.JobStatus]: 'failed',
+      });
+
+      await worker.close();
+    });
+
+    it('should record delayed metrics when job is retried with delay', async () => {
+      const worker = new Worker(
+        queueName,
+        async () => {
+          throw new Error('Job failed');
+        },
+        {
+          connection,
+          prefix,
+          telemetry: metricsTelemetryClient,
+        },
+      );
+
+      await worker.waitUntilReady();
+
+      await metricsQueue.add(
+        'testJob',
+        { foo: 'bar' },
+        {
+          attempts: 2,
+          backoff: { type: 'fixed', delay: 1000 },
+        },
+      );
+
+      // Wait for first attempt to fail and be delayed
+      await new Promise<void>(resolve => {
+        worker.on('failed', () => resolve());
+      });
+
+      const meter = metricsTelemetryClient.meter as MockMeter;
+      expect(meter).toBeDefined();
+
+      const delayedCounter = meter.counters.get(MetricNames.JobsDelayed);
+      expect(delayedCounter).toBeDefined();
+      expect(delayedCounter!.values.length).toBeGreaterThan(0);
+      expect(delayedCounter!.values[0].value).toBe(1);
+      expect(delayedCounter!.values[0].attributes).toMatchObject({
+        [TelemetryAttributes.QueueName]: queueName,
+        [TelemetryAttributes.JobName]: 'testJob',
+        [TelemetryAttributes.JobStatus]: 'delayed',
+      });
+
+      await worker.close();
+    });
+
+    it('should record duration histogram when job completes', async () => {
+      const worker = new Worker(
+        queueName,
+        async () => {
+          // Simulate some work
+          await new Promise(resolve => setTimeout(resolve, 50));
+          return 'completed';
+        },
+        {
+          connection,
+          prefix,
+          telemetry: metricsTelemetryClient,
+        },
+      );
+
+      await worker.waitUntilReady();
+
+      await metricsQueue.add('testJob', { foo: 'bar' });
+
+      await new Promise<void>(resolve => {
+        worker.on('completed', () => resolve());
+      });
+
+      const meter = metricsTelemetryClient.meter as MockMeter;
+      expect(meter).toBeDefined();
+
+      const durationHistogram = meter.histograms.get(MetricNames.JobDuration);
+      expect(durationHistogram).toBeDefined();
+      expect(durationHistogram!.values.length).toBeGreaterThan(0);
+      // Duration should be at least 50ms
+      expect(durationHistogram!.values[0].value).toBeGreaterThanOrEqual(50);
+      expect(durationHistogram!.values[0].attributes).toMatchObject({
+        [TelemetryAttributes.QueueName]: queueName,
+        [TelemetryAttributes.JobName]: 'testJob',
+      });
+
+      await worker.close();
+    });
+
+    it('should not record metrics when meter is not configured', async () => {
+      // Use the original telemetryClient which doesn't have metrics enabled
+      const worker = new Worker(
+        queueName,
+        async () => {
+          return 'completed';
+        },
+        {
+          connection,
+          prefix,
+          telemetry: telemetryClient,
+        },
+      );
+
+      await worker.waitUntilReady();
+
+      const job = await queue.add('testJob', { foo: 'bar' });
+
+      await new Promise<void>(resolve => {
+        worker.on('completed', () => resolve());
+      });
+
+      // telemetryClient doesn't have a meter, so no metrics should be recorded
+      expect(telemetryClient.meter).toBeUndefined();
+
+      await worker.close();
+    });
+
+    it('should cache counter and histogram instances', async () => {
+      const meter = metricsTelemetryClient.meter as MockMeter;
+      expect(meter).toBeDefined();
+
+      // Create same counter twice
+      const counter1 = meter.createCounter('test.counter');
+      const counter2 = meter.createCounter('test.counter');
+      expect(counter1).toBe(counter2);
+
+      // Create same histogram twice
+      const histogram1 = meter.createHistogram('test.histogram');
+      const histogram2 = meter.createHistogram('test.histogram');
+      expect(histogram1).toBe(histogram2);
     });
   });
 });
