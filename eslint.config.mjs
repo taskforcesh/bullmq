@@ -68,6 +68,12 @@ export default defineConfig([
     },
 
     rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: ['src/*'],
+        },
+      ],
       '@typescript-eslint/no-empty-interface': [
         'error',
         {
