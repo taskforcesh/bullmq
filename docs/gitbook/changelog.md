@@ -1,3 +1,10 @@
+# [5.69.0](https://github.com/taskforcesh/bullmq/compare/v5.68.0...v5.69.0) (2026-02-12)
+
+
+### Features
+
+* **otel:** enable metrics ([#3769](https://github.com/taskforcesh/bullmq/issues/3769)) ([f85e870](https://github.com/taskforcesh/bullmq/commit/f85e87032a822826cbeed19eedff7ccb1e6ce085))
+
 # [5.68.0](https://github.com/taskforcesh/bullmq/compare/v5.67.3...v5.68.0) (2026-02-11)
 
 
