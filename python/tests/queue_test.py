@@ -722,5 +722,32 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         
         await queue.close()
 
+class TestDriverInfo(unittest.TestCase):
+    """Tests for Redis client identification via DriverInfo"""
+
+    def test_get_driver_info_options_returns_dict(self):
+        """Test that _get_driver_info_options returns a dictionary with driver info"""
+        from bullmq.redis_connection import _get_driver_info_options
+        options = _get_driver_info_options()
+        self.assertIsInstance(options, dict)
+        self.assertTrue(
+            'driver_info' in options or 'lib_name' in options,
+            "Options should contain either 'driver_info' or 'lib_name'"
+        )
+
+    def test_get_driver_info_options_contains_bullmq(self):
+        """Test that driver info contains 'bullmq' identifier"""
+        from bullmq.redis_connection import _get_driver_info_options
+        from bullmq import __version__ as package_version
+        options = _get_driver_info_options()
+        if 'driver_info' in options:
+            driver_info = options['driver_info']
+            self.assertIn('bullmq', driver_info.formatted_name.lower())
+        else:
+            lib_name = options['lib_name']
+            self.assertIn('bullmq', lib_name.lower())
+            self.assertIn(package_version, lib_name)
+
+
 if __name__ == '__main__':
     unittest.main()
