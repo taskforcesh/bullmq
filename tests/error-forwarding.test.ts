@@ -1,12 +1,29 @@
-import { describe, it, expect, vi } from 'vitest';
+import { default as IORedis } from 'ioredis';
+import { v4 } from 'uuid';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { Queue } from '../src';
+import { removeAllQueueData } from '../src/utils';
 
 describe('Repeat/JobScheduler error forwarding', () => {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
+  let connection: IORedis;
+
+  beforeAll(async () => {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
+
+  afterAll(async () => {
+    await connection.quit();
+  });
+
   it('Queue should forward Repeat "error" to queue.on("error")', async () => {
-    const queue = new Queue('test-forward-repeat');
+    const queueName = `test-forward-repeat-${v4()}`;
+    const queue = new Queue(queueName, { connection, prefix });
 
     // Force repeat instance creation so the buggy listener is attached
-    await queue.repeat;
+    const repeat = await queue.repeat;
+    await repeat.waitUntilReady();
 
     const spy = vi.fn();
     queue.on('error', spy);
@@ -21,13 +38,16 @@ describe('Repeat/JobScheduler error forwarding', () => {
     expect(spy).toHaveBeenCalledWith(err);
 
     await queue.close();
+    await removeAllQueueData(new IORedis(redisHost), queueName);
   });
 
   it('Queue should forward JobScheduler "error" to queue.on("error")', async () => {
-    const queue = new Queue('test-forward-scheduler');
+    const queueName = `test-forward-scheduler-${v4()}`;
+    const queue = new Queue(queueName, { connection, prefix });
 
     // Force jobScheduler instance creation so the buggy listener is attached
-    await queue.jobScheduler;
+    const jobScheduler = await queue.jobScheduler;
+    await jobScheduler.waitUntilReady();
 
     const spy = vi.fn();
     queue.on('error', spy);
@@ -42,5 +62,6 @@ describe('Repeat/JobScheduler error forwarding', () => {
     expect(spy).toHaveBeenCalledWith(err);
 
     await queue.close();
+    await removeAllQueueData(new IORedis(redisHost), queueName);
   });
 });
