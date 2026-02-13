@@ -1,3 +1,10 @@
+## [5.69.1](https://github.com/taskforcesh/bullmq/compare/v5.69.0...v5.69.1) (2026-02-13)
+
+
+### Bug Fixes
+
+* **utils:** use exact import of DatabaseType ([#3786](https://github.com/taskforcesh/bullmq/issues/3786)) ([d249301](https://github.com/taskforcesh/bullmq/commit/d249301ddc9afc607c9e86a8a44312af682e6be0))
+
 # [5.69.0](https://github.com/taskforcesh/bullmq/compare/v5.68.0...v5.69.0) (2026-02-12)
 
 
