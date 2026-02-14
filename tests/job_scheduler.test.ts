@@ -3909,3 +3909,46 @@ describe('Job Scheduler', () => {
     await worker.close();
   });
 });
+
+describe('JobScheduler legacy fallback', () => {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
+  let connection: IORedis;
+
+  beforeAll(async () => {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
+
+  afterAll(async () => {
+    await connection.quit();
+  });
+
+  it('falls back to legacy key parsing when scheduler hash data is missing', async () => {
+    const queueName = `test-legacy-fallback-${v4()}`;
+    const queue = new Queue(queueName, { connection, prefix });
+    const next = Date.now() + ONE_MINUTE;
+    const legacyKey = 'legacy-name:legacy-id:::*/5 * * * * *';
+
+    try {
+      await queue.waitUntilReady();
+      const client = await queue.client;
+      await client.zadd(queue.toKey('repeat'), next, legacyKey);
+
+      const schedulers = await queue.getJobSchedulers();
+
+      expect(schedulers).toHaveLength(1);
+      expect(schedulers[0]).toEqual({
+        key: legacyKey,
+        name: 'legacy-name',
+        id: 'legacy-id',
+        endDate: null,
+        tz: null,
+        pattern: '*/5 * * * * *',
+        next,
+      });
+    } finally {
+      await queue.close();
+      await removeAllQueueData(new IORedis(redisHost), queueName);
+    }
+  });
+});
