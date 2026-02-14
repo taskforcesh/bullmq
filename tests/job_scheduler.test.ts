@@ -7,6 +7,7 @@ import {
   afterAll,
   it,
   expect,
+  vi,
 } from 'vitest';
 
 import * as sinon from 'sinon';
@@ -79,6 +80,25 @@ describe('Job Scheduler', () => {
 
   afterAll(async function () {
     await connection.quit();
+  });
+
+  describe('when job scheduler emits an error', () => {
+    it('should forward error to queue.on("error")', async () => {
+      const currentJobScheduler = await queue.jobScheduler;
+      await currentJobScheduler.waitUntilReady();
+
+      const spy = vi.fn();
+      queue.on('error', spy);
+
+      const err = new Error('job scheduler boom');
+
+      currentJobScheduler.emit('error', err);
+
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith(err);
+
+      await queue.close();
+    });
   });
 
   describe('when endDate is not greater than current timestamp', () => {
