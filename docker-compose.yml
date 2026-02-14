@@ -6,7 +6,7 @@ services:
     ports:
       - 6379:6379
   dragonfly:
-    image: 'docker.dragonflydb.io/dragonflydb/dragonfly:v1.27.0'
+    image: 'docker.dragonflydb.io/dragonflydb/dragonfly:v1.36.0'
     ports:
       - '6380:6379'
     environment:
