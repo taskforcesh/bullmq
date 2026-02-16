@@ -1,3 +1,45 @@
+## [5.69.3](https://github.com/taskforcesh/bullmq/compare/v5.69.2...v5.69.3) (2026-02-16)
+
+
+### Bug Fixes
+
+* **job-scheduler:** handle empty scheduler hash fallback ([#3797](https://github.com/taskforcesh/bullmq/issues/3797)) fixes [#3796](https://github.com/taskforcesh/bullmq/issues/3796) ([87386ca](https://github.com/taskforcesh/bullmq/commit/87386ca88e29755fc68e6cc8fcfebfb7f8f8237f))
+
+## [5.69.2](https://github.com/taskforcesh/bullmq/compare/v5.69.1...v5.69.2) (2026-02-14)
+
+
+### Bug Fixes
+
+* **queue:** forward error from repeat or job-scheduler instances ([#3775](https://github.com/taskforcesh/bullmq/issues/3775)) fixes [#3774](https://github.com/taskforcesh/bullmq/issues/3774) ([a62241f](https://github.com/taskforcesh/bullmq/commit/a62241f5831a1d3bb6c328a9037ea852be7832cd))
+
+## [5.69.1](https://github.com/taskforcesh/bullmq/compare/v5.69.0...v5.69.1) (2026-02-13)
+
+
+### Bug Fixes
+
+* **utils:** use exact import of DatabaseType ([#3786](https://github.com/taskforcesh/bullmq/issues/3786)) ([d249301](https://github.com/taskforcesh/bullmq/commit/d249301ddc9afc607c9e86a8a44312af682e6be0))
+
+# [5.69.0](https://github.com/taskforcesh/bullmq/compare/v5.68.0...v5.69.0) (2026-02-12)
+
+
+### Features
+
+* **otel:** enable metrics ([#3769](https://github.com/taskforcesh/bullmq/issues/3769)) ([f85e870](https://github.com/taskforcesh/bullmq/commit/f85e87032a822826cbeed19eedff7ccb1e6ce085))
+
+# [5.68.0](https://github.com/taskforcesh/bullmq/compare/v5.67.3...v5.68.0) (2026-02-11)
+
+
+### Features
+
+* **connection:** add datatype for version differentiation ([#3746](https://github.com/taskforcesh/bullmq/issues/3746)) ([af9197d](https://github.com/taskforcesh/bullmq/commit/af9197d16941d49c9e3d86f10d96681beea676bc))
+
+## [5.67.3](https://github.com/taskforcesh/bullmq/compare/v5.67.2...v5.67.3) (2026-02-05)
+
+
+### Bug Fixes
+
+* **connection:** merge redisOptions when duplicating cluster ([#3759](https://github.com/taskforcesh/bullmq/issues/3759)) ([afb878f](https://github.com/taskforcesh/bullmq/commit/afb878f97ebeaf89c1308b7dde0b5a440381d113))
+
 ## [5.67.2](https://github.com/taskforcesh/bullmq/compare/v5.67.1...v5.67.2) (2026-01-28)
 
 

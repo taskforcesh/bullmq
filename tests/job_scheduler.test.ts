@@ -2255,6 +2255,29 @@ describe('Job Scheduler', () => {
     });
   });
 
+  describe('when listing legacy schedulers without hash data', () => {
+    it('should parse scheduler fields from legacy key format', async () => {
+      const client = await queue.client;
+      const next = Date.now() + ONE_MINUTE;
+      const legacyKey = 'legacy-name:legacy-id:::*/5 * * * * *';
+
+      await client.zadd(queue.toKey('repeat'), next, legacyKey);
+
+      const schedulers = await queue.getJobSchedulers();
+
+      expect(schedulers).toHaveLength(1);
+      expect(schedulers[0]).toEqual({
+        key: legacyKey,
+        name: 'legacy-name',
+        id: 'legacy-id',
+        endDate: null,
+        tz: null,
+        pattern: '*/5 * * * * *',
+        next,
+      });
+    });
+  });
+
   describe('when repeatable job fails', () => {
     it('should continue repeating', async () => {
       const date = new Date('2017-02-07T15:24:00.000Z');

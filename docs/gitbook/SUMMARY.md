@@ -63,6 +63,7 @@
   - [Create Custom Events](guide/events/create-custom-events.md)
 - [Telemetry](guide/telemetry/README.md)
   - [Getting started](guide/telemetry/getting-started.md)
+  - [Metrics](guide/telemetry/metrics.md)
   - [Running Jaeger](guide/telemetry/running-jaeger.md)
   - [Running a simple example](guide/telemetry/running-a-simple-example.md)
 - [QueueScheduler](guide/queuescheduler.md)

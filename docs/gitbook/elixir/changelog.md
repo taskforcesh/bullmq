@@ -1,3 +1,10 @@
+## [1.2.6](https://github.com/taskforcesh/bullmq/compare/vex1.2.5...vex1.2.6) (2026-02-11)
+
+
+### Bug Fixes
+
+* important performance fixes and improvements [elixir] ([#3749](https://github.com/taskforcesh/bullmq/issues/3749)) ([5905423](https://github.com/taskforcesh/bullmq/commit/590542314f13590cf68330097f5bb09a96bb240c))
+
 ## [1.2.5](https://github.com/taskforcesh/bullmq/compare/vex1.2.4...vex1.2.5) (2026-01-27)
 
 
