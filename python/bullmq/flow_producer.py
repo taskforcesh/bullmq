@@ -12,7 +12,7 @@ class MinimalQueue:
     Instantiate a MinimalQueue object
     """
 
-    def __init__(self, name: str, queue_keys, redisConnection, opts: QueueBaseOptions = {}):
+    def __init__(self, name: str, queue_keys, redisConnection, scripts, opts: QueueBaseOptions = {}):
         """
         Initialize a connection
         """
@@ -23,6 +23,7 @@ class MinimalQueue:
         self.prefix = opts.get("prefix", "bull"),
         self.keys = queue_keys.getKeys(name)
         self.qualifiedName = queue_keys.getQueueQualifiedName(name)
+        self.scripts = scripts
 
 
 class FlowProducer:
@@ -45,7 +46,7 @@ class FlowProducer:
             self.prefix, "__default__", self.redisConnection)
 
     def queueFromNode(self, node:dict, queue_keys, prefix: str):
-        return MinimalQueue(node.get("queueName"),queue_keys,self.redisConnection, {"prefix": prefix})
+        return MinimalQueue(node.get("queueName"), queue_keys, self.redisConnection, self.scripts, {"prefix": prefix})
 
     async def addChildren(self, nodes, parent, queues_opts, pipe):
         children = []
