@@ -112,10 +112,14 @@ const sandbox = <T, R, N extends string>(
 
             if (signal) {
               abortHandler = () => {
-                child.send({
-                  cmd: ChildCommand.Cancel,
-                  value: signal.reason,
-                });
+                try {
+                  child.send({
+                    cmd: ChildCommand.Cancel,
+                    value: signal.reason,
+                  });
+                } catch {
+                  // Child process may have already exited
+                }
               };
 
               if (signal.aborted) {
