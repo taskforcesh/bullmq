@@ -6,8 +6,13 @@
     ":maintainLockFilesWeekly"
   ],
   "labels": ["dependencies"],
-  "rangeStrategy": "pin",
+  "rangeStrategy": "auto",
   "packageRules": [
+    {
+      "description": "Pin devDependencies for reproducible CI builds",
+      "matchDepTypes": ["devDependencies"],
+      "rangeStrategy": "pin"
+    },
     {
       "description": "Group all non-major devDependencies",
       "matchDepTypes": ["devDependencies"],
