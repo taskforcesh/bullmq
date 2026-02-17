@@ -1688,5 +1688,148 @@ function sandboxProcessTests(
       const jobResult = await job.waitUntilFinished(queueEvents);
       expect(jobResult).toBe(42);
     });
+
+    describe('when cancelling a sandboxed job', () => {
+      it('should cancel a running job and fail it', async () => {
+        const processFile = __dirname + '/fixtures/fixture_processor_cancel.js';
+
+        const worker = new Worker(queueName, processFile, {
+          connection,
+          prefix,
+          drainDelay: 1,
+          useWorkerThreads,
+        });
+
+        const waitingOnActive = new Promise<void>(resolve => {
+          worker.on('active', () => resolve());
+        });
+
+        const job = await queue.add('test', { foo: 'bar' });
+
+        await waitingOnActive;
+
+        await delay(50);
+
+        // Cancel the job - should return true for sandboxed processors
+        const cancelled = worker.cancelJob(job.id!);
+        expect(cancelled).toBe(true);
+
+        // Wait for the job to fail
+        await new Promise<void>((resolve, reject) => {
+          worker.on('failed', (failedJob, err) => {
+            try {
+              expect(failedJob!.id).toBe(job.id);
+              resolve();
+            } catch (e) {
+              reject(e);
+            }
+          });
+        });
+
+        await worker.close();
+      });
+
+      it('should cancel a running job with a custom reason', async () => {
+        const processFile = __dirname + '/fixtures/fixture_processor_cancel.js';
+
+        const customReason = 'Custom cancellation reason';
+
+        const worker = new Worker(queueName, processFile, {
+          connection,
+          prefix,
+          drainDelay: 1,
+          useWorkerThreads,
+        });
+
+        const waitingOnActive = new Promise<void>(resolve => {
+          worker.on('active', () => resolve());
+        });
+
+        const job = await queue.add('test', { foo: 'bar' });
+
+        await waitingOnActive;
+
+        await delay(50);
+
+        const cancelled = worker.cancelJob(job.id!, customReason);
+        expect(cancelled).toBe(true);
+
+        await new Promise<void>((resolve, reject) => {
+          worker.on('failed', (failedJob, err) => {
+            try {
+              expect(failedJob!.id).toBe(job.id);
+              expect(err.message).toBe(customReason);
+              resolve();
+            } catch (e) {
+              reject(e);
+            }
+          });
+        });
+
+        await worker.close();
+      });
+
+      it('should return false when cancelling a non-existent job', async () => {
+        const processFile = __dirname + '/fixtures/fixture_processor.js';
+
+        const worker = new Worker(queueName, processFile, {
+          connection,
+          prefix,
+          drainDelay: 1,
+          useWorkerThreads,
+        });
+
+        const result = worker.cancelJob('non-existent-job-id');
+        expect(result).toBe(false);
+
+        await worker.close();
+      });
+
+      it('should cancel all running jobs with cancelAllJobs', async () => {
+        const processFile = __dirname + '/fixtures/fixture_processor_cancel.js';
+
+        const worker = new Worker(queueName, processFile, {
+          connection,
+          prefix,
+          concurrency: 2,
+          drainDelay: 1,
+          useWorkerThreads,
+        });
+
+        let activeCount = 0;
+        const allActive = new Promise<void>(resolve => {
+          worker.on('active', () => {
+            activeCount++;
+            if (activeCount >= 2) {
+              resolve();
+            }
+          });
+        });
+
+        await queue.add('test1', { foo: 'bar1' });
+        await queue.add('test2', { foo: 'bar2' });
+
+        await allActive;
+
+        await delay(50);
+
+        // Cancel all jobs
+        worker.cancelAllJobs('Cancelling all');
+
+        let failedCount = 0;
+        await new Promise<void>(resolve => {
+          worker.on('failed', () => {
+            failedCount++;
+            if (failedCount >= 2) {
+              resolve();
+            }
+          });
+        });
+
+        expect(failedCount).toBe(2);
+
+        await worker.close();
+      });
+    });
   });
 }

@@ -8,10 +8,15 @@ const sandbox = <T, R, N extends string>(
   processFile: any,
   childPool: ChildPool,
 ) => {
-  return async function process(job: Job<T, R, N>, token?: string): Promise<R> {
+  return async function process(
+    job: Job<T, R, N>,
+    token?: string,
+    signal?: AbortSignal,
+  ): Promise<R> {
     let child: Child;
     let msgHandler: any;
     let exitHandler: any;
+    let abortHandler: (() => void) | undefined;
     try {
       const done: Promise<R> = new Promise((resolve, reject) => {
         const initChild = async () => {
@@ -104,6 +109,21 @@ const sandbox = <T, R, N extends string>(
               job: job.asJSONSandbox(),
               token,
             });
+
+            if (signal) {
+              abortHandler = () => {
+                child.send({
+                  cmd: ChildCommand.Cancel,
+                  value: signal.reason,
+                });
+              };
+
+              if (signal.aborted) {
+                abortHandler();
+              } else {
+                signal.addEventListener('abort', abortHandler, { once: true });
+              }
+            }
           } catch (error) {
             reject(error);
           }
@@ -114,6 +134,9 @@ const sandbox = <T, R, N extends string>(
       await done;
       return done;
     } finally {
+      if (signal && abortHandler) {
+        signal.removeEventListener('abort', abortHandler);
+      }
       if (child) {
         child.off('message', msgHandler);
         child.off('exit', exitHandler);
