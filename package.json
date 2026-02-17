@@ -59,13 +59,13 @@
     "tsc:all": "tsc && tsc -p tsconfig-cjs.json"
   },
   "dependencies": {
-    "cron-parser": "4.9.0",
-    "ioredis": "5.9.2",
-    "msgpackr": "1.11.5",
-    "node-abort-controller": "3.1.1",
-    "semver": "7.7.4",
-    "tslib": "2.8.1",
-    "uuid": "11.1.0"
+    "cron-parser": "^5.5.0",
+    "ioredis": "^5.9.3",
+    "msgpackr": "^1.11.8",
+    "node-abort-controller": "^3.1.1",
+    "semver": "^7.7.4",
+    "tslib": "^2.8.1",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@commitlint/cli": "20.4.1",
@@ -80,7 +80,7 @@
     "@types/lodash.defaults": "4.2.9",
     "@types/lodash.isarguments": "3.1.9",
     "@types/msgpack": "0.0.34",
-    "@types/node": "18.19.130",
+    "@types/node": "22.15.31",
     "@types/semver": "7.7.1",
     "@types/sinon": "10.0.20",
     "@typescript-eslint/eslint-plugin": "8.54.0",
