@@ -138,6 +138,11 @@ const sandbox = <T, R, N extends string>(
       await done;
       return done;
     } finally {
+      // Note: There is a potential race where the signal is aborted between
+      // `await done` and this cleanup. This is safe because:
+      // 1. abortHandler has a try-catch for child process already exited
+      // 2. The listener is added with `once: true`, so it fires at most once
+      // 3. removeEventListener here is defensive cleanup only
       if (signal && abortHandler) {
         signal.removeEventListener('abort', abortHandler);
       }
