@@ -7,6 +7,7 @@ import {
   afterAll,
   it,
   expect,
+  vi,
 } from 'vitest';
 
 import * as sinon from 'sinon';
@@ -48,7 +49,7 @@ describe('repeat', () => {
   let queueName: string;
   let clock: sinon.SinonFakeTimers;
 
-  let connection;
+  let connection: IORedis;
   beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
@@ -76,6 +77,25 @@ describe('repeat', () => {
 
   afterAll(async function () {
     await connection.quit();
+  });
+
+  describe('when repeat emits an error', () => {
+    it('should forward error to queue.on("error")', async () => {
+      const currentRepeat = await queue.repeat;
+      await currentRepeat.waitUntilReady();
+
+      const spy = vi.fn();
+      queue.on('error', spy);
+
+      const err = new Error('repeat boom');
+
+      currentRepeat.emit('error', err);
+
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith(err);
+
+      await queue.close();
+    });
   });
 
   describe('when exponential backoff is applied', () => {

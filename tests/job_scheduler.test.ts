@@ -7,6 +7,7 @@ import {
   afterAll,
   it,
   expect,
+  vi,
 } from 'vitest';
 
 import * as sinon from 'sinon';
@@ -79,6 +80,25 @@ describe('Job Scheduler', () => {
 
   afterAll(async function () {
     await connection.quit();
+  });
+
+  describe('when job scheduler emits an error', () => {
+    it('should forward error to queue.on("error")', async () => {
+      const currentJobScheduler = await queue.jobScheduler;
+      await currentJobScheduler.waitUntilReady();
+
+      const spy = vi.fn();
+      queue.on('error', spy);
+
+      const err = new Error('job scheduler boom');
+
+      currentJobScheduler.emit('error', err);
+
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith(err);
+
+      await queue.close();
+    });
   });
 
   describe('when endDate is not greater than current timestamp', () => {
@@ -2252,6 +2272,29 @@ describe('Job Scheduler', () => {
       expect(removed).toBe(true);
       const removed2 = await queue.removeJobScheduler(repeatableJobs[0].key);
       expect(removed2).toBe(false);
+    });
+  });
+
+  describe('when listing legacy schedulers without hash data', () => {
+    it('should parse scheduler fields from legacy key format', async () => {
+      const client = await queue.client;
+      const next = Date.now() + ONE_MINUTE;
+      const legacyKey = 'legacy-name:legacy-id:::*/5 * * * * *';
+
+      await client.zadd(queue.toKey('repeat'), next, legacyKey);
+
+      const schedulers = await queue.getJobSchedulers();
+
+      expect(schedulers).toHaveLength(1);
+      expect(schedulers[0]).toEqual({
+        key: legacyKey,
+        name: 'legacy-name',
+        id: 'legacy-id',
+        endDate: null,
+        tz: null,
+        pattern: '*/5 * * * * *',
+        next,
+      });
     });
   });
 
