@@ -24,6 +24,7 @@ import {
   Meter,
   Counter,
   Histogram,
+  Gauge,
   MetricOptions,
 } from '../src/interfaces';
 import * as sinon from 'sinon';
@@ -53,9 +54,18 @@ describe('Telemetry', () => {
     }
   }
 
+  class MockGauge implements Gauge {
+    public values: { value: number; attributes?: Attributes }[] = [];
+
+    record(value: number, attributes?: Attributes): void {
+      this.values.push({ value, attributes });
+    }
+  }
+
   class MockMeter implements Meter {
     public counters: Map<string, MockCounter> = new Map();
     public histograms: Map<string, MockHistogram> = new Map();
+    public gauges: Map<string, MockGauge> = new Map();
 
     createCounter(name: string, options?: MetricOptions): Counter {
       let counter = this.counters.get(name);
@@ -73,6 +83,15 @@ describe('Telemetry', () => {
         this.histograms.set(name, histogram);
       }
       return histogram;
+    }
+
+    createGauge(name: string, options?: MetricOptions): Gauge {
+      let gauge = this.gauges.get(name);
+      if (!gauge) {
+        gauge = new MockGauge();
+        this.gauges.set(name, gauge);
+      }
+      return gauge;
     }
   }
 
@@ -917,6 +936,80 @@ describe('Telemetry', () => {
       const histogram1 = meter.createHistogram('test.histogram');
       const histogram2 = meter.createHistogram('test.histogram');
       expect(histogram1).toBe(histogram2);
+
+      // Create same gauge twice
+      const gauge1 = meter.createGauge('test.gauge');
+      const gauge2 = meter.createGauge('test.gauge');
+      expect(gauge1).toBe(gauge2);
+    });
+
+    it('should record gauge metric when calling count()', async () => {
+      // Add some jobs
+      await metricsQueue.add('job1', { data: 1 });
+      await metricsQueue.add('job2', { data: 2 });
+      await metricsQueue.add('job3', { data: 3 });
+
+      const count = await metricsQueue.count();
+      expect(count).toBe(3);
+
+      // count() internally calls getJobCountByTypes() which calls getJobCounts()
+      // so the gauge should be QueueJobsCount
+      const meter = metricsTelemetryClient.meter as MockMeter;
+      const gauge = meter.gauges.get(MetricNames.QueueJobsCount) as MockGauge;
+
+      expect(gauge).toBeDefined();
+      expect(gauge.values.length).toBeGreaterThan(0);
+
+      // Check that gauge recorded values for waiting state
+      const waitingRecord = gauge.values.find(
+        value =>
+          value.attributes?.[TelemetryAttributes.QueueJobsState] === 'waiting',
+      );
+      expect(waitingRecord).toBeDefined();
+      expect(waitingRecord?.attributes?.[TelemetryAttributes.QueueName]).toBe(
+        queueName,
+      );
+    });
+
+    it('should record gauge metrics when calling getJobCounts()', async () => {
+      // Add some jobs
+      await metricsQueue.add('job1', { data: 1 });
+      await metricsQueue.add('job2', { data: 2 });
+
+      await metricsQueue.getJobCounts('waiting', 'active');
+
+      const meter = metricsTelemetryClient.meter as MockMeter;
+      const gauge = meter.gauges.get(MetricNames.QueueJobsCount) as MockGauge;
+
+      expect(gauge).toBeDefined();
+      expect(gauge.values.length).toBeGreaterThan(0);
+
+      // Check that gauge recorded values for different states
+      const waitingRecord = gauge.values.find(
+        value =>
+          value.attributes?.[TelemetryAttributes.QueueJobsState] === 'waiting',
+      );
+      expect(waitingRecord).toBeDefined();
+      expect(waitingRecord?.attributes?.[TelemetryAttributes.QueueName]).toBe(
+        queueName,
+      );
+    });
+
+    it('should not record gauge metrics when meter is not enabled', async () => {
+      // Use the original telemetryClient which doesn't have metrics enabled
+      const noMetricsQueue = new Queue(queueName, {
+        connection,
+        prefix,
+        telemetry: telemetryClient,
+      });
+
+      await noMetricsQueue.add('job1', { data: 1 });
+      await noMetricsQueue.count();
+
+      // telemetryClient doesn't have a meter, so no metrics should be recorded
+      expect(telemetryClient.meter).toBeUndefined();
+
+      await noMetricsQueue.close();
     });
   });
 });
