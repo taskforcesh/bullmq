@@ -4,7 +4,8 @@ import { QueueBase } from './queue-base';
 import { Job } from './job';
 import { clientCommandMessageReg, QUEUE_EVENT_SUFFIX } from '../utils';
 import { JobState, JobType } from '../types';
-import { JobJsonRaw, Metrics, QueueMeta, RedisClient } from '../interfaces';
+import { JobJsonRaw, Metrics, QueueMeta } from '../interfaces';
+import { MetricNames, TelemetryAttributes } from '../enums';
 import type { Cluster } from 'ioredis';
 
 /**
@@ -181,6 +182,20 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
     responses.forEach((res, index) => {
       counts[currentTypes[index]] = res || 0;
     });
+
+    const meter = this.opts.telemetry?.meter;
+    if (meter) {
+      const gauge = meter.createGauge(MetricNames.QueueJobsCount, {
+        description: 'Number of jobs in the queue by state',
+        unit: '{jobs}',
+      });
+      for (const [state, jobCount] of Object.entries(counts)) {
+        gauge.record(jobCount, {
+          [TelemetryAttributes.QueueName]: this.name,
+          [TelemetryAttributes.QueueJobsState]: state,
+        });
+      }
+    }
 
     return counts;
   }
