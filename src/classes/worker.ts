@@ -500,31 +500,29 @@ export class Worker<
   }
 
   get repeat(): Promise<Repeat> {
-    return new Promise<Repeat>(async resolve => {
+    return (async () => {
       if (!this._repeat) {
-        const connection = await this.client;
         this._repeat = new Repeat(this.name, {
           ...this.opts,
-          connection,
+          connection: await this.client,
         });
         this._repeat.on('error', this.emit.bind(this, 'error'));
       }
-      resolve(this._repeat);
-    });
+      return this._repeat;
+    })();
   }
 
   get jobScheduler(): Promise<JobScheduler> {
-    return new Promise<JobScheduler>(async resolve => {
+    return (async () => {
       if (!this._jobScheduler) {
-        const connection = await this.client;
         this._jobScheduler = new JobScheduler(this.name, {
           ...this.opts,
-          connection,
+          connection: await this.client,
         });
         this._jobScheduler.on('error', this.emit.bind(this, 'error'));
       }
-      resolve(this._jobScheduler);
-    });
+      return this._jobScheduler;
+    })();
   }
 
   async run() {
