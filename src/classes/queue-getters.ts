@@ -184,7 +184,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
     });
 
     const meter = this.opts.telemetry?.meter;
-    if (meter) {
+    if (meter && typeof (meter as any).createGauge === 'function') {
       const gauge = meter.createGauge(MetricNames.QueueJobsCount, {
         description: 'Number of jobs in the queue by state',
         unit: '{jobs}',
