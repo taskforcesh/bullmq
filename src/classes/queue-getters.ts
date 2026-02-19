@@ -187,7 +187,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
     if (meter) {
       const gauge = meter.createGauge(MetricNames.QueueJobsCount, {
         description: 'Number of jobs in the queue by state',
-        unit: 'jobs',
+        unit: '{jobs}',
       });
       for (const [state, jobCount] of Object.entries(counts)) {
         gauge.record(jobCount, {

@@ -155,7 +155,7 @@ telemetry.meter.createHistogram('bullmq.job.duration', {
 // Pre-configure a gauge for queue job counts
 telemetry.meter.createGauge('bullmq.queue.jobs.count', {
   description: 'Current number of jobs in the queue by state',
-  unit: 'jobs',
+  unit: '{jobs}',
 });
 
 const queue = new Queue('myQueue', {
