@@ -69,7 +69,7 @@ export interface Meter {
    * @param options - optional configuration for the gauge
    * @returns a Gauge instance
    */
-  createGauge(name: string, options?: MetricOptions): Gauge;
+  createGauge?(name: string, options?: MetricOptions): Gauge; // TODO: make it required in next breaking change
 }
 
 /**
