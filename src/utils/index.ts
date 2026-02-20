@@ -173,6 +173,7 @@ export async function removeAllQueueData(
         });
         const execPromise = pipeline.exec().catch(error => {
           reject(error);
+          throw error;
         });
         pendingOperations.push(execPromise);
       }
