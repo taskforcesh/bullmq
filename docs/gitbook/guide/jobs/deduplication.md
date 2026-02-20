@@ -83,7 +83,7 @@ Any manual deletion will disable the deduplication. For example, when calling _j
 
 ## The Deduplicated Event
 
-The **deduplicated** event is emitted whenever a job is ignored due to deduplication in either Simple Mode or Throttle Mode. This event allows you to monitor deduplication activity and take action if needed, such as logging the occurrence or notifying a user that their request was ignored.
+The **deduplicated** event is emitted whenever a job is deduplicated (ignored or replaced) due to deduplication in Simple Mode, Throttle Mode, or Debounce Mode. This event allows you to monitor deduplication activity and take action if needed, such as logging the occurrence or notifying a user that their request was ignored.
 
 ### Listening for the Deduplicated Event
 
@@ -105,9 +105,9 @@ queueEvents.on(
 
 In this example:
 
-- `jobId`: The Id of the existing job that triggered the deduplication.
-- `deduplicationId`: The deduplication Id that caused the job to be ignored.
-- `deduplicatedJobId`: The Id of the job that was ignored.
+- `jobId`: The Id of the job that will be retained in the queue.
+- `deduplicationId`: The deduplication Id that caused the deduplication.
+- `deduplicatedJobId`: The Id of the job that was deduplicated (ignored or replaced).
 
 ## Get Deduplication Job Id
 
