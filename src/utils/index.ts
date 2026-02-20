@@ -159,7 +159,9 @@ export async function removeAllQueueData(
     return Promise.resolve(false);
   }
   const pattern = `${prefix}:${queueName}:*`;
-  const removing = await new Promise<void>((resolve, reject) => {
+  const pendingOperations: Promise<any>[] = [];
+
+  await new Promise<void>((resolve, reject) => {
     const stream = client.scanStream({
       match: pattern,
     });
@@ -169,15 +171,19 @@ export async function removeAllQueueData(
         keys.forEach(key => {
           pipeline.del(key);
         });
-        pipeline.exec().catch(error => {
+        const execPromise = pipeline.exec().catch(error => {
           reject(error);
         });
+        pendingOperations.push(execPromise);
       }
     });
     stream.on('end', () => resolve());
     stream.on('error', error => reject(error));
   });
-  await removing;
+
+  // Wait for all pipeline operations to complete before closing the connection
+  await Promise.all(pendingOperations);
+
   // Handle connection close with better error handling for Dragonfly
   try {
     await client.quit();
