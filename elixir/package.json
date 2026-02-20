@@ -20,7 +20,8 @@
     "@semantic-release/git": "10.0.1",
     "@semantic-release/github": "12.0.5",
     "@semantic-release/release-notes-generator": "14.1.0",
-    "semantic-release": "25.0.3"
+    "semantic-release": "25.0.3",
+    "@semantic-release/npm": "13.1.4"
   },
   "commitlint": {
     "extends": [
@@ -72,5 +73,8 @@
       ]
     ]
   },
-  "packageManager": "yarn@1.22.22"
+  "packageManager": "yarn@1.22.22",
+  "resolutions": {
+    "ajv": "8.18.0"
+  }
 }

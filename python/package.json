@@ -65,5 +65,8 @@
       "@semantic-release/github"
     ]
   },
-  "packageManager": "yarn@1.22.22"
+  "packageManager": "yarn@1.22.22",
+  "resolutions": {
+    "ajv": "8.18.0"
+  }
 }
