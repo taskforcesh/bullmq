@@ -1,3 +1,10 @@
+## [5.69.4](https://github.com/taskforcesh/bullmq/compare/v5.69.3...v5.69.4) (2026-02-21)
+
+
+### Bug Fixes
+
+* **sandbox:** ensure non-bullmq messages are ignored ([#3704](https://github.com/taskforcesh/bullmq/issues/3704)) fixes [#3703](https://github.com/taskforcesh/bullmq/issues/3703) ([9c72258](https://github.com/taskforcesh/bullmq/commit/9c722585bd9873561fae3f32971d65cf00a7d092))
+
 ## [5.69.3](https://github.com/taskforcesh/bullmq/compare/v5.69.2...v5.69.3) (2026-02-16)
 
 
