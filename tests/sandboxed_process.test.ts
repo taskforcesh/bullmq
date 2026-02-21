@@ -57,6 +57,24 @@ describe('Sandboxed process using child processes', () => {
       await connection.quit();
     });
 
+    it('should handle non-BullMQ messages during child initialization', async function () {
+      const mainFile = __dirname + '/fixtures/fixture_main_non_bullmq_messages.js';
+      const processFile = __dirname + '/fixtures/fixture_processor_simple.js';
+
+      const child = new Child(mainFile, processFile, {
+        useWorkerThreads: false,
+      });
+
+      // This should complete successfully even though non-BullMQ messages
+      // are sent before the InitCompleted message
+      await child.init();
+
+      expect(child.exitCode).to.be.null;
+      expect(child.killed).to.be.false;
+
+      await child.kill();
+    });
+
     it('should allow to pass workerForkOptions', async () => {
       const processFile = __dirname + '/fixtures/fixture_processor.js';
 
