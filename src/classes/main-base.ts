@@ -21,6 +21,9 @@ export default (send: (msg: any) => Promise<void>, receiver: Receiver) => {
           break;
         case ChildCommand.Stop:
           break;
+        case ChildCommand.Cancel:
+          childProcessor.cancel(msg.value);
+          break;
       }
     } catch (err) {
       console.error('Error handling child message');

@@ -1,0 +1,6 @@
+# OSV Scanner Configuration
+# https://google.github.io/osv-scanner/configuration/
+
+[[IgnoredVulns]]
+id = "GHSA-2g4f-4pwh-qvx6"
+reason = "Repository-wide ignore for the unfixable eslint chain: ajv@6.12.6 is a transitive dev dependency from @eslint/eslintrc. The published fix is only in ajv 8.18.0+, but eslint still requires ajv@^6. Dev-only, no production runtime impact."

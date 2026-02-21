@@ -329,6 +329,7 @@ export class Worker<
         });
 
         this.createSandbox(processor);
+        this.processorAcceptsSignal = true;
       }
 
       if (this.opts.autorun) {
