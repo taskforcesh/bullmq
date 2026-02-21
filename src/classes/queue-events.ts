@@ -1,4 +1,4 @@
-import type { Cluster } from 'ioredis';
+import type { Cluster, Redis } from 'ioredis';
 import { JobProgress } from '../types';
 import {
   IoredisListener,
@@ -14,6 +14,7 @@ import {
 } from '../utils';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
+import { version as packageVersion } from '../version';
 
 export interface QueueEventsListener extends IoredisListener {
   /**
@@ -284,6 +285,9 @@ export class QueueEvents extends QueueBase {
     },
     Connection?: typeof RedisConnection,
   ) {
+    // Set clientInfoTag for Redis driver identification if not already provided on the original client
+    const clientInfoTag = `bullmq_v${packageVersion}`;
+
     super(
       name,
       {
@@ -291,9 +295,17 @@ export class QueueEvents extends QueueBase {
         connection: isRedisInstance(connection)
           ? (<RedisClient>connection).isCluster
             ? (<Cluster>connection).duplicate(undefined, {
-                redisOptions: (<Cluster>connection).options?.redisOptions,
+                redisOptions: {
+                  ...(<Cluster>connection).options?.redisOptions,
+                  clientInfoTag:
+                    (<Cluster>connection).options?.redisOptions
+                      ?.clientInfoTag ?? clientInfoTag,
+                },
               })
-            : (<RedisClient>connection).duplicate()
+            : (<Redis>connection).duplicate({
+                clientInfoTag:
+                  (<Redis>connection).options?.clientInfoTag ?? clientInfoTag,
+              })
           : connection,
       },
       Connection,
