@@ -1,6 +1,10 @@
 --[[
   Adds a job scheduler, i.e. a job factory that creates jobs based on a given schedule (repeat options).
 
+  Supports two scheduling modes:
+    1. "every" mode: Jobs run at fixed intervals (e.g., every 5000ms)
+    2. "pattern" mode: Jobs run based on cron-like patterns
+
     Input:
       KEYS[1]  'repeat' key
       KEYS[2]  'delayed' key
@@ -31,7 +35,14 @@
 
       Output:
         repeatableKey  - OK
-]] local rcall = redis.call
+        
+      Error codes:
+        -10: SchedulerJobIdCollision (pattern mode only)
+        -11: SchedulerJobSlotsBusy (every mode only)
+]]
+local rcall = redis.call
+
+-- Keys
 local repeatKey = KEYS[1]
 local delayedKey = KEYS[2]
 local waitKey = KEYS[3]
@@ -40,12 +51,15 @@ local metaKey = KEYS[5]
 local prioritizedKey = KEYS[6]
 local eventsKey = KEYS[9]
 
+-- Arguments
 local nextMillis = ARGV[1]
 local jobSchedulerId = ARGV[3]
+local templateData = ARGV[4]
 local templateOpts = cmsgpack.unpack(ARGV[5])
+local jobOpts = cmsgpack.unpack(ARGV[6])
 local now = tonumber(ARGV[7])
 local prefixKey = ARGV[8]
-local jobOpts = cmsgpack.unpack(ARGV[6])
+local producerKey = ARGV[9]
 
 -- Includes
 --- @include "includes/addJobFromScheduler"
@@ -55,144 +69,194 @@ local jobOpts = cmsgpack.unpack(ARGV[6])
 --- @include "includes/storeJobScheduler"
 --- @include "includes/getJobSchedulerEveryNextMillis"
 
--- If we are overriding a repeatable job we must delete the delayed job for
--- the next iteration.
-local schedulerKey = repeatKey .. ":" .. jobSchedulerId
-local maxEvents = getOrSetMaxEvents(metaKey)
+-- =============================================================================
+-- Helper Functions
+-- =============================================================================
 
-local templateData = ARGV[4]
-
-local prevMillis = rcall("ZSCORE", repeatKey, jobSchedulerId)
-if prevMillis then
-    prevMillis = tonumber(prevMillis)
-end
-local schedulerOpts = cmsgpack.unpack(ARGV[2])
-
-local every = schedulerOpts['every']
-
--- For backwards compatibility we also check the offset from the job itself.
--- could be removed in future major versions.
-local jobOffset = jobOpts['repeat'] and jobOpts['repeat']['offset'] or 0
-local offset = schedulerOpts['offset'] or jobOffset or 0
-local newOffset = offset
-
-local updatedEvery = false
-if every then
-    -- if we changed the 'every' value we need to reset millis to nil
-    local millis = prevMillis
-    if prevMillis then
-        local prevEvery = tonumber(rcall("HGET", schedulerKey, "every"))
-        if prevEvery ~= every then
-            millis = nil
-            updatedEvery = true
-        end
-    end
-
-    local startDate = schedulerOpts['startDate']
-    nextMillis, newOffset = getJobSchedulerEveryNextMillis(millis, every, now, offset, startDate)
-end
-
-local function removeJobFromScheduler(prefixKey, delayedKey, prioritizedKey, waitKey, pausedKey, jobId, metaKey,
-    eventsKey)
+--[[
+  Removes a job created by this scheduler from any queue state.
+  Returns true if job was found and removed.
+]]
+local function removeJobFromScheduler(prefixKey, delayedKey, prioritizedKey, 
+    waitKey, pausedKey, jobId, metaKey)
+    -- Check delayed queue
     if rcall("ZSCORE", delayedKey, jobId) then
-        removeJob(jobId, true, prefixKey, true --[[remove debounce key]] )
+        removeJob(jobId, true, prefixKey, true)
         rcall("ZREM", delayedKey, jobId)
         return true
-    elseif rcall("ZSCORE", prioritizedKey, jobId) then
-        removeJob(jobId, true, prefixKey, true --[[remove debounce key]] )
+    end
+    
+    -- Check prioritized queue
+    if rcall("ZSCORE", prioritizedKey, jobId) then
+        removeJob(jobId, true, prefixKey, true)
         rcall("ZREM", prioritizedKey, jobId)
         return true
-    else
-        local pausedOrWaitKey = waitKey
-        if isQueuePaused(metaKey) then
-            pausedOrWaitKey = pausedKey
-        end
-
-        if rcall("LREM", pausedOrWaitKey, 1, jobId) > 0 then
-            removeJob(jobId, true, prefixKey, true --[[remove debounce key]] )
-            return true
-        end
+    end
+    
+    -- Check wait/paused queue
+    local targetQueue = isQueuePaused(metaKey) and pausedKey or waitKey
+    if rcall("LREM", targetQueue, 1, jobId) > 0 then
+        removeJob(jobId, true, prefixKey, true)
+        return true
     end
 
     return false
 end
 
-local removedPrevJob = false
-if prevMillis then
-    local currentJobId = "repeat:" .. jobSchedulerId .. ":" .. prevMillis
-    local currentJobKey = schedulerKey .. ":" .. prevMillis
+--[[
+  Generates job ID and key based on scheduler ID and timestamp.
+]]
+local function generateJobIdentifiers(prefixKey, jobSchedulerId, millis)
+    local jobId = "repeat:" .. jobSchedulerId .. ":" .. millis
+    local jobKey = prefixKey .. jobId
+    return jobId, jobKey
+end
 
-    -- In theory it should always exist the currentJobKey if there is a prevMillis unless something has
-    -- gone really wrong.
-    if rcall("EXISTS", currentJobKey) == 1 then
-        removedPrevJob = removeJobFromScheduler(prefixKey, delayedKey, prioritizedKey, waitKey, pausedKey, currentJobId,
-            metaKey, eventsKey)
+-- =============================================================================
+-- Main Logic
+-- =============================================================================
+
+local schedulerKey = repeatKey .. ":" .. jobSchedulerId
+local maxEvents = getOrSetMaxEvents(metaKey)
+local schedulerOpts = cmsgpack.unpack(ARGV[2])
+
+-- Determine scheduling mode
+local every = schedulerOpts['every']
+local isEveryMode = every ~= nil
+
+-- Get previous scheduler state
+local prevMillis = rcall("ZSCORE", repeatKey, jobSchedulerId)
+if prevMillis then
+    prevMillis = tonumber(prevMillis)
+end
+
+-- Get offset (for backwards compatibility, also check job opts)
+local jobOffset = jobOpts['repeat'] and jobOpts['repeat']['offset'] or 0
+local offset = schedulerOpts['offset'] or jobOffset or 0
+local newOffset = offset
+
+-- =============================================================================
+-- Calculate Next Execution Time
+-- =============================================================================
+
+local everyValueChanged = false
+
+if isEveryMode then
+    -- "Every" mode: Calculate next millis based on interval
+    local millis = prevMillis
+    
+    -- Check if 'every' value changed - if so, reset to recalculate
+    if prevMillis then
+        local prevEvery = tonumber(rcall("HGET", schedulerKey, "every"))
+        if prevEvery ~= every then
+            millis = nil
+            everyValueChanged = true
+        end
+    end
+
+    local startDate = schedulerOpts['startDate']
+    nextMillis, newOffset = getJobSchedulerEveryNextMillis(millis, every, now, offset, startDate)
+else
+    -- "Pattern" mode: nextMillis is provided by ARGV[1] (calculated by JavaScript)
+    nextMillis = tonumber(nextMillis)
+end
+
+-- =============================================================================
+-- Handle Previous Job Removal
+-- =============================================================================
+
+local removedPrevJob = false
+
+if prevMillis then
+    local prevJobId = "repeat:" .. jobSchedulerId .. ":" .. prevMillis
+    local prevJobKey = schedulerKey .. ":" .. prevMillis
+
+    -- Remove previous job if it exists in a removable state
+    if rcall("EXISTS", prevJobKey) == 1 then
+        removedPrevJob = removeJobFromScheduler(
+            prefixKey, delayedKey, prioritizedKey, 
+            waitKey, pausedKey, prevJobId, metaKey
+        )
     end
 end
 
+-- =============================================================================
+-- Determine Final Execution Time and Handle Collisions
+-- =============================================================================
+
 if removedPrevJob then
-    -- The jobs has been removed and we want to replace it, so lets use the same millis.
-    if every and not updatedEvery then
+    -- Previous job was removed - we can reuse the same time slot
+    if isEveryMode and not everyValueChanged then
         nextMillis = prevMillis
     end
 else
-    -- Special case where no job was removed, and we need to add the next iteration.
+    -- No job was removed - store the new offset for future calculations
     schedulerOpts['offset'] = newOffset
 end
 
--- Check for job ID collision with existing jobs (in any state)
-local jobId = "repeat:" .. jobSchedulerId .. ":" .. nextMillis
-local jobKey = prefixKey .. jobId
+-- Generate job identifiers for the target time slot
+local jobId, jobKey = generateJobIdentifiers(prefixKey, jobSchedulerId, nextMillis)
 
--- If there's already a job with this ID, in a state 
--- that is not updatable (active, completed, failed) we must 
--- handle the collision
+-- Handle collision detection based on scheduling mode
 local hasCollision = false
-if rcall("EXISTS", jobKey) == 1 then
-    if every then
-        -- For 'every' case: try next time slot to avoid collision
-        local nextSlotMillis = nextMillis + every
-        local nextSlotJobId = "repeat:" .. jobSchedulerId .. ":" .. nextSlotMillis
-        local nextSlotJobKey = prefixKey .. nextSlotJobId
 
-        if rcall("EXISTS", nextSlotJobKey) == 0 then
-            -- Next slot is free, use it
+if rcall("EXISTS", jobKey) == 1 then
+    if isEveryMode then
+        -- "Every" mode: Try the next time slot
+        local nextSlotMillis = nextMillis + every
+        local nextSlotJobId, nextSlotJobKey = generateJobIdentifiers(
+            prefixKey, jobSchedulerId, nextSlotMillis
+        )
+
+        if not rcall("EXISTS", nextSlotJobKey) == 1 then
+            -- Next slot is available, use it
             nextMillis = nextSlotMillis
             jobId = nextSlotJobId
         else
-            -- Next slot also has a job, return error code
+            -- Both current and next slots are occupied
             return -11 -- SchedulerJobSlotsBusy
         end
     else
+        -- "Pattern" mode: Cannot adjust time, mark as collision
         hasCollision = true
     end
 end
 
-local delay = nextMillis - now
+-- =============================================================================
+-- Create Job
+-- =============================================================================
 
--- Fast Clamp delay to minimum of 0
-if delay < 0 then
-    delay = 0
-end
-
+local delay = math.max(0, nextMillis - now)
 local nextJobKey = schedulerKey .. ":" .. nextMillis
 
 if not hasCollision or removedPrevJob then
-    -- jobId already calculated above during collision check
+    -- Store/update the scheduler
+    storeJobScheduler(
+        jobSchedulerId, schedulerKey, repeatKey, nextMillis,
+        schedulerOpts, templateData, templateOpts
+    )
 
-    storeJobScheduler(jobSchedulerId, schedulerKey, repeatKey, nextMillis, schedulerOpts, templateData, templateOpts)
-
+    -- Increment job ID counter
     rcall("INCR", KEYS[8])
 
-    addJobFromScheduler(nextJobKey, jobId, jobOpts, waitKey, pausedKey, KEYS[11], metaKey, prioritizedKey, KEYS[10],
-        delayedKey, KEYS[7], eventsKey, schedulerOpts['name'], maxEvents, now, templateData, jobSchedulerId, delay)
+    -- Create the scheduled job
+    addJobFromScheduler(
+        nextJobKey, jobId, jobOpts, waitKey, pausedKey, KEYS[11],
+        metaKey, prioritizedKey, KEYS[10], delayedKey, KEYS[7],
+        eventsKey, schedulerOpts['name'], maxEvents, now,
+        templateData, jobSchedulerId, delay
+    )
 elseif hasCollision then
-    -- For 'pattern' case: return error code
+    -- Pattern mode collision - cannot create job
     return -10 -- SchedulerJobIdCollision
 end
 
-if ARGV[9] ~= "" then
-    rcall("HSET", ARGV[9], "nrjid", jobId)
+-- =============================================================================
+-- Update Producer Reference (if applicable)
+-- =============================================================================
+
+if producerKey ~= "" then
+    rcall("HSET", producerKey, "nrjid", jobId)
 end
 
 return {jobId .. "", delay}
