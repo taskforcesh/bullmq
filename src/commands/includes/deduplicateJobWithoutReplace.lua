@@ -1,5 +1,5 @@
 --[[
-  Function to debounce a job.
+  Function to deduplicate a job.
 ]]
 
 local function deduplicateJobWithoutReplace(deduplicationId, deduplicationOpts, jobId, deduplicationKey,
