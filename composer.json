@@ -26,10 +26,10 @@
     }
   ],
   "require": {
-    "php": "^8.1",
-    "predis/predis": "^2.0",
-    "ramsey/uuid": "^4.7",
-    "rybakit/msgpack": "^0.9"
+    "php": "8.5.3",
+    "predis/predis": "2.4.1",
+    "ramsey/uuid": "4.9.2",
+    "rybakit/msgpack": "0.9.2"
   },
   "autoload": {
     "psr-4": {
