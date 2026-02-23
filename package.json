@@ -41,7 +41,7 @@
     "lint": "./node_modules/.bin/eslint .",
     "lint:staged": "lint-staged",
     "prepublishOnly": "npm run build",
-    "prepare": "husky install",
+    "prepare": "husky",
     "pretest": "npm run clean:scripts && npm run generate:raw:scripts && npm run transform:commands && npm run circular:references",
     "prettier": "prettier **/*.ts --write",
     "pretty:quick": "pretty-quick --staged",
