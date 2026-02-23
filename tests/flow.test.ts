@@ -746,12 +746,12 @@ describe('flows', () => {
       expect(parentState).toEqual('waiting-children');
       expect(children).toHaveLength(3);
 
-      expect(children[0].job.id).toBeTruthy();
-      expect(children[0].job.data.foo).toEqual('bar');
-      expect(children[1].job.id).toBeTruthy();
-      expect(children[1].job.data.foo).toEqual('baz');
-      expect(children[2].job.id).toBeTruthy();
-      expect(children[2].job.data.foo).toEqual('qux');
+      expect(children![0].job.id).toBeTruthy();
+      expect(children![0].job.data.foo).toEqual('bar');
+      expect(children![1].job.id).toBeTruthy();
+      expect(children![1].job.data.foo).toEqual('baz');
+      expect(children![2].job.id).toBeTruthy();
+      expect(children![2].job.data.foo).toEqual('qux');
 
       await completed;
 
@@ -762,9 +762,9 @@ describe('flows', () => {
       const ignoredChildrenValues = await job.getIgnoredChildrenFailures();
 
       expect(ignoredChildrenValues).toEqual({
-        [`${queue.qualifiedName}:${children[0].job.id}`]: 'error',
-        [`${queue.qualifiedName}:${children[1].job.id}`]: 'error',
-        [`${queue.qualifiedName}:${children[2].job.id}`]: 'error',
+        [`${queue.qualifiedName}:${children![0].job.id}`]: 'error',
+        [`${queue.qualifiedName}:${children![1].job.id}`]: 'error',
+        [`${queue.qualifiedName}:${children![2].job.id}`]: 'error',
       });
 
       const flowTree = await flow.getFlow({
@@ -6087,6 +6087,86 @@ describe('flows', () => {
         await parentWorker.close();
         await removeAllQueueData(new IORedis(redisHost), parentQueueName);
       });
+    });
+  });
+
+  describe('when root parent job has deduplication option', () => {
+    it('should deduplicate root parent job when added again with same deduplication id', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+      const queueEvents = new QueueEvents(queueName, { connection, prefix });
+      await queueEvents.waitUntilReady();
+
+      const dedupId = 'dedup-parent-id';
+
+      const deduplicatedPromise = new Promise<void>((resolve, reject) => {
+        queueEvents.once(
+          'deduplicated',
+          async ({ jobId, deduplicationId, deduplicatedJobId }) => {
+            try {
+              expect(jobId).toBe('parent1');
+              expect(deduplicationId).toBe(dedupId);
+              expect(deduplicatedJobId).toBe('parent2');
+              resolve();
+            } catch (error) {
+              reject(error);
+            }
+          },
+        );
+      });
+
+      await flow.add({
+        name: 'parent',
+        data: { order: 1 },
+        queueName,
+        opts: {
+          jobId: 'parent1',
+          deduplication: { id: dedupId },
+        },
+        children: [
+          {
+            queueName,
+            name: 'child1',
+            data: { value: 'first' },
+          },
+        ],
+      });
+
+      // Add second flow with same deduplication id
+      await flow.add({
+        name: 'parent',
+        data: { order: 2 },
+        queueName,
+        opts: {
+          jobId: 'parent2',
+          deduplication: { id: dedupId },
+        },
+        children: [
+          {
+            queueName,
+            name: 'child2',
+            data: { value: 'second' },
+          },
+        ],
+      });
+
+      await deduplicatedPromise;
+
+      // Verify only first parent exists
+      const parent1 = await queue.getJob('parent1');
+      expect(parent1).toBeDefined();
+      expect(parent1!.data.order).toBe(1);
+
+      const parent2 = await queue.getJob('parent2');
+      expect(parent2).toBeUndefined();
+
+      // Verify only first child exists (second child should not be created)
+      const waitingJobs = await queue.getJobs(['waiting', 'waiting-children']);
+      const childJobs = waitingJobs.filter(job => job.name.startsWith('child'));
+      expect(childJobs.length).toBe(1);
+      expect(childJobs[0].name).toBe('child1');
+
+      await queueEvents.close();
+      await flow.close();
     });
   });
 });
