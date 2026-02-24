@@ -83,7 +83,7 @@
     "@types/node": "18.19.130",
     "@types/semver": "7.7.1",
     "@types/sinon": "10.0.20",
-    "@typescript-eslint/eslint-plugin": "8.54.0",
+    "@typescript-eslint/eslint-plugin": "8.56.0",
     "@typescript-eslint/parser": "8.56.0",
     "@vitest/coverage-v8": "4.0.18",
     "coveralls-next": "6.0.1",
