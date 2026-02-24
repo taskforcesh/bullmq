@@ -68,8 +68,6 @@
     "uuid": "11.1.0"
   },
   "devDependencies": {
-    "@eslint/js": "9.39.2",
-    "@eslint/eslintrc": "3.3.1",
     "@commitlint/cli": "^20.4.2",
     "@commitlint/config-conventional": "20.4.2",
     "@semantic-release/changelog": "6.0.3",
@@ -86,7 +84,7 @@
     "@types/semver": "7.7.1",
     "@types/sinon": "10.0.20",
     "@typescript-eslint/eslint-plugin": "8.54.0",
-    "@typescript-eslint/parser": "8.54.0",
+    "@typescript-eslint/parser": "8.56.0",
     "@vitest/coverage-v8": "4.0.18",
     "coveralls-next": "6.0.1",
     "cpx2": "8.0.0",
