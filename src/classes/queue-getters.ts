@@ -183,6 +183,18 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
       counts[currentTypes[index]] = res || 0;
     });
 
+    this.recordJobCountsMetric(counts);
+
+    return counts;
+  }
+
+  /**
+   * Records job counts as gauge metrics for telemetry purposes.
+   * Each job state count is recorded with the queue name and state as attributes.
+   *
+   * @param counts - An object mapping job states to their counts
+   */
+  private recordJobCountsMetric(counts: { [index: string]: number }): void {
     const meter = this.opts.telemetry?.meter;
     if (meter && typeof (meter as any).createGauge === 'function') {
       const gauge = meter.createGauge(MetricNames.QueueJobsCount, {
@@ -196,8 +208,6 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
         });
       }
     }
-
-    return counts;
   }
 
   /**
