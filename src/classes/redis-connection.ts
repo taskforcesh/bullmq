@@ -234,7 +234,18 @@ export class RedisConnection extends EventEmitter {
   private async init() {
     if (!this._client) {
       const { url, ...rest } = this.opts;
-      this._client = url ? new IORedis(url, rest) : new IORedis(rest);
+
+      // Set clientInfoTag for Redis driver identification if not already provided
+      // This helps with debugging and monitoring Redis connections
+      // See: https://redis.io/docs/latest/commands/client-setinfo/
+      const clientOptions = {
+        ...rest,
+        clientInfoTag: rest.clientInfoTag ?? `bullmq_v${this.packageVersion}`,
+      };
+
+      this._client = url
+        ? new IORedis(url, clientOptions)
+        : new IORedis(clientOptions);
     }
 
     increaseMaxListeners(this._client, 3);
