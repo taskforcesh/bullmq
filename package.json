@@ -177,8 +177,5 @@
       "@semantic-release/github"
     ]
   },
-  "packageManager": "yarn@1.22.22",
-  "resolutions": {
-    "@commitlint/config-validator/ajv": "8.18.0"
-  }
+  "packageManager": "yarn@1.22.22"
 }
