@@ -31,7 +31,7 @@ export enum TelemetryAttributes {
    * @deprecated Use JobAttemptFinishedTimestamp instead. Will be removed in a future version.
    */
   JobFinishedTimestamp = 'bullmq.job.finished.timestamp',
-  JobAttemptFinishedTimestamp = 'bullmq.job.attempt.finished.timestamp',
+  JobAttemptFinishedTimestamp = 'bullmq.job.attempt_finished_timestamp',
   JobProcessedTimestamp = 'bullmq.job.processed.timestamp',
   JobResult = 'bullmq.job.result',
   JobFailedReason = 'bullmq.job.failed.reason',

@@ -135,7 +135,7 @@ Traces include various attributes for filtering and debugging:
 | Job Attempts Made       | `bullmq.job.attempts.made`              | Number of attempts made                        |
 | Job Result              | `bullmq.job.result`                     | Result returned by the job                     |
 | Job Failed Reason       | `bullmq.job.failed.reason`              | Reason for job failure                         |
-| Job Attempt Finished    | `bullmq.job.attempt.finished.timestamp` | When the processing attempt ended              |
+| Job Attempt Finished    | `bullmq.job.attempt_finished_timestamp` | When the processing attempt ended              |
 | Job Finished Timestamp  | `bullmq.job.finished.timestamp`         | When the processing attempt ended (deprecated) |
 | Job Processed Timestamp | `bullmq.job.processed.timestamp`        | When the job was processed                     |
 | Deduplication Key       | `bullmq.job.deduplication.key`          | Deduplication key if set                       |
