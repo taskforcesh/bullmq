@@ -53,6 +53,7 @@ export class LockManager {
           [TelemetryAttributes.WorkerId]: this.opts.workerId,
           [TelemetryAttributes.WorkerName]: this.opts.workerName,
           [TelemetryAttributes.WorkerJobsToExtendLocks]: jobIds,
+          [TelemetryAttributes.WorkerJobsToExtendLocks_]: jobIds,
         });
 
         try {
