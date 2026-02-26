@@ -28,7 +28,7 @@ export enum TelemetryAttributes {
   WorkerFailedJobs = 'bullmq.worker.failed.jobs',
   WorkerJobsToExtendLocks = 'bullmq.worker.jobs.to.extend.locks',
   /**
-   * @deprecated TODO: Use JobAttemptFinishedTimestamp instead. This will be removed in a future version.
+   * @deprecated Use JobAttemptFinishedTimestamp instead. Will be removed in a future version.
    */
   JobFinishedTimestamp = 'bullmq.job.finished.timestamp',
   JobAttemptFinishedTimestamp = 'bullmq.job.attempt.finished.timestamp',
