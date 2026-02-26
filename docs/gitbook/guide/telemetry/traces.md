@@ -112,7 +112,11 @@ BullMQ automatically creates spans for the following operations:
 
 ## Trace Attributes
 
-Traces include various attributes for filtering and debugging:
+Traces include various attributes for filtering and debugging.
+
+{% hint style="info" %}
+BullMQ is transitioning to OpenTelemetry-compliant attribute naming (using underscores for multi-word attributes). Both old and new attribute names are emitted for backward compatibility. The old names (using dots) are deprecated and will be removed in a future version.
+{% endhint %}
 
 ### Common Attributes
 
@@ -123,54 +127,53 @@ Traces include various attributes for filtering and debugging:
 
 ### Job Attributes
 
-| Attribute               | Key                                     | Description                                    |
-| ----------------------- | --------------------------------------- | ---------------------------------------------- |
-| Job Name                | `bullmq.job.name`                       | Name of the job                                |
-| Job ID                  | `bullmq.job.id`                         | Unique identifier of the job                   |
-| Job Key                 | `bullmq.job.key`                        | Redis key of the job                           |
-| Job IDs                 | `bullmq.job.ids`                        | Multiple job IDs (bulk ops)                    |
-| Job Options             | `bullmq.job.options`                    | Serialized job options                         |
-| Job Progress            | `bullmq.job.progress`                   | Current job progress value                     |
-| Job Type                | `bullmq.job.type`                       | Type/state of the job                          |
-| Job Attempts Made       | `bullmq.job.attempts.made`              | Number of attempts made                        |
-| Job Result              | `bullmq.job.result`                     | Result returned by the job                     |
-| Job Failed Reason       | `bullmq.job.failed.reason`              | Reason for job failure                         |
-| Job Attempt Finished    | `bullmq.job.attempt.finished.timestamp` | When the processing attempt ended              |
-| Job Finished Timestamp  | `bullmq.job.finished.timestamp`         | When the processing attempt ended (deprecated) |
-| Job Processed Timestamp | `bullmq.job.processed.timestamp`        | When the job was processed                     |
-| Deduplication Key       | `bullmq.job.deduplication.key`          | Deduplication key if set                       |
+| Attribute               | Key (new)                               | Key (deprecated)                        | Description                       |
+| ----------------------- | --------------------------------------- | --------------------------------------- | --------------------------------- |
+| Job Name                | `bullmq.job.name`                       | -                                       | Name of the job                   |
+| Job ID                  | `bullmq.job.id`                         | -                                       | Unique identifier of the job      |
+| Job Key                 | `bullmq.job.key`                        | -                                       | Redis key of the job              |
+| Job IDs                 | `bullmq.job.ids`                        | -                                       | Multiple job IDs (bulk ops)       |
+| Job Options             | `bullmq.job.options`                    | -                                       | Serialized job options            |
+| Job Progress            | `bullmq.job.progress`                   | -                                       | Current job progress value        |
+| Job Type                | `bullmq.job.type`                       | -                                       | Type/state of the job             |
+| Job Attempts Made       | `bullmq.job.attempts_made`              | `bullmq.job.attempts.made`              | Number of attempts made           |
+| Job Result              | `bullmq.job.result`                     | -                                       | Result returned by the job        |
+| Job Failed Reason       | `bullmq.job.failed_reason`              | `bullmq.job.failed.reason`              | Reason for job failure            |
+| Job Attempt Finished    | `bullmq.job.attempt_finished_timestamp` | `bullmq.job.attempt.finished.timestamp` | When the processing attempt ended |
+| Job Processed Timestamp | `bullmq.job.processed_timestamp`        | `bullmq.job.processed.timestamp`        | When the job was processed        |
+| Deduplication Key       | `bullmq.job.deduplication_key`          | `bullmq.job.deduplication.key`          | Deduplication key if set          |
 
 ### Bulk Operation Attributes
 
-| Attribute  | Key                     | Description                      |
-| ---------- | ----------------------- | -------------------------------- |
-| Bulk Count | `bullmq.job.bulk.count` | Number of jobs in bulk operation |
-| Bulk Names | `bullmq.job.bulk.names` | Comma-separated job names        |
+| Attribute  | Key (new)               | Key (deprecated)        | Description                      |
+| ---------- | ----------------------- | ----------------------- | -------------------------------- |
+| Bulk Count | `bullmq.job.bulk_count` | `bullmq.job.bulk.count` | Number of jobs in bulk operation |
+| Bulk Names | `bullmq.job.bulk_names` | `bullmq.job.bulk.names` | Comma-separated job names        |
 
 ### Worker Attributes
 
-| Attribute            | Key                                  | Description                     |
-| -------------------- | ------------------------------------ | ------------------------------- |
-| Worker Name          | `bullmq.worker.name`                 | Name of the worker              |
-| Worker ID            | `bullmq.worker.id`                   | Unique identifier of the worker |
-| Worker Options       | `bullmq.worker.options`              | Serialized worker options       |
-| Worker Rate Limit    | `bullmq.worker.rate.limit`           | Rate limit duration             |
-| Do Not Wait Active   | `bullmq.worker.do.not.wait.active`   | Whether to wait for active jobs |
-| Force Close          | `bullmq.worker.force.close`          | Whether closing is forced       |
-| Stalled Jobs         | `bullmq.worker.stalled.jobs`         | Number of stalled jobs detected |
-| Failed Jobs          | `bullmq.worker.failed.jobs`          | Number of failed stalled jobs   |
-| Jobs to Extend Locks | `bullmq.worker.jobs.to.extend.locks` | Jobs needing lock extension     |
+| Attribute            | Key (new)                            | Key (deprecated)                     | Description                     |
+| -------------------- | ------------------------------------ | ------------------------------------ | ------------------------------- |
+| Worker Name          | `bullmq.worker.name`                 | -                                    | Name of the worker              |
+| Worker ID            | `bullmq.worker.id`                   | -                                    | Unique identifier of the worker |
+| Worker Options       | `bullmq.worker.options`              | -                                    | Serialized worker options       |
+| Worker Rate Limit    | `bullmq.worker.rate_limit`           | `bullmq.worker.rate.limit`           | Rate limit duration             |
+| Do Not Wait Active   | `bullmq.worker.do_not_wait_active`   | `bullmq.worker.do.not.wait.active`   | Whether to wait for active jobs |
+| Force Close          | `bullmq.worker.force_close`          | `bullmq.worker.force.close`          | Whether closing is forced       |
+| Stalled Jobs         | `bullmq.worker.stalled_jobs`         | `bullmq.worker.stalled.jobs`         | Number of stalled jobs detected |
+| Failed Jobs          | `bullmq.worker.failed_jobs`          | `bullmq.worker.failed.jobs`          | Number of failed stalled jobs   |
+| Jobs to Extend Locks | `bullmq.worker.jobs_to_extend_locks` | `bullmq.worker.jobs.to.extend.locks` | Jobs needing lock extension     |
 
 ### Queue Operation Attributes
 
-| Attribute        | Key                             | Description                 |
-| ---------------- | ------------------------------- | --------------------------- |
-| Drain Delay      | `bullmq.queue.drain.delay`      | Whether to delay drain      |
-| Grace Period     | `bullmq.queue.grace`            | Grace period for clean op   |
-| Clean Limit      | `bullmq.queue.clean.limit`      | Maximum jobs to clean       |
-| Rate Limit       | `bullmq.queue.rate.limit`       | Rate limit settings         |
-| Queue Options    | `bullmq.queue.options`          | Serialized queue options    |
-| Event Max Length | `bullmq.queue.event.max.length` | Maximum event stream length |
+| Attribute        | Key (new)                       | Key (deprecated)                | Description                 |
+| ---------------- | ------------------------------- | ------------------------------- | --------------------------- |
+| Drain Delay      | `bullmq.queue.drain_delay`      | `bullmq.queue.drain.delay`      | Whether to delay drain      |
+| Grace Period     | `bullmq.queue.grace`            | -                               | Grace period for clean op   |
+| Clean Limit      | `bullmq.queue.clean_limit`      | `bullmq.queue.clean.limit`      | Maximum jobs to clean       |
+| Rate Limit       | `bullmq.queue.rate_limit`       | `bullmq.queue.rate.limit`       | Rate limit settings         |
+| Queue Options    | `bullmq.queue.options`          | -                               | Serialized queue options    |
+| Event Max Length | `bullmq.queue.event_max_length` | `bullmq.queue.event.max.length` | Maximum event stream length |
 
 ### Flow Attributes
 
@@ -180,9 +183,9 @@ Traces include various attributes for filtering and debugging:
 
 ### Scheduler Attributes
 
-| Attribute        | Key                       | Description             |
-| ---------------- | ------------------------- | ----------------------- |
-| Job Scheduler ID | `bullmq.job.scheduler.id` | ID of the job scheduler |
+| Attribute        | Key (new)                 | Key (deprecated)          | Description             |
+| ---------------- | ------------------------- | ------------------------- | ----------------------- |
+| Job Scheduler ID | `bullmq.job.scheduler_id` | `bullmq.job.scheduler.id` | ID of the job scheduler |
 
 ## Context Propagation
 
