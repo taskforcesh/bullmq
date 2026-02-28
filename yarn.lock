@@ -74,7 +74,7 @@
   resolved "https://registry.yarnpkg.com/@colors/colors/-/colors-1.5.0.tgz#bb504579c1cae923e6576a4f5da43d25f97bdbd9"
   integrity sha512-ooWCrlZP11i8GImSjTHYHLkvFDP48nS4+204nGb1RiX/WXYHmJA2III9/e2DWVabCESdW7hBAEzHRqUn9OUVvQ==
 
-"@commitlint/cli@^20.4.2":
+"@commitlint/cli@20.4.2":
   version "20.4.2"
   resolved "https://registry.yarnpkg.com/@commitlint/cli/-/cli-20.4.2.tgz#2cb97a37a11ee3245a22f770101b18a89f5e58c4"
   integrity sha512-YjYSX2yj/WsVoxh9mNiymfFS2ADbg2EK4+1WAsMuckwKMCqJ5PDG0CJU/8GvmHWcv4VRB2V02KqSiecRksWqZQ==
