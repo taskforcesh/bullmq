@@ -73,15 +73,24 @@ BullMQ automatically records the following metrics:
 | --------------------- | ----------------------- | ------------ |
 | `bullmq.job.duration` | Job processing duration | milliseconds |
 
+### Gauges
+
+| Metric Name               | Description                               | Unit |
+| ------------------------- | ----------------------------------------- | ---- |
+| `bullmq.queue.jobs.count` | Current count of jobs in queue (by state) | jobs |
+
+Gauges are recorded when calling queue getter methods like `count()` or `getJobCounts()`. The `bullmq.queue.jobs.count` gauge includes a `bullmq.queue.jobs.state` attribute indicating which job state was counted (e.g., `waiting`, `active`, `completed`, `failed`, `delayed`, `prioritized`, `paused`, `waiting-children`).
+
 ## Metric Attributes
 
 All metrics include the following attributes for filtering and grouping:
 
-| Attribute           | Description                                                                        |
-| ------------------- | ---------------------------------------------------------------------------------- |
-| `bullmq.queue.name` | Name of the queue                                                                  |
-| `bullmq.job.name`   | Name of the job                                                                    |
-| `bullmq.job.status` | Status of the job (completed, failed, delayed, retried, waiting, waiting-children) |
+| Attribute                 | Description                                                                        |
+| ------------------------- | ---------------------------------------------------------------------------------- |
+| `bullmq.queue.name`       | Name of the queue                                                                  |
+| `bullmq.job.name`         | Name of the job                                                                    |
+| `bullmq.job.status`       | Status of the job (completed, failed, delayed, retried, waiting, waiting-children) |
+| `bullmq.queue.jobs.state` | Job state for gauge metrics (waiting, active, completed, failed, etc.)             |
 
 ## Configuration Options
 
@@ -115,13 +124,13 @@ interface BullMQOtelOptions {
 
 ## Custom Metric Options
 
-BullMQOtel allows you to pre-configure counters and histograms with custom options before passing the telemetry instance to a Worker or Queue. Once a metric is created with custom options, BullMQ will reuse it and the default options defined internally will be ignored.
+BullMQOtel allows you to pre-configure counters, histograms, and gauges with custom options before passing the telemetry instance to a Worker or Queue. Once a metric is created with custom options, BullMQ will reuse it and the default options defined internally will be ignored.
 
 This is useful when you want to customize metric descriptions, units, or other OpenTelemetry metric options:
 
 ```typescript
 import { BullMQOtel } from 'bullmq-otel';
-import { Worker } from 'bullmq';
+import { Queue, Worker } from 'bullmq';
 
 const telemetry = new BullMQOtel({
   tracerName: 'my-app',
@@ -143,6 +152,20 @@ telemetry.meter.createHistogram('bullmq.job.duration', {
   unit: 's', // Using seconds instead of default milliseconds
 });
 
+// Pre-configure a gauge for queue job counts
+telemetry.meter.createGauge('bullmq.queue.jobs.count', {
+  description: 'Current number of jobs in the queue by state',
+  unit: '{jobs}',
+});
+
+const queue = new Queue('myQueue', {
+  connection: {
+    host: '127.0.0.1',
+    port: 6379,
+  },
+  telemetry,
+});
+
 const worker = new Worker(
   'myQueue',
   async job => {
@@ -156,10 +179,14 @@ const worker = new Worker(
     telemetry,
   },
 );
+
+// When calling count() or getJobCounts(), gauge metrics are recorded
+const waitingCount = await queue.count();
+const jobCounts = await queue.getJobCounts();
 ```
 
 {% hint style="info" %}
-The `BullMQOTelMeter` caches all created counters and histograms by name. When BullMQ internally calls `createCounter` or `createHistogram` with the same name, the cached instance is returned, effectively ignoring the default options passed by BullMQ.
+The `BullMQOTelMeter` caches all created counters, histograms, and gauges by name. When BullMQ internally calls `createCounter`, `createHistogram`, or `createGauge` with the same name, the cached instance is returned, effectively ignoring the default options passed by BullMQ.
 {% endhint %}
 
 ## Backward Compatibility

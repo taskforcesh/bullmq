@@ -4,7 +4,8 @@ import { QueueBase } from './queue-base';
 import { Job } from './job';
 import { clientCommandMessageReg, QUEUE_EVENT_SUFFIX } from '../utils';
 import { JobState, JobType } from '../types';
-import { JobJsonRaw, Metrics, QueueMeta, RedisClient } from '../interfaces';
+import { JobJsonRaw, Metrics, QueueMeta } from '../interfaces';
+import { MetricNames, TelemetryAttributes } from '../enums';
 import type { Cluster } from 'ioredis';
 
 /**
@@ -182,7 +183,31 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
       counts[currentTypes[index]] = res || 0;
     });
 
+    this.recordJobCountsMetric(counts);
+
     return counts;
+  }
+
+  /**
+   * Records job counts as gauge metrics for telemetry purposes.
+   * Each job state count is recorded with the queue name and state as attributes.
+   *
+   * @param counts - An object mapping job states to their counts
+   */
+  private recordJobCountsMetric(counts: { [index: string]: number }): void {
+    const meter = this.opts.telemetry?.meter;
+    if (meter && typeof (meter as any).createGauge === 'function') {
+      const gauge = meter.createGauge(MetricNames.QueueJobsCount, {
+        description: 'Number of jobs in the queue by state',
+        unit: '{jobs}',
+      });
+      for (const [state, jobCount] of Object.entries(counts)) {
+        gauge.record(jobCount, {
+          [TelemetryAttributes.QueueName]: this.name,
+          [TelemetryAttributes.QueueJobsState]: state,
+        });
+      }
+    }
   }
 
   /**
