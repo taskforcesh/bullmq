@@ -68,8 +68,6 @@
     "uuid": "11.1.0"
   },
   "devDependencies": {
-    "@eslint/js": "9.39.2",
-    "@eslint/eslintrc": "3.3.1",
     "@commitlint/cli": "^20.4.2",
     "@commitlint/config-conventional": "20.4.2",
     "@semantic-release/changelog": "6.0.3",
@@ -85,8 +83,8 @@
     "@types/node": "18.19.130",
     "@types/semver": "7.7.1",
     "@types/sinon": "10.0.20",
-    "@typescript-eslint/eslint-plugin": "8.54.0",
-    "@typescript-eslint/parser": "8.54.0",
+    "@typescript-eslint/eslint-plugin": "8.56.1",
+    "@typescript-eslint/parser": "8.56.1",
     "@vitest/coverage-v8": "4.0.18",
     "coveralls-next": "6.0.1",
     "cpx2": "8.0.0",
@@ -179,9 +177,5 @@
       "@semantic-release/github"
     ]
   },
-  "packageManager": "yarn@1.22.22",
-  "resolutions": {
-    "@commitlint/config-validator/ajv": "8.18.0",
-    "eslint-plugin-tsdoc/@microsoft/tsdoc-config/ajv": "8.18.0"
-  }
+  "packageManager": "yarn@1.22.22"
 }
