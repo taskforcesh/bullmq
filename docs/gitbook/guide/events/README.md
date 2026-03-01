@@ -53,6 +53,11 @@ queueEvents.on(
 
 The `QueueEvents` class is implemented using [Redis streams](https://redis.io/topics/streams-intro). This has some nice properties, for example, it provides guarantees that the events are delivered and not lost during disconnections such as it would be the case with standard pub-sub.
 
+{% hint style="info" %}
+For real-time updates in open-source BullMQ, `QueueEvents` is the recommended option.
+If you need richer reactive primitives, see BullMQ Pro [Observables](../../bullmq-pro/observables/README.md).
+{% endhint %}
+
 {% hint style="danger" %}
 The event stream is auto-trimmed so that its size does not grow too much, by default it is \~10.000 events, but this can be configured with the `streams.events.maxLen` option.
 {% endhint %}
