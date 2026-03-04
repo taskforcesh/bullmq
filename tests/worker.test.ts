@@ -1738,6 +1738,120 @@ describe('workers', () => {
         const count = 0;
         await testWorkerRemoveOnFinish({ count }, count, true);
       });
+
+      it('should not leave orphaned job data when limit is less than removable jobs', async () => {
+        const limit = 2;
+        const age = 1; // 1 second
+
+        const totalJobs = 10;
+        let processedCount = 0;
+
+        const worker = new Worker(
+          queueName,
+          async () => {
+            processedCount++;
+          },
+          {
+            connection,
+            prefix,
+            removeOnComplete: { age, limit },
+            concurrency: 1,
+          },
+        );
+        await worker.waitUntilReady();
+
+        // Phase 1: Add and process a batch of jobs (they all complete quickly)
+        const initialJobIds: string[] = [];
+        for (let i = 0; i < totalJobs; i++) {
+          const job = await queue.add('test', { phase: 1, i });
+          initialJobIds.push(job.id!);
+        }
+
+        // Wait for all initial jobs to complete
+        await new Promise<void>(resolve => {
+          const checkCompleted = async () => {
+            const counts = await queue.getJobCounts('completed');
+            if (counts.completed >= totalJobs) {
+              resolve();
+            } else {
+              setTimeout(checkCompleted, 50);
+            }
+          };
+          checkCompleted();
+        });
+
+        // Phase 2: Wait for all jobs to age out (> age seconds)
+        await delay(age * 1000 + 500);
+
+        // Phase 3: Add one more job to trigger cleanup
+        const triggerJob = await queue.add('test', { phase: 2, trigger: true });
+
+        // Wait for trigger job to complete
+        await new Promise<void>(resolve => {
+          const checkCompleted = async () => {
+            const job = await queue.getJob(triggerJob.id!);
+            if (job?.finishedOn) {
+              resolve();
+            } else {
+              setTimeout(checkCompleted, 50);
+            }
+          };
+          checkCompleted();
+        });
+
+        // Give a small margin for cleanup to finish
+        await delay(200);
+
+        const client = await queue.client;
+
+        // Get the count of jobs in the completed sorted set
+        const completedCount = (await queue.getJobCounts('completed'))
+          .completed;
+
+        // Count job hash keys that still exist in Redis
+        const existingJobKeys = await Promise.all(
+          initialJobIds.map(async jobId => {
+            const exists = await client.exists(
+              `${prefix}:${queue.name}:${jobId}`,
+            );
+            return exists;
+          }),
+        );
+        const orphanedCount = existingJobKeys.reduce(
+          (sum, exists) => sum + exists,
+          0,
+        );
+
+        // With the bug: ZREMRANGEBYSCORE removes ALL old entries from the
+        // sorted set but only `limit` job hashes are actually deleted.
+        // So we'd have orphaned hashes (exist in Redis but not in the set).
+        //
+        // With the fix: only `limit` entries are removed from the sorted set
+        // (via ZREM), matching exactly the jobs whose hash data was cleaned.
+        // Remaining old jobs stay in the set for future cleanup iterations.
+        //
+        // Assert: the number of existing initial job hashes should equal the
+        // number of initial jobs still tracked in the completed sorted set.
+        // (The trigger job may also be in the set, so we compare only
+        // initial jobs.)
+        const initialJobsInSet = await Promise.all(
+          initialJobIds.map(async jobId => {
+            const score = await client.zscore(
+              `${prefix}:${queue.name}:completed`,
+              jobId,
+            );
+            return score !== null ? 1 : 0;
+          }),
+        );
+        const initialJobsInSetCount = initialJobsInSet.reduce(
+          (sum, v) => sum + v,
+          0,
+        );
+
+        expect(orphanedCount).toBe(initialJobsInSetCount);
+
+        await worker.close();
+      });
     });
   });
 
