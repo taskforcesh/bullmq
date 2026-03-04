@@ -3,6 +3,7 @@
 ]]
 
 -- Includes
+--- @include "batches"
 --- @include "removeJob"
 
 local function removeJobsByMaxAge(timestamp, maxAge, targetSet, prefix, maxLimit)
@@ -11,5 +12,7 @@ local function removeJobsByMaxAge(timestamp, maxAge, targetSet, prefix, maxLimit
   for i, jobId in ipairs(jobIds) do
     removeJob(jobId, false, prefix, false --[[remove debounce key]])
   end
-  rcall("ZREMRANGEBYSCORE", targetSet, "-inf", start)
+  for from, to in batches(#jobIds, 1000) do
+    rcall("ZREM", targetSet, unpack(jobs, from, to))
+  end
 end
