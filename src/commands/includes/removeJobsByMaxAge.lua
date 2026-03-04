@@ -13,6 +13,6 @@ local function removeJobsByMaxAge(timestamp, maxAge, targetSet, prefix, maxLimit
     removeJob(jobId, false, prefix, false --[[remove debounce key]])
   end
   for from, to in batches(#jobIds, 1000) do
-    rcall("ZREM", targetSet, unpack(jobs, from, to))
+    rcall("ZREM", targetSet, unpack(jobIds, from, to))
   end
 end
