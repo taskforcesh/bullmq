@@ -1579,7 +1579,7 @@ export class Job<
       );
     }
 
-    if (this.opts?.jobId) {
+    if (typeof this.opts?.jobId === 'string') {
       if (`${parseInt(this.opts.jobId, 10)}` === this.opts?.jobId) {
         throw new Error('Custom Id cannot be integers');
       }
