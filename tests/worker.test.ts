@@ -1744,20 +1744,13 @@ describe('workers', () => {
         const age = 1; // 1 second
 
         const totalJobs = 10;
-        let processedCount = 0;
 
-        const worker = new Worker(
-          queueName,
-          async () => {
-            processedCount++;
-          },
-          {
-            connection,
-            prefix,
-            removeOnComplete: { age, limit },
-            concurrency: 1,
-          },
-        );
+        const worker = new Worker(queueName, async () => {}, {
+          connection,
+          prefix,
+          removeOnComplete: { age, limit },
+          concurrency: 1,
+        });
         await worker.waitUntilReady();
 
         // Phase 1: Add and process a batch of jobs (they all complete quickly)
@@ -1803,10 +1796,6 @@ describe('workers', () => {
         await delay(200);
 
         const client = await queue.client;
-
-        // Get the count of jobs in the completed sorted set
-        const completedCount = (await queue.getJobCounts('completed'))
-          .completed;
 
         // Count job hash keys that still exist in Redis
         const existingJobKeys = await Promise.all(

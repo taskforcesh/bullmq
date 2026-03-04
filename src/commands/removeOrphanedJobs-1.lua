@@ -3,7 +3,7 @@
   in any queue state set. Checks each candidate atomically.
 
   Input:
-    KEYS[1]  base prefix key (e.g. bull:queueName)
+    KEYS[1]  base prefix key including trailing colon (e.g. bull:queueName:)
 
     ARGV[1]  number of state key suffixes
     ARGV[2 .. 1+N]  state key suffixes (e.g. active, wait, completed, ...)

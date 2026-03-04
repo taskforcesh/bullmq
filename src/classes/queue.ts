@@ -1064,7 +1064,8 @@ export class Queue<
    *
    * Orphaned keys can occur in rare cases when the removal-by-max-age logic
    * removes sorted-set entries without fully cleaning up the corresponding
-   * job hash data (fixed in v5.67.0). Under normal operation this method is
+   * job hash data (a regression introduced in v5.66.6 via #3694).
+   * Under normal operation this method is
    * **not needed** — it is provided only as a one-time migration helper for
    * users who were affected by that specific bug and want to reclaim the
    * leaked memory.
