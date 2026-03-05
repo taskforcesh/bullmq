@@ -1830,6 +1830,25 @@ export class Scripts {
     (error as any).code = code;
     return error;
   }
+
+  async removeOrphanedJobs(
+    candidateJobIds: string[],
+    stateKeySuffixes: string[],
+    jobSubKeySuffixes: string[],
+  ): Promise<number> {
+    const client = await this.queue.client;
+
+    const args: (string | number)[] = [
+      this.queue.toKey(''),
+      stateKeySuffixes.length,
+      ...stateKeySuffixes,
+      jobSubKeySuffixes.length,
+      ...jobSubKeySuffixes,
+      ...candidateJobIds,
+    ];
+
+    return this.execCommand(client, 'removeOrphanedJobs', args);
+  }
 }
 
 export function raw2NextJobData(raw: any[]) {
