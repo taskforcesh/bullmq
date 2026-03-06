@@ -1061,17 +1061,18 @@ describe('Telemetry', () => {
       expect(gauge1).toBe(gauge2);
     });
 
-    it('should record gauge metric when calling count()', async () => {
+    it('should record gauge metric when calling recordJobCountsMetric()', async () => {
       // Add some jobs
       await metricsQueue.add('job1', { data: 1 });
       await metricsQueue.add('job2', { data: 2 });
       await metricsQueue.add('job3', { data: 3 });
 
-      const count = await metricsQueue.count();
-      expect(count).toBe(3);
+      const counts = await metricsQueue.recordJobCountsMetric('waiting');
+      expect(counts).toEqual({
+        paused: 0,
+        waiting: 3,
+      });
 
-      // count() internally calls getJobCountByTypes() which calls getJobCounts()
-      // so the gauge should be QueueJobsCount
       const meter = metricsTelemetryClient.meter as MockMeter;
       const gauge = meter.gauges.get(MetricNames.QueueJobsCount) as MockGauge;
 
@@ -1079,30 +1080,6 @@ describe('Telemetry', () => {
       expect(gauge.values.length).toBeGreaterThan(0);
 
       // Check that gauge recorded values for waiting state
-      const waitingRecord = gauge.values.find(
-        value =>
-          value.attributes?.[TelemetryAttributes.QueueJobsState] === 'waiting',
-      );
-      expect(waitingRecord).toBeDefined();
-      expect(waitingRecord?.attributes?.[TelemetryAttributes.QueueName]).toBe(
-        queueName,
-      );
-    });
-
-    it('should record gauge metrics when calling getJobCounts()', async () => {
-      // Add some jobs
-      await metricsQueue.add('job1', { data: 1 });
-      await metricsQueue.add('job2', { data: 2 });
-
-      await metricsQueue.getJobCounts('waiting', 'active');
-
-      const meter = metricsTelemetryClient.meter as MockMeter;
-      const gauge = meter.gauges.get(MetricNames.QueueJobsCount) as MockGauge;
-
-      expect(gauge).toBeDefined();
-      expect(gauge.values.length).toBeGreaterThan(0);
-
-      // Check that gauge recorded values for different states
       const waitingRecord = gauge.values.find(
         value =>
           value.attributes?.[TelemetryAttributes.QueueJobsState] === 'waiting',
@@ -1122,7 +1099,7 @@ describe('Telemetry', () => {
       });
 
       await noMetricsQueue.add('job1', { data: 1 });
-      await noMetricsQueue.count();
+      await noMetricsQueue.recordJobCountsMetric();
 
       // telemetryClient doesn't have a meter, so no metrics should be recorded
       expect(telemetryClient.meter).toBeUndefined();
