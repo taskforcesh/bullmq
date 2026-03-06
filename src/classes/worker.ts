@@ -962,12 +962,10 @@ will never work with more accuracy than 1ms. */
 
         this.emit('active', job, 'waiting');
 
-        const processedOn = Date.now();
-
         const abortController = this.lockManager.trackJob(
           job.id,
           token,
-          processedOn,
+          job.processedOn,
           this.processorAcceptsSignal,
         );
 
@@ -1040,10 +1038,13 @@ will never work with more accuracy than 1ms. */
           return failed;
         } finally {
           this.lockManager.untrackJob(job.id);
+          const now = Date.now();
 
           span?.setAttributes({
-            [TelemetryAttributes.JobFinishedTimestamp]: Date.now(),
-            [TelemetryAttributes.JobProcessedTimestamp]: processedOn,
+            [TelemetryAttributes.JobFinishedTimestamp]: now,
+            [TelemetryAttributes.JobAttemptFinishedTimestamp]:
+              job.finishedOn || now,
+            [TelemetryAttributes.JobProcessedTimestamp]: job.processedOn,
           });
         }
       },

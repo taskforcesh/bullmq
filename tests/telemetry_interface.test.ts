@@ -396,6 +396,124 @@ describe('Telemetry', () => {
       moveToCompletedStub.restore();
       await worker.close();
     });
+
+    it('should set timestamp attributes when job processing completes', async () => {
+      const job = await queue.add('testJob', { foo: 'bar' });
+
+      const worker = new Worker(queueName, async () => 'some result', {
+        connection,
+        telemetry: telemetryClient,
+        name: 'testWorker',
+        prefix,
+      });
+
+      await worker.waitUntilReady();
+      const moveToCompletedStub = sinon.stub(job, 'moveToCompleted').resolves();
+
+      const startSpanSpy = sinon.spy(telemetryClient.tracer, 'startSpan');
+
+      job.processedOn = Date.now();
+      await worker.processJob(job, 'some-token', () => false);
+
+      const span = startSpanSpy.returnValues[0] as MockSpan;
+
+      // Verify timestamp attributes are set in the finally block
+      expect(
+        span.attributes[TelemetryAttributes.JobFinishedTimestamp],
+      ).toBeDefined();
+      expect(
+        span.attributes[TelemetryAttributes.JobAttemptFinishedTimestamp],
+      ).toBeDefined();
+      expect(
+        span.attributes[TelemetryAttributes.JobProcessedTimestamp],
+      ).toBeDefined();
+
+      // JobFinishedTimestamp should be a recent timestamp
+      const jobFinishedTimestamp =
+        span.attributes[TelemetryAttributes.JobFinishedTimestamp];
+      expect(typeof jobFinishedTimestamp).toBe('number');
+      expect(jobFinishedTimestamp).toBeGreaterThan(Date.now() - 10000);
+
+      startSpanSpy.restore();
+      moveToCompletedStub.restore();
+      await worker.close();
+    });
+
+    it('should set job attempts attribute on successful completion', async () => {
+      const job = await queue.add('testJob', { foo: 'bar' });
+
+      const worker = new Worker(queueName, async () => 'completed result', {
+        connection,
+        telemetry: telemetryClient,
+        name: 'testWorker',
+        prefix,
+      });
+
+      await worker.waitUntilReady();
+      const moveToCompletedStub = sinon.stub(job, 'moveToCompleted').resolves();
+
+      const startSpanSpy = sinon.spy(telemetryClient.tracer, 'startSpan');
+
+      await worker.processJob(job, 'some-token', () => false);
+
+      const span = startSpanSpy.returnValues[0] as MockSpan;
+
+      // handleCompleted should set JobAttemptsMade
+      expect(
+        span.attributes[TelemetryAttributes.JobAttemptsMade],
+      ).toBeDefined();
+
+      startSpanSpy.restore();
+      moveToCompletedStub.restore();
+      await worker.close();
+    });
+
+    it('should set job failed reason attribute on failure', async () => {
+      const errorMessage = 'Test processing error';
+      const job = await queue.add('testJob', { foo: 'bar' });
+
+      const worker = new Worker<any, any, string>(
+        queueName,
+        async () => {
+          throw new Error(errorMessage);
+        },
+        {
+          connection,
+          telemetry: telemetryClient,
+          name: 'testWorker',
+          prefix,
+        },
+      );
+
+      await worker.waitUntilReady();
+      const moveToFailedStub = sinon.stub(job, 'moveToFailed').resolves();
+
+      const startSpanSpy = sinon.spy(telemetryClient.tracer, 'startSpan');
+      const addEventSpy = sinon.spy(MockSpan.prototype, 'addEvent');
+
+      await worker.processJob(job, 'some-token', () => false);
+
+      const span = startSpanSpy.returnValues[0] as MockSpan;
+
+      // handleFailed should add event with JobFailedReason
+      const failedEventCall = addEventSpy
+        .getCalls()
+        .find(call => call.args[0] === 'job failed');
+      expect(failedEventCall).toBeDefined();
+      expect(
+        failedEventCall?.args[1]?.[TelemetryAttributes.JobFailedReason],
+      ).toBe(errorMessage);
+
+      // handleFailed should set JobAttemptsMade
+      expect(
+        span.attributes[TelemetryAttributes.JobAttemptsMade],
+      ).toBeDefined();
+
+      addEventSpy.restore();
+      startSpanSpy.restore();
+      moveToFailedStub.restore();
+      await worker.close();
+    });
   });
 
   describe('Flows', () => {
