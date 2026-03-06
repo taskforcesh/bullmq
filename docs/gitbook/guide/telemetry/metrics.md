@@ -75,11 +75,11 @@ BullMQ automatically records the following metrics:
 
 ### Gauges
 
-| Metric Name               | Description                               | Unit |
-| ------------------------- | ----------------------------------------- | ---- |
-| `bullmq.queue.jobs.count` | Current count of jobs in queue (by state) | jobs |
+| Metric Name         | Description                          | Unit |
+| ------------------- | ------------------------------------ | ---- |
+| `bullmq.queue.jobs` | Number of jobs in the queue by state | jobs |
 
-Gauges are recorded when calling queue getter methods like `count()` or `getJobCounts()`. The `bullmq.queue.jobs.count` gauge includes a `bullmq.queue.jobs.state` attribute indicating which job state was counted (e.g., `waiting`, `active`, `completed`, `failed`, `delayed`, `prioritized`, `paused`, `waiting-children`).
+Gauges are recorded when calling `recordJobCountsMetric()`. The `bullmq.queue.jobs` gauge includes a `bullmq.queue.jobs.state` attribute indicating which job state was counted (e.g., `waiting`, `active`, `completed`, `failed`, `delayed`, `prioritized`, `paused`, `waiting-children`).
 
 ## Metric Attributes
 
@@ -153,7 +153,7 @@ telemetry.meter.createHistogram('bullmq.job.duration', {
 });
 
 // Pre-configure a gauge for queue job counts
-telemetry.meter.createGauge('bullmq.queue.jobs.count', {
+telemetry.meter.createGauge('bullmq.queue.jobs', {
   description: 'Current number of jobs in the queue by state',
   unit: '{jobs}',
 });
@@ -180,9 +180,8 @@ const worker = new Worker(
   },
 );
 
-// When calling count() or getJobCounts(), gauge metrics are recorded
-const waitingCount = await queue.count();
-const jobCounts = await queue.getJobCounts();
+// When calling recordJobCountsMetric(), gauge metrics are recorded
+const jobCounts = await queue.recordJobCountsMetric();
 ```
 
 {% hint style="info" %}
