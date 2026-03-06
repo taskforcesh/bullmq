@@ -1,3 +1,10 @@
+## [5.70.3](https://github.com/taskforcesh/bullmq/compare/v5.70.2...v5.70.3) (2026-03-06)
+
+
+### Bug Fixes
+
+* **otel:** use job timestamps for process span attributes ([#3832](https://github.com/taskforcesh/bullmq/issues/3832)) ([450253c](https://github.com/taskforcesh/bullmq/commit/450253c3457f500d7f4e5aeebaa4ddfc937a1f39))
+
 ## [5.70.2](https://github.com/taskforcesh/bullmq/compare/v5.70.1...v5.70.2) (2026-03-05)
 
 
