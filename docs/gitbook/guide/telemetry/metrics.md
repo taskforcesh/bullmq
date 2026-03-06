@@ -83,14 +83,26 @@ Gauges are recorded when calling `recordJobCountsMetric()`. The `bullmq.queue.jo
 
 ## Metric Attributes
 
-All metrics include the following attributes for filtering and grouping:
+Different metrics include different attributes for filtering and grouping:
 
-| Attribute                 | Description                                                                        |
-| ------------------------- | ---------------------------------------------------------------------------------- |
-| `bullmq.queue.name`       | Name of the queue                                                                  |
-| `bullmq.job.name`         | Name of the job                                                                    |
-| `bullmq.job.status`       | Status of the job (completed, failed, delayed, retried, waiting, waiting-children) |
-| `bullmq.queue.jobs.state` | Job state for gauge metrics (waiting, active, completed, failed, etc.)             |
+### Common Attributes (all metrics)
+
+| Attribute           | Description       |
+| ------------------- | ----------------- |
+| `bullmq.queue.name` | Name of the queue |
+
+### Job Metric Attributes (counters and histograms only)
+
+| Attribute           | Description                                                                        |
+| ------------------- | ---------------------------------------------------------------------------------- |
+| `bullmq.job.name`   | Name of the job                                                                    |
+| `bullmq.job.status` | Status of the job (completed, failed, delayed, retried, waiting, waiting-children) |
+
+### Gauge Attributes (`bullmq.queue.jobs` only)
+
+| Attribute                 | Description                                                            |
+| ------------------------- | ---------------------------------------------------------------------- |
+| `bullmq.queue.jobs.state` | Job state for gauge metrics (waiting, active, completed, failed, etc.) |
 
 ## Configuration Options
 
