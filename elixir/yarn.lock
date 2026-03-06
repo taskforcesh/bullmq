@@ -588,7 +588,7 @@
     undici "^7.0.0"
     url-join "^5.0.0"
 
-"@semantic-release/npm@13.1.5", "@semantic-release/npm@^13.1.1":
+"@semantic-release/npm@^13.1.1":
   version "13.1.5"
   resolved "https://registry.yarnpkg.com/@semantic-release/npm/-/npm-13.1.5.tgz#99178d57ca8f68fb4ea2aa2d388052ec3f397498"
   integrity sha512-Hq5UxzoatN3LHiq2rTsWS54nCdqJHlsssGERCo8WlvdfFA9LoN0vO+OuKVSjtNapIc/S8C2LBj206wKLHg62mg==
@@ -1026,23 +1026,23 @@ config-chain@^1.1.11:
     proto-list "~1.2.1"
 
 conventional-changelog-angular@^8.0.0, conventional-changelog-angular@^8.2.0:
-  version "8.2.0"
-  resolved "https://registry.yarnpkg.com/conventional-changelog-angular/-/conventional-changelog-angular-8.2.0.tgz#4e1b91b48c9df20e6e3f092dccbe50f8ddcc91ef"
-  integrity sha512-4YB1zEXqB17oBI8yRsAs1T+ZhbdsOgJqkl6Trz+GXt/eKf1e4jnA0oW+sOd9BEENzEViuNW0DNoFFjSf3CeC5Q==
+  version "8.3.0"
+  resolved "https://registry.yarnpkg.com/conventional-changelog-angular/-/conventional-changelog-angular-8.3.0.tgz#e344def5f3d3c4f3242dea3c4e12c402e0d6832c"
+  integrity sha512-DOuBwYSqWzfwuRByY9O4oOIvDlkUCTDzfbOgcSbkY+imXXj+4tmrEFao3K+FxemClYfYnZzsvudbwrhje9VHDA==
   dependencies:
     compare-func "^2.0.0"
 
 conventional-changelog-conventionalcommits@^9.2.0:
-  version "9.2.0"
-  resolved "https://registry.yarnpkg.com/conventional-changelog-conventionalcommits/-/conventional-changelog-conventionalcommits-9.2.0.tgz#112a836a8ecafae3e893d7323405216414a49048"
-  integrity sha512-fCf+ODjseueTV09wVBoC0HXLi3OyuBJ+HfE3L63Khxqnr99f9nUcnQh3a15lCWHlGLihyZShW/mVVkBagr9JvQ==
+  version "9.3.0"
+  resolved "https://registry.yarnpkg.com/conventional-changelog-conventionalcommits/-/conventional-changelog-conventionalcommits-9.3.0.tgz#763e66613f49c13567f6319987e9f45ae41eda24"
+  integrity sha512-kYFx6gAyjSIMwNtASkI3ZE99U1fuVDJr0yTYgVy+I2QG46zNZfl2her+0+eoviG82c5WQvW1jMt1eOQTeJLodA==
   dependencies:
     compare-func "^2.0.0"
 
 conventional-changelog-writer@^8.0.0:
-  version "8.3.0"
-  resolved "https://registry.yarnpkg.com/conventional-changelog-writer/-/conventional-changelog-writer-8.3.0.tgz#7cd7a208938190567ed9a8250924e6d8514eb801"
-  integrity sha512-l5hDOHjcTUVtnZJapoqXMCJ3IbyF6oV/vnxKL13AHulFH7mDp4PMJARxI7LWzob6UDDvhxIUWGTNUPW84JabQg==
+  version "8.4.0"
+  resolved "https://registry.yarnpkg.com/conventional-changelog-writer/-/conventional-changelog-writer-8.4.0.tgz#600bfb4c98ccf0a31baddf8a1305f229072faf1f"
+  integrity sha512-HHBFkk1EECxxmCi4CTu091iuDpQv5/OavuCUAuZmrkWpmYfyD816nom1CvtfXJ/uYfAAjavgHvXHX291tSLK8g==
   dependencies:
     "@simple-libs/stream-utils" "^1.2.0"
     conventional-commits-filter "^5.0.0"
