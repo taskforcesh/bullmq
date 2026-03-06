@@ -4,6 +4,7 @@
 ### Bug Fixes
 
 * **flow:** allow deduplication from root parent (python) (elixir) ([#3817](https://github.com/taskforcesh/bullmq/issues/3817)) fixes [#3761](https://github.com/taskforcesh/bullmq/issues/3761) ([6cd60a7](https://github.com/taskforcesh/bullmq/commit/6cd60a79249a665270cf0723f43eb98f773f4b83))
+* **auto-remove:** remove orphaned jobs when auto-remove is enabled ([#3853](https://github.com/taskforcesh/bullmq/issues/3853)) ([504b536](https://github.com/taskforcesh/bullmq/commit/504b53689a29b3b4ddc902d25211a92da6a4d7af))
 
 ## [1.2.6](https://github.com/taskforcesh/bullmq/compare/vex1.2.5...vex1.2.6) (2026-02-11)
 
