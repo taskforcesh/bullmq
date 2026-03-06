@@ -32,6 +32,7 @@
 ]]
 local metaKey = KEYS[1]
 local idKey = KEYS[2]
+local delayedKey = KEYS[3]
 
 local completedKey = KEYS[5]
 local eventsKey = KEYS[6]
@@ -52,6 +53,7 @@ local deduplicationKey = args[9]
 local parentData
 
 -- Includes
+--- @include "includes/deduplicateJobWithoutReplace"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/handleDuplicatedJob"
 --- @include "includes/storeJob"
@@ -78,6 +80,15 @@ else
         return handleDuplicatedJob(jobIdKey, jobId, parentKey, parent,
             parentData, parentDependenciesKey, completedKey, eventsKey,
             maxEvents, timestamp)
+    end
+end
+
+local deduplicationId = opts['de'] and opts['de']['id']
+if deduplicationId then
+    local deduplicationJobId = deduplicateJobWithoutReplace(deduplicationId, opts['de'],
+        jobId, deduplicationKey, eventsKey, maxEvents)
+    if deduplicationJobId then
+        return deduplicationJobId
     end
 end
 
