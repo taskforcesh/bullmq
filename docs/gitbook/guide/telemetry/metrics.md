@@ -75,9 +75,9 @@ BullMQ automatically records the following metrics:
 
 ### Gauges
 
-| Metric Name         | Description                          | Unit |
-| ------------------- | ------------------------------------ | ---- |
-| `bullmq.queue.jobs` | Number of jobs in the queue by state | jobs |
+| Metric Name         | Description                          | Unit   |
+| ------------------- | ------------------------------------ | ------ |
+| `bullmq.queue.jobs` | Number of jobs in the queue by state | `{jobs}` |
 
 Gauges are recorded when calling `recordJobCountsMetric()`. The `bullmq.queue.jobs` gauge includes a `bullmq.queue.jobs.state` attribute indicating which job state was counted (e.g., `waiting`, `active`, `completed`, `failed`, `delayed`, `prioritized`, `paused`, `waiting-children`).
 
