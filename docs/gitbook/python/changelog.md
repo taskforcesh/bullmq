@@ -1,3 +1,10 @@
+## [2.19.6](https://github.com/taskforcesh/bullmq/compare/vpy2.19.5...vpy2.19.6) (2026-03-06)
+
+
+### Bug Fixes
+
+* **flow:** allow deduplication from root parent (python) (elixir) ([#3817](https://github.com/taskforcesh/bullmq/issues/3817)) fixes [#3761](https://github.com/taskforcesh/bullmq/issues/3761) ([6cd60a7](https://github.com/taskforcesh/bullmq/commit/6cd60a79249a665270cf0723f43eb98f773f4b83))
+
 ## [2.19.5](https://github.com/taskforcesh/bullmq/compare/vpy2.19.4...vpy2.19.5) (2026-02-11)
 
 
