@@ -1,17 +1,3 @@
-## [5.70.4](https://github.com/taskforcesh/bullmq/compare/v5.70.3...v5.70.4) (2026-03-06)
-
-
-### Bug Fixes
-
-* **flow:** allow deduplication from root parent (python) (elixir) ([#3817](https://github.com/taskforcesh/bullmq/issues/3817)) fixes [#3761](https://github.com/taskforcesh/bullmq/issues/3761) ([6cd60a7](https://github.com/taskforcesh/bullmq/commit/6cd60a79249a665270cf0723f43eb98f773f4b83))
-
-## [5.70.3](https://github.com/taskforcesh/bullmq/compare/v5.70.2...v5.70.3) (2026-03-06)
-
-
-### Bug Fixes
-
-* **otel:** use job timestamps for process span attributes ([#3832](https://github.com/taskforcesh/bullmq/issues/3832)) ([450253c](https://github.com/taskforcesh/bullmq/commit/450253c3457f500d7f4e5aeebaa4ddfc937a1f39))
-
 ## [5.70.2](https://github.com/taskforcesh/bullmq/compare/v5.70.1...v5.70.2) (2026-03-05)
 
 

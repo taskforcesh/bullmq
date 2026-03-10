@@ -1,10 +1,3 @@
-## [1.2.7](https://github.com/taskforcesh/bullmq/compare/vex1.2.6...vex1.2.7) (2026-03-06)
-
-
-### Bug Fixes
-
-* **flow:** allow deduplication from root parent (python) (elixir) ([#3817](https://github.com/taskforcesh/bullmq/issues/3817)) fixes [#3761](https://github.com/taskforcesh/bullmq/issues/3761) ([6cd60a7](https://github.com/taskforcesh/bullmq/commit/6cd60a79249a665270cf0723f43eb98f773f4b83))
-
 ## [1.2.6](https://github.com/taskforcesh/bullmq/compare/vex1.2.5...vex1.2.6) (2026-02-11)
 
 
