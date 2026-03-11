@@ -10,6 +10,7 @@ export type BulkJobOptions = Omit<JobsOptions, 'repeat'>;
 export interface MoveToDelayedOpts {
   skipAttempt?: boolean;
   fieldsToUpdate?: Record<string, any>;
+  fetchNext?: boolean;
 }
 
 export interface RetryJobOpts {
