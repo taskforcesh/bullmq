@@ -2031,11 +2031,11 @@ defmodule BullMQ.Worker do
              ) do
           {:ok, [job_data, job_id, _limit_delay, _delay_until]}
           when is_list(job_data) and job_data != [] ->
+            job_map = list_to_job_map(job_data)
+
             next_job =
-              Job.from_raw_data(
-                job_data,
-                job_id,
-                prefix: state.keys.prefix,
+              Job.from_redis(to_string(job_id), state.queue_name, job_map,
+                prefix: state.prefix,
                 token: state.token,
                 connection: state.connection,
                 worker: self()
