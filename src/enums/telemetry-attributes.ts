@@ -18,6 +18,7 @@ export enum TelemetryAttributes {
   JobType = 'bullmq.job.type',
   QueueOptions = 'bullmq.queue.options',
   QueueEventMaxLength = 'bullmq.queue.event.max.length',
+  QueueJobsState = 'bullmq.queue.jobs.state',
   WorkerOptions = 'bullmq.worker.options',
   WorkerName = 'bullmq.worker.name',
   WorkerId = 'bullmq.worker.id',
@@ -37,13 +38,14 @@ export enum TelemetryAttributes {
   JobFailedReason = 'bullmq.job.failed.reason',
   FlowName = 'bullmq.flow.name',
   JobSchedulerId = 'bullmq.job.scheduler.id',
-  JobStatus = 'bullmq.job.status',
+  JobStatus = 'bullmq.job.status', // TODO: rename it to 'bullmq.job.state' for consistency
 }
 
 /**
  * Standard metric names for BullMQ telemetry
  */
 export enum MetricNames {
+  QueueJobsCount = 'bullmq.queue.jobs',
   JobsCompleted = 'bullmq.jobs.completed',
   JobsFailed = 'bullmq.jobs.failed',
   JobsDelayed = 'bullmq.jobs.delayed',
