@@ -1,5 +1,5 @@
 import redis.asyncio as redis
-from typing import Union
+from typing import Any, Union
 from redis.backoff import ExponentialBackoff
 from redis.asyncio.retry import Retry
 from redis.exceptions import (
@@ -10,14 +10,6 @@ from redis.exceptions import (
 import warnings
 from bullmq.utils import isRedisVersionLowerThan, is_redis_cluster, get_cluster_nodes, get_node_client
 from bullmq import __version__ as package_version
-
-def _get_driver_info_options():
-    """
-    Get driver info options for Redis client identification.
-    See: https://redis.io/docs/latest/commands/client-setinfo/
-    """
-    driver_info = redis.DriverInfo().add_upstream_driver("bullmq", package_version)
-    return {"driver_info": driver_info}
 
 class RedisConnection:
     """
@@ -37,8 +29,6 @@ class RedisConnection:
         retry = Retry(ExponentialBackoff(cap=20, base=1), 20)
         retry_errors = [BusyLoadingError, ConnectionError, TimeoutError]
 
-        driver_info_options = _get_driver_info_options()
-
         if isinstance(redisOpts, redis.Redis):
             self.conn = redisOpts
         elif isinstance(redisOpts, dict):
@@ -49,12 +39,46 @@ class RedisConnection:
                 "password": None,
                 "username": None,
             }
-            finalOpts = {**defaultOpts, **redisOpts, **driver_info_options}
+            finalOpts = {**defaultOpts, **redisOpts}
 
             self.conn = redis.Redis(decode_responses=True, retry=retry, retry_on_error=retry_errors, **finalOpts)
         else:
             self.conn = redis.from_url(redisOpts, decode_responses=True, retry=retry,
-                retry_on_error=retry_errors, **driver_info_options)
+                retry_on_error=retry_errors)
+
+        # Add driver identification for redis-py
+        self._add_driver_info()
+
+    def _add_driver_info(self) -> None:
+        """Add driver identification to Redis connection.
+
+        Uses DriverInfo class if available, or falls back to
+        lib_name/lib_version for older versions.
+        """
+        # Get connection pool from the redis client
+        connection_pool: Any = getattr(self.conn, "connection_pool", None)
+        if connection_pool is None:
+            return
+
+        # Try to use DriverInfo class
+        try:
+            from redis import DriverInfo
+
+            driver_info = DriverInfo().add_upstream_driver("bullmq", package_version)
+            connection_pool.connection_kwargs["driver_info"] = driver_info
+        except (ImportError, AttributeError):
+            # Fallback: use lib_name/lib_version
+            bullmq_suffix = f"_v{package_version}" if package_version else ""
+            connection_pool.connection_kwargs["lib_name"] = f"redis-py(bullmq{bullmq_suffix})"
+            # lib_version should be the redis client version
+            try:
+                import redis as redis_sync
+
+                redis_version = redis_sync.__version__
+            except (ImportError, AttributeError):
+                redis_version = None
+            if redis_version:
+                connection_pool.connection_kwargs["lib_version"] = redis_version
 
     def disconnect(self):
         """

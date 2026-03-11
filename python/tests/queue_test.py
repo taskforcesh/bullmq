@@ -722,29 +722,33 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         
         await queue.close()
 
-class TestDriverInfo(unittest.TestCase):
+class TestDriverInfo(unittest.IsolatedAsyncioTestCase):
     """Tests for Redis client identification via DriverInfo"""
 
-    def test_get_driver_info_options_returns_dict(self):
-        """Test that _get_driver_info_options returns a dictionary with driver info"""
-        from bullmq.redis_connection import _get_driver_info_options
-        options = _get_driver_info_options()
-        self.assertIsInstance(options, dict)
+    async def test_add_driver_info_sets_connection_kwargs(self):
+        """Test that _add_driver_info sets driver info on connection pool"""
+        from bullmq.redis_connection import RedisConnection
+        connection = RedisConnection({})
+        pool = getattr(connection.conn, "connection_pool", None)
+        self.assertIsNotNone(pool)
+        connection_kwargs = getattr(pool, "connection_kwargs", {})
         self.assertTrue(
-            'driver_info' in options or 'lib_name' in options,
-            "Options should contain either 'driver_info' or 'lib_name'"
+            'driver_info' in connection_kwargs or 'lib_name' in connection_kwargs,
+            "Connection kwargs should contain either 'driver_info' or 'lib_name'"
         )
 
-    def test_get_driver_info_options_contains_bullmq(self):
+    async def test_add_driver_info_contains_bullmq(self):
         """Test that driver info contains 'bullmq' identifier"""
-        from bullmq.redis_connection import _get_driver_info_options
+        from bullmq.redis_connection import RedisConnection
         from bullmq import __version__ as package_version
-        options = _get_driver_info_options()
-        if 'driver_info' in options:
-            driver_info = options['driver_info']
+        connection = RedisConnection({})
+        pool = getattr(connection.conn, "connection_pool", None)
+        connection_kwargs = getattr(pool, "connection_kwargs", {})
+        if 'driver_info' in connection_kwargs:
+            driver_info = connection_kwargs['driver_info']
             self.assertIn('bullmq', driver_info.formatted_name.lower())
         else:
-            lib_name = options['lib_name']
+            lib_name = connection_kwargs['lib_name']
             self.assertIn('bullmq', lib_name.lower())
             self.assertIn(package_version, lib_name)
 
