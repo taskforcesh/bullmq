@@ -16,7 +16,10 @@
     markerKey - marker key
     prefix - keys prefix
     timestamp - current timestamp
-    opts - options table (must include 'limiter')
+    opts - options table:
+      token (required) - lock token used when locking jobs
+      lockDuration (required) - lock duration for acquired jobs
+      limiter (optional) - rate limiter options table (e.g. { max = number })
 ]]
 
 -- Includes
