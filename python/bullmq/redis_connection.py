@@ -31,7 +31,7 @@ SCRIPT_DEFINITIONS = {
     "isJobInList": "isJobInList-1.lua",
     "moveStalledJobsToWait": "moveStalledJobsToWait-8.lua",
     "moveToActive": "moveToActive-11.lua",
-    "moveToDelayed": "moveToDelayed-8.lua",
+    "moveToDelayed": "moveToDelayed-12.lua",
     "moveToFinished": "moveToFinished-14.lua",
     "moveToWaitingChildren": "moveToWaitingChildren-7.lua",
     "obliterate": "obliterate-2.lua",
