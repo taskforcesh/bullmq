@@ -1078,6 +1078,69 @@ describe('Job', () => {
     });
   });
 
+  describe('.moveToDelayed', () => {
+    describe('when fetchNext is true and another job is waiting', () => {
+      it('returns the next job data after moving the job to delayed', async () => {
+        const worker = new Worker(queueName, null, { connection, prefix });
+        const token = 'my-token';
+
+        await Job.create(queue, 'test', { foo: 'bar' });
+        const nextJob = await Job.create(queue, 'test2', { baz: 'qux' });
+
+        const job = (await worker.getNextJob(token)) as Job;
+
+        const result = await (job as any).scripts.moveToDelayed(
+          job.id,
+          Date.now(),
+          10000,
+          token,
+          { fetchNext: true },
+        );
+
+        const isDelayed = await job.isDelayed();
+        expect(isDelayed).toBe(true);
+
+        // result should contain the next job data: [jobData, jobId, limitUntil, delayUntil]
+        expect(result).toBeDefined();
+        expect(Array.isArray(result)).toBe(true);
+        expect(result[1]).toBe(nextJob.id);
+        expect(result[0]).toMatchObject({ name: 'test2' });
+        expect(result[2]).toBe(0);
+        expect(result[3]).toBe(0);
+
+        await worker.close();
+      });
+    });
+
+    describe('when fetchNext is false and another job is waiting', () => {
+      it('does not return next job data', async () => {
+        const worker = new Worker(queueName, null, { connection, prefix });
+        const token = 'my-token';
+
+        await Job.create(queue, 'test', { foo: 'bar' });
+        await Job.create(queue, 'test2', { baz: 'qux' });
+
+        const job = (await worker.getNextJob(token)) as Job;
+
+        const result = await (job as any).scripts.moveToDelayed(
+          job.id,
+          Date.now(),
+          10000,
+          token,
+          { fetchNext: false },
+        );
+
+        const isDelayed = await job.isDelayed();
+        expect(isDelayed).toBe(true);
+
+        // when fetchNext is false, the result should be 0 (success code), not job data
+        expect(result).toBe(0);
+
+        await worker.close();
+      });
+    });
+  });
+
   describe('.changeDelay', () => {
     it('can change delay of a delayed job', async () => {
       // TODO: Move timeout to test options: { timeout: 8000 }
