@@ -1172,6 +1172,7 @@ export class Scripts {
             token,
             lockDuration: workerOpts.lockDuration,
             limiter: workerOpts.limiter,
+            name: workerOpts.name,
           })
         : void 0,
     ]);
