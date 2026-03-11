@@ -5,6 +5,15 @@ services:
     container_name: cache
     ports:
       - 6379:6379
+  dragonfly:
+    image: 'docker.dragonflydb.io/dragonflydb/dragonfly:v1.27.0'
+    ports:
+      - '6380:6379'
+    environment:
+      DFLY_cluster_mode: 'emulated'
+      DFLY_lock_on_hashtags: 'true'
+      DFLY_default_lua_flags: 'allow-undeclared-keys'
+      HEALTHCHECK_PORT: 6379
 
   # Redis Cluster for integration tests
   # Note: On macOS, use `docker-compose --profile cluster up` to start the cluster

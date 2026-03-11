@@ -7,7 +7,6 @@ import {
   afterAll,
   it,
   expect,
-  vi,
 } from 'vitest';
 
 import { v4 } from 'uuid';

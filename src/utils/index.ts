@@ -18,6 +18,7 @@ import { EventEmitter } from 'events';
 import * as semver from 'semver';
 
 import { SpanKind, TelemetryAttributes } from '../enums';
+import { DatabaseType } from '../types';
 
 export const errorObject: { [index: string]: any } = { value: null };
 
@@ -158,7 +159,9 @@ export async function removeAllQueueData(
     return Promise.resolve(false);
   }
   const pattern = `${prefix}:${queueName}:*`;
-  const removing = await new Promise<void>((resolve, reject) => {
+  const pendingOperations: Promise<any>[] = [];
+
+  await new Promise<void>((resolve, reject) => {
     const stream = client.scanStream({
       match: pattern,
     });
@@ -168,16 +171,28 @@ export async function removeAllQueueData(
         keys.forEach(key => {
           pipeline.del(key);
         });
-        pipeline.exec().catch(error => {
+        const execPromise = pipeline.exec().catch(error => {
           reject(error);
+          throw error;
         });
+        pendingOperations.push(execPromise);
       }
     });
     stream.on('end', () => resolve());
     stream.on('error', error => reject(error));
   });
-  await removing;
-  await client.quit();
+
+  // Wait for all pipeline operations to complete before closing the connection
+  await Promise.all(pendingOperations);
+
+  // Handle connection close with better error handling for Dragonfly
+  try {
+    await client.quit();
+  } catch (error) {
+    if (isNotConnectionError(error as Error)) {
+      throw error;
+    }
+  }
 }
 
 export function getParentKey(opts: ParentOptions): string | undefined {
@@ -236,10 +251,15 @@ export const childSend = (
 export const isRedisVersionLowerThan = (
   currentVersion: string,
   minimumVersion: string,
+  currentDatabaseType: DatabaseType,
+  desiredDatabaseType: DatabaseType = 'redis',
 ): boolean => {
-  const version = semver.valid(semver.coerce(currentVersion)) as string;
+  if (currentDatabaseType === desiredDatabaseType) {
+    const version = semver.valid(semver.coerce(currentVersion)) as string;
 
-  return semver.lt(version, minimumVersion);
+    return semver.lt(version, minimumVersion);
+  }
+  return false;
 };
 
 export const parseObjectValues = (obj: {

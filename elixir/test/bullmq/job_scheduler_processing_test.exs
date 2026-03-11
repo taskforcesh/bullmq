@@ -23,18 +23,34 @@ defmodule BullMQ.JobSchedulerProcessingTest do
   setup do
     pool_name = :"scheduler_proc_pool_#{System.unique_integer([:positive])}"
 
-    {:ok, _} =
+    # Start the connection pool - unlink so test cleanup doesn't cascade
+    {:ok, pool_pid} =
       BullMQ.RedisConnection.start_link(
         name: pool_name,
         url: @redis_url,
         pool_size: 5
       )
 
+    Process.unlink(pool_pid)
+
     {:ok, raw_conn} = Redix.start_link(@redis_url)
+    Process.unlink(raw_conn)
+
     queue_name = "proc-queue-#{System.unique_integer([:positive])}"
     ctx = Keys.new(queue_name, prefix: @test_prefix)
 
     on_exit(fn ->
+      # Close the pool (waits for scripts to load)
+      BullMQ.RedisConnection.close(pool_name)
+
+      # Stop the raw connection
+      try do
+        Redix.stop(raw_conn)
+      catch
+        :exit, _ -> :ok
+      end
+
+      # Clean up Redis keys
       case Redix.start_link(@redis_url) do
         {:ok, cleanup_conn} ->
           case Redix.command(cleanup_conn, ["KEYS", "#{@test_prefix}:*"]) do

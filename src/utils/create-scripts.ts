@@ -14,5 +14,6 @@ export const createScripts = (queue: MinimalQueue) => {
     toKey: queue.toKey,
     opts: queue.opts,
     closing: queue.closing,
+    databaseType: queue.databaseType,
   });
 };

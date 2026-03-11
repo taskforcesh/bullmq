@@ -4,6 +4,7 @@ defmodule BullMQ.ConcurrencyScalingTest do
 
   @redis_opts [host: "localhost", port: 6379]
   @moduletag timeout: 300_000
+  @moduletag :slow
 
   test "concurrency scaling from 5 to 100" do
     # Reduced job count and duration for faster testing

@@ -8,7 +8,6 @@ import {
   afterAll,
   it,
   expect,
-  vi,
 } from 'vitest';
 
 import * as sinon from 'sinon';
@@ -1068,7 +1067,7 @@ describe('workers', () => {
       });
       await worker.waitUntilReady();
       const client = await worker.client;
-      if (isRedisVersionLowerThan(worker.redisVersion, '7.0.8')) {
+      if (isRedisVersionLowerThan(worker.redisVersion, '7.0.8', 'redis')) {
         await client.bzpopmin(`key`, 0.002);
       } else {
         await client.bzpopmin(`key`, 0.001);
@@ -1183,7 +1182,13 @@ describe('workers', () => {
           });
           await worker.waitUntilReady();
 
-          if (isRedisVersionLowerThan(worker.redisVersion, '7.0.8')) {
+          if (
+            isRedisVersionLowerThan(
+              worker.redisVersion,
+              '7.0.8',
+              worker.databaseType,
+            )
+          ) {
             expect(worker['getBlockTimeout'](0)).toBe(0.002);
           } else {
             expect(worker['getBlockTimeout'](0)).toBe(0.001);
@@ -1219,7 +1224,13 @@ describe('workers', () => {
           });
           await worker.waitUntilReady();
 
-          if (isRedisVersionLowerThan(worker.redisVersion, '7.0.8')) {
+          if (
+            isRedisVersionLowerThan(
+              worker.redisVersion,
+              '7.0.8',
+              worker.databaseType,
+            )
+          ) {
             expect(worker['getBlockTimeout'](Date.now() + 100)).toBeGreaterThan(
               0.002,
             );
@@ -1727,6 +1738,109 @@ describe('workers', () => {
         const count = 0;
         await testWorkerRemoveOnFinish({ count }, count, true);
       });
+
+      it('should not leave orphaned job data when limit is less than removable jobs', async () => {
+        const limit = 2;
+        const age = 1; // 1 second
+
+        const totalJobs = 10;
+
+        const worker = new Worker(queueName, async () => {}, {
+          connection,
+          prefix,
+          removeOnComplete: { age, limit },
+          concurrency: 1,
+        });
+        await worker.waitUntilReady();
+
+        // Phase 1: Add and process a batch of jobs (they all complete quickly)
+        const initialJobIds: string[] = [];
+        for (let i = 0; i < totalJobs; i++) {
+          const job = await queue.add('test', { phase: 1, i });
+          initialJobIds.push(job.id!);
+        }
+
+        // Wait for all initial jobs to complete
+        await new Promise<void>(resolve => {
+          const checkCompleted = async () => {
+            const counts = await queue.getJobCounts('completed');
+            if (counts.completed >= totalJobs) {
+              resolve();
+            } else {
+              setTimeout(checkCompleted, 50);
+            }
+          };
+          checkCompleted();
+        });
+
+        // Phase 2: Wait for all jobs to age out (> age seconds)
+        await delay(age * 1000 + 500);
+
+        // Phase 3: Add one more job to trigger cleanup
+        const triggerJob = await queue.add('test', { phase: 2, trigger: true });
+
+        // Wait for trigger job to complete
+        await new Promise<void>(resolve => {
+          const checkCompleted = async () => {
+            const job = await queue.getJob(triggerJob.id!);
+            if (job?.finishedOn) {
+              resolve();
+            } else {
+              setTimeout(checkCompleted, 50);
+            }
+          };
+          checkCompleted();
+        });
+
+        // Give a small margin for cleanup to finish
+        await delay(200);
+
+        const client = await queue.client;
+
+        // Count job hash keys that still exist in Redis
+        const existingJobKeys = await Promise.all(
+          initialJobIds.map(async jobId => {
+            const exists = await client.exists(
+              `${prefix}:${queue.name}:${jobId}`,
+            );
+            return exists;
+          }),
+        );
+        const orphanedCount = existingJobKeys.reduce(
+          (sum, exists) => sum + exists,
+          0,
+        );
+
+        // With the bug: ZREMRANGEBYSCORE removes ALL old entries from the
+        // sorted set but only `limit` job hashes are actually deleted.
+        // So we'd have orphaned hashes (exist in Redis but not in the set).
+        //
+        // With the fix: only `limit` entries are removed from the sorted set
+        // (via ZREM), matching exactly the jobs whose hash data was cleaned.
+        // Remaining old jobs stay in the set for future cleanup iterations.
+        //
+        // Assert: the number of existing initial job hashes should equal the
+        // number of initial jobs still tracked in the completed sorted set.
+        // (The trigger job may also be in the set, so we compare only
+        // initial jobs.)
+        const initialJobsInSet = await Promise.all(
+          initialJobIds.map(async jobId => {
+            const score = await client.zscore(
+              `${prefix}:${queue.name}:completed`,
+              jobId,
+            );
+            return score !== null ? 1 : 0;
+          }),
+        );
+        const initialJobsInSetCount = initialJobsInSet.reduce(
+          (sum, v) => sum + v,
+          0,
+        );
+
+        expect(orphanedCount).toBe(initialJobsInSetCount);
+
+        await worker.close();
+      });
     });
   });
 
@@ -1968,16 +2082,18 @@ describe('workers', () => {
     it('should not close the connection', async () => {
       const connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
 
-      return new Promise((resolve, reject) => {
+      return new Promise<void>((resolve, reject) => {
         connection.on('ready', async () => {
           const worker1 = new Worker('test-shared', null, {
             connection,
             prefix,
           });
+          await worker1.waitUntilReady();
           const worker2 = new Worker('test-shared', null, {
             connection,
             prefix,
           });
+          await worker2.waitUntilReady();
 
           try {
             // There is no point into checking the ready status after closing
@@ -5173,7 +5289,14 @@ describe('workers', () => {
           },
         });
 
-      if (isRedisVersionLowerThan(childrenWorker.redisVersion, '7.2.0')) {
+      if (
+        isRedisVersionLowerThan(
+          childrenWorker.redisVersion,
+          '7.2.0',
+          childrenWorker.databaseType,
+        ) ||
+        childrenWorker.databaseType === 'dragonfly'
+      ) {
         expect(unprocessed1!.length).to.be.greaterThanOrEqual(50);
         expect(nextCursor1).not.toBe(0);
       } else {
@@ -5189,7 +5312,14 @@ describe('workers', () => {
           },
         });
 
-      if (isRedisVersionLowerThan(childrenWorker.redisVersion, '7.2.0')) {
+      if (
+        isRedisVersionLowerThan(
+          childrenWorker.redisVersion,
+          '7.2.0',
+          childrenWorker.databaseType,
+        ) ||
+        childrenWorker.databaseType === 'dragonfly'
+      ) {
         expect(unprocessed2!.length).to.be.lessThanOrEqual(15);
         expect(nextCursor2).toBe(0);
       } else {

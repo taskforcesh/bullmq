@@ -29,7 +29,9 @@ defmodule BullMQ.RedisBaselineTest do
 
   test "RedisConnection pool throughput" do
     conn_name = :"baseline_conn_#{:erlang.unique_integer([:positive])}"
-    {:ok, _} = RedisConnection.start_link(Keyword.merge(@redis_opts, name: conn_name))
+    {:ok, pool_pid} = RedisConnection.start_link(Keyword.merge(@redis_opts, name: conn_name))
+
+    Process.unlink(pool_pid)
 
     # Warm up
     for _ <- 1..100, do: RedisConnection.command(conn_name, ["PING"])
@@ -47,6 +49,8 @@ defmodule BullMQ.RedisBaselineTest do
     IO.puts("#{iterations} PING: #{Float.round(elapsed / 1000, 1)}ms")
     IO.puts("Throughput: #{Float.round(iterations * 1_000_000 / elapsed, 0)} ops/sec")
     IO.puts("Avg latency: #{Float.round(elapsed / iterations, 1)}μs")
+
+    RedisConnection.close(conn_name)
   end
 
   test "Lua script execution throughput" do

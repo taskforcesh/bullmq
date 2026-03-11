@@ -4,10 +4,6 @@ description: BullMQ is now also available as an experimental python package.
 
 # Introduction
 
-{% hint style="info" %}
-The Python package is still in early development and is not recommended for production deployment just yet. In the following months, we will be hardening the code and adding more testing and we expect to have a production-ready package although not all the features are available as in the NodeJS version.
-{% endhint %}
-
 ### Installation
 
 BullMQ is delivered as a pip package and can thus be installed using pip:
@@ -77,5 +73,5 @@ if __name__ == "__main__":
 ```
 
 {% hint style="warning" %}
-If Redis responses are in binary format, you should pass (decode_responses)[https://redis-py.readthedocs.io/en/latest/examples/connection_examples.html#By-default-Redis-return-binary-responses,-to-decode-them-use-decode_responses=True] option as *True*.
+If Redis responses are in binary format, you should pass (decode_responses)[https://redis-py.readthedocs.io/en/latest/examples/connection_examples.html#By-default-Redis-return-binary-responses,-to-decode-them-use-decode_responses=True] option as _True_.
 {% endhint %}

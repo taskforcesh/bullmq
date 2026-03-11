@@ -28,7 +28,7 @@
     </a>
   </p>
   <p>
-    <em>Follow <a href="https://twitter.com/manast">@manast</a> for *important* Bull/BullMQ/BullMQ-Pro news and updates!</em>
+    <em><a href="https://x.com/bullmqhq">Follow Us</a> for *important* Bull/BullMQ/BullMQ-Pro news and updates!</em>
   </p>
 </div>
 

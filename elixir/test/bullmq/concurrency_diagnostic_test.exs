@@ -3,7 +3,7 @@ defmodule BullMQ.ConcurrencyDiagnosticTest do
   alias BullMQ.{Worker, Queue, RedisConnection}
 
   @moduletag timeout: 120_000
-
+  @moduletag :slow
   @redis_opts [host: "localhost", port: 6379]
 
   setup do

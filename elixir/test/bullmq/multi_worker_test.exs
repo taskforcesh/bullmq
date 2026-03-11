@@ -11,6 +11,7 @@ defmodule BullMQ.MultiWorkerTest do
 
   @redis_opts [host: "localhost", port: 6379]
   @moduletag timeout: 300_000
+  @moduletag :slow
 
   test "multiple workers vs single worker at high concurrency" do
     job_duration_ms = 100

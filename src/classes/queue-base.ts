@@ -19,6 +19,7 @@ import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { Scripts } from './scripts';
 import { SpanKind } from '../enums';
+import { DatabaseType } from '../types/database-type';
 
 /**
  * Base class for all classes that need to interact with queues.
@@ -102,6 +103,13 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
    */
   get redisVersion(): string {
     return this.connection.redisVersion;
+  }
+
+  /**
+   * Returns the database type of the Redis instance the client is connected to,
+   */
+  get databaseType(): DatabaseType {
+    return this.connection.databaseType;
   }
 
   /**

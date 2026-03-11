@@ -219,12 +219,12 @@ jobs = for i <- 1..100_000, do: {"job", %{index: i}, []}
 
 ### Bulk Options
 
-| Option            | Default | Description                                      |
-| ----------------- | ------- | ------------------------------------------------ |
-| `pipeline`        | `true`  | Use transactional pipelining (4x faster, atomic) |
-| `chunk_size`      | `100`   | Jobs per transaction batch                       |
-| `connection_pool` | `nil`   | List of connections for parallel processing      |
-| `concurrency`     | `8`     | Max parallel tasks                               |
+| Option              | Default  | Description                                                                                                                                                   |
+| ------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pipeline`          | `true`   | Use pipelining for efficiency                                                                                                                                 |
+| `atomic`            | `true`   | Wrap batches in MULTI/EXEC transactions. When `false`, uses plain pipelines (slightly faster, not atomic). With `connection_pool`, each batch is independent. |
+| `connection_pool`   | `nil`    | List of connections for parallel processing                                                                                                                   |
+| `max_pipeline_size` | `10_000` | Maximum jobs per pipeline batch                                                                                                                               |
 
 See [Benchmarks](benchmarks.md#bulk-job-addition-performance) for detailed performance data.
 

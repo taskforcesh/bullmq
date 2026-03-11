@@ -29,12 +29,8 @@ defmodule BullMQ.ManualProcessingTest do
     Process.unlink(pool_pid)
 
     on_exit(fn ->
-      # Stop the pool first
-      try do
-        Supervisor.stop(pool_pid, :normal, 1000)
-      catch
-        :exit, _ -> :ok
-      end
+      # Close the pool (waits for scripts to load)
+      BullMQ.RedisConnection.close(pool_name)
 
       # Clean up Redis keys
       case Redix.start_link(@redis_url) do

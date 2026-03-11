@@ -12,6 +12,7 @@ defmodule BullMQ.StressTest do
   @moduletag :stress
   # 5 minutes max
   @moduletag timeout: 300_000
+  @moduletag :slow
 
   @redis_opts [host: "localhost", port: 6379]
 

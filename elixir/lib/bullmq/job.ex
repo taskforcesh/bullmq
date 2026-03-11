@@ -173,7 +173,7 @@ defmodule BullMQ.Job do
     opts = opts_to_map(opts)
 
     %__MODULE__{
-      id: Map.get(opts, :job_id) || generate_id(),
+      id: Map.get(opts, :job_id),
       name: name,
       data: data,
       queue_name: queue_name,
@@ -1035,8 +1035,4 @@ defmodule BullMQ.Job do
     do: Map.put(map, key, to_string(value))
 
   defp maybe_put(map, key, value, _default), do: Map.put(map, key, value)
-
-  defp generate_id do
-    Base.encode16(:crypto.strong_rand_bytes(12), case: :lower)
-  end
 end

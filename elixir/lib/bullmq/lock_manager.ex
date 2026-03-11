@@ -224,15 +224,10 @@ defmodule BullMQ.LockManager do
     tokens = Enum.map(jobs_to_extend, fn {_id, token} -> token end)
 
     case Scripts.extend_locks(state.connection, state.keys, job_ids, tokens, state.lock_duration) do
-      {:ok, results} when is_list(results) ->
-        # Results contain 1 for success, 0 for failure per job
-        {succeeded, failed} =
-          job_ids
-          |> Enum.zip(results)
-          |> Enum.split_with(fn {_id, result} -> result == 1 or result == "1" end)
-
-        succeeded_ids = Enum.map(succeeded, fn {id, _} -> id end)
-        failed_ids = Enum.map(failed, fn {id, _} -> id end)
+      {:ok, failed_job_ids} when is_list(failed_job_ids) ->
+        # Script returns a list of job IDs that failed (empty list = all succeeded)
+        failed_ids = Enum.map(failed_job_ids, &to_string/1)
+        succeeded_ids = job_ids -- failed_ids
 
         # Update state with failed jobs removed
         updated_state =

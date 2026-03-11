@@ -1,7 +1,6 @@
 from __future__ import annotations
 from typing import List, Any, TYPE_CHECKING
 from bullmq.custom_errors import UnrecoverableError
-from bullmq.scripts import Scripts
 from bullmq.backoffs import Backoffs
 if TYPE_CHECKING:
     from bullmq.queue import Queue
@@ -62,7 +61,7 @@ class Job:
         parent = opts.get("parent")
         self.parentKey = get_parent_key(parent)
         self.parent = {"id": parent.get("id"), "queueKey": parent.get("queue")} if parent else None
-        
+
         # Validate mutually exclusive parent-related options
         exclusive_options = [
             'removeDependencyOnFailure',
@@ -71,11 +70,11 @@ class Job:
             'ignoreDependencyOnFailure',
         ]
         enabled_exclusive_options = [opt for opt in exclusive_options if opts.get(opt)]
-        
+
         if len(enabled_exclusive_options) > 1:
             options_list = ', '.join(enabled_exclusive_options)
             raise ValueError(f"The following options cannot be used together: {options_list}")
-        
+
         # Add parent-related options to the parent object if they exist
         if self.parent:
             if opts.get("failParentOnFailure"):
@@ -86,14 +85,14 @@ class Job:
                 self.parent["idof"] = True
             if opts.get("continueParentOnFailure"):
                 self.parent["cpof"] = True
-        
+
         self.stacktrace: List[str] = []
-        
+
         # Extract deduplication ID from options
         deduplication = opts.get("deduplication")
         self.deduplication_id = deduplication.get("id") if deduplication and isinstance(deduplication, dict) else None
-        
-        self.scripts = Scripts(queue.prefix, queue.name, queue.redisConnection)
+        # Reuse the queue's Scripts instance instead of creating a new one
+        self.scripts = queue.scripts
         self.queueQualifiedName = queue.qualifiedName
 
     def updateData(self, data):

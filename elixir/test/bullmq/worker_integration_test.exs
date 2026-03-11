@@ -19,15 +19,29 @@ defmodule BullMQ.WorkerIntegrationTest do
   @redis_url BullMQ.TestHelper.redis_url()
   @test_prefix BullMQ.TestHelper.test_prefix() <> "_worker"
 
-  setup do
+  # Use setup_all to create a shared cleanup connection that persists across all tests
+  # This avoids creating/destroying connections during on_exit which can cause connection storms
+  setup_all do
+    {:ok, cleanup_conn} = Redix.start_link(@redis_url)
+
+    on_exit(fn ->
+      Redix.stop(cleanup_conn)
+    end)
+
+    %{cleanup_conn: cleanup_conn}
+  end
+
+  setup %{cleanup_conn: cleanup_conn} do
     pool_name = :"worker_pool_#{System.unique_integer([:positive])}"
 
     # Start the connection pool - unlink so test cleanup doesn't cascade
+    # Use pool_size: 1 for most tests - sufficient for single-worker scenarios.
+    # See "Production-like pool concurrency" describe block for pool_size: 5 tests.
     {:ok, pool_pid} =
       BullMQ.RedisConnection.start_link(
         name: pool_name,
         url: @redis_url,
-        pool_size: 5
+        pool_size: 1
       )
 
     Process.unlink(pool_pid)
@@ -35,25 +49,18 @@ defmodule BullMQ.WorkerIntegrationTest do
     queue_name = "worker-queue-#{System.unique_integer([:positive])}"
 
     on_exit(fn ->
-      # Stop the pool first
-      try do
-        Supervisor.stop(pool_pid, :normal, 1000)
-      catch
-        :exit, _ -> :ok
-      end
+      # Close the pool
+      BullMQ.RedisConnection.close(pool_name)
 
-      # Clean up Redis keys
-      case Redix.start_link(@redis_url) do
-        {:ok, cleanup_conn} ->
-          case Redix.command(cleanup_conn, ["KEYS", "#{@test_prefix}:*"]) do
-            {:ok, keys} when keys != [] ->
-              Redix.command(cleanup_conn, ["DEL" | keys])
+      # Allow time for OS/Docker to release sockets - macOS/Docker needs this
+      Process.sleep(50)
 
-            _ ->
-              :ok
-          end
-
-          Redix.stop(cleanup_conn)
+      # Clean up Redis keys using the shared cleanup connection
+      # Note: We don't create new connections here to avoid connection storms
+      # The cleanup_conn from setup_all handles this
+      case Redix.command(cleanup_conn, ["KEYS", "#{@test_prefix}:*"]) do
+        {:ok, keys} when keys != [] ->
+          Redix.command(cleanup_conn, ["DEL" | keys])
 
         _ ->
           :ok
@@ -2140,6 +2147,219 @@ defmodule BullMQ.WorkerIntegrationTest do
       assert Enum.sort(results) == [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
       Enum.each(workers, &Worker.close/1)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Production-like pool concurrency tests (pool_size: 5)
+  # ---------------------------------------------------------------------------
+
+  describe "Production-like pool concurrency" do
+    @tag :integration
+    @tag timeout: 15_000
+    test "high-concurrency worker with pool_size 5 processes all jobs", %{
+      cleanup_conn: cleanup_conn
+    } do
+      test_pid = self()
+      pool_name = :"prod_pool_#{System.unique_integer([:positive])}"
+      queue_name = "prod-conc-queue-#{System.unique_integer([:positive])}"
+
+      {:ok, pool_pid} =
+        BullMQ.RedisConnection.start_link(
+          name: pool_name,
+          url: @redis_url,
+          pool_size: 5
+        )
+
+      Process.unlink(pool_pid)
+
+      on_exit(fn ->
+        BullMQ.RedisConnection.close(pool_name)
+        Process.sleep(50)
+
+        case Redix.command(cleanup_conn, ["KEYS", "#{@test_prefix}:*"]) do
+          {:ok, keys} when keys != [] -> Redix.command(cleanup_conn, ["DEL" | keys])
+          _ -> :ok
+        end
+      end)
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: pool_name,
+          prefix: @test_prefix,
+          concurrency: 10,
+          processor: fn job ->
+            # Simulate variable work to exercise pool checkout contention
+            Process.sleep(Enum.random(10..50))
+            {:ok, job.data["idx"]}
+          end,
+          on_completed: fn _job, result ->
+            send(test_pid, {:completed, result})
+          end
+        )
+
+      # Add 50 jobs - enough to exercise pool contention with 10 concurrent workers
+      jobs = Enum.map(1..50, fn i -> {"prod-job", %{idx: i}, []} end)
+      {:ok, _} = Queue.add_bulk(queue_name, jobs, connection: pool_name, prefix: @test_prefix)
+
+      results =
+        for _ <- 1..50 do
+          receive do
+            {:completed, idx} -> idx
+          after
+            10_000 -> flunk("Timeout waiting for job completion")
+          end
+        end
+
+      assert Enum.sort(results) == Enum.to_list(1..50)
+
+      Worker.close(worker)
+    end
+
+    @tag :integration
+    @tag timeout: 20_000
+    test "multiple workers sharing pool_size 5 under contention", %{
+      cleanup_conn: cleanup_conn
+    } do
+      test_pid = self()
+      pool_name = :"prod_shared_pool_#{System.unique_integer([:positive])}"
+      queue_name = "prod-shared-queue-#{System.unique_integer([:positive])}"
+
+      {:ok, pool_pid} =
+        BullMQ.RedisConnection.start_link(
+          name: pool_name,
+          url: @redis_url,
+          pool_size: 5
+        )
+
+      Process.unlink(pool_pid)
+
+      on_exit(fn ->
+        BullMQ.RedisConnection.close(pool_name)
+        Process.sleep(50)
+
+        case Redix.command(cleanup_conn, ["KEYS", "#{@test_prefix}:*"]) do
+          {:ok, keys} when keys != [] -> Redix.command(cleanup_conn, ["DEL" | keys])
+          _ -> :ok
+        end
+      end)
+
+      # Start 3 workers each with concurrency 5, all sharing the same 5-connection pool
+      # This creates heavy pool contention: 15 potential concurrent checkouts on 5 connections
+      workers =
+        for _i <- 1..3 do
+          {:ok, w} =
+            Worker.start_link(
+              queue: queue_name,
+              connection: pool_name,
+              prefix: @test_prefix,
+              concurrency: 5,
+              processor: fn job ->
+                Process.sleep(Enum.random(20..80))
+                {:ok, job.data["idx"]}
+              end,
+              on_completed: fn _job, result ->
+                send(test_pid, {:completed, result})
+              end
+            )
+
+          w
+        end
+
+      # Add 30 jobs across the shared queue
+      jobs = Enum.map(1..30, fn i -> {"shared-job", %{idx: i}, []} end)
+      {:ok, _} = Queue.add_bulk(queue_name, jobs, connection: pool_name, prefix: @test_prefix)
+
+      results =
+        for _ <- 1..30 do
+          receive do
+            {:completed, idx} -> idx
+          after
+            15_000 -> flunk("Timeout waiting for job completion")
+          end
+        end
+
+      assert Enum.sort(results) == Enum.to_list(1..30)
+
+      Enum.each(workers, &Worker.close/1)
+    end
+
+    @tag :integration
+    @tag timeout: 15_000
+    test "concurrent add_bulk and processing with pool_size 5", %{
+      cleanup_conn: cleanup_conn
+    } do
+      test_pid = self()
+      pool_name = :"prod_bulk_pool_#{System.unique_integer([:positive])}"
+      queue_name = "prod-bulk-queue-#{System.unique_integer([:positive])}"
+
+      {:ok, pool_pid} =
+        BullMQ.RedisConnection.start_link(
+          name: pool_name,
+          url: @redis_url,
+          pool_size: 5
+        )
+
+      Process.unlink(pool_pid)
+
+      on_exit(fn ->
+        BullMQ.RedisConnection.close(pool_name)
+        Process.sleep(50)
+
+        case Redix.command(cleanup_conn, ["KEYS", "#{@test_prefix}:*"]) do
+          {:ok, keys} when keys != [] -> Redix.command(cleanup_conn, ["DEL" | keys])
+          _ -> :ok
+        end
+      end)
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: pool_name,
+          prefix: @test_prefix,
+          concurrency: 8,
+          processor: fn job ->
+            Process.sleep(Enum.random(5..30))
+            {:ok, job.data["batch"]}
+          end,
+          on_completed: fn _job, result ->
+            send(test_pid, {:completed, result})
+          end
+        )
+
+      # Fire multiple add_bulk calls concurrently - exercises pool contention
+      # between enqueuing and processing simultaneously
+      tasks =
+        for batch <- 1..5 do
+          Task.async(fn ->
+            jobs = Enum.map(1..10, fn _i -> {"batch-job", %{batch: batch}, []} end)
+            Queue.add_bulk(queue_name, jobs, connection: pool_name, prefix: @test_prefix)
+          end)
+        end
+
+      # Await all bulk inserts
+      Enum.each(tasks, fn task -> {:ok, _} = Task.await(task, 10_000) end)
+
+      # Collect all 50 completions
+      results =
+        for _ <- 1..50 do
+          receive do
+            {:completed, batch} -> batch
+          after
+            10_000 -> flunk("Timeout waiting for job completion")
+          end
+        end
+
+      # Each batch (1..5) should appear exactly 10 times
+      freq = Enum.frequencies(results)
+
+      for batch <- 1..5 do
+        assert freq[batch] == 10,
+               "Expected batch #{batch} to have 10 completions, got #{freq[batch] || 0}"
+      end
+
+      Worker.close(worker)
     end
   end
 

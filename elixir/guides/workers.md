@@ -47,7 +47,8 @@ end
   on_active: fn job -> ... end,
   on_stalled: fn job_id -> ... end,
   on_error: fn error -> ... end,
-  on_progress: fn job, progress -> ... end
+  on_progress: fn job, progress -> ... end,
+  on_lock_renewal_failed: fn job_ids -> ... end
 )
 ```
 
@@ -507,6 +508,77 @@ job.attempts_made      # Number of attempts so far
   on_failed: fn job, reason ->
     Logger.error("Job #{job.id} failed permanently: #{reason}")
     MyApp.Alerts.notify("Critical job failed", job: job, reason: reason)
+  end
+)
+```
+
+## Connection Error Handling
+
+BullMQ follows the same philosophy as Redix for connection error handling:
+
+- **Supervised connections** - Redis connections automatically reconnect when the TCP connection drops
+- **Fail-fast** - Commands fail immediately if the connection is unavailable (no hidden retries)
+- **Caller handles retries** - The Worker automatically retries failed jobs based on job configuration
+
+This design follows Erlang/OTP principles: let the connection supervision handle reconnection,
+and let callers (the Worker) decide retry policy based on job-specific needs.
+
+### Connection Errors in Processors
+
+If your processor makes Redis calls and the connection drops, the job will fail and be retried
+according to the job's retry configuration:
+
+```elixir
+def process(job) do
+  # If Redis is down, this will return {:error, %Redix.ConnectionError{}}
+  # which will trigger a job retry (if attempts remaining)
+  case BullMQ.RedisConnection.command(:my_redis, ["GET", "cache:#{job.data["key"]}"]) do
+    {:ok, cached} ->
+      {:ok, %{cached: true, value: cached}}
+
+    {:error, %Redix.ConnectionError{}} ->
+      # Let the job retry system handle this
+      {:error, :redis_connection_error}
+
+    {:error, reason} ->
+      {:error, reason}
+  end
+end
+```
+
+### Configuring Retries for Transient Failures
+
+For jobs that may fail due to transient connection issues, configure appropriate retry settings:
+
+```elixir
+{:ok, job} = BullMQ.Queue.add("my-queue", "job", %{data: "value"},
+  connection: :my_redis,
+  attempts: 5,
+  backoff: %{
+    type: :exponential,
+    delay: 1000  # Start with 1 second, doubles each retry
+  }
+)
+```
+
+### Monitoring Connection Health
+
+Use the `on_error` callback to monitor worker-level errors including connection issues:
+
+```elixir
+{:ok, worker} = BullMQ.Worker.start_link(
+  queue: "my-queue",
+  connection: :my_redis,
+  processor: &MyApp.process/1,
+  on_error: fn error ->
+    case error do
+      %Redix.ConnectionError{reason: reason} ->
+        Logger.error("Redis connection error: #{inspect(reason)}")
+        MyApp.Alerts.notify(:redis_connection_error, reason)
+
+      _ ->
+        Logger.error("Worker error: #{inspect(error)}")
+    end
   end
 )
 ```

@@ -25,17 +25,22 @@ defmodule BullMQ.RateLimiterIntegrationTest do
     # Start a named Redis connection pool for this test
     pool_name = :"rate_limit_pool_#{System.unique_integer([:positive])}"
 
-    {:ok, _} =
+    {:ok, pool_pid} =
       BullMQ.RedisConnection.start_link(
         name: pool_name,
         url: @redis_url,
         pool_size: 5
       )
 
+    Process.unlink(pool_pid)
+
     queue_name = "rate-limit-queue-#{System.unique_integer([:positive])}"
     ctx = Keys.new(queue_name, prefix: @test_prefix)
 
     on_exit(fn ->
+      # Close the pool (waits for scripts to load)
+      BullMQ.RedisConnection.close(pool_name)
+
       # Cleanup test keys
       case Redix.start_link(@redis_url) do
         {:ok, cleanup_conn} ->
@@ -85,6 +90,7 @@ defmodule BullMQ.RateLimiterIntegrationTest do
           queue: queue_name,
           connection: conn,
           prefix: @test_prefix,
+          drain_delay: 0.5,
           processor: fn _job -> :ok end,
           limiter: %{max: 1, duration: duration}
         )
@@ -142,6 +148,7 @@ defmodule BullMQ.RateLimiterIntegrationTest do
           queue: queue_name,
           connection: conn,
           prefix: @test_prefix,
+          drain_delay: 0.5,
           processor: fn _job -> :ok end,
           limiter: %{max: max_per_window, duration: duration}
         )
@@ -189,6 +196,7 @@ defmodule BullMQ.RateLimiterIntegrationTest do
           queue: queue_name,
           connection: conn,
           prefix: @test_prefix,
+          drain_delay: 0.5,
           concurrency: 5,
           processor: fn _job ->
             Process.sleep(200)
@@ -256,6 +264,7 @@ defmodule BullMQ.RateLimiterIntegrationTest do
           queue: queue_name,
           connection: conn,
           prefix: @test_prefix,
+          drain_delay: 0.5,
           processor: fn _job ->
             # Use Scripts module directly to check TTL
             {:ok, current_ttl} = Scripts.get_rate_limit_ttl(conn, ctx)
@@ -316,6 +325,7 @@ defmodule BullMQ.RateLimiterIntegrationTest do
           queue: queue_name,
           connection: conn,
           prefix: @test_prefix,
+          drain_delay: 0.5,
           processor: fn _job ->
             [{:count, count}] = :ets.lookup(attempt_count, :count)
             :ets.insert(attempt_count, {:count, count + 1})
@@ -368,6 +378,7 @@ defmodule BullMQ.RateLimiterIntegrationTest do
           queue: queue_name,
           connection: conn,
           prefix: @test_prefix,
+          drain_delay: 0.5,
           processor: fn _job -> :ok end,
           # 1 minute
           limiter: %{max: 1, duration: 60_000}

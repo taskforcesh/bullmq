@@ -23,7 +23,7 @@ describe('Job', () => {
 
   let queue: Queue;
   let queueName: string;
-  let connection;
+  let connection: IORedis;
   beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
@@ -57,13 +57,13 @@ describe('Job', () => {
     });
 
     it('saves the job in redis', async () => {
-      const storedJob = await Job.fromId(queue, job.id);
+      const storedJob = await Job.fromId(queue, job.id!);
       expect(storedJob).toHaveProperty('id');
       expect(storedJob).toHaveProperty('data');
 
-      expect(storedJob.data.foo).toBe('bar');
-      expect(storedJob.opts).toBeTypeOf('object');
-      expect(storedJob.opts.timestamp).toBe(timestamp);
+      expect(storedJob!.data.foo).toBe('bar');
+      expect(storedJob!.opts).toBeTypeOf('object');
+      expect(storedJob!.opts.timestamp).toBe(timestamp);
     });
 
     it('should use the custom jobId if one is provided', async () => {
@@ -208,12 +208,40 @@ describe('Job', () => {
       });
     });
 
+    describe('when deduplication and parent options are provided', () => {
+      it('throws an error', async () => {
+        const data = { foo: 'bar' };
+        const parentJob = await Job.create(queue, 'parent', {});
+        const opts = {
+          deduplication: { id: 'dedup-id' },
+          parent: { id: parentJob.id!, queue: `${prefix}:${queueName}` },
+        };
+        await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
+          'Deduplication and parent options cannot be used together',
+        );
+      });
+    });
+
     describe('when debounce id option is provided as empty string', () => {
       it('throws an error', async () => {
         const data = { foo: 'bar' };
         const opts = { debounce: { id: '' } };
         await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
           'Debounce id must be provided',
+        );
+      });
+    });
+
+    describe('when debounce and parent options are provided', () => {
+      it('throws an error', async () => {
+        const data = { foo: 'bar' };
+        const parentJob = await Job.create(queue, 'parent', {});
+        const opts = {
+          debounce: { id: 'debounce-id' },
+          parent: { id: parentJob.id!, queue: `${prefix}:${queueName}` },
+        };
+        await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
+          'Debounce and parent options cannot be used together',
         );
       });
     });
@@ -381,19 +409,19 @@ describe('Job', () => {
       await removeAllQueueData(new IORedis(redisHost), parentQueueName);
     });
 
-    it('removes 4000 jobs in time rage of 4000ms', async () => {
+    it('removes 4000 jobs in time range of 4000ms', async () => {
       // TODO: Move timeout to test options: { timeout: 8000 }
       const numJobs = 4000;
 
       // Create waiting jobs
-      const jobsData = Array.from(Array(numJobs).keys()).map(index => ({
+      const jobsData = Array.from(Array(numJobs / 2).keys()).map(index => ({
         name: 'test',
         data: { order: numJobs - index },
       }));
       const waitingJobs = await queue.addBulk(jobsData);
 
       // Creating delayed jobs
-      const jobsDataWithDelay = Array.from(Array(numJobs).keys()).map(
+      const jobsDataWithDelay = Array.from(Array(numJobs / 2).keys()).map(
         index => ({
           name: 'test',
           data: { order: numJobs - index },

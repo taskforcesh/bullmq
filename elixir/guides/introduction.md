@@ -78,6 +78,17 @@ The Elixir port leverages OTP patterns:
 - **Telemetry** for observability
 - **True Parallelism** using multiple BEAM processes for concurrent job processing
 
+### Lua Scripts
+
+BullMQ relies heavily on Lua scripts for atomic Redis operations. All scripts are
+automatically loaded into Redis's script cache when the connection starts, ensuring
+the connection is fully ready for BullMQ operations before it's used.
+
+Unlike Node.js BullMQ which uses ioredis's `defineCommand` to pre-register scripts
+client-side, the Elixir version loads scripts via `SCRIPT LOAD` during initialization
+and uses `EVALSHA` for execution. If Redis is restarted and loses its script cache,
+the `EVALSHA` will automatically fall back to `EVAL`.
+
 ## API Design
 
 BullMQ for Elixir provides both stateless and stateful APIs:
@@ -116,6 +127,18 @@ Workers and QueueEvents run as supervised processes:
   connection: :my_redis
 )
 ```
+
+## Connection Behavior
+
+BullMQ follows idiomatic Erlang/OTP and Redix connection patterns:
+
+- **Supervised** - Redis connections are supervised and automatically reconnect on TCP drops
+- **Fail-fast** - Commands fail immediately if the connection is unavailable (no hidden retries)
+- **Caller-controlled retries** - Workers handle job retries based on job configuration
+
+This means transient Redis connection issues cause jobs to fail and be retried according
+to their retry settings. See [Workers - Connection Error Handling](workers.md#connection-error-handling)
+for details on configuring retry behavior for connection failures.
 
 ## Next Steps
 

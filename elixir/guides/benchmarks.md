@@ -332,21 +332,21 @@ BullMQ Elixir's `add_bulk/3` function uses Redis MULTI/EXEC transactions for ato
 
 Testing with 100,000 jobs:
 
-| Method            | Connections | Throughput     | Speedup   |
-| ----------------- | ----------- | -------------- | --------- |
-| Sequential        | 1           | 5,700 j/s      | 1.0x      |
-| Transactional     | 1           | 24,000 j/s     | 4.2x      |
-| Transactional     | 2           | 39,000 j/s     | 6.8x      |
-| Transactional     | 4           | 54,000 j/s     | 9.5x      |
-| **Transactional** | **8**       | **58,000 j/s** | **10.2x** |
-| Transactional     | 16          | 56,000 j/s     | 9.8x      |
+| Method     | Connections | Throughput     | Speedup   |
+| ---------- | ----------- | -------------- | --------- |
+| Sequential | 1           | 5,700 j/s      | 1.0x      |
+| Atomic     | 1           | 24,000 j/s     | 4.2x      |
+| Atomic     | 2           | 39,000 j/s     | 6.8x      |
+| Atomic     | 4           | 54,000 j/s     | 9.5x      |
+| **Atomic** | **8**       | **58,000 j/s** | **10.2x** |
+| Atomic     | 16          | 56,000 j/s     | 9.8x      |
 
 **Key findings:**
 
 1. **Transactions give 4x speedup** - Batching Redis commands into atomic MULTI/EXEC transactions
-2. **Atomic guarantees** - Each chunk of jobs is added atomically (all or nothing)
+2. **Atomic guarantees** - Each batch of jobs is added atomically (all or nothing)
 3. **Saturation at 4-8 connections** - Beyond 8 connections, throughput plateaus
-4. **Default settings are optimal** - `chunk_size: 100` and `concurrency: 8` hit peak performance
+4. **Default settings are optimal** - `atomic: true` and `max_pipeline_size: 10_000` hit peak performance
 
 ### How It Works
 
@@ -354,16 +354,16 @@ Testing with 100,000 jobs:
 Sequential (5,700 j/s):
   Job1 → Redis → Response → Job2 → Redis → Response → ...
 
-Transactional (24,000 j/s):
-  MULTI → [Job1, Job2, ..., Job100] → EXEC → [Response1, ..., Response100]
-  (all 100 jobs added atomically)
+Atomic (24,000 j/s):
+  MULTI → [Job1, Job2, ..., JobN] → EXEC → [Response1, ..., ResponseN]
+  (all jobs in batch added atomically)
 
-Parallel Transactional (58,000 j/s):
-  Conn1: MULTI [Jobs 1-100] EXEC   → Redis →
-  Conn2: MULTI [Jobs 101-200] EXEC → Redis →  All in parallel
-  Conn3: MULTI [Jobs 201-300] EXEC → Redis →
+Parallel Atomic (58,000 j/s):
+  Conn1: MULTI [Jobs batch 1] EXEC   → Redis →
+  Conn2: MULTI [Jobs batch 2] EXEC   → Redis →  All in parallel
+  Conn3: MULTI [Jobs batch 3] EXEC   → Redis →
   ...
-  (each chunk is atomic)
+  (each connection's batch is atomic)
 ```
 
 ### Using Connection Pools
@@ -379,24 +379,23 @@ pool = for i <- 1..8 do
 end
 
 # Add jobs with parallel processing
-# Each chunk of 100 jobs is added atomically
+# Each batch is added atomically (default: atomic: true)
 jobs = for i <- 1..100_000, do: {"job", %{index: i}, []}
 
 {:ok, added} = BullMQ.Queue.add_bulk("my-queue", jobs,
   connection: :redis,
-  connection_pool: pool,
-  chunk_size: 100  # default, optimal for most cases
+  connection_pool: pool
 )
 ```
 
 ### Options Reference
 
-| Option            | Default | Description                                 |
-| ----------------- | ------- | ------------------------------------------- |
-| `pipeline`        | `true`  | Use Redis pipelining                        |
-| `chunk_size`      | `100`   | Jobs per pipeline batch                     |
-| `connection_pool` | `nil`   | List of connections for parallel processing |
-| `concurrency`     | `8`     | Max parallel tasks (capped by pool size)    |
+| Option              | Default  | Description                                                                                                       |
+| ------------------- | -------- | ----------------------------------------------------------------------------------------------------------------- |
+| `pipeline`          | `true`   | Use pipelining for efficiency                                                                                     |
+| `atomic`            | `true`   | Wrap batches in MULTI/EXEC transactions. With `connection_pool`, each connection's batch is atomic independently. |
+| `connection_pool`   | `nil`    | List of connections for parallel processing                                                                       |
+| `max_pipeline_size` | `10_000` | Maximum jobs per pipeline batch                                                                                   |
 
 ### Running the Benchmark
 

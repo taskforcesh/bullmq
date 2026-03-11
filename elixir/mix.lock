@@ -21,6 +21,6 @@
   "nimble_pool": {:hex, :nimble_pool, "1.1.0", "bf9c29fbdcba3564a8b800d1eeb5a3c58f36e1e11d7b7fb2e084a643f645f06b", [:mix], [], "hexpm", "af2e4e6b34197db81f7aad230c1118eac993acc0dae6bc83bac0126d4ae0813a"},
   "opentelemetry_api": {:hex, :opentelemetry_api, "1.5.0", "1a676f3e3340cab81c763e939a42e11a70c22863f645aa06aafefc689b5550cf", [:mix, :rebar3], [], "hexpm", "f53ec8a1337ae4a487d43ac89da4bd3a3c99ddf576655d071deed8b56a2d5dda"},
   "redix": {:hex, :redix, "1.5.3", "4eaae29c75e3285c0ff9957046b7c209aa7f72a023a17f0a9ea51c2a50ab5b0f", [:mix], [{:castore, "~> 0.1.0 or ~> 1.0", [hex: :castore, repo: "hexpm", optional: true]}, {:nimble_options, "~> 0.5.0 or ~> 1.0", [hex: :nimble_options, repo: "hexpm", optional: false]}, {:telemetry, "~> 0.4.0 or ~> 1.0", [hex: :telemetry, repo: "hexpm", optional: false]}], "hexpm", "7b06fb5246373af41f5826b03334dfa3f636347d4d5d98b4d455b699d425ae7e"},
-  "stream_data": {:hex, :stream_data, "0.6.0", "e87a9a79d7ec23d10ff83eb025141ef4915eeb09d4491f79e52f2562b73e5f47", [:mix], [], "hexpm", "b92b5031b650ca480ced047578f1d57ea6dd563f5b57464ad274718c9c29501c"},
+  "stream_data": {:hex, :stream_data, "1.2.0", "58dd3f9e88afe27dc38bef26fce0c84a9e7a96772b2925c7b32cd2435697a52b", [:mix], [], "hexpm", "eb5c546ee3466920314643edf68943a5b14b32d1da9fe01698dc92b73f89a9ed"},
   "telemetry": {:hex, :telemetry, "1.3.0", "fedebbae410d715cf8e7062c96a1ef32ec22e764197f70cda73d82778d61e7a2", [:rebar3], [], "hexpm", "7015fc8919dbe63764f4b4b87a95b7c0996bd539e0d499be6ec9d7f3875b79e6"},
 }

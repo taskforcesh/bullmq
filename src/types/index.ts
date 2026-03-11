@@ -1,4 +1,5 @@
 export * from './backoff-strategy';
+export * from './database-type';
 export * from './deduplication-options';
 export * from './finished-status';
 export * from './job-json-sandbox';
