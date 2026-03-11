@@ -83,13 +83,13 @@ if rcall("EXISTS", jobKey) == 1 then
         local result = fetchNextJob(KEYS[9], KEYS[2], KEYS[3], KEYS[6],
             KEYS[10], KEYS[4], KEYS[11], metaKey, KEYS[12], markerKey,
             ARGV[1], ARGV[2], opts)
-        if result then
+        if result and type(result[1]) == "table" then
             return result
         end
-    else
-        -- Check if we need to push a marker job to wake up sleeping workers.
-        addDelayMarkerIfNeeded(markerKey, delayedKey)
     end
+
+    -- Check if we need to push a marker job to wake up sleeping workers.
+    addDelayMarkerIfNeeded(markerKey, delayedKey)
 
     return 0
 else
