@@ -1530,16 +1530,34 @@ defmodule BullMQ.Worker do
       # Emit on_error callback for retry case
       emit_event(ctx.on_error, [job, error_msg, nil])
 
-      Scripts.move_to_delayed(
-        ctx.connection,
-        ctx.keys,
-        job.id,
-        job.token,
-        effective_delay,
-        stacktrace: format_stacktrace(stacktrace)
-      )
+      case Scripts.move_to_delayed(
+             ctx.connection,
+             ctx.keys,
+             job.id,
+             job.token,
+             effective_delay,
+             stacktrace: format_stacktrace(stacktrace),
+             fetch_next: true,
+             lock_duration: ctx.lock_duration,
+             limiter: ctx.limiter
+           ) do
+        {:ok, [job_data, job_id, _limit_delay, _delay_until]}
+        when is_list(job_data) and job_data != [] ->
+          job_map = list_to_job_map(job_data)
 
-      :retry
+          next_job =
+            Job.from_redis(to_string(job_id), ctx.queue_name, job_map,
+              prefix: ctx.prefix,
+              token: ctx.token,
+              connection: ctx.connection,
+              worker: ctx.coordinator
+            )
+
+          {:continue, next_job}
+
+        _ ->
+          :retry
+      end
     else
       move_opts = build_worker_move_opts(ctx, job) ++ [stacktrace: format_stacktrace(stacktrace)]
 
@@ -2000,16 +2018,34 @@ defmodule BullMQ.Worker do
 
         # Move to delayed for retry (Lua script handles incrementing attempts)
         # Also store the stacktrace for this attempt
-        Scripts.move_to_delayed(
-          state.connection,
-          state.keys,
-          job.id,
-          job.token,
-          effective_delay,
-          stacktrace: formatted_stacktrace
-        )
+        case Scripts.move_to_delayed(
+               state.connection,
+               state.keys,
+               job.id,
+               job.token,
+               effective_delay,
+               stacktrace: formatted_stacktrace,
+               fetch_next: true,
+               lock_duration: state.lock_duration,
+               limiter: state.limiter
+             ) do
+          {:ok, [job_data, job_id, _limit_delay, _delay_until]}
+          when is_list(job_data) and job_data != [] ->
+            next_job =
+              Job.from_raw_data(
+                job_data,
+                job_id,
+                prefix: state.keys.prefix,
+                token: state.token,
+                connection: state.connection,
+                worker: self()
+              )
 
-        nil
+            next_job
+
+          _ ->
+            nil
+        end
       else
         # Move to failed and get next job
         Scripts.move_to_failed(
