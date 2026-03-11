@@ -4,7 +4,8 @@ import { QueueBase } from './queue-base';
 import { Job } from './job';
 import { clientCommandMessageReg, QUEUE_EVENT_SUFFIX } from '../utils';
 import { JobState, JobType } from '../types';
-import { JobJsonRaw, Metrics, QueueMeta, RedisClient } from '../interfaces';
+import { JobJsonRaw, Metrics, QueueMeta } from '../interfaces';
+import { MetricNames, TelemetryAttributes } from '../enums';
 import type { Cluster } from 'ioredis';
 
 /**
@@ -167,7 +168,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
 
   /**
    * Returns the job counts for each type specified or every list/set in the queue by default.
-   *
+   * @param types - the types of jobs to count. If not specified, it will return the counts for all types.
    * @returns An object, key (type) and value (count)
    */
   async getJobCounts(...types: JobType[]): Promise<{
@@ -182,6 +183,32 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
       counts[currentTypes[index]] = res || 0;
     });
 
+    return counts;
+  }
+
+  /**
+   * Records job counts as gauge metrics for telemetry purposes.
+   * Each job state count is recorded with the queue name and state as attributes.
+   * @param types - the types of jobs to count. If not specified, it will return the counts for all types.
+   * @returns An object, key (type) and value (count)
+   */
+  async recordJobCountsMetric(...types: JobType[]): Promise<{
+    [index: string]: number;
+  }> {
+    const counts = await this.getJobCounts(...types);
+    const meter = this.opts.telemetry?.meter;
+    if (meter && typeof (meter as any).createGauge === 'function') {
+      const gauge = meter.createGauge(MetricNames.QueueJobsCount, {
+        description: 'Number of jobs in the queue by state',
+        unit: '{jobs}',
+      });
+      for (const [state, jobCount] of Object.entries(counts)) {
+        gauge.record(jobCount, {
+          [TelemetryAttributes.QueueName]: this.name,
+          [TelemetryAttributes.QueueJobsState]: state,
+        });
+      }
+    }
     return counts;
   }
 

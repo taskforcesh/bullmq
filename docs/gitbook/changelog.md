@@ -1,3 +1,10 @@
+# [5.71.0](https://github.com/taskforcesh/bullmq/compare/v5.70.4...v5.71.0) (2026-03-11)
+
+
+### Features
+
+* **otel:** support gauge metric when counting jobs by state ([#3811](https://github.com/taskforcesh/bullmq/issues/3811)) ([1283ac7](https://github.com/taskforcesh/bullmq/commit/1283ac716b0551bd7e3248a5c3e8f8d804310c33))
+
 ## [5.70.4](https://github.com/taskforcesh/bullmq/compare/v5.70.3...v5.70.4) (2026-03-06)
 
 
