@@ -1103,20 +1103,22 @@ defmodule BullMQ.Scripts do
 
   defp normalize_keep_jobs(_), do: %{"count" => -1}
 
-  # Build msgpacked fields to update on the job (for stacktrace)
+  # Build msgpacked fields to update on the job (for stacktrace, failedReason, etc.)
   # The Lua script expects a flat list: ["field1", "value1", "field2", "value2", ...]
   defp build_fields_to_update(opts) do
     stacktrace = Keyword.get(opts, :stacktrace)
+    failed_reason = Keyword.get(opts, :failed_reason)
 
     fields =
-      if stacktrace && stacktrace != "" do
-        # Stacktrace is stored as JSON array in Redis (like Node.js)
-        # Each retry appends to the array, but we just store one for now
-        stacktrace_json = Jason.encode!([stacktrace])
-        ["stacktrace", stacktrace_json]
-      else
-        []
-      end
+      []
+      |> maybe_add_field("failedReason", failed_reason)
+      |> maybe_add_field(
+        "stacktrace",
+        if(stacktrace && stacktrace != "",
+          do: Jason.encode!([stacktrace]),
+          else: nil
+        )
+      )
 
     if fields == [] do
       ""
@@ -1124,6 +1126,9 @@ defmodule BullMQ.Scripts do
       Msgpax.pack!(fields, iodata: false)
     end
   end
+
+  defp maybe_add_field(fields, _key, nil), do: fields
+  defp maybe_add_field(fields, key, value), do: fields ++ [key, value]
 
   @doc """
   Moves a job to delayed state (for retry with delay).
