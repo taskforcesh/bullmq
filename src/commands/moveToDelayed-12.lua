@@ -44,6 +44,7 @@ local rcall = redis.call
 --- @include "includes/updateJobFields"
 
 local jobKey = KEYS[5]
+local markerKey = KEYS[1]
 local metaKey = KEYS[7]
 local token = ARGV[4] 
 if rcall("EXISTS", jobKey) == 1 then
@@ -75,10 +76,6 @@ if rcall("EXISTS", jobKey) == 1 then
     rcall("XADD", KEYS[6], "MAXLEN", "~", maxEvents, "*", "event", "delayed",
           "jobId", jobId, "delay", delayedTimestamp)
 
-    -- Check if we need to push a marker job to wake up sleeping workers.
-    local markerKey = KEYS[1]
-    addDelayMarkerIfNeeded(markerKey, delayedKey)
-
     -- Try to get next job to avoid an extra roundtrip if the queue is not closing,
     -- and not rate limited.
     if (ARGV[8] == "1") then
@@ -89,6 +86,9 @@ if rcall("EXISTS", jobKey) == 1 then
         if result then
             return result
         end
+    else
+        -- Check if we need to push a marker job to wake up sleeping workers.
+        addDelayMarkerIfNeeded(markerKey, delayedKey)
     end
 
     return 0
