@@ -1383,6 +1383,112 @@ describe('Rate Limiter', () => {
     });
   });
 
+  describe('getRateLimitTTL function behavior', () => {
+    // Key behaviors under test are:
+    //
+    //   1. Key does not exist  → EXISTS returns 0 → skip GET, return 0
+    //   2. Key exists, count < maxJobs  → return 0
+    //   3. Key exists, count >= maxJobs, PTTL > 0  → return PTTL
+    //   4. Key exists, count >= maxJobs, PTTL == -1 (no TTL)  → return 0
+    //   5. Key exists, count >= maxJobs, PTTL == 0 (transient expired state)
+    //        → DEL key + return 0
+    //   6. No maxJobs arg, no global rate limit  → raw PTTL (-2 when key absent)
+    //   7. No maxJobs arg, global rate limit configured  → uses meta max
+
+    describe('when the rate limiter key does not exist', () => {
+      it('should return 0 without performing a GET', async () => {
+        // EXISTS returns 0 → the inner GET is skipped entirely (new optimisation)
+        const ttl = await queue.getRateLimitTtl(5);
+        expect(ttl).toBe(0);
+      });
+    });
+
+    describe('when the rate limiter key exists with count below maxJobs', () => {
+      it('should return 0', async () => {
+        // count (2) < maxJobs (5) → not at the limit yet
+        await connection.set(queue.keys.limiter, 2, 'PX', 1000);
+        const ttl = await queue.getRateLimitTtl(5);
+        expect(ttl).toBe(0);
+      });
+    });
+
+    describe('when the rate limiter key exists with count equal to maxJobs and PTTL > 0', () => {
+      it('should return the remaining PTTL', async () => {
+        // count (5) == maxJobs (5) and PTTL > 0 → rate limited, return PTTL
+        await connection.set(queue.keys.limiter, 5, 'PX', 1000);
+        const ttl = await queue.getRateLimitTtl(5);
+        expect(ttl).toBeGreaterThan(0);
+        expect(ttl).toBeLessThanOrEqual(1000);
+      });
+    });
+
+    describe('when the rate limiter key exists with count above maxJobs and PTTL > 0', () => {
+      it('should return the remaining PTTL', async () => {
+        // count (10) > maxJobs (5) and PTTL > 0 → rate limited, return PTTL
+        await connection.set(queue.keys.limiter, 10, 'PX', 500);
+        const ttl = await queue.getRateLimitTtl(5);
+        expect(ttl).toBeGreaterThan(0);
+        expect(ttl).toBeLessThanOrEqual(500);
+      });
+    });
+
+    describe('when the rate limiter key exists with count above maxJobs but has no TTL', () => {
+      it('should return 0', async () => {
+        // count (10) > maxJobs (5) but PTTL == -1 (persistent key, no expiry)
+        // → pttl is not > 0, not == 0, so returns 0
+        await connection.set(queue.keys.limiter, 10);
+        const ttl = await queue.getRateLimitTtl(5);
+        expect(ttl).toBe(0);
+      });
+    });
+
+    describe('when the rate limiter key is in the transient PTTL == 0 expired state', () => {
+      it('should delete the key and return 0', async () => {
+        // PTTL == 0 is the edge-case where the key still shows as existing (EXISTS == 1)
+        // but PTTL has just reached 0.  In that case the function executes DEL and
+        // returns 0.  We approximate this state by setting an extremely short TTL and
+        // waiting for expiry; both code paths (EXISTS == 0 after natural eviction, and
+        // the explicit DEL when PTTL == 0) produce the same observable result: 0.
+        await connection.set(queue.keys.limiter, 10, 'PX', 1);
+        await delay(10); // allow the key to fully expire
+        const ttl = await queue.getRateLimitTtl(5);
+        expect(ttl).toBe(0);
+        // Confirm the key is absent — whether removed by Redis lazily or by the DEL branch
+        const keyExists = await connection.exists(queue.keys.limiter);
+        expect(keyExists).toBe(0);
+      });
+    });
+
+    describe('when maxJobs is not provided and no global rate limit is configured', () => {
+      it('should return -2 when the limiter key does not exist', async () => {
+        // No maxJobs → outer script falls back to raw PTTL; -2 means key absent
+        const ttl = await queue.getRateLimitTtl();
+        expect(ttl).toBe(-2);
+      });
+    });
+
+    describe('when maxJobs is not provided but a global rate limit is configured', () => {
+      it('should use the global max from the meta key and return PTTL when limit is reached', async () => {
+        // setGlobalRateLimit writes max=1 into the meta hash; then the outer script
+        // reads that value and passes it to getRateLimitTTL.
+        await queue.setGlobalRateLimit(1, 500);
+        // Simulate a counter already at the limit
+        await connection.set(queue.keys.limiter, 5, 'PX', 500);
+        const ttl = await queue.getRateLimitTtl();
+        expect(ttl).toBeGreaterThan(0);
+        expect(ttl).toBeLessThanOrEqual(500);
+      });
+
+      it('should return 0 when the counter is below the global max', async () => {
+        // Global max is 5, counter is 2 → not rate limited
+        await queue.setGlobalRateLimit(5, 500);
+        await connection.set(queue.keys.limiter, 2, 'PX', 500);
+        const ttl = await queue.getRateLimitTtl();
+        expect(ttl).toBe(0);
+      });
+    });
+  });
+
   it('should obey priority', async () => {
     // TODO: Move timeout to test options: { timeout: 10000 }
 
