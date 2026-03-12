@@ -296,7 +296,7 @@ describe('flows', () => {
 
           for (let i = 0; i < values.length; i++) {
             const jobKey = queue.toKey(tree.children![i].job.id!);
-            expect(childrenValues[jobKey]).to.be.deep.equal(values[i]);
+            expect(childrenValues[jobKey]).toEqual(values[i]);
           }
           resolve();
         } catch (err) {
@@ -402,7 +402,7 @@ describe('flows', () => {
 
           for (let i = 0; i < values.length; i++) {
             const jobKey = queue.toKey(tree.children![i].job.id!);
-            expect(childrenValues[jobKey]).to.be.deep.equal(values[i]);
+            expect(childrenValues[jobKey]).toEqual(values[i]);
           }
           resolve();
         } catch (err) {
@@ -1735,13 +1735,13 @@ describe('flows', () => {
           processed: {},
         });
         expect(nextProcessedCursor).toBe(0);
-        expect(Object.keys(processed)).toHaveLength(3);
+        expect(Object.keys(processed!)).toHaveLength(3);
 
         const childrenValues = await job.getChildrenValues();
 
         for (let i = 0; i < values.length; i++) {
           const jobKey = queue.toKey(tree.children[i].job.id);
-          expect(childrenValues[jobKey]).to.be.deep.equal(values[i]);
+          expect(childrenValues[jobKey]).toEqual(values[i]);
         }
       };
 
@@ -2423,13 +2423,13 @@ describe('flows', () => {
                 processed: {},
               });
             expect(nextProcessedCursor).toBe(0);
-            expect(Object.keys(processed)).toHaveLength(1);
+            expect(Object.keys(processed!)).toHaveLength(1);
 
             const childrenValues = await job.getChildrenValues();
 
             for (let i = 0; i < values.length; i++) {
               const jobKey = childrenQueue.toKey(tree.children[i].job.id);
-              expect(childrenValues[jobKey]).to.be.deep.equal(values[i]);
+              expect(childrenValues[jobKey]).toEqual(values[i]);
             }
             resolve();
           } catch (err) {
@@ -2538,13 +2538,13 @@ describe('flows', () => {
                 processed: {},
               });
             expect(nextProcessedCursor).toBe(0);
-            expect(Object.keys(processed)).toHaveLength(3);
+            expect(Object.keys(processed!)).toHaveLength(3);
 
             const childrenValues = await job.getChildrenValues();
 
             for (let i = 0; i < values.length; i++) {
               const jobKey = queue.toKey(tree.children[i].job.id);
-              expect(childrenValues[jobKey]).to.be.deep.equal(values[i]);
+              expect(childrenValues[jobKey]).toEqual(values[i]);
             }
             resolve();
           } catch (err) {
@@ -4307,7 +4307,7 @@ describe('flows', () => {
 
             for (let i = 0; i < values.length; i++) {
               const jobKey = queue.toKey(tree.children[i].job.id);
-              expect(childrenValues[jobKey]).to.be.deep.equal(values[i]);
+              expect(childrenValues[jobKey]).toEqual(values[i]);
             }
             resolve();
           } catch (err) {
@@ -4456,7 +4456,7 @@ describe('flows', () => {
 
             for (let i = 0; i < values.length; i++) {
               const jobKey = queue.toKey(tree.children[i].job.id);
-              expect(childrenValues[jobKey]).to.be.deep.equal(values[i]);
+              expect(childrenValues[jobKey]).toEqual(values[i]);
             }
             resolve();
           } catch (err) {
@@ -4542,8 +4542,8 @@ describe('flows', () => {
             case 0:
               {
                 const jobKey = queue.toKey(tree.children[0].children[0].job.id);
-                expect(childrenValues[jobKey]).to.be.deep.equal(values[1]);
-                expect(waitingChildrenCount).to.be.deep.equal(0);
+                expect(childrenValues[jobKey]).toEqual(values[1]);
+                expect(waitingChildrenCount).toEqual(0);
               }
               break;
             case 1:
@@ -4551,8 +4551,8 @@ describe('flows', () => {
                 const jobKey = queue.toKey(
                   tree.children[0].children[0].children[0].job.id,
                 );
-                expect(childrenValues[jobKey]).to.be.deep.equal(values[2]);
-                expect(waitingChildrenCount).to.be.deep.equal(1);
+                expect(childrenValues[jobKey]).toEqual(values[2]);
+                expect(waitingChildrenCount).toEqual(1);
               }
               break;
           }
@@ -4577,8 +4577,8 @@ describe('flows', () => {
           const childrenValues = await job.getChildrenValues();
 
           const jobKey = queue.toKey(tree.children[0].job.id);
-          expect(childrenValues[jobKey]).to.be.deep.equal(values[0]);
-          expect(processed[jobKey]).to.be.deep.equal(values[0]);
+          expect(childrenValues[jobKey]).toEqual(values[0]);
+          expect(processed[jobKey]).toEqual(values[0]);
 
           resolve();
         } catch (err) {
@@ -4741,8 +4741,8 @@ describe('flows', () => {
             const childrenValues = await job.getChildrenValues();
 
             const jobKey = queue.toKey(tree.children[0].job.id);
-            expect(childrenValues[jobKey]).to.be.deep.equal(values[0]);
-            expect(processed[jobKey]).to.be.deep.equal(values[0]);
+            expect(childrenValues[jobKey]).toEqual(values[0]);
+            expect(processed[jobKey]).toEqual(values[0]);
 
             resolve();
           } catch (err) {
@@ -4841,8 +4841,8 @@ describe('flows', () => {
             const childrenValues = await job.getChildrenValues();
 
             const jobKey = queue.toKey(tree.children[0].job.id);
-            expect(childrenValues[jobKey]).to.be.deep.equal(values[0]);
-            expect(processed[jobKey]).to.be.deep.equal(values[0]);
+            expect(childrenValues[jobKey]).toEqual(values[0]);
+            expect(processed[jobKey]).toEqual(values[0]);
 
             resolve();
           } catch (err) {
@@ -5066,7 +5066,7 @@ describe('flows', () => {
 
             for (let i = 0; i < values.length; i++) {
               const jobKey = queue.toKey(tree.children[i].job.id);
-              expect(childrenValues[jobKey]).to.be.deep.equal(values[i]);
+              expect(childrenValues[jobKey]).toEqual(values[i]);
             }
             resolve();
           } catch (err) {
@@ -5165,7 +5165,7 @@ describe('flows', () => {
             const childrenValues = await job.getChildrenValues();
             const index = job.name === 'root-job-1' ? 0 : 1;
             const jobKey = queue.toKey(trees[index].children[0].job.id);
-            expect(childrenValues[jobKey]).to.be.deep.equal(values[index]);
+            expect(childrenValues[jobKey]).toEqual(values[index]);
 
             processedRoot++;
             if (processedRoot === 2) {
