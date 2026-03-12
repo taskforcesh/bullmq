@@ -1,7 +1,7 @@
 defmodule BullMQ.MixProject do
   use Mix.Project
 
-  @version "1.2.6"
+  @version "1.2.7"
   @source_url "https://github.com/taskforcesh/bullmq"
   @description "A powerful, fast, and robust job queue for Elixir backed by Redis"
 
@@ -97,7 +97,7 @@ defmodule BullMQ.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:excoveralls, "~> 0.18", only: :test},
       {:mox, "~> 1.1", only: :test},
-      {:stream_data, "~> 0.6", only: [:dev, :test]}
+      {:stream_data, "~> 1.0", only: [:dev, :test]}
     ]
   end
 

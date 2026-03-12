@@ -1608,12 +1608,22 @@ export class Job<
       if (!this.opts.deduplication?.id) {
         throw new Error('Deduplication id must be provided');
       }
+
+      if (this.parentKey) {
+        throw new Error(
+          'Deduplication and parent options cannot be used together',
+        );
+      }
     }
 
     // TODO: remove in v6
     if (this.opts.debounce) {
       if (!this.opts.debounce?.id) {
         throw new Error('Debounce id must be provided');
+      }
+
+      if (this.parentKey) {
+        throw new Error('Debounce and parent options cannot be used together');
       }
     }
 

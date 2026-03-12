@@ -1064,4 +1064,119 @@ export class Queue<
     const client = await this.client;
     return client.del(this.toKey('priority'));
   }
+
+  /**
+   * Removes orphaned job keys that exist in Redis but are not referenced
+   * in any queue state set.
+   *
+   * Orphaned keys can occur in rare cases when the removal-by-max-age logic
+   * removes sorted-set entries without fully cleaning up the corresponding
+   * job hash data (a regression introduced in v5.66.6 via #3694).
+   * Under normal operation this method is
+   * **not needed** — it is provided only as a one-time migration helper for
+   * users who were affected by that specific bug and want to reclaim the
+   * leaked memory.
+   *
+   * The method uses a Lua script so that every check-and-delete cycle is
+   * atomic (per SCAN iteration). State keys are derived dynamically from
+   * the queue's key map and their Redis TYPE is checked at runtime, so newly
+   * introduced states are picked up automatically.
+   *
+   * @param count - Approximate number of keys to SCAN per iteration (default 1000).
+   * @param limit - Maximum number of orphaned jobs to remove (0 = unlimited).
+   *   When set, the method returns as soon as the limit is reached.
+   *   Users with a very large number of orphans can call this method
+   *   in a loop: `while (await queue.removeOrphanedJobs(1000, 10000)) {}`
+   * @returns The total number of orphaned jobs that were removed.
+   */
+  async removeOrphanedJobs(count = 1000, limit = 0): Promise<number> {
+    const client = await this.client;
+
+    // Derive infrastructure suffixes dynamically from the queue key map
+    // so any future keys are automatically excluded without code changes.
+    const knownSuffixes = new Set(Object.keys(this.keys));
+
+    // State key suffixes (excluding '') — passed to the Lua script which
+    // uses TYPE to decide whether a key is a list / zset / set and picks
+    // the right membership command automatically.
+    const stateKeySuffixes = Object.keys(this.keys).filter(s => s !== '');
+
+    // Known job sub-key suffixes (cleaned up during deletion).
+    const jobSubKeySuffixes = [
+      'logs',
+      'dependencies',
+      'processed',
+      'failed',
+      'unsuccessful',
+      'lock',
+    ];
+
+    const basePrefix = this.qualifiedName + ':';
+    const scanPattern = basePrefix + '*';
+    let totalRemoved = 0;
+
+    let cursor = '0';
+    do {
+      const [nextCursor, keys] = await client.scan(
+        cursor,
+        'MATCH',
+        scanPattern,
+        'COUNT',
+        count,
+      );
+      cursor = nextCursor;
+
+      // Extract unique potential job IDs from this batch.
+      const candidateJobIds = new Set<string>();
+      for (const key of keys) {
+        const suffix = key.slice(basePrefix.length);
+
+        // Skip infrastructure keys (derived from this.keys).
+        if (knownSuffixes.has(suffix)) {
+          continue;
+        }
+
+        // Skip sub-keys of infrastructure prefixes (e.g. repeat:xxx, de:xxx).
+        const colonIdx = suffix.indexOf(':');
+        if (colonIdx !== -1) {
+          const prefixPart = suffix.slice(0, colonIdx);
+          if (knownSuffixes.has(prefixPart)) {
+            continue;
+          }
+        }
+
+        // Extract the job ID portion (before first colon, or the whole suffix).
+        const jobId = colonIdx === -1 ? suffix : suffix.slice(0, colonIdx);
+
+        // For sub-keys, only consider known job sub-key suffixes.
+        if (colonIdx !== -1) {
+          const subKey = suffix.slice(colonIdx + 1);
+          if (!jobSubKeySuffixes.includes(subKey)) {
+            continue;
+          }
+        }
+
+        candidateJobIds.add(jobId);
+      }
+
+      if (candidateJobIds.size === 0) {
+        continue;
+      }
+
+      // Run the Lua script atomically for this batch of candidates.
+      const result = await this.scripts.removeOrphanedJobs(
+        [...candidateJobIds],
+        stateKeySuffixes,
+        jobSubKeySuffixes,
+      );
+
+      totalRemoved += result || 0;
+
+      if (limit > 0 && totalRemoved >= limit) {
+        break;
+      }
+    } while (cursor !== '0');
+
+    return totalRemoved;
+  }
 }

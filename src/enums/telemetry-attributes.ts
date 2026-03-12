@@ -139,6 +139,7 @@ export enum TelemetryAttributes {
  * Standard metric names for BullMQ telemetry
  */
 export enum MetricNames {
+  QueueJobsCount = 'bullmq.queue.jobs',
   JobsCompleted = 'bullmq.jobs.completed',
   JobsFailed = 'bullmq.jobs.failed',
   JobsDelayed = 'bullmq.jobs.delayed',

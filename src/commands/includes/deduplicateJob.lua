@@ -2,6 +2,7 @@
   Function to debounce a job.
 ]]
 -- Includes
+--- @include "deduplicateJobWithoutReplace"
 --- @include "removeJobKeys"
 
 local function removeDelayedJob(delayedKey, deduplicationKey, eventsKey, maxEvents, currentDeduplicatedJobId,
@@ -27,8 +28,8 @@ local function deduplicateJob(deduplicationOpts, jobId, delayedKey, deduplicatio
     prefix)
     local deduplicationId = deduplicationOpts and deduplicationOpts['id']
     if deduplicationId then
-        local ttl = deduplicationOpts['ttl']
         if deduplicationOpts['replace'] then
+            local ttl = deduplicationOpts['ttl']
             if ttl and ttl > 0 then
                 local currentDebounceJobId = rcall('GET', deduplicationKey)
                 if currentDebounceJobId then
@@ -66,37 +67,8 @@ local function deduplicateJob(deduplicationOpts, jobId, delayedKey, deduplicatio
                 end
             end
         else
-            local deduplicationKeyExists
-            if ttl and ttl > 0 then
-                if deduplicationOpts['extend'] then
-                    local currentDebounceJobId = rcall('GET', deduplicationKey)
-                    if currentDebounceJobId then
-                        rcall('SET', deduplicationKey, currentDebounceJobId, 'PX', ttl)
-                        rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "debounced",
-                            "jobId", currentDebounceJobId, "debounceId", deduplicationId)
-                        rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "deduplicated", "jobId",
-                            currentDebounceJobId, "deduplicationId", deduplicationId, "deduplicatedJobId", jobId)
-                        return currentDebounceJobId
-                    else
-                        rcall('SET', deduplicationKey, jobId, 'PX', ttl)
-                        return
-                    end
-                else
-                    deduplicationKeyExists = not rcall('SET', deduplicationKey, jobId, 'PX', ttl, 'NX')
-                end
-            else
-                deduplicationKeyExists = not rcall('SET', deduplicationKey, jobId, 'NX')
-            end
-
-            if deduplicationKeyExists then
-                local currentDebounceJobId = rcall('GET', deduplicationKey)
-                -- TODO remove debounced event in next breaking change
-                rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "debounced", "jobId",
-                    currentDebounceJobId, "debounceId", deduplicationId)
-                rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "deduplicated", "jobId",
-                    currentDebounceJobId, "deduplicationId", deduplicationId, "deduplicatedJobId", jobId)
-                return currentDebounceJobId
-            end
+            return deduplicateJobWithoutReplace(deduplicationId, deduplicationOpts,
+                jobId, deduplicationKey, eventsKey, maxEvents)
         end
     end
 end

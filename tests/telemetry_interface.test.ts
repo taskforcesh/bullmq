@@ -24,6 +24,7 @@ import {
   Meter,
   Counter,
   Histogram,
+  Gauge,
   MetricOptions,
 } from '../src/interfaces';
 import * as sinon from 'sinon';
@@ -53,9 +54,18 @@ describe('Telemetry', () => {
     }
   }
 
+  class MockGauge implements Gauge {
+    public values: { value: number; attributes?: Attributes }[] = [];
+
+    record(value: number, attributes?: Attributes): void {
+      this.values.push({ value, attributes });
+    }
+  }
+
   class MockMeter implements Meter {
     public counters: Map<string, MockCounter> = new Map();
     public histograms: Map<string, MockHistogram> = new Map();
+    public gauges: Map<string, MockGauge> = new Map();
 
     createCounter(name: string, options?: MetricOptions): Counter {
       let counter = this.counters.get(name);
@@ -73,6 +83,15 @@ describe('Telemetry', () => {
         this.histograms.set(name, histogram);
       }
       return histogram;
+    }
+
+    createGauge(name: string, options?: MetricOptions): Gauge {
+      let gauge = this.gauges.get(name);
+      if (!gauge) {
+        gauge = new MockGauge();
+        this.gauges.set(name, gauge);
+      }
+      return gauge;
     }
   }
 
@@ -394,6 +413,124 @@ describe('Telemetry', () => {
       expect(workerActiveContext).toBe(queueActiveContext);
 
       moveToCompletedStub.restore();
+      await worker.close();
+    });
+
+    it('should set timestamp attributes when job processing completes', async () => {
+      const job = await queue.add('testJob', { foo: 'bar' });
+
+      const worker = new Worker(queueName, async () => 'some result', {
+        connection,
+        telemetry: telemetryClient,
+        name: 'testWorker',
+        prefix,
+      });
+
+      await worker.waitUntilReady();
+      const moveToCompletedStub = sinon.stub(job, 'moveToCompleted').resolves();
+
+      const startSpanSpy = sinon.spy(telemetryClient.tracer, 'startSpan');
+
+      job.processedOn = Date.now();
+      await worker.processJob(job, 'some-token', () => false);
+
+      const span = startSpanSpy.returnValues[0] as MockSpan;
+
+      // Verify timestamp attributes are set in the finally block
+      expect(
+        span.attributes[TelemetryAttributes.JobFinishedTimestamp],
+      ).toBeDefined();
+      expect(
+        span.attributes[TelemetryAttributes.JobAttemptFinishedTimestamp],
+      ).toBeDefined();
+      expect(
+        span.attributes[TelemetryAttributes.JobProcessedTimestamp],
+      ).toBeDefined();
+
+      // JobFinishedTimestamp should be a recent timestamp
+      const jobFinishedTimestamp =
+        span.attributes[TelemetryAttributes.JobFinishedTimestamp];
+      expect(typeof jobFinishedTimestamp).toBe('number');
+      expect(jobFinishedTimestamp).toBeGreaterThan(Date.now() - 10000);
+
+      startSpanSpy.restore();
+      moveToCompletedStub.restore();
+      await worker.close();
+    });
+
+    it('should set job attempts attribute on successful completion', async () => {
+      const job = await queue.add('testJob', { foo: 'bar' });
+
+      const worker = new Worker(queueName, async () => 'completed result', {
+        connection,
+        telemetry: telemetryClient,
+        name: 'testWorker',
+        prefix,
+      });
+
+      await worker.waitUntilReady();
+      const moveToCompletedStub = sinon.stub(job, 'moveToCompleted').resolves();
+
+      const startSpanSpy = sinon.spy(telemetryClient.tracer, 'startSpan');
+
+      await worker.processJob(job, 'some-token', () => false);
+
+      const span = startSpanSpy.returnValues[0] as MockSpan;
+
+      // handleCompleted should set JobAttemptsMade
+      expect(
+        span.attributes[TelemetryAttributes.JobAttemptsMade],
+      ).toBeDefined();
+
+      startSpanSpy.restore();
+      moveToCompletedStub.restore();
+      await worker.close();
+    });
+
+    it('should set job failed reason attribute on failure', async () => {
+      const errorMessage = 'Test processing error';
+      const job = await queue.add('testJob', { foo: 'bar' });
+
+      const worker = new Worker<any, any, string>(
+        queueName,
+        async () => {
+          throw new Error(errorMessage);
+        },
+        {
+          connection,
+          telemetry: telemetryClient,
+          name: 'testWorker',
+          prefix,
+        },
+      );
+
+      await worker.waitUntilReady();
+      const moveToFailedStub = sinon.stub(job, 'moveToFailed').resolves();
+
+      const startSpanSpy = sinon.spy(telemetryClient.tracer, 'startSpan');
+      const addEventSpy = sinon.spy(MockSpan.prototype, 'addEvent');
+
+      await worker.processJob(job, 'some-token', () => false);
+
+      const span = startSpanSpy.returnValues[0] as MockSpan;
+
+      // handleFailed should add event with JobFailedReason
+      const failedEventCall = addEventSpy
+        .getCalls()
+        .find(call => call.args[0] === 'job failed');
+      expect(failedEventCall).toBeDefined();
+      expect(
+        failedEventCall?.args[1]?.[TelemetryAttributes.JobFailedReason],
+      ).toBe(errorMessage);
+
+      // handleFailed should set JobAttemptsMade
+      expect(
+        span.attributes[TelemetryAttributes.JobAttemptsMade],
+      ).toBeDefined();
+
+      addEventSpy.restore();
+      startSpanSpy.restore();
+      moveToFailedStub.restore();
       await worker.close();
     });
   });
@@ -917,6 +1054,57 @@ describe('Telemetry', () => {
       const histogram1 = meter.createHistogram('test.histogram');
       const histogram2 = meter.createHistogram('test.histogram');
       expect(histogram1).toBe(histogram2);
+
+      // Create same gauge twice
+      const gauge1 = meter.createGauge('test.gauge');
+      const gauge2 = meter.createGauge('test.gauge');
+      expect(gauge1).toBe(gauge2);
+    });
+
+    it('should record gauge metric when calling recordJobCountsMetric()', async () => {
+      // Add some jobs
+      await metricsQueue.add('job1', { data: 1 });
+      await metricsQueue.add('job2', { data: 2 });
+      await metricsQueue.add('job3', { data: 3 });
+
+      const counts = await metricsQueue.recordJobCountsMetric('waiting');
+      expect(counts).toEqual({
+        paused: 0,
+        waiting: 3,
+      });
+
+      const meter = metricsTelemetryClient.meter as MockMeter;
+      const gauge = meter.gauges.get(MetricNames.QueueJobsCount) as MockGauge;
+
+      expect(gauge).toBeDefined();
+      expect(gauge.values.length).toBeGreaterThan(0);
+
+      // Check that gauge recorded values for waiting state
+      const waitingRecord = gauge.values.find(
+        value =>
+          value.attributes?.[TelemetryAttributes.QueueJobsState] === 'waiting',
+      );
+      expect(waitingRecord).toBeDefined();
+      expect(waitingRecord?.attributes?.[TelemetryAttributes.QueueName]).toBe(
+        queueName,
+      );
+    });
+
+    it('should not record gauge metrics when meter is not enabled', async () => {
+      // Use the original telemetryClient which doesn't have metrics enabled
+      const noMetricsQueue = new Queue(queueName, {
+        connection,
+        prefix,
+        telemetry: telemetryClient,
+      });
+
+      await noMetricsQueue.add('job1', { data: 1 });
+      await noMetricsQueue.recordJobCountsMetric();
+
+      // telemetryClient doesn't have a meter, so no metrics should be recorded
+      expect(telemetryClient.meter).toBeUndefined();
+
+      await noMetricsQueue.close();
     });
   });
 });
