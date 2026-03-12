@@ -1475,8 +1475,8 @@ describe('workers', () => {
       const completed = new Promise<void>((resolve, reject) => {
         worker.on('completed', async (job: Job) => {
           try {
-            expect(job.finishedOn).toBeTypeOf('string');
-            const gotJob = await queue.getJob(job.id);
+            expect(job.finishedOn).toBeTypeOf('number');
+            const gotJob = await queue.getJob(job.id!);
             expect(gotJob).toBe(undefined);
             const counts = await queue.getJobCounts('completed');
             expect(counts.completed).toBe(0);
