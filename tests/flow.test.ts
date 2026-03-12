@@ -703,7 +703,7 @@ describe('flows', () => {
 
       const completed = new Promise<void>(resolve => {
         parentWorker.on('completed', async (job: Job) => {
-          expect(job.finishedOn).to.be.string;
+          expect(job.finishedOn).toBeTypeOf('string');
           const counts = await parentQueue.getJobCounts('completed');
           expect(counts.completed).toBe(1);
           resolve();
@@ -818,7 +818,7 @@ describe('flows', () => {
 
       const completed = new Promise<void>(resolve => {
         parentWorker.on('completed', async (job: Job) => {
-          expect(job.finishedOn).to.be.string;
+          expect(job.finishedOn).toBeTypeOf('string');
           const counts = await parentQueue.getJobCounts('completed');
           expect(counts.completed).toBe(1);
           resolve();
@@ -1758,7 +1758,7 @@ describe('flows', () => {
 
       const completed = new Promise<void>(resolve => {
         parentWorker.on('completed', async (job: Job) => {
-          expect(job.finishedOn).to.be.string;
+          expect(job.finishedOn).toBeTypeOf('string');
           const gotJob = await parentQueue.getJob(job.id);
           expect(gotJob).toBeUndefined();
           const counts = await parentQueue.getJobCounts('completed');
@@ -1906,7 +1906,7 @@ describe('flows', () => {
 
       const completed = new Promise<void>(resolve => {
         parentWorker.on('completed', async (job: Job) => {
-          expect(job.finishedOn).to.be.string;
+          expect(job.finishedOn).toBeTypeOf('string');
           const gotJob = await parentQueue.getJob(job.id);
           expect(gotJob).toBeUndefined();
           const counts = await parentQueue.getJobCounts('completed');

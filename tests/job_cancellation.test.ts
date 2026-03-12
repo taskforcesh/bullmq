@@ -579,7 +579,8 @@ describe('Job Cancellation', () => {
       await worker.waitUntilReady();
 
       const activeJobs = await queue.getActive();
-      expect(activeJobs).toBeInstanceOf(Array).that.is.empty;
+      expect(activeJobs).toBeInstanceOf(Array);
+      expect(activeJobs).toHaveLength(0);
 
       await worker.close();
     });

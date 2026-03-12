@@ -1457,7 +1457,7 @@ describe('workers', () => {
       const worker = new Worker(
         queueName,
         async (job, token) => {
-          expect(token).to.be.string;
+          expect(token).toBeTypeOf('string');
           expect(job.data.foo).toBe('bar');
         },
         { connection, prefix },
@@ -1475,7 +1475,7 @@ describe('workers', () => {
       const completed = new Promise<void>((resolve, reject) => {
         worker.on('completed', async (job: Job) => {
           try {
-            expect(job.finishedOn).to.be.string;
+            expect(job.finishedOn).toBeTypeOf('string');
             const gotJob = await queue.getJob(job.id);
             expect(gotJob).toBe(undefined);
             const counts = await queue.getJobCounts('completed');
