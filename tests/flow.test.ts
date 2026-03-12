@@ -816,12 +816,16 @@ describe('flows', () => {
       await parentWorker.waitUntilReady();
       await childrenWorker.waitUntilReady();
 
-      const completed = new Promise<void>(resolve => {
+      const completed = new Promise<void>((resolve, reject) => {
         parentWorker.on('completed', async (job: Job) => {
-          expect(job.finishedOn).toBeTypeOf('string');
-          const counts = await parentQueue.getJobCounts('completed');
-          expect(counts.completed).toBe(1);
-          resolve();
+          try {
+            expect(job.finishedOn).toBeTypeOf('number');
+            const counts = await parentQueue.getJobCounts('completed');
+            expect(counts.completed).toBe(1);
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
         });
       });
 
@@ -1756,14 +1760,18 @@ describe('flows', () => {
       await parentWorker.waitUntilReady();
       await childrenWorker.waitUntilReady();
 
-      const completed = new Promise<void>(resolve => {
+      const completed = new Promise<void>((resolve, reject) => {
         parentWorker.on('completed', async (job: Job) => {
-          expect(job.finishedOn).toBeTypeOf('string');
-          const gotJob = await parentQueue.getJob(job.id);
-          expect(gotJob).toBeUndefined();
-          const counts = await parentQueue.getJobCounts('completed');
-          expect(counts.completed).toBe(0);
-          resolve();
+          try {
+            expect(job.finishedOn).toBeTypeOf('number');
+            const gotJob = await parentQueue.getJob(job.id);
+            expect(gotJob).toBeUndefined();
+            const counts = await parentQueue.getJobCounts('completed');
+            expect(counts.completed).toBe(0);
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
         });
       });
 
@@ -1904,14 +1912,18 @@ describe('flows', () => {
       await childrenWorker.waitUntilReady();
       await grandchildrenWorker.waitUntilReady();
 
-      const completed = new Promise<void>(resolve => {
+      const completed = new Promise<void>((resolve, reject) => {
         parentWorker.on('completed', async (job: Job) => {
-          expect(job.finishedOn).toBeTypeOf('string');
-          const gotJob = await parentQueue.getJob(job.id);
-          expect(gotJob).toBeUndefined();
-          const counts = await parentQueue.getJobCounts('completed');
-          expect(counts.completed).toBe(0);
-          resolve();
+          try {
+            expect(job.finishedOn).toBeTypeOf('number');
+            const gotJob = await parentQueue.getJob(job.id!);
+            expect(gotJob).toBeUndefined();
+            const counts = await parentQueue.getJobCounts('completed');
+            expect(counts.completed).toBe(0);
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
         });
       });
 
