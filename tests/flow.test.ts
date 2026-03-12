@@ -703,7 +703,7 @@ describe('flows', () => {
 
       const completed = new Promise<void>(resolve => {
         parentWorker.on('completed', async (job: Job) => {
-          expect(job.finishedOn).toBeTypeOf('string');
+          expect(job.finishedOn).toBeTypeOf('number');
           const counts = await parentQueue.getJobCounts('completed');
           expect(counts.completed).toBe(1);
           resolve();
