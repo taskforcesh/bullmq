@@ -312,7 +312,8 @@ class Scripts:
         if opts.get("fieldsToUpdate"):
             args.append(msgpack.packb(object_to_flat_array(opts.get("fieldsToUpdate")), use_bin_type=True))
         else:
-            args.append(None)
+            # Use empty string as placeholder so ARGV positions remain stable and redis-py accepts the args
+            args.append("")
 
         args.append("1" if fetch_next else "0")
         if fetch_next:
