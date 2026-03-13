@@ -1103,20 +1103,22 @@ defmodule BullMQ.Scripts do
 
   defp normalize_keep_jobs(_), do: %{"count" => -1}
 
-  # Build msgpacked fields to update on the job (for stacktrace)
+  # Build msgpacked fields to update on the job (for stacktrace, failedReason, etc.)
   # The Lua script expects a flat list: ["field1", "value1", "field2", "value2", ...]
   defp build_fields_to_update(opts) do
     stacktrace = Keyword.get(opts, :stacktrace)
+    failed_reason = Keyword.get(opts, :failed_reason)
 
     fields =
-      if stacktrace && stacktrace != "" do
-        # Stacktrace is stored as JSON array in Redis (like Node.js)
-        # Each retry appends to the array, but we just store one for now
-        stacktrace_json = Jason.encode!([stacktrace])
-        ["stacktrace", stacktrace_json]
-      else
-        []
-      end
+      []
+      |> maybe_add_field("failedReason", failed_reason)
+      |> maybe_add_field(
+        "stacktrace",
+        if(stacktrace && stacktrace != "",
+          do: Jason.encode!([stacktrace]),
+          else: nil
+        )
+      )
 
     if fields == [] do
       ""
@@ -1124,6 +1126,9 @@ defmodule BullMQ.Scripts do
       Msgpax.pack!(fields, iodata: false)
     end
   end
+
+  defp maybe_add_field(fields, _key, nil), do: fields
+  defp maybe_add_field(fields, key, value), do: fields ++ [key, value]
 
   @doc """
   Moves a job to delayed state (for retry with delay).
@@ -1146,22 +1151,49 @@ defmodule BullMQ.Scripts do
     # KEYS[6] events stream
     # KEYS[7] meta key
     # KEYS[8] stalled key
+    # KEYS[9] wait key
+    # KEYS[10] rate limiter key
+    # KEYS[11] paused key
+    # KEYS[12] pc priority counter
     keys = [
       Keys.marker(ctx),
       Keys.active(ctx),
-      Keys.pc(ctx),
+      Keys.prioritized(ctx),
       Keys.delayed(ctx),
       Keys.job(ctx, job_id),
       Keys.events(ctx),
       Keys.meta(ctx),
-      Keys.stalled(ctx)
+      Keys.stalled(ctx),
+      Keys.wait(ctx),
+      Keys.limiter(ctx),
+      Keys.paused(ctx),
+      Keys.pc(ctx)
     ]
 
     timestamp = Keyword.get(opts, :timestamp, System.system_time(:millisecond))
     skip_attempt = if Keyword.get(opts, :skip_attempt, false), do: "1", else: "0"
+    fetch_next = Keyword.get(opts, :fetch_next, false)
+    lock_duration = Keyword.get(opts, :lock_duration, 30_000)
+    limiter = Keyword.get(opts, :limiter)
 
     # Build fields to update (for stacktrace on retry)
     fields_to_update = build_fields_to_update(opts)
+
+    fetch_next_flag = if fetch_next, do: "1", else: "0"
+
+    packed_opts =
+      if fetch_next do
+        Msgpax.pack!(
+          %{
+            "token" => token,
+            "lockDuration" => lock_duration,
+            "limiter" => limiter
+          },
+          iodata: false
+        )
+      else
+        ""
+      end
 
     # ARGV[1] key prefix
     # ARGV[2] timestamp (current time)
@@ -1170,6 +1202,8 @@ defmodule BullMQ.Scripts do
     # ARGV[5] delay value
     # ARGV[6] skip attempt flag ("0" or "1")
     # ARGV[7] optional job fields to update (for stacktrace)
+    # ARGV[8] fetch next? ("0" or "1")
+    # ARGV[9] packed opts (token, lockDuration, limiter)
     args = [
       Keys.key_prefix(ctx),
       timestamp,
@@ -1177,7 +1211,9 @@ defmodule BullMQ.Scripts do
       token,
       delay,
       skip_attempt,
-      fields_to_update
+      fields_to_update,
+      fetch_next_flag,
+      packed_opts
     ]
 
     execute(conn, :move_to_delayed, keys, args)

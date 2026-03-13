@@ -234,7 +234,9 @@ class Job:
                     delay,
                     token,
                     {
-                        "fieldsToUpdate": fields_to_update
+                        "fieldsToUpdate": fields_to_update,
+                        "fetchNext": fetchNext,
+                        "workerOpts": self.queue.opts,
                     }
                 )
             else:

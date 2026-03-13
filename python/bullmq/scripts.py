@@ -300,11 +300,29 @@ class Scripts:
         keys.append(self.keys['events'])
         keys.append(self.keys['meta'])
         keys.append(self.keys['stalled'])
+        keys.append(self.keys['wait'])
+        keys.append(self.keys['limiter'])
+        keys.append(self.keys['paused'])
+        keys.append(self.keys['pc'])
+
+        fetch_next = opts.get("fetchNext", False)
 
         args = [self.keys[''], str(timestamp),
                 job_id, token, delay, "1" if opts.get("skipAttempt") else "0"]
         if opts.get("fieldsToUpdate"):
             args.append(msgpack.packb(object_to_flat_array(opts.get("fieldsToUpdate")), use_bin_type=True))
+        else:
+            # Use empty string as placeholder so ARGV positions remain stable and redis-py accepts the args
+            args.append("")
+
+        args.append("1" if fetch_next else "0")
+        if fetch_next:
+            worker_opts = opts.get("workerOpts", {})
+            args.append(msgpack.packb({
+                "token": token,
+                "lockDuration": worker_opts.get("lockDuration", 0),
+                "limiter": worker_opts.get("limiter", None),
+            }, use_bin_type=True))
 
         return (keys, args)
 
@@ -313,14 +331,16 @@ class Scripts:
 
         result = await self.commands["moveToDelayed"](keys=keys, args=args)
 
-        if type(result) == int:
-            if result < 0:
+        if result is not None:
+            if type(result) == int and result < 0:
                 raise self.finishedErrors({
                     "code": result,
                     "jobId": job_id,
                     "command": 'moveToDelayed',
                     "state": 'active'
                     })
+            if type(result) != int:
+                return raw2NextJobData(result)
         return None
 
     def promoteArgs(self, job_id: str):

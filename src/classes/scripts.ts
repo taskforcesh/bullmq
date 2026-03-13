@@ -1137,6 +1137,7 @@ export class Scripts {
     opts: MoveToDelayedOpts = {},
   ): (string | number | Buffer)[] {
     const queueKeys = this.queue.keys;
+    const workerOpts: WorkerOptions = <WorkerOptions>this.queue.opts;
 
     const keys: (string | number | Buffer)[] = [
       queueKeys.marker,
@@ -1147,7 +1148,13 @@ export class Scripts {
       queueKeys.events,
       queueKeys.meta,
       queueKeys.stalled,
+      queueKeys.wait,
+      queueKeys.limiter,
+      queueKeys.paused,
+      queueKeys.pc,
     ];
+
+    const fetchNext = opts.fetchNext && !this.queue.closing ? 1 : 0;
 
     return keys.concat([
       this.queue.keys[''],
@@ -1158,6 +1165,15 @@ export class Scripts {
       opts.skipAttempt ? '1' : '0',
       opts.fieldsToUpdate
         ? pack(objectToFlatArray(opts.fieldsToUpdate))
+        : void 0,
+      fetchNext,
+      fetchNext
+        ? pack({
+            token,
+            lockDuration: workerOpts.lockDuration,
+            limiter: workerOpts.limiter,
+            name: workerOpts.name,
+          })
         : void 0,
     ]);
   }
@@ -1212,7 +1228,7 @@ export class Scripts {
     delay: number,
     token = '0',
     opts: MoveToDelayedOpts = {},
-  ): Promise<void> {
+  ) {
     const client = await this.queue.client;
 
     const args = this.moveToDelayedArgs(jobId, timestamp, token, delay, opts);
@@ -1225,6 +1241,8 @@ export class Scripts {
         command: 'moveToDelayed',
         state: 'active',
       });
+    } else if (typeof result !== 'undefined') {
+      return raw2NextJobData(result);
     }
   }
 
