@@ -74,6 +74,13 @@ describe('Job', () => {
       expect(createdJob.id).toBe(customJobId);
     });
 
+    it('should use custom jobId when it is type Number', async () => {
+      const job = await Job.create(queue, 'test', data, {
+        jobId: 54321,
+      });
+      expect(job.id).toBe(54321);
+    });
+
     describe('when custom jobId is provided as empty string', () => {
       it('should ignore the empty custom id and generates a numeric id', async () => {
         const job = await Job.create(queue, 'test', data, {
