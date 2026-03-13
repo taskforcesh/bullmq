@@ -174,6 +174,9 @@ Install:
 
 ```
 $ yarn add bullmq
+$ npm install bullmq
+$ pnpm add bullmq
+$ bun add bullmq
 ```
 
 Add jobs to the queue:
