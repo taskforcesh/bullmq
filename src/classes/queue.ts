@@ -409,7 +409,9 @@ export class Queue<
         if (span) {
           span.setAttributes({
             [TelemetryAttributes.BulkNames]: jobs.map(job => job.name),
+            [TelemetryAttributes.BulkNames_]: jobs.map(job => job.name),
             [TelemetryAttributes.BulkCount]: jobs.length,
+            [TelemetryAttributes.BulkCount_]: jobs.length,
           });
         }
 
@@ -538,6 +540,7 @@ export class Queue<
       async span => {
         span?.setAttributes({
           [TelemetryAttributes.QueueRateLimit]: expireTimeMs,
+          [TelemetryAttributes.QueueRateLimit_]: expireTimeMs,
         });
 
         await this.client.then(client =>
@@ -730,6 +733,7 @@ export class Queue<
       async span => {
         span?.setAttributes({
           [TelemetryAttributes.DeduplicationKey]: id,
+          [TelemetryAttributes.DeduplicationKey_]: id,
         });
 
         const client = await this.client;
@@ -866,6 +870,7 @@ export class Queue<
       async span => {
         span?.setAttributes({
           [TelemetryAttributes.QueueDrainDelay]: delayed,
+          [TelemetryAttributes.QueueDrainDelay_]: delayed,
         });
 
         await this.scripts.drain(delayed);
@@ -930,6 +935,7 @@ export class Queue<
           [TelemetryAttributes.QueueGrace]: grace,
           [TelemetryAttributes.JobType]: type,
           [TelemetryAttributes.QueueCleanLimit]: maxCount,
+          [TelemetryAttributes.QueueCleanLimit_]: maxCount,
           [TelemetryAttributes.JobIds]: deletedJobsIds,
         });
 
@@ -1042,6 +1048,7 @@ export class Queue<
       async span => {
         span?.setAttributes({
           [TelemetryAttributes.QueueEventMaxLength]: maxLength,
+          [TelemetryAttributes.QueueEventMaxLength_]: maxLength,
         });
 
         const client = await this.client;
