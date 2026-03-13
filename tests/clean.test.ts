@@ -1142,13 +1142,33 @@ describe('Cleaner', () => {
 
       // Simulate repeat sub-keys (e.g., repeat:abc123)
       await client.set(`${baseKey}:repeat:some-repeat-id`, 'repeat data');
+      await client.hmset(
+        `${baseKey}:repeat:839d4be40c8b2f30fca6f860d0cf76f7:1735711200000`,
+        'priority',
+        0,
+        'delay',
+        14524061394,
+        'data',
+        '{}',
+        'timestamp',
+        1721187138606,
+        'rjk',
+        'remove::::* 1 * 1 *',
+        'name',
+        'remove',
+      );
       // Simulate deduplication sub-keys (e.g., de:some-dedup-id)
       await client.set(`${baseKey}:de:some-dedup-id`, 'dedup data');
 
       const removed = await queue.removeOrphanedJobs();
-      expect(removed).toBe(0);
+      expect(removed).toBe(1);
 
       // Verify repeat and dedup keys are untouched
+      expect(
+        await client.exists(
+          `${baseKey}:repeat:839d4be40c8b2f30fca6f860d0cf76f7:1735711200000`,
+        ),
+      ).toBe(0);
       expect(await client.exists(`${baseKey}:repeat:some-repeat-id`)).toBe(1);
       expect(await client.exists(`${baseKey}:de:some-dedup-id`)).toBe(1);
 
