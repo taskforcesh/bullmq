@@ -1,5 +1,5 @@
-import { ChildProcess, fork } from 'child_process';
 import { AddressInfo, createServer } from 'net';
+import { ChildProcess, fork } from 'child_process';
 import { Worker } from 'worker_threads';
 import { ChildCommand, ParentCommand } from '../enums';
 import { SandboxedOptions } from '../interfaces';
@@ -76,13 +76,10 @@ export class Child extends EventEmitter {
   }
 
   async init(): Promise<void> {
-    const execArgv = await convertExecArgv(process.execArgv);
-
     let parent: ChildProcess | Worker;
 
     if (this.opts.useWorkerThreads) {
       this.worker = parent = new Worker(this.mainFile, {
-        execArgv,
         stdin: true,
         stdout: true,
         stderr: true,
@@ -91,6 +88,7 @@ export class Child extends EventEmitter {
           : {}),
       });
     } else {
+      const execArgv = await convertExecArgv(process.execArgv);
       this.childProcess = parent = fork(this.mainFile, [], {
         execArgv,
         stdio: 'pipe',
@@ -239,14 +237,13 @@ const convertExecArgv = async (execArgv: string[]): Promise<string[]> => {
   const standard: string[] = [];
   const convertedArgs: string[] = [];
 
-  for (let i = 0; i < execArgv.length; i++) {
-    const arg = execArgv[i];
-    if (arg.indexOf('--inspect') === -1) {
-      standard.push(arg);
-    } else {
-      const argName = arg.split('=')[0];
+  for (const arg of execArgv) {
+    const argName = arg.split('=')[0];
+    if (argName === '--inspect' || argName === '--inspect-brk') {
       const port = await getFreePort();
       convertedArgs.push(`${argName}=${port}`);
+    } else {
+      standard.push(arg);
     }
   }
 
