@@ -320,7 +320,9 @@ export class FlowProducer extends EventEmitter {
     const queueOpts = queuesOpts && queuesOpts[node.queueName];
 
     const jobsOpts = queueOpts?.defaultJobOptions ?? {};
-    const jobId = node.opts?.jobId || v4();
+    const deduplicationId = node.opts?.deduplication?.id;
+
+    const jobId = node.opts?.jobId ?? deduplicationId ?? v4();
 
     return trace<Promise<JobNode>>(
       this.telemetry,
