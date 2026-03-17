@@ -85,10 +85,10 @@ class RedisConnection:
             }
             finalOpts = {**defaultOpts, **redisOpts}
 
-            self.conn = redis.Redis(decode_responses=True, retry=retry, retry_on_error=retry_errors, **finalOpts)
+            self.conn = redis.Redis(decode_responses=True, retry=retry, retry_on_error=retry_errors, single_connection_client=True, **finalOpts)
         else:
             self.conn = redis.from_url(redisOpts, decode_responses=True, retry=retry,
-                retry_on_error=retry_errors)
+                retry_on_error=retry_errors, single_connection_client=True)
 
         self.commands = {}
         self.loadCommands()
