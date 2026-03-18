@@ -84,6 +84,7 @@ class RedisConnection:
                 "username": None,
             }
             finalOpts = {**defaultOpts, **redisOpts}
+            finalOpts.pop('single_connection_client', None)
 
             self.conn = redis.Redis(decode_responses=True, retry=retry, retry_on_error=retry_errors, single_connection_client=True, **finalOpts)
         else:
