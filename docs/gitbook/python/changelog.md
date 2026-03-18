@@ -1,3 +1,10 @@
+## [2.19.7](https://github.com/taskforcesh/bullmq/compare/vpy2.19.6...vpy2.19.7) (2026-03-18)
+
+
+### Bug Fixes
+
+* **worker:** use discard instead of remove in processJob to prevent KeyError ([#3884](https://github.com/taskforcesh/bullmq/issues/3884)) [python] ([e5b7aff](https://github.com/taskforcesh/bullmq/commit/e5b7aff4edbe44983803cfa3fb3ea48f0b1b998e))
+
 ## [2.19.6](https://github.com/taskforcesh/bullmq/compare/vpy2.19.5...vpy2.19.6) (2026-03-06)
 
 
