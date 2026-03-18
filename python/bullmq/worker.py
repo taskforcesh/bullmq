@@ -250,7 +250,7 @@ class Worker(EventEmitter):
             except Exception as err:
                 self.emit("error", err, job)
         finally:
-            self.jobs.remove((job, token))
+            self.jobs.discard((job, token))
 
     async def retryIfFailed(self, fn, opts=None):
         """
