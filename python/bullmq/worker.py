@@ -250,7 +250,7 @@ class Worker(EventEmitter):
             except Exception as err:
                 self.emit("error", err, job)
         finally:
-            self.jobs.remove((job, token))
+            self.jobs.discard((job, token))
 
     async def retryIfFailed(self, fn, opts=None):
         """
@@ -341,8 +341,12 @@ class Worker(EventEmitter):
         if not force and len(self.processing) > 0:
             await asyncio.wait(self.processing, return_when=asyncio.ALL_COMPLETED)
 
-        await self.blockingRedisConnection.close()
-        await self.redisConnection.close()
+        for conn in (self.blockingRedisConnection, self.redisConnection):
+            try:
+                await conn.close()
+            except Exception as err:
+                self.emit('error', err)
+
         self.closed = True
         self.emit('closed')
 
