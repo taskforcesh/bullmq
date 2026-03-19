@@ -1,5 +1,5 @@
 ---
-description: BullMQ is also available as a Python package.
+description: BullMQ is now also available as an experimental python package.
 ---
 
 # Introduction
