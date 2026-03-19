@@ -1,3 +1,10 @@
+## [2.19.8](https://github.com/taskforcesh/bullmq/compare/vpy2.19.7...vpy2.19.8) (2026-03-19)
+
+
+### Bug Fixes
+
+* **worker:** make close method fault-tolerant ([#3886](https://github.com/taskforcesh/bullmq/issues/3886)) [python] ([3c118d1](https://github.com/taskforcesh/bullmq/commit/3c118d11c8e6dc03e90548bc7efa5c5b5d0315c7))
+
 ## [2.19.7](https://github.com/taskforcesh/bullmq/compare/vpy2.19.6...vpy2.19.7) (2026-03-18)
 
 
