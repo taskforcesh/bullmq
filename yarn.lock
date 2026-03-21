@@ -2800,9 +2800,9 @@ flat-cache@^4.0.0:
     keyv "^4.5.4"
 
 flatted@^3.2.9:
-  version "3.3.4"
-  resolved "https://registry.yarnpkg.com/flatted/-/flatted-3.3.4.tgz#0986e681008f0f13f58e18656c47967682db5ff6"
-  integrity sha512-3+mMldrTAPdta5kjX2G2J7iX4zxtnwpdA8Tr2ZSjkyPSanvbZAcy6flmtnXbEybHrDcU9641lxrMfFuUxVz9vA==
+  version "3.4.2"
+  resolved "https://registry.yarnpkg.com/flatted/-/flatted-3.4.2.tgz#f5c23c107f0f37de8dbdf24f13722b3b98d52726"
+  integrity sha512-PjDse7RzhcPkIJwy5t7KPWQSZ9cAbzQXcafsetQoD7sOJRQlGikNbx7yZp2OotDnJyrDcbyRq3Ttb18iYOqkxA==
 
 foreground-child@^3.3.1:
   version "3.3.1"
