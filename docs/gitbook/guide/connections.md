@@ -6,6 +6,9 @@ Every class will consume at least one Redis connection, but it is also possible 
 
 Some examples:
 
+{% tabs %}
+{% tab title="TypeScript" %}
+
 ```typescript
 import { Queue, Worker } from 'bullmq';
 
@@ -25,6 +28,36 @@ const myWorker = new Worker('myqueue', async job => {}, {
 });
 ```
 
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+from bullmq import Queue
+
+# Using a connection string
+queue = Queue("myQueue", {"connection": "redis://localhost:6379"})
+
+# Using an options dict
+queue = Queue("myQueue", {
+    "connection": {
+        "host": "localhost",
+        "port": 6379,
+        "db": 0,
+        "password": "my-password",
+    }
+})
+
+# Default connection (localhost:6379)
+queue = Queue("myQueue")
+```
+
+{% endtab %}
+{% endtabs %}
+
+{% tabs %}
+{% tab title="TypeScript" %}
+
 ```typescript
 import { Queue } from 'bullmq';
 import IORedis from 'ioredis';
@@ -35,6 +68,27 @@ const connection = new IORedis();
 const myFirstQueue = new Queue('myFirstQueue', { connection });
 const mySecondQueue = new Queue('mySecondQueue', { connection });
 ```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+import redis.asyncio as redis
+from bullmq import Queue
+
+shared_client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+
+# Reuse the redis client in 2 different queues
+q1 = Queue("queue1", {"connection": shared_client})
+q2 = Queue("queue2", {"connection": shared_client})
+```
+
+{% endtab %}
+{% endtabs %}
+
+{% tabs %}
+{% tab title="TypeScript" %}
 
 ```typescript
 import { Worker } from 'bullmq';
@@ -50,6 +104,27 @@ const mySecondWorker = new Worker('mySecondWorker', async job => {}, {
   connection,
 });
 ```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+import redis.asyncio as redis
+from bullmq import Worker
+
+shared_client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+
+# Reuse the redis client in 2 different workers
+async def process(job, token):
+    return {"result": "done"}
+
+worker1 = Worker("myFirstWorker", process, {"connection": shared_client})
+worker2 = Worker("mySecondWorker", process, {"connection": shared_client})
+```
+
+{% endtab %}
+{% endtabs %}
 
 Note that in the third example, even though the ioredis instance is being reused, the worker will create a duplicated connection that it needs internally to make blocking connections. Consult the [ioredis](https://github.com/luin/ioredis/blob/master/API.md) documentation to learn how to properly create an instance of `IORedis`.
 
@@ -81,4 +156,8 @@ Make sure that your redis instance has the setting
 `maxmemory-policy=noeviction`
 
 in order to avoid automatic removal of keys which would cause unexpected errors in BullMQ
+{% endhint %}
+
+{% hint style="warning" %}
+When passing your own `redis.asyncio.Redis` instance to BullMQ, you must always set `decode_responses=True`. BullMQ sets this internally when creating its own clients, but it cannot set it on a client you provide. Passing a client without `decode_responses=True` will result in unexpected errors.
 {% endhint %}

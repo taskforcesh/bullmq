@@ -153,10 +153,6 @@
 ## Python
 
 - [Introduction](python/introduction.md)
-- [Connections](python/connections.md)
-- [Queues](python/queues.md)
-- [Workers](python/workers.md)
-- [Retrying Failing Jobs](python/retrying-failing-jobs.md)
 - [Changelogs](python/changelog.md)
   - [v1](python/changelogs/changelog-v1.md)
   - [v0](python/changelogs/changelog-v0.md)
