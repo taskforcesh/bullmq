@@ -161,3 +161,7 @@ in order to avoid automatic removal of keys which would cause unexpected errors 
 {% hint style="warning" %}
 When passing your own `redis.asyncio.Redis` instance to BullMQ, you must always set `decode_responses=True`. BullMQ sets this internally when creating its own clients, but it cannot set it on a client you provide. Passing a client without `decode_responses=True` will result in unexpected errors.
 {% endhint %}
+
+{% hint style="danger" %}
+Redis Cluster is not supported in BullMQ Python. Use a standalone Redis instance instead.
+{% endhint %}
