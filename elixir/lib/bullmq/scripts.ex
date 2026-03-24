@@ -1175,6 +1175,7 @@ defmodule BullMQ.Scripts do
     fetch_next = Keyword.get(opts, :fetch_next, false)
     lock_duration = Keyword.get(opts, :lock_duration, 30_000)
     limiter = Keyword.get(opts, :limiter)
+    name = Keyword.get(opts, :name)
 
     # Build fields to update (for stacktrace on retry)
     fields_to_update = build_fields_to_update(opts)
@@ -1187,7 +1188,8 @@ defmodule BullMQ.Scripts do
           %{
             "token" => token,
             "lockDuration" => lock_duration,
-            "limiter" => limiter
+            "limiter" => limiter,
+            "name" => name
           },
           iodata: false
         )
