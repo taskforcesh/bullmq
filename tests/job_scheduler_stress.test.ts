@@ -90,9 +90,9 @@ describe('Job Scheduler Stress', () => {
           'delayed',
           'waiting',
         );
-        expect(count).to.be.gte(1);
+        expect(count).toBeGreaterThanOrEqual(1);
         // previous job can be active while a delayed or waiting job is added
-        expect(count).to.be.lte(2);
+        expect(count).toBeLessThanOrEqual(2);
       }
       previousJob = await queue.upsertJobScheduler(
         jobSchedulerId,
@@ -327,13 +327,10 @@ describe('Job Scheduler Stress', () => {
       // Verify that jobs after the update have the new data
       // Note: There might be 1-2 jobs in transition that still have old data
       const newJobs = processedJobs.slice(jobsAfterFirst + 2); // Skip transition jobs
-      expect(newJobs.length).to.be.gte(1);
+      expect(newJobs.length).toBeGreaterThanOrEqual(1);
 
       for (const job of newJobs) {
-        expect(job.data.key).toBe(
-          'second',
-          `Job should have updated data 'second' but has '${job.data.key}'`,
-        );
+        expect(job.data.key).toBe('second');
         expect(job.name).toBe('my-name-2');
       }
 

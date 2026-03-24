@@ -260,7 +260,7 @@ describe('LockManager', () => {
       // Wait for lock renewal to happen
       await delay(600);
 
-      expect(extendCallCount).to.be.gte(1);
+      expect(extendCallCount).toBeGreaterThanOrEqual(1);
       expect(extendedJobIds.flat()).toEqual(
         expect.arrayContaining(['job-1', 'job-2']),
       );
@@ -478,8 +478,8 @@ describe('LockManager', () => {
       await delay(50);
 
       // Lock manager should have tracked jobs
-      expect(maxTrackedJobs).to.be.gte(1);
-      expect(maxTrackedJobs).to.be.lte(3);
+      expect(maxTrackedJobs).toBeGreaterThanOrEqual(1);
+      expect(maxTrackedJobs).toBeLessThanOrEqual(3);
 
       // After completion, no jobs should be tracked
       expect(lockManagerInstance.getActiveJobCount()).toBe(0);
