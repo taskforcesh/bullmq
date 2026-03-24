@@ -13,7 +13,7 @@ const myQueue = new Queue("transcoding", {
 
 app.post("/jobs", async (req, res) => {
   try {
-    const job = await myQueue.add("myjob", { req.body });
+    const job = await myQueue.add("myjob", req.body);
     res.status(201).json(job.id);
   }catch(err){
     res.status(503).send(err);
