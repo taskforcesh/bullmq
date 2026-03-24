@@ -1228,7 +1228,7 @@ export class Scripts {
     delay: number,
     token = '0',
     opts: MoveToDelayedOpts = {},
-  ) {
+  ): Promise<void | any[]> {
     const client = await this.queue.client;
 
     const args = this.moveToDelayedArgs(jobId, timestamp, token, delay, opts);
