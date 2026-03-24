@@ -74,6 +74,7 @@ local rcall = redis.call
 --- @include "includes/removeJobsByMaxCount"
 --- @include "includes/removeLock"
 --- @include "includes/removeParentDependencyKey"
+--- @include "includes/requeueDeduplicatedJob"
 --- @include "includes/trimEvents"
 --- @include "includes/updateParentDepsIfNeeded"
 --- @include "includes/updateJobFields"
@@ -137,6 +138,12 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
     local prefix = ARGV[7]
 
     removeDeduplicationKeyIfNeededOnFinalization(prefix, jobAttributes[3], jobId)
+
+    -- Check if there is requeue data for this dedup ID (requeueIfActive mode)
+    if jobAttributes[3] then
+      requeueDeduplicatedJob(prefix, jobAttributes[3], eventStreamKey,
+          metaKey, KEYS[2], KEYS[1], KEYS[8], KEYS[14], timestamp)
+    end
 
     -- If job has a parent we need to
     -- 1) remove this job id from parents dependencies

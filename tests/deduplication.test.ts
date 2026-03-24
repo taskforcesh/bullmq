@@ -1198,4 +1198,439 @@ describe('deduplication', () => {
       });
     });
   });
+
+  describe('when requeueIfActive is true', () => {
+    it('should store requeue data and create new job when active job completes', async () => {
+      const testName = 'test';
+      const deduplicationId = 'dedup-active-1';
+      const processedData: any[] = [];
+
+      let resolveFirstProcessing: () => void;
+      const firstProcessingStarted = new Promise<void>(resolve => {
+        resolveFirstProcessing = resolve;
+      });
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          if (processedData.length === 0) {
+            resolveFirstProcessing();
+            // Hold the first job active for a while
+            await delay(500);
+          }
+          processedData.push(job.data);
+        },
+        { autorun: false, connection, prefix },
+      );
+      await worker.waitUntilReady();
+
+      const allCompleted = new Promise<void>(resolve => {
+        let count = 0;
+        worker.on('completed', () => {
+          count++;
+          if (count === 2) {
+            resolve();
+          }
+        });
+      });
+
+      worker.run();
+
+      // Add first job
+      const job1 = await queue.add(
+        testName,
+        { seq: 1 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            requeueIfActive: true,
+          },
+        },
+      );
+
+      // Wait for first job to start processing
+      await firstProcessingStarted;
+
+      // Add second job while first is active — should be deduplicated
+      // but requeue data is stored for when the active job completes
+      const job2 = await queue.add(
+        testName,
+        { seq: 2 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            requeueIfActive: true,
+          },
+        },
+      );
+
+      // Returns the existing active job's ID (deduplicated)
+      expect(job2.id).toBe(job1.id);
+
+      await allCompleted;
+
+      // Both jobs processed: first has original data, second has latest data
+      expect(processedData).toHaveLength(2);
+      expect(processedData[0]).toEqual({ seq: 1 });
+      expect(processedData[1]).toEqual({ seq: 2 });
+
+      await worker.close();
+    });
+
+    it('should still deduplicate when dedup job is waiting (not active)', async () => {
+      const testName = 'test';
+      const deduplicationId = 'dedup-waiting-1';
+
+      let deduplicatedCount = 0;
+      queueEvents.on('deduplicated', () => {
+        deduplicatedCount++;
+      });
+
+      // Add first job (goes to waiting, not active since no worker)
+      const job1 = await queue.add(
+        testName,
+        { seq: 1 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            requeueIfActive: true,
+          },
+        },
+      );
+
+      // Add second job - should be deduplicated since first is waiting
+      const job2 = await queue.add(
+        testName,
+        { seq: 2 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            requeueIfActive: true,
+          },
+        },
+      );
+
+      await delay(100);
+
+      // job2 should have the same ID as job1 (was deduplicated)
+      expect(job2.id).toBe(job1.id);
+      expect(deduplicatedCount).toBe(1);
+    });
+
+    it('should replace requeue data with latest when multiple triggers while active', async () => {
+      const testName = 'test';
+      const deduplicationId = 'dedup-latest-1';
+      const processedData: any[] = [];
+
+      let resolveFirstProcessing: () => void;
+      const firstProcessingStarted = new Promise<void>(resolve => {
+        resolveFirstProcessing = resolve;
+      });
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          if (processedData.length === 0) {
+            resolveFirstProcessing();
+            await delay(500);
+          }
+          processedData.push(job.data);
+        },
+        { autorun: false, connection, prefix },
+      );
+      await worker.waitUntilReady();
+
+      const allCompleted = new Promise<void>(resolve => {
+        let count = 0;
+        worker.on('completed', () => {
+          count++;
+          if (count === 2) {
+            resolve();
+          }
+        });
+      });
+
+      worker.run();
+
+      // Add first job
+      await queue.add(
+        testName,
+        { seq: 1 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            requeueIfActive: true,
+          },
+        },
+      );
+
+      await firstProcessingStarted;
+
+      // Add second job while first is active
+      await queue.add(
+        testName,
+        { seq: 2 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            requeueIfActive: true,
+          },
+        },
+      );
+
+      // Add third job while first is still active — replaces requeue data
+      await queue.add(
+        testName,
+        { seq: 3 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            requeueIfActive: true,
+          },
+        },
+      );
+
+      await allCompleted;
+
+      // Only 2 jobs processed: first with seq:1, second with latest data seq:3
+      expect(processedData).toHaveLength(2);
+      expect(processedData[0]).toEqual({ seq: 1 });
+      expect(processedData[1]).toEqual({ seq: 3 });
+
+      await worker.close();
+    });
+
+    it('should not allow parallel execution of jobs with same dedup id', async () => {
+      const testName = 'test';
+      const deduplicationId = 'dedup-no-parallel-1';
+      let activeCount = 0;
+      let maxActiveCount = 0;
+
+      let resolveFirstProcessing: () => void;
+      const firstProcessingStarted = new Promise<void>(resolve => {
+        resolveFirstProcessing = resolve;
+      });
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          activeCount++;
+          maxActiveCount = Math.max(maxActiveCount, activeCount);
+          if (activeCount === 1 && maxActiveCount === 1) {
+            resolveFirstProcessing();
+          }
+          await delay(200);
+          activeCount--;
+        },
+        { autorun: false, connection, prefix, concurrency: 5 },
+      );
+      await worker.waitUntilReady();
+
+      const allCompleted = new Promise<void>(resolve => {
+        let count = 0;
+        worker.on('completed', () => {
+          count++;
+          if (count === 2) {
+            resolve();
+          }
+        });
+      });
+
+      worker.run();
+
+      // Add first job
+      await queue.add(
+        testName,
+        { seq: 1 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            requeueIfActive: true,
+          },
+        },
+      );
+
+      await firstProcessingStarted;
+
+      // Add second job while first is active
+      await queue.add(
+        testName,
+        { seq: 2 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            requeueIfActive: true,
+          },
+        },
+      );
+
+      await allCompleted;
+
+      // Never more than 1 job active at a time for this dedup id
+      expect(maxActiveCount).toBe(1);
+
+      await worker.close();
+    });
+
+    it('should properly clean up after both jobs complete', async () => {
+      const testName = 'test';
+      const deduplicationId = 'dedup-cleanup-1';
+
+      let resolveFirstProcessing: () => void;
+      const firstProcessingStarted = new Promise<void>(resolve => {
+        resolveFirstProcessing = resolve;
+      });
+
+      let processCount = 0;
+      const worker = new Worker(
+        queueName,
+        async () => {
+          processCount++;
+          if (processCount === 1) {
+            resolveFirstProcessing();
+            await delay(300);
+          }
+        },
+        { autorun: false, connection, prefix },
+      );
+      await worker.waitUntilReady();
+
+      const allCompleted = new Promise<void>(resolve => {
+        let completed = 0;
+        worker.on('completed', () => {
+          completed++;
+          if (completed === 2) {
+            resolve();
+          }
+        });
+      });
+
+      worker.run();
+
+      // First job
+      await queue.add(
+        testName,
+        { seq: 1 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            requeueIfActive: true,
+          },
+        },
+      );
+
+      await firstProcessingStarted;
+
+      // Second job while first is active
+      await queue.add(
+        testName,
+        { seq: 2 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            requeueIfActive: true,
+          },
+        },
+      );
+
+      await allCompleted;
+
+      // After both jobs complete, a new add should work normally
+      const job3 = await queue.add(
+        testName,
+        { seq: 3 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            requeueIfActive: true,
+          },
+        },
+      );
+
+      const thirdCompleted = new Promise<void>(resolve => {
+        worker.on('completed', job => {
+          if (job.id === job3.id) {
+            resolve();
+          }
+        });
+      });
+
+      await thirdCompleted;
+      expect(processCount).toBe(3);
+
+      await worker.close();
+    });
+
+    it('should work with ttl option', async () => {
+      const testName = 'test';
+      const deduplicationId = 'dedup-ttl-active-1';
+      const processedData: any[] = [];
+
+      let resolveFirstProcessing: () => void;
+      const firstProcessingStarted = new Promise<void>(resolve => {
+        resolveFirstProcessing = resolve;
+      });
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          if (processedData.length === 0) {
+            resolveFirstProcessing();
+            await delay(300);
+          }
+          processedData.push(job.data);
+        },
+        { autorun: false, connection, prefix },
+      );
+      await worker.waitUntilReady();
+
+      const allCompleted = new Promise<void>(resolve => {
+        let completed = 0;
+        worker.on('completed', () => {
+          completed++;
+          if (completed === 2) {
+            resolve();
+          }
+        });
+      });
+
+      worker.run();
+
+      // First job with ttl
+      await queue.add(
+        testName,
+        { seq: 1 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            ttl: 10000,
+            requeueIfActive: true,
+          },
+        },
+      );
+
+      await firstProcessingStarted;
+
+      // Second job while first is active — requeue data stored
+      await queue.add(
+        testName,
+        { seq: 2 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            ttl: 10000,
+            requeueIfActive: true,
+          },
+        },
+      );
+
+      await allCompleted;
+
+      expect(processedData).toHaveLength(2);
+      expect(processedData[0]).toEqual({ seq: 1 });
+      expect(processedData[1]).toEqual({ seq: 2 });
+
+      await worker.close();
+    });
+  });
 });

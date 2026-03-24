@@ -86,7 +86,7 @@ end
 local deduplicationId = opts['de'] and opts['de']['id']
 if deduplicationId then
     local deduplicationJobId = deduplicateJobWithoutReplace(deduplicationId, opts['de'],
-        jobId, deduplicationKey, eventsKey, maxEvents)
+        jobId, deduplicationKey, eventsKey, maxEvents, args[1], args[3], ARGV[2], opts)
     if deduplicationJobId then
         return deduplicationJobId
     end

@@ -25,7 +25,7 @@ local function removeDelayedJob(delayedKey, deduplicationKey, eventsKey, maxEven
 end
 
 local function deduplicateJob(deduplicationOpts, jobId, delayedKey, deduplicationKey, eventsKey, maxEvents,
-    prefix)
+    prefix, jobName, jobData, fullOpts)
     local deduplicationId = deduplicationOpts and deduplicationOpts['id']
     if deduplicationId then
         if deduplicationOpts['replace'] then
@@ -43,6 +43,17 @@ local function deduplicateJob(deduplicationOpts, jobId, delayedKey, deduplicatio
                         end
                         return
                     else
+                        -- Check if existing job is active and requeueIfActive is set
+                        if deduplicationOpts['requeueIfActive'] then
+                            local activeKey = prefix .. "active"
+                            if rcall('LPOS', activeKey, currentDebounceJobId) ~= false then
+                                local deduplicationNextKey = prefix .. "dn:" .. deduplicationId
+                                rcall('HSET', deduplicationNextKey, 'name', jobName, 'data', jobData, 'opts', cjson.encode(fullOpts))
+                                rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "deduplicated", "jobId",
+                                    currentDebounceJobId, "deduplicationId", deduplicationId, "deduplicatedJobId", jobId)
+                                return currentDebounceJobId
+                            end
+                        end
                         return currentDebounceJobId
                     end
                 else
@@ -59,6 +70,17 @@ local function deduplicateJob(deduplicationOpts, jobId, delayedKey, deduplicatio
                         rcall('SET', deduplicationKey, jobId)
                         return
                     else
+                        -- Check if existing job is active and requeueIfActive is set
+                        if deduplicationOpts['requeueIfActive'] then
+                            local activeKey = prefix .. "active"
+                            if rcall('LPOS', activeKey, currentDebounceJobId) ~= false then
+                                local deduplicationNextKey = prefix .. "dn:" .. deduplicationId
+                                rcall('HSET', deduplicationNextKey, 'name', jobName, 'data', jobData, 'opts', cjson.encode(fullOpts))
+                                rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "deduplicated", "jobId",
+                                    currentDebounceJobId, "deduplicationId", deduplicationId, "deduplicatedJobId", jobId)
+                                return currentDebounceJobId
+                            end
+                        end
                         return currentDebounceJobId
                     end
                 else
@@ -68,7 +90,7 @@ local function deduplicateJob(deduplicationOpts, jobId, delayedKey, deduplicatio
             end
         else
             return deduplicateJobWithoutReplace(deduplicationId, deduplicationOpts,
-                jobId, deduplicationKey, eventsKey, maxEvents)
+                jobId, deduplicationKey, eventsKey, maxEvents, prefix, jobName, jobData, fullOpts)
         end
     end
 end
