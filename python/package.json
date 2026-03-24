@@ -15,8 +15,8 @@
     "semantic-release:debug": "semantic-release --no-ci --dry-run --debug"
   },
   "devDependencies": {
-    "@commitlint/cli": "20.4.4",
-    "@commitlint/config-conventional": "20.4.4",
+    "@commitlint/cli": "20.5.0",
+    "@commitlint/config-conventional": "20.5.0",
     "@semantic-release/changelog": "6.0.3",
     "@semantic-release/commit-analyzer": "13.0.1",
     "@semantic-release/exec": "7.1.0",
