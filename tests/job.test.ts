@@ -1042,7 +1042,8 @@ describe('Job', () => {
           const isDelayed = await job.isDelayed();
           expect(isDelayed).toBe(true);
 
-          // when fetchNext is false, the result should be 0 (success code), not job data
+          // when fetchNext is false, the result should not include next job data
+          // and is expected to be an empty array
           expect(result).toEqual([]);
 
           await worker.close();
