@@ -17,7 +17,10 @@ export default (send: (msg: any) => Promise<void>, receiver: Receiver) => {
           await childProcessor.init(msg.value);
           break;
         case ChildCommand.Start:
-          await childProcessor.start(msg.job, msg?.token);
+          await childProcessor.start(msg.job, msg?.token, msg?.waitForReady);
+          break;
+        case ChildCommand.Run:
+          await childProcessor.run();
           break;
         case ChildCommand.Stop:
           break;

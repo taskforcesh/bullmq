@@ -180,15 +180,17 @@ export class Child extends EventEmitter {
         }
 
         if (msg.cmd === ParentCommand.InitCompleted) {
+          this.off('message', onMessageHandler);
+          this.off('close', onCloseHandler);
           resolve();
         } else if (msg.cmd === ParentCommand.InitFailed) {
           const err = new Error();
           err.stack = msg.err.stack;
           err.message = msg.err.message;
+          this.off('message', onMessageHandler);
+          this.off('close', onCloseHandler);
           reject(err);
         }
-        this.off('message', onMessageHandler);
-        this.off('close', onCloseHandler);
       };
 
       const onCloseHandler = (code: number, signal: number) => {

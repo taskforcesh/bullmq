@@ -1,4 +1,5 @@
 import { pathToFileURL } from 'url';
+import { EventEmitter } from 'events';
 import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
 import {
@@ -20,6 +21,9 @@ import {
   UNRECOVERABLE_ERROR,
   Worker,
 } from '../src/classes';
+import { ChildProcessor } from '../src/classes/child-processor';
+import sandbox from '../src/classes/sandbox';
+import { ChildCommand, ParentCommand } from '../src/enums';
 
 import { v4 } from 'uuid';
 import { delay, removeAllQueueData } from '../src/utils';
@@ -58,7 +62,8 @@ describe('Sandboxed process using child processes', () => {
     });
 
     it('should handle non-BullMQ messages during child initialization', async function () {
-      const mainFile = __dirname + '/fixtures/fixture_main_non_bullmq_messages.js';
+      const mainFile =
+        __dirname + '/fixtures/fixture_main_non_bullmq_messages.js';
       const processFile = __dirname + '/fixtures/fixture_processor_simple.js';
 
       const child = new Child(mainFile, processFile, {
@@ -73,6 +78,242 @@ describe('Sandboxed process using child processes', () => {
       expect(child.killed).to.be.false;
 
       await child.kill();
+    });
+
+    it('should emit StartReady before completion', async function () {
+      const processFile = __dirname + '/fixtures/fixture_processor_simple.js';
+
+      const sentMessages: any[] = [];
+      const receiver = new EventEmitter();
+      const childProcessor = new ChildProcessor(async msg => {
+        sentMessages.push(msg);
+      }, receiver as any);
+
+      await childProcessor.init(processFile);
+      await childProcessor.start(
+        {
+          id: 'job-1',
+          name: 'test',
+          data: JSON.stringify({ foo: 'bar' }),
+          opts: {},
+          progress: 0,
+          attemptsMade: 0,
+          attemptsStarted: 0,
+          timestamp: Date.now(),
+          failedReason: JSON.stringify(''),
+          stacktrace: JSON.stringify([]),
+          returnvalue: JSON.stringify(null),
+          stalledCounter: 0,
+          queueName: 'test-queue',
+          queueQualifiedName: 'bull:test-queue',
+          prefix: 'bull',
+        },
+        'token-1',
+        true,
+      );
+
+      await childProcessor.run();
+
+      await childProcessor.currentJobPromise;
+
+      const startReadyIndex = sentMessages.findIndex(
+        msg => msg.cmd === ParentCommand.StartReady,
+      );
+      const completedIndex = sentMessages.findIndex(
+        msg => msg.cmd === ParentCommand.Completed,
+      );
+
+      expect(startReadyIndex).toBeGreaterThan(-1);
+      expect(completedIndex).toBeGreaterThan(-1);
+      expect(startReadyIndex).toBeLessThan(completedIndex);
+    });
+
+    it('should fail before running user code when cancelled before Run', async function () {
+      const processFile = __dirname + '/fixtures/fixture_processor_simple.js';
+
+      const sentMessages: any[] = [];
+      const receiver = new EventEmitter();
+      const childProcessor = new ChildProcessor(async msg => {
+        sentMessages.push(msg);
+      }, receiver as any);
+
+      await childProcessor.init(processFile);
+      await childProcessor.start(
+        {
+          id: 'job-1',
+          name: 'test',
+          data: JSON.stringify({ foo: 'bar' }),
+          opts: {},
+          progress: 0,
+          attemptsMade: 0,
+          attemptsStarted: 0,
+          timestamp: Date.now(),
+          failedReason: JSON.stringify(''),
+          stacktrace: JSON.stringify([]),
+          returnvalue: JSON.stringify(null),
+          stalledCounter: 0,
+          queueName: 'test-queue',
+          queueQualifiedName: 'bull:test-queue',
+          prefix: 'bull',
+        },
+        'token-1',
+        true,
+      );
+
+      childProcessor.cancel('cancelled-before-run');
+      await childProcessor.currentJobPromise;
+
+      const startReadyIndex = sentMessages.findIndex(
+        msg => msg.cmd === ParentCommand.StartReady,
+      );
+      const failedIndex = sentMessages.findIndex(
+        msg => msg.cmd === ParentCommand.Failed,
+      );
+      const completedIndex = sentMessages.findIndex(
+        msg => msg.cmd === ParentCommand.Completed,
+      );
+
+      expect(startReadyIndex).toBeGreaterThan(-1);
+      expect(failedIndex).toBeGreaterThan(-1);
+      expect(completedIndex).toBe(-1);
+      expect(sentMessages[failedIndex].value.message).toBe(
+        'cancelled-before-run',
+      );
+    });
+
+    it('should error if Run is received before Start', async function () {
+      const processFile = __dirname + '/fixtures/fixture_processor_simple.js';
+
+      const sentMessages: any[] = [];
+      const receiver = new EventEmitter();
+      const childProcessor = new ChildProcessor(async msg => {
+        sentMessages.push(msg);
+      }, receiver as any);
+
+      await childProcessor.init(processFile);
+      await childProcessor.run();
+
+      expect(sentMessages.at(-1)).toMatchObject({
+        cmd: ParentCommand.Error,
+      });
+      expect(sentMessages.at(-1).err.message).toBe(
+        'cannot run a job that is not starting',
+      );
+    });
+
+    it('should error if Start is received twice before Run', async function () {
+      const processFile = __dirname + '/fixtures/fixture_processor_simple.js';
+
+      const sentMessages: any[] = [];
+      const receiver = new EventEmitter();
+      const childProcessor = new ChildProcessor(async msg => {
+        sentMessages.push(msg);
+      }, receiver as any);
+
+      const job = {
+        id: 'job-1',
+        name: 'test',
+        data: JSON.stringify({ foo: 'bar' }),
+        opts: {},
+        progress: 0,
+        attemptsMade: 0,
+        attemptsStarted: 0,
+        timestamp: Date.now(),
+        failedReason: JSON.stringify(''),
+        stacktrace: JSON.stringify([]),
+        returnvalue: JSON.stringify(null),
+        stalledCounter: 0,
+        queueName: 'test-queue',
+        queueQualifiedName: 'bull:test-queue',
+        prefix: 'bull',
+      };
+
+      await childProcessor.init(processFile);
+      await childProcessor.start(job, 'token-1', true);
+      await childProcessor.start(job, 'token-1', true);
+
+      expect(sentMessages.at(-1)).toMatchObject({
+        cmd: ParentCommand.Error,
+      });
+      expect(sentMessages.at(-1).err.message).toBe(
+        'cannot start a not idling child process',
+      );
+    });
+
+    it('should send Cancel instead of Run when already aborted before StartReady', async function () {
+      const sentCommands: number[] = [];
+      const child = new EventEmitter() as Child & {
+        send: (msg: any) => Promise<void>;
+        exitCode: number | null;
+        signalCode: number | null;
+      };
+      child.exitCode = null;
+      child.signalCode = null;
+      child.send = async msg => {
+        sentCommands.push(msg.cmd);
+
+        if (msg.cmd === ChildCommand.Start) {
+          queueMicrotask(() => {
+            child.emit('message', { cmd: ParentCommand.StartReady });
+          });
+        }
+
+        if (msg.cmd === ChildCommand.Cancel) {
+          queueMicrotask(() => {
+            child.emit('message', {
+              cmd: ParentCommand.Failed,
+              value: { message: msg.value },
+            });
+          });
+        }
+      };
+
+      const childPool = {
+        retain: async () => child,
+        release: () => undefined,
+      };
+
+      const process = sandbox('processor.js', childPool as any);
+      const job = {
+        asJSONSandbox: () => ({
+          id: 'job-1',
+          name: 'test',
+          data: JSON.stringify({ foo: 'bar' }),
+          opts: {},
+          progress: 0,
+          attemptsMade: 0,
+          attemptsStarted: 0,
+          timestamp: Date.now(),
+          failedReason: JSON.stringify(''),
+          stacktrace: JSON.stringify([]),
+          returnvalue: JSON.stringify(null),
+          stalledCounter: 0,
+          queueName: 'test-queue',
+          queueQualifiedName: 'bull:test-queue',
+          prefix: 'bull',
+        }),
+        updateProgress: async () => undefined,
+        log: async () => undefined,
+        moveToDelayed: async () => undefined,
+        moveToWait: async () => undefined,
+        moveToWaitingChildren: async () => false,
+        updateData: async () => undefined,
+        getChildrenValues: async () => ({}),
+        getIgnoredChildrenFailures: async () => ({}),
+      } as unknown as Job<any, any, string>;
+
+      const controller = new AbortController();
+      controller.abort('already-aborted');
+
+      await expect(
+        process(job, 'token-1', controller.signal),
+      ).rejects.toMatchObject({
+        message: 'already-aborted',
+      });
+
+      expect(sentCommands).toContain(ChildCommand.Start);
+      expect(sentCommands).toContain(ChildCommand.Cancel);
+      expect(sentCommands).not.toContain(ChildCommand.Run);
     });
 
     it('should allow to pass workerForkOptions', async () => {
