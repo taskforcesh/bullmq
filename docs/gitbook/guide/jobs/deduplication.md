@@ -131,7 +131,7 @@ Or if you want to stop deduplication only if a specific job is the one that caus
 const isDeduplicatedKeyRemoved = await job.removeDeduplicationKey();
 ```
 
-## Requeue If Active Mode
+## Keep Last If Active Mode
 
 In some use cases, you need to ensure that a job runs at least once after each time new data becomes available, even if a job with the same deduplication ID is already being processed. Common examples include data synchronization, cache invalidation, and deployment pipelines.
 
@@ -140,7 +140,7 @@ With `keepLastIfActive: true`, when a job is added while an existing job with th
 If multiple jobs are added while the active job is running, only the most recent data is kept — earlier additions are overwritten. This guarantees:
 
 - **No parallel execution**: At most 1 job per deduplication ID is active at any time.
-- **At most 2 jobs**: 1 active + 1 waiting (created on completion).
+- **At most 2 jobs**: 1 active + 1 waiting (created on completion/failure).
 - **Latest data wins**: The next job always uses the most recently added data.
 - **Normal deduplication when not active**: If the existing job is in waiting or delayed state, jobs are deduplicated as usual.
 
@@ -177,7 +177,7 @@ async function onGitPush(commitData) {
 ```
 
 {% hint style="info" %}
-This mode can be combined with `ttl` for throttle-based deduplication. The `keepLastIfActive` check only applies when the existing job is in the active state.
+This mode can be combined with `ttl` for throttle-based deduplication. When `keepLastIfActive` is set, the dedup key's TTL is automatically removed while the job is active to guarantee no parallel execution. The TTL is re-applied when the next job is created from the stored data.
 {% endhint %}
 
 {% hint style="warning" %}

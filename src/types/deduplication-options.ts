@@ -30,8 +30,14 @@ export type DeduplicationOptions = {
    * the active job is running, only the latest data is kept.
    *
    * This guarantees that at most 2 jobs per deduplication ID exist
-   * at any time: 1 active and 1 waiting. No parallel execution of
-   * jobs with the same deduplication ID is possible.
+   * at any time: 1 active and 1 waiting, preventing parallel
+   * execution of jobs with the same deduplication ID.
+   *
+   * When combined with `ttl`, the dedup key's TTL is automatically
+   * removed while the job is active and re-applied when the next
+   * job is created, ensuring the guarantee holds regardless of TTL.
+   *
+   * Cannot be used together with `delay`.
    */
   keepLastIfActive?: boolean;
 };

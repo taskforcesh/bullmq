@@ -5,7 +5,8 @@
 --- @include "storeDeduplicatedNextJob"
 
 local function deduplicateJobWithoutReplace(deduplicationId, deduplicationOpts, jobId, deduplicationKey,
-    eventsKey, maxEvents, prefix, jobName, jobData, fullOpts)
+    eventsKey, maxEvents, prefix, jobName, jobData, fullOpts,
+    parentKey, parentData, parentDependenciesKey, repeatJobKey)
     local ttl = deduplicationOpts['ttl']
     local deduplicationKeyExists
     if ttl and ttl > 0 then
@@ -13,7 +14,8 @@ local function deduplicateJobWithoutReplace(deduplicationId, deduplicationOpts, 
             local currentDebounceJobId = rcall('GET', deduplicationKey)
             if currentDebounceJobId then
                 if storeDeduplicatedNextJob(deduplicationOpts, currentDebounceJobId, prefix,
-                    deduplicationId, jobName, jobData, fullOpts, eventsKey, maxEvents, jobId) then
+                    deduplicationId, jobName, jobData, fullOpts, eventsKey, maxEvents, jobId,
+                    parentKey, parentData, parentDependenciesKey, repeatJobKey) then
                     return currentDebounceJobId
                 end
                 setDeduplicationKey(deduplicationKey, currentDebounceJobId, deduplicationOpts)
@@ -23,11 +25,19 @@ local function deduplicateJobWithoutReplace(deduplicationId, deduplicationOpts, 
                     currentDebounceJobId, "deduplicationId", deduplicationId, "deduplicatedJobId", jobId)
                 return currentDebounceJobId
             else
-                setDeduplicationKey(deduplicationKey, jobId, deduplicationOpts)
+                if deduplicationOpts['keepLastIfActive'] then
+                    rcall('SET', deduplicationKey, jobId)
+                else
+                    setDeduplicationKey(deduplicationKey, jobId, deduplicationOpts)
+                end
                 return
             end
         else
-            deduplicationKeyExists = not rcall('SET', deduplicationKey, jobId, 'PX', ttl, 'NX')
+            if deduplicationOpts['keepLastIfActive'] then
+                deduplicationKeyExists = not rcall('SET', deduplicationKey, jobId, 'NX')
+            else
+                deduplicationKeyExists = not rcall('SET', deduplicationKey, jobId, 'PX', ttl, 'NX')
+            end
         end
     else
         deduplicationKeyExists = not rcall('SET', deduplicationKey, jobId, 'NX')
@@ -37,7 +47,8 @@ local function deduplicateJobWithoutReplace(deduplicationId, deduplicationOpts, 
         local currentDebounceJobId = rcall('GET', deduplicationKey)
 
         if storeDeduplicatedNextJob(deduplicationOpts, currentDebounceJobId, prefix,
-            deduplicationId, jobName, jobData, fullOpts, eventsKey, maxEvents, jobId) then
+            deduplicationId, jobName, jobData, fullOpts, eventsKey, maxEvents, jobId,
+            parentKey, parentData, parentDependenciesKey, repeatJobKey) then
             return currentDebounceJobId
         end
 

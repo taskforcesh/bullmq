@@ -1957,5 +1957,85 @@ describe('deduplication', () => {
 
       await worker.close();
     });
+
+    it('should prevent parallel execution even when ttl expires while job is active', async () => {
+      const testName = 'test';
+      const deduplicationId = 'dedup-ttl-expire-1';
+      const processedData: any[] = [];
+
+      let resolveFirstProcessing: () => void;
+      const firstProcessingStarted = new Promise<void>(resolve => {
+        resolveFirstProcessing = resolve;
+      });
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          if (processedData.length === 0) {
+            resolveFirstProcessing();
+            // Hold first job active longer than the TTL (200ms)
+            await delay(500);
+          }
+          processedData.push(job.data);
+        },
+        { autorun: false, connection, prefix },
+      );
+      await worker.waitUntilReady();
+
+      const allCompleted = new Promise<void>(resolve => {
+        let count = 0;
+        worker.on('completed', () => {
+          count++;
+          if (count === 2) {
+            resolve();
+          }
+        });
+      });
+
+      worker.run();
+
+      // Add first job with a short TTL
+      const job1 = await queue.add(
+        testName,
+        { seq: 1 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            ttl: 200,
+            keepLastIfActive: true,
+          },
+        },
+      );
+
+      await firstProcessingStarted;
+
+      // Wait for TTL to expire while job is still active
+      await delay(300);
+
+      // Add second job after TTL expired — should still be deduplicated
+      // because keepLastIfActive prevents the dedup key from expiring
+      const job2 = await queue.add(
+        testName,
+        { seq: 2 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            ttl: 200,
+            keepLastIfActive: true,
+          },
+        },
+      );
+
+      // Should still be deduplicated (returns first job's ID)
+      expect(job2.id).toBe(job1.id);
+
+      await allCompleted;
+
+      expect(processedData).toHaveLength(2);
+      expect(processedData[0]).toEqual({ seq: 1 });
+      expect(processedData[1]).toEqual({ seq: 2 });
+
+      await worker.close();
+    });
   });
 });
