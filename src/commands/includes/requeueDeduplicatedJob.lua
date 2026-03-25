@@ -1,6 +1,6 @@
 --[[
   Function to create a new job from stored dedup-next data
-  when a deduplicated job with requeueIfActive finishes.
+  when a deduplicated job with keepLastIfActive finishes.
   At most one next job is created per deduplication ID.
   Multiple triggers while active overwrite the dedup-next data,
   so only the latest data is used.
