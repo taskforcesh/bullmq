@@ -439,15 +439,26 @@ export class Queue<
               }
             }
 
+            const mergedOpts = {
+              ...this.jobsOpts,
+              ...job.opts,
+              jobId: job.opts?.jobId,
+              telemetry,
+            };
+
+            if (
+              mergedOpts.deduplication?.keepLastIfActive &&
+              mergedOpts.delay > 0
+            ) {
+              throw new Error(
+                'keepLastIfActive cannot be used together with delay option',
+              );
+            }
+
             return {
               name: job.name,
               data: job.data,
-              opts: {
-                ...this.jobsOpts,
-                ...job.opts,
-                jobId: job.opts?.jobId,
-                telemetry,
-              },
+              opts: mergedOpts,
             };
           }),
         );

@@ -162,6 +162,16 @@ class Queue
             $opts = $jobData['opts'] ?? [];
 
             $job = new Job($this, $name, $data, $opts);
+
+            if ($job->opts->deduplication !== null
+                && !empty($job->opts->deduplication['keepLastIfActive'])
+                && $job->opts->delay > 0
+            ) {
+                throw new \InvalidArgumentException(
+                    'keepLastIfActive cannot be used together with delay option'
+                );
+            }
+
             if ($job->id === null) {
                 $job->id = $this->generateJobId();
             }

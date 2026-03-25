@@ -33,9 +33,9 @@ export type DeduplicationOptions = {
    * at any time: 1 active and 1 waiting, preventing parallel
    * execution of jobs with the same deduplication ID.
    *
-   * When combined with `ttl`, the dedup key's TTL is automatically
-   * removed while the job is active and re-applied when the next
-   * job is created, ensuring the guarantee holds regardless of TTL.
+   * Note: when this option is set, `ttl` is ignored. The dedup key
+   * is kept alive without expiry for the job's entire lifecycle
+   * and cleaned up on completion or failure.
    *
    * Cannot be used together with `delay`.
    */

@@ -177,7 +177,7 @@ async function onGitPush(commitData) {
 ```
 
 {% hint style="info" %}
-This mode can be combined with `ttl` for throttle-based deduplication. When `keepLastIfActive` is set, the dedup key's TTL is automatically removed while the job is active to guarantee no parallel execution. The TTL is re-applied when the next job is created from the stored data.
+When `keepLastIfActive` is set, the `ttl` option is ignored. The dedup key is kept alive (without expiry) for the entire duration the job exists, ensuring no parallel execution regardless of processing time. The key is cleaned up automatically when the job completes or fails.
 {% endhint %}
 
 {% hint style="warning" %}

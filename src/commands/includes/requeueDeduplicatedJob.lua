@@ -35,8 +35,14 @@ local function requeueDeduplicatedJob(prefix, deduplicationId, eventStreamKey,
     storeJob(eventStreamKey, newJobIdKey, newJobId, nextData[1], nextData[2],
         newOpts, timestamp, parentKey, parentData, repeatJobKey)
 
-    -- Set dedup key for the new job
-    setDeduplicationKey(deduplicationKey, newJobId, newOpts['de'])
+    -- Set dedup key for the new job (without TTL when keepLastIfActive,
+    -- so the key outlives the job's active duration)
+    local deOpts = newOpts['de']
+    if deOpts and deOpts['keepLastIfActive'] then
+      rcall('SET', deduplicationKey, newJobId)
+    else
+      setDeduplicationKey(deduplicationKey, newJobId, deOpts)
+    end
 
     -- Add to target list (wait or paused) and emit waiting event
     local maxEvents = getOrSetMaxEvents(metaKey)

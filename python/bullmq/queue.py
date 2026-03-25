@@ -62,6 +62,12 @@ class Queue(EventEmitter):
         for job in jobs:
             opts = {**self.jobsOpts, **(job.get("opts") or {})}
 
+            dedup = opts.get('deduplication')
+            if dedup and dedup.get('keepLastIfActive') and opts.get('delay', 0) > 0:
+                raise ValueError(
+                    'keepLastIfActive cannot be used together with delay option'
+                )
+
             jobs_data.append({
                 "name": job.get("name"),
                 "data": job.get("data"),
