@@ -1199,8 +1199,8 @@ describe('deduplication', () => {
     });
   });
 
-  describe('when requeueIfActive is true', () => {
-    it('should store requeue data and create new job when active job completes', async () => {
+  describe('when keepLastIfActive is true', () => {
+    it('should store next job data and create new job when active job completes', async () => {
       const testName = 'test';
       const deduplicationId = 'dedup-active-1';
       const processedData: any[] = [];
@@ -1243,7 +1243,7 @@ describe('deduplication', () => {
         {
           deduplication: {
             id: deduplicationId,
-            requeueIfActive: true,
+            keepLastIfActive: true,
           },
         },
       );
@@ -1252,14 +1252,14 @@ describe('deduplication', () => {
       await firstProcessingStarted;
 
       // Add second job while first is active — should be deduplicated
-      // but requeue data is stored for when the active job completes
+      // but next job data is stored for when the active job completes
       const job2 = await queue.add(
         testName,
         { seq: 2 },
         {
           deduplication: {
             id: deduplicationId,
-            requeueIfActive: true,
+            keepLastIfActive: true,
           },
         },
       );
@@ -1293,7 +1293,7 @@ describe('deduplication', () => {
         {
           deduplication: {
             id: deduplicationId,
-            requeueIfActive: true,
+            keepLastIfActive: true,
           },
         },
       );
@@ -1305,7 +1305,7 @@ describe('deduplication', () => {
         {
           deduplication: {
             id: deduplicationId,
-            requeueIfActive: true,
+            keepLastIfActive: true,
           },
         },
       );
@@ -1317,7 +1317,7 @@ describe('deduplication', () => {
       expect(deduplicatedCount).toBe(1);
     });
 
-    it('should replace requeue data with latest when multiple triggers while active', async () => {
+    it('should replace stored data with latest when multiple jobs added while active', async () => {
       const testName = 'test';
       const deduplicationId = 'dedup-latest-1';
       const processedData: any[] = [];
@@ -1359,7 +1359,7 @@ describe('deduplication', () => {
         {
           deduplication: {
             id: deduplicationId,
-            requeueIfActive: true,
+            keepLastIfActive: true,
           },
         },
       );
@@ -1373,19 +1373,19 @@ describe('deduplication', () => {
         {
           deduplication: {
             id: deduplicationId,
-            requeueIfActive: true,
+            keepLastIfActive: true,
           },
         },
       );
 
-      // Add third job while first is still active — replaces requeue data
+      // Add third job while first is still active — replaces stored data
       await queue.add(
         testName,
         { seq: 3 },
         {
           deduplication: {
             id: deduplicationId,
-            requeueIfActive: true,
+            keepLastIfActive: true,
           },
         },
       );
@@ -1445,7 +1445,7 @@ describe('deduplication', () => {
         {
           deduplication: {
             id: deduplicationId,
-            requeueIfActive: true,
+            keepLastIfActive: true,
           },
         },
       );
@@ -1459,7 +1459,7 @@ describe('deduplication', () => {
         {
           deduplication: {
             id: deduplicationId,
-            requeueIfActive: true,
+            keepLastIfActive: true,
           },
         },
       );
@@ -1514,7 +1514,7 @@ describe('deduplication', () => {
         {
           deduplication: {
             id: deduplicationId,
-            requeueIfActive: true,
+            keepLastIfActive: true,
           },
         },
       );
@@ -1528,7 +1528,7 @@ describe('deduplication', () => {
         {
           deduplication: {
             id: deduplicationId,
-            requeueIfActive: true,
+            keepLastIfActive: true,
           },
         },
       );
@@ -1542,7 +1542,7 @@ describe('deduplication', () => {
         {
           deduplication: {
             id: deduplicationId,
-            requeueIfActive: true,
+            keepLastIfActive: true,
           },
         },
       );
@@ -1604,14 +1604,14 @@ describe('deduplication', () => {
           deduplication: {
             id: deduplicationId,
             ttl: 10000,
-            requeueIfActive: true,
+            keepLastIfActive: true,
           },
         },
       );
 
       await firstProcessingStarted;
 
-      // Second job while first is active — requeue data stored
+      // Second job while first is active — next job data stored
       await queue.add(
         testName,
         { seq: 2 },
@@ -1619,7 +1619,7 @@ describe('deduplication', () => {
           deduplication: {
             id: deduplicationId,
             ttl: 10000,
-            requeueIfActive: true,
+            keepLastIfActive: true,
           },
         },
       );
@@ -1631,6 +1631,118 @@ describe('deduplication', () => {
       expect(processedData[1]).toEqual({ seq: 2 });
 
       await worker.close();
+    });
+
+    it('should add next job to paused list when queue is paused and process after resume', async () => {
+      const testName = 'test';
+      const deduplicationId = 'dedupPause';
+      const processedData: any[] = [];
+
+      let firstJobResolve: () => void;
+      const firstProcessingStarted = new Promise<void>(
+        resolve => (firstJobResolve = resolve),
+      );
+
+      let allowFirstToComplete: () => void;
+      const firstJobGate = new Promise<void>(
+        resolve => (allowFirstToComplete = resolve),
+      );
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          if (processedData.length === 0) {
+            firstJobResolve();
+            await firstJobGate;
+          }
+          processedData.push(job.data);
+        },
+        { autorun: false, connection, prefix },
+      );
+      await worker.waitUntilReady();
+
+      const allCompleted = new Promise<void>(resolve => {
+        let completed = 0;
+        worker.on('completed', () => {
+          completed++;
+          if (completed === 2) {
+            resolve();
+          }
+        });
+      });
+
+      worker.run();
+
+      // Add first job
+      await queue.add(
+        testName,
+        { seq: 1 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            keepLastIfActive: true,
+          },
+        },
+      );
+
+      await firstProcessingStarted;
+
+      // Pause the queue while first job is active
+      await queue.pause();
+
+      // Add second job while paused and first is active
+      await queue.add(
+        testName,
+        { seq: 2 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            keepLastIfActive: true,
+          },
+        },
+      );
+
+      // Let first job complete — moveToFinished should put next job in paused list
+      allowFirstToComplete();
+
+      // Wait a bit for the first job to finish
+      await delay(500);
+
+      // Verify the next job is in paused state (not processed yet)
+      expect(processedData).toHaveLength(1);
+      expect(processedData[0]).toEqual({ seq: 1 });
+
+      // Resume the queue — paused jobs move to wait
+      await queue.resume();
+
+      await allCompleted;
+
+      expect(processedData).toHaveLength(2);
+      expect(processedData[0]).toEqual({ seq: 1 });
+      expect(processedData[1]).toEqual({ seq: 2 });
+
+      await worker.close();
+    });
+
+    it('should throw an error when used with delay option', async () => {
+      const testName = 'test';
+      const deduplicationId = 'dedupDelay';
+
+      await expect(
+        queue.add(
+          testName,
+          { seq: 1 },
+          {
+            deduplication: {
+              id: deduplicationId,
+              keepLastIfActive: true,
+            },
+            delay: 60000,
+          },
+        ),
+      ).rejects.toThrow(
+        'keepLastIfActive cannot be used together with delay option',
+      );
     });
   });
 });

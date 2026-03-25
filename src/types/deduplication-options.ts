@@ -23,10 +23,15 @@ export type DeduplicationOptions = {
   replace?: boolean;
 
   /**
-   * If true, when the deduplicated job is currently active (being processed),
-   * allow a new job to be added to the queue instead of deduplicating.
-   * This ensures at least one execution after the currently active job completes.
-   * At most 2 jobs with the same dedup ID can exist: 1 active + 1 waiting.
+   * If true, when a job with the same deduplication ID is currently
+   * active (being processed), the new job's data will be stored and
+   * a new job will be created automatically when the active one
+   * finishes (completes or fails). If multiple jobs are added while
+   * the active job is running, only the latest data is kept.
+   *
+   * This guarantees that at most 2 jobs per deduplication ID exist
+   * at any time: 1 active and 1 waiting. No parallel execution of
+   * jobs with the same deduplication ID is possible.
    */
-  requeueIfActive?: boolean;
+  keepLastIfActive?: boolean;
 };

@@ -205,7 +205,8 @@ defmodule BullMQ.Types do
           required(:id) => String.t(),
           optional(:ttl) => duration_ms(),
           optional(:extend) => boolean(),
-          optional(:replace) => boolean()
+          optional(:replace) => boolean(),
+          optional(:keep_last_if_active) => boolean()
         }
 
   @typedoc """

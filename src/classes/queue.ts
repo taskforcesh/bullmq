@@ -375,6 +375,12 @@ export class Queue<
         throw new Error("JobId cannot be '0' or start with 0:");
       }
 
+      if (opts?.deduplication?.keepLastIfActive && opts?.delay) {
+        throw new Error(
+          'keepLastIfActive cannot be used together with delay option',
+        );
+      }
+
       const job = await this.Job.create<DataType, ResultType, NameType>(
         this as MinimalQueue,
         name,

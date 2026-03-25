@@ -4,7 +4,7 @@ Tests for deduplication functionality.
 Tests simple mode, throttle mode, and debounce mode deduplication.
 """
 
-from bullmq import Queue
+from bullmq import Queue, Job, Worker
 from uuid import uuid4
 
 import asyncio

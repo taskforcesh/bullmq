@@ -2070,6 +2070,18 @@ defmodule BullMQ.Queue do
   end
 
   defp add_job(conn, ctx, job) do
+    dedup = Map.get(job.opts || %{}, :deduplication) || Map.get(job.opts || %{}, "deduplication")
+
+    keep_last =
+      if is_map(dedup) do
+        Map.get(dedup, :keep_last_if_active) || Map.get(dedup, "keepLastIfActive")
+      end
+
+    if keep_last && job.delay > 0 do
+      raise ArgumentError,
+            "keepLastIfActive cannot be used together with delay option"
+    end
+
     encoded_opts = encode_job_opts(job.opts)
 
     result =

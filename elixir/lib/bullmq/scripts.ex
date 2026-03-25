@@ -2011,6 +2011,7 @@ defmodule BullMQ.Scripts do
       )
       |> maybe_add_opt("kl", Map.get(job_opts, :keep_logs) || Map.get(job_opts, "keepLogs"), nil)
       |> maybe_add_opt("rep", get_repeat_opts(job_opts), nil)
+      |> maybe_add_opt("de", get_deduplication_opts(job_opts), nil)
       |> Map.merge(additional_opts)
 
     Msgpax.pack!(opts, iodata: false)
@@ -2037,6 +2038,54 @@ defmodule BullMQ.Scripts do
       nil -> nil
       r when is_map(r) -> r
       _ -> nil
+    end
+  end
+
+  defp get_deduplication_opts(opts) do
+    dedup = Map.get(opts, :deduplication) || Map.get(opts, "deduplication")
+
+    case dedup do
+      nil ->
+        nil
+
+      d when is_map(d) ->
+        # Convert Elixir-style keys to the short keys expected by Lua scripts
+        result = %{}
+
+        result =
+          case Map.get(d, :id) || Map.get(d, "id") do
+            nil -> result
+            v -> Map.put(result, "id", v)
+          end
+
+        result =
+          case Map.get(d, :ttl) || Map.get(d, "ttl") do
+            nil -> result
+            v -> Map.put(result, "ttl", v)
+          end
+
+        result =
+          case Map.get(d, :extend) || Map.get(d, "extend") do
+            nil -> result
+            v -> Map.put(result, "extend", v)
+          end
+
+        result =
+          case Map.get(d, :replace) || Map.get(d, "replace") do
+            nil -> result
+            v -> Map.put(result, "replace", v)
+          end
+
+        result =
+          case Map.get(d, :keep_last_if_active) || Map.get(d, "keepLastIfActive") do
+            nil -> result
+            v -> Map.put(result, "keepLastIfActive", v)
+          end
+
+        if map_size(result) > 0, do: result, else: nil
+
+      _ ->
+        nil
     end
   end
 

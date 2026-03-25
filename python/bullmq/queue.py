@@ -41,6 +41,13 @@ class Queue(EventEmitter):
         @param opts: Job options that affects how the job is going to be processed.
         """
         merged_opts = {**self.jobsOpts, **(opts or {})}
+
+        dedup = merged_opts.get('deduplication')
+        if dedup and dedup.get('keepLastIfActive') and merged_opts.get('delay'):
+            raise ValueError(
+                'keepLastIfActive cannot be used together with delay option'
+            )
+
         job = Job(self, name, data, merged_opts)
         job_id = await self.scripts.addJob(job)
         job.id = job_id
