@@ -43,7 +43,7 @@ class Queue(EventEmitter):
         merged_opts = {**self.jobsOpts, **(opts or {})}
 
         dedup = merged_opts.get('deduplication')
-        if dedup and dedup.get('keepLastIfActive') and merged_opts.get('delay'):
+        if dedup and dedup.get('keepLastIfActive') and merged_opts.get('delay', 0) > 0:
             raise ValueError(
                 'keepLastIfActive cannot be used together with delay option'
             )

@@ -1,6 +1,7 @@
 --[[
   Function to deduplicate a job.
 ]]
+--- @include "setDeduplicationKey"
 --- @include "storeDeduplicatedNextJob"
 
 local function deduplicateJobWithoutReplace(deduplicationId, deduplicationOpts, jobId, deduplicationKey,
@@ -15,14 +16,14 @@ local function deduplicateJobWithoutReplace(deduplicationId, deduplicationOpts, 
                     deduplicationId, jobName, jobData, fullOpts, eventsKey, maxEvents, jobId) then
                     return currentDebounceJobId
                 end
-                rcall('SET', deduplicationKey, currentDebounceJobId, 'PX', ttl)
+                setDeduplicationKey(deduplicationKey, currentDebounceJobId, deduplicationOpts)
                 rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "debounced",
                     "jobId", currentDebounceJobId, "debounceId", deduplicationId)
                 rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "deduplicated", "jobId",
                     currentDebounceJobId, "deduplicationId", deduplicationId, "deduplicatedJobId", jobId)
                 return currentDebounceJobId
             else
-                rcall('SET', deduplicationKey, jobId, 'PX', ttl)
+                setDeduplicationKey(deduplicationKey, jobId, deduplicationOpts)
                 return
             end
         else

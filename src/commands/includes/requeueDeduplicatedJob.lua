@@ -7,9 +7,11 @@
 ]]
 
 -- Includes
---- @include "addBaseMarkerIfNeeded"
+--- @include "addJobInTargetList"
 --- @include "getOrSetMaxEvents"
 --- @include "getTargetQueueList"
+--- @include "setDeduplicationKey"
+--- @include "storeJob"
 
 local function requeueDeduplicatedJob(prefix, deduplicationId, eventStreamKey,
     metaKey, activeKey, waitKey, pausedKey, markerKey, timestamp)
@@ -23,32 +25,18 @@ local function requeueDeduplicatedJob(prefix, deduplicationId, eventStreamKey,
     local newOpts = cjson.decode(nextData[3])
     local deduplicationKey = prefix .. "de:" .. deduplicationId
 
-    -- Store the job
-    rcall("HMSET", newJobIdKey,
-        "name", nextData[1],
-        "data", nextData[2],
-        "opts", nextData[3],
-        "timestamp", timestamp,
-        "delay", 0,
-        "priority", newOpts['priority'] or 0,
-        "deid", deduplicationId)
+    -- Use storeJob to persist the job exactly as a normal add would
+    storeJob(eventStreamKey, newJobIdKey, newJobId, nextData[1], nextData[2],
+        newOpts, timestamp, nil, nil, nil)
 
     -- Set dedup key for the new job
-    local deTtl = newOpts['de'] and newOpts['de']['ttl']
-    if deTtl and deTtl > 0 then
-      rcall('SET', deduplicationKey, newJobId, 'PX', deTtl)
-    else
-      rcall('SET', deduplicationKey, newJobId)
-    end
+    setDeduplicationKey(deduplicationKey, newJobId, newOpts['de'])
 
-    -- Add to wait list
+    -- Add to target list (wait or paused) and emit waiting event
     local maxEvents = getOrSetMaxEvents(metaKey)
     local target, isPausedOrMaxed = getTargetQueueList(metaKey, activeKey, waitKey, pausedKey)
-    rcall("LPUSH", target, newJobId)
-    addBaseMarkerIfNeeded(markerKey, isPausedOrMaxed)
+    addJobInTargetList(target, markerKey, "LPUSH", isPausedOrMaxed, newJobId)
 
-    -- Emit events
-    rcall("XADD", eventStreamKey, "*", "event", "added", "jobId", newJobId, "name", nextData[1])
     rcall("XADD", eventStreamKey, "MAXLEN", "~", maxEvents, "*", "event", "waiting",
         "jobId", newJobId)
   end

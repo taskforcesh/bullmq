@@ -375,7 +375,13 @@ export class Queue<
         throw new Error("JobId cannot be '0' or start with 0:");
       }
 
-      if (opts?.deduplication?.keepLastIfActive && opts?.delay) {
+      const mergedOpts = {
+        ...this.jobsOpts,
+        ...opts,
+        jobId,
+      };
+
+      if (mergedOpts.deduplication?.keepLastIfActive && mergedOpts.delay > 0) {
         throw new Error(
           'keepLastIfActive cannot be used together with delay option',
         );
@@ -385,11 +391,7 @@ export class Queue<
         this as MinimalQueue,
         name,
         data,
-        {
-          ...this.jobsOpts,
-          ...opts,
-          jobId,
-        },
+        mergedOpts,
       );
       this.emit('waiting', job as JobBase<DataType, ResultType, NameType>);
 

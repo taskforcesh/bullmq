@@ -4,6 +4,7 @@
 -- Includes
 --- @include "deduplicateJobWithoutReplace"
 --- @include "removeJobKeys"
+--- @include "setDeduplicationKey"
 --- @include "storeDeduplicatedNextJob"
 
 local function removeDelayedJob(delayedKey, deduplicationKey, eventsKey, maxEvents, currentDeduplicatedJobId,
@@ -30,46 +31,26 @@ local function deduplicateJob(deduplicationOpts, jobId, delayedKey, deduplicatio
     local deduplicationId = deduplicationOpts and deduplicationOpts['id']
     if deduplicationId then
         if deduplicationOpts['replace'] then
-            local ttl = deduplicationOpts['ttl']
-            if ttl and ttl > 0 then
-                local currentDebounceJobId = rcall('GET', deduplicationKey)
-                if currentDebounceJobId then
-                    local isRemoved = removeDelayedJob(delayedKey, deduplicationKey, eventsKey, maxEvents,
-                        currentDebounceJobId, jobId, deduplicationId, prefix)
-                    if isRemoved then
-                        if deduplicationOpts['extend'] then
-                            rcall('SET', deduplicationKey, jobId, 'PX', ttl)
-                        else
-                            rcall('SET', deduplicationKey, jobId, 'KEEPTTL')
-                        end
-                        return
+            local currentDebounceJobId = rcall('GET', deduplicationKey)
+            if currentDebounceJobId then
+                local isRemoved = removeDelayedJob(delayedKey, deduplicationKey, eventsKey, maxEvents,
+                    currentDebounceJobId, jobId, deduplicationId, prefix)
+                if isRemoved then
+                    local ttl = deduplicationOpts['ttl']
+                    if not deduplicationOpts['extend'] and ttl and ttl > 0 then
+                        rcall('SET', deduplicationKey, jobId, 'KEEPTTL')
                     else
-                        storeDeduplicatedNextJob(deduplicationOpts, currentDebounceJobId, prefix,
-                            deduplicationId, jobName, jobData, fullOpts, eventsKey, maxEvents, jobId)
-                        return currentDebounceJobId
+                        setDeduplicationKey(deduplicationKey, jobId, deduplicationOpts)
                     end
-                else
-                    rcall('SET', deduplicationKey, jobId, 'PX', ttl)
                     return
+                else
+                    storeDeduplicatedNextJob(deduplicationOpts, currentDebounceJobId, prefix,
+                        deduplicationId, jobName, jobData, fullOpts, eventsKey, maxEvents, jobId)
+                    return currentDebounceJobId
                 end
             else
-                local currentDebounceJobId = rcall('GET', deduplicationKey)
-                if currentDebounceJobId then
-                    local isRemoved = removeDelayedJob(delayedKey, deduplicationKey, eventsKey, maxEvents,
-                        currentDebounceJobId, jobId, deduplicationId, prefix)
-
-                    if isRemoved then
-                        rcall('SET', deduplicationKey, jobId)
-                        return
-                    else
-                        storeDeduplicatedNextJob(deduplicationOpts, currentDebounceJobId, prefix,
-                            deduplicationId, jobName, jobData, fullOpts, eventsKey, maxEvents, jobId)
-                        return currentDebounceJobId
-                    end
-                else
-                    rcall('SET', deduplicationKey, jobId)
-                    return
-                end
+                setDeduplicationKey(deduplicationKey, jobId, deduplicationOpts)
+                return
             end
         else
             return deduplicateJobWithoutReplace(deduplicationId, deduplicationOpts,

@@ -1744,5 +1744,218 @@ describe('deduplication', () => {
         'keepLastIfActive cannot be used together with delay option',
       );
     });
+
+    it('should throw an error when queue has default delay', async () => {
+      const queueWithDelay = new Queue(queueName, {
+        connection,
+        prefix,
+        defaultJobOptions: { delay: 5000 },
+      });
+
+      const deduplicationId = 'dedupDefaultDelay';
+
+      try {
+        await expect(
+          queueWithDelay.add(
+            'test',
+            { seq: 1 },
+            {
+              deduplication: {
+                id: deduplicationId,
+                keepLastIfActive: true,
+              },
+            },
+          ),
+        ).rejects.toThrow(
+          'keepLastIfActive cannot be used together with delay option',
+        );
+      } finally {
+        await queueWithDelay.close();
+      }
+    });
+
+    it('should not throw when delay is 0', async () => {
+      const deduplicationId = 'dedupDelayZero';
+
+      const job = await queue.add(
+        'test',
+        { seq: 1 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            keepLastIfActive: true,
+          },
+          delay: 0,
+        },
+      );
+
+      expect(job.id).toBeDefined();
+    });
+
+    it('should requeue next job when active job fails permanently', async () => {
+      const testName = 'test';
+      const deduplicationId = 'dedup-fail-1';
+      const processedData: any[] = [];
+
+      let resolveFirstProcessing: () => void;
+      const firstProcessingStarted = new Promise<void>(resolve => {
+        resolveFirstProcessing = resolve;
+      });
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          processedData.push(job.data);
+          if (processedData.length === 1) {
+            resolveFirstProcessing();
+            // Hold the first job active for a while then fail it
+            await delay(500);
+            throw new Error('intentional failure');
+          }
+        },
+        { autorun: false, connection, prefix },
+      );
+      await worker.waitUntilReady();
+
+      const firstFailed = new Promise<void>(resolve => {
+        worker.on('failed', () => {
+          resolve();
+        });
+      });
+
+      const secondCompleted = new Promise<void>(resolve => {
+        worker.on('completed', () => {
+          resolve();
+        });
+      });
+
+      worker.run();
+
+      // Add first job
+      const job1 = await queue.add(
+        testName,
+        { seq: 1 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            keepLastIfActive: true,
+          },
+          attempts: 1,
+        },
+      );
+
+      await firstProcessingStarted;
+
+      // Add second job while first is active
+      const job2 = await queue.add(
+        testName,
+        { seq: 2 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            keepLastIfActive: true,
+          },
+        },
+      );
+
+      expect(job2.id).toBe(job1.id);
+
+      await firstFailed;
+      await secondCompleted;
+
+      // Both jobs processed: first failed, second completed with latest data
+      expect(processedData).toHaveLength(2);
+      expect(processedData[0]).toEqual({ seq: 1 });
+      expect(processedData[1]).toEqual({ seq: 2 });
+
+      await worker.close();
+    });
+
+    it('should requeue next job only after retries are exhausted', async () => {
+      const testName = 'test';
+      const deduplicationId = 'dedup-retry-1';
+      const processedData: any[] = [];
+      let attemptCount = 0;
+
+      let resolveFirstProcessing: () => void;
+      const firstProcessingStarted = new Promise<void>(resolve => {
+        resolveFirstProcessing = resolve;
+      });
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          if (job.data.seq === 1) {
+            attemptCount++;
+            if (attemptCount === 1) {
+              resolveFirstProcessing();
+              await delay(300);
+            }
+            // Fail on all attempts for the first job
+            throw new Error('retry failure');
+          }
+          processedData.push(job.data);
+        },
+        { autorun: false, connection, prefix },
+      );
+      await worker.waitUntilReady();
+
+      const allDone = new Promise<void>(resolve => {
+        let completedCount = 0;
+        worker.on('completed', () => {
+          completedCount++;
+          if (completedCount === 1) {
+            resolve();
+          }
+        });
+      });
+
+      // Wait for the retries-exhausted event to confirm all retries happened
+      const retriesExhausted = new Promise<void>(resolve => {
+        queueEvents.on('retries-exhausted', () => {
+          resolve();
+        });
+      });
+
+      worker.run();
+
+      // Add first job with 3 attempts
+      await queue.add(
+        testName,
+        { seq: 1 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            keepLastIfActive: true,
+          },
+          attempts: 3,
+          backoff: { type: 'fixed', delay: 50 },
+        },
+      );
+
+      await firstProcessingStarted;
+
+      // Add second job while first is active
+      await queue.add(
+        testName,
+        { seq: 2 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            keepLastIfActive: true,
+          },
+        },
+      );
+
+      await retriesExhausted;
+      await allDone;
+
+      // First job retried 3 times (all failed), then next job was created and completed
+      expect(attemptCount).toBe(3);
+      expect(processedData).toHaveLength(1);
+      expect(processedData[0]).toEqual({ seq: 2 });
+
+      await worker.close();
+    });
   });
 });
