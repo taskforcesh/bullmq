@@ -1,7 +1,5 @@
 import { Cluster, Redis } from 'ioredis';
-
-// Note: this Polyfill is only needed for Node versions < 15.4.0
-import { AbortController } from 'node-abort-controller';
+import { AbortController } from '../classes/abort-controller';
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
