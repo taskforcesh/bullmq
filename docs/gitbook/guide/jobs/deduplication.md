@@ -184,6 +184,10 @@ When `keepLastIfActive` is set, the `ttl` option is ignored. The dedup key is ke
 When the active job is retried (e.g., due to `attempts` configuration), the stored next-job data is preserved and the new job will only be created once the active job ultimately completes or exhausts all retries.
 {% endhint %}
 
+{% hint style="warning" %}
+`keepLastIfActive` cannot be combined with the `delay` option (including a default delay set via `Queue`'s `defaultJobOptions`). Attempting to add a job with both `keepLastIfActive: true` and `delay > 0` will throw an error. If you need delayed processing, consider using a separate deduplication mode instead.
+{% endhint %}
+
 ## Read more:
 
 - 💡 [Add Job API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#add)
