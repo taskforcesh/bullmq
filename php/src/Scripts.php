@@ -180,7 +180,7 @@ class Scripts
         // Build deduplication key if deduplication ID exists
         $deduplicationKey = null;
         $deduplication = $job->opts->deduplication;
-        if ($deduplication !== null && isset($deduplication['id'])) {
+        if ($deduplication !== null) {
             $deduplicationKey = $this->keys[''] . 'de:' . $deduplication['id'];
         }
 
