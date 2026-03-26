@@ -98,7 +98,7 @@ class JobOptions
     /**
      * Deduplication options.
      *
-     * @var array{id: string, ttl?: int, extend?: bool, replace?: bool, keepLastIfActive?: bool}|null
+     * @var array{id?: string, ttl?: int, extend?: bool, replace?: bool, keepLastIfActive?: bool}|null
      */
     public ?array $deduplication = null;
 
