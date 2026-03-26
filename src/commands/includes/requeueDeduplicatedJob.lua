@@ -19,7 +19,6 @@ local function requeueDeduplicatedJob(prefix, deduplicationId, eventStreamKey,
   if rcall("EXISTS", deduplicationNextKey) == 1 then
     local nextData = rcall("HMGET", deduplicationNextKey,
         "name", "data", "opts", "pk", "pd", "pdk", "rjk")
-    rcall("DEL", deduplicationNextKey)
 
     local newJobId = rcall("INCR", prefix .. "id") .. ""
     local newJobIdKey = prefix .. newJobId
@@ -56,5 +55,9 @@ local function requeueDeduplicatedJob(prefix, deduplicationId, eventStreamKey,
     if parentDependenciesKey then
       rcall("SADD", parentDependenciesKey, newJobIdKey)
     end
+
+    -- Only delete the dedup-next hash after the job is fully created,
+    -- so that if any step above errors, the data is not permanently lost.
+    rcall("DEL", deduplicationNextKey)
   end
 end

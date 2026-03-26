@@ -7,7 +7,7 @@
 local function storeDeduplicatedNextJob(deduplicationOpts, currentDebounceJobId, prefix,
     deduplicationId, jobName, jobData, fullOpts, eventsKey, maxEvents, jobId,
     parentKey, parentData, parentDependenciesKey, repeatJobKey)
-    if deduplicationOpts['keepLastIfActive'] and prefix and currentDebounceJobId then
+    if deduplicationOpts['keepLastIfActive'] and currentDebounceJobId then
         local activeKey = prefix .. "active"
         if rcall('LPOS', activeKey, currentDebounceJobId) ~= false then
             local deduplicationNextKey = prefix .. "dn:" .. deduplicationId

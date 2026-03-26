@@ -18,7 +18,11 @@ local function deduplicateJobWithoutReplace(deduplicationId, deduplicationOpts, 
                     parentKey, parentData, parentDependenciesKey, repeatJobKey) then
                     return currentDebounceJobId
                 end
-                setDeduplicationKey(deduplicationKey, currentDebounceJobId, deduplicationOpts)
+                if deduplicationOpts['keepLastIfActive'] then
+                    rcall('SET', deduplicationKey, currentDebounceJobId)
+                else
+                    setDeduplicationKey(deduplicationKey, currentDebounceJobId, deduplicationOpts)
+                end
                 rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "debounced",
                     "jobId", currentDebounceJobId, "debounceId", deduplicationId)
                 rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "deduplicated", "jobId",
