@@ -13,7 +13,7 @@
 
 local function requeueDeduplicatedJob(prefix, deduplicationId, eventStreamKey,
     metaKey, activeKey, waitKey, pausedKey, markerKey, prioritizedKey,
-    priorityCounterKey, timestamp)
+    priorityCounterKey, delayedKey, timestamp)
   local deduplicationNextKey = prefix .. "dn:" .. deduplicationId
   if rcall("EXISTS", deduplicationNextKey) == 1 then
     local nextData = rcall("HMGET", deduplicationNextKey,
@@ -43,7 +43,7 @@ local function requeueDeduplicatedJob(prefix, deduplicationId, eventStreamKey,
     storeAndEnqueueJob(eventStreamKey, newJobIdKey, newJobId, nextData[1], nextData[2],
         newOpts, timestamp, parentKey, parentData, repeatJobKey, maxEvents,
         waitKey, pausedKey, activeKey, metaKey, prioritizedKey,
-        priorityCounterKey, nil, markerKey)
+        priorityCounterKey, delayedKey, markerKey)
 
     -- Register as child dependency if the job has a parent
     if parentDependenciesKey then
