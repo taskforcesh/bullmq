@@ -135,7 +135,7 @@ const isDeduplicatedKeyRemoved = await job.removeDeduplicationKey();
 
 In some use cases, you need to ensure that a job runs at least once after each time new data becomes available, even if a job with the same deduplication ID is already being processed. Common examples include data synchronization, cache invalidation, and deployment pipelines.
 
-With `keepLastIfActive: true`, when a job is added while an existing job with the same deduplication ID is already active (being processed), the new job's data is stored internally. Once the active job finishes (either completes or fails), a new job is automatically created with the latest stored data and added to the wait list.
+With `keepLastIfActive: true`, when a job is added while an existing job with the same deduplication ID is already active (being processed), the new job's data is stored internally. Once the active job finishes (either completes or fails), a new job is automatically created with the latest stored data and added to the queue.
 
 If multiple jobs are added while the active job is running, only the most recent data is kept — earlier additions are overwritten. This guarantees:
 
