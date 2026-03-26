@@ -1535,6 +1535,15 @@ describe('deduplication', () => {
 
       await allCompleted;
 
+      // Register listener before adding job3 to avoid race condition
+      const thirdCompleted = new Promise<void>(resolve => {
+        worker.on('completed', job => {
+          if (job.data.seq === 3) {
+            resolve();
+          }
+        });
+      });
+
       // After both jobs complete, a new add should work normally
       const job3 = await queue.add(
         testName,
@@ -1546,14 +1555,6 @@ describe('deduplication', () => {
           },
         },
       );
-
-      const thirdCompleted = new Promise<void>(resolve => {
-        worker.on('completed', job => {
-          if (job.id === job3.id) {
-            resolve();
-          }
-        });
-      });
 
       await thirdCompleted;
       expect(processCount).toBe(3);
