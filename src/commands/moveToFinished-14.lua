@@ -142,7 +142,8 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
     -- Check if there is requeue data for this dedup ID (keepLastIfActive mode)
     if jobAttributes[3] then
       requeueDeduplicatedJob(prefix, jobAttributes[3], eventStreamKey,
-          metaKey, KEYS[2], KEYS[1], KEYS[8], KEYS[14], timestamp)
+          metaKey, KEYS[2], KEYS[1], KEYS[8], KEYS[14], KEYS[3], KEYS[10],
+          timestamp)
     end
 
     -- If job has a parent we need to

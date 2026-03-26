@@ -7,14 +7,13 @@
 ]]
 
 -- Includes
---- @include "addJobInTargetList"
 --- @include "getOrSetMaxEvents"
---- @include "getTargetQueueList"
 --- @include "setDeduplicationKey"
---- @include "storeJob"
+--- @include "storeAndEnqueueJob"
 
 local function requeueDeduplicatedJob(prefix, deduplicationId, eventStreamKey,
-    metaKey, activeKey, waitKey, pausedKey, markerKey, timestamp)
+    metaKey, activeKey, waitKey, pausedKey, markerKey, prioritizedKey,
+    priorityCounterKey, timestamp)
   local deduplicationNextKey = prefix .. "dn:" .. deduplicationId
   if rcall("EXISTS", deduplicationNextKey) == 1 then
     local nextData = rcall("HMGET", deduplicationNextKey,
@@ -30,10 +29,6 @@ local function requeueDeduplicatedJob(prefix, deduplicationId, eventStreamKey,
     local parentDependenciesKey = nextData[6] or nil
     local repeatJobKey = nextData[7] or nil
 
-    -- Use storeJob to persist the job exactly as a normal add would
-    storeJob(eventStreamKey, newJobIdKey, newJobId, nextData[1], nextData[2],
-        newOpts, timestamp, parentKey, parentData, repeatJobKey)
-
     -- Set dedup key for the new job (without TTL when keepLastIfActive,
     -- so the key outlives the job's active duration)
     local deOpts = newOpts['de']
@@ -43,13 +38,12 @@ local function requeueDeduplicatedJob(prefix, deduplicationId, eventStreamKey,
       setDeduplicationKey(deduplicationKey, newJobId, deOpts)
     end
 
-    -- Add to target list (wait or paused) and emit waiting event
+    -- Store and enqueue using the shared helper (handles priority/lifo/delayed)
     local maxEvents = getOrSetMaxEvents(metaKey)
-    local target, isPausedOrMaxed = getTargetQueueList(metaKey, activeKey, waitKey, pausedKey)
-    addJobInTargetList(target, markerKey, "LPUSH", isPausedOrMaxed, newJobId)
-
-    rcall("XADD", eventStreamKey, "MAXLEN", "~", maxEvents, "*", "event", "waiting",
-        "jobId", newJobId)
+    storeAndEnqueueJob(eventStreamKey, newJobIdKey, newJobId, nextData[1], nextData[2],
+        newOpts, timestamp, parentKey, parentData, repeatJobKey, maxEvents,
+        waitKey, pausedKey, activeKey, metaKey, prioritizedKey,
+        priorityCounterKey, nil, markerKey)
 
     -- Register as child dependency if the job has a parent
     if parentDependenciesKey then
