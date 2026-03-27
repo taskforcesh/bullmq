@@ -1725,58 +1725,8 @@ describe('deduplication', () => {
       await worker.close();
     });
 
-    it('should throw an error when used with delay option', async () => {
-      const testName = 'test';
+    it('should allow delay with keepLastIfActive', async () => {
       const deduplicationId = 'dedupDelay';
-
-      await expect(
-        queue.add(
-          testName,
-          { seq: 1 },
-          {
-            deduplication: {
-              id: deduplicationId,
-              keepLastIfActive: true,
-            },
-            delay: 60000,
-          },
-        ),
-      ).rejects.toThrow(
-        'keepLastIfActive cannot be used together with delay option',
-      );
-    });
-
-    it('should throw an error when queue has default delay', async () => {
-      const queueWithDelay = new Queue(queueName, {
-        connection,
-        prefix,
-        defaultJobOptions: { delay: 5000 },
-      });
-
-      const deduplicationId = 'dedupDefaultDelay';
-
-      try {
-        await expect(
-          queueWithDelay.add(
-            'test',
-            { seq: 1 },
-            {
-              deduplication: {
-                id: deduplicationId,
-                keepLastIfActive: true,
-              },
-            },
-          ),
-        ).rejects.toThrow(
-          'keepLastIfActive cannot be used together with delay option',
-        );
-      } finally {
-        await queueWithDelay.close();
-      }
-    });
-
-    it('should not throw when delay is 0', async () => {
-      const deduplicationId = 'dedupDelayZero';
 
       const job = await queue.add(
         'test',
@@ -1786,11 +1736,118 @@ describe('deduplication', () => {
             id: deduplicationId,
             keepLastIfActive: true,
           },
-          delay: 0,
+          delay: 5000,
         },
       );
 
       expect(job.id).toBeDefined();
+
+      const state = await job.getState();
+      expect(state).toBe('delayed');
+    });
+
+    it('should allow queue default delay with keepLastIfActive', async () => {
+      const queueWithDelay = new Queue(queueName, {
+        connection,
+        prefix,
+        defaultJobOptions: { delay: 5000 },
+      });
+
+      const deduplicationId = 'dedupDefaultDelay';
+
+      try {
+        const job = await queueWithDelay.add(
+          'test',
+          { seq: 1 },
+          {
+            deduplication: {
+              id: deduplicationId,
+              keepLastIfActive: true,
+            },
+          },
+        );
+
+        expect(job.id).toBeDefined();
+
+        const state = await job.getState();
+        expect(state).toBe('delayed');
+      } finally {
+        await queueWithDelay.close();
+      }
+    });
+
+    it('should requeue with delay when active job completes and next job was stored', async () => {
+      const deduplicationId = 'dedupDelayRequeue';
+      const processedData: any[] = [];
+      const delay = 1000;
+
+      let resolveFirstProcessing: () => void;
+      const firstProcessingStarted = new Promise<void>(resolve => {
+        resolveFirstProcessing = resolve;
+      });
+
+      let resolveSecondCompleted: () => void;
+      const secondCompleted = new Promise<void>(resolve => {
+        resolveSecondCompleted = resolve;
+      });
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          processedData.push(job.data);
+          if (processedData.length === 1) {
+            resolveFirstProcessing!();
+            // Hold active long enough for a second add to arrive
+            await new Promise(r => setTimeout(r, 500));
+          }
+        },
+        { connection, prefix, autorun: false },
+      );
+
+      worker.on('completed', () => {
+        if (processedData.length === 2) {
+          resolveSecondCompleted!();
+        }
+      });
+
+      // First job – added with delay
+      await queue.add(
+        'test',
+        { seq: 1 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            keepLastIfActive: true,
+          },
+          delay,
+        },
+      );
+
+      worker.run();
+
+      // Wait until first job is active
+      await firstProcessingStarted;
+
+      // Add a second job while first is active — should be stored
+      await queue.add(
+        'test',
+        { seq: 2 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            keepLastIfActive: true,
+          },
+          delay,
+        },
+      );
+
+      await secondCompleted;
+
+      expect(processedData).toHaveLength(2);
+      expect(processedData[0]).toEqual({ seq: 1 });
+      expect(processedData[1]).toEqual({ seq: 2 });
+
+      await worker.close();
     });
 
     it('should requeue next job when active job fails permanently', async () => {

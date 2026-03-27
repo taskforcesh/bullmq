@@ -4,12 +4,15 @@
   proto-job is used to create a real job in the queue.
   Returns true if the proto-job was stored, false otherwise.
 ]]
+--- @include "checkItemInList"
+
 local function storeDeduplicatedNextJob(deduplicationOpts, currentDebounceJobId, prefix,
     deduplicationId, jobName, jobData, fullOpts, eventsKey, maxEvents, jobId,
     parentKey, parentData, parentDependenciesKey, repeatJobKey)
     if deduplicationOpts['keepLastIfActive'] and currentDebounceJobId then
         local activeKey = prefix .. "active"
-        if rcall('LPOS', activeKey, currentDebounceJobId) ~= false then
+        local activeItems = rcall('LRANGE', activeKey, 0, -1)
+        if checkItemInList(activeItems, currentDebounceJobId) then
             local deduplicationNextKey = prefix .. "dn:" .. deduplicationId
             local fields = {'name', jobName, 'data', jobData, 'opts', cjson.encode(fullOpts)}
 

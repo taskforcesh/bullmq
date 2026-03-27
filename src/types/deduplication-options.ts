@@ -36,8 +36,6 @@ export type DeduplicationOptions = {
    * Note: when this option is set, `ttl` is ignored. The dedup key
    * is kept alive without expiry for the job's entire lifecycle
    * and cleaned up on completion or failure.
-   *
-   * Cannot be used together with `delay`.
    */
   keepLastIfActive?: boolean;
 };

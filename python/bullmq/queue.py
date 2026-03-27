@@ -42,12 +42,6 @@ class Queue(EventEmitter):
         """
         merged_opts = {**self.jobsOpts, **(opts or {})}
 
-        dedup = merged_opts.get('deduplication')
-        if dedup and dedup.get('keepLastIfActive') and merged_opts.get('delay', 0) > 0:
-            raise ValueError(
-                'keepLastIfActive cannot be used together with delay option'
-            )
-
         job = Job(self, name, data, merged_opts)
         job_id = await self.scripts.addJob(job)
         job.id = job_id
@@ -61,12 +55,6 @@ class Queue(EventEmitter):
         jobs_data = []
         for job in jobs:
             opts = {**self.jobsOpts, **(job.get("opts") or {})}
-
-            dedup = opts.get('deduplication')
-            if dedup and dedup.get('keepLastIfActive') and opts.get('delay', 0) > 0:
-                raise ValueError(
-                    'keepLastIfActive cannot be used together with delay option'
-                )
 
             jobs_data.append({
                 "name": job.get("name"),

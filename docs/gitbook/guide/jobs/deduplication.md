@@ -184,8 +184,8 @@ When `keepLastIfActive` is set, the `ttl` option is ignored. The dedup key is ke
 When the active job is retried (e.g., due to `attempts` configuration), the stored next-job data is preserved and the new job will only be created once the active job ultimately completes or exhausts all retries.
 {% endhint %}
 
-{% hint style="warning" %}
-`keepLastIfActive` cannot be combined with the `delay` option (including a default delay set via `Queue`'s `defaultJobOptions`). Attempting to add a job with both `keepLastIfActive: true` and `delay > 0` will throw an error. If you need delayed processing, consider using a separate deduplication mode instead.
+{% hint style="info" %}
+`keepLastIfActive` can be combined with the `delay` option to create a **continuous debounce** pattern. When a delayed job is waiting and a new job arrives, the waiting job is replaced with the latest data. When the active job completes and a stored next-job exists, it is requeued with the original delay, restarting the debounce window. This ensures that rapid bursts of data are collapsed while still guaranteeing processing of the most recent update.
 {% endhint %}
 
 ## Read more:

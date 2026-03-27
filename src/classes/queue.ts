@@ -381,12 +381,6 @@ export class Queue<
         jobId,
       };
 
-      if (mergedOpts.deduplication?.keepLastIfActive && mergedOpts.delay > 0) {
-        throw new Error(
-          'keepLastIfActive cannot be used together with delay option',
-        );
-      }
-
       const job = await this.Job.create<DataType, ResultType, NameType>(
         this as MinimalQueue,
         name,
@@ -445,15 +439,6 @@ export class Queue<
               jobId: job.opts?.jobId,
               telemetry,
             };
-
-            if (
-              mergedOpts.deduplication?.keepLastIfActive &&
-              mergedOpts.delay > 0
-            ) {
-              throw new Error(
-                'keepLastIfActive cannot be used together with delay option',
-              );
-            }
 
             return {
               name: job.name,
