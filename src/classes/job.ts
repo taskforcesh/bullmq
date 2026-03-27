@@ -59,7 +59,8 @@ export class Job<
   DataType = any,
   ReturnType = any,
   NameType extends string = string,
-> implements MinimalJob<DataType, ReturnType, NameType> {
+  ProgressType = JobProgress,
+> implements MinimalJob<DataType, ReturnType, NameType, ProgressType> {
   /**
    * It includes the prefix, the namespace separator :, and queue name.
    * @see {@link https://www.gnu.org/software/gawk/manual/html_node/Qualified-Names.html}
@@ -70,7 +71,7 @@ export class Job<
    * The progress a job has performed so far.
    * @defaultValue 0
    */
-  progress: JobProgress = 0;
+  progress: ProgressType = 0 as ProgressType;
 
   /**
    * The value returned by the processor when processing this job.
@@ -607,7 +608,7 @@ export class Job<
    *
    * @param progress - number or object to be saved as progress.
    */
-  async updateProgress(progress: JobProgress): Promise<void> {
+  async updateProgress(progress: ProgressType): Promise<void> {
     this.progress = progress;
     await this.scripts.updateProgress(this.id, progress);
     this.queue.emit('progress', this, progress);
