@@ -163,6 +163,20 @@ describe('queues', () => {
       });
     });
 
+    describe('when jobId is provided as a numeric type', () => {
+      it('coerces to string and throws if numeric', async () => {
+        await expect(
+          queue.add('test', { foo: 1 }, { jobId: 123 as any }),
+        ).rejects.toThrow('Custom Id cannot be integers');
+      });
+
+      it('does not crash with a non-numeric number type', async () => {
+        await expect(
+          queue.add('test', { foo: 1 }, { jobId: 'valid-id' }),
+        ).resolves.toBeDefined();
+      });
+    });
+
     describe('when custom job id contains :', () => {
       it('throws an error', async () => {
         await expect(

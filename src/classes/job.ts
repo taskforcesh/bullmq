@@ -1580,16 +1580,14 @@ export class Job<
     }
 
     if (this.opts?.jobId) {
-      if (`${parseInt(this.opts.jobId, 10)}` === this.opts?.jobId) {
+      const jobId = String(this.opts.jobId);
+      if (`${parseInt(jobId, 10)}` === jobId) {
         throw new Error('Custom Id cannot be integers');
       }
 
       // TODO: replace this check in next breaking check with include(':')
       // By using split we are still keeping compatibility with old repeatable jobs
-      if (
-        this.opts?.jobId.includes(':') &&
-        this.opts?.jobId?.split(':').length !== 3
-      ) {
+      if (jobId.includes(':') && jobId.split(':').length !== 3) {
         throw new Error('Custom Id cannot contain :');
       }
     }
