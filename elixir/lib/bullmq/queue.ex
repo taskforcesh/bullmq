@@ -2070,8 +2070,6 @@ defmodule BullMQ.Queue do
   end
 
   defp add_job(conn, ctx, job) do
-    dedup = Map.get(job.opts || %{}, :deduplication) || Map.get(job.opts || %{}, "deduplication")
-
     encoded_opts = encode_job_opts(job.opts)
 
     result =
