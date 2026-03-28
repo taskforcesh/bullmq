@@ -6181,4 +6181,71 @@ describe('flows', () => {
       await flow.close();
     });
   });
+
+  describe('when Redis is in READONLY mode', () => {
+    it('should throw an error when adding a flow', async () => {
+      const setupConn = new IORedis(redisHost, {
+        maxRetriesPerRequest: null,
+      });
+
+      // Put Redis in READONLY mode by making it a replica of itself
+      await setupConn.replicaof(redisHost, 6379);
+
+      const flow = new FlowProducer({
+        connection: { host: redisHost, enableOfflineQueue: false },
+        prefix,
+      });
+      await flow.waitUntilReady();
+
+      try {
+        await expect(
+          flow.add({
+            name: 'test-parent',
+            queueName,
+            children: [{ name: 'test-child', queueName }],
+          }),
+        ).rejects.toThrow();
+      } finally {
+        // Restore Redis to primary mode
+        await setupConn.replicaof('NO', 'ONE');
+        await setupConn.quit();
+        await flow.close();
+      }
+    });
+
+    it('should throw an error when adding bulk flows', async () => {
+      const setupConn = new IORedis(redisHost, {
+        maxRetriesPerRequest: null,
+      });
+
+      await setupConn.replicaof(redisHost, 6379);
+
+      const flow = new FlowProducer({
+        connection: { host: redisHost, enableOfflineQueue: false },
+        prefix,
+      });
+      await flow.waitUntilReady();
+
+      try {
+        await expect(
+          flow.addBulk([
+            {
+              name: 'test-parent-1',
+              queueName,
+              children: [{ name: 'test-child-1', queueName }],
+            },
+            {
+              name: 'test-parent-2',
+              queueName,
+              children: [{ name: 'test-child-2', queueName }],
+            },
+          ]),
+        ).rejects.toThrow();
+      } finally {
+        await setupConn.replicaof('NO', 'ONE');
+        await setupConn.quit();
+        await flow.close();
+      }
+    });
+  });
 });
