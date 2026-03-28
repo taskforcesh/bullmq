@@ -19,6 +19,10 @@
   "files": [
     "dist"
   ],
+  "exports": {
+    "import": "./dist/esm/index.js",
+    "require": "./dist/cjs/index.js"
+  },
   "scripts": {
     "build": "npm run pretest && npm run tsc:all && npm run copy:main:type && npm run clean:temp:files && npm run copy:lua && npm run copy:includes:lua",
     "circular:references": "madge --circular --extensions ts ./src",
