@@ -142,7 +142,8 @@ If multiple jobs are added while the active job is running, only the most recent
 - **No parallel execution**: At most 1 job per deduplication ID is active at any time.
 - **At most 2 jobs**: 1 active + 1 waiting (created on completion/failure).
 - **Latest data wins**: The next job always uses the most recently added data.
-- **Normal deduplication when not active**: If the existing job is in waiting or delayed state, jobs are deduplicated as usual.
+- **Store & requeue while not finished**: If an existing job with the same deduplication ID is in a non‑finished state (for example `active`, `waiting`, `prioritized`, or `delayed`), additional jobs do not create extra queue entries immediately; only the latest data is stored and will be used to enqueue a single follow‑up job once the current job finishes.
+- **Plain deduplication for finished jobs**: If the existing job is in a finished state (such as `completed`, `failed`, or `discarded`), deduplication behaves like in Simple Mode and no extra “keep last” job is scheduled beyond normal deduplication.
 
 ```typescript
 import { Queue, Worker } from 'bullmq';
