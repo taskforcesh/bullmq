@@ -2095,5 +2095,289 @@ describe('deduplication', () => {
 
       await worker.close();
     });
+
+    it('should store next job data and requeue when existing job is in waiting state', async () => {
+      const testName = 'test';
+      const deduplicationId = 'dedup-waiting-requeue-1';
+      const processedData: any[] = [];
+
+      // Add first job — goes to waiting (no worker yet)
+      const job1 = await queue.add(
+        testName,
+        { seq: 1 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            keepLastIfActive: true,
+          },
+        },
+      );
+
+      // Add second job while first is still waiting — should store next job data
+      const job2 = await queue.add(
+        testName,
+        { seq: 2 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            keepLastIfActive: true,
+          },
+        },
+      );
+
+      // Should be deduplicated (returns first job's ID)
+      expect(job2.id).toBe(job1.id);
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          processedData.push(job.data);
+        },
+        { autorun: false, connection, prefix },
+      );
+      await worker.waitUntilReady();
+
+      const allCompleted = new Promise<void>(resolve => {
+        let count = 0;
+        worker.on('completed', () => {
+          count++;
+          if (count === 2) {
+            resolve();
+          }
+        });
+      });
+
+      worker.run();
+
+      await allCompleted;
+
+      // Both jobs processed: first with seq:1, requeued with seq:2
+      expect(processedData).toHaveLength(2);
+      expect(processedData[0]).toEqual({ seq: 1 });
+      expect(processedData[1]).toEqual({ seq: 2 });
+
+      await worker.close();
+    });
+
+    it('should store latest data when multiple jobs added while existing job is in waiting state', async () => {
+      const testName = 'test';
+      const deduplicationId = 'dedup-waiting-latest-1';
+      const processedData: any[] = [];
+
+      // Add first job — goes to waiting (no worker yet)
+      await queue.add(
+        testName,
+        { seq: 1 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            keepLastIfActive: true,
+          },
+        },
+      );
+
+      // Add multiple jobs while first is still waiting — only latest is kept
+      await queue.add(
+        testName,
+        { seq: 2 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            keepLastIfActive: true,
+          },
+        },
+      );
+
+      await queue.add(
+        testName,
+        { seq: 3 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            keepLastIfActive: true,
+          },
+        },
+      );
+
+      await queue.add(
+        testName,
+        { seq: 4 },
+        {
+          deduplication: {
+            id: deduplicationId,
+            keepLastIfActive: true,
+          },
+        },
+      );
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          processedData.push(job.data);
+        },
+        { autorun: false, connection, prefix },
+      );
+      await worker.waitUntilReady();
+
+      const allCompleted = new Promise<void>(resolve => {
+        let count = 0;
+        worker.on('completed', () => {
+          count++;
+          if (count === 2) {
+            resolve();
+          }
+        });
+      });
+
+      worker.run();
+
+      await allCompleted;
+
+      // Only 2 jobs processed: original and the latest requeued
+      expect(processedData).toHaveLength(2);
+      expect(processedData[0]).toEqual({ seq: 1 });
+      expect(processedData[1]).toEqual({ seq: 4 });
+
+      await worker.close();
+    });
+
+    it('should store next job data and requeue when existing job is in prioritized state', async () => {
+      const testName = 'test';
+      const deduplicationId = 'dedup-prioritized-requeue-1';
+      const processedData: any[] = [];
+
+      // Add first job with priority — goes to prioritized (no worker yet)
+      const job1 = await queue.add(
+        testName,
+        { seq: 1 },
+        {
+          priority: 5,
+          deduplication: {
+            id: deduplicationId,
+            keepLastIfActive: true,
+          },
+        },
+      );
+
+      // Add second job while first is still in prioritized state
+      const job2 = await queue.add(
+        testName,
+        { seq: 2 },
+        {
+          priority: 5,
+          deduplication: {
+            id: deduplicationId,
+            keepLastIfActive: true,
+          },
+        },
+      );
+
+      // Should be deduplicated (returns first job's ID)
+      expect(job2.id).toBe(job1.id);
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          processedData.push(job.data);
+        },
+        { autorun: false, connection, prefix },
+      );
+      await worker.waitUntilReady();
+
+      const allCompleted = new Promise<void>(resolve => {
+        let count = 0;
+        worker.on('completed', () => {
+          count++;
+          if (count === 2) {
+            resolve();
+          }
+        });
+      });
+
+      worker.run();
+
+      await allCompleted;
+
+      // Both jobs processed: first with seq:1, requeued with seq:2
+      expect(processedData).toHaveLength(2);
+      expect(processedData[0]).toEqual({ seq: 1 });
+      expect(processedData[1]).toEqual({ seq: 2 });
+
+      await worker.close();
+    });
+
+    it('should store latest data when multiple jobs added while existing job is in prioritized state', async () => {
+      const testName = 'test';
+      const deduplicationId = 'dedup-prioritized-latest-1';
+      const processedData: any[] = [];
+
+      // Add first job with priority — goes to prioritized (no worker yet)
+      await queue.add(
+        testName,
+        { seq: 1 },
+        {
+          priority: 3,
+          deduplication: {
+            id: deduplicationId,
+            keepLastIfActive: true,
+          },
+        },
+      );
+
+      // Add multiple jobs while first is in prioritized state — only latest is kept
+      await queue.add(
+        testName,
+        { seq: 2 },
+        {
+          priority: 3,
+          deduplication: {
+            id: deduplicationId,
+            keepLastIfActive: true,
+          },
+        },
+      );
+
+      await queue.add(
+        testName,
+        { seq: 3 },
+        {
+          priority: 3,
+          deduplication: {
+            id: deduplicationId,
+            keepLastIfActive: true,
+          },
+        },
+      );
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          processedData.push(job.data);
+        },
+        { autorun: false, connection, prefix },
+      );
+      await worker.waitUntilReady();
+
+      const allCompleted = new Promise<void>(resolve => {
+        let count = 0;
+        worker.on('completed', () => {
+          count++;
+          if (count === 2) {
+            resolve();
+          }
+        });
+      });
+
+      worker.run();
+
+      await allCompleted;
+
+      // Only 2 jobs processed: original and the latest requeued
+      expect(processedData).toHaveLength(2);
+      expect(processedData[0]).toEqual({ seq: 1 });
+      expect(processedData[1]).toEqual({ seq: 3 });
+
+      await worker.close();
+    });
   });
 });

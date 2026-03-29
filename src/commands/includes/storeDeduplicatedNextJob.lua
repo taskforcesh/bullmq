@@ -1,18 +1,21 @@
 --[[
-  Function to store a deduplicated next job if the existing job is active
-  and keepLastIfActive is set. When the active job finishes, the stored
+  Function to store a deduplicated next job if the existing job is not
+  finished and keepLastIfActive is set. When the active job finishes, the stored
   proto-job is used to create a real job in the queue.
   Returns true if the proto-job was stored, false otherwise.
+
+  Note: delayed state is already checked before this function is called,
+  so we only need to verify the job exists and is not completed/failed
+  (i.e. finishedOn attribute does not exist).
 ]]
---- @include "checkItemInList"
 
 local function storeDeduplicatedNextJob(deduplicationOpts, currentDebounceJobId, prefix,
     deduplicationId, jobName, jobData, fullOpts, eventsKey, maxEvents, jobId,
     parentKey, parentData, parentDependenciesKey, repeatJobKey)
     if deduplicationOpts['keepLastIfActive'] and currentDebounceJobId then
-        local activeKey = prefix .. "active"
-        local activeItems = rcall('LRANGE', activeKey, 0, -1)
-        if checkItemInList(activeItems, currentDebounceJobId) then
+        local jobKey = prefix .. currentDebounceJobId
+        if rcall('EXISTS', jobKey) == 1
+            and rcall('HEXISTS', jobKey, 'finishedOn') == 0 then
             local deduplicationNextKey = prefix .. "dn:" .. deduplicationId
             local fields = {'name', jobName, 'data', jobData, 'opts', cjson.encode(fullOpts)}
 
