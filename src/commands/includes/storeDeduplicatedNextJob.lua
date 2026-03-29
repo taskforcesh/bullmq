@@ -46,6 +46,9 @@ local function storeDeduplicatedNextJob(deduplicationOpts, currentDebounceJobId,
             local deduplicationKey = prefix .. "de:" .. deduplicationId
             rcall('PERSIST', deduplicationKey)
 
+            -- TODO remove debounced event in next breaking change
+            rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "debounced", "jobId",
+                currentDebounceJobId, "debounceId", jobId)
             rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "deduplicated", "jobId",
                 currentDebounceJobId, "deduplicationId", deduplicationId, "deduplicatedJobId", jobId)
             return true
