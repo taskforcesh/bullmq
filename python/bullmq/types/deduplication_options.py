@@ -36,9 +36,10 @@ class DeduplicationOptions(TypedDict, total=False):
 
     keepLastIfActive: bool
     """
-    If true, when a duplicate job is detected and the existing job is currently
-    active (being processed), a new job will be added to the queue once the
-    active job finishes. This ensures at most 2 jobs exist: one active and one
-    waiting. If multiple jobs are added while one is active, only the latest
-    data is kept for the next job.
+    If true, when a duplicate job is detected and the existing job is not yet
+    finished (for example active, waiting, or delayed), a new job will be
+    added to the queue once the existing job finishes. This ensures at most
+    2 jobs exist at a time: one currently being processed (or pending) and
+    one waiting. If multiple jobs are added while one is not finished, only
+    the latest data is kept for the next job.
     """
