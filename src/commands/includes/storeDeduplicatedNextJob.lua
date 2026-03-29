@@ -4,9 +4,8 @@
   proto-job is used to create a real job in the queue.
   Returns true if the proto-job was stored, false otherwise.
 
-  Note: delayed state is already checked before this function is called,
-  so we only need to verify the job exists and is not completed/failed
-  (i.e. finishedOn attribute does not exist).
+  Note: this helper assumes only that the job exists and is not completed/failed
+  (i.e. the finishedOn attribute does not exist).
 ]]
 
 local function storeDeduplicatedNextJob(deduplicationOpts, currentDebounceJobId, prefix,
