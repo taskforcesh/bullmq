@@ -23,19 +23,21 @@ export type DeduplicationOptions = {
   replace?: boolean;
 
   /**
-   * If true, when a job with the same deduplication ID is currently
-   * active (being processed), the new job's data will be stored and
-   * a new job will be created automatically when the active one
-   * finishes (completes or fails). If multiple jobs are added while
-   * the active job is running, only the latest data is kept.
+   * If true, when a job with the same deduplication ID already exists
+   * and has not yet finished (for example, it is waiting, delayed,
+   * prioritized, or active/being processed), the new job's data will
+   * be stored and a follow-up job will be created or updated
+   * automatically when the existing one finishes (completes or fails).
+   * If multiple jobs are added while a non-finished job exists, only
+   * the latest data is kept.
    *
-   * This guarantees that at most 2 jobs per deduplication ID exist
-   * at any time: 1 active and 1 waiting, preventing parallel
-   * execution of jobs with the same deduplication ID.
+   * This prevents parallel execution for the same deduplication ID and
+   * ensures that, after the currently existing job completes, at most
+   * one additional job using the most recent payload will be run.
    *
    * Note: when this option is set, `ttl` is ignored. The dedup key
-   * is kept alive without expiry for the job's entire lifecycle
-   * and cleaned up on completion or failure.
+   * is kept alive without expiry for the job's entire lifecycle and
+   * cleaned up on completion or failure.
    */
   keepLastIfActive?: boolean;
 };
