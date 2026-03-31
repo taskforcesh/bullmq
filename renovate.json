@@ -11,14 +11,6 @@
   "packageRules": [
     {
       "description": "🚨 Security vulnerabilities (OSV/GitHub alerts)",
-      "matchManagers": [
-        "npm",
-        "pnpm",
-        "yarn",
-        "pip_requirements",
-        "composer",
-        "mix"
-      ],
       "matchUpdateTypes": ["major", "minor", "patch"],
       "matchDepTypes": ["dependencies", "devDependencies"],
       "vulnerabilityFixVersion": true,
