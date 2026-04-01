@@ -4,6 +4,8 @@
 -- Includes
 --- @include "deduplicateJobWithoutReplace"
 --- @include "removeJobKeys"
+--- @include "setDeduplicationKey"
+--- @include "storeDeduplicatedNextJob"
 
 local function removeDelayedJob(delayedKey, deduplicationKey, eventsKey, maxEvents, currentDeduplicatedJobId,
     jobId, deduplicationId, prefix)
@@ -25,50 +27,44 @@ local function removeDelayedJob(delayedKey, deduplicationKey, eventsKey, maxEven
 end
 
 local function deduplicateJob(deduplicationOpts, jobId, delayedKey, deduplicationKey, eventsKey, maxEvents,
-    prefix)
+    prefix, jobName, jobData, fullOpts, parentKey, parentData, parentDependenciesKey, repeatJobKey)
     local deduplicationId = deduplicationOpts and deduplicationOpts['id']
     if deduplicationId then
         if deduplicationOpts['replace'] then
-            local ttl = deduplicationOpts['ttl']
-            if ttl and ttl > 0 then
-                local currentDebounceJobId = rcall('GET', deduplicationKey)
-                if currentDebounceJobId then
-                    local isRemoved = removeDelayedJob(delayedKey, deduplicationKey, eventsKey, maxEvents,
-                        currentDebounceJobId, jobId, deduplicationId, prefix)
-                    if isRemoved then
-                        if deduplicationOpts['extend'] then
-                            rcall('SET', deduplicationKey, jobId, 'PX', ttl)
-                        else
-                            rcall('SET', deduplicationKey, jobId, 'KEEPTTL')
-                        end
-                        return
+            local currentDebounceJobId = rcall('GET', deduplicationKey)
+            if currentDebounceJobId then
+                local isRemoved = removeDelayedJob(delayedKey, deduplicationKey, eventsKey, maxEvents,
+                    currentDebounceJobId, jobId, deduplicationId, prefix)
+                if isRemoved then
+                    if deduplicationOpts['keepLastIfActive'] then
+                        rcall('SET', deduplicationKey, jobId)
                     else
-                        return currentDebounceJobId
+                        local ttl = deduplicationOpts['ttl']
+                        if not deduplicationOpts['extend'] and ttl and ttl > 0 then
+                            rcall('SET', deduplicationKey, jobId, 'KEEPTTL')
+                        else
+                            setDeduplicationKey(deduplicationKey, jobId, deduplicationOpts)
+                        end
                     end
-                else
-                    rcall('SET', deduplicationKey, jobId, 'PX', ttl)
                     return
+                else
+                    storeDeduplicatedNextJob(deduplicationOpts, currentDebounceJobId, prefix,
+                        deduplicationId, jobName, jobData, fullOpts, eventsKey, maxEvents, jobId,
+                        parentKey, parentData, parentDependenciesKey, repeatJobKey)
+                    return currentDebounceJobId
                 end
             else
-                local currentDebounceJobId = rcall('GET', deduplicationKey)
-                if currentDebounceJobId then
-                    local isRemoved = removeDelayedJob(delayedKey, deduplicationKey, eventsKey, maxEvents,
-                        currentDebounceJobId, jobId, deduplicationId, prefix)
-
-                    if isRemoved then
-                        rcall('SET', deduplicationKey, jobId)
-                        return
-                    else
-                        return currentDebounceJobId
-                    end
-                else
+                if deduplicationOpts['keepLastIfActive'] then
                     rcall('SET', deduplicationKey, jobId)
-                    return
+                else
+                    setDeduplicationKey(deduplicationKey, jobId, deduplicationOpts)
                 end
+                return
             end
         else
             return deduplicateJobWithoutReplace(deduplicationId, deduplicationOpts,
-                jobId, deduplicationKey, eventsKey, maxEvents)
+                jobId, deduplicationKey, eventsKey, maxEvents, prefix, jobName, jobData, fullOpts,
+                parentKey, parentData, parentDependenciesKey, repeatJobKey)
         end
     end
 end

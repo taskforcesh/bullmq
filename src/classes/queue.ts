@@ -375,15 +375,17 @@ export class Queue<
         throw new Error("JobId cannot be '0' or start with 0:");
       }
 
+      const mergedOpts = {
+        ...this.jobsOpts,
+        ...opts,
+        jobId,
+      };
+
       const job = await this.Job.create<DataType, ResultType, NameType>(
         this as MinimalQueue,
         name,
         data,
-        {
-          ...this.jobsOpts,
-          ...opts,
-          jobId,
-        },
+        mergedOpts,
       );
       this.emit('waiting', job as JobBase<DataType, ResultType, NameType>);
 
@@ -431,15 +433,17 @@ export class Queue<
               }
             }
 
+            const mergedOpts = {
+              ...this.jobsOpts,
+              ...job.opts,
+              jobId: job.opts?.jobId,
+              telemetry,
+            };
+
             return {
               name: job.name,
               data: job.data,
-              opts: {
-                ...this.jobsOpts,
-                ...job.opts,
-                jobId: job.opts?.jobId,
-                telemetry,
-              },
+              opts: mergedOpts,
             };
           }),
         );
