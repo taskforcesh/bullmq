@@ -6188,8 +6188,14 @@ describe('flows', () => {
         maxRetriesPerRequest: null,
       });
 
-      // Put Redis in READONLY mode by making it a replica of itself
-      await setupConn.replicaof(redisHost, 6379);
+      // Put Redis in READONLY mode by making it a replica of itself.
+      // DragonflyDB and Upstash don't support replicaof, so skip gracefully.
+      try {
+        await setupConn.replicaof(redisHost, 6379);
+      } catch (err) {
+        await setupConn.quit();
+        return;
+      }
 
       const flow = new FlowProducer({
         connection: { host: redisHost, enableOfflineQueue: false },
@@ -6218,7 +6224,12 @@ describe('flows', () => {
         maxRetriesPerRequest: null,
       });
 
-      await setupConn.replicaof(redisHost, 6379);
+      try {
+        await setupConn.replicaof(redisHost, 6379);
+      } catch (err) {
+        await setupConn.quit();
+        return;
+      }
 
       const flow = new FlowProducer({
         connection: { host: redisHost, enableOfflineQueue: false },

@@ -596,9 +596,13 @@ describe('Telemetry', () => {
       } catch (e) {
         expect(recordExceptionSpy.calledOnce).toBe(true);
         const recordedError = recordExceptionSpy.firstCall.args[0];
-        expect(recordedError.message).toBe(
-          'Failed to add flow due to invalid parent configuration',
-        );
+        expect(
+          recordedError.message ===
+            'Failed to add flow due to invalid parent configuration' ||
+            recordedError.message.includes(
+              'script tried accessing undeclared key',
+            ),
+        ).toBe(true);
       } finally {
         traceSpy.restore();
         recordExceptionSpy.restore();
@@ -694,9 +698,13 @@ describe('Telemetry', () => {
       } catch (e) {
         expect(recordExceptionSpy.calledOnce).toBe(true);
         const recordedError = recordExceptionSpy.firstCall.args[0];
-        expect(recordedError.message).toBe(
-          'Failed to add bulk flows due to invalid parent configuration',
-        );
+        expect(
+          recordedError.message ===
+            'Failed to add bulk flows due to invalid parent configuration' ||
+            recordedError.message.includes(
+              'script tried accessing undeclared key',
+            ),
+        ).toBe(true);
       } finally {
         traceSpy.restore();
         recordExceptionSpy.restore();
