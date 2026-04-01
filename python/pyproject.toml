@@ -28,7 +28,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pre-commit==4.5.1",
-    "build==1.4.0",
+    "build==1.4.2",
     "types-redis==4.6.0.20241004"
 ]
 
