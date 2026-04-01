@@ -1,3 +1,10 @@
+# [5.72.0](https://github.com/taskforcesh/bullmq/compare/v5.71.1...v5.72.0) (2026-04-01)
+
+
+### Features
+
+* **deduplication:** add keepLastIfActive option for at-least-once-after-active semantics ([#3902](https://github.com/taskforcesh/bullmq/issues/3902)) ([aa529bc](https://github.com/taskforcesh/bullmq/commit/aa529bc512b15cdb9d173cc9cc3b0d9f8b8959eb))
+
 ## [5.71.1](https://github.com/taskforcesh/bullmq/compare/v5.71.0...v5.71.1) (2026-03-25)
 
 
