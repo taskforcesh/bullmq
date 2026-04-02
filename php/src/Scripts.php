@@ -177,6 +177,13 @@ class Scripts
         $parent = $job->parent;
         $parentKey = $job->parentKey;
 
+        // Build deduplication key if deduplication ID exists
+        $deduplicationKey = null;
+        $deduplication = $job->opts->deduplication;
+        if ($deduplication !== null && isset($deduplication['id']) && $deduplication['id'] !== '') {
+            $deduplicationKey = $this->keys[''] . 'de:' . $deduplication['id'];
+        }
+
         $packedArgs = $this->packer->pack([
             $this->keys[''],
             $job->id ?? '',
@@ -185,6 +192,8 @@ class Scripts
             $job->parentKey,
             $parentKey !== null ? "{$parentKey}:dependencies" : null,
             $parent,
+            null, // repeatJobKey (not yet supported in PHP)
+            $deduplicationKey,
         ]);
 
         return [$packedArgs, $jsonData, $packedOpts];
