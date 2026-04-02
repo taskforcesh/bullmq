@@ -11,6 +11,7 @@
       Output:
         repeatableKey  - OK
 ]]
+redis.replicate_commands()
 local rcall = redis.call
 local repeatKey = KEYS[1]
 local nextMillis = ARGV[1]

@@ -6,6 +6,7 @@
 
       ARGV[1...] types
 ]]
+redis.replicate_commands()
 local rcall = redis.call;
 local prefix = KEYS[1]
 local results = {}

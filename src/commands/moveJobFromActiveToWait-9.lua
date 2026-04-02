@@ -16,6 +16,7 @@
     ARGV[2] lock token
     ARGV[3] job id key
 ]]
+redis.replicate_commands()
 local rcall = redis.call
 
 -- Includes

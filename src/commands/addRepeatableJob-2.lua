@@ -19,6 +19,7 @@
       Output:
         repeatableKey  - OK
 ]]
+redis.replicate_commands()
 local rcall = redis.call
 local repeatKey = KEYS[1]
 local delayedKey = KEYS[2]

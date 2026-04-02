@@ -12,6 +12,7 @@
     Events:
       'removed' for every children removed
 ]]
+redis.replicate_commands()
 
 -- Includes
 --- @include "includes/removeJobWithChildren"

@@ -10,6 +10,7 @@
     0 - OK
    -1 - Missing job.
 ]]
+redis.replicate_commands()
 local rcall = redis.call
 
 if rcall("EXISTS",KEYS[1]) == 1 then -- // Make sure job exists

@@ -43,6 +43,7 @@
         jobId  - OK
         -5     - Missing parent key
 ]]
+redis.replicate_commands()
 local eventsKey = KEYS[8]
 
 local jobId

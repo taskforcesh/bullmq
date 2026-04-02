@@ -21,6 +21,7 @@
     'waiting-children'
     'unknown'
 ]]
+redis.replicate_commands()
 local rcall = redis.call
 
 if rcall("ZSCORE", KEYS[1], ARGV[1]) then

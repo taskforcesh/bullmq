@@ -14,6 +14,7 @@
       -1  - Missing job key
       -5  - Missing parent key
 ]]
+redis.replicate_commands()
 local rcall = redis.call
 local jobKey = ARGV[1]
 local parentKey = ARGV[2]

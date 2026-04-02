@@ -7,6 +7,7 @@
 
       ARGV[1] maxJobs
 ]]
+redis.replicate_commands()
 
 local rcall = redis.call
 

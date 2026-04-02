@@ -33,6 +33,7 @@
         jobId  - OK
         -5     - Missing parent key
 ]]
+redis.replicate_commands()
 local metaKey = KEYS[2]
 local idKey = KEYS[3]
 local delayedKey = KEYS[4]

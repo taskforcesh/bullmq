@@ -9,6 +9,7 @@
 
       ARGV[1...] types
 ]]
+redis.replicate_commands()
 local rcall = redis.call;
 local processedKey = KEYS[1]
 local unprocessedKey = KEYS[2]

@@ -11,6 +11,7 @@
     ARGV[3]  limit the number of jobs to be removed. 0 is unlimited
     ARGV[4]  set name, can be any of 'wait', 'active', 'paused', 'delayed', 'completed', or 'failed'
 ]]
+redis.replicate_commands()
 local rcall = redis.call
 local repeatKey = KEYS[3]
 local rangeStart = 0

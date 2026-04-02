@@ -27,6 +27,7 @@
   Events:
     - delayed key.
 ]]
+redis.replicate_commands()
 local rcall = redis.call
 
 -- Includes

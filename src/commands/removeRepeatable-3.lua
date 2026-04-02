@@ -18,6 +18,7 @@
   Events:
     'removed'
 ]]
+redis.replicate_commands()
 local rcall = redis.call
 local millis = rcall("ZSCORE", KEYS[1], ARGV[2])
 

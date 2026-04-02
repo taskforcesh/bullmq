@@ -35,6 +35,7 @@
     opts - limiter
     opts - name - worker name
 ]]
+redis.replicate_commands()
 local rcall = redis.call
 local waitKey = KEYS[1]
 local activeKey = KEYS[2]

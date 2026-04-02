@@ -16,6 +16,7 @@
   Event:
     progress(jobId, progress)
 ]]
+redis.replicate_commands()
 local rcall = redis.call
 
 -- Includes
