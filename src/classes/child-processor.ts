@@ -1,4 +1,4 @@
-import { AbortController } from 'node-abort-controller';
+import { AbortController } from './abort-controller';
 import { ParentCommand } from '../enums';
 import {
   MoveToWaitingChildrenOpts,
