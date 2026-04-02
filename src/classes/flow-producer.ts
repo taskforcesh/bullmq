@@ -21,7 +21,6 @@ import { SpanKind, TelemetryAttributes } from '../enums';
 export interface AddNodeOpts {
   multi: ChainableCommander;
   node: FlowJob;
-  jobsToUpdate: FlowJobUpdate[];
   parent?: {
     parentOpts: ParentOptions;
     parentDependenciesKey: string;
@@ -35,17 +34,11 @@ export interface AddNodeOpts {
 export interface AddChildrenOpts {
   multi: ChainableCommander;
   nodes: FlowJob[];
-  jobsToUpdate: FlowJobUpdate[];
   parent: {
     parentOpts: ParentOptions;
     parentDependenciesKey: string;
   };
   queuesOpts?: FlowQueuesOpts;
-}
-
-interface FlowJobUpdate {
-  job: Job;
-  resultIndex: number;
 }
 
 export interface NodeOpts {
@@ -208,7 +201,6 @@ export class FlowProducer extends EventEmitter {
     const parentDependenciesKey = parentKey
       ? `${parentKey}:dependencies`
       : undefined;
-    const jobsToUpdate: FlowJobUpdate[] = [];
 
     return trace<Promise<JobNode>>(
       this.telemetry,
@@ -224,7 +216,6 @@ export class FlowProducer extends EventEmitter {
         const jobsTree = await this.addNode({
           multi,
           node: flow,
-          jobsToUpdate,
           queuesOpts: opts?.queuesOptions,
           parent: {
             parentOpts,
@@ -235,7 +226,13 @@ export class FlowProducer extends EventEmitter {
         const results = (await multi.exec()) as
           | [null | Error, string | number][]
           | null;
-        this.updateJobIds(jobsToUpdate, results);
+        const [result] = results || [];
+        if (result) {
+          const [err, jobId] = result;
+          if (!err && typeof jobId === 'string') {
+            jobsTree.job.id = jobId;
+          }
+        }
 
         return jobsTree;
       },
@@ -286,7 +283,6 @@ export class FlowProducer extends EventEmitter {
     }
     const client = await this.connection.client;
     const multi = client.multi();
-    const jobsToUpdate: FlowJobUpdate[] = [];
 
     return trace<Promise<JobNode[]>>(
       this.telemetry,
@@ -302,12 +298,22 @@ export class FlowProducer extends EventEmitter {
             .join(','),
         });
 
-        const jobsTrees = await this.addNodes(multi, flows, jobsToUpdate);
+        const jobsTrees = await this.addNodes(multi, flows);
 
         const results = (await multi.exec()) as
           | [null | Error, string | number][]
           | null;
-        this.updateJobIds(jobsToUpdate, results);
+        for (let index = 0; index < jobsTrees.length; ++index) {
+          const result = results?.[index];
+          if (!result) {
+            continue;
+          }
+
+          const [err, jobId] = result;
+          if (!err && typeof jobId === 'string') {
+            jobsTrees[index].job.id = jobId;
+          }
+        }
 
         return jobsTrees;
       },
@@ -328,7 +334,6 @@ export class FlowProducer extends EventEmitter {
   protected async addNode({
     multi,
     node,
-    jobsToUpdate,
     parent,
     queuesOpts,
   }: AddNodeOpts): Promise<JobNode> {
@@ -389,13 +394,11 @@ export class FlowProducer extends EventEmitter {
             node.prefix || this.opts.prefix,
           );
 
-          const resultIndex = multi.length - 1;
           await job.addJob(<Redis>(multi as unknown), {
             parentDependenciesKey: parent?.parentDependenciesKey,
             addToWaitingChildren: true,
             parentKey,
           });
-          jobsToUpdate.push({ job, resultIndex });
 
           const parentDependenciesKey = `${queueKeysParent.toKey(
             node.queueName,
@@ -405,7 +408,6 @@ export class FlowProducer extends EventEmitter {
           const children = await this.addChildren({
             multi,
             nodes: node.children,
-            jobsToUpdate,
             parent: {
               parentOpts: {
                 id: parentId,
@@ -418,12 +420,10 @@ export class FlowProducer extends EventEmitter {
 
           return { job, children };
         } else {
-          const resultIndex = multi.length - 1;
           await job.addJob(<Redis>(multi as unknown), {
             parentDependenciesKey: parent?.parentDependenciesKey,
             parentKey,
           });
-          jobsToUpdate.push({ job, resultIndex });
 
           return { job };
         }
@@ -444,7 +444,6 @@ export class FlowProducer extends EventEmitter {
   protected addNodes(
     multi: ChainableCommander,
     nodes: FlowJob[],
-    jobsToUpdate: FlowJobUpdate[],
   ): Promise<JobNode[]> {
     return Promise.all(
       nodes.map(node => {
@@ -457,7 +456,6 @@ export class FlowProducer extends EventEmitter {
         return this.addNode({
           multi,
           node,
-          jobsToUpdate,
           parent: {
             parentOpts,
             parentDependenciesKey,
@@ -520,42 +518,9 @@ export class FlowProducer extends EventEmitter {
     }
   }
 
-  private updateJobIds(
-    jobsToUpdate: FlowJobUpdate[],
-    results: [null | Error, string | number][] | null,
-  ) {
-    if (!results) {
-      return;
-    }
-
-    for (const { job, resultIndex } of jobsToUpdate) {
-      const result = results[resultIndex];
-      if (!result) {
-        continue;
-      }
-
-      const [err, jobId] = result;
-      if (err) {
-        continue;
-      }
-
-      if (jobId != null) {
-        job.id = String(jobId);
-      }
-    }
-  }
-
-  private addChildren({
-    multi,
-    nodes,
-    jobsToUpdate,
-    parent,
-    queuesOpts,
-  }: AddChildrenOpts) {
+  private addChildren({ multi, nodes, parent, queuesOpts }: AddChildrenOpts) {
     return Promise.all(
-      nodes.map(node =>
-        this.addNode({ multi, node, jobsToUpdate, parent, queuesOpts }),
-      ),
+      nodes.map(node => this.addNode({ multi, node, parent, queuesOpts })),
     );
   }
 
