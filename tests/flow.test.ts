@@ -6193,17 +6193,25 @@ describe('flows', () => {
       try {
         await setupConn.replicaof(redisHost, 6379);
       } catch (err) {
-        await setupConn.quit();
-        return;
+        if (
+          err instanceof Error &&
+          (err.message.includes('replication cancelled') ||
+            err.message.includes('ERR'))
+        ) {
+          await setupConn.quit();
+          return;
+        }
+        throw err;
       }
 
-      const flow = new FlowProducer({
-        connection: { host: redisHost, enableOfflineQueue: false },
-        prefix,
-      });
-      await flow.waitUntilReady();
-
+      let flow: FlowProducer | undefined;
       try {
+        flow = new FlowProducer({
+          connection: { host: redisHost, enableOfflineQueue: false },
+          prefix,
+        });
+        await flow.waitUntilReady();
+
         await expect(
           flow.add({
             name: 'test-parent',
@@ -6212,10 +6220,10 @@ describe('flows', () => {
           }),
         ).rejects.toThrow();
       } finally {
-        // Restore Redis to primary mode
+        // Always restore Redis to primary mode
         await setupConn.replicaof('NO', 'ONE');
         await setupConn.quit();
-        await flow.close();
+        if (flow) await flow.close();
       }
     });
 
@@ -6227,17 +6235,25 @@ describe('flows', () => {
       try {
         await setupConn.replicaof(redisHost, 6379);
       } catch (err) {
-        await setupConn.quit();
-        return;
+        if (
+          err instanceof Error &&
+          (err.message.includes('replication cancelled') ||
+            err.message.includes('ERR'))
+        ) {
+          await setupConn.quit();
+          return;
+        }
+        throw err;
       }
 
-      const flow = new FlowProducer({
-        connection: { host: redisHost, enableOfflineQueue: false },
-        prefix,
-      });
-      await flow.waitUntilReady();
-
+      let flow: FlowProducer | undefined;
       try {
+        flow = new FlowProducer({
+          connection: { host: redisHost, enableOfflineQueue: false },
+          prefix,
+        });
+        await flow.waitUntilReady();
+
         await expect(
           flow.addBulk([
             {
@@ -6255,7 +6271,7 @@ describe('flows', () => {
       } finally {
         await setupConn.replicaof('NO', 'ONE');
         await setupConn.quit();
-        await flow.close();
+        if (flow) await flow.close();
       }
     });
   });

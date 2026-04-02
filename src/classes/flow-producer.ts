@@ -562,11 +562,12 @@ export class FlowProducer extends EventEmitter {
    */
   private async execPipeline(multi: ChainableCommander): Promise<void> {
     const results = await multi.exec();
-    if (results) {
-      for (const [err] of results) {
-        if (err) {
-          throw err;
-        }
+    if (!results) {
+      throw new Error('Pipeline was aborted (WATCH condition not met)');
+    }
+    for (const [err] of results) {
+      if (err) {
+        throw err;
       }
     }
   }
