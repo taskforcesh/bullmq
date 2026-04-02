@@ -270,7 +270,12 @@ export class ChildProcessor {
       /**
        * Proxy `getDependenciesCount` function.
        */
-      getDependenciesCount: async (opts?: Record<string, any>) => {
+      getDependenciesCount: async (opts?: {
+        failed?: boolean;
+        ignored?: boolean;
+        processed?: boolean;
+        unprocessed?: boolean;
+      }) => {
         const requestId = Math.random().toString(36).substring(2, 15);
         await send({
           requestId,
