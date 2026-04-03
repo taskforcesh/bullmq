@@ -58,7 +58,8 @@ describe('Sandboxed process using child processes', () => {
     });
 
     it('should handle non-BullMQ messages during child initialization', async function () {
-      const mainFile = __dirname + '/fixtures/fixture_main_non_bullmq_messages.js';
+      const mainFile =
+        __dirname + '/fixtures/fixture_main_non_bullmq_messages.js';
       const processFile = __dirname + '/fixtures/fixture_processor_simple.js';
 
       const child = new Child(mainFile, processFile, {
@@ -984,6 +985,125 @@ function sandboxProcessTests(
       await parentWorker.close();
       await childWorker.close();
       await flow.close();
+      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+    });
+
+    it('can get dependencies count by calling getDependenciesCount', async () => {
+      const childJobId = 'child-job-id';
+      const childProcessFile =
+        __dirname +
+        '/fixtures/fixture_processor_get_dependencies_count_child.js';
+      const parentProcessFile =
+        __dirname + '/fixtures/fixture_processor_get_dependencies_count.js';
+      const parentQueueName = `parent-queue-${v4()}`;
+
+      const parentWorker = new Worker(parentQueueName, parentProcessFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads,
+      });
+
+      const childWorker = new Worker(queueName, childProcessFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads,
+      });
+
+      const parentCompleting = new Promise<void>((resolve, reject) => {
+        parentWorker.on('completed', async (job: Job, value: any) => {
+          try {
+            expect(value).toHaveProperty('processed');
+            resolve();
+          } catch (err) {
+            await parentWorker.close();
+            reject(err);
+          }
+        });
+
+        parentWorker.on('failed', async (_, error: Error) => {
+          await parentWorker.close();
+          reject(error);
+        });
+      });
+
+      const flow = new FlowProducer({ connection, prefix });
+      await flow.add({
+        name: 'parent-job',
+        queueName: parentQueueName,
+        opts: { jobId: 'job-id' },
+        children: [
+          { name: 'child-job', queueName, opts: { jobId: childJobId } },
+        ],
+      });
+
+      await parentCompleting;
+      await parentWorker.close();
+      await childWorker.close();
+      await flow.close();
+      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+    });
+
+    it('will fail job if calling getDependenciesCount is too slow', async () => {
+      const getDependenciesCount = Job.prototype.getDependenciesCount;
+      Job.prototype.getDependenciesCount = async function () {
+        await delay(50000);
+        return getDependenciesCount.call(this);
+      };
+
+      const childJobId = 'child-job-id';
+      const childProcessFile =
+        __dirname +
+        '/fixtures/fixture_processor_get_dependencies_count_child.js';
+      const parentProcessFile =
+        __dirname + '/fixtures/fixture_processor_get_dependencies_count.js';
+      const parentQueueName = `parent-queue-${v4()}`;
+
+      const parentWorker = new Worker(parentQueueName, parentProcessFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads,
+      });
+
+      const childWorker = new Worker(queueName, childProcessFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads,
+      });
+
+      const parentFailing = new Promise<void>((resolve, reject) => {
+        parentWorker.on('failed', async (_, error: Error) => {
+          try {
+            expect(error.message).toEqual(
+              'TimeoutError: getDependenciesCount timed out in (500ms)',
+            );
+            resolve();
+          } catch (err) {
+            await parentWorker.close();
+            reject(err);
+          }
+        });
+      });
+
+      const flow = new FlowProducer({ connection, prefix });
+      await flow.add({
+        name: 'parent-job',
+        queueName: parentQueueName,
+        opts: { jobId: 'job-id' },
+        children: [
+          { name: 'child-job', queueName, opts: { jobId: childJobId } },
+        ],
+      });
+
+      await parentFailing;
+      await parentWorker.close();
+      await childWorker.close();
+      await flow.close();
+
+      Job.prototype.getDependenciesCount = getDependenciesCount;
       await removeAllQueueData(new IORedis(redisHost), parentQueueName);
     });
 
