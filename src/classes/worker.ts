@@ -668,6 +668,10 @@ export class Worker<
       { block },
     );
 
+    if (nextJob) {
+      this.emit('active', nextJob, 'waiting');
+    }
+
     return this.trace<Job<DataType, ResultType, NameType> | undefined>(
       SpanKind.INTERNAL,
       'getNextJob',
@@ -957,8 +961,6 @@ will never work with more accuracy than 1ms. */
           [TelemetryAttributes.JobId]: job.id,
           [TelemetryAttributes.JobName]: job.name,
         });
-
-        this.emit('active', job, 'waiting');
 
         const abortController = this.lockManager.trackJob(
           job.id,

@@ -5387,6 +5387,31 @@ describe('workers', () => {
 
       await worker.close();
     });
+
+    describe('when there is a job in waiting', () => {
+      it('should emit active event when calling getNextJob', async () => {
+        const worker = new Worker(queueName, null, { connection, prefix });
+        const token = 'my-token';
+
+        await queue.add('test', { foo: 'bar' });
+
+        const activated = new Promise<Job>(resolve => {
+          worker.on('active', resolve);
+        });
+
+        const job = (await worker.getNextJob(token)) as Job;
+
+        const activatedJob = await activated;
+
+        expect(activatedJob.id).toBe(job.id);
+
+        const isActive = await job.isActive();
+        expect(isActive).toBe(true);
+
+        await job.moveToCompleted('done', token);
+        await worker.close();
+      });
+    });
   });
 
   describe('non-blocking', () => {

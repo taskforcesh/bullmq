@@ -81,6 +81,35 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         await worker.close(force=True)
         await queue.close()
 
+    async def test_manual_process_active_event_on_get_next_job(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        data = {"foo": "bar"}
+
+        worker = Worker(queueName, None, {"prefix": prefix})
+        token = 'my-token'
+
+        await queue.add("test", data)
+
+        active_event = Future()
+
+        def on_active(job, prev):
+            active_event.set_result(job)
+
+        worker.on("active", on_active)
+
+        job = await worker.getNextJob(token)
+
+        activated_job = await active_event
+
+        self.assertEqual(activated_job.id, job.id)
+
+        is_active = await job.isActive()
+        self.assertEqual(is_active, True)
+
+        await job.moveToCompleted('done', token)
+        await worker.close(force=True)
+        await queue.close()
+
     async def test_manual_process_job_failure(self):
         queue = Queue(queueName, {"prefix": prefix})
         data = {"foo": "bar"}
