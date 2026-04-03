@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/taskforcesh/bullmq/compare/vex1.2.7...vex1.3.0) (2026-04-03)
+
+
+### Features
+
+* **sandbox:** add getDependenciesCount proxy for jobs ([#3923](https://github.com/taskforcesh/bullmq/issues/3923)) ref [#3533](https://github.com/taskforcesh/bullmq/issues/3533) (elixir) (php) (python) ([cbfe437](https://github.com/taskforcesh/bullmq/commit/cbfe437a9aa967bd960890f8ddfb9b01a8c83505))
+
 ## [1.2.7](https://github.com/taskforcesh/bullmq/compare/vex1.2.6...vex1.2.7) (2026-03-06)
 
 
