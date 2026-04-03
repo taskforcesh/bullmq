@@ -341,10 +341,16 @@ describe('Job Cancellation', () => {
       let abortSignalReceived = false;
       let signalWasAborted = false;
 
+      let processorStartedResolve: () => void;
+      const processorStarted = new Promise<void>(resolve => {
+        processorStartedResolve = resolve;
+      });
+
       const worker = new Worker(
         queueName,
         async (job, token, signal) => {
           abortSignalReceived = signal !== undefined;
+          processorStartedResolve();
 
           // Simulate an API that accepts signal
           const mockFetch = async (signal?: AbortSignal) => {
@@ -365,14 +371,10 @@ describe('Job Cancellation', () => {
 
       await worker.waitUntilReady();
 
-      const waitingOnActive = new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
-      });
-
       const job = await queue.add('test', { foo: 'bar' });
 
-      // Wait for job to start
-      await waitingOnActive;
+      // Wait for processor to start (ensures AbortController exists)
+      await processorStarted;
 
       // Cancel the job
       worker.cancelJob(job.id!);
@@ -472,9 +474,15 @@ describe('Job Cancellation', () => {
       let lockRenewalFailedEmitted = false;
       let signalAborted = false;
 
+      let processorStartedResolve: () => void;
+      const processorStarted = new Promise<void>(resolve => {
+        processorStartedResolve = resolve;
+      });
+
       const worker = new Worker(
         queueName,
         async (job, token, signal) => {
+          processorStartedResolve();
           return new Promise((resolve, reject) => {
             signal?.addEventListener('abort', () => {
               signalAborted = true;
@@ -497,13 +505,10 @@ describe('Job Cancellation', () => {
 
       await worker.waitUntilReady();
 
-      const waitingOnActive = new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
-      });
-
       const job = await queue.add('test', { foo: 'bar' });
 
-      await waitingOnActive;
+      // Wait for processor to start (ensures AbortController exists)
+      await processorStarted;
 
       // Simulate lock renewal failure by calling cancelJob
       // (In real scenario, this would be triggered by lockRenewalFailed event)
@@ -643,9 +648,15 @@ describe('Job Cancellation', () => {
       let errorThrown = false;
       let abortReceived = false;
 
+      let processorStartedResolve: () => void;
+      const processorStarted = new Promise<void>(resolve => {
+        processorStartedResolve = resolve;
+      });
+
       const worker = new Worker(
         queueName,
         async (job, token, signal) => {
+          processorStartedResolve();
           for (let i = 0; i < 50; i++) {
             if (signal?.aborted) {
               abortReceived = true;
@@ -661,13 +672,9 @@ describe('Job Cancellation', () => {
 
       await worker.waitUntilReady();
 
-      const waitingOnActive = new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
-      });
-
       const job = await queue.add('test', { foo: 'bar' });
 
-      await waitingOnActive;
+      await processorStarted;
 
       worker.cancelJob(job.id!);
 
@@ -682,9 +689,15 @@ describe('Job Cancellation', () => {
     });
 
     it('should handle concurrent cancellations', async () => {
+      let processorStartedResolve: () => void;
+      const processorStarted = new Promise<void>(resolve => {
+        processorStartedResolve = resolve;
+      });
+
       const worker = new Worker(
         queueName,
         async (job, token, signal) => {
+          processorStartedResolve();
           for (let i = 0; i < 100; i++) {
             if (signal?.aborted) {
               throw new Error('Cancelled');
@@ -698,13 +711,9 @@ describe('Job Cancellation', () => {
 
       await worker.waitUntilReady();
 
-      const waitingOnActive = new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
-      });
-
       const job = await queue.add('test', { foo: 'bar' });
 
-      await waitingOnActive;
+      await processorStarted;
 
       // Try to cancel multiple times
       const result1 = worker.cancelJob(job.id!);
@@ -724,9 +733,15 @@ describe('Job Cancellation', () => {
     });
 
     it('should handle cancellation with UnrecoverableError', async () => {
+      let processorStartedResolve: () => void;
+      const processorStarted = new Promise<void>(resolve => {
+        processorStartedResolve = resolve;
+      });
+
       const worker = new Worker(
         queueName,
         async (job, token, signal) => {
+          processorStartedResolve();
           for (let i = 0; i < 100; i++) {
             if (signal?.aborted) {
               throw new UnrecoverableError('Job cancelled - do not retry');
@@ -740,13 +755,9 @@ describe('Job Cancellation', () => {
 
       await worker.waitUntilReady();
 
-      const waitingOnActive = new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
-      });
-
       const job = await queue.add('test', { foo: 'bar' });
 
-      await waitingOnActive;
+      await processorStarted;
 
       worker.cancelJob(job.id!);
 
@@ -978,9 +989,15 @@ describe('Job Cancellation', () => {
       let receivedReason: string | undefined;
       let jobWasCancelled = false;
 
+      let processorStartedResolve: () => void;
+      const processorStarted = new Promise<void>(resolve => {
+        processorStartedResolve = resolve;
+      });
+
       const worker = new Worker(
         queueName,
         async (job, token, signal) => {
+          processorStartedResolve();
           return new Promise((resolve, reject) => {
             signal?.addEventListener('abort', () => {
               receivedReason = (signal as any).reason;
@@ -997,13 +1014,9 @@ describe('Job Cancellation', () => {
 
       await worker.waitUntilReady();
 
-      const waitingOnActive = new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
-      });
-
       const job = await queue.add('test', { foo: 'bar' });
 
-      await waitingOnActive;
+      await processorStarted;
 
       // Cancel with a specific reason
       const customReason = 'User requested cancellation';
