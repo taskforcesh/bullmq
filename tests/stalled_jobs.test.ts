@@ -1036,6 +1036,7 @@ describe('stalled jobs', () => {
             return delay(10000);
           },
           {
+            autorun: false,
             connection,
             prefix,
             lockDuration: 1000,
@@ -1063,6 +1064,8 @@ describe('stalled jobs', () => {
         }));
 
         await queue.addBulk(jobs);
+
+        worker.run();
 
         await allActive;
 
