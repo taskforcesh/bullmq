@@ -6182,6 +6182,9 @@ describe('flows', () => {
     });
   });
 
+  // These tests change the Redis server role to READONLY via REPLICAOF.
+  // They must run sequentially (not in parallel with other test files)
+  // since they modify server-wide state.
   describe('when Redis is in READONLY mode', () => {
     it('should throw an error when adding a flow', async () => {
       const setupConn = new IORedis(redisHost, {
@@ -6193,12 +6196,14 @@ describe('flows', () => {
       try {
         await setupConn.replicaof(redisHost, 6379);
       } catch (err) {
+        await setupConn.quit();
         if (
           err instanceof Error &&
           (err.message.includes('replication cancelled') ||
-            err.message.includes('ERR'))
+            err.message.includes('unknown command') ||
+            err.message.includes('unknown subcommand') ||
+            err.message.includes('not supported'))
         ) {
-          await setupConn.quit();
           return;
         }
         throw err;
@@ -6235,12 +6240,14 @@ describe('flows', () => {
       try {
         await setupConn.replicaof(redisHost, 6379);
       } catch (err) {
+        await setupConn.quit();
         if (
           err instanceof Error &&
           (err.message.includes('replication cancelled') ||
-            err.message.includes('ERR'))
+            err.message.includes('unknown command') ||
+            err.message.includes('unknown subcommand') ||
+            err.message.includes('not supported'))
         ) {
-          await setupConn.quit();
           return;
         }
         throw err;
