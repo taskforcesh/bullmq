@@ -6196,7 +6196,11 @@ describe('flows', () => {
       try {
         await setupConn.replicaof(redisHost, 6379);
       } catch (err) {
-        await setupConn.quit();
+        try {
+          await setupConn.quit();
+        } catch {
+          // ignore cleanup errors
+        }
         if (
           err instanceof Error &&
           (err.message.includes('replication cancelled') ||
@@ -6225,9 +6229,18 @@ describe('flows', () => {
           }),
         ).rejects.toThrow();
       } finally {
-        // Always restore Redis to primary mode
-        await setupConn.replicaof('NO', 'ONE');
-        await setupConn.quit();
+        // Always restore Redis to primary mode.
+        // Each step is wrapped so all cleanup runs even if one fails.
+        try {
+          await setupConn.replicaof('NO', 'ONE');
+        } catch {
+          // ignore
+        }
+        try {
+          await setupConn.quit();
+        } catch {
+          // ignore
+        }
         if (flow) await flow.close();
       }
     });
@@ -6240,7 +6253,11 @@ describe('flows', () => {
       try {
         await setupConn.replicaof(redisHost, 6379);
       } catch (err) {
-        await setupConn.quit();
+        try {
+          await setupConn.quit();
+        } catch {
+          // ignore cleanup errors
+        }
         if (
           err instanceof Error &&
           (err.message.includes('replication cancelled') ||
@@ -6276,8 +6293,16 @@ describe('flows', () => {
           ]),
         ).rejects.toThrow();
       } finally {
-        await setupConn.replicaof('NO', 'ONE');
-        await setupConn.quit();
+        try {
+          await setupConn.replicaof('NO', 'ONE');
+        } catch {
+          // ignore
+        }
+        try {
+          await setupConn.quit();
+        } catch {
+          // ignore
+        }
         if (flow) await flow.close();
       }
     });
