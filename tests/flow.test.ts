@@ -6241,7 +6241,9 @@ describe('flows', () => {
         } catch {
           // ignore
         }
-        if (flow) await flow.close();
+        if (flow) {
+          await flow.close();
+        }
       }
     });
 
@@ -6303,7 +6305,9 @@ describe('flows', () => {
         } catch {
           // ignore
         }
-        if (flow) await flow.close();
+        if (flow) {
+          await flow.close();
+        }
       }
     });
   });
