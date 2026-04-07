@@ -96,6 +96,16 @@ const sandbox = <T, R, N extends string>(
                       });
                     }
                     break;
+                  case ParentCommand.GetDependenciesCount:
+                    {
+                      const value = await job.getDependenciesCount(msg.value);
+                      child.send({
+                        requestId: msg.requestId,
+                        cmd: ChildCommand.GetDependenciesCountResponse,
+                        value,
+                      });
+                    }
+                    break;
                 }
               } catch (err) {
                 reject(err);

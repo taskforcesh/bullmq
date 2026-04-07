@@ -1,4 +1,4 @@
-import { AbortController } from 'node-abort-controller';
+import { AbortController } from './abort-controller';
 import { ParentCommand } from '../enums';
 import {
   MoveToWaitingChildrenOpts,
@@ -264,6 +264,30 @@ export class ChildProcessor {
           this.receiver,
           RESPONSE_TIMEOUT,
           'getIgnoredChildrenFailures',
+        );
+      },
+
+      /**
+       * Proxy `getDependenciesCount` function.
+       */
+      getDependenciesCount: async (opts?: {
+        failed?: boolean;
+        ignored?: boolean;
+        processed?: boolean;
+        unprocessed?: boolean;
+      }) => {
+        const requestId = Math.random().toString(36).substring(2, 15);
+        await send({
+          requestId,
+          cmd: ParentCommand.GetDependenciesCount,
+          value: opts,
+        });
+
+        return waitResponse(
+          requestId,
+          this.receiver,
+          RESPONSE_TIMEOUT,
+          'getDependenciesCount',
         );
       },
     };
