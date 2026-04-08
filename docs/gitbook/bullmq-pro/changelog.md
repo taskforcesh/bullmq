@@ -1,3 +1,10 @@
+## [7.43.1](https://github.com/taskforcesh/bullmq-pro/compare/v7.43.0...v7.43.1) (2026-04-08)
+
+
+### Bug Fixes
+
+* **groups:** extend obliterate logic to consider groups ([#410](https://github.com/taskforcesh/bullmq-pro/issues/410)) ([a186efb](https://github.com/taskforcesh/bullmq-pro/commit/a186efb1dea3d765ea3f4ff98ea556fbf48de724))
+
 # [7.43.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.42.1...v7.43.0) (2026-03-11)
 
 
