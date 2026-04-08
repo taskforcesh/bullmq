@@ -61,7 +61,7 @@ export interface WorkerListener<
   active: (job: Job<DataType, ResultType, NameType>, prev: string) => void;
 
   /**
-   * Listen to 'closing' event.
+   * Listen to 'closed' event.
    *
    * This event is triggered when the worker is closed.
    */
