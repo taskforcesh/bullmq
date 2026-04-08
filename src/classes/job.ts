@@ -270,7 +270,7 @@ export class Job<
    * @param name - the name of the job.
    * @param data - the payload of the job.
    * @param opts - the options bag for this job.
-   * @returns
+   * @returns The created Job instance
    */
   static async create<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
@@ -295,9 +295,9 @@ export class Job<
   /**
    * Creates a bulk of jobs and adds them atomically to the given queue.
    *
-   * @param queue -the queue were to add the jobs.
+   * @param queue - the queue where to add the jobs.
    * @param jobs - an array of jobs to be added to the queue.
-   * @returns
+   * @returns The created Job instances
    */
   static async createBulk<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
@@ -344,7 +344,7 @@ export class Job<
    * @param queue - the queue where the job belongs to.
    * @param json - the plain object containing the job.
    * @param jobId - an optional job id (overrides the id coming from the JSON object)
-   * @returns
+   * @returns A Job instance reconstructed from the JSON data
    */
   static fromJSON<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
@@ -1513,9 +1513,9 @@ export class Job<
   /**
    * Adds the job to Redis.
    *
-   * @param client -
-   * @param parentOpts -
-   * @returns
+   * @param client - The Redis client to use for adding the job.
+   * @param parentOpts - Options for the parent-child relationship.
+   * @returns The job ID
    */
   addJob(client: RedisClient, parentOpts?: ParentKeyOpts): Promise<string> {
     const jobData = this.asJSON();
