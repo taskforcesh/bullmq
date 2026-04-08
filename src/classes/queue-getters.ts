@@ -490,9 +490,10 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
 
     const jobIds = await this.getRanges(currentTypes, start, end, asc);
 
-    return Promise.all(
-      jobIds.map(jobId => this.Job.fromId(this, jobId) as Promise<JobBase>),
+    const jobs = await Promise.all(
+      jobIds.map(jobId => this.Job.fromId(this, jobId)),
     );
+    return jobs.filter(job => job !== undefined) as JobBase[];
   }
 
   /**
