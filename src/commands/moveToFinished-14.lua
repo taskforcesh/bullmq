@@ -190,6 +190,27 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
         if maxCount ~= nil and maxCount > 0 then
             removeJobsByMaxCount(maxCount, targetSet, prefix)
         end
+
+        -- Also prune the opposite finished set
+        local otherKeepJobs = opts['otherKeepJobs']
+        if otherKeepJobs then
+            local otherMaxCount = otherKeepJobs['count']
+            local otherMaxAge = otherKeepJobs['age']
+            local otherMaxLimit = otherKeepJobs['limit'] or 1000
+
+            if otherMaxCount ~= 0 and otherMaxCount ~= -1 then
+                local otherStatus = ARGV[5] == "completed" and "failed" or "completed"
+                local otherSet = prefix .. otherStatus
+
+                if otherMaxAge ~= nil then
+                    removeJobsByMaxAge(timestamp, otherMaxAge, otherSet, prefix, otherMaxLimit)
+                end
+
+                if otherMaxCount ~= nil and otherMaxCount > 0 then
+                    removeJobsByMaxCount(otherMaxCount, otherSet, prefix)
+                end
+            end
+        end
     else
         removeJobKeys(jobIdKey)
         if parentKey ~= "" then

@@ -721,6 +721,9 @@ export class Scripts {
     const workerKeepJobs =
       target === 'completed' ? opts.removeOnComplete : opts.removeOnFail;
 
+    const otherWorkerKeepJobs =
+      target === 'completed' ? opts.removeOnFail : opts.removeOnComplete;
+
     const metricsKey = this.queue.toKey(`metrics:${target}`);
 
     const keys = this.moveToFinishedKeys;
@@ -730,6 +733,7 @@ export class Scripts {
     keys[13] = this.queue.keys.marker;
 
     const keepJobs = this.getKeepJobs(shouldRemove, workerKeepJobs);
+    const otherKeepJobs = this.getKeepJobs(otherWorkerKeepJobs, undefined);
 
     const args = [
       job.id,
@@ -743,6 +747,7 @@ export class Scripts {
         token,
         name: opts.name,
         keepJobs,
+        otherKeepJobs,
         limiter: opts.limiter,
         lockDuration: opts.lockDuration,
         attempts: job.opts.attempts,
