@@ -1,3 +1,10 @@
+## [5.73.1](https://github.com/taskforcesh/bullmq/compare/v5.73.0...v5.73.1) (2026-04-08)
+
+
+### Bug Fixes
+
+* **sandbox:** add missing type declarations to SandboxedJob interface ([#3946](https://github.com/taskforcesh/bullmq/issues/3946)) fixes [#3925](https://github.com/taskforcesh/bullmq/issues/3925) ([4c6b2b2](https://github.com/taskforcesh/bullmq/commit/4c6b2b2d73b5053f3bd3bee2019533b6e7b5682b))
+
 # [5.73.0](https://github.com/taskforcesh/bullmq/compare/v5.72.1...v5.73.0) (2026-04-03)
 
 
