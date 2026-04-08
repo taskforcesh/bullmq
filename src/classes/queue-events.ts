@@ -103,7 +103,8 @@ export interface QueueEventsListener extends IoredisListener {
   /**
    * Listen to 'delayed' event.
    *
-   * This event is triggered when a job is scheduled with a delay before it becomes active.
+   * This event is triggered when a job is scheduled with a delay. When the delay
+   * expires, the job will be moved to waiting, prioritized or paused state.
    *
    * @param args - An object containing details about the delayed job.
    *  - `jobId` - The unique identifier of the job that was delayed.
