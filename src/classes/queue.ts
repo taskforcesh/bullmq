@@ -1137,6 +1137,12 @@ export class Queue<
         const colonIdx = suffix.indexOf(':');
         if (colonIdx !== -1) {
           const prefixPart = suffix.slice(0, colonIdx);
+
+          if (prefixPart === 'repeat' && suffix.split(':').length === 3) {
+            // consider generated job id from repeatables
+            candidateJobIds.add(suffix);
+            continue;
+          }
           if (knownSuffixes.has(prefixPart)) {
             continue;
           }
