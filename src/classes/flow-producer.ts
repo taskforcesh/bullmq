@@ -548,9 +548,9 @@ export class FlowProducer extends EventEmitter {
    * Helper factory method that creates a queue-like object
    * required to create jobs in any queue.
    *
-   * @param node -
-   * @param queueKeys -
-   * @returns
+   * @param node - The flow node containing the queue name and other job options.
+   * @param queueKeys - The queue keys helper used to resolve key names.
+   * @returns A queue-like object with the client, keys, and options needed to create jobs.
    */
   private queueFromNode(
     node: Omit<NodeOpts, 'id' | 'depth' | 'maxChildren'>,
