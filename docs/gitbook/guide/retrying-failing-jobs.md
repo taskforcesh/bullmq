@@ -31,6 +31,9 @@ The current built-in backoff functions are **fixed** and **exponential**.
 
 With a fixed backoff, it will retry after `delay` milliseconds, so with a delay of 3000 milliseconds, it will retry _every_ attempt 3000 milliseconds after the previous attempt.
 
+{% tabs %}
+{% tab title="TypeScript" %}
+
 ```typescript
 import { Queue } from 'bullmq';
 
@@ -48,6 +51,24 @@ await queue.add(
   },
 );
 ```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+from bullmq import Queue
+
+queue = Queue("foo", {"connection": "redis://localhost:6379"})
+
+await queue.add("test-retry", {"foo": "bar"}, {
+    "attempts": 3,
+    "backoff": {"type": "fixed", "delay": 1000},
+})
+```
+
+{% endtab %}
+{% endtabs %}
 
 You can also provide a [jitter](https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/) option, it will generate random delays between `delay` and 0 milliseconds depending on the percentage of jitter usage. For example, you can provide a jitter value of 0.5 value and a delay of 1000 milliseconds, it will generate a delay between `1000` milliseconds = 1 second and `1000 * 0.5` milliseconds = 500ms.
 
@@ -76,6 +97,9 @@ With exponential backoff, it will retry after `2 ^ (attempts - 1) * delay` milli
 
 The code below shows how to specify the built-in "exponential" backoff function with a 1-second delay as a seed value, so it will retry at most 2 times (after the first attempt, reaching a total 3 attempts) spaced after 1 second, 2 seconds, and 4 seconds respectively:
 
+{% tabs %}
+{% tab title="TypeScript" %}
+
 ```typescript
 import { Queue } from 'bullmq';
 
@@ -93,6 +117,24 @@ await queue.add(
   },
 );
 ```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+from bullmq import Queue
+
+queue = Queue("foo", {"connection": "redis://localhost:6379"})
+
+await queue.add("test-retry", {"foo": "bar"}, {
+    "attempts": 5,
+    "backoff": {"type": "exponential", "delay": 1000},
+})
+```
+
+{% endtab %}
+{% endtabs %}
 
 You can also provide a [jitter](https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/) option, it will generate random delays between `2 ^ (attempts - 1) * delay` and 0 milliseconds depending on the percentage of jitter usage. For example, you can provide a jitter value of 0.5 value and a delay of 3000 milliseconds, for the 7th attempt, it will generate a delay between `2^6 * 3000` milliseconds = 192000ms and `2^6 * 3000 * 0.5` milliseconds = 96000ms after the previous attempt.
 
@@ -206,6 +248,53 @@ const worker = new Worker('foo', async job => doSomeProcessing(), {
   },
 });
 ```
+
+## Manual Retry
+
+You can manually retry a single failed (or completed) job. See [Retrying Jobs](jobs/retrying-job.md) for details.
+
+{% tabs %}
+{% tab title="TypeScript" %}
+
+```typescript
+await job.retry('failed');
+```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+await job.retry("failed")
+
+# To also reset the attempt counter:
+await job.retry("failed", {"resetAttemptsMade": True})
+```
+
+{% endtab %}
+{% endtabs %}
+
+## Bulk Retry
+
+To retry multiple failed jobs at once:
+
+{% tabs %}
+{% tab title="TypeScript" %}
+
+```typescript
+await queue.retryJobs({ state: 'failed', count: 100 });
+```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+await queue.retryJobs({"state": "failed", "count": 100})
+```
+
+{% endtab %}
+{% endtabs %}
 
 ## Read more:
 

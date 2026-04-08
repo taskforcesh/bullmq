@@ -8,6 +8,9 @@ Failed jobs can be automatically retried, see [Retrying failing jobs](retrying-f
 
 A worker is instantiated with the Worker class, and the work itself will be performed in the process function. Process functions are meant to be asynchronous so either use the "async" keyword or return a promise.
 
+{% tabs %}
+{% tab title="TypeScript" %}
+
 ```typescript
 import { Worker, Job } from 'bullmq';
 
@@ -17,7 +20,30 @@ const worker = new Worker(queueName, async (job: Job) => {
 });
 ```
 
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+from bullmq import Worker
+
+async def process(job, token):
+    # job.data contains the payload added to the queue
+    # job.name contains the job name
+    # job.id contains the job ID
+    await job.updateProgress(50)
+    return {"result": "done"}  # stored as job.returnvalue
+
+worker = Worker("myQueue", process, {"connection": "redis://localhost:6379"})
+```
+
+{% endtab %}
+{% endtabs %}
+
 Note that a processor can optionally return a value. This value can be retrieved either by getting the job and accessing the "returnvalue" property or by listening to the "completed" event:
+
+{% tabs %}
+{% tab title="TypeScript" %}
 
 ```typescript
 worker.on('completed', (job: Job, returnvalue: any) => {
@@ -25,7 +51,21 @@ worker.on('completed', (job: Job, returnvalue: any) => {
 });
 ```
 
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+worker.on("completed", lambda job, result: print(f"Job {job.id} completed with result: {result}"))
+```
+
+{% endtab %}
+{% endtabs %}
+
 Inside the worker process function it is also possible to emit progress events. Calling "job.progress" you can specify a number or an object if you have more complex needs. The "progress" event can be listened in the same way as the "completed" event:
+
+{% tabs %}
+{% tab title="TypeScript" %}
 
 ```typescript
 worker.on('progress', (job: Job, progress: number | object) => {
@@ -33,13 +73,39 @@ worker.on('progress', (job: Job, progress: number | object) => {
 });
 ```
 
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+worker.on("active", lambda job, prev: print(f"Job {job.id} is now active"))
+```
+
+{% endtab %}
+{% endtabs %}
+
 Finally, when the process fails with an exception it is possible to listen for the "failed" event too:
+
+{% tabs %}
+{% tab title="TypeScript" %}
 
 ```typescript
 worker.on('failed', (job: Job, error: Error) => {
   // Do something with the return value.
 });
 ```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+worker.on("failed", lambda job, err: print(f"Job {job.id} failed: {err}"))
+worker.on("error", lambda err, *args: print(f"Worker error: {err}"))
+```
+
+{% endtab %}
+{% endtabs %}
 
 It is also possible to listen to global events in order to get notifications of job completions, progress and failures:
 
@@ -61,6 +127,35 @@ queueEvents.on('progress', ({ jobId, data }) => {
 });
 ```
 
+## Concurrency
+
+{% tabs %}
+{% tab title="TypeScript" %}
+
+By default a worker processes one job at a time. You can configure the `concurrency` option to process several jobs in parallel:
+
+```typescript
+const worker = new Worker(queueName, async (job: Job) => {}, {
+  concurrency: 5,
+});
+```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+By default a worker processes one job at a time. You can configure the `concurrency` option to process several jobs in parallel:
+
+```python
+worker = Worker("myQueue", process, {
+    "concurrency": 5,
+    "connection": "redis://localhost:6379",
+})
+```
+
+{% endtab %}
+{% endtabs %}
+
 ## Stalled jobs
 
 Due to the nature of NodeJS, which is \(in general\) single threaded and consists of an event loop to handle the asynchronous operations, the process function needs to be written carefully so that the CPU is not occupied for a long time.
@@ -76,6 +171,32 @@ However if the CPU is very busy due to the process being very CPU intensive, the
 A stalled job is moved back to the waiting status and will be processed again by another worker, or if it has reached its maximum number of stalls moved to the failed set.
 
 Therefore it is very important to make sure the workers return the control to NodeJS event loop often enough to avoid this kind of problems.
+
+{% tabs %}
+{% tab title="TypeScript" %}
+
+```typescript
+const worker = new Worker(queueName, async (job: Job) => {}, {
+  lockDuration: 60000,
+  stalledInterval: 15000,
+  maxStalledCount: 3,
+});
+```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+worker = Worker("myQueue", process, {
+    "lockDuration": 60000,
+    "stalledInterval": 15000,
+    "maxStalledCount": 3,
+})
+```
+
+{% endtab %}
+{% endtabs %}
 
 ## Sandboxed processors
 
@@ -98,4 +219,37 @@ and refer to it in the worker constructor:
 ```typescript
 const processorFile = path.join(__dirname, 'my_procesor.js');
 worker = new Worker(queueName, processorFile);
+```
+
+## Graceful Shutdown (Python)
+
+The Python worker does **not** register signal handlers automatically. You must handle `SIGTERM` and `SIGINT` yourself and call `worker.close()` for a graceful shutdown:
+
+```python
+import asyncio
+import signal
+from bullmq import Worker
+
+async def process(job, token):
+    return await do_work(job.data)
+
+async def main():
+    worker = Worker("myQueue", process, {
+        "connection": "redis://localhost:6379",
+        "concurrency": 5,
+    })
+
+    loop = asyncio.get_running_loop()
+    shutdown_event = asyncio.Event()
+
+    loop.add_signal_handler(signal.SIGTERM, shutdown_event.set)
+    loop.add_signal_handler(signal.SIGINT, shutdown_event.set)
+
+    await shutdown_event.wait()
+
+    # Graceful: waits for active jobs to finish
+    await worker.close()
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
