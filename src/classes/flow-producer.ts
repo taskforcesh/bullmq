@@ -223,7 +223,7 @@ export class FlowProducer extends EventEmitter {
           },
         });
 
-        await multi.exec();
+        await this.execPipeline(multi);
 
         return jobsTree;
       },
@@ -291,7 +291,7 @@ export class FlowProducer extends EventEmitter {
 
         const jobsTrees = await this.addNodes(multi, flows);
 
-        await multi.exec();
+        await this.execPipeline(multi);
 
         return jobsTrees;
       },
@@ -552,6 +552,24 @@ export class FlowProducer extends EventEmitter {
       databaseType: this.connection.databaseType,
       trace: async (): Promise<any> => {},
     };
+  }
+
+  /**
+   * Executes a Redis pipeline and checks results for errors.
+   * Throws the first error encountered in the pipeline results.
+   *
+   * @param multi - ioredis ChainableCommander (MULTI/EXEC pipeline)
+   */
+  private async execPipeline(multi: ChainableCommander): Promise<void> {
+    const results = await multi.exec();
+    if (!results) {
+      throw new Error('exec() returned null (transaction aborted)');
+    }
+    for (const [err] of results) {
+      if (err) {
+        throw err;
+      }
+    }
   }
 
   /**

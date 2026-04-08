@@ -6181,4 +6181,134 @@ describe('flows', () => {
       await flow.close();
     });
   });
+
+  // These tests change the Redis server role to READONLY via REPLICAOF.
+  // They must run sequentially (not in parallel with other test files)
+  // since they modify server-wide state.
+  describe('when Redis is in READONLY mode', () => {
+    it('should throw an error when adding a flow', async () => {
+      const setupConn = new IORedis(redisHost, {
+        maxRetriesPerRequest: null,
+      });
+
+      // Put Redis in READONLY mode by making it a replica of itself.
+      // DragonflyDB and Upstash don't support replicaof, so skip gracefully.
+      try {
+        await setupConn.replicaof(redisHost, 6379);
+      } catch (err) {
+        try {
+          await setupConn.quit();
+        } catch {
+          // ignore cleanup errors
+        }
+        if (
+          err instanceof Error &&
+          (err.message.includes('replication cancelled') ||
+            err.message.includes('unknown command') ||
+            err.message.includes('unknown subcommand') ||
+            err.message.includes('not supported'))
+        ) {
+          return;
+        }
+        throw err;
+      }
+
+      let flow: FlowProducer | undefined;
+      try {
+        flow = new FlowProducer({
+          connection: { host: redisHost, enableOfflineQueue: false },
+          prefix,
+        });
+        await flow.waitUntilReady();
+
+        await expect(
+          flow.add({
+            name: 'test-parent',
+            queueName,
+            children: [{ name: 'test-child', queueName }],
+          }),
+        ).rejects.toThrow();
+      } finally {
+        // Always restore Redis to primary mode.
+        // Each step is wrapped so all cleanup runs even if one fails.
+        try {
+          await setupConn.replicaof('NO', 'ONE');
+        } catch {
+          // ignore
+        }
+        try {
+          await setupConn.quit();
+        } catch {
+          // ignore
+        }
+        if (flow) {
+          await flow.close();
+        }
+      }
+    });
+
+    it('should throw an error when adding bulk flows', async () => {
+      const setupConn = new IORedis(redisHost, {
+        maxRetriesPerRequest: null,
+      });
+
+      try {
+        await setupConn.replicaof(redisHost, 6379);
+      } catch (err) {
+        try {
+          await setupConn.quit();
+        } catch {
+          // ignore cleanup errors
+        }
+        if (
+          err instanceof Error &&
+          (err.message.includes('replication cancelled') ||
+            err.message.includes('unknown command') ||
+            err.message.includes('unknown subcommand') ||
+            err.message.includes('not supported'))
+        ) {
+          return;
+        }
+        throw err;
+      }
+
+      let flow: FlowProducer | undefined;
+      try {
+        flow = new FlowProducer({
+          connection: { host: redisHost, enableOfflineQueue: false },
+          prefix,
+        });
+        await flow.waitUntilReady();
+
+        await expect(
+          flow.addBulk([
+            {
+              name: 'test-parent-1',
+              queueName,
+              children: [{ name: 'test-child-1', queueName }],
+            },
+            {
+              name: 'test-parent-2',
+              queueName,
+              children: [{ name: 'test-child-2', queueName }],
+            },
+          ]),
+        ).rejects.toThrow();
+      } finally {
+        try {
+          await setupConn.replicaof('NO', 'ONE');
+        } catch {
+          // ignore
+        }
+        try {
+          await setupConn.quit();
+        } catch {
+          // ignore
+        }
+        if (flow) {
+          await flow.close();
+        }
+      }
+    });
+  });
 });
