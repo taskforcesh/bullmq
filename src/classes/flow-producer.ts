@@ -328,7 +328,7 @@ export class FlowProducer extends EventEmitter {
       node.queueName,
       'addNode',
       node.queueName,
-      async (span, srcPropagationMedatada) => {
+      async (span, srcPropagationMetadata) => {
         span?.setAttributes({
           [TelemetryAttributes.JobName]: node.name,
           [TelemetryAttributes.JobId]: jobId,
@@ -336,11 +336,11 @@ export class FlowProducer extends EventEmitter {
         const opts = node.opts;
         let telemetry = opts?.telemetry;
 
-        if (srcPropagationMedatada && opts) {
+        if (srcPropagationMetadata && opts) {
           const omitContext = opts.telemetry?.omitContext;
           const telemetryMetadata =
             opts.telemetry?.metadata ||
-            (!omitContext && srcPropagationMedatada);
+            (!omitContext && srcPropagationMetadata);
 
           if (telemetryMetadata || omitContext) {
             telemetry = {

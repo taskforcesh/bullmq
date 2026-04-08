@@ -944,7 +944,7 @@ will never work with more accuracy than 1ms. */
     token: string,
     fetchNextCallback = () => true,
   ): Promise<void | Job<DataType, ResultType, NameType>> {
-    const srcPropagationMedatada = job.opts?.telemetry?.metadata;
+    const srcPropagationMetadata = job.opts?.telemetry?.metadata;
 
     return this.trace<void | Job<DataType, ResultType, NameType>>(
       SpanKind.CONSUMER,
@@ -1046,7 +1046,7 @@ will never work with more accuracy than 1ms. */
           });
         }
       },
-      srcPropagationMedatada,
+      srcPropagationMetadata,
     );
   }
 

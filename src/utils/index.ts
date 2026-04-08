@@ -342,7 +342,7 @@ export function removeUndefinedFields<T extends Record<string, any>>(
  * @param operation - operation name (such as add, process, etc)
  * @param destination - destination name (normally the queue name)
  * @param callback - code to wrap with telemetry
- * @param srcPropagationMedatada -
+ * @param srcPropagationMetadata -
  * @returns
  */
 export async function trace<T>(

@@ -321,10 +321,10 @@ export class Queue<
       SpanKind.PRODUCER,
       'add',
       `${this.name}.${name}`,
-      async (span, srcPropagationMedatada) => {
-        if (srcPropagationMedatada && !opts?.telemetry?.omitContext) {
+      async (span, srcPropagationMetadata) => {
+        if (srcPropagationMetadata && !opts?.telemetry?.omitContext) {
           const telemetry = {
-            metadata: srcPropagationMedatada,
+            metadata: srcPropagationMetadata,
           };
           opts = { ...opts, telemetry };
         }
@@ -407,7 +407,7 @@ export class Queue<
       SpanKind.PRODUCER,
       'addBulk',
       this.name,
-      async (span, srcPropagationMedatada) => {
+      async (span, srcPropagationMetadata) => {
         if (span) {
           span.setAttributes({
             [TelemetryAttributes.BulkNames]: jobs.map(job => job.name),
@@ -419,11 +419,11 @@ export class Queue<
           this as MinimalQueue,
           jobs.map(job => {
             let telemetry = job.opts?.telemetry;
-            if (srcPropagationMedatada) {
+            if (srcPropagationMetadata) {
               const omitContext = job.opts?.telemetry?.omitContext;
               const telemetryMetadata =
                 job.opts?.telemetry?.metadata ||
-                (!omitContext && srcPropagationMedatada);
+                (!omitContext && srcPropagationMetadata);
 
               if (telemetryMetadata || omitContext) {
                 telemetry = {
