@@ -6180,5 +6180,53 @@ describe('flows', () => {
       await queueEvents.close();
       await flow.close();
     });
+
+    it('should return the existing job id when deduplicated', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+
+      const dedupId = 'dedup-return-id';
+
+      const firstResult = await flow.add({
+        name: 'parent',
+        data: { order: 1 },
+        queueName,
+        opts: {
+          jobId: 'original-parent',
+          deduplication: { id: dedupId },
+        },
+        children: [
+          {
+            queueName,
+            name: 'child1',
+            data: { value: 'first' },
+          },
+        ],
+      });
+
+      expect(firstResult.job.id).toBe('original-parent');
+
+      // Add second flow with same deduplication id
+      const secondResult = await flow.add({
+        name: 'parent',
+        data: { order: 2 },
+        queueName,
+        opts: {
+          jobId: 'duplicate-parent',
+          deduplication: { id: dedupId },
+        },
+        children: [
+          {
+            queueName,
+            name: 'child2',
+            data: { value: 'second' },
+          },
+        ],
+      });
+
+      // The deduplicated flow should return the original job's ID
+      expect(secondResult.job.id).toBe('original-parent');
+
+      await flow.close();
+    });
   });
 });

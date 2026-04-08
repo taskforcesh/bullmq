@@ -29,6 +29,11 @@ export interface AddNodeOpts {
    * Queues options that will be applied in each node depending on queue name presence.
    */
   queuesOpts?: FlowQueuesOpts;
+  /**
+   * Collector array for jobs in pipeline order, used to update job IDs
+   * from multi.exec() results (e.g. when deduplication returns existing job ID).
+   */
+  jobs?: Job[];
 }
 
 export interface AddChildrenOpts {
@@ -39,6 +44,10 @@ export interface AddChildrenOpts {
     parentDependenciesKey: string;
   };
   queuesOpts?: FlowQueuesOpts;
+  /**
+   * Collector array for jobs in pipeline order.
+   */
+  jobs?: Job[];
 }
 
 export interface NodeOpts {
@@ -213,6 +222,7 @@ export class FlowProducer extends EventEmitter {
           [TelemetryAttributes.FlowName]: flow.name,
         });
 
+        const jobs: Job[] = [];
         const jobsTree = await this.addNode({
           multi,
           node: flow,
@@ -221,9 +231,11 @@ export class FlowProducer extends EventEmitter {
             parentOpts,
             parentDependenciesKey,
           },
+          jobs,
         });
 
-        await multi.exec();
+        const results = await multi.exec();
+        this.updateJobIdsFromResults(jobs, results);
 
         return jobsTree;
       },
@@ -289,9 +301,11 @@ export class FlowProducer extends EventEmitter {
             .join(','),
         });
 
-        const jobsTrees = await this.addNodes(multi, flows);
+        const jobs: Job[] = [];
+        const jobsTrees = await this.addNodes(multi, flows, jobs);
 
-        await multi.exec();
+        const results = await multi.exec();
+        this.updateJobIdsFromResults(jobs, results);
 
         return jobsTrees;
       },
@@ -314,6 +328,7 @@ export class FlowProducer extends EventEmitter {
     node,
     parent,
     queuesOpts,
+    jobs,
   }: AddNodeOpts): Promise<JobNode> {
     const prefix = node.prefix || this.opts.prefix;
     const queue = this.queueFromNode(node, new QueueKeys(prefix), prefix);
@@ -378,6 +393,10 @@ export class FlowProducer extends EventEmitter {
             parentKey,
           });
 
+          if (jobs) {
+            jobs.push(job);
+          }
+
           const parentDependenciesKey = `${queueKeysParent.toKey(
             node.queueName,
             parentId,
@@ -394,6 +413,7 @@ export class FlowProducer extends EventEmitter {
               parentDependenciesKey,
             },
             queuesOpts,
+            jobs,
           });
 
           return { job, children };
@@ -402,6 +422,10 @@ export class FlowProducer extends EventEmitter {
             parentDependenciesKey: parent?.parentDependenciesKey,
             parentKey,
           });
+
+          if (jobs) {
+            jobs.push(job);
+          }
 
           return { job };
         }
@@ -422,6 +446,7 @@ export class FlowProducer extends EventEmitter {
   protected addNodes(
     multi: ChainableCommander,
     nodes: FlowJob[],
+    jobs?: Job[],
   ): Promise<JobNode[]> {
     return Promise.all(
       nodes.map(node => {
@@ -438,6 +463,7 @@ export class FlowProducer extends EventEmitter {
             parentOpts,
             parentDependenciesKey,
           },
+          jobs,
         });
       }),
     );
@@ -496,9 +522,15 @@ export class FlowProducer extends EventEmitter {
     }
   }
 
-  private addChildren({ multi, nodes, parent, queuesOpts }: AddChildrenOpts) {
+  private addChildren({
+    multi,
+    nodes,
+    parent,
+    queuesOpts,
+    jobs,
+  }: AddChildrenOpts) {
     return Promise.all(
-      nodes.map(node => this.addNode({ multi, node, parent, queuesOpts })),
+      nodes.map(node => this.addNode({ multi, node, parent, queuesOpts, jobs })),
     );
   }
 
@@ -552,6 +584,33 @@ export class FlowProducer extends EventEmitter {
       databaseType: this.connection.databaseType,
       trace: async (): Promise<any> => {},
     };
+  }
+
+  /**
+   * Updates job IDs from pipeline execution results.
+   *
+   * When jobs are added via a pipeline (multi), the actual job IDs returned by
+   * Redis (e.g. from deduplication returning an existing job's ID) are only
+   * available after multi.exec(). This method updates each job's ID to match
+   * the Redis result, ensuring consistent behavior with regular queue.add().
+   *
+   * @param jobs - array of jobs in the order they were added to the pipeline
+   * @param results - results from multi.exec()
+   */
+  private updateJobIdsFromResults(
+    jobs: Job[],
+    results: [error: Error | null, result: unknown][] | null,
+  ) {
+    if (!results) {
+      return;
+    }
+
+    for (let index = 0; index < jobs.length; index++) {
+      const [err, id] = results[index] || [];
+      if (!err && typeof id === 'string') {
+        jobs[index].id = id;
+      }
+    }
   }
 
   /**
