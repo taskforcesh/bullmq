@@ -31,6 +31,23 @@ export class JobScheduler extends QueueBase {
       (opts.settings && opts.settings.repeatStrategy) || defaultRepeatStrategy;
   }
 
+  /**
+   * Creates or updates a job scheduler. If a scheduler with the given ID
+   * already exists, it will be updated with the new configuration; otherwise
+   * a new scheduler is created.
+   *
+   * @param jobSchedulerId - Unique identifier for the job scheduler.
+   * @param repeatOpts - Repeat options defining the schedule (e.g. cron pattern or interval).
+   * @param jobName - The name of the job that will be created on each iteration.
+   * @param jobData - Data payload to be passed to each scheduled job.
+   * @param opts - Template options for the scheduled jobs, including telemetry and previous millis.
+   * @param options - Additional flags.
+   * @param options.override - When `true`, fully replaces the existing scheduler configuration
+   *   via `addJobScheduler`; when `false`, only updates the next execution time.
+   * @param options.producerId - Optional ID of the producer that triggered this upsert.
+   * @returns A promise that resolves to the created {@link Job}, or `undefined` if the
+   *   scheduler has exceeded its iteration limit or passed its end date.
+   */
   async upsertJobScheduler<T = any, R = any, N extends string = string>(
     jobSchedulerId: string,
     repeatOpts: Omit<RepeatOptions, 'key' | 'prevMillis'>,
@@ -254,6 +271,13 @@ export class JobScheduler extends QueueBase {
     return mergedOpts;
   }
 
+  /**
+   * Removes a job scheduler by its ID, along with any associated data.
+   *
+   * @param jobSchedulerId - The unique identifier of the job scheduler to remove.
+   * @returns A promise that resolves to the number of removed schedulers
+   *   (1 if the scheduler existed and was removed, 0 otherwise).
+   */
   async removeJobScheduler(jobSchedulerId: string): Promise<number> {
     return this.scripts.removeJobScheduler(jobSchedulerId);
   }
@@ -343,6 +367,14 @@ export class JobScheduler extends QueueBase {
     };
   }
 
+  /**
+   * Retrieves a single job scheduler by its ID.
+   *
+   * @typeParam D - The type of the data stored in the scheduler's job template.
+   * @param id - The unique identifier of the job scheduler to retrieve.
+   * @returns A promise that resolves to the {@link JobSchedulerJson} object
+   *   if found, or `undefined` if no scheduler exists with the given ID.
+   */
   async getScheduler<D = any>(
     id: string,
   ): Promise<JobSchedulerJson<D> | undefined> {
@@ -369,6 +401,16 @@ export class JobScheduler extends QueueBase {
     return template;
   }
 
+  /**
+   * Retrieves job schedulers within a given range, ordered by next execution time.
+   *
+   * @typeParam D - The type of the data stored in each scheduler's job template.
+   * @param start - The start index of the range (inclusive). Defaults to `0`.
+   * @param end - The end index of the range (inclusive). Defaults to `-1` (all schedulers).
+   * @param asc - When `true`, returns schedulers in ascending order of next
+   *   execution time; when `false`, in descending order. Defaults to `false`.
+   * @returns A promise that resolves to an array of {@link JobSchedulerJson} objects.
+   */
   async getJobSchedulers<D = any>(
     start = 0,
     end = -1,
@@ -390,6 +432,11 @@ export class JobScheduler extends QueueBase {
     return Promise.all(jobs);
   }
 
+  /**
+   * Returns the total number of job schedulers currently registered.
+   *
+   * @returns A promise that resolves to the count of job schedulers.
+   */
   async getSchedulersCount(): Promise<number> {
     const jobSchedulersKey = this.keys.repeat;
     const client = await this.client;
