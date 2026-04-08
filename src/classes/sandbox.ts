@@ -17,6 +17,7 @@ const sandbox = <T, R, N extends string>(
     let msgHandler: any;
     let exitHandler: any;
     let abortHandler: (() => void) | undefined;
+    let readyForRun = false;
     try {
       const done: Promise<R> = new Promise((resolve, reject) => {
         const initChild = async () => {
@@ -35,6 +36,20 @@ const sandbox = <T, R, N extends string>(
             msgHandler = async (msg: ChildMessage) => {
               try {
                 switch (msg.cmd) {
+                  case ParentCommand.StartReady:
+                    readyForRun = true;
+
+                    if (signal?.aborted) {
+                      await child.send({
+                        cmd: ChildCommand.Cancel,
+                        value: signal?.reason,
+                      });
+                    } else {
+                      await child.send({
+                        cmd: ChildCommand.Run,
+                      });
+                    }
+                    break;
                   case ParentCommand.Completed:
                     resolve(msg.value);
                     break;
@@ -114,14 +129,12 @@ const sandbox = <T, R, N extends string>(
 
             child.on('message', msgHandler);
 
-            child.send({
-              cmd: ChildCommand.Start,
-              job: job.asJSONSandbox(),
-              token,
-            });
-
             if (signal) {
               abortHandler = () => {
+                if (!readyForRun) {
+                  return;
+                }
+
                 try {
                   child.send({
                     cmd: ChildCommand.Cancel,
@@ -132,12 +145,17 @@ const sandbox = <T, R, N extends string>(
                 }
               };
 
-              if (signal.aborted) {
-                abortHandler();
-              } else {
+              if (!signal.aborted) {
                 signal.addEventListener('abort', abortHandler, { once: true });
               }
             }
+
+            await child.send({
+              cmd: ChildCommand.Start,
+              job: job.asJSONSandbox(),
+              token,
+              waitForReady: true,
+            });
           } catch (error) {
             reject(error);
           }

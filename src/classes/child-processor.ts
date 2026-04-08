@@ -10,6 +10,7 @@ import { errorToJSON } from '../utils';
 
 enum ChildStatus {
   Idle,
+  Starting,
   Started,
   Terminating,
   Errored,
@@ -29,6 +30,7 @@ export class ChildProcessor {
   public processor: any;
   public currentJobPromise: Promise<unknown> | undefined;
   private abortController?: AbortController;
+  private pending?: { job: JobJsonSandbox; token?: string };
 
   constructor(
     private send: (msg: any) => Promise<void>,
@@ -77,15 +79,48 @@ export class ChildProcessor {
     });
   }
 
-  public async start(jobJson: JobJsonSandbox, token?: string): Promise<void> {
+  public async start(
+    jobJson: JobJsonSandbox,
+    token?: string,
+    waitForReady = false,
+  ): Promise<void> {
     if (this.status !== ChildStatus.Idle) {
       return this.send({
         cmd: ParentCommand.Error,
         err: errorToJSON(new Error('cannot start a not idling child process')),
       });
     }
-    this.status = ChildStatus.Started;
+    this.status = ChildStatus.Starting;
     this.abortController = new AbortController();
+
+    if (waitForReady) {
+      this.pending = { job: jobJson, token };
+
+      return await this.send({
+        cmd: ParentCommand.StartReady,
+      });
+    }
+
+    await this.runJob(jobJson, token);
+  }
+
+  public async run(): Promise<void> {
+    if (this.status !== ChildStatus.Starting || !this.pending) {
+      return this.send({
+        cmd: ParentCommand.Error,
+        err: errorToJSON(new Error('cannot run a job that is not starting')),
+      });
+    }
+
+    const { job, token } = this.pending;
+    this.pending = undefined;
+
+    await this.runJob(job, token);
+  }
+
+  private async runJob(jobJson: JobJsonSandbox, token?: string): Promise<void> {
+    this.status = ChildStatus.Started;
+
     this.currentJobPromise = (async () => {
       try {
         const job = this.wrapJob(jobJson, this.send);
@@ -104,9 +139,7 @@ export class ChildProcessor {
           value: errorToJSON(!(<Error>err).message ? new Error(<any>err) : err),
         });
       } finally {
-        this.status = ChildStatus.Idle;
-        this.currentJobPromise = undefined;
-        this.abortController = undefined;
+        this.resetCurrentJobState();
       }
     })();
   }
@@ -118,7 +151,26 @@ export class ChildProcessor {
   public cancel(reason?: string): void {
     if (this.abortController) {
       this.abortController.abort(reason);
+
+      if (this.status === ChildStatus.Starting) {
+        this.status = ChildStatus.Idle;
+        this.abortController = undefined;
+        this.pending = undefined;
+        this.currentJobPromise = this.send({
+          cmd: ParentCommand.Failed,
+          value: errorToJSON(new Error(reason || 'Job was cancelled')),
+        }).finally(() => {
+          this.currentJobPromise = undefined;
+        });
+      }
     }
+  }
+
+  private resetCurrentJobState(): void {
+    this.status = ChildStatus.Idle;
+    this.currentJobPromise = undefined;
+    this.abortController = undefined;
+    this.pending = undefined;
   }
 
   public async stop(): Promise<void> {}
