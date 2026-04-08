@@ -103,14 +103,14 @@ export class JobScheduler extends QueueBase {
         SpanKind.PRODUCER,
         'add',
         `${this.name}.${jobName}`,
-        async (span, srcPropagationMedatada) => {
+        async (span, srcPropagationMetadata) => {
           let telemetry = opts.telemetry;
 
-          if (srcPropagationMedatada) {
+          if (srcPropagationMetadata) {
             const omitContext = opts.telemetry?.omitContext;
             const telemetryMetadata =
               opts.telemetry?.metadata ||
-              (!omitContext && srcPropagationMedatada);
+              (!omitContext && srcPropagationMetadata);
 
             if (telemetryMetadata || omitContext) {
               telemetry = {
