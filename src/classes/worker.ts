@@ -902,9 +902,9 @@ will never work with more accuracy than 1ms. */
       try {
         await this.retryIfFailed(
           async () => {
-            if (job.repeatJobKey && job.repeatJobKey.split(':').length < 5) {
+            if (job.repeatJobKey) {
               const jobScheduler = await this.jobScheduler;
-              await jobScheduler.upsertJobScheduler(
+              const nextJob = await jobScheduler.upsertJobScheduler(
                 // Most of these arguments are not really needed
                 // anymore as we read them from the job scheduler itself
                 job.repeatJobKey,
@@ -914,6 +914,20 @@ will never work with more accuracy than 1ms. */
                 job.opts,
                 { override: false, producerId: job.id },
               );
+
+              // If the job scheduler did not find a matching scheduler,
+              // fall back to the legacy repeat system.
+              if (!nextJob && job.opts.repeat) {
+                const repeat = await this.repeat;
+                await repeat.updateRepeatableJob(
+                  job.name,
+                  job.data,
+                  job.opts,
+                  {
+                    override: false,
+                  },
+                );
+              }
             } else if (job.opts.repeat) {
               const repeat = await this.repeat;
               await repeat.updateRepeatableJob(job.name, job.data, job.opts, {
