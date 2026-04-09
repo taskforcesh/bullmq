@@ -1091,7 +1091,9 @@ function sandboxProcessTests(
           parentWorker.on('completed', async () => {
             await parentWorker.close();
             reject(
-              new Error('Expected parent job to fail with timeout, but it completed'),
+              new Error(
+                'Expected parent job to fail with timeout, but it completed',
+              ),
             );
           });
         });
@@ -1110,10 +1112,10 @@ function sandboxProcessTests(
         await parentWorker.close();
         await childWorker.close();
         await flow.close();
+        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
       } finally {
         Job.prototype.getDependenciesCount = originalGetDependenciesCount;
       }
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
     });
 
     it('can get dependencies by calling getDependencies', async () => {
@@ -1217,7 +1219,9 @@ function sandboxProcessTests(
           parentWorker.on('completed', async () => {
             await parentWorker.close();
             reject(
-              new Error('Expected parent job to fail with timeout, but it completed'),
+              new Error(
+                'Expected parent job to fail with timeout, but it completed',
+              ),
             );
           });
         });
