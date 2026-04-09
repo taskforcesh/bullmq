@@ -14,6 +14,7 @@
   Output:
     number of removed jobs
 ]]
+redis.replicate_commands()
 local rcall = redis.call
 local basePrefix = KEYS[1]
 

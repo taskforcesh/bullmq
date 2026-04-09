@@ -8,6 +8,7 @@
   Output:
     1 if element found in the list.
 ]]
+redis.replicate_commands()
 
 -- Includes
 --- @include "includes/checkItemInList"

@@ -23,6 +23,7 @@
     -1 means the job does not exist
     -3 means the job was not found in the expected set.
 ]]
+redis.replicate_commands()
 local rcall = redis.call;
 
 -- Includes

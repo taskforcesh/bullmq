@@ -21,6 +21,7 @@
     1  means the operation is not completed
     0  means the operation is completed
 ]]
+redis.replicate_commands()
 local maxCount = tonumber(ARGV[1])
 local timestamp = tonumber(ARGV[2])
 

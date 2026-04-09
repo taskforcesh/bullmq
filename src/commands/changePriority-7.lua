@@ -18,6 +18,7 @@
        0  - OK
       -1  - Missing job
 ]]
+redis.replicate_commands()
 local jobId = ARGV[3]
 local jobKey = ARGV[2] .. jobId
 local priority = tonumber(ARGV[1])

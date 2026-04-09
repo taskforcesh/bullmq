@@ -9,6 +9,7 @@
 
       ARGV[1...] priorities
 ]]
+redis.replicate_commands()
 local rcall = redis.call
 local results = {}
 local waitKey = KEYS[1]

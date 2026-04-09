@@ -15,6 +15,7 @@
     ARGV[1] count
     ARGV[2] force
 ]]
+redis.replicate_commands()
 
 local maxCount = tonumber(ARGV[1])
 local baseKey = KEYS[2]

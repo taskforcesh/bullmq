@@ -8,6 +8,7 @@
     ARGV[1] start index
     ARGV[2] end index
 ]]
+redis.replicate_commands()
 local rcall = redis.call;
 local metricsKey = KEYS[1]
 local dataKey = KEYS[2]

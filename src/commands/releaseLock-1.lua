@@ -10,6 +10,7 @@
     Output:
       "OK" if lock extented succesfully.
 ]]
+redis.replicate_commands()
 local rcall = redis.call
 
 if rcall("GET", KEYS[1]) == ARGV[1] then

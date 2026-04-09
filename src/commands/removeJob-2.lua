@@ -13,6 +13,7 @@
     Events:
       'removed'
 ]]
+redis.replicate_commands()
 
 local rcall = redis.call
 

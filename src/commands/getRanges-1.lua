@@ -9,6 +9,7 @@
       ARGV[3]    asc
       ARGV[4...] types
 ]]
+redis.replicate_commands()
 local rcall = redis.call
 local prefix = KEYS[1]
 local rangeStart = tonumber(ARGV[1])

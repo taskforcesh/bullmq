@@ -14,6 +14,7 @@
     Output:
       [cursor, offset, items, numItems]
 ]]
+redis.replicate_commands()
 local rcall = redis.call
 
 -- Includes

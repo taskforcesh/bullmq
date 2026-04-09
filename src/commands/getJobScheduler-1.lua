@@ -6,6 +6,7 @@
 
     ARGV[1] id
 ]]
+redis.replicate_commands()
 
 local rcall = redis.call
 local jobSchedulerKey = KEYS[1] .. ":" .. ARGV[1]

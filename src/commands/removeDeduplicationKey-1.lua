@@ -10,6 +10,7 @@
     0 - false
     1 - true
 ]]
+redis.replicate_commands()
 local rcall = redis.call
 local deduplicationKey = KEYS[1]
 local jobId = ARGV[1]

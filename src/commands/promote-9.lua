@@ -22,6 +22,7 @@
     Events:
       'waiting'
 ]]
+redis.replicate_commands()
 local rcall = redis.call
 local jobId = ARGV[2]
 

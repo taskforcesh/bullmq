@@ -12,6 +12,7 @@
     ARGV[1]  queue key prefix
     ARGV[2]  should clean delayed jobs
 ]]
+redis.replicate_commands()
 local rcall = redis.call
 local queueBaseKey = ARGV[1]
 

@@ -24,6 +24,7 @@
    -3 - Job not in active set
    -9 - Job has failed children
 ]]
+redis.replicate_commands()
 local rcall = redis.call
 local activeKey = KEYS[1]
 local waitingChildrenKey = KEYS[2]

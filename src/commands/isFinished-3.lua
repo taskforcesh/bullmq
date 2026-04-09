@@ -14,6 +14,7 @@
     2 - Failed.
    -1 - Missing job. 
 ]]
+redis.replicate_commands()
 local rcall = redis.call
 if rcall("EXISTS", KEYS[3]) ~= 1 then
   if ARGV[2] == "1" then

@@ -26,6 +26,7 @@
     Output:
       next delayed job id  - OK
 ]] local rcall = redis.call
+redis.replicate_commands()
 local repeatKey = KEYS[1]
 local delayedKey = KEYS[2]
 local waitKey = KEYS[3]

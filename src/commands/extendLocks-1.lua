@@ -12,6 +12,7 @@
   Output:
     An array of failed job IDs. If empty, all succeeded.
 ]]
+redis.replicate_commands()
 local rcall = redis.call
 
 local stalledKey = KEYS[1]

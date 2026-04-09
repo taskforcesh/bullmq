@@ -15,6 +15,7 @@
   Event:
     publish paused or resumed event.
 ]]
+redis.replicate_commands()
 local rcall = redis.call
 
 -- Includes

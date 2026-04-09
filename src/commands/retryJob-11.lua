@@ -30,6 +30,7 @@
      -2 - Missing lock
      -3 - Job not in active set
 ]]
+redis.replicate_commands()
 local rcall = redis.call
 
 -- Includes
