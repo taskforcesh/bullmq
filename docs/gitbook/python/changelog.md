@@ -1,3 +1,10 @@
+## [2.20.1](https://github.com/taskforcesh/bullmq/compare/vpy2.20.0...vpy2.20.1) (2026-04-09)
+
+
+### Bug Fixes
+
+* **connection:** use single_connection_client as true ([#3887](https://github.com/taskforcesh/bullmq/issues/3887)) fixes [#2243](https://github.com/taskforcesh/bullmq/issues/2243) [python] ([bf45186](https://github.com/taskforcesh/bullmq/commit/bf451868b932125d857280a5a21173bfafbc2801))
+
 # [2.20.0](https://github.com/taskforcesh/bullmq/compare/vpy2.19.8...vpy2.20.0) (2026-04-03)
 
 
