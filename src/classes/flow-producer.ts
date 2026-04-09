@@ -223,7 +223,16 @@ export class FlowProducer extends EventEmitter {
           },
         });
 
-        await multi.exec();
+        const results = (await multi.exec()) as
+          | [null | Error, string | number][]
+          | null;
+        const [result] = results || [];
+        if (result) {
+          const [err, jobId] = result;
+          if (!err && typeof jobId === 'string') {
+            jobsTree.job.id = jobId;
+          }
+        }
 
         return jobsTree;
       },
@@ -291,7 +300,20 @@ export class FlowProducer extends EventEmitter {
 
         const jobsTrees = await this.addNodes(multi, flows);
 
-        await multi.exec();
+        const results = (await multi.exec()) as
+          | [null | Error, string | number][]
+          | null;
+        for (let index = 0; index < jobsTrees.length; ++index) {
+          const result = results?.[index];
+          if (!result) {
+            continue;
+          }
+
+          const [err, jobId] = result;
+          if (!err && typeof jobId === 'string') {
+            jobsTrees[index].job.id = jobId;
+          }
+        }
 
         return jobsTrees;
       },
