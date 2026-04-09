@@ -1,3 +1,10 @@
+## [2.20.2](https://github.com/taskforcesh/bullmq/compare/vpy2.20.1...vpy2.20.2) (2026-04-09)
+
+
+### Performance Improvements
+
+* **delayed:** allow to fetch next job when moving job to delayed (python) (elixir) ([#3870](https://github.com/taskforcesh/bullmq/issues/3870)) ([0cb0b8c](https://github.com/taskforcesh/bullmq/commit/0cb0b8cf5981ad8d56fd539071eacbe0df4b55ad))
+
 ## [2.20.1](https://github.com/taskforcesh/bullmq/compare/vpy2.20.0...vpy2.20.1) (2026-04-09)
 
 
