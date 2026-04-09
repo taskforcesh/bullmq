@@ -1,3 +1,10 @@
+## [1.3.1](https://github.com/taskforcesh/bullmq/compare/vex1.3.0...vex1.3.1) (2026-04-09)
+
+
+### Performance Improvements
+
+* **delayed:** allow to fetch next job when moving job to delayed (python) (elixir) ([#3870](https://github.com/taskforcesh/bullmq/issues/3870)) ([0cb0b8c](https://github.com/taskforcesh/bullmq/commit/0cb0b8cf5981ad8d56fd539071eacbe0df4b55ad))
+
 # [1.3.0](https://github.com/taskforcesh/bullmq/compare/vex1.2.7...vex1.3.0) (2026-04-03)
 
 
