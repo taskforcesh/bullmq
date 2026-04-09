@@ -235,7 +235,7 @@ export class FlowProducer extends EventEmitter {
    * Get a flow.
    *
    * @param opts - an object with options for getting a JobNode.
-   * @returns A promise resolving to the JobNode tree, or undefined if the producer is closing.
+   * @returns A promise resolving to the JobNode tree, or undefined if the producer is closing or the target job/flow does not exist.
    */
   async getFlow(opts: NodeOpts): Promise<JobNode | undefined> {
     if (this.closing) {
