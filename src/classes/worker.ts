@@ -1185,7 +1185,7 @@ will never work with more accuracy than 1ms. */
    * Resumes processing of this worker (if paused).
    */
   resume(): void {
-    if (!this.running) {
+    if (!this.running || this.paused) {
       this.trace<void>(SpanKind.INTERNAL, 'resume', this.name, span => {
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
@@ -1194,8 +1194,14 @@ will never work with more accuracy than 1ms. */
 
         this.paused = false;
 
-        if (this.processFn) {
-          this.run();
+        if (!this.running) {
+          if (this.processFn) {
+            this.run();
+          }
+        } else {
+          // Main loop is still running (pause was called with doNotWaitActive=true).
+          // Restart the stalled checker since pause() stopped it.
+          this.startStalledCheckTimer();
         }
         this.emit('resumed');
       });
