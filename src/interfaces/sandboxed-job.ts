@@ -17,8 +17,8 @@ export interface SandboxedJob<T = any, R = any> extends Omit<
     token?: string,
     opts?: MoveToWaitingChildrenOpts,
   ) => Promise<boolean>;
-  log: (row: any) => void;
-  updateData: (data: any) => Promise<void>;
+  log: (row: string) => void;
+  updateData: (data: T) => Promise<void>;
   updateProgress: (value: JobProgress) => Promise<void>;
   getChildrenValues: <CT = any>() => Promise<{ [jobKey: string]: CT }>;
   getIgnoredChildrenFailures: () => Promise<{ [jobKey: string]: string }>;
