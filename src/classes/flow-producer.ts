@@ -223,7 +223,14 @@ export class FlowProducer extends EventEmitter {
           },
         });
 
-        await multi.exec();
+        const results = await multi.exec();
+        if (results) {
+          for (const [err] of results) {
+            if (err) {
+              throw err;
+            }
+          }
+        }
 
         return jobsTree;
       },
@@ -291,7 +298,14 @@ export class FlowProducer extends EventEmitter {
 
         const jobsTrees = await this.addNodes(multi, flows);
 
-        await multi.exec();
+        const results = await multi.exec();
+        if (results) {
+          for (const [err] of results) {
+            if (err) {
+              throw err;
+            }
+          }
+        }
 
         return jobsTrees;
       },
