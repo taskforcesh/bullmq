@@ -1,3 +1,10 @@
+## [5.73.2](https://github.com/taskforcesh/bullmq/compare/v5.73.1...v5.73.2) (2026-04-09)
+
+
+### Bug Fixes
+
+* **flow:** correctly propagate root jobId from pipeline results ([#3905](https://github.com/taskforcesh/bullmq/issues/3905)) ([242f264](https://github.com/taskforcesh/bullmq/commit/242f2648f6ba51f0023aa9a6688f0cd3e0ec2d70))
+
 ## [5.73.1](https://github.com/taskforcesh/bullmq/compare/v5.73.0...v5.73.1) (2026-04-08)
 
 
