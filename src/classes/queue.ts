@@ -1036,7 +1036,7 @@ export class Queue<
   /**
    * Trim the event stream to an approximately maxLength.
    *
-   * @param maxLength -
+   * @param maxLength - The maximum length of the event stream.
    */
   async trimEvents(maxLength: number): Promise<number> {
     return this.trace<number>(
