@@ -61,13 +61,8 @@ local rcall = redis.call
 
 --- Includes
 --- @include "includes/collectMetrics"
---- @include "includes/getNextDelayedTimestamp"
---- @include "includes/getRateLimitTTL"
---- @include "includes/getTargetQueueList"
---- @include "includes/moveJobFromPrioritizedToActive"
+--- @include "includes/fetchNextJob"
 --- @include "includes/moveChildFromDependenciesIfNeeded"
---- @include "includes/prepareJobForProcessing"
---- @include "includes/promoteDelayedJobs"
 --- @include "includes/removeDeduplicationKeyIfNeededOnFinalization"
 --- @include "includes/removeJobKeys"
 --- @include "includes/removeJobsByMaxAge"
@@ -217,62 +212,11 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
     -- Try to get next job to avoid an extra roundtrip if the queue is not closing,
     -- and not rate limited.
     if (ARGV[6] == "1") then
-
-        local target, isPausedOrMaxed, rateLimitMax, rateLimitDuration = getTargetQueueList(metaKey, KEYS[2],
-            KEYS[1], KEYS[8])
-
-        local markerKey = KEYS[14]
-        -- Check if there are delayed jobs that can be promoted
-        promoteDelayedJobs(KEYS[7], markerKey, target, KEYS[3], eventStreamKey, prefix, timestamp, KEYS[10],
-            isPausedOrMaxed)
-
-        local maxJobs = tonumber(rateLimitMax or (opts['limiter'] and opts['limiter']['max']))
-        -- Check if we are rate limited first.
-        local expireTime = getRateLimitTTL(maxJobs, KEYS[6])
-
-        if expireTime > 0 then
-            return {0, 0, expireTime, 0}
-        end
-
-        -- paused or maxed queue
-        if isPausedOrMaxed then
-            return {0, 0, 0, 0}
-        end
-
-        local limiterDuration = (opts['limiter'] and opts['limiter']['duration']) or rateLimitDuration
-
-        jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
-
-        if jobId then
-            -- Markers in waitlist DEPRECATED in v5: Remove in v6.
-            if string.sub(jobId, 1, 2) == "0:" then
-                rcall("LREM", KEYS[2], 1, jobId)
-
-                -- If jobId is special ID 0:delay (delay greater than 0), then there is no job to process
-                -- but if ID is 0:0, then there is at least 1 prioritized job to process
-                if jobId == "0:0" then
-                    jobId = moveJobFromPrioritizedToActive(KEYS[3], KEYS[2], KEYS[10])
-                    return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId, timestamp, maxJobs,
-                        limiterDuration, markerKey, opts)
-                end
-            else
-                return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId, timestamp, maxJobs,
-                    limiterDuration, markerKey, opts)
-            end
-        else
-            jobId = moveJobFromPrioritizedToActive(KEYS[3], KEYS[2], KEYS[10])
-            if jobId then
-                return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId, timestamp, maxJobs,
-                    limiterDuration, markerKey, opts)
-            end
-        end
-
-        -- Return the timestamp for the next delayed job if any.
-        local nextTimestamp = getNextDelayedTimestamp(KEYS[7])
-        if nextTimestamp ~= nil then
-            -- The result is guaranteed to be positive, since the
-            -- ZRANGEBYSCORE command would have return a job otherwise.
-            return {0, 0, 0, nextTimestamp}
+        local result = fetchNextJob(KEYS[1], KEYS[2], KEYS[3], eventStreamKey,
+            KEYS[6], KEYS[7], KEYS[8], metaKey, KEYS[10], KEYS[14], prefix,
+            timestamp, opts)
+        if result then
+            return result
         end
     end
 

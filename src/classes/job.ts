@@ -841,7 +841,7 @@ export class Job<
               Date.now(),
               retryDelay,
               token,
-              { fieldsToUpdate },
+              { fieldsToUpdate, fetchNext },
             );
 
             this.recordJobMetrics('delayed');
@@ -1414,18 +1414,12 @@ export class Job<
     const now = Date.now();
     const delay = timestamp - now;
     const finalDelay = delay > 0 ? delay : 0;
-    const movedToDelayed = await this.scripts.moveToDelayed(
-      this.id,
-      now,
-      finalDelay,
-      token,
-      { skipAttempt: true },
-    );
+    await this.scripts.moveToDelayed(this.id, now, finalDelay, token, {
+      skipAttempt: true,
+    });
     this.delay = finalDelay;
 
     this.recordJobMetrics('delayed');
-
-    return movedToDelayed;
   }
 
   /**
