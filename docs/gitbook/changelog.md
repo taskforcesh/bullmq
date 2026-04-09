@@ -17,7 +17,7 @@
 
 ### Features
 
-* **sandbox:** add getDependenciesCount proxy for jobs ([#3923](https://github.com/taskforcesh/bullmq/issues/3923)) ref [#3533](https://github.com/taskforcesh/bullmq/issues/3533) (elixir) (php) (python) ([cbfe437](https://github.com/taskforcesh/bullmq/commit/cbfe437a9aa967bd960890f8ddfb9b01a8c83505))
+* **sandbox:** add getDependenciesCount proxy for jobs ([#3923](https://github.com/taskforcesh/bullmq/issues/3923)) ref [#3533](https://github.com/taskforcesh/bullmq/issues/3533) ([cbfe437](https://github.com/taskforcesh/bullmq/commit/cbfe437a9aa967bd960890f8ddfb9b01a8c83505))
 
 ## [5.72.1](https://github.com/taskforcesh/bullmq/compare/v5.72.0...v5.72.1) (2026-04-02)
 

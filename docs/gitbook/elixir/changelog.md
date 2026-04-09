@@ -3,7 +3,7 @@
 
 ### Features
 
-* **sandbox:** add getDependenciesCount proxy for jobs ([#3923](https://github.com/taskforcesh/bullmq/issues/3923)) ref [#3533](https://github.com/taskforcesh/bullmq/issues/3533) (elixir) (php) (python) ([cbfe437](https://github.com/taskforcesh/bullmq/commit/cbfe437a9aa967bd960890f8ddfb9b01a8c83505))
+* **deduplication:** add keepLastIfActive option for at-least-once-after-active semantics ([#3902](https://github.com/taskforcesh/bullmq/issues/3902)) ([aa529bc](https://github.com/taskforcesh/bullmq/commit/aa529bc512b15cdb9d173cc9cc3b0d9f8b8959eb))
 
 ## [1.2.7](https://github.com/taskforcesh/bullmq/compare/vex1.2.6...vex1.2.7) (2026-03-06)
 

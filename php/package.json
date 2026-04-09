@@ -35,7 +35,7 @@
         {
           "releaseRules": [
             {
-              "message": "!(*\\[php\\]*)",
+              "message": "!(*\\(php\\)*|*\\[php\\]*)",
               "release": false
             }
           ]
@@ -46,7 +46,7 @@
         {
           "preset": "angular",
           "presetConfig": {
-            "ignoreCommits": "^(?![^]*\\[php\\]).*$"
+            "ignoreCommits": "^(?![^]*\\(php\\))(?![^]*\\[php\\]).*$"
           }
         }
       ],
@@ -62,7 +62,13 @@
           "prepareCmd": "node scripts/updateVersion.js ${nextRelease.version}"
         }
       ],
-      "@semantic-release/github"
+      [
+        "@semantic-release/github",
+        {
+          "successComment": false,
+          "failComment": false
+        }
+      ]
     ]
   },
   "packageManager": "yarn@1.22.22",
