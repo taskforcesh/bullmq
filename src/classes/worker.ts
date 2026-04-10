@@ -1185,7 +1185,7 @@ will never work with more accuracy than 1ms. */
    * Resumes processing of this worker (if paused).
    */
   resume(): void {
-    if (!this.running) {
+    if (this.paused) {
       this.trace<void>(SpanKind.INTERNAL, 'resume', this.name, span => {
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
@@ -1194,9 +1194,31 @@ will never work with more accuracy than 1ms. */
 
         this.paused = false;
 
-        if (this.processFn) {
-          this.run();
+        if (!this.running) {
+          if (this.processFn) {
+            this.run();
+          }
+        } else if (this.mainLoopRunning) {
+          // After pause(true), the main loop may still be exiting
+          // asynchronously. Wait for it to settle, then restart the
+          // worker if it is not paused or closing.
+          this.mainLoopRunning.then(
+            () => {
+              if (
+                !this.paused &&
+                !this.closing &&
+                !this.running &&
+                this.processFn
+              ) {
+                this.run();
+              }
+            },
+            () => {
+              // Errors are handled inside run(); ignore here.
+            },
+          );
         }
+
         this.emit('resumed');
       });
     }
