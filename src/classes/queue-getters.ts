@@ -705,6 +705,27 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
       );
     }
 
+    const [completedMetrics, failedMetrics] = await Promise.all([
+      this.getMetrics('completed'),
+      this.getMetrics('failed'),
+    ]);
+
+    metrics.push(
+      '# HELP bullmq_job_completed_total Total number of completed jobs',
+    );
+    metrics.push('# TYPE bullmq_job_completed_total counter');
+    metrics.push(
+      `bullmq_job_completed_total{queue="${this.name}"${variables}} ${completedMetrics.meta.count}`,
+    );
+
+    metrics.push(
+      '# HELP bullmq_job_failed_total Total number of failed jobs',
+    );
+    metrics.push('# TYPE bullmq_job_failed_total counter');
+    metrics.push(
+      `bullmq_job_failed_total{queue="${this.name}"${variables}} ${failedMetrics.meta.count}`,
+    );
+
     return metrics.join('\n');
   }
 }
