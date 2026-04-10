@@ -1781,6 +1781,7 @@ function sandboxProcessTests(
       // TODO: Move timeout to test options: { timeout: 15000 }
       const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
       const worker = new Worker(queueName, processFile, {
+        autorun: false,
         connection,
         prefix,
         useWorkerThreads,
@@ -1795,13 +1796,17 @@ function sandboxProcessTests(
 
       // await this After we've added the job
       const onJobActive = new Promise<void>(resolve => {
-        worker.on('active', (job, prev) => {
+        worker.on('active', async (job, prev) => {
           expect(prev).toBe('waiting');
+          await delay(100);
           resolve();
         });
       });
 
       const jobAdd = queue.add('foo', {});
+
+      worker.run();
+
       await onJobActive;
 
       expect(Object.keys(worker['childPool'].retained)).toHaveLength(1);

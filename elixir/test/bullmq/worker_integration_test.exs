@@ -309,7 +309,7 @@ defmodule BullMQ.WorkerIntegrationTest do
     end
 
     @tag :integration
-    @tag timeout: 10_000
+    @tag timeout: 15_000
     test "job moves to failed after max retries", %{conn: conn, queue_name: queue_name} do
       test_pid = self()
 

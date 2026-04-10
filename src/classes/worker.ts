@@ -701,22 +701,29 @@ export class Worker<
       return;
     }
 
+    let job: Job<DataType, ResultType, NameType> | undefined;
     if (this.drained && block && !this.limitUntil && !this.waiting) {
       this.waiting = this.waitForJob(bclient, this.blockUntil);
       try {
         this.blockUntil = await this.waiting;
 
         if (this.blockUntil <= 0 || this.blockUntil - Date.now() < 1) {
-          return await this.moveToActive(client, token, this.opts.name);
+          job = await this.moveToActive(client, token, this.opts.name);
         }
       } finally {
         this.waiting = null;
       }
     } else {
       if (!this.isRateLimited()) {
-        return this.moveToActive(client, token, this.opts.name);
+        job = await this.moveToActive(client, token, this.opts.name);
       }
     }
+
+    if (job) {
+      this.emit('active', job, 'waiting');
+    }
+
+    return job;
   }
 
   /**
@@ -957,8 +964,6 @@ will never work with more accuracy than 1ms. */
           [TelemetryAttributes.JobId]: job.id,
           [TelemetryAttributes.JobName]: job.name,
         });
-
-        this.emit('active', job, 'waiting');
 
         const abortController = this.lockManager.trackJob(
           job.id,

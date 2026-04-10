@@ -742,6 +742,12 @@ defmodule BullMQ.Worker do
             :job_available ->
               # A job became available, try to fetch it
               result = fetch_next_job_with_token(state, token)
+
+              case result do
+                {:ok, %Job{} = job} -> emit_event(state.on_active, [job])
+                _ -> :ok
+              end
+
               {:reply, result, state}
 
             :timeout ->
@@ -752,8 +758,13 @@ defmodule BullMQ.Worker do
               {:reply, error, state}
           end
 
+        {:ok, %Job{} = job} = result ->
+          # Got a job, emit active event
+          emit_event(state.on_active, [job])
+          {:reply, result, state}
+
         result ->
-          # Got a job or non-blocking mode returned nil
+          # Non-blocking mode returned nil or error
           {:reply, result, state}
       end
     end

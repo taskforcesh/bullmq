@@ -129,6 +129,7 @@ class Worker(EventEmitter):
         @returns a Job or undefined if no job was available in the queue.
         """
         await self._ensure_client_names()
+        job_instance = None
         if not self.waiting and self.drained:
             self.waiting = self.waitForJob()
 
@@ -138,11 +139,13 @@ class Worker(EventEmitter):
 
                 if self.blockUntil <= 0 or self.blockUntil <= timestamp:
                     job_instance = await self.moveToActive(token)
-                    return job_instance
             finally:
                 self.waiting = None
         else:
             job_instance = await self.moveToActive(token)
+
+        if job_instance:
+            self.emit("active", job_instance, "waiting")
             return job_instance
 
     async def moveToActive(self, token: str):
@@ -218,8 +221,6 @@ class Worker(EventEmitter):
 
     async def processJob(self, job: Job, token: str):
         try:
-            self.emit("active", job, "waiting")
-
             # Set worker-level remove options on job if not already set
             if "removeOnComplete" not in job.opts and "removeOnComplete" in self.opts:
                 job.opts["removeOnComplete"] = self.opts["removeOnComplete"]
