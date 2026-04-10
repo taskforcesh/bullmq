@@ -3013,6 +3013,47 @@ describe('workers', () => {
 
         await worker.close();
       });
+
+      it('should resume after pause(true) while jobs are still active', async () => {
+        const worker = new Worker(
+          queueName,
+          async () => {
+            await delay(500);
+          },
+          { connection, prefix },
+        );
+        await worker.waitUntilReady();
+
+        await queue.add('test', { foo: 'bar' });
+
+        // Wait for the job to become active
+        await new Promise<void>(resolve => {
+          worker.once('active', () => resolve());
+        });
+
+        // Pause without waiting for active jobs. This leaves the worker
+        // in running=true, paused=true state.
+        await worker.pause(true);
+        expect(worker.isPaused()).toBe(true);
+
+        // Resume should succeed even though running is still true
+        worker.resume();
+        expect(worker.isPaused()).toBe(false);
+
+        // Add another job to verify the worker is actually processing again
+        const completed = new Promise<void>(resolve => {
+          worker.on('completed', job => {
+            if (job.data.marker === 'after-resume') {
+              resolve();
+            }
+          });
+        });
+
+        await queue.add('test', { marker: 'after-resume' });
+        await completed;
+
+        await worker.close();
+      });
     });
   });
 
