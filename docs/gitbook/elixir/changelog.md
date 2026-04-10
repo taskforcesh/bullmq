@@ -1,3 +1,10 @@
+## [1.3.2](https://github.com/taskforcesh/bullmq/compare/vex1.3.1...vex1.3.2) (2026-04-10)
+
+
+### Bug Fixes
+
+* **worker:** emit active event as soon as getting next job (elixir) (python) ([#3936](https://github.com/taskforcesh/bullmq/issues/3936)) ref [#3911](https://github.com/taskforcesh/bullmq/issues/3911) ([d5eca5a](https://github.com/taskforcesh/bullmq/commit/d5eca5acff37b7a95f72c136685105504fc7f5be))
+
 ## [1.3.1](https://github.com/taskforcesh/bullmq/compare/vex1.3.0...vex1.3.1) (2026-04-09)
 
 
