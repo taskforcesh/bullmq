@@ -3027,12 +3027,12 @@ describe('workers', () => {
         );
         await worker.waitUntilReady();
 
-        // Process first job to ensure the worker is running
-        await queue.add('test', { seq: 'first' });
-
         const firstCompleted = new Promise<void>(resolve => {
           worker.once('completed', () => resolve());
         });
+
+        // Process first job to ensure the worker is running
+        await queue.add('test', { seq: 'first' });
 
         await firstCompleted;
 
@@ -3049,15 +3049,15 @@ describe('workers', () => {
         expect(worker.isPaused()).toBe(false);
         expect(worker.isRunning()).toBe(true);
 
-        // Verify the worker actually processes new jobs after resume
-        await queue.add('test', { seq: 'after-resume' });
-
         const secondCompleted = new Promise<void>(resolve => {
           worker.once('completed', job => {
             expect(job.data.seq).toBe('after-resume');
             resolve();
           });
         });
+
+        // Verify the worker actually processes new jobs after resume
+        await queue.add('test', { seq: 'after-resume' });
 
         await secondCompleted;
 
