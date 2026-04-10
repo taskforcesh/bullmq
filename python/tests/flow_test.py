@@ -284,5 +284,50 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         await child_queue.obliterate()
         await child_queue.close()
 
+    async def test_should_use_connection_from_opts_when_redis_opts_empty(self):
+        """Test that FlowProducer uses opts connection when redisOpts is empty"""
+        parent_queue_name = f"__test_parent_queue__{uuid4().hex}"
+
+        flow = FlowProducer({}, {"prefix": prefix, "connection": {"host": "localhost", "port": 6379}})
+        tree = await flow.add(
+            {
+                "name": 'test-job',
+                "queueName": parent_queue_name,
+                "data": {"foo": "bar"},
+            }
+        )
+
+        self.assertIsNotNone(tree)
+        await flow.close()
+
+        parent_queue = Queue(parent_queue_name, {"prefix": prefix})
+        await parent_queue.pause()
+        await parent_queue.obliterate()
+        await parent_queue.close()
+
+    async def test_should_prefer_redis_opts_over_opts_connection(self):
+        """Test that FlowProducer prefers redisOpts over opts connection"""
+        parent_queue_name = f"__test_parent_queue__{uuid4().hex}"
+
+        flow = FlowProducer(
+            {"host": "localhost", "port": 6379},
+            {"prefix": prefix, "connection": {"host": "invalid-host", "port": 9999}}
+        )
+        tree = await flow.add(
+            {
+                "name": 'test-job',
+                "queueName": parent_queue_name,
+                "data": {"foo": "bar"},
+            }
+        )
+
+        self.assertIsNotNone(tree)
+        await flow.close()
+
+        parent_queue = Queue(parent_queue_name, {"prefix": prefix})
+        await parent_queue.pause()
+        await parent_queue.obliterate()
+        await parent_queue.close()
+
 if __name__ == '__main__':
     unittest.main()
