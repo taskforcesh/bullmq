@@ -293,7 +293,11 @@ export class Job<
   }
 
   /**
-   * Creates a bulk of jobs and adds them atomically to the given queue.
+   * Creates a bulk of jobs and adds them to the given queue.
+   *
+   * Jobs are added via a Redis pipeline for efficiency, but each command
+   * is executed independently. If one job fails to add, previously
+   * pipelined jobs in the same batch may already have been created.
    *
    * @param queue - the queue where to add the jobs.
    * @param jobs - an array of jobs to be added to the queue.
