@@ -86,7 +86,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
   /**
    * Returns the time to live for a rate limited key in milliseconds.
    * @param maxJobs - max jobs to be considered in rate limit state. If not passed
-   * it will return the remaining ttl without considering if max jobs is excedeed.
+   * it will return the remaining ttl without considering if max jobs is exceeded.
    * @returns -2 if the key does not exist.
    * -1 if the key exists but has no associated expire.
    * @see {@link https://redis.io/commands/pttl/}
