@@ -309,6 +309,73 @@ describe('Job Scheduler', () => {
       await worker.close();
     });
 
+    it('should respect offset when upserting a job scheduler with every', async () => {
+      const date = new Date('2017-02-07T09:24:00.000+05:30');
+      clock.setSystemTime(date);
+
+      const every = ONE_MINUTE * 15;
+      const offset = ONE_MINUTE * 3; // 3 minutes offset
+
+      const job = await queue.upsertJobScheduler(
+        'test-offset',
+        {
+          every,
+          offset,
+        },
+        {
+          name: 'test',
+          data: { foo: 'bar' },
+        },
+      );
+
+      const now = Date.now();
+
+      // The next job should be scheduled at the next slot aligned to every + offset
+      // With every=15min and offset=3min, jobs should run at :03, :18, :33, :48
+      // Current time is :24:00, so next should be :33:00
+      const expectedNext = Math.floor(now / every) * every + offset + every;
+
+      expect(job).toBeDefined();
+      expect(job!.opts.delay).toBeGreaterThan(0);
+
+      const schedulers = await queue.getJobSchedulers();
+      expect(schedulers.length).toEqual(1);
+      expect(schedulers[0].next).toEqual(expectedNext);
+      expect(schedulers[0].offset).toEqual(offset);
+    });
+
+    it('should respect offset on first upsert when offset slot is in the future', async () => {
+      // Set time to :20:00 so with every=15min, offset=3min,
+      // floor(now/every)*every + offset = :18:00 which is in the past
+      // so next should be :33:00
+      const date = new Date('2017-02-07T09:20:00.000+05:30');
+      clock.setSystemTime(date);
+
+      const every = ONE_MINUTE * 15;
+      const offset = ONE_MINUTE * 3;
+
+      await queue.upsertJobScheduler(
+        'test-offset-2',
+        {
+          every,
+          offset,
+        },
+        {
+          name: 'test',
+          data: {},
+        },
+      );
+
+      const now = Date.now();
+      const baseSlot = Math.floor(now / every) * every + offset;
+      const expectedNext = baseSlot > now ? baseSlot : baseSlot + every;
+
+      const schedulers = await queue.getJobSchedulers();
+      expect(schedulers.length).toEqual(1);
+      expect(schedulers[0].next).toEqual(expectedNext);
+      expect(schedulers[0].offset).toEqual(offset);
+    });
+
     describe('when next delayed job already exists and it is not in waiting or delayed states', () => {
       it('updates the scheduler with the new settings', async () => {
         const date = new Date('2017-02-07T09:24:00.000+05:30');
