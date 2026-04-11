@@ -907,5 +907,52 @@ describe('events', () => {
       await queueEvents2.close();
       await removeAllQueueData(new IORedis(redisHost), queueName2);
     });
+
+    it('stringifies non-string values in event payload', async () => {
+      const queueName2 = `test-${v4()}`;
+      const queueEventsProducer = new QueueEventsProducer(queueName2, {
+        connection,
+        prefix,
+      });
+      const queueEvents2 = new QueueEvents(queueName2, {
+        autorun: false,
+        connection,
+        prefix,
+        lastEventId: '0-0',
+      });
+      await queueEvents2.waitUntilReady();
+
+      interface CustomListener extends QueueEventsListener {
+        nested: (args: { data: string; count: string }, id: string) => void;
+      }
+      const customEvent = new Promise<void>(resolve => {
+        queueEvents2.on<CustomListener>('nested', async ({ data, count }) => {
+          await delay(250);
+          const parsed = JSON.parse(data);
+          await expect(parsed).toEqual({ object: 'hello' });
+          await expect(count).toBe('42');
+          resolve();
+        });
+      });
+
+      interface CustomEventPayload {
+        eventName: string;
+        data: { object: string };
+        count: number;
+      }
+
+      await queueEventsProducer.publishEvent<CustomEventPayload>({
+        eventName: 'nested',
+        data: { object: 'hello' },
+        count: 42,
+      });
+
+      queueEvents2.run();
+      await customEvent;
+
+      await queueEventsProducer.close();
+      await queueEvents2.close();
+      await removeAllQueueData(new IORedis(redisHost), queueName2);
+    });
   });
 });
