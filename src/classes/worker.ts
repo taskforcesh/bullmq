@@ -1185,32 +1185,31 @@ will never work with more accuracy than 1ms. */
    *
    * Resumes processing of this worker (if paused).
    */
-  async resume(): Promise<void> {
+  resume(): void {
     if (!this.running || this.paused) {
-      await this.trace<void>(
-        SpanKind.INTERNAL,
-        'resume',
-        this.name,
-        async span => {
-          span?.setAttributes({
-            [TelemetryAttributes.WorkerId]: this.id,
-            [TelemetryAttributes.WorkerName]: this.opts.name,
-          });
+      this.trace<void>(SpanKind.INTERNAL, 'resume', this.name, span => {
+        span?.setAttributes({
+          [TelemetryAttributes.WorkerId]: this.id,
+          [TelemetryAttributes.WorkerName]: this.opts.name,
+        });
 
-          this.paused = false;
+        this.paused = false;
 
-          if (!this.running) {
-            if (this.processFn) {
-              this.run();
-            }
-          } else {
-            // Main loop is still running (pause was called with doNotWaitActive=true).
-            // Restart the stalled checker since pause() stopped it.
-            await this.startStalledCheckTimer();
+        if (!this.running) {
+          if (this.processFn) {
+            this.run();
           }
-          this.emit('resumed');
-        },
-      );
+        } else {
+          // Main loop is still running (pause was called with doNotWaitActive=true).
+          // Restart the stalled checker since pause() stopped it.
+          void this.startStalledCheckTimer().catch(err => {
+            this.emit('error', err);
+          });
+        }
+        this.emit('resumed');
+      }).catch(err => {
+        this.emit('error', err);
+      });
     }
   }
 
