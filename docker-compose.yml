@@ -1,7 +1,7 @@
 version: '3.2'
 services:
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: cache
     ports:
       - 6379:6379
@@ -19,7 +19,7 @@ services:
   # Note: On macOS, use `docker-compose --profile cluster up` to start the cluster
   # Uses static IPs in a custom subnet; client must use NAT mapping for 172.30.0.x -> 127.0.0.1
   redis-cluster-node-1:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: redis-cluster-node-1
     profiles: ['cluster']
     command:
@@ -44,7 +44,7 @@ services:
         ipv4_address: 172.30.0.11
 
   redis-cluster-node-2:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: redis-cluster-node-2
     profiles: ['cluster']
     command:
@@ -69,7 +69,7 @@ services:
         ipv4_address: 172.30.0.12
 
   redis-cluster-node-3:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: redis-cluster-node-3
     profiles: ['cluster']
     command:
@@ -94,7 +94,7 @@ services:
         ipv4_address: 172.30.0.13
 
   redis-cluster-node-4:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: redis-cluster-node-4
     profiles: ['cluster']
     command:
@@ -119,7 +119,7 @@ services:
         ipv4_address: 172.30.0.14
 
   redis-cluster-node-5:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: redis-cluster-node-5
     profiles: ['cluster']
     command:
@@ -144,7 +144,7 @@ services:
         ipv4_address: 172.30.0.15
 
   redis-cluster-node-6:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: redis-cluster-node-6
     profiles: ['cluster']
     command:
@@ -170,7 +170,7 @@ services:
 
   # Initializes the Redis cluster after nodes are up
   redis-cluster-init:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: redis-cluster-init
     profiles: ['cluster']
     depends_on:
@@ -193,7 +193,7 @@ services:
   # Redis Cluster with Authentication for integration tests
   # Use `docker-compose --profile cluster-auth up` to start
   redis-cluster-auth-node-1:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: redis-cluster-auth-node-1
     profiles: ['cluster-auth']
     command:
@@ -222,7 +222,7 @@ services:
         ipv4_address: 172.31.0.11
 
   redis-cluster-auth-node-2:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: redis-cluster-auth-node-2
     profiles: ['cluster-auth']
     command:
@@ -251,7 +251,7 @@ services:
         ipv4_address: 172.31.0.12
 
   redis-cluster-auth-node-3:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: redis-cluster-auth-node-3
     profiles: ['cluster-auth']
     command:
@@ -280,7 +280,7 @@ services:
         ipv4_address: 172.31.0.13
 
   redis-cluster-auth-node-4:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: redis-cluster-auth-node-4
     profiles: ['cluster-auth']
     command:
@@ -309,7 +309,7 @@ services:
         ipv4_address: 172.31.0.14
 
   redis-cluster-auth-node-5:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: redis-cluster-auth-node-5
     profiles: ['cluster-auth']
     command:
@@ -338,7 +338,7 @@ services:
         ipv4_address: 172.31.0.15
 
   redis-cluster-auth-node-6:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: redis-cluster-auth-node-6
     profiles: ['cluster-auth']
     command:
@@ -368,7 +368,7 @@ services:
 
   # Initializes the authenticated Redis cluster
   redis-cluster-auth-init:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: redis-cluster-auth-init
     profiles: ['cluster-auth']
     depends_on:
