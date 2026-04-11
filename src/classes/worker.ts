@@ -1200,6 +1200,7 @@ will never work with more accuracy than 1ms. */
             this.run();
           }
         } else {
+          // TODO: await for startStalledCheckTimer in next breaking change, that will convert resume method to async
           // Main loop is still running (pause was called with doNotWaitActive=true).
           // Restart the stalled checker since pause() stopped it.
           void this.startStalledCheckTimer().catch(err => {
