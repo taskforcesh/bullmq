@@ -134,7 +134,7 @@ describe('Job', () => {
         const data = { foo: 'bar' };
         const opts = { repeat: { every: 200 }, delay: 1000 };
         await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
-          'Delay and repeat options could not be used together',
+          'Delay and repeat options cannot be used together',
         );
       });
     });
