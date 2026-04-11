@@ -196,6 +196,7 @@ export class Worker<
   protected lockManager: LockManager;
   private processorAcceptsSignal = false;
 
+  private stalledCheckerRunning = false;
   private stalledCheckStopper?: () => void;
   private waiting: Promise<number> | null = null;
   private _repeat: Repeat; // To be deprecated in v6 in favor of Job Scheduler
@@ -1185,7 +1186,7 @@ will never work with more accuracy than 1ms. */
    * Resumes processing of this worker (if paused).
    */
   resume(): void {
-    if (!this.running) {
+    if (!this.running || this.paused) {
       this.trace<void>(SpanKind.INTERNAL, 'resume', this.name, span => {
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
@@ -1194,10 +1195,21 @@ will never work with more accuracy than 1ms. */
 
         this.paused = false;
 
-        if (this.processFn) {
-          this.run();
+        if (!this.running) {
+          if (this.processFn) {
+            this.run();
+          }
+        } else {
+          // TODO: await for startStalledCheckTimer in next breaking change, that will convert resume method to async
+          // Main loop is still running (pause was called with doNotWaitActive=true).
+          // Restart the stalled checker since pause() stopped it.
+          void this.startStalledCheckTimer().catch(err => {
+            this.emit('error', err);
+          });
         }
         this.emit('resumed');
+      }).catch(err => {
+        this.emit('error', err);
       });
     }
   }
@@ -1298,7 +1310,7 @@ will never work with more accuracy than 1ms. */
    */
   async startStalledCheckTimer(): Promise<void> {
     if (!this.opts.skipStalledCheck) {
-      if (!this.closing) {
+      if (!this.closing && !this.stalledCheckerRunning) {
         await this.trace<void>(
           SpanKind.INTERNAL,
           'startStalledCheckTimer',
@@ -1309,9 +1321,14 @@ will never work with more accuracy than 1ms. */
               [TelemetryAttributes.WorkerName]: this.opts.name,
             });
 
-            this.stalledChecker().catch(err => {
-              this.emit('error', <Error>err);
-            });
+            this.stalledCheckerRunning = true;
+            this.stalledChecker()
+              .catch(err => {
+                this.emit('error', <Error>err);
+              })
+              .finally(() => {
+                this.stalledCheckerRunning = false;
+              });
           },
         );
       }
