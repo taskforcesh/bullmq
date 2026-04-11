@@ -1100,4 +1100,30 @@ describe('Jobs getters', () => {
       ).toHaveLength(0);
     });
   });
+
+  describe('.getJobs', () => {
+    it('should not return undefined values when Job.fromId returns undefined', async () => {
+      await queue.add('test', { foo: 1 });
+      await queue.add('test', { foo: 2 });
+      await queue.add('test', { foo: 3 });
+
+      const originalFromId = queue.Job.fromId.bind(queue.Job);
+      let callCount = 0;
+      sinon.stub(queue.Job, 'fromId').callsFake(async (...args) => {
+        callCount++;
+        if (callCount === 2) {
+          return undefined;
+        }
+        return originalFromId(...args);
+      });
+
+      const jobs = await queue.getJobs(['waiting']);
+
+      expect(jobs).toBeInstanceOf(Array);
+      expect(jobs).toHaveLength(2);
+      for (const job of jobs) {
+        expect(job).toBeDefined();
+      }
+    });
+  });
 });
