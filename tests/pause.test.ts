@@ -411,4 +411,47 @@ describe('Pause', () => {
       await worker!.close();
     });
   });
+
+  it('should resume processing after pause(true) without waiting for active jobs', async () => {
+    let jobProcessedAfterResume = false;
+
+    const worker = new Worker(
+      queueName,
+      async () => {
+        await delay(100);
+      },
+      { connection, prefix },
+    );
+
+    await worker.waitUntilReady();
+
+    // Add a job so the worker is processing
+    await queue.add('test', { foo: 'bar' });
+    await delay(50);
+
+    // Pause without waiting for active jobs to finish
+    await worker.pause(true);
+
+    expect(worker.isPaused()).toBe(true);
+
+    // Resume the worker
+    worker.resume();
+
+    expect(worker.isPaused()).toBe(false);
+
+    // Add another job and verify it gets processed
+    const processingAfterResume = new Promise<void>(resolve => {
+      worker.on('completed', () => {
+        jobProcessedAfterResume = true;
+        resolve();
+      });
+    });
+
+    await queue.add('test2', { foo: 'baz' });
+    await processingAfterResume;
+
+    expect(jobProcessedAfterResume).toBe(true);
+
+    await worker.close();
+  });
 });

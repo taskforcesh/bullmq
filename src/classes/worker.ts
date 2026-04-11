@@ -1185,7 +1185,7 @@ will never work with more accuracy than 1ms. */
    * Resumes processing of this worker (if paused).
    */
   resume(): void {
-    if (!this.running) {
+    if (this.paused) {
       this.trace<void>(SpanKind.INTERNAL, 'resume', this.name, span => {
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
@@ -1194,7 +1194,7 @@ will never work with more accuracy than 1ms. */
 
         this.paused = false;
 
-        if (this.processFn) {
+        if (!this.running && this.processFn) {
           this.run();
         }
         this.emit('resumed');
