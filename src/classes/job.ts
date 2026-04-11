@@ -1559,7 +1559,7 @@ export class Job<
     }
 
     if (this.opts.delay && this.opts.repeat && !this.opts.repeat?.count) {
-      throw new Error(`Delay and repeat options could not be used together`);
+      throw new Error(`Delay and repeat options cannot be used together`);
     }
 
     const enabledExclusiveOptions = exclusiveOptions.filter(
