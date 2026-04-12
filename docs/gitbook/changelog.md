@@ -1,3 +1,10 @@
+## [5.73.5](https://github.com/taskforcesh/bullmq/compare/v5.73.4...v5.73.5) (2026-04-12)
+
+
+### Bug Fixes
+
+* **worker:** resume processing after pause with doNotWaitActive ([#3974](https://github.com/taskforcesh/bullmq/issues/3974)) fixes [#3971](https://github.com/taskforcesh/bullmq/issues/3971) ([8b8d464](https://github.com/taskforcesh/bullmq/commit/8b8d46441f7af7f9bd75d81283a8804ff5fc4bc1))
+
 ## [5.73.4](https://github.com/taskforcesh/bullmq/compare/v5.73.3...v5.73.4) (2026-04-10)
 
 
