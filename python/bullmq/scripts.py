@@ -112,7 +112,7 @@ class Scripts:
         else:
             result = await self.addStandardJob(job, job.timestamp, pipe)
 
-        if type(result) == int :
+        if isinstance(result, int) :
             if result < 0:
                 raise self.finishedErrors({
                     "code": result, 
@@ -194,7 +194,7 @@ class Scripts:
         keys, args = self.moveToWaitingChildrenArgs(job_id, token, opts)
         result = await self.commands["moveToWaitingChildren"](keys=keys, args=args)
 
-        if type(result) == int:
+        if isinstance(result, int):
             if result == 1:
                 return False
             elif result == 0:
@@ -284,7 +284,7 @@ class Scripts:
 
         result = await self.commands["retryJob"](keys=keys, args=args)
 
-        if type(result) == int:
+        if isinstance(result, int):
             if result < 0:
                 raise self.finishedErrors({
                     "code": result,
@@ -332,14 +332,14 @@ class Scripts:
         result = await self.commands["moveToDelayed"](keys=keys, args=args)
 
         if result is not None:
-            if type(result) == int and result < 0:
+            if isinstance(result, int) and result < 0:
                 raise self.finishedErrors({
                     "code": result,
                     "jobId": job_id,
                     "command": 'moveToDelayed',
                     "state": 'active'
                     })
-            if type(result) != int:
+            if not isinstance(result, int):
                 return raw2NextJobData(result)
         return None
 
@@ -359,7 +359,7 @@ class Scripts:
 
         result = await self.commands["promote"](keys=keys, args=args)
 
-        if type(result) == int:
+        if isinstance(result, int):
             if result < 0:
                 raise self.finishedErrors({
                     "code": result,
@@ -436,7 +436,7 @@ class Scripts:
 
         result = await self.commands["changePriority"](keys=keys, args=args)
 
-        if type(result) == int:
+        if isinstance(result, int):
             if result < 0:
                 raise self.finishedErrors({
                     "code": result,
@@ -452,7 +452,7 @@ class Scripts:
 
         result = await self.commands["updateData"](keys=keys, args=args)
 
-        if type(result) == int:
+        if isinstance(result, int):
             if result < 0:
                 raise self.finishedErrors({
                     "code": result,
@@ -482,7 +482,7 @@ class Scripts:
 
         result = await self.commands["reprocessJob"](keys=keys, args=args)
 
-        if type(result) == int:
+        if isinstance(result, int):
             if result < 0:
                 raise self.finishedErrors({
                     "code": result,
@@ -575,7 +575,7 @@ class Scripts:
         args = [job_id, progress_json]
         result = await self.commands["updateProgress"](keys=keys, args=args)
 
-        if type(result) == int:
+        if isinstance(result, int):
             if result < 0:
                 raise self.finishedErrors({
                     "code": result,
@@ -597,10 +597,10 @@ class Scripts:
         keys.append(self.keys['marker'])
 
         def getKeepJobs(shouldRemove: bool | dict | int | None):
-            if type(shouldRemove) == int:
+            if isinstance(shouldRemove, int):
                 return {"count": shouldRemove}
 
-            if type(shouldRemove) == dict:
+            if isinstance(shouldRemove, dict):
                 return shouldRemove
 
             if shouldRemove:
@@ -661,7 +661,7 @@ class Scripts:
         result = await self.commands["moveToFinished"](keys=keys, args=args)
 
         if result is not None:
-            if type(result) == int and result < 0:
+            if isinstance(result, int) and result < 0:
                 raise self.finishedErrors({
                     "code": result,
                     "jobId": job_id,
