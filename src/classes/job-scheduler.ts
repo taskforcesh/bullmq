@@ -343,6 +343,22 @@ export class JobScheduler extends QueueBase {
     };
   }
 
+  /**
+   * Checks if a given id corresponds to a registered job scheduler.
+   *
+   * This is used to disambiguate between new job scheduler ids (which may
+   * contain any number of colon segments) and legacy repeatable job keys
+   * (which always contain 5+ colon segments). Relying purely on segment
+   * count is not safe because a user-provided jobSchedulerId may itself
+   * contain 5+ colon segments, which would otherwise be misclassified as
+   * a legacy repeatable key.
+   */
+  async isJobScheduler(id: string): Promise<boolean> {
+    const client = await this.client;
+    const score = await client.zscore(this.keys.repeat, id);
+    return score !== null;
+  }
+
   async getScheduler<D = any>(
     id: string,
   ): Promise<JobSchedulerJson<D> | undefined> {

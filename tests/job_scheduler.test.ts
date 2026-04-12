@@ -3951,4 +3951,47 @@ describe('Job Scheduler', () => {
 
     await worker.close();
   });
+
+  describe('when job scheduler id contains 5 or more colon segments', () => {
+    it('should not create duplicate schedulers after a job completes (issue #3828)', async () => {
+      const date = new Date('2017-02-07 9:24:00');
+      clock.setSystemTime(date);
+
+      // A scheduler id containing 5+ colon segments. Previously the
+      // worker misclassified this as a legacy repeatable key (based on
+      // segment count alone) and scheduled a duplicate via the legacy
+      // repeat path when a job completed.
+      const jobSchedulerId = 'tenant:region:env:service:queue:task';
+      expect(jobSchedulerId.split(':').length).toBeGreaterThanOrEqual(5);
+
+      await queue.upsertJobScheduler(jobSchedulerId, {
+        every: ONE_MINUTE,
+      });
+
+      let schedulersBefore = await queue.getJobSchedulers();
+      expect(schedulersBefore.length).toEqual(1);
+
+      const worker = new Worker(queueName, async () => {}, {
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      const completed = new Promise<void>(resolve => {
+        worker.once('completed', () => resolve());
+      });
+
+      // Advance time so the first delayed job becomes due.
+      await clock.tickAsync(ONE_MINUTE + 1);
+
+      await completed;
+
+      // After processing, there must still be exactly one scheduler.
+      const schedulersAfter = await queue.getJobSchedulers();
+      expect(schedulersAfter.length).toEqual(1);
+      expect(schedulersAfter[0].key).toEqual(jobSchedulerId);
+
+      await worker.close();
+    });
+  });
 });
