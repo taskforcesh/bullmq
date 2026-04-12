@@ -186,7 +186,7 @@ class Job:
 
         return score is not None
 
-    def isInList(self, list_name: str):
+    def isInList(self, list_name: str) -> bool:
         return self.scripts.isJobInList(self.scripts.toKey(list_name), self.id)
 
     async def moveToCompleted(self, return_value, token:str, fetchNext:bool = False):
@@ -269,7 +269,7 @@ class Job:
 
         return result
 
-    def log(self, logRow: str):
+    def log(self, logRow: str) -> int:
         return Job.addJobLog(self.queue, self.id, logRow, self.opts.get("keepLogs", 0))
 
     def updateStacktrace(self):
@@ -283,15 +283,15 @@ class Job:
             elif self.opts.get("stackTraceLimit"):
                 self.stacktrace = self.stacktrace[-(stackTraceLimit-1):stackTraceLimit]
 
-    def moveToWaitingChildren(self, token, opts:dict):
+    def moveToWaitingChildren(self, token, opts:dict) -> bool | None:
         return self.scripts.moveToWaitingChildren(self.id, token, opts)
 
-    async def getChildrenValues(self):
+    async def getChildrenValues(self) -> dict:
         results = await self.queue.client.hgetall(f"{self.queue.prefix}:{self.queue.name}:{self.id}:processed")
         return parse_json_string_values(results)
 
     @staticmethod
-    def fromJSON(queue: Queue, rawData: dict, jobId: str | None = None):
+    def fromJSON(queue: Queue, rawData: dict, jobId: str | None = None) -> Job:
         """
         Instantiates a Job from a JobJsonRaw object (coming from a deserialized JSON object)
 
@@ -346,14 +346,14 @@ class Job:
         return job
 
     @staticmethod
-    async def fromId(queue: Queue, jobId: str):
+    async def fromId(queue: Queue, jobId: str) -> Job | None:
         key = f"{queue.prefix}:{queue.name}:{jobId}"
         raw_data = await queue.client.hgetall(key)
         if len(raw_data):
             return Job.fromJSON(queue, raw_data, jobId)
 
     @staticmethod
-    async def addJobLog(queue: Queue, jobId: str, logRow: str, keepLogs: int = 0):
+    async def addJobLog(queue: Queue, jobId: str, logRow: str, keepLogs: int = 0) -> int:
         logs_key = f"{queue.prefix}:{queue.name}:{jobId}:logs"
         multi = await queue.client.pipeline()
 
