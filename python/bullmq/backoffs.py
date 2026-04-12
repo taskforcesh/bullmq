@@ -13,7 +13,7 @@ class Backoffs:
 
     @staticmethod
     def normalize(backoff: Union[int, BackoffOptions]):
-        if type(backoff) == int and math.isfinite(backoff):
+        if isinstance(backoff, int) and math.isfinite(backoff):
             return {
                 "type": "fixed",
                 "delay": backoff
