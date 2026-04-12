@@ -188,7 +188,7 @@ export class RedisConnection extends EventEmitter {
             if (lastError) {
               reject(lastError);
             } else {
-              // when custon 'end' status is set we already closed
+              // when custom 'end' status is set we already closed
               resolve();
             }
           }
