@@ -1,11 +1,11 @@
-import { ParserOptions } from 'cron-parser';
+import { CronExpressionOptions } from 'cron-parser';
 
 /**
  * Settings for repeatable jobs
  *
  * @see {@link https://docs.bullmq.io/guide/jobs/repeatable}
  */
-export interface RepeatOptions extends Omit<ParserOptions, 'iterator'> {
+export interface RepeatOptions extends CronExpressionOptions {
   /**
    * A repeat pattern
    */
