@@ -364,7 +364,7 @@ class Queue(EventEmitter):
         return self.getJobs(['delayed'], start, end, True)
 
     def getFailed(self, start = 0, end=-1):
-        return self.getJobs(['completed'], start, end, False)
+        return self.getJobs(['failed'], start, end, False)
 
     def getPrioritized(self, start = 0, end=-1):
         return self.getJobs(['prioritized'], start, end, True)
