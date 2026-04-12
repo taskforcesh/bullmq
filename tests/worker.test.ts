@@ -3013,6 +3013,56 @@ describe('workers', () => {
 
         await worker.close();
       });
+
+      it('should resume processing after pause with doNotWaitActive', async () => {
+        const worker = new Worker(
+          queueName,
+          async () => {
+            await delay(50);
+          },
+          {
+            connection,
+            prefix,
+          },
+        );
+        await worker.waitUntilReady();
+
+        const firstCompleted = new Promise<void>(resolve => {
+          worker.once('completed', () => resolve());
+        });
+
+        // Process first job to ensure the worker is running
+        await queue.add('test', { seq: 'first' });
+
+        await firstCompleted;
+
+        expect(worker.isRunning()).toBe(true);
+        expect(worker.isPaused()).toBe(false);
+
+        // Pause with doNotWaitActive=true (main loop keeps running)
+        await worker.pause(true);
+        expect(worker.isPaused()).toBe(true);
+        expect(worker.isRunning()).toBe(true);
+
+        // Resume should work even though isRunning() is true
+        worker.resume();
+        expect(worker.isPaused()).toBe(false);
+        expect(worker.isRunning()).toBe(true);
+
+        const secondCompleted = new Promise<void>(resolve => {
+          worker.once('completed', job => {
+            expect(job.data.seq).toBe('after-resume');
+            resolve();
+          });
+        });
+
+        // Verify the worker actually processes new jobs after resume
+        await queue.add('test', { seq: 'after-resume' });
+
+        await secondCompleted;
+
+        await worker.close();
+      });
     });
   });
 
