@@ -1,5 +1,5 @@
 --[[
-  Adds a priotitized job to the queue by doing the following:
+  Adds a prioritized job to the queue by doing the following:
     - Increases the job counter if needed.
     - Creates a new job key with the job data.
     - Adds the job to the "added" list so that workers gets notified.
