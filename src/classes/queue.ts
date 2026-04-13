@@ -487,7 +487,7 @@ export class Queue<
     >(
       jobSchedulerId,
       repeatOpts,
-      jobTemplate?.name ?? jobSchedulerId,
+      jobTemplate?.name ?? (jobSchedulerId as unknown as NameType),
       jobTemplate?.data ?? <DataType>{},
       { ...this.jobsOpts, ...jobTemplate?.opts },
       { override: true },
