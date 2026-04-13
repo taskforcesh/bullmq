@@ -113,12 +113,26 @@ removeJobChildren = function(prefix, jobKey, options)
     while #stack > 0 do
         local entry = stack[#stack]
         stack[#stack] = nil
-        discovered[#discovered + 1] = entry
 
         local childPrefix = entry[1]
         local childJobId = entry[2]
-        local childJobKey = childPrefix .. childJobId
-        collectDescendants(childPrefix, childJobKey, options, stack)
+
+        -- Preserve the short-circuit behavior of the original recursive
+        -- implementation: if a node is locked or marked as ignored, skip
+        -- it entirely and do not descend into its subtree. This keeps
+        -- parent dependency bookkeeping intact for active branches.
+        if options.ignoreLocked and isLocked(childPrefix, childJobId) then
+            -- skip this node and its descendants
+        else
+            local failedSet = childPrefix .. "failed"
+            if options.ignoreProcessed and rcall("ZSCORE", failedSet, childJobId) then
+                -- skip this node and its descendants
+            else
+                discovered[#discovered + 1] = entry
+                local childJobKey = childPrefix .. childJobId
+                collectDescendants(childPrefix, childJobKey, options, stack)
+            end
+        end
     end
 
     -- Second pass: remove descendants deepest-first so that parent
