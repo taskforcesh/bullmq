@@ -23,7 +23,7 @@ def get_parent_key(opts: dict[str, str]):
     if opts:
         return f"{opts.get('queue')}:{opts.get('id')}"
 
-def parse_json_string_values(input_dict: dict[str, str]) -> dict[str, dict]:
+def parse_json_string_values(input_dict: dict[str, str]) -> dict[str, Any]:
     return {key: json.loads(value) for key, value in input_dict.items()}
 
 def object_to_flat_array(obj: dict[str, Any]) -> list[Any]:
