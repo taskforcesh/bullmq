@@ -908,7 +908,7 @@ describe('events', () => {
       await removeAllQueueData(new IORedis(redisHost), queueName2);
     });
 
-    it('stringifies non-string values in event payload', async () => {
+    it('preserves payload value types across publish/consume', async () => {
       const queueName2 = `test-${v4()}`;
       const queueEventsProducer = new QueueEventsProducer(queueName2, {
         connection,
@@ -923,28 +923,46 @@ describe('events', () => {
       await queueEvents2.waitUntilReady();
 
       interface CustomListener extends QueueEventsListener {
-        nested: (args: { data: string; count: string }, id: string) => void;
+        nested: (
+          args: {
+            text: string;
+            data: { object: string };
+            count: number;
+            flag: boolean;
+          },
+          id: string,
+        ) => void;
       }
       const customEvent = new Promise<void>(resolve => {
-        queueEvents2.on<CustomListener>('nested', async ({ data, count }) => {
-          await delay(250);
-          const parsed = JSON.parse(data);
-          await expect(parsed).toEqual({ object: 'hello' });
-          await expect(count).toBe('42');
-          resolve();
-        });
+        queueEvents2.on<CustomListener>(
+          'nested',
+          async ({ text, data, count, flag }) => {
+            await delay(250);
+            // Strings arrive as strings (no extra JSON.parse needed),
+            // objects as objects, numbers as numbers, booleans as booleans.
+            await expect(text).toBe('hello');
+            await expect(data).toEqual({ object: 'hello' });
+            await expect(count).toBe(42);
+            await expect(flag).toBe(true);
+            resolve();
+          },
+        );
       });
 
       interface CustomEventPayload {
         eventName: string;
+        text: string;
         data: { object: string };
         count: number;
+        flag: boolean;
       }
 
       await queueEventsProducer.publishEvent<CustomEventPayload>({
         eventName: 'nested',
+        text: 'hello',
         data: { object: 'hello' },
         count: 42,
+        flag: true,
       });
 
       queueEvents2.run();

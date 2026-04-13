@@ -15,6 +15,34 @@ import {
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
 
+// Built-in events emitted by BullMQ internals (mostly from Lua scripts).
+// These are kept with their historical raw-string payload shape for
+// backwards compatibility. Events whose names are NOT in this set are
+// assumed to be custom events published via QueueEventsProducer, which
+// always JSON-encodes payload values, so we JSON-decode them here to
+// keep the producer/consumer contract symmetric.
+const BUILTIN_EVENTS: ReadonlySet<string> = new Set([
+  'active',
+  'added',
+  'cleaned',
+  'completed',
+  'debounced',
+  'deduplicated',
+  'delayed',
+  'drained',
+  'duplicated',
+  'error',
+  'failed',
+  'paused',
+  'progress',
+  'removed',
+  'resumed',
+  'retries-exhausted',
+  'stalled',
+  'waiting',
+  'waiting-children',
+]);
+
 export interface QueueEventsListener extends IoredisListener {
   /**
    * Listen to 'active' event.
@@ -402,6 +430,25 @@ export class QueueEvents extends QueueBase {
               break;
             case 'completed':
               args.returnvalue = JSON.parse(args.returnvalue);
+              break;
+            default:
+              // Custom events published via QueueEventsProducer always
+              // JSON-encode their payload values, so decode them here to
+              // restore the original types on the listener side.
+              if (!BUILTIN_EVENTS.has(args.event)) {
+                for (const field of Object.keys(args)) {
+                  if (field === 'event') {
+                    continue;
+                  }
+                  try {
+                    args[field] = JSON.parse(args[field]);
+                  } catch {
+                    // Leave the value untouched if it is not valid JSON,
+                    // so that payloads produced by older clients (which
+                    // did not always stringify) keep working.
+                  }
+                }
+              }
               break;
           }
 

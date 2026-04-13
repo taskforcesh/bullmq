@@ -39,11 +39,13 @@ export class QueueEventsProducer extends QueueBase {
     const { eventName, ...restArgs } = argsObj;
     const args: any[] = ['MAXLEN', '~', maxEvents, '*', 'event', eventName];
 
+    // Always JSON-encode payload values so the consumer side can
+    // symmetrically JSON-decode them. This guarantees that listeners
+    // receive values with their original type (string stays string,
+    // number stays number, object stays object), instead of having to
+    // guess whether a field was stringified or not.
     for (const [key, value] of Object.entries(restArgs)) {
-      args.push(
-        key,
-        typeof value === 'string' ? value : JSON.stringify(value),
-      );
+      args.push(key, JSON.stringify(value));
     }
 
     await client.xadd(key, ...args);
