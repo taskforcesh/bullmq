@@ -178,7 +178,7 @@ class Job:
         """
         return await self.isInList('active')
 
-    async def isWaiting(self):
+    async def isWaiting(self) -> bool:
         return ( await self.isInList('wait') or await self.isInList('paused'))
 
     async def isInZSet(self, set: str):
