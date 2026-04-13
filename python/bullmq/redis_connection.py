@@ -1,5 +1,5 @@
 import redis.asyncio as redis
-from typing import Union
+from typing import Optional, Union
 from redis.backoff import ExponentialBackoff
 from redis.asyncio.retry import Retry
 from redis.exceptions import (
@@ -69,7 +69,7 @@ class RedisConnection:
     }
 
     def __init__(self, redisOpts: Union[dict, str, redis.Redis] = {}):
-        self.version = None
+        self.version: Optional[str] = None
         retry = Retry(ExponentialBackoff(cap=20, base=1), 20)
         retry_errors = [BusyLoadingError, ConnectionError, TimeoutError]
 
@@ -115,7 +115,7 @@ class RedisConnection:
         """
         return await self.conn.aclose()
 
-    async def getRedisVersion(self) -> str:
+    async def getRedisVersion(self) -> Optional[str]:
         if self.version is not None:
             return self.version
 
