@@ -890,6 +890,61 @@ export class Scripts {
     return await this.execCommand(client, 'getRanges', args);
   }
 
+  /**
+   * Atomically range over the given state lists/sets and fetch the raw job
+   * hashes in a single round-trip. This guarantees that jobs cannot be
+   * auto-removed between the range operation and the subsequent fetch,
+   * preserving the requested pagination range.
+   *
+   * Note: currently migrated for the common `getJobs` path. Other getters
+   * (e.g. `getDependencies`) can be migrated to the same pattern.
+   */
+  async getRangedJobs(
+    types: JobType[],
+    start = 0,
+    end = 1,
+    asc = false,
+  ): Promise<{ id: string; data: JobJsonRaw }[]> {
+    const client = await this.queue.client;
+    const args = this.getRangesArgs(types, start, end, asc);
+
+    const responses: [string[], string[][]][] | string[][] =
+      await this.execCommand(client, 'getRangedJobs', args);
+
+    // The script returns a flat sequence of [idsArray, jobsArray, idsArray,
+    // jobsArray, ...]; one pair per provided type. Consume it in pairs and
+    // deduplicate by id (matching the previous getRanges behaviour when
+    // 'waiting' expands to 'wait'+'paused').
+    const seen = new Set<string>();
+    const results: { id: string; data: JobJsonRaw }[] = [];
+
+    const flat = responses as unknown as any[];
+    for (let i = 0; i < flat.length; i += 2) {
+      const ids: string[] = flat[i] || [];
+      const rawJobs: string[][] = flat[i + 1] || [];
+
+      for (let j = 0; j < ids.length; j++) {
+        const id = ids[j];
+        if (seen.has(id)) {
+          continue;
+        }
+        seen.add(id);
+
+        const raw = rawJobs[j] || [];
+        // Skip jobs that no longer have a hash (e.g. concurrently removed).
+        if (raw.length === 0) {
+          continue;
+        }
+        results.push({
+          id,
+          data: array2obj(raw) as unknown as JobJsonRaw,
+        });
+      }
+    }
+
+    return results;
+  }
+
   private getCountsArgs(types: JobType[]): (string | number)[] {
     const queueKeys = this.queue.keys;
     const transformedTypes = types.map(type => {

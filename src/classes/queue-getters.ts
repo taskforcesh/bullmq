@@ -488,13 +488,20 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
   ): Promise<JobBase[]> {
     const currentTypes = this.sanitizeJobTypes(types);
 
-    const jobIds = await this.getRanges(currentTypes, start, end, asc);
-
-    const jobs = await Promise.all(
-      jobIds.map(jobId => this.Job.fromId(this, jobId)),
+    // Range + fetch atomically in a single Lua script so jobs cannot be
+    // auto-removed between the range call and the subsequent HGETALL.
+    // Filtering out undefined entries after the fact would silently shrink
+    // the result and break the pagination range the caller requested.
+    const entries = await this.scripts.getRangedJobs(
+      currentTypes,
+      start,
+      end,
+      asc,
     );
 
-    return jobs.filter(job => job !== undefined) as JobBase[];
+    return entries.map(
+      ({ id, data }) => this.Job.fromJSON(this, data, id) as JobBase,
+    );
   }
 
   /**
