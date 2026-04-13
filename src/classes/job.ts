@@ -815,12 +815,12 @@ export class Job<
       SpanKind.INTERNAL,
       this.getSpanOperation(shouldRetry, retryDelay),
       this.queue.name,
-      async (span, dstPropagationMedatadata) => {
+      async (span, dstPropagationMetadata) => {
         this.setSpanJobAttributes(span);
 
         let tm;
-        if (!this.opts?.telemetry?.omitContext && dstPropagationMedatadata) {
-          tm = dstPropagationMedatadata;
+        if (!this.opts?.telemetry?.omitContext && dstPropagationMetadata) {
+          tm = dstPropagationMetadata;
         }
         let result;
 
