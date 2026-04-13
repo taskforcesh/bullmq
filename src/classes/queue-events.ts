@@ -111,7 +111,7 @@ export interface QueueEventsListener extends IoredisListener {
    *    elapsed since January 1, 1970 UTC.
    * @param id - The identifier of the event.
    */
-  delayed: (args: { jobId: string; delay: string }, id: string) => void;
+  delayed: (args: { jobId: string; delay: number }, id: string) => void;
 
   /**
    * Listen to 'drained' event.
@@ -403,6 +403,9 @@ export class QueueEvents extends QueueBase {
               break;
             case 'completed':
               args.returnvalue = JSON.parse(args.returnvalue);
+              break;
+            case 'delayed':
+              args.delay = Number(args.delay);
               break;
           }
 
