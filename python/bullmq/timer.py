@@ -1,11 +1,11 @@
 import asyncio
-from typing import Any, Callable
+from typing import Any, Awaitable, Callable
 
 # Credits: https://stackoverflow.com/questions/45419723/python-timer-with-asyncio-coroutine
 
 
 class Timer:
-    def __init__(self, interval: int, callback: Callable[..., Any], emit_callback: Callable[[str, Any], None], *args: Any, **kwargs: Any) -> None:
+    def __init__(self, interval: float, callback: Callable[..., Awaitable[Any]], emit_callback: Callable[[str, Any], None], *args: Any, **kwargs: Any) -> None:
         self.interval = interval
         self.args = args
         self.kwargs = kwargs
