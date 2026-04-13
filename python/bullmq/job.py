@@ -186,8 +186,8 @@ class Job:
 
         return score is not None
 
-    def isInList(self, list_name: str) -> bool:
-        return self.scripts.isJobInList(self.scripts.toKey(list_name), self.id)
+    async def isInList(self, list_name: str) -> bool:
+        return await self.scripts.isJobInList(self.scripts.toKey(list_name), self.id)
 
     async def moveToCompleted(self, return_value, token:str, fetchNext:bool = False):
         stringified_return_value = json.dumps(return_value, separators=(',', ':'), allow_nan=False)
@@ -269,8 +269,8 @@ class Job:
 
         return result
 
-    def log(self, logRow: str) -> int:
-        return Job.addJobLog(self.queue, self.id, logRow, self.opts.get("keepLogs", 0))
+    async def log(self, logRow: str) -> int:
+        return await Job.addJobLog(self.queue, self.id, logRow, self.opts.get("keepLogs", 0))
 
     def updateStacktrace(self):
         stacktrace = traceback.format_exc()
@@ -283,10 +283,10 @@ class Job:
             elif self.opts.get("stackTraceLimit"):
                 self.stacktrace = self.stacktrace[-(stackTraceLimit-1):stackTraceLimit]
 
-    def moveToWaitingChildren(self, token, opts:dict) -> bool | None:
-        return self.scripts.moveToWaitingChildren(self.id, token, opts)
+    async def moveToWaitingChildren(self, token, opts:dict) -> bool | None:
+        return await self.scripts.moveToWaitingChildren(self.id, token, opts)
 
-    async def getChildrenValues(self) -> dict:
+    async def getChildrenValues(self) -> dict[str, Any]:
         results = await self.queue.client.hgetall(f"{self.queue.prefix}:{self.queue.name}:{self.id}:processed")
         return parse_json_string_values(results)
 
