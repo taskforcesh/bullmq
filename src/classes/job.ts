@@ -1083,7 +1083,7 @@ export class Job<
 
   /**
    * Retrieves the failures of child jobs that were explicitly ignored while using ignoreDependencyOnFailure option.
-   * This method is useful for inspecting which child jobs were intentionally ignored when an error occured.
+   * This method is useful for inspecting which child jobs were intentionally ignored when an error occurred.
    * @see {@link https://docs.bullmq.io/guide/flows/ignore-dependency}
    *
    * @returns Object mapping children job keys with their failure values.
