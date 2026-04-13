@@ -662,30 +662,44 @@ export class Worker<
    * @returns a Job or undefined if no job was available in the queue.
    */
   async getNextJob(token: string, { block = true }: GetNextJobOptions = {}) {
-    let nextJob = await this._getNextJob(
-      await this.client,
-      await this.blockingConnection.client,
-      token,
-      { block },
-    );
+    const client = await this.client;
+    const blockingClient = await this.blockingConnection.client;
+
+    let nextJob = await this._getNextJob(client, blockingClient, token, {
+      block,
+    });
 
     // If the fetched job has a deferred failure (e.g. exceeded maxStalledCount
     // in the stalled checker), move it to failed right away so that manual
     // processing consumers do not need to run the full processJob lifecycle
     // just to surface the failure. This matches the documented behaviour of
     // stalled handling when manually fetching jobs.
-    if (nextJob) {
+    //
+    // After failing such a job, keep trying to fetch a fresh next job so that
+    // callers still receive a runnable job when one is available, instead of
+    // unexpectedly getting `undefined` while other jobs are waiting. Bound the
+    // loop to avoid pathological situations where every fetched job is in a
+    // deferred-failure state.
+    const maxDeferredFailureIterations = 50;
+    let iterations = 0;
+    while (nextJob && iterations < maxDeferredFailureIterations) {
       const unrecoverableErrorMessage =
         this.getUnrecoverableErrorMessage(nextJob);
-      if (unrecoverableErrorMessage) {
-        await this.handleFailed(
-          new UnrecoverableError(unrecoverableErrorMessage),
-          nextJob,
-          token,
-          () => false,
-        );
-        nextJob = undefined;
+      if (!unrecoverableErrorMessage) {
+        break;
       }
+
+      await this.handleFailed(
+        new UnrecoverableError(unrecoverableErrorMessage),
+        nextJob,
+        token,
+        () => false,
+      );
+
+      iterations++;
+      nextJob = await this._getNextJob(client, blockingClient, token, {
+        block,
+      });
     }
 
     return this.trace<Job<DataType, ResultType, NameType> | undefined>(
