@@ -20,6 +20,13 @@ import { DatabaseType } from '../types';
 
 export const errorObject: { [index: string]: any } = { value: null };
 
+/**
+ * Invokes a function safely, returning an error sentinel instead of throwing.
+ * @param fn - function to invoke
+ * @param ctx - `this` context to apply to the function
+ * @param args - arguments to pass to the function
+ * @returns the function's return value, or `errorObject` if it threw
+ */
 export function tryCatch(
   fn: (...args: any) => any,
   ctx: any,
@@ -42,6 +49,11 @@ export function lengthInUtf8Bytes(str: string): number {
   return Buffer.byteLength(str, 'utf8');
 }
 
+/**
+ * Checks if an object has no own enumerable properties.
+ * @param obj - object to inspect
+ * @returns `true` if the object has no own properties, otherwise `false`
+ */
 export function isEmpty(obj: object): boolean {
   for (const key in obj) {
     if (Object.prototype.hasOwnProperty.call(obj, key)) {
@@ -51,6 +63,11 @@ export function isEmpty(obj: object): boolean {
   return true;
 }
 
+/**
+ * Converts a flat array of alternating key/value pairs into an object.
+ * @param arr - flat array where even indexes are keys and odd indexes are values
+ * @returns an object built from the key/value pairs
+ */
 export function array2obj(arr: string[]): Record<string, string> {
   const obj: { [index: string]: string } = {};
   for (let i = 0; i < arr.length; i += 2) {
@@ -59,6 +76,11 @@ export function array2obj(arr: string[]): Record<string, string> {
   return obj;
 }
 
+/**
+ * Flattens an object into an array of alternating key/value entries, skipping `undefined` values.
+ * @param obj - object to flatten
+ * @returns a flat array of alternating keys and values
+ */
 export function objectToFlatArray(obj: Record<string, any>): string[] {
   const arr = [];
   for (const key in obj) {
@@ -73,6 +95,12 @@ export function objectToFlatArray(obj: Record<string, any>): string[] {
   return arr;
 }
 
+/**
+ * Returns a promise that resolves after the given number of milliseconds.
+ * @param ms - delay in milliseconds
+ * @param abortController - optional controller used to resolve the promise early
+ * @returns a promise that resolves once the timeout elapses or the signal aborts
+ */
 export function delay(
   ms: number,
   abortController?: AbortController,
@@ -90,6 +118,11 @@ export function delay(
   });
 }
 
+/**
+ * Increases an emitter's max listener count by the given amount.
+ * @param emitter - emitter whose max listeners will be adjusted
+ * @param count - number of additional listeners to allow
+ */
 export function increaseMaxListeners(
   emitter: EventEmitter,
   count: number,
@@ -104,6 +137,11 @@ type Invert<T extends Record<PropertyKey, PropertyKey>> = {
   }[keyof T];
 };
 
+/**
+ * Returns a new object with the keys and values of the input swapped.
+ * @param obj - object whose keys and values will be inverted
+ * @returns a new object where original values become keys and vice versa
+ */
 export function invertObject<T extends Record<PropertyKey, PropertyKey>>(
   obj: T,
 ): Invert<T> {
@@ -127,6 +165,11 @@ export const optsEncodeMap = {
   /*/ Legacy for backwards compatibility */ debounce: 'de', // TODO: remove in next breaking change
 } as const;
 
+/**
+ * Checks if the provided value looks like an ioredis Redis or Cluster instance.
+ * @param obj - value to test
+ * @returns `true` if the value exposes the expected Redis client API
+ */
 export function isRedisInstance(obj: any): obj is Redis | Cluster {
   if (!obj) {
     return false;
@@ -135,10 +178,20 @@ export function isRedisInstance(obj: any): obj is Redis | Cluster {
   return redisApi.every(name => typeof obj[name] === 'function');
 }
 
+/**
+ * Checks if the provided value is an ioredis Cluster instance.
+ * @param obj - value to test
+ * @returns `true` if the value is a Redis Cluster client
+ */
 export function isRedisCluster(obj: unknown): obj is Cluster {
   return isRedisInstance(obj) && (<Cluster>obj).isCluster;
 }
 
+/**
+ * Decreases an emitter's max listener count by the given amount.
+ * @param emitter - emitter whose max listeners will be adjusted
+ * @param count - number of listeners to release
+ */
 export function decreaseMaxListeners(
   emitter: EventEmitter,
   count: number,
@@ -146,6 +199,13 @@ export function decreaseMaxListeners(
   increaseMaxListeners(emitter, -count);
 }
 
+/**
+ * Removes every Redis key associated with a given queue.
+ * @param client - Redis client used to scan and delete keys
+ * @param queueName - queue whose keys will be removed
+ * @param prefix - key prefix used by the queue
+ * @returns a promise that resolves once keys are removed, or `false` for cluster clients
+ */
 export async function removeAllQueueData(
   client: RedisClient,
   queueName: string,
@@ -193,6 +253,11 @@ export async function removeAllQueueData(
   }
 }
 
+/**
+ * Builds the Redis key that identifies a parent job from its options.
+ * @param opts - parent options containing the parent queue and id
+ * @returns the `queue:id` parent key, or `undefined` when no options are provided
+ */
 export function getParentKey(opts: ParentOptions): string | undefined {
   if (opts) {
     return `${opts.queue}:${opts.id}`;
@@ -206,6 +271,11 @@ export const DELAY_TIME_5 = 5000;
 
 export const DELAY_TIME_1 = 100;
 
+/**
+ * Determines whether the given error is unrelated to a Redis connection drop.
+ * @param error - error to classify
+ * @returns `true` if the error is not a known connection close/refused error
+ */
 export function isNotConnectionError(error: Error): boolean {
   const { code, message: errorMessage } = error as any;
   return (
@@ -220,6 +290,12 @@ interface procSendLike {
   postMessage?(message: any): void;
 }
 
+/**
+ * Sends a message through a process- or worker-like channel as a promise.
+ * @param proc - target that exposes `send` or `postMessage`
+ * @param msg - payload to transmit
+ * @returns a promise that resolves once the message has been delivered
+ */
 export const asyncSend = <T extends procSendLike>(
   proc: T,
   msg: any,
@@ -241,11 +317,25 @@ export const asyncSend = <T extends procSendLike>(
   });
 };
 
+/**
+ * Sends a message to a child process and resolves once it has been delivered.
+ * @param proc - child process to send to
+ * @param msg - child message payload
+ * @returns a promise that resolves after the send completes
+ */
 export const childSend = (
   proc: NodeJS.Process,
   msg: ChildMessage,
 ): Promise<void> => asyncSend<NodeJS.Process>(proc, msg);
 
+/**
+ * Checks whether a Redis-compatible server version is below a minimum for the desired database type.
+ * @param currentVersion - version reported by the connected server
+ * @param minimumVersion - minimum semver version required
+ * @param currentDatabaseType - database type currently in use
+ * @param desiredDatabaseType - database type the comparison applies to
+ * @returns `true` if the database type matches and the version is lower than the minimum
+ */
 export const isRedisVersionLowerThan = (
   currentVersion: string,
   minimumVersion: string,
@@ -260,6 +350,11 @@ export const isRedisVersionLowerThan = (
   return false;
 };
 
+/**
+ * Parses every string value of an object as JSON.
+ * @param obj - object whose values are JSON-encoded strings
+ * @returns a new object with each value parsed into its JavaScript representation
+ */
 export const parseObjectValues = (obj: {
   [key: string]: string;
 }): Record<string, any> => {
@@ -285,6 +380,11 @@ const getCircularReplacer = (rootReference: any) => {
   };
 };
 
+/**
+ * Serializes an Error (including non-enumerable fields) into a plain JSON-safe object.
+ * @param value - error or error-like value to serialize
+ * @returns a plain object representation with circular references replaced by `[Circular]`
+ */
 export const errorToJSON = (value: any): Record<string, any> => {
   const error: Record<string, any> = {};
 
@@ -297,6 +397,11 @@ export const errorToJSON = (value: any): Record<string, any> => {
 
 const INFINITY = 1 / 0;
 
+/**
+ * Converts any value to a string, preserving `-0` and recursing into arrays.
+ * @param value - value to stringify
+ * @returns the string representation of the value, or an empty string for nullish input
+ */
 export const toString = (value: any): string => {
   if (value == null) {
     return '';
@@ -321,6 +426,11 @@ export const toString = (value: any): string => {
 
 export const QUEUE_EVENT_SUFFIX = ':qe';
 
+/**
+ * Returns a shallow copy of the object with `undefined` fields omitted.
+ * @param obj - object to filter
+ * @returns a new object containing only the defined properties
+ */
 export function removeUndefinedFields<T extends Record<string, any>>(
   obj: Record<string, any>,
 ) {
