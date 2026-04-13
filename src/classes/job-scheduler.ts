@@ -352,11 +352,21 @@ export class JobScheduler extends QueueBase {
    * count is not safe because a user-provided jobSchedulerId may itself
    * contain 5+ colon segments, which would otherwise be misclassified as
    * a legacy repeatable key.
+   *
+   * We cannot use ZSCORE on the shared `repeat` sorted set because legacy
+   * repeatable jobs are stored in the same sorted set and would be reported
+   * as schedulers. Instead, we probe the per-id metadata hash (`repeat:<id>`)
+   * for the `ic` (iteration count) field, which is written exclusively by
+   * `storeJobScheduler` and is never set by the legacy `addRepeatableJob`
+   * flow.
    */
   async isJobScheduler(id: string): Promise<boolean> {
     const client = await this.client;
-    const score = await client.zscore(this.keys.repeat, id);
-    return score !== null;
+    const exists = await (client as any).hexists(
+      `${this.keys.repeat}:${id}`,
+      'ic',
+    );
+    return exists === 1;
   }
 
   async getScheduler<D = any>(
