@@ -291,10 +291,10 @@ class Queue(EventEmitter):
 
     async def getJobCountByTypes(self, *types) -> int:
         result = await self.getJobCounts(*types)
-        sum = 0
+        total = 0
         for attribute in result:
-            sum += result[attribute]
-        return sum
+            total += result[attribute]
+        return total
 
     async def getJobCounts(self, *types) -> dict:
         """
