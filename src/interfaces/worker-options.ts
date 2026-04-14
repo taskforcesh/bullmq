@@ -79,6 +79,10 @@ export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
    * You can provide an object specifying max
    * age and/or count to keep.
    * Default behavior is to keep the job in the completed set.
+   *
+   * Eviction is evaluated on a best-effort basis when a job finishes,
+   * so aged jobs are only removed once another job completes after
+   * their expiration.
    */
   removeOnComplete?: KeepJobs;
 
@@ -86,6 +90,10 @@ export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
    * You can provide an object specifying max
    * age and/or count to keep.
    * Default behavior is to keep the job in the failed set.
+   *
+   * Eviction is evaluated on a best-effort basis when a job fails, so
+   * aged jobs are only removed once another job fails after their
+   * expiration.
    */
   removeOnFail?: KeepJobs;
 
