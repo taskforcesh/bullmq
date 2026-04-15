@@ -123,22 +123,23 @@ Traces include various attributes for filtering and debugging:
 
 ### Job Attributes
 
-| Attribute               | Key                                     | Description                                    |
-| ----------------------- | --------------------------------------- | ---------------------------------------------- |
-| Job Name                | `bullmq.job.name`                       | Name of the job                                |
-| Job ID                  | `bullmq.job.id`                         | Unique identifier of the job                   |
-| Job Key                 | `bullmq.job.key`                        | Redis key of the job                           |
-| Job IDs                 | `bullmq.job.ids`                        | Multiple job IDs (bulk ops)                    |
-| Job Options             | `bullmq.job.options`                    | Serialized job options                         |
-| Job Progress            | `bullmq.job.progress`                   | Current job progress value                     |
-| Job Type                | `bullmq.job.type`                       | Type/state of the job                          |
-| Job Attempts Made       | `bullmq.job.attempts.made`              | Number of attempts made                        |
-| Job Result              | `bullmq.job.result`                     | Result returned by the job                     |
-| Job Failed Reason       | `bullmq.job.failed.reason`              | Reason for job failure                         |
-| Job Attempt Finished    | `bullmq.job.attempt_finished_timestamp` | When the processing attempt ended              |
-| Job Finished Timestamp  | `bullmq.job.finished.timestamp`         | When the processing attempt ended (deprecated) |
-| Job Processed Timestamp | `bullmq.job.processed.timestamp`        | When the job was processed                     |
-| Deduplication Key       | `bullmq.job.deduplication.key`          | Deduplication key if set                       |
+| Attribute               | Key                                     | Description                                               |
+| ----------------------- | --------------------------------------- | --------------------------------------------------------- |
+| Job Name                | `bullmq.job.name`                       | Name of the job                                           |
+| Job ID                  | `bullmq.job.id`                         | Unique identifier of the job                              |
+| Job Key                 | `bullmq.job.key`                        | Redis key of the job                                      |
+| Job IDs                 | `bullmq.job.ids`                        | Multiple job IDs (bulk ops)                               |
+| Job Options             | `bullmq.job.options`                    | Serialized job options                                    |
+| Job Progress            | `bullmq.job.progress`                   | Current job progress value                                |
+| Job Type                | `bullmq.job.type`                       | Type/state of the job                                     |
+| Job Attempts Made       | `bullmq.job.attempts.made`              | Number of attempts made                                   |
+| Job Result              | `bullmq.job.result`                     | Result returned by the job                                |
+| Job Failed Reason       | `bullmq.job.failed.reason`              | Reason for job failure                                    |
+| Job Attempt Finished    | `bullmq.job.attempt_finished_timestamp` | When the processing attempt ended                         |
+| Job Finished Timestamp  | `bullmq.job.finished.timestamp`         | When the processing attempt ended (deprecated)            |
+| Job Processed Timestamp | `bullmq.job.processed.timestamp`        | When the job was processed                                |
+| Deduplication Key       | `bullmq.job.deduplication.key`          | Deduplication key if set                                  |
+| Job State               | `bullmq.job.state`                      | Current state of the job (e.g. active, completed, failed) |
 
 ### Bulk Operation Attributes
 
