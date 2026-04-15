@@ -13,7 +13,7 @@ import type { Cluster } from 'ioredis';
  */
 export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
   getJob(jobId: string): Promise<JobBase | undefined> {
-    return this.Job.fromId(this, jobId) as Promise<JobBase>;
+    return this.Job.fromId(this, jobId) as Promise<JobBase | undefined>;
   }
 
   private commandByType(
