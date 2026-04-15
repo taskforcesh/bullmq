@@ -6,7 +6,7 @@ import { MoveToWaitingChildrenOpts } from './minimal-job';
  */
 export interface SandboxedJob<T = any, R = any> extends Omit<
   JobJsonSandbox,
-  'data' | 'opts' | 'returnValue'
+  'data' | 'opts' | 'returnvalue'
 > {
   data: T;
   opts: JobsOptions;
