@@ -4,7 +4,7 @@ Groups allows you to use a single queue while distributing the jobs among groups
 
 For example, imagine that you have 1 queue for processing video transcoding for all your users, you may have thousands of users in your application. You need to offload the transcoding operation since it is lengthy and CPU consuming. If you have many users that want to transcode many files, then in a non-grouped queue one user could fill the queue with jobs and the rest of the users will need to wait for that user to complete all its jobs before their jobs get processed.
 
-Groups resolves this problem since jobs will be processed in a "[round-robin](https://en.wikipedia.org/wiki/Round-robin\_item\_allocation)" fashion among all the users.
+Groups resolves this problem since jobs will be processed in a "[round-robin](https://en.wikipedia.org/wiki/Round-robin_item_allocation)" fashion among all the users.
 
 ![](<../../.gitbook/assets/image (1) (1) (1).png>)
 
@@ -60,3 +60,7 @@ const worker = new WorkerPro('test', async job => {
   await doSomethingSpecialForMyGroup(job.opts.group);
 });
 ```
+
+### Using groups with batches
+
+When combining groups with [batches](../batches.md), you can enable `groupAffinity` to ensure that every batch contains jobs from a single group (or only non-group jobs). Groups are still served in round-robin order across batches. See [Group Affinity](../batches.md#group-affinity) for details and configuration examples.
