@@ -1,3 +1,10 @@
+## [5.74.1](https://github.com/taskforcesh/bullmq/compare/v5.74.0...v5.74.1) (2026-04-15)
+
+
+### Bug Fixes
+
+* **sandbox:** remove returnvalue from JobJsonSandbox interface ([#3950](https://github.com/taskforcesh/bullmq/issues/3950)) ([e9d0c2d](https://github.com/taskforcesh/bullmq/commit/e9d0c2d50ac9cd3c91e5f7a9f8466ae9c98ff87d))
+
 # [5.74.0](https://github.com/taskforcesh/bullmq/compare/v5.73.5...v5.74.0) (2026-04-15)
 
 
