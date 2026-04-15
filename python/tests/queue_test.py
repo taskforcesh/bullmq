@@ -50,6 +50,25 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(job1.id, jobs[1].id)
         await queue.close()
 
+    async def test_get_waiting_returns_jobs_in_ascending_order(self):
+        # Exercises getRanges asc=True + lrange path (waiting -> wait -> lrange).
+        # Regression test for a bug where list.reverse() returned None and
+        # caused a TypeError in `results+=None`.
+        queue = Queue(queueName, {"prefix": prefix})
+        job1 = await queue.add("test-job", {"foo": "bar"}, {})
+        job2 = await queue.add("test-job", {"foo": "baz"}, {})
+        job3 = await queue.add("test-job", {"foo": "qux"}, {})
+
+        waiting_jobs = await queue.getWaiting()
+
+        self.assertIsInstance(waiting_jobs, list)
+        self.assertEqual(len(waiting_jobs), 3)
+        # asc=True should return jobs in insertion order (oldest first).
+        self.assertEqual(waiting_jobs[0].id, job1.id)
+        self.assertEqual(waiting_jobs[1].id, job2.id)
+        self.assertEqual(waiting_jobs[2].id, job3.id)
+        await queue.close()
+
     async def test_get_job_state(self):
         queue = Queue(queueName, {"prefix": prefix})
         job = await queue.add("test-job", {"foo": "bar"}, {})
