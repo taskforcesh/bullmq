@@ -14,7 +14,8 @@ local function storeDeduplicatedNextJob(deduplicationOpts, currentDebounceJobId,
         local activeItems = rcall('LRANGE', activeKey, 0, -1)
         if checkItemInList(activeItems, currentDebounceJobId) then
             local deduplicationNextKey = prefix .. "dn:" .. deduplicationId
-            local fields = {'name', jobName, 'data', jobData, 'opts', cjson.encode(fullOpts)}
+            local fields = {'name', jobName, 'data', jobData, 'opts', cjson.encode(fullOpts),
+                            'jid', jobId}
 
             if parentKey then
                 fields[#fields+1] = 'pk'
