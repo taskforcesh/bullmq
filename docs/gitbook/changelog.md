@@ -1,3 +1,10 @@
+# [5.74.0](https://github.com/taskforcesh/bullmq/compare/v5.73.5...v5.74.0) (2026-04-15)
+
+
+### Features
+
+* **sandbox:** add getDependencies proxy for sandboxed processors ([#3922](https://github.com/taskforcesh/bullmq/issues/3922)) ref [#3533](https://github.com/taskforcesh/bullmq/issues/3533) ([ec420d1](https://github.com/taskforcesh/bullmq/commit/ec420d1b09a28514ff8d84e762db3a638ba267ec))
+
 ## [5.73.5](https://github.com/taskforcesh/bullmq/compare/v5.73.4...v5.73.5) (2026-04-12)
 
 
