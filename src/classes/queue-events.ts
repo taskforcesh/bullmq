@@ -394,7 +394,7 @@ export class QueueEvents extends QueueBase {
           const args = array2obj(events[i][1]);
 
           //
-          // TODO: we may need to have a separate xtream for progress data
+          // TODO: we may need to have a separate stream for progress data
           // to avoid this hack.
           switch (args.event) {
             case 'progress':
