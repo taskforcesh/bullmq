@@ -3100,7 +3100,7 @@ describe('Job Scheduler', () => {
       const completedJobs: Job[] = [];
       const workerErrors: Error[] = [];
       const processedJobIds: string[] = [];
-      const delayedEvents: { jobId: string; delay: number }[] = [];
+      const delayedEvents: { jobId: string; delay: string }[] = [];
       let schedulerUpdateAttempts = 0;
 
       // Create a worker that will process jobs
@@ -3307,7 +3307,7 @@ describe('Job Scheduler', () => {
       // TODO: Move timeout to test options: { timeout: 8000 } // Reduced timeout since delay will be mocked
 
       const workerErrors: Error[] = [];
-      const delayedEvents: { jobId: string; delay: number }[] = [];
+      const delayedEvents: { jobId: string; delay: string }[] = [];
       let schedulerUpdateFailures = 0;
 
       // Create a worker that will process jobs
