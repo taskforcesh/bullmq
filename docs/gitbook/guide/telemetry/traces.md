@@ -139,7 +139,7 @@ Traces include various attributes for filtering and debugging:
 | Job Finished Timestamp  | `bullmq.job.finished.timestamp`         | When the processing attempt ended (deprecated)            |
 | Job Processed Timestamp | `bullmq.job.processed.timestamp`        | When the job was processed                                |
 | Deduplication Key       | `bullmq.job.deduplication.key`          | Deduplication key if set                                  |
-| Job State               | `bullmq.job.state`                      | Current state of the job (e.g. active, completed, failed) |
+
 
 ### Bulk Operation Attributes
 
