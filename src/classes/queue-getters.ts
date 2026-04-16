@@ -488,10 +488,6 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
   ): Promise<JobBase[]> {
     const currentTypes = this.sanitizeJobTypes(types);
 
-    // Range + fetch atomically in a single Lua script so jobs cannot be
-    // auto-removed between the range call and the subsequent HGETALL.
-    // Filtering out undefined entries after the fact would silently shrink
-    // the result and break the pagination range the caller requested.
     const entries = await this.scripts.getRangedJobs(
       currentTypes,
       start,

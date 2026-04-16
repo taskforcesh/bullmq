@@ -7,6 +7,11 @@
   range operation and the subsequent fetch. This preserves the requested
   pagination range even when queues are being actively cleaned.
 
+  A per-type hard cap (MAX_RANGED_JOBS) bounds how many ids are fetched in
+  a single invocation so an unbounded range (e.g. end = -1 against a very
+  large state set) cannot block Redis. Callers should paginate beyond the
+  cap.
+
     Input:
       KEYS[1]    'prefix'
 
@@ -29,6 +34,23 @@ local rangeStart = tonumber(ARGV[1])
 local rangeEnd = tonumber(ARGV[2])
 local asc = ARGV[3]
 local results = {}
+
+-- Defense-in-depth cap matching Scripts.MAX_RANGED_JOBS on the TS side.
+-- The TS wrapper rejects bounded ranges over the cap before calling this
+-- script; this cap also protects unbounded ranges (end = -1) from blocking
+-- Redis with a long-running HGETALL loop.
+local MAX_RANGED_JOBS = 1000
+
+local function truncate(ids)
+  if #ids > MAX_RANGED_JOBS then
+    local capped = {}
+    for i = 1, MAX_RANGED_JOBS do
+      capped[i] = ids[i]
+    end
+    return capped
+  end
+  return ids
+end
 
 local function fetchJobs(ids)
   local jobs = {}
@@ -93,6 +115,7 @@ for i = 4, #ARGV do
     end
   end
 
+  ids = truncate(ids)
   results[#results + 1] = ids
   results[#results + 1] = fetchJobs(ids)
 end
