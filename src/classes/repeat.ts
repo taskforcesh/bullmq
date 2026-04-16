@@ -29,6 +29,22 @@ export class Repeat extends QueueBase {
       (opts.settings && opts.settings.repeatKeyHashAlgorithm) || 'md5';
   }
 
+  /**
+   * Updates (or creates) a repeatable job, scheduling the next iteration
+   * according to the provided repeat options.
+   *
+   * Honors the configured `limit` and `endDate` and stops producing further
+   * jobs once either has been reached.
+   *
+   * @param name - Name of the job.
+   * @param data - Arbitrary data to append to the job.
+   * @param opts - Job options, including the `repeat` settings for scheduling.
+   * @param param3 - Control flags for the update.
+   * @param param3.override - When true, override any existing repeatable job
+   * metadata for this key; otherwise only the next execution time is updated.
+   * @returns The next scheduled job (in delayed state) or `undefined` when no
+   * further iteration should be produced.
+   */
   async updateRepeatableJob<T = any, R = any, N extends string = string>(
     name: N,
     data: T,
@@ -168,6 +184,17 @@ export class Repeat extends QueueBase {
     });
   }
 
+  /**
+   * Removes a repeatable job matching the given name and repeat options.
+   *
+   * Note: the same repeat options used when adding the job must be supplied,
+   * otherwise the repeatable entry will not be found.
+   *
+   * @param name - Name of the job.
+   * @param repeat - Repeat options previously used to schedule the job.
+   * @param jobId - Optional job id used when adding the repeatable job.
+   * @returns The number of removed entries (0 if nothing matched, 1 otherwise).
+   */
   async removeRepeatable(
     name: string,
     repeat: RepeatOptions,
@@ -193,6 +220,15 @@ export class Repeat extends QueueBase {
     );
   }
 
+  /**
+   * Removes a repeatable job by its repeat key.
+   *
+   * This is the preferred way to delete a repeatable job when its key is
+   * known, as it does not require re-supplying the original repeat options.
+   *
+   * @param repeatJobKey - Unique key identifying the repeatable job.
+   * @returns The number of removed entries (0 if nothing matched, 1 otherwise).
+   */
   async removeRepeatableByKey(repeatJobKey: string): Promise<number> {
     const data = this.keyToData(repeatJobKey);
 
@@ -243,6 +279,17 @@ export class Repeat extends QueueBase {
     };
   }
 
+  /**
+   * Returns the list of repeatable jobs registered on the queue, together
+   * with their next scheduled execution time.
+   *
+   * @param start - Offset of the first job to return (defaults to 0).
+   * @param end - Offset of the last job to return (defaults to -1, meaning
+   * until the end of the set).
+   * @param asc - When true, returns jobs in ascending order of their next
+   * execution time; otherwise in descending order.
+   * @returns An array of repeatable job descriptors.
+   */
   async getRepeatableJobs(
     start = 0,
     end = -1,
@@ -264,6 +311,12 @@ export class Repeat extends QueueBase {
     return Promise.all(jobs);
   }
 
+  /**
+   * Returns the total number of repeatable jobs currently registered on
+   * the queue.
+   *
+   * @returns The count of repeatable jobs.
+   */
   async getRepeatableCount(): Promise<number> {
     const client = await this.client;
     return client.zcard(this.toKey('repeat'));
