@@ -30,6 +30,10 @@ await myQueue.add(
 Custom job ids must not contain the **:** separator as it will be translated in 2 different values, since we are also following Redis naming convention. So if you need to add a separator, use a different value, for example **-**, **\_**.
 {% endhint %}
 
+{% hint style="danger" %}
+Custom job ids must not be strings that consist only of digits (for example `"123"`), as these collide with the format used for automatically generated ids. An `Error: Custom Id cannot be integers` will be thrown when adding such a job. If you need to use a numeric business identifier, add a non-digit prefix such as `"job-123"` or `"#123"`.
+{% endhint %}
+
 ## Read more:
 
 - 💡 [Duplicated Event Reference](https://api.docs.bullmq.io/interfaces/v5.QueueEventsListener.html#duplicated)
