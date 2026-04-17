@@ -596,8 +596,8 @@ describe('Telemetry', () => {
       } catch (e) {
         expect(recordExceptionSpy.calledOnce).toBe(true);
         const recordedError = recordExceptionSpy.firstCall.args[0];
-        expect(recordedError.message).toBe(
-          'Failed to add flow due to invalid parent configuration',
+        expect(recordedError.message).toMatch(
+          /^Missing key for parent job .*invalidQueue:invalidParentId\. addJob$/,
         );
       } finally {
         traceSpy.restore();
