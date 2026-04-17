@@ -321,6 +321,61 @@ export const toString = (value: any): string => {
 
 export const QUEUE_EVENT_SUFFIX = ':qe';
 
+/**
+ * Maximum reasonable value for `KeepJobs.age` expressed in seconds.
+ *
+ * 10 years (~3.15e8 seconds) is a comfortable upper bound for any
+ * legitimate retention policy while still catching the common mistake
+ * of passing a value in milliseconds. For example, the issue #3540
+ * reporter used `7 * 24 * 60 * 60 * 1000` (= 6.048e8 seconds, ~19
+ * years if interpreted as seconds) for what was intended to be a
+ * 7-day retention. The correct value is `7 * 24 * 60 * 60` (= 604800
+ * seconds).
+ */
+export const MAX_REASONABLE_KEEP_JOBS_AGE_SECONDS = 10 * 365 * 24 * 60 * 60;
+
+const warnedKeepJobsAge = new Set<string>();
+
+/**
+ * Emits a one-time warning per (context) when `KeepJobs.age` looks
+ * suspiciously large — almost always the symptom of passing a value
+ * in milliseconds when BullMQ expects seconds (issue #3540).
+ *
+ * The warning is non-throwing and is intentionally lenient (a single
+ * threshold of 10 years) so legitimate configurations are unaffected.
+ */
+export function validateKeepJobsAge(
+  keepJobs: unknown,
+  context: string,
+): void {
+  if (
+    !keepJobs ||
+    typeof keepJobs === 'boolean' ||
+    typeof keepJobs === 'number'
+  ) {
+    return;
+  }
+
+  const age = (keepJobs as { age?: number }).age;
+  if (typeof age !== 'number' || !isFinite(age)) {
+    return;
+  }
+
+  if (age > MAX_REASONABLE_KEEP_JOBS_AGE_SECONDS) {
+    const key = `${context}:${age}`;
+    if (warnedKeepJobsAge.has(key)) {
+      return;
+    }
+    warnedKeepJobsAge.add(key);
+    console.warn(
+      `[BullMQ] ${context}.age is ${age} which exceeds 10 years. ` +
+        `The value is interpreted as SECONDS (not milliseconds). ` +
+        `If you intended ${age} ms, use ${Math.round(age / 1000)} ` +
+        `instead. See https://github.com/taskforcesh/bullmq/issues/3540`,
+    );
+  }
+}
+
 export function removeUndefinedFields<T extends Record<string, any>>(
   obj: Record<string, any>,
 ) {

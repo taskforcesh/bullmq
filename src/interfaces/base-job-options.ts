@@ -51,6 +51,9 @@ export interface DefaultJobOptions {
    * age and/or count to keep. It overrides whatever setting is used in the worker.
    * Default behavior is to keep the job in the completed set.
    *
+   * When using `age`, the value is **in seconds** (NOT milliseconds).
+   * For example, `{ age: 7 * 24 * 60 * 60 }` keeps jobs for 7 days.
+   *
    * When using `age` or `count`, the eviction is evaluated on a
    * best-effort basis every time a job finishes; BullMQ does not run a
    * background timer, so aged jobs are only removed once another job
@@ -64,6 +67,9 @@ export interface DefaultJobOptions {
    * jobs to keep, or you can provide an object specifying max
    * age and/or count to keep. It overrides whatever setting is used in the worker.
    * Default behavior is to keep the job in the failed set.
+   *
+   * When using `age`, the value is **in seconds** (NOT milliseconds).
+   * For example, `{ age: 30 * 24 * 60 * 60 }` keeps jobs for 30 days.
    *
    * When using `age` or `count`, the eviction is evaluated on a
    * best-effort basis every time a job fails; BullMQ does not run a
