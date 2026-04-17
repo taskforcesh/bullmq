@@ -5500,8 +5500,12 @@ describe('workers', () => {
           },
         );
 
-        // Run the stalled checker which will move the job back to wait
-        // and mark it with a deferred failure (maxStalledCount=0).
+        // Run the stalled checker twice. The first pass marks the active
+        // job as potentially stalled; the second pass moves it back to wait
+        // and (since maxStalledCount=0) flags it with a deferred failure.
+        // The `stalled-check` debounce key must be cleared between passes.
+        await (worker as any).moveStalledJobsToWait();
+        await client.del(`${prefix}:${queueName}:stalled-check`);
         await (worker as any).moveStalledJobsToWait();
 
         const stalledJobId = await stalled;
@@ -5563,6 +5567,12 @@ describe('workers', () => {
           },
         );
 
+        // Two passes are needed: the first marks the active job as
+        // potentially stalled, the second moves it back to wait with the
+        // deferred-failure flag (since maxStalledCount=0). Clear the
+        // `stalled-check` debounce key between passes.
+        await (worker as any).moveStalledJobsToWait();
+        await client.del(`${prefix}:${queueName}:stalled-check`);
         await (worker as any).moveStalledJobsToWait();
 
         const stalledJobId = await stalled;
