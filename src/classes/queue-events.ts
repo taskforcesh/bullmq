@@ -405,7 +405,7 @@ export class QueueEvents extends QueueBase {
               args.returnvalue = JSON.parse(args.returnvalue);
               break;
             case 'delayed':
-              args.delay = Number(args.delay);
+              (args as Record<string, any>).delay = Number(args.delay);
               break;
           }
 
