@@ -3951,4 +3951,56 @@ describe('Job Scheduler', () => {
 
     await worker.close();
   });
+
+  describe('when scheduler id contains 5 or more colon segments (issue #3499)', () => {
+    it('should advance next iteration past now after the first job runs', async () => {
+      const date = new Date('2017-02-07 9:24:00');
+      clock.setSystemTime(date);
+
+      // A scheduler id with 5+ colon segments. Previously the worker
+      // misclassified this as a legacy repeatable key (based purely on
+      // segment count) and routed scheduling through the legacy path,
+      // which silently failed for `every`-only schedulers. The result
+      // was that `next` stayed in the past and `iterationCount`
+      // remained at 1 forever, so the job never ran a second time.
+      const jobSchedulerId =
+        'calculate:trending:subjects:tenant:instanceId-abc';
+      expect(jobSchedulerId.split(':').length).toBeGreaterThanOrEqual(5);
+
+      const every = ONE_MINUTE * 15;
+
+      await queue.upsertJobScheduler(jobSchedulerId, { every });
+
+      const schedulersBefore = await queue.getJobSchedulers();
+      expect(schedulersBefore.length).toEqual(1);
+      expect(schedulersBefore[0].iterationCount).toEqual(1);
+      const initialNext = schedulersBefore[0].next!;
+
+      const worker = new Worker(queueName, async () => {}, {
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      const completed = new Promise<void>(resolve => {
+        worker.once('completed', () => resolve());
+      });
+
+      // Advance time so the first delayed job becomes due.
+      await clock.tickAsync(every + 1);
+
+      await completed;
+
+      const schedulersAfter = await queue.getJobSchedulers();
+      expect(schedulersAfter.length).toEqual(1);
+      expect(schedulersAfter[0].key).toEqual(jobSchedulerId);
+      // `next` must have advanced past the initial value, and
+      // iterationCount must have incremented; otherwise the scheduler
+      // is stuck and would never run again.
+      expect(schedulersAfter[0].next!).toBeGreaterThan(initialNext);
+      expect(schedulersAfter[0].iterationCount).toBeGreaterThan(1);
+
+      await worker.close();
+    });
+  });
 });

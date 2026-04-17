@@ -355,6 +355,27 @@ export class JobScheduler extends QueueBase {
     );
   }
 
+  /**
+   * Checks if a given id corresponds to a registered job scheduler.
+   *
+   * This is used by the worker to disambiguate between job scheduler ids
+   * (which may legitimately contain any number of colon segments) and
+   * legacy repeatable job keys. Relying purely on segment count is not
+   * safe: a user-provided jobSchedulerId may itself contain 5+ colon
+   * segments and would otherwise be misclassified as a legacy repeatable
+   * key, causing the next iteration to never be scheduled (issue #3499).
+   *
+   * We probe the per-id metadata hash (`repeat:<id>`) for the `ic`
+   * (iteration count) field, which is written exclusively by
+   * `storeJobScheduler` and is never set by the legacy
+   * `addRepeatableJob` flow.
+   */
+  async isJobScheduler(id: string): Promise<boolean> {
+    const client = await this.client;
+    const exists = await client.hexists(this.toKey('repeat:' + id), 'ic');
+    return exists === 1;
+  }
+
   private getTemplateFromJSON<D = any>(
     rawData?: string,
     rawOpts?: string,
