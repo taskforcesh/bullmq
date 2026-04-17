@@ -1,3 +1,10 @@
+## [2.20.4](https://github.com/taskforcesh/bullmq/compare/vpy2.20.3...vpy2.20.4) (2026-04-17)
+
+
+### Bug Fixes
+
+* **error:** export UnrecoverableError from package root ([#4047](https://github.com/taskforcesh/bullmq/issues/4047)) [python] ([be9f032](https://github.com/taskforcesh/bullmq/commit/be9f03246d1644f397d660fba91285604a824284))
+
 ## [2.20.3](https://github.com/taskforcesh/bullmq/compare/vpy2.20.2...vpy2.20.3) (2026-04-10)
 
 
