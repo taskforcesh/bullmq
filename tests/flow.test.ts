@@ -6359,4 +6359,33 @@ describe('flows', () => {
       await flow.close();
     });
   });
+
+  describe('when add is called with a non-existing parent', () => {
+    it('throws an error instead of silently dropping the job', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+      const missingParentId = `missing-parent-${v4()}`;
+      const parentKey = `${prefix}:${queueName}:${missingParentId}`;
+
+      await expect(
+        flow.add({
+          name: 'orphan-child',
+          queueName,
+          data: { foo: 'bar' },
+          opts: {
+            parent: {
+              id: missingParentId,
+              queue: `${prefix}:${queueName}`,
+            },
+            jobId: 'orphan-child-id',
+          },
+        }),
+      ).rejects.toThrow(`Missing key for parent job ${parentKey}. addJob`);
+
+      // The job should NOT have been added to Redis.
+      const orphanJob = await queue.getJob('orphan-child-id');
+      expect(orphanJob).toBeUndefined();
+
+      await flow.close();
+    });
+  });
 });
