@@ -5464,7 +5464,10 @@ describe('workers', () => {
     });
 
     describe('when a stalled job has exhausted its max stalled attempts', () => {
-      it('should move the job to failed automatically on the next getNextJob call and return undefined when no other jobs are waiting', async () => {
+      it(
+        'should move the job to failed automatically on the next getNextJob ' +
+          'call and return undefined when no other jobs are waiting',
+        async () => {
         const worker = new Worker(queueName, null, {
           autorun: false,
           connection,
@@ -5525,7 +5528,8 @@ describe('workers', () => {
         expect(counts.active).toBe(0);
 
         await worker.close();
-      });
+        },
+      );
 
       it('should fail the deferred-failure job and return the next waiting job', async () => {
         const worker = new Worker(queueName, null, {
