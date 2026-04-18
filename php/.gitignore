@@ -1,9 +1,6 @@
 # Dependencies
 /vendor/
 
-# Composer
-composer.lock
-
 # IDE
 /.idea/
 /.vscode/
