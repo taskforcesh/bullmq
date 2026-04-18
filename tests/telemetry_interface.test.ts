@@ -10,7 +10,7 @@ import {
 } from 'vitest';
 
 import { v4 } from 'uuid';
-import { FlowProducer, JobScheduler, Queue, Worker } from '../src/classes';
+import { FlowProducer, Job, JobScheduler, Queue, Worker } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
 import {
   Telemetry,
@@ -29,6 +29,7 @@ import {
 } from '../src/interfaces';
 import * as sinon from 'sinon';
 import { SpanKind, TelemetryAttributes, MetricNames } from '../src/enums';
+import { pathToFileURL } from 'url';
 
 describe('Telemetry', () => {
   type ExtendedException = Exception & {
@@ -391,6 +392,65 @@ describe('Telemetry', () => {
       expect(span.attributes[TelemetryAttributes.JobId]).toBe(job.id);
 
       moveToCompletedStub.restore();
+      await worker.close();
+    });
+
+    it('should correctly interact with telemetry when processing a sandboxed job', async () => {
+      const processFile =
+        __dirname + '/fixtures/fixture_processor_custom_span.js';
+      const processUrl = pathToFileURL(processFile);
+
+      const worker = new Worker(queueName, processUrl, {
+        connection,
+        telemetry: telemetryClient,
+        name: 'testWorker',
+        prefix,
+        useWorkerThreads: true,
+      });
+
+      const completing = new Promise<string>((resolve, reject) => {
+        worker.on('completed', async (_, value: string) => {
+          try {
+            resolve(value);
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      const startSpanSpy = sinon.spy(telemetryClient.tracer, 'startSpan');
+
+      const job = await queue.add('testJob', { foo: 'bar' });
+
+      const processContextMetadata = JSON.parse(await completing);
+
+      const addSpan = startSpanSpy.returnValues[0] as MockSpan;
+      expect(addSpan).toBeInstanceOf(MockSpan);
+      expect(addSpan.name).toBe(`add ${queueName}.${job.name}`);
+      expect(addSpan.options?.kind).toBe(SpanKind.PRODUCER);
+      expect(addSpan.attributes[TelemetryAttributes.QueueName]).toBe(
+        queue.name,
+      );
+      expect(addSpan.attributes[TelemetryAttributes.QueueOperation]).toBe(
+        'add',
+      );
+      expect(addSpan.attributes[TelemetryAttributes.JobName]).toBe(job.name);
+      expect(addSpan.attributes[TelemetryAttributes.JobId]).toBe(job.id);
+
+      const processSpan = startSpanSpy.returnValues[1] as MockSpan;
+      expect(processSpan).toBeInstanceOf(MockSpan);
+      expect(processSpan.name).toBe(`process ${queueName}`);
+      expect(processSpan.options?.kind).toBe(SpanKind.CONSUMER);
+      expect(processSpan.attributes[TelemetryAttributes.WorkerId]).toBe(
+        worker.id,
+      );
+      expect(processSpan.attributes[TelemetryAttributes.WorkerName]).toBe(
+        'testWorker',
+      );
+      expect(processSpan.attributes[TelemetryAttributes.JobId]).toBe(job.id);
+
+      expect(processContextMetadata['getMetadata_span']).toBe(processSpan.name);
+
       await worker.close();
     });
 
