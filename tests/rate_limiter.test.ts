@@ -52,7 +52,6 @@ describe('Rate Limiter', () => {
   });
 
   it('should not put a job into the delayed queue when limit is hit', async () => {
-    // TODO: Move timeout to test options: { timeout: 6000 }
     const numJobs = 5;
     const worker = new Worker(
       queueName,
@@ -84,12 +83,10 @@ describe('Rate Limiter', () => {
     const delayedCount = await queue.getDelayedCount();
     expect(delayedCount).toBe(0);
     await worker.close();
-  });
+  }, 6000);
 
   describe('when setting rate limit globally', () => {
     it('should obey the rate limit', async () => {
-      // TODO: Move timeout to test options: { timeout: 7000 }
-
       const numJobs = 10;
 
       const worker = new Worker(
@@ -140,12 +137,10 @@ describe('Rate Limiter', () => {
 
       await result;
       await worker.close();
-    });
+    }, 7000);
 
     describe('when rate limit is removed', () => {
       it('should execute jobs without rate limit', async () => {
-        // TODO: Move timeout to test options: { timeout: 2000 }
-
         const numJobs = 10;
 
         const worker = new Worker(
@@ -197,7 +192,7 @@ describe('Rate Limiter', () => {
 
         await result;
         await worker.close();
-      });
+      }, 2000);
     });
   });
 
@@ -246,8 +241,6 @@ describe('Rate Limiter', () => {
   });
 
   it('should respect processing time without adding limiter delay', async () => {
-    // TODO: Move timeout to test options: { timeout: 12000 }
-
     const numJobs = 40;
 
     const worker = new Worker(
@@ -294,7 +287,7 @@ describe('Rate Limiter', () => {
 
     await result;
     await worker.close();
-  });
+  }, 12000);
 
   it('should quickly close a worker even with slow rate-limit', async () => {
     const limiter = { max: 1, duration: 60 * 1000 };
@@ -311,7 +304,6 @@ describe('Rate Limiter', () => {
 
   describe('when a job never completed', () => {
     it('should not block the rate limit', async () => {
-      // TODO: Move timeout to test options: { timeout: 20000 }
       const numJobs = 20;
       const queue = new Queue(queueName, {
         prefix,
@@ -366,13 +358,11 @@ describe('Rate Limiter', () => {
       await completing;
 
       await worker.close(true);
-    });
+    }, 20000);
   });
 
   describe('when queue is paused between rate limit', () => {
     it('should add active jobs to paused', async () => {
-      // TODO: Move timeout to test options: { timeout: 20000 }
-
       const numJobs = 4;
 
       const commontOpts = {
@@ -426,7 +416,7 @@ describe('Rate Limiter', () => {
       await worker2.close();
       await worker3.close();
       await worker4.close();
-    });
+    }, 20000);
   });
 
   describe('when using flows', () => {
@@ -540,8 +530,6 @@ describe('Rate Limiter', () => {
   });
 
   it('should obey the rate limit with max value greater than 1', async () => {
-    // TODO: Move timeout to test options: { timeout: 20000 }
-
     const numJobs = 10;
 
     const worker = new Worker(queueName, async () => {}, {
@@ -585,12 +573,10 @@ describe('Rate Limiter', () => {
 
     await result;
     await worker.close();
-  });
+  }, 20000);
 
   describe('when dynamic limit is used', () => {
     it('should obey the rate limit', async () => {
-      // TODO: Move timeout to test options: { timeout: 5000 }
-
       const numJobs = 10;
       const dynamicLimit = 250;
       const duration = 100;
@@ -654,7 +640,7 @@ describe('Rate Limiter', () => {
 
       await result;
       await worker.close();
-    });
+    }, 5000);
 
     describe('when job does not exist', () => {
       it('should fail with job existence error', async () => {
@@ -700,13 +686,11 @@ describe('Rate Limiter', () => {
 
         await failing;
         await worker.close();
-      }); // TODO: Add { timeout: 4000 } to the it() options
+      }, 4000);
     });
 
     describe('when rate limit is too low', () => {
       it('should move job to wait anyway', async () => {
-        // TODO: Move timeout to test options: { timeout: 4000 }
-
         const numJobs = 10;
         const dynamicLimit = 1;
         const duration = 100;
@@ -763,14 +747,12 @@ describe('Rate Limiter', () => {
 
         await result;
         await worker.close();
-      });
+      }, 4000);
     });
 
     describe('when passing maxJobs when getting rate limit ttl', () => {
       describe('when rate limit counter is lower than maxJobs', () => {
         it('should returns 0', async () => {
-          // TODO: Move timeout to test options: { timeout: 4000 }
-
           const numJobs = 1;
           const duration = 100;
 
@@ -824,13 +806,11 @@ describe('Rate Limiter', () => {
 
           await result;
           await worker.close();
-        });
+        }, 4000);
       });
 
       describe('when rate limit counter is greater than maxJobs', () => {
         it('should returns at least rate limit duration', async () => {
-          // TODO: Move timeout to test options: { timeout: 4000 }
-
           const numJobs = 10;
           const duration = 100;
 
@@ -884,7 +864,7 @@ describe('Rate Limiter', () => {
 
           await result;
           await worker.close();
-        });
+        }, 4000);
       });
     });
 
@@ -941,8 +921,6 @@ describe('Rate Limiter', () => {
 
     describe('when priority is provided', () => {
       it('should obey the rate limit respecting priority', async () => {
-        // TODO: Move timeout to test options: { timeout: 6000 }
-
         let extraCount = 3;
         let priority = 9;
         const numJobs = 4;
@@ -996,12 +974,10 @@ describe('Rate Limiter', () => {
 
         await result;
         await worker.close();
-      });
+      }, 6000);
 
       describe('when priority is the same for some jobs', () => {
         it('should get jobs in fifo order', async () => {
-          // TODO: Move timeout to test options: { timeout: 6000 }
-
           const numJobs = 4;
           const dynamicLimit = 500;
           const duration = 100;
@@ -1033,13 +1009,11 @@ describe('Rate Limiter', () => {
           expect(jobs.map(x => x.name)).toEqual(['1', '2', '3', '4']);
 
           await worker.close();
-        });
+        }, 6000);
       });
 
       describe('when priority is different for some jobs', () => {
         it('should get jobs in fifo order', async () => {
-          // TODO: Move timeout to test options: { timeout: 6000 }
-
           const numJobs = 4;
           const dynamicLimit = 250;
           const duration = 100;
@@ -1070,7 +1044,7 @@ describe('Rate Limiter', () => {
           expect(jobs.map(x => x.name)).toEqual(['1', '3', '2', '4']);
 
           await worker.close();
-        });
+        }, 6000);
       });
     });
 
@@ -1126,8 +1100,6 @@ describe('Rate Limiter', () => {
 
     describe('when removing rate limit', () => {
       it('should process jobs normally', async () => {
-        // TODO: Move timeout to test options: { timeout: 5000 }
-
         const numJobs = 2;
         const dynamicLimit = 10000;
         const duration = 1000;
@@ -1179,12 +1151,10 @@ describe('Rate Limiter', () => {
         worker.run();
         await result;
         await worker.close();
-      });
+      }, 5000);
 
       describe('when maximumRateLimitDelay is reached', () => {
         it('should continue processing jobs', async () => {
-          // TODO: Move timeout to test options: { timeout: 50000 }
-
           const numJobs = 4;
           const duration = 10000;
 
@@ -1226,15 +1196,13 @@ describe('Rate Limiter', () => {
           expect(completedCountAfterRLRemoval).toBe(4);
 
           await worker.close();
-        });
+        }, 50000);
       });
     });
   });
 
   describe('when there are delayed jobs to promote', () => {
     it('should promote jobs after maximumRateLimitDelay', async () => {
-      // TODO: Move timeout to test options: { timeout: 5000 }
-
       const numJobs = 2;
       const duration = 10000;
 
@@ -1280,13 +1248,13 @@ describe('Rate Limiter', () => {
       expect(delayedCountAfterMaxRLDelay).toBe(0);
 
       await worker.close();
-    });
+    }, 5000);
   });
 
   describe('when there are more added jobs than max limiter', () => {
     it('processes jobs as max limiter from the beginning', async () => {
       const numJobs = 400;
-      // TODO: Move timeout to test options: { timeout: 5000 }
+
       let parallelJobs = 0;
 
       const processor = async () => {
@@ -1330,12 +1298,12 @@ describe('Rate Limiter', () => {
       await allCompleted;
 
       await worker.close();
-    });
+    }, 5000);
 
     describe('when rate limit is max 1', () => {
       it('processes jobs as max limiter from the beginning', async () => {
         const numJobs = 5;
-        // TODO: Move timeout to test options: { timeout: 8000 }
+
         let parallelJobs = 0;
 
         const processor = async () => {
@@ -1379,13 +1347,11 @@ describe('Rate Limiter', () => {
         await allCompleted;
 
         await worker.close();
-      });
+      }, 8000);
     });
   });
 
   it('should obey priority', async () => {
-    // TODO: Move timeout to test options: { timeout: 10000 }
-
     const numJobs = 10;
     const priorityBuckets: { [key: string]: number } = {
       '1': 0,
@@ -1461,5 +1427,5 @@ describe('Rate Limiter', () => {
 
     await result;
     await worker.close();
-  });
+  }, 10000);
 });
