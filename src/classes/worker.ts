@@ -662,12 +662,12 @@ export class Worker<
    * @returns a Job or undefined if no job was available in the queue.
    */
   async getNextJob(token: string, { block = true }: GetNextJobOptions = {}) {
-    const client = await this.client;
-    const blockingClient = await this.blockingConnection.client;
-
-    let nextJob = await this._getNextJob(client, blockingClient, token, {
-      block,
-    });
+    const nextJob = await this._getNextJob(
+      await this.client,
+      await this.blockingConnection.client,
+      token,
+      { block },
+    );
 
     // If the fetched job has a deferred failure (e.g. exceeded maxStalledCount
     // in the stalled checker), move it to failed right away so that manual
@@ -675,31 +675,24 @@ export class Worker<
     // just to surface the failure. This matches the documented behaviour of
     // stalled handling when manually fetching jobs.
     //
-    // After failing such a job, keep trying to fetch a fresh next job so that
-    // callers still receive a runnable job when one is available, instead of
-    // unexpectedly getting `undefined` while other jobs are waiting. Bound the
-    // loop to avoid pathological situations where every fetched job is in a
-    // deferred-failure state.
-    const maxDeferredFailureIterations = 50;
-    let iterations = 0;
-    while (nextJob && iterations < maxDeferredFailureIterations) {
+    // After failing such a job, recursively fetch the next job (without
+    // blocking) so that callers still receive a runnable job when one is
+    // available behind it, instead of unexpectedly getting `undefined` while
+    // other jobs are waiting. Recursion terminates naturally: each call
+    // either returns a runnable job, fails one and recurses, or returns
+    // undefined when the queue drains.
+    if (nextJob) {
       const unrecoverableErrorMessage =
         this.getUnrecoverableErrorMessage(nextJob);
-      if (!unrecoverableErrorMessage) {
-        break;
+      if (unrecoverableErrorMessage) {
+        await this.handleFailed(
+          new UnrecoverableError(unrecoverableErrorMessage),
+          nextJob,
+          token,
+          () => false,
+        );
+        return this.getNextJob(token, { block: false });
       }
-
-      await this.handleFailed(
-        new UnrecoverableError(unrecoverableErrorMessage),
-        nextJob,
-        token,
-        () => false,
-      );
-
-      iterations++;
-      nextJob = await this._getNextJob(client, blockingClient, token, {
-        block,
-      });
     }
 
     return this.trace<Job<DataType, ResultType, NameType> | undefined>(
