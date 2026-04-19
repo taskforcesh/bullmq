@@ -3993,5 +3993,44 @@ describe('Job Scheduler', () => {
 
       await worker.close();
     });
+
+    it('should classify a real scheduler id with 5+ segments via isJobScheduler', async () => {
+      const jobSchedulerId = 'tenant:region:env:service:queue:task';
+      expect(jobSchedulerId.split(':').length).toBeGreaterThanOrEqual(5);
+
+      await queue.upsertJobScheduler(jobSchedulerId, {
+        every: ONE_MINUTE,
+      });
+
+      const jobScheduler = await queue.jobScheduler;
+      const isScheduler = await jobScheduler.isJobScheduler(jobSchedulerId);
+      expect(isScheduler).toBe(true);
+    });
+
+    it('should NOT misclassify a legacy repeatable key with 5+ segments as a scheduler', async () => {
+      // Legacy repeatable keys are written directly to the shared `repeat`
+      // ZSET (no per-id metadata hash with `ic`). The discriminator must
+      // distinguish them from new-style scheduler ids regardless of how
+      // many colon segments the legacy key contains.
+      const client = await queue.client;
+      const next = Date.now() + ONE_MINUTE;
+      const legacyKey = 'legacy-name:legacy-id:::*/5 * * * * *';
+      expect(legacyKey.split(':').length).toBeGreaterThanOrEqual(5);
+
+      // Mirror what addRepeatableJob-2.lua does for legacy entries: only a
+      // ZADD on the shared `repeat` set, no `ic` field on the metadata
+      // hash. (We add a `name` field to mirror legacy storeRepeatableJob,
+      // but crucially do NOT set `ic`.)
+      await client.zadd(queue.toKey('repeat'), next, legacyKey);
+      await client.hset(
+        `${queue.toKey('repeat')}:${legacyKey}`,
+        'name',
+        'legacy-name',
+      );
+
+      const jobScheduler = await queue.jobScheduler;
+      const isScheduler = await jobScheduler.isJobScheduler(legacyKey);
+      expect(isScheduler).toBe(false);
+    });
   });
 });

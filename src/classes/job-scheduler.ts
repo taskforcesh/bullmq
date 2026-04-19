@@ -362,10 +362,7 @@ export class JobScheduler extends QueueBase {
    */
   async isJobScheduler(id: string): Promise<boolean> {
     const client = await this.client;
-    const exists = await (client as any).hexists(
-      `${this.keys.repeat}:${id}`,
-      'ic',
-    );
+    const exists = await client.hexists(`${this.keys.repeat}:${id}`, 'ic');
     return exists === 1;
   }
 
