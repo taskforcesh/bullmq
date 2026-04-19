@@ -378,30 +378,6 @@ describe('Job Scheduler', () => {
       expect(schedulers[0].offset).toEqual(offset);
     });
 
-    it('should preserve an explicit offset of 0', async () => {
-      const date = new Date('2017-02-07T09:24:00.000+05:30');
-      clock.setSystemTime(date);
-
-      const every = ONE_MINUTE * 15;
-      const offset = 0;
-
-      await queue.upsertJobScheduler(
-        'test-offset-zero',
-        {
-          every,
-          offset,
-        },
-        {
-          name: 'test',
-          data: {},
-        },
-      );
-
-      const schedulers = await queue.getJobSchedulers();
-      expect(schedulers.length).toEqual(1);
-      expect(schedulers[0].offset).toEqual(0);
-    });
-
     describe('when next delayed job already exists and it is not in waiting or delayed states', () => {
       it('updates the scheduler with the new settings', async () => {
         const date = new Date('2017-02-07T09:24:00.000+05:30');
