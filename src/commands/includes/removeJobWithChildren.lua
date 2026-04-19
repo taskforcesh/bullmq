@@ -59,43 +59,49 @@ removeSingleJob = function(prefix, jobId, parentKey, options)
 end
 
 -- Append children of jobKey to the provided stack as {prefix, jobId, parentKey}
--- entries so they can be processed iteratively.
+-- entries so they can be processed iteratively. Siblings are appended in
+-- reverse order so that the LIFO traversal pops them in their original
+-- order, matching the behavior of the prior recursive implementation
+-- (relevant because removal events are observable via XADD).
 collectDescendants = function(prefix, jobKey, options, stack)
+    -- dependencies (unprocessed children) come first in the recursive
+    -- implementation, so push them last (they will be popped first).
+    local dependencies = rcall("SMEMBERS", jobKey .. ":dependencies")
+    if #dependencies > 0 then
+        for i = #dependencies, 1, -1 do
+            local childJobKey = dependencies[i]
+            local childJobId = getJobIdFromKey(childJobKey)
+            local childJobPrefix = getJobKeyPrefix(childJobKey, childJobId)
+            stack[#stack + 1] = { childJobPrefix, childJobId, jobKey }
+        end
+    end
+
     if not options.ignoreProcessed then
-        local processed = rcall("HGETALL", jobKey .. ":processed")
-        if #processed > 0 then
-            for i = 1, #processed, 2 do
-                local childJobId = getJobIdFromKey(processed[i])
-                local childJobPrefix = getJobKeyPrefix(processed[i], childJobId)
+        local unsuccessful = rcall("ZRANGE", jobKey .. ":unsuccessful", 0, -1)
+        if #unsuccessful > 0 then
+            for i = #unsuccessful, 1, -1 do
+                local childJobId = getJobIdFromKey(unsuccessful[i])
+                local childJobPrefix = getJobKeyPrefix(unsuccessful[i], childJobId)
                 stack[#stack + 1] = { childJobPrefix, childJobId, jobKey }
             end
         end
 
         local failed = rcall("HGETALL", jobKey .. ":failed")
         if #failed > 0 then
-            for i = 1, #failed, 2 do
+            for i = #failed - 1, 1, -2 do
                 local childJobId = getJobIdFromKey(failed[i])
                 local childJobPrefix = getJobKeyPrefix(failed[i], childJobId)
                 stack[#stack + 1] = { childJobPrefix, childJobId, jobKey }
             end
         end
 
-        local unsuccessful = rcall("ZRANGE", jobKey .. ":unsuccessful", 0, -1)
-        if #unsuccessful > 0 then
-            for i = 1, #unsuccessful, 1 do
-                local childJobId = getJobIdFromKey(unsuccessful[i])
-                local childJobPrefix = getJobKeyPrefix(unsuccessful[i], childJobId)
+        local processed = rcall("HGETALL", jobKey .. ":processed")
+        if #processed > 0 then
+            for i = #processed - 1, 1, -2 do
+                local childJobId = getJobIdFromKey(processed[i])
+                local childJobPrefix = getJobKeyPrefix(processed[i], childJobId)
                 stack[#stack + 1] = { childJobPrefix, childJobId, jobKey }
             end
-        end
-    end
-
-    local dependencies = rcall("SMEMBERS", jobKey .. ":dependencies")
-    if #dependencies > 0 then
-        for i, childJobKey in ipairs(dependencies) do
-            local childJobId = getJobIdFromKey(childJobKey)
-            local childJobPrefix = getJobKeyPrefix(childJobKey, childJobId)
-            stack[#stack + 1] = { childJobPrefix, childJobId, jobKey }
         end
     end
 end
@@ -162,16 +168,7 @@ removeJobWithChildren = function(prefix, jobId, parentKey, options)
     end
 
     -- Finally, remove the root job itself. Children have already been
-    -- processed iteratively above.
-    removeParentDependencyKey(jobKey, false, parentKey, nil)
-
-    local prev = removeJobFromAnyState(prefix, jobId)
-    local deduplicationId = rcall("HGET", jobKey, "deid")
-    removeDeduplicationKeyIfNeededOnRemoval(prefix, jobId, deduplicationId)
-    if removeJobKeys(jobKey) > 0 then
-        local metaKey = prefix .. "meta"
-        local maxEvents = getOrSetMaxEvents(metaKey)
-        rcall("XADD", prefix .. "events", "MAXLEN", "~", maxEvents, "*",
-            "event", "removed", "jobId", jobId, "prev", prev)
-    end
+    -- processed iteratively above. Reuse removeSingleJob so the root and
+    -- descendants share a single removal code path and cannot drift.
+    removeSingleJob(prefix, jobId, parentKey, options)
 end

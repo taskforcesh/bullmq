@@ -5554,7 +5554,13 @@ describe('flows', () => {
         const depth = 200;
 
         // Build a deeply nested chain of children.
-        let innermost: any = {
+        type ChildSpec = {
+          name: string;
+          data: { level: number };
+          queueName: string;
+          children?: ChildSpec[];
+        };
+        let innermost: ChildSpec = {
           name,
           data: { level: depth },
           queueName,
@@ -5580,8 +5586,8 @@ describe('flows', () => {
 
         // Collect every child job id from the tree so we can assert removal.
         const childIds: string[] = [];
-        const walk = (node: any) => {
-          childIds.push(node.job.id);
+        const walk = (node: JobNode): void => {
+          childIds.push(node.job.id!);
           if (node.children) {
             for (const child of node.children) {
               walk(child);
