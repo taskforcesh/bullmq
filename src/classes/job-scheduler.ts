@@ -88,7 +88,7 @@ export class JobScheduler extends QueueBase {
     const { immediately, ...filteredRepeatOpts } = repeatOpts;
 
     let nextMillis: number;
-    const newOffset: number | null = offset || null;
+    const newOffset: number | null = offset ?? null;
 
     if (pattern) {
       nextMillis = await this.repeatStrategy(now, repeatOpts, jobName);
