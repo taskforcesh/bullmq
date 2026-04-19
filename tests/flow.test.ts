@@ -595,6 +595,55 @@ describe('flows', () => {
       });
     });
 
+    describe('when child is reloaded from redis after removing dependency', () => {
+      it('does not restore the parent reference (issue #2833)', async () => {
+        const flow = new FlowProducer({ connection, prefix });
+        const { children } = await flow.add({
+          name: 'parent',
+          data: {},
+          queueName,
+          children: [
+            {
+              queueName,
+              name: 'child0',
+              data: {},
+              opts: {},
+            },
+            {
+              queueName,
+              name: 'child1',
+              data: {},
+              opts: {},
+            },
+          ],
+        });
+
+        const childJob = children![0].job;
+
+        const relationshipIsBroken = await childJob.removeChildDependency();
+        expect(relationshipIsBroken).toBe(true);
+        expect(childJob.parent).toBeUndefined();
+        expect(childJob.parentKey).toBeUndefined();
+
+        // Reload the job from Redis to simulate the next attempt / move
+        // after a delay. Previously, the parent reference would be
+        // reconstructed from the serialized opts hash field; the live
+        // parent/parentKey state must instead be sourced from the hash
+        // fields, which `removeChildDependency` cleared.
+        const reloadedChild = await Job.fromId(queue, childJob.id!);
+
+        expect(reloadedChild).toBeDefined();
+        expect(reloadedChild!.parent).toBeUndefined();
+        expect(reloadedChild!.parentKey).toBeUndefined();
+        // `opts` is treated as immutable — the historical record of how
+        // the job was created remains intact, but it must not drive the
+        // live parent link.
+        expect((reloadedChild!.opts as any).parent).toBeDefined();
+
+        await flow.close();
+      });
+    });
+
     describe('when parent does not exist', () => {
       it('throws an error', async () => {
         const flow = new FlowProducer({ connection, prefix });
