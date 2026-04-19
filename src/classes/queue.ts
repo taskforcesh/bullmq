@@ -458,7 +458,9 @@ export class Queue<
    * Upserting a scheduler will create a new job scheduler or update an existing one.
    * It will also create the first job based on the repeat options and delayed accordingly.
    *
-   * @param key - Unique key for the repeatable job meta.
+   * @param jobSchedulerId - Unique identifier for the job scheduler. Accepts any
+   * string so callers do not have to widen their `NameType` union just to
+   * label a scheduler.
    * @param repeatOpts - Repeat options
    * @param jobTemplate - Job template. If provided it will be used for all the jobs
    * created by the scheduler.
@@ -487,6 +489,12 @@ export class Queue<
     >(
       jobSchedulerId,
       repeatOpts,
+      // The cast is safe: `jobSchedulerId` is only used as the job name when
+      // the caller did not supply `jobTemplate.name`. The public API contract
+      // documents that any string is accepted as the scheduler id, so falling
+      // back to it as a `NameType`-shaped label preserves prior behaviour
+      // when `NameType` is the default `string`, and is an explicit, opt-in
+      // widening when callers narrow `NameType` to a union.
       jobTemplate?.name ?? (jobSchedulerId as unknown as NameType),
       jobTemplate?.data ?? <DataType>{},
       { ...this.jobsOpts, ...jobTemplate?.opts },
