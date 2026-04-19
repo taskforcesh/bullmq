@@ -3972,16 +3972,20 @@ describe('Job Scheduler', () => {
     const worker = new Worker(
       queueName,
       async () => {},
-      { connection, prefix },
+      { autorun: false, connection, prefix },
     );
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
-    // Wait for the job to be completed
+    // Wait for the job to be completed. Attach the listener before the worker
+    // starts processing to avoid races where the no-op job completes before
+    // the listener is registered.
     const completing = new Promise<void>(resolve => {
       worker.on('completed', () => {
         resolve();
       });
     });
+
+    worker.run();
 
     await completing;
 

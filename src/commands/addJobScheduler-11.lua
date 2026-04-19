@@ -155,10 +155,10 @@ if rcall("EXISTS", jobKey) == 1 then
     local failedKey = prefixKey .. "failed"
     if rcall("ZSCORE", completedKey, jobId) then
         rcall("ZREM", completedKey, jobId)
-        removeJobKeys(jobKey)
+        removeJob(jobId, true, prefixKey, true --[[remove debounce key]] )
     elseif rcall("ZSCORE", failedKey, jobId) then
         rcall("ZREM", failedKey, jobId)
-        removeJobKeys(jobKey)
+        removeJob(jobId, true, prefixKey, true --[[remove debounce key]] )
     elseif every then
         -- For 'every' case: try next time slot to avoid collision
         local nextSlotMillis = nextMillis + every
