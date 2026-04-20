@@ -32,7 +32,7 @@ class Queue(EventEmitter):
     def toKey(self, type: str) -> str:
         return self.scripts.queue_keys.toKey(self.name, type)
 
-    async def add(self, name: str, data, opts: JobOptions = {}) -> Job:
+    async def add(self, name: str, data, opts: JobOptions | None = None) -> Job:
         """
         Adds a new job to the queue.
 
@@ -40,6 +40,7 @@ class Queue(EventEmitter):
         @param data: Arbitrary data to append to the job.
         @param opts: Job options that affects how the job is going to be processed.
         """
+        opts = opts if opts is not None else {}
         merged_opts = {**self.jobsOpts, **(opts or {})}
 
         job = Job(self, name, data, merged_opts)
@@ -251,10 +252,11 @@ class Queue(EventEmitter):
         """
         await self.scripts.drain(delayed)
 
-    async def retryJobs(self, opts: RetryJobsOptions = {}) -> None:
+    async def retryJobs(self, opts: RetryJobsOptions | None = None) -> None:
         """
         Retry all the failed or completed jobs.
         """
+        opts = opts if opts is not None else {}
         while True:
             cursor = await self.scripts.retryJobs(
                 opts.get("state"),
@@ -264,10 +266,11 @@ class Queue(EventEmitter):
             if cursor is None or cursor == 0 or cursor == "0":
                 break
 
-    async def promoteJobs(self, opts: PromoteJobsOptions = {}) -> None:
+    async def promoteJobs(self, opts: PromoteJobsOptions | None = None) -> None:
         """
         Retry all the delayed jobs.
         """
+        opts = opts if opts is not None else {}
         while True:
             cursor = await self.scripts.promoteJobs(
                 opts.get("count")
