@@ -1,3 +1,10 @@
+## [5.75.1](https://github.com/taskforcesh/bullmq/compare/v5.75.0...v5.75.1) (2026-04-20)
+
+
+### Bug Fixes
+
+* **python:** use slice reversal instead of reverse() which returns None ([#4022](https://github.com/taskforcesh/bullmq/issues/4022)) ([1652435](https://github.com/taskforcesh/bullmq/commit/1652435b06f583015055df4e74ee7dea203bdae4))
+
 ## [5.74.2](https://github.com/taskforcesh/bullmq/compare/v5.74.1...v5.74.2) (2026-04-20)
 
 
