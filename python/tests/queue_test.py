@@ -54,7 +54,8 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         # Exercises getRanges asc=True + lrange path (waiting -> wait -> lrange).
         # Regression test for a bug where list.reverse() returned None and
         # caused a TypeError in `results+=None`.
-        queue = Queue(queueName, {"prefix": prefix})
+        queue_name = f"__test_queue__{uuid4().hex}"
+        queue = Queue(queue_name, {"prefix": prefix})
         job1 = await queue.add("test-job", {"foo": "bar"}, {})
         job2 = await queue.add("test-job", {"foo": "baz"}, {})
         job3 = await queue.add("test-job", {"foo": "qux"}, {})
