@@ -1,3 +1,10 @@
+## [5.74.2](https://github.com/taskforcesh/bullmq/compare/v5.74.1...v5.74.2) (2026-04-20)
+
+
+### Bug Fixes
+
+* **types:** correct unsafe type cast in getJob to include undefined ([37c4bb3](https://github.com/taskforcesh/bullmq/commit/37c4bb3725fe668fb4fbe27e3474b72eafa6a6fe))
+
 ## [5.74.1](https://github.com/taskforcesh/bullmq/compare/v5.74.0...v5.74.1) (2026-04-15)
 
 
