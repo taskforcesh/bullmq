@@ -1,3 +1,10 @@
+## [2.21.1](https://github.com/taskforcesh/bullmq/compare/vpy2.21.0...vpy2.21.1) (2026-04-20)
+
+
+### Bug Fixes
+
+* **python:** getFailed() incorrectly returns completed jobs ([#3996](https://github.com/taskforcesh/bullmq/issues/3996)) [python] ([f77f249](https://github.com/taskforcesh/bullmq/commit/f77f249acb82daf331bd61e1f425780270888d8d))
+
 ## [2.20.4](https://github.com/taskforcesh/bullmq/compare/vpy2.20.3...vpy2.20.4) (2026-04-17)
 
 
