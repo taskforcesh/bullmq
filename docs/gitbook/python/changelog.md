@@ -1,3 +1,10 @@
+# [2.22.0](https://github.com/taskforcesh/bullmq/compare/vpy2.21.1...vpy2.22.0) (2026-04-20)
+
+
+### Features
+
+* **python:** add return type hints to Job methods ([#4003](https://github.com/taskforcesh/bullmq/issues/4003)) [python] ([704690c](https://github.com/taskforcesh/bullmq/commit/704690c62f4cedddf82379335b8ff42a46fda7f3))
+
 ## [2.20.4](https://github.com/taskforcesh/bullmq/compare/vpy2.20.3...vpy2.20.4) (2026-04-17)
 
 
