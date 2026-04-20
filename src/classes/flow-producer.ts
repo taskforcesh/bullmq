@@ -591,18 +591,29 @@ export class FlowProducer extends EventEmitter {
    * `multi.exec()` result would be silently ignored and the job would
    * appear to be "dropped" with no feedback to the caller.
    *
+   * Messages and the attached `code` property are kept aligned with
+   * `Scripts.finishedErrors` so programmatic callers can key off the
+   * same `(err as any).code` across both code paths.
+   *
    * @param code - the numeric error code returned from Redis.
    * @param parentKey - the parent key, when available, for the error message.
    */
   private toFlowError(code: number, parentKey?: string): Error {
+    let error: Error;
     switch (code) {
       case ErrorCode.ParentJobNotExist:
-        return new Error(
-          `Missing key for parent job ${parentKey}. addJob`,
+        error = new Error(`Missing key for parent job ${parentKey}. addJob`);
+        break;
+      case ErrorCode.ParentJobCannotBeReplaced:
+        error = new Error(
+          `The parent job ${parentKey} cannot be replaced. addJob`,
         );
+        break;
       default:
-        return new Error(`Unknown code ${code} error for addJob`);
+        error = new Error(`Unknown code ${code} error for addJob`);
     }
+    (error as any).code = code;
+    return error;
   }
 
   /**

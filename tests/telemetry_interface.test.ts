@@ -596,9 +596,11 @@ describe('Telemetry', () => {
       } catch (e) {
         expect(recordExceptionSpy.calledOnce).toBe(true);
         const recordedError = recordExceptionSpy.firstCall.args[0];
-        // Redis surfaces our Lua ParentJobNotExist code as a friendly message;
-        // Dragonfly enforces script key declarations strictly and rejects access
-        // to the cross-queue parent first as an undeclared-key ERR.
+        // FlowProducer.toFlowError translates the Lua ParentJobNotExist numeric
+        // code into the friendly "Missing key for parent job ..." message on
+        // Redis. Dragonfly enforces script key declarations strictly and
+        // rejects access to the cross-queue parent first with an
+        // undeclared-key ERR before the code path is reached.
         expect(recordedError.message).toMatch(
           /(?:Missing key for parent job .*|undeclared key, key: ).*invalidQueue:invalidParentId/,
         );
