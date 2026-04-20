@@ -1574,10 +1574,6 @@ export class Job<
     }
 
     if (this.opts?.jobId) {
-      if (`${parseInt(this.opts.jobId, 10)}` === this.opts?.jobId) {
-        throw new Error('Custom Id cannot be integers');
-      }
-
       // TODO: replace this check in next breaking check with include(':')
       // By using split we are still keeping compatibility with old repeatable jobs
       if (

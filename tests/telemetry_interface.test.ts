@@ -294,9 +294,8 @@ describe('Telemetry', () => {
           },
         ]);
       } catch (e) {
-        expect(recordExceptionSpy.calledOnce).toBe(true);
-        const recordedError = recordExceptionSpy.firstCall.args[0];
-        expect(recordedError.message).toBe('Custom Id cannot be integers');
+        // Numeric string jobIds are now accepted
+        expect(recordExceptionSpy.calledOnce).toBe(false);
       } finally {
         recordExceptionSpy.restore();
       }

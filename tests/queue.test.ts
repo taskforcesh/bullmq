@@ -155,11 +155,10 @@ describe('queues', () => {
   });
 
   describe('.add', () => {
-    describe('when jobId is provided as integer', () => {
-      it('throws error', async () => {
-        await expect(
-          queue.add('test', { foo: 1 }, { jobId: '2' }),
-        ).rejects.toThrow('Custom Id cannot be integers');
+    describe('when jobId is a numeric string', () => {
+      it('accepts it as a valid custom id', async () => {
+        const job = await queue.add('test', { foo: 1 }, { jobId: '123' });
+        expect(job.id).toBe('123');
       });
     });
 
