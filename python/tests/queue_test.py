@@ -692,6 +692,48 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         
         await queue.close()
 
+    async def test_get_failed_returns_only_failed_jobs(self):
+        """Regression test: getFailed() should return only failed jobs, not completed."""
+        queue_name_local = f"__test_queue__{uuid4().hex}"
+        queue = Queue(queue_name_local, {"prefix": prefix})
+
+        async def process(job: Job, token: str):
+            if job.data.get("shouldFail"):
+                raise Exception("intentional failure")
+            return "ok"
+
+        worker = Worker(queue_name_local, process, {"prefix": prefix})
+
+        finished_count = 0
+        done_future = Future()
+
+        def on_finished(job: Job, result):
+            nonlocal finished_count
+            finished_count += 1
+            if finished_count == 2 and not done_future.done():
+                done_future.set_result(None)
+
+        worker.on("completed", on_finished)
+        worker.on("failed", on_finished)
+
+        await queue.add("test", {"shouldFail": True}, {"attempts": 1})
+        await queue.add("test", {"shouldFail": False}, {})
+
+        await done_future
+
+        failed = await queue.getFailed()
+        self.assertEqual(len(failed), 1)
+        self.assertEqual(failed[0].data["shouldFail"], True)
+
+        completed = await queue.getCompleted()
+        self.assertEqual(len(completed), 1)
+        self.assertEqual(completed[0].data["shouldFail"], False)
+
+        await worker.close()
+        await queue.pause()
+        await queue.obliterate()
+        await queue.close()
+
     async def test_default_job_options(self):
         """Test that defaultJobOptions are applied to jobs added to the queue"""
         queue_name = f"__test_queue__{uuid4().hex}"
