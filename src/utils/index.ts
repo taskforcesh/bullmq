@@ -34,9 +34,10 @@ export function tryCatch(
 }
 
 /**
- * Checks the size of string for ascii/non-ascii characters
+ * Returns the size of a string in UTF-8 bytes (handles multi-byte characters correctly).
  * @see https://stackoverflow.com/a/23318053/1347170
- * @param str -
+ * @param str - The string to measure.
+ * @returns The byte length of the string when encoded as UTF-8.
  */
 export function lengthInUtf8Bytes(str: string): number {
   return Buffer.byteLength(str, 'utf8');
