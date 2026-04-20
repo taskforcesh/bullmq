@@ -915,8 +915,10 @@ will never work with more accuracy than 1ms. */
             // colon segments, but a user-provided jobSchedulerId may also
             // contain 5+ segments, so we cannot rely on the segment count
             // alone (see issue #3828). When the key has 5+ segments we
-            // verify against the scheduler sorted set before falling back
-            // to the legacy path.
+            // probe the per-id scheduler metadata hash (`repeat:<id>` with
+            // the `ic` field) via `JobScheduler.isJobScheduler()` to confirm
+            // it really is a scheduler before falling back to the legacy
+            // repeatable path.
             const hasRepeatJobKey = !!job.repeatJobKey;
             const hasLegacyKeyShape =
               hasRepeatJobKey && job.repeatJobKey.split(':').length >= 5;
