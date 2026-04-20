@@ -1,3 +1,10 @@
+## [5.75.2](https://github.com/taskforcesh/bullmq/compare/v5.75.1...v5.75.2) (2026-04-20)
+
+
+### Bug Fixes
+
+* handle ioredis Cluster connect status in waitUntilReady ([#2402](https://github.com/taskforcesh/bullmq/issues/2402)) ([#4055](https://github.com/taskforcesh/bullmq/issues/4055)) ([422e2d5](https://github.com/taskforcesh/bullmq/commit/422e2d5091f2f318e0f6bd3e1872a71deee92aec))
+
 ## [5.74.2](https://github.com/taskforcesh/bullmq/compare/v5.74.1...v5.74.2) (2026-04-20)
 
 
