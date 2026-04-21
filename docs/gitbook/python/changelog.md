@@ -1,9 +1,23 @@
+# [2.22.0](https://github.com/taskforcesh/bullmq/compare/vpy2.21.1...vpy2.22.0) (2026-04-20)
+
+
+### Features
+
+* **job:** add return type hints to Job methods ([#4003](https://github.com/taskforcesh/bullmq/issues/4003)) [python] ([704690c](https://github.com/taskforcesh/bullmq/commit/704690c62f4cedddf82379335b8ff42a46fda7f3))
+
+## [2.21.1](https://github.com/taskforcesh/bullmq/compare/vpy2.21.0...vpy2.21.1) (2026-04-20)
+
+
+### Bug Fixes
+
+* **queue:** getFailed() incorrectly returns completed jobs ([#3996](https://github.com/taskforcesh/bullmq/issues/3996)) [python] ([f77f249](https://github.com/taskforcesh/bullmq/commit/f77f249acb82daf331bd61e1f425780270888d8d))
+
 # [2.21.0](https://github.com/taskforcesh/bullmq/compare/vpy2.20.4...vpy2.21.0) (2026-04-20)
 
 
 ### Bug Fixes
 
-* **python:** use slice reversal instead of reverse() which returns None ([#4022](https://github.com/taskforcesh/bullmq/issues/4022)) ([1652435](https://github.com/taskforcesh/bullmq/commit/1652435b06f583015055df4e74ee7dea203bdae4))
+* **queue:** use slice reversal instead of reverse() which returns None ([#4022](https://github.com/taskforcesh/bullmq/issues/4022)) ([1652435](https://github.com/taskforcesh/bullmq/commit/1652435b06f583015055df4e74ee7dea203bdae4))
 
 
 ### Features
