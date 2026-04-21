@@ -21,6 +21,8 @@ export class ChildPool {
   free: { [key: string]: Child[] } = {};
   private opts: ChildPoolOpts;
 
+  private reuseChildProcess: boolean;
+
   constructor({
     mainFile = supportCJS()
       ? path.join(process.cwd(), 'dist/cjs/classes/main.js')
@@ -28,6 +30,7 @@ export class ChildPool {
     useWorkerThreads,
     workerForkOptions,
     workerThreadsOptions,
+    reuseChildProcess = true,
   }: ChildPoolOpts) {
     this.opts = {
       mainFile,
@@ -35,6 +38,7 @@ export class ChildPool {
       workerForkOptions,
       workerThreadsOptions,
     };
+    this.reuseChildProcess = reuseChildProcess;
   }
 
   async retain(processFile: string): Promise<Child> {
@@ -67,14 +71,18 @@ export class ChildPool {
       return child;
     } catch (err) {
       console.error(err);
-      this.release(child);
+      await this.release(child);
       throw err;
     }
   }
 
-  release(child: Child): void {
+  async release(child: Child): Promise<void> {
     delete this.retained[child.pid];
-    this.getFree(child.processFile).push(child);
+    if (this.reuseChildProcess) {
+      this.getFree(child.processFile).push(child);
+    } else {
+      await this.kill(child, 'SIGTERM');
+    }
   }
 
   remove(child: Child): void {
