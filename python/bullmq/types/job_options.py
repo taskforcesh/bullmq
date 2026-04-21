@@ -36,6 +36,21 @@ class JobOptions(TypedDict, total=False):
     @defaultValue 0
     """
 
+    priority: int
+    """
+    Ranges from 0 (highest priority) to 2 097 152 (lowest priority). Note that
+    using priorities has a slight impact on performance, so do not use it if not required.
+
+    @default 0
+    """
+
+    lifo: bool
+    """
+    If true, adds the job to the right of the queue instead of the left (default false).
+
+    @see https://docs.bullmq.io/guide/jobs/lifo
+    """
+
     attempts: int
     """
     The total number of attempts to try the job until it completes.
@@ -64,6 +79,18 @@ class JobOptions(TypedDict, total=False):
     stackTraceLimit: int
     """
     Limits the amount of stack trace lines that will be recorded in the stacktrace.
+    """
+
+    keepLogs: int
+    """
+    Limits the number of log entries that will be preserved for the job.
+    If not specified, all logs are kept.
+    """
+
+    sizeLimit: int
+    """
+    Limits the size in bytes of the job's data. If the job data
+    exceeds this limit, the job will be rejected.
     """
 
     deduplication: DeduplicationOptions
