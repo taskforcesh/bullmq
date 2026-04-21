@@ -1,3 +1,15 @@
+# [2.21.0](https://github.com/taskforcesh/bullmq/compare/vpy2.20.4...vpy2.21.0) (2026-04-20)
+
+
+### Bug Fixes
+
+* **python:** use slice reversal instead of reverse() which returns None ([#4022](https://github.com/taskforcesh/bullmq/issues/4022)) ([1652435](https://github.com/taskforcesh/bullmq/commit/1652435b06f583015055df4e74ee7dea203bdae4))
+
+
+### Features
+
+* **python:** add type hints to Timer class ([#4024](https://github.com/taskforcesh/bullmq/issues/4024)) ([8c78e30](https://github.com/taskforcesh/bullmq/commit/8c78e3004dcd5df726d9b7277dd455d0d224791f))
+
 ## [2.20.4](https://github.com/taskforcesh/bullmq/compare/vpy2.20.3...vpy2.20.4) (2026-04-17)
 
 
