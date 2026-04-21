@@ -40,6 +40,15 @@ class WorkerOptions(TypedDict, total=False):
     @default 30000
     """
 
+    skipStalledCheck: bool
+    """
+    Skip stalled check for this worker. Note that other workers could still
+    perform stalled checks and move jobs back to wait for jobs being processed
+    by this worker.
+
+    @default False
+    """
+
     lockDuration: int
     """
     Duration of the lock for the job in milliseconds. The lock represents that
@@ -48,6 +57,37 @@ class WorkerOptions(TypedDict, total=False):
     can process it again.
 
     @default 30000
+    """
+
+    lockRenewTime: int
+    """
+    The time in milliseconds before the lock is automatically renewed.
+
+    It is not recommended to modify this value, which by default is set to
+    half of lockDuration, optimal for most use cases.
+    """
+
+    skipLockRenewal: bool
+    """
+    Skip lock renewal for this worker. If set to true, the lock will expire
+    after lockDuration and moved back to the wait queue (if the stalled check is
+    not disabled).
+
+    @default False
+    """
+
+    drainDelay: int
+    """
+    Number of seconds to long poll for jobs when the queue is empty.
+
+    @default 5
+    """
+
+    runRetryDelay: int
+    """
+    This is an internal option that should not be modified.
+
+    @default 15000
     """
 
     prefix: str
