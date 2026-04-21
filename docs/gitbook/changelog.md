@@ -1,3 +1,10 @@
+# [5.75.0](https://github.com/taskforcesh/bullmq/compare/v5.74.2...v5.75.0) (2026-04-20)
+
+
+### Features
+
+* **python:** add type hints to Timer class ([#4024](https://github.com/taskforcesh/bullmq/issues/4024)) ([8c78e30](https://github.com/taskforcesh/bullmq/commit/8c78e3004dcd5df726d9b7277dd455d0d224791f))
+
 ## [5.74.2](https://github.com/taskforcesh/bullmq/compare/v5.74.1...v5.74.2) (2026-04-20)
 
 
