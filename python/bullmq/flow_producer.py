@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Any, Optional, Union
 from bullmq.redis_connection import RedisConnection
 from bullmq.types import QueueBaseOptions
 from bullmq.scripts import Scripts
@@ -43,17 +43,17 @@ class FlowProducer:
         self.scripts = Scripts(
             self.prefix, "__default__", self.redisConnection)
 
-    def queueFromNode(self, node:dict, queue_keys, prefix: str):
+    def queueFromNode(self, node: dict, queue_keys: QueueKeys, prefix: str) -> MinimalQueue:
         return MinimalQueue(node.get("queueName"), queue_keys, self.redisConnection, self.scripts, {"prefix": prefix})
 
-    async def addChildren(self, nodes, parent, queues_opts, pipe):
+    async def addChildren(self, nodes: list[dict], parent: dict, queues_opts: Optional[dict], pipe: Any) -> list[dict]:
         children = []
         for node in nodes:
             job = await self.addNode(node, parent, queues_opts, pipe)
             children.append(job)
         return children
 
-    async def addNodes(self, nodes: list[dict], pipe):
+    async def addNodes(self, nodes: list[dict], pipe: Any) -> list[dict]:
         trees = []
         for node in nodes:
             parent_opts = node.get("opts", {}).get("parent", None)
@@ -62,7 +62,7 @@ class FlowProducer:
 
         return trees
 
-    async def addNode(self, node: dict, parent: dict, queues_opts: dict, pipe):
+    async def addNode(self, node: dict, parent: dict, queues_opts: Optional[dict], pipe: Any) -> dict:
         prefix = node.get("prefix", self.prefix)
         queue = self.queueFromNode(node, QueueKeys(prefix), prefix)
         queue_name = node.get("queueName")
@@ -116,7 +116,7 @@ class FlowProducer:
 
             return {"job": job}
 
-    async def add(self, flow: dict, opts: dict = {}):
+    async def add(self, flow: dict, opts: dict = {}) -> dict:
         parent_opts = flow.get("opts", {}).get("parent", None)
 
         result = None
@@ -127,7 +127,7 @@ class FlowProducer:
 
         return result
 
-    async def addBulk(self, flows: list[dict]):
+    async def addBulk(self, flows: list[dict]) -> list[dict]:
         result = None
         async with self.redisConnection.conn.pipeline(transaction=True) as pipe:
             job_trees = await self.addNodes(flows, pipe)
