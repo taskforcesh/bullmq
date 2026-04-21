@@ -31,6 +31,9 @@ export class LockManager {
 
   /**
    * Starts the lock manager timers for lock renewal.
+   *
+   * If the manager has already been closed, or the configured
+   * `lockRenewTime` is not greater than zero, this is a no-op.
    */
   start(): void {
     if (this.closed) {
@@ -127,7 +130,13 @@ export class LockManager {
   }
 
   /**
-   * Stops the lock manager and clears all timers.
+   * Stops the lock manager, clears the renewal timer and releases
+   * all tracked jobs.
+   *
+   * Once closed the instance cannot be restarted; subsequent calls
+   * to {@link start} or {@link trackJob} will have no effect.
+   *
+   * @returns A promise that resolves once the manager has been closed.
    */
   async close(): Promise<void> {
     if (this.closed) {
@@ -146,7 +155,20 @@ export class LockManager {
 
   /**
    * Adds a job to be tracked for lock renewal.
-   * Returns an AbortController if shouldCreateController is true, undefined otherwise.
+   *
+   * The manager will periodically extend the lock on the job using the
+   * provided token until {@link untrackJob} is called or the manager
+   * is closed.
+   *
+   * @param jobId - The ID of the job to track.
+   * @param token - The lock token associated with the job.
+   * @param ts - The timestamp (ms) when the lock was last acquired or renewed.
+   * @param shouldCreateController - When `true`, a new
+   *   {@link AbortController} is created and associated with the job so that
+   *   it can later be cancelled via {@link cancelJob} or
+   *   {@link cancelAllJobs}. Defaults to `false`.
+   * @returns The created {@link AbortController} when
+   *   `shouldCreateController` is `true`, otherwise `undefined`.
    */
   trackJob(
     jobId: string,
@@ -165,6 +187,11 @@ export class LockManager {
 
   /**
    * Removes a job from lock renewal tracking.
+   *
+   * After this call the job's lock will no longer be extended by the
+   * manager. Calling it with an unknown job ID is a no-op.
+   *
+   * @param jobId - The ID of the job to stop tracking.
    */
   untrackJob(jobId: string): void {
     this.trackedJobs.delete(jobId);
@@ -172,6 +199,9 @@ export class LockManager {
 
   /**
    * Gets the number of jobs currently being tracked.
+   *
+   * @returns The number of jobs whose locks are being renewed by this
+   *   manager.
    */
   getActiveJobCount(): number {
     return this.trackedJobs.size;
@@ -179,6 +209,12 @@ export class LockManager {
 
   /**
    * Checks if the lock manager is running.
+   *
+   * The manager is considered running when it has not been closed and
+   * its renewal timer is active.
+   *
+   * @returns `true` when the manager is active and renewing locks,
+   *   `false` otherwise.
    */
   isRunning(): boolean {
     return !this.closed && this.lockRenewalTimer !== undefined;
