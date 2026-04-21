@@ -1,11 +1,11 @@
 # Credits: https://gist.github.com/marc-x-andre/1c55b3fafd1d00cfdaa205ec53a08cf3
-from typing import Dict
+from typing import Dict, Callable, List
 
 
 class EventEmitter:
 
     def __init__(self):
-        self._callbacks: Dict[str, callable] = {}
+        self._callbacks: Dict[str, List[Callable]] = {}
 
     def on(self, event_name: str, function):
         self._callbacks[event_name] = self._callbacks.get(
