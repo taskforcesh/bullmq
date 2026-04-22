@@ -20,6 +20,7 @@
   - [Global Rate Limit](guide/queues/global-rate-limit.md)
   - [Meta](guide/queues/meta.md)
   - [Removing Jobs](guide/queues/removing-jobs.md)
+- [Batches](guide/batches.md)
 - [Workers](guide/workers/README.md)
   - [Auto-removal of jobs](guide/workers/auto-removal-of-jobs.md)
   - [Concurrency](guide/workers/concurrency.md)
