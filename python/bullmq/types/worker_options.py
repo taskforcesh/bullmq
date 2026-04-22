@@ -42,9 +42,10 @@ class WorkerOptions(TypedDict, total=False):
 
     skipStalledCheck: bool
     """
-    Skip stalled check for this worker. Note that other workers could still
-    perform stalled checks and move jobs back to wait for jobs being processed
-    by this worker.
+    Reserved/unsupported in the current Python client.
+
+    In the JS SDK this skips the stalled-check timer for this worker.
+    Currently, the Python Worker always runs the stalled-check timer regardless of this value.
 
     @default False
     """
@@ -61,22 +62,23 @@ class WorkerOptions(TypedDict, total=False):
 
     lockRenewTime: int
     """
-    The time in milliseconds before the lock is automatically renewed.
+    Reserved/unsupported in the current Python client.
 
-    It is not recommended to modify this value, which by default is set to
-    half of lockDuration, optimal for most use cases.
+    In the JS SDK this configures the lock renewal interval. Currently, the Python Worker
+    renews locks on a fixed `lockDuration / 2` interval.
     """
 
     skipLockRenewal: bool
     """
-    Skip lock renewal for this worker. If set to true, the lock will expire
-    after lockDuration and moved back to the wait queue (if the stalled check is
-    not disabled).
+    Reserved/unsupported in the current Python client.
+
+    In the JS SDK this disables lock renewal. Currently, the Python Worker always calls
+    extendLocks() while a job is active.
 
     @default False
     """
 
-    drainDelay: int
+    drainDelay: float
     """
     Number of seconds to long poll for jobs when the queue is empty.
 
