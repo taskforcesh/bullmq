@@ -579,6 +579,26 @@ export class Job<
   }
 
   /**
+   * Creates a clone of the job with new options merged with the existing ones.
+   *
+   * @param opts - job options to be shallowly merged with the existing ones.
+   * @returns New Job instance.
+   */
+  cloneWithOpts(opts: JobsOptions): Job<DataType, ReturnType, NameType> {
+    return new Job<DataType, ReturnType, NameType>(
+      this.queue,
+      this.name,
+      this.data,
+      {
+        ...this.opts,
+        timestamp: this.timestamp,
+        ...opts,
+      },
+      this.id,
+    );
+  }
+
+  /**
    * Prepares a job to be passed to Sandbox.
    * @returns
    */

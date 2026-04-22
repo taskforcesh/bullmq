@@ -436,7 +436,27 @@ export class Worker<
     job: Job<DataType, ResultType, NameType>,
     token: string,
     signal?: AbortSignal,
+    srcPropagationMetadata?: string,
   ): Promise<ResultType> {
+    // Need to overwrite telemetry.metadata to be able to restore
+    // propagation context in a worker thread/fork.
+    // This is only necessary for sandboxed workers because OTEL doesn't
+    // propagate context cross-threads/cross-processes.
+    if (this.childPool && job.opts.telemetry) {
+      return this.processFn(
+        job.cloneWithOpts({
+          telemetry: {
+            ...job.opts.telemetry,
+            metadata: job.opts.telemetry.omitContext
+              ? undefined
+              : srcPropagationMetadata,
+          },
+        }),
+        token,
+        signal,
+      );
+    }
+
     return this.processFn(job, token, signal);
   }
 
@@ -978,7 +998,7 @@ will never work with more accuracy than 1ms. */
       SpanKind.CONSUMER,
       'process',
       this.name,
-      async span => {
+      async (span, srcPropagationMetadata) => {
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
           [TelemetryAttributes.WorkerName]: this.opts.name,
@@ -1023,6 +1043,7 @@ will never work with more accuracy than 1ms. */
             abortController
               ? (abortController.signal as AbortSignal)
               : undefined,
+            srcPropagationMetadata,
           );
           return await this.retryIfFailed<void | Job<
             DataType,
