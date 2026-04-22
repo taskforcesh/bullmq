@@ -370,14 +370,18 @@ export class Scripts {
   }
 
   /**
-   * Adds (or updates) a repeatable job entry in the repeat zset and
-   * schedules its next execution at `nextMillis` in the delayed set.
+   * Adds (or updates) a repeatable job entry in the repeat zset and stores
+   * its repeat options under the corresponding repeat hash. If a previous
+   * delayed iteration for this repeat key exists, it is cleaned up so the
+   * next iteration can be scheduled separately when the job is created.
    *
    * @param customKey - The current repeat key identifying this repeatable job.
    * @param nextMillis - The timestamp (ms since epoch) for the next run.
    * @param opts - Repeatable options (cron/every pattern, tz, limit, etc.).
    * @param legacyCustomKey - The previous/legacy repeat key, used for migration and cleanup.
-   * @returns The id of the newly scheduled delayed job iteration.
+   * @returns The repeatable job key that was stored (either `customKey` or,
+   * for backwards-compatible entries, `legacyCustomKey`). The actual delayed
+   * iteration is scheduled later when the job for `nextMillis` is created.
    */
   async addRepeatableJob(
     customKey: string,
@@ -436,7 +440,8 @@ export class Scripts {
    * @param opts - Repeat options describing the scheduling pattern.
    * @param delayedJobOpts - Options applied to the next delayed job that is produced.
    * @param producerId - Optional id of the job that produced this iteration, used to prevent duplicates.
-   * @returns A tuple of `[nextJobId, nextMillis]` describing the next scheduled iteration.
+   * @returns A tuple of `[jobId, delay]`, where `delay` is the computed delay in milliseconds
+   * for the next iteration. When `delay` is `0`, the job is enqueued immediately.
    * @throws An error resolved from `finishedErrors` when the Lua script returns a negative status code.
    */
   async addJobScheduler(
