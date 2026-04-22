@@ -116,16 +116,14 @@ class FlowProducer:
 
             return {"job": job}
 
-    async def add(self, flow: dict, opts: dict = {}) -> dict:
+    async def add(self, flow: dict, opts: Optional[dict] = None) -> dict:
+        opts = opts if opts is not None else {}
         parent_opts = flow.get("opts", {}).get("parent", None)
 
-        result = None
         async with self.redisConnection.conn.pipeline(transaction=True) as pipe:
             jobs_tree = await self.addNode(flow, {"parentOpts": parent_opts},opts.get("queuesOptions"), pipe)
             await pipe.execute()
-            result = jobs_tree
-
-        return result
+            return jobs_tree
 
     async def addBulk(self, flows: list[dict]) -> list[dict]:
         result = None
