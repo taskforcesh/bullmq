@@ -144,12 +144,22 @@ end
 local jobId = "repeat:" .. jobSchedulerId .. ":" .. nextMillis
 local jobKey = prefixKey .. jobId
 
--- If there's already a job with this ID, in a state 
--- that is not updatable (active, completed, failed) we must 
+-- If there's already a job with this ID, in a state
+-- that is not updatable (active, completed, failed) we must
 -- handle the collision
 local hasCollision = false
 if rcall("EXISTS", jobKey) == 1 then
-    if every then
+    -- Check if the existing job is in a terminal state (completed or failed)
+    -- If so, remove it and allow creating a new job with the same ID
+    local completedKey = prefixKey .. "completed"
+    local failedKey = prefixKey .. "failed"
+    if rcall("ZSCORE", completedKey, jobId) then
+        rcall("ZREM", completedKey, jobId)
+        removeJob(jobId, true, prefixKey, true --[[remove debounce key]] )
+    elseif rcall("ZSCORE", failedKey, jobId) then
+        rcall("ZREM", failedKey, jobId)
+        removeJob(jobId, true, prefixKey, true --[[remove debounce key]] )
+    elseif every then
         -- For 'every' case: try next time slot to avoid collision
         local nextSlotMillis = nextMillis + every
         local nextSlotJobId = "repeat:" .. jobSchedulerId .. ":" .. nextSlotMillis

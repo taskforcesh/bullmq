@@ -3951,4 +3951,75 @@ describe('Job Scheduler', () => {
 
     await worker.close();
   });
+
+  it('should create a new delayed job when removing and upserting a scheduler after job completion', async () => {
+    const date = new Date('2024-01-01 10:00:00');
+    clock.setSystemTime(date);
+
+    const jobSchedulerId = 'test';
+    const every = 3 * 60 * 1000; // 3 minutes
+
+    // Create scheduler - with 'every' the first job goes to waiting immediately
+    await queue.upsertJobScheduler(
+      jobSchedulerId,
+      { every },
+      { name: 'test-job', data: { foo: 'bar' } },
+    );
+
+    let waiting = await queue.getWaiting();
+    expect(waiting.length).toEqual(1);
+
+    const worker = new Worker(
+      queueName,
+      async () => {},
+      { autorun: false, connection, prefix },
+    );
+    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+
+    // Wait for the job to be completed. Attach the listener before the worker
+    // starts processing to avoid races where the no-op job completes before
+    // the listener is registered.
+    const completing = new Promise<void>(resolve => {
+      worker.on('completed', () => {
+        resolve();
+      });
+    });
+
+    worker.run();
+
+    await completing;
+
+    // Verify the job is now completed
+    const completed = await queue.getCompleted();
+    expect(completed.length).toBeGreaterThanOrEqual(1);
+
+    // Now remove the scheduler
+    await queue.removeJobScheduler(jobSchedulerId);
+
+    // Verify scheduler is removed
+    const schedulersAfterRemove = await queue.getJobSchedulers();
+    expect(schedulersAfterRemove.length).toEqual(0);
+
+    // Upsert the scheduler again with the same params - this should create a new job
+    // even though a completed job with the same calculated ID already exists
+    const job = await queue.upsertJobScheduler(
+      jobSchedulerId,
+      { every },
+      { name: 'test-job', data: { foo: 'bar' } },
+    );
+
+    // Verify a new job was created (either in waiting or delayed)
+    expect(job).toBeTruthy();
+
+    waiting = await queue.getWaiting();
+    const delayed = await queue.getDelayed();
+    expect(waiting.length + delayed.length).toBeGreaterThanOrEqual(1);
+
+    // Verify the scheduler exists
+    const schedulers = await queue.getJobSchedulers();
+    expect(schedulers.length).toEqual(1);
+
+    await worker.close();
+    delayStub.restore();
+  });
 });
