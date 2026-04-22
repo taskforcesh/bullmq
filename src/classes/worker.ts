@@ -910,7 +910,27 @@ will never work with more accuracy than 1ms. */
       try {
         await this.retryIfFailed(
           async () => {
-            if (job.repeatJobKey && job.repeatJobKey.split(':').length < 5) {
+            // We need to distinguish between new job schedulers and legacy
+            // repeatable jobs. Legacy repeatable keys always contain 5+
+            // colon segments, but a user-provided jobSchedulerId may also
+            // contain 5+ segments, so we cannot rely on the segment count
+            // alone (see issue #3828). When the key has 5+ segments we
+            // probe the per-id scheduler metadata hash (`repeat:<id>` with
+            // the `ic` field) via `JobScheduler.isJobScheduler()` to confirm
+            // it really is a scheduler before falling back to the legacy
+            // repeatable path.
+            const hasRepeatJobKey = !!job.repeatJobKey;
+            const hasLegacyKeyShape =
+              hasRepeatJobKey && job.repeatJobKey.split(':').length >= 5;
+            let isJobScheduler = hasRepeatJobKey && !hasLegacyKeyShape;
+            if (hasLegacyKeyShape) {
+              const jobScheduler = await this.jobScheduler;
+              isJobScheduler = await jobScheduler.isJobScheduler(
+                job.repeatJobKey,
+              );
+            }
+
+            if (isJobScheduler) {
               const jobScheduler = await this.jobScheduler;
               await jobScheduler.upsertJobScheduler(
                 // Most of these arguments are not really needed
