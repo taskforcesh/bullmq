@@ -65,7 +65,7 @@
     "node-abort-controller": "3.1.1",
     "semver": "7.7.4",
     "tslib": "2.8.1",
-    "uuid": "11.1.0"
+    "uuid": "14.0.0"
   },
   "devDependencies": {
     "@commitlint/cli": "20.5.0",
