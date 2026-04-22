@@ -1,3 +1,10 @@
+# [5.76.0](https://github.com/taskforcesh/bullmq/compare/v5.75.2...v5.76.0) (2026-04-22)
+
+
+### Features
+
+* **python:** add type hints to worker.py methods ([#4035](https://github.com/taskforcesh/bullmq/issues/4035)) ([1423b58](https://github.com/taskforcesh/bullmq/commit/1423b584b5707b3f71ee2fba5eb14122fb7b0275))
+
 ## [5.75.2](https://github.com/taskforcesh/bullmq/compare/v5.75.1...v5.75.2) (2026-04-20)
 
 
