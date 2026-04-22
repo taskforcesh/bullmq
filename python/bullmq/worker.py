@@ -160,8 +160,8 @@ class Worker(EventEmitter):
 
         return self.nextJobFromJobData(job_data, id, limit_until, delay_until, token)
 
-    def nextJobFromJobData(self, job_data = None, job_id: str = None, limit_until: int = 0,
-        delay_until: int = 0, token: str = None):
+    def nextJobFromJobData(self, job_data: dict | None = None, job_id: str | None = None, limit_until: int = 0,
+        delay_until: int = 0, token: str | None = None) -> Job | None:
         self.limitUntil = max(limit_until, 0) or 0
 
         if not job_data:
@@ -178,7 +178,7 @@ class Worker(EventEmitter):
             job_instance.token = token
             return job_instance
 
-    async def waitForJob(self):
+    async def waitForJob(self) -> int:
         block_timeout = self.getBlockTimeout(self.blockUntil)
         block_timeout = block_timeout if self.blockingRedisConnection.capabilities.get("canDoubleTimeout", False) else math.ceil(block_timeout)
 
@@ -200,7 +200,7 @@ class Worker(EventEmitter):
         await self.blockingRedisConnection.set_client_name(self.clientName)
         self._client_name_set = True
 
-    def getBlockTimeout(self, block_until: int):
+    def getBlockTimeout(self, block_until: int) -> float:
         if block_until:
             block_timeout = None
             block_delay = block_until - int(time.time() * 1000)
@@ -297,7 +297,7 @@ class Worker(EventEmitter):
         
         return None
     
-    def isConnectionError(self, error):
+    def isConnectionError(self, error: Exception) -> bool:
         """
         Check if an error is a connection-related error.
         """
