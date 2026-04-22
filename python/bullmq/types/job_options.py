@@ -41,7 +41,7 @@ class JobOptions(TypedDict, total=False):
     Ranges from 0 (highest priority) to 2 097 152 (lowest priority). Note that
     using priorities has a slight impact on performance, so do not use it if not required.
 
-    @default 0
+    @defaultValue 0
     """
 
     lifo: bool
@@ -89,8 +89,11 @@ class JobOptions(TypedDict, total=False):
 
     sizeLimit: int
     """
-    Limits the size in bytes of the job's data. If the job data
-    exceeds this limit, the job will be rejected.
+    Optional size limit in bytes for the job's data.
+
+    Note: not currently enforced by the Python client; this field exists for
+    option-parity with the JS SDK and for IDE autocomplete. Validation may be
+    added in the future.
     """
 
     deduplication: DeduplicationOptions
