@@ -784,5 +784,36 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         
         await queue.close()
 
+class TestDriverInfo(unittest.IsolatedAsyncioTestCase):
+    """Tests for Redis client identification via DriverInfo"""
+
+    async def test_add_driver_info_sets_connection_kwargs(self):
+        """Test that _add_driver_info sets driver info on connection pool"""
+        from bullmq.redis_connection import RedisConnection
+        connection = RedisConnection({})
+        pool = getattr(connection.conn, "connection_pool", None)
+        self.assertIsNotNone(pool)
+        connection_kwargs = getattr(pool, "connection_kwargs", {})
+        self.assertTrue(
+            'driver_info' in connection_kwargs or 'lib_name' in connection_kwargs,
+            "Connection kwargs should contain either 'driver_info' or 'lib_name'"
+        )
+
+    async def test_add_driver_info_contains_bullmq(self):
+        """Test that driver info contains 'bullmq' identifier"""
+        from bullmq.redis_connection import RedisConnection
+        from bullmq import __version__ as package_version
+        connection = RedisConnection({})
+        pool = getattr(connection.conn, "connection_pool", None)
+        connection_kwargs = getattr(pool, "connection_kwargs", {})
+        if 'driver_info' in connection_kwargs:
+            driver_info = connection_kwargs['driver_info']
+            self.assertIn('bullmq', driver_info.formatted_name.lower())
+        else:
+            lib_name = connection_kwargs['lib_name']
+            self.assertIn('bullmq', lib_name.lower())
+            self.assertIn(package_version, lib_name)
+
+
 if __name__ == '__main__':
     unittest.main()

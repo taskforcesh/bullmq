@@ -908,4 +908,18 @@ describe('events', () => {
       await removeAllQueueData(new IORedis(redisHost), queueName2);
     });
   });
+
+  describe('clientInfoTag', () => {
+    it('sets clientInfoTag on duplicated connection', async () => {
+      const queueName2 = `test-${v4()}`;
+      const queueEvents2 = new QueueEvents(queueName2, { connection, prefix });
+      await queueEvents2.waitUntilReady();
+
+      const client = await queueEvents2.client;
+      expect(client.options.clientInfoTag).toMatch(/^bullmq_v\d+\.\d+\.\d+$/);
+
+      await queueEvents2.close();
+      await removeAllQueueData(new IORedis(redisHost), queueName2);
+    });
+  });
 });

@@ -72,6 +72,48 @@ describe('RedisConnection', () => {
     });
   });
 
+  describe('clientInfoTag', () => {
+    it('sets clientInfoTag to bullmq_v{version} by default', async () => {
+      const connection = new RedisConnection({});
+      const client = await connection.client;
+
+      // Verify the client options include the clientInfoTag
+      expect(client.options.clientInfoTag).toMatch(/^bullmq_v\d+\.\d+\.\d+$/);
+
+      await connection.close();
+    });
+
+    it('allows custom clientInfoTag override', async () => {
+      const customTag = 'my-custom-app';
+      const connection = new RedisConnection({ clientInfoTag: customTag });
+      const client = await connection.client;
+
+      expect(client.options.clientInfoTag).toBe(customTag);
+
+      await connection.close();
+    });
+
+    it('does not override clientInfoTag when using existing Redis instance', async () => {
+      const customTag = 'external-client-tag';
+      const externalClient = new IORedis({
+        maxRetriesPerRequest: null,
+        clientInfoTag: customTag,
+      });
+
+      const connection = new RedisConnection(externalClient, {
+        blocking: true,
+      });
+      const client = await connection.client;
+
+      // When using an existing client with blocking: true, a duplicate is created
+      // which inherits the clientInfoTag from the original client
+      expect(client.options.clientInfoTag).toBe(customTag);
+
+      await connection.close();
+      externalClient.disconnect();
+    });
+  });
+
   describe('connect()', () => {
     let waitUntilReadyStub: sinon.SinonStub;
 
