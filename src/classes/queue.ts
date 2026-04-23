@@ -22,6 +22,7 @@ import { RedisConnection } from './redis-connection';
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { JobScheduler } from './job-scheduler';
 import { version } from '../version';
+import { validateKeepJobsAge } from '../utils';
 
 export interface ObliterateOpts {
   /**
@@ -171,6 +172,15 @@ export class Queue<
     );
 
     this.jobsOpts = opts?.defaultJobOptions ?? {};
+
+    validateKeepJobsAge(
+      this.jobsOpts.removeOnComplete,
+      'Queue.defaultJobOptions.removeOnComplete',
+    );
+    validateKeepJobsAge(
+      this.jobsOpts.removeOnFail,
+      'Queue.defaultJobOptions.removeOnFail',
+    );
 
     this.waitUntilReady()
       .then(client => {
@@ -380,6 +390,15 @@ export class Queue<
         ...opts,
         jobId,
       };
+
+      validateKeepJobsAge(
+        mergedOpts.removeOnComplete,
+        `Queue('${this.name}').add.removeOnComplete`,
+      );
+      validateKeepJobsAge(
+        mergedOpts.removeOnFail,
+        `Queue('${this.name}').add.removeOnFail`,
+      );
 
       const job = await this.Job.create<DataType, ResultType, NameType>(
         this as MinimalQueue,
