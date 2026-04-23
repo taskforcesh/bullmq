@@ -188,8 +188,9 @@ export class FlowProducer extends EventEmitter {
    * @param flow - an object with a tree-like structure where children jobs
    * will be processed before their parents.
    * @param opts - options that will be applied to the flow object.
+   * @returns A promise resolving to the JobNode tree, or undefined if the producer is closing.
    */
-  async add(flow: FlowJob, opts?: FlowOpts): Promise<JobNode> {
+  async add(flow: FlowJob, opts?: FlowOpts): Promise<JobNode | undefined> {
     if (this.closing) {
       return;
     }
@@ -243,8 +244,9 @@ export class FlowProducer extends EventEmitter {
    * Get a flow.
    *
    * @param opts - an object with options for getting a JobNode.
+   * @returns A promise resolving to the JobNode tree, or undefined if the producer is closing or the target job/flow does not exist.
    */
-  async getFlow(opts: NodeOpts): Promise<JobNode> {
+  async getFlow(opts: NodeOpts): Promise<JobNode | undefined> {
     if (this.closing) {
       return;
     }
@@ -276,8 +278,9 @@ export class FlowProducer extends EventEmitter {
    *
    * @param flows - an array of objects with a tree-like structure where children jobs
    * will be processed before their parents.
+   * @returns A promise resolving to an array of JobNode trees, or undefined if the producer is closing.
    */
-  async addBulk(flows: FlowJob[]): Promise<JobNode[]> {
+  async addBulk(flows: FlowJob[]): Promise<JobNode[] | undefined> {
     if (this.closing) {
       return;
     }
