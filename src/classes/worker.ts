@@ -52,6 +52,7 @@ export interface WorkerListener<
   DataType = any,
   ResultType = any,
   NameType extends string = string,
+  ProgressType = JobProgress,
 > extends IoredisListener {
   /**
    * Listen to 'active' event.
@@ -130,8 +131,8 @@ export interface WorkerListener<
    * world.
    */
   progress: (
-    job: Job<DataType, ResultType, NameType>,
-    progress: JobProgress,
+    job: Job<DataType, ResultType, NameType, ProgressType>,
+    progress: ProgressType,
   ) => void;
 
   /**
@@ -182,6 +183,7 @@ export class Worker<
   DataType = any,
   ResultType = any,
   NameType extends string = string,
+  ProgressType = JobProgress,
 > extends QueueBase {
   readonly opts: WorkerOptions;
   readonly id: string;
@@ -401,32 +403,32 @@ export class Worker<
     return this.scripts.extendLocks(jobIds, tokens, duration);
   }
 
-  emit<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
+  emit<U extends keyof WorkerListener<DataType, ResultType, NameType, ProgressType>>(
     event: U,
-    ...args: Parameters<WorkerListener<DataType, ResultType, NameType>[U]>
+    ...args: Parameters<WorkerListener<DataType, ResultType, NameType, ProgressType>[U]>
   ): boolean {
     return super.emit(event, ...args);
   }
 
-  off<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
+  off<U extends keyof WorkerListener<DataType, ResultType, NameType, ProgressType>>(
     eventName: U,
-    listener: WorkerListener<DataType, ResultType, NameType>[U],
+    listener: WorkerListener<DataType, ResultType, NameType, ProgressType>[U],
   ): this {
     super.off(eventName, listener);
     return this;
   }
 
-  on<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
+  on<U extends keyof WorkerListener<DataType, ResultType, NameType, ProgressType>>(
     event: U,
-    listener: WorkerListener<DataType, ResultType, NameType>[U],
+    listener: WorkerListener<DataType, ResultType, NameType, ProgressType>[U],
   ): this {
     super.on(event, listener);
     return this;
   }
 
-  once<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
+  once<U extends keyof WorkerListener<DataType, ResultType, NameType, ProgressType>>(
     event: U,
-    listener: WorkerListener<DataType, ResultType, NameType>[U],
+    listener: WorkerListener<DataType, ResultType, NameType, ProgressType>[U],
   ): this {
     super.once(event, listener);
     return this;
