@@ -4,11 +4,13 @@ Tests for job class.
 https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 """
 
+import asyncio
 import unittest
 import os
 import redis.asyncio as redis
 
-from bullmq import Queue, Job, Worker
+from asyncio import Future
+from bullmq import Queue, Job, Worker, FlowProducer, WaitingChildrenError
 from uuid import uuid4
 
 queueName = ""
@@ -210,6 +212,69 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(result)
 
         await worker.close(force=True)
+        await queue.close()
+
+    async def test_is_waiting_children_returns_true_when_in_waiting_children_state(self):
+        """Regression test: isWaitingChildren should return True when job is in waiting-children state."""
+        parent_queue_name = f"__test_parent_queue__{uuid4().hex}"
+        child_queue_name = f"__test_child_queue__{uuid4().hex}"
+
+        moved_to_waiting = Future()
+
+        async def child_process(job: Job, token: str):
+            # Sleep so parent has a chance to move to waiting-children before we finish.
+            await asyncio.sleep(0.5)
+            return "child-done"
+
+        async def parent_process(job: Job, token: str):
+            should_wait = await job.moveToWaitingChildren(token, {})
+            if should_wait:
+                if not moved_to_waiting.done():
+                    moved_to_waiting.set_result(job)
+                raise WaitingChildrenError
+            return "parent-done"
+
+        parent_worker = Worker(parent_queue_name, parent_process, {"prefix": prefix})
+        child_worker = Worker(child_queue_name, child_process, {"prefix": prefix})
+
+        flow = FlowProducer({}, {"prefix": prefix})
+        await flow.add(
+            {
+                "name": 'parent-job',
+                "queueName": parent_queue_name,
+                "data": {},
+                "children": [
+                    {"name": 'child-job', "data": {"foo": 'bar'}, "queueName": child_queue_name}
+                ]
+            }
+        )
+
+        parent_job = await moved_to_waiting
+
+        # Parent should be in waiting-children state
+        self.assertTrue(await parent_job.isWaitingChildren())
+
+        await parent_worker.close()
+        await child_worker.close()
+        await flow.close()
+
+        parent_queue = Queue(parent_queue_name, {"prefix": prefix})
+        await parent_queue.pause()
+        await parent_queue.obliterate()
+        await parent_queue.close()
+
+        child_queue = Queue(child_queue_name, {"prefix": prefix})
+        await child_queue.pause()
+        await child_queue.obliterate()
+        await child_queue.close()
+
+    async def test_is_waiting_children_returns_false_when_job_is_waiting(self):
+        """isWaitingChildren should return False when job is not in waiting-children state."""
+        queue = Queue(queueName, {"prefix": prefix})
+        job = await queue.add("test", {"foo": "bar"}, {})
+
+        self.assertFalse(await job.isWaitingChildren())
+
         await queue.close()
 
 if __name__ == '__main__':
