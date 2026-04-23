@@ -10,7 +10,7 @@ import {
 } from 'vitest';
 
 import * as sinon from 'sinon';
-import { v4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { Queue, Worker, QueueEvents } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
@@ -29,7 +29,7 @@ describe('Cluster support', () => {
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
   });
 
@@ -763,7 +763,7 @@ describe('Cluster integration tests', () => {
       return;
     }
     // Use hash tag in queue name to ensure all keys hash to the same slot in Redis Cluster
-    queueName = `{test-cluster-${v4()}}`;
+    queueName = `{test-cluster-${randomUUID()}}`;
     queue = new Queue(queueName, { connection: cluster, prefix });
   });
 
@@ -1061,7 +1061,7 @@ describe('Cluster with authentication integration tests', () => {
       return;
     }
     // Use hash tag in queue name to ensure all keys hash to the same slot in Redis Cluster
-    queueName = `{test-cluster-auth-${v4()}}`;
+    queueName = `{test-cluster-auth-${randomUUID()}}`;
     queue = new Queue(queueName, { connection: cluster, prefix });
   });
 

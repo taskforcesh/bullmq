@@ -9,7 +9,7 @@ import {
   expect,
 } from 'vitest';
 
-import { v4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { Queue, QueueEvents, Worker, Job } from '../src/classes';
 import { removeAllQueueData, delay } from '../src/utils';
 
@@ -20,13 +20,13 @@ describe('bulk jobs', () => {
   let queue: Queue;
   let queueName: string;
 
-  let connection;
+  let connection: IORedis;
   beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
   });
 
@@ -74,7 +74,7 @@ describe('bulk jobs', () => {
 
   it('should allow to pass parent option', async () => {
     const name = 'test';
-    const parentQueueName = `parent-queue-${v4()}`;
+    const parentQueueName = `parent-queue-${randomUUID()}`;
     const parentQueue = new Queue(parentQueueName, { connection, prefix });
 
     const parentWorker = new Worker(parentQueueName, null, {

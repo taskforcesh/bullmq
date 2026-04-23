@@ -1,5 +1,5 @@
 import { default as IORedis } from 'ioredis';
-import { v4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import {
   describe,
   beforeEach,
@@ -28,7 +28,7 @@ describe('deduplication', () => {
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queue.waitUntilReady();
