@@ -127,7 +127,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
 
     local eventStreamKey = KEYS[4]
     local metaKey = KEYS[9]
-    -- Trim events before emiting them to avoid trimming events emitted in this script
+    -- Trim events before emitting them to avoid trimming events emitted in this script
     trimEvents(metaKey, eventStreamKey)
 
     local prefix = ARGV[7]
