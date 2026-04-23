@@ -3,10 +3,10 @@ class QueueKeys:
     This class handles all keys parser logic.
     """
 
-    def __init__(self, prefix: str = 'bull'):
+    def __init__(self, prefix: str = 'bull') -> None:
         self.prefix = prefix
 
-    def getKeys(self, name: str):
+    def getKeys(self, name: str) -> dict[str, str]:
         names = ["", "active", "wait", "waiting-children", "paused", "completed", "failed", "delayed", "repeat",
                  "stalled", "limiter", "prioritized", "id", "stalled-check", "meta", "pc", "events", "marker"]
         keys = {}
@@ -15,8 +15,8 @@ class QueueKeys:
 
         return keys
 
-    def toKey(self, name: str, name_type: str):
+    def toKey(self, name: str, name_type: str) -> str:
         return f"{self.getQueueQualifiedName(name)}:{name_type}"
 
-    def getQueueQualifiedName(self, name: str):
+    def getQueueQualifiedName(self, name: str) -> str:
         return f"{self.prefix}:{name}"
