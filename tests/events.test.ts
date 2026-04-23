@@ -21,11 +21,10 @@ import {
 } from '../src/classes';
 import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 
-describe('events', () => {
+describe('events', { timeout: 8000 }, () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
-  // TODO: Move timeout to test options: { timeout: 8000 }
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
