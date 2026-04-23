@@ -64,8 +64,9 @@ end
 -- order, matching the behavior of the prior recursive implementation
 -- (relevant because removal events are observable via XADD).
 collectDescendants = function(prefix, jobKey, options, stack)
-    -- dependencies (unprocessed children) come first in the recursive
-    -- implementation, so push them last (they will be popped first).
+    -- dependencies (unprocessed children) are visited after
+    -- unsuccessful/failed/processed children in the recursive
+    -- implementation, so push them first (they will be popped last).
     local dependencies = rcall("SMEMBERS", jobKey .. ":dependencies")
     if #dependencies > 0 then
         for i = #dependencies, 1, -1 do
