@@ -158,6 +158,14 @@ export class RedisConnection extends EventEmitter {
       return;
     }
 
+    // ioredis Cluster reports 'connect' as its connected status instead of
+    // 'ready' that standalone Redis uses. Treat it as already connected so we
+    // don't hang waiting for a 'ready' event that will never fire and end up
+    // throwing a spurious "Connection is closed" error during disconnect.
+    if (client.status === 'connect' && isRedisCluster(client)) {
+      return;
+    }
+
     if (client.status === 'wait') {
       return client.connect();
     }
@@ -188,7 +196,7 @@ export class RedisConnection extends EventEmitter {
             if (lastError) {
               reject(lastError);
             } else {
-              // when custon 'end' status is set we already closed
+              // when custom 'end' status is set we already closed
               resolve();
             }
           }

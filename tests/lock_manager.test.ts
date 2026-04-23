@@ -227,8 +227,6 @@ describe('LockManager', () => {
 
   describe('lock renewal', () => {
     it('should extend locks for tracked jobs', async () => {
-      // TODO: Move timeout to test options: { timeout: 10000 }
-
       let extendCallCount = 0;
       const extendedJobIds: string[][] = [];
 
@@ -260,17 +258,15 @@ describe('LockManager', () => {
       // Wait for lock renewal to happen
       await delay(600);
 
-      expect(extendCallCount).to.be.gte(1);
+      expect(extendCallCount).toBeGreaterThanOrEqual(1);
       expect(extendedJobIds.flat()).toEqual(
         expect.arrayContaining(['job-1', 'job-2']),
       );
 
       await lockManager.close();
-    });
+    }, 10000);
 
     it('should emit error when lock extension fails', async () => {
-      // TODO: Move timeout to test options: { timeout: 5000 }
-
       const emittedErrors: Error[] = [];
 
       const mockWorkerContext: LockManagerWorkerContext = {
@@ -307,11 +303,9 @@ describe('LockManager', () => {
       );
 
       await lockManager.close();
-    });
+    }, 5000);
 
     it('should emit error when extendJobLocks throws', async () => {
-      // TODO: Move timeout to test options: { timeout: 5000 }
-
       const emittedErrors: Error[] = [];
       const testError = new Error('Redis connection failed');
 
@@ -347,11 +341,9 @@ describe('LockManager', () => {
       expect(emittedErrors[0]).toBe(testError);
 
       await lockManager.close();
-    });
+    }, 5000);
 
     it('should not extend locks if no jobs need renewal', async () => {
-      // TODO: Move timeout to test options: { timeout: 5000 }
-
       let extendCallCount = 0;
 
       const mockWorkerContext: LockManagerWorkerContext = {
@@ -384,11 +376,9 @@ describe('LockManager', () => {
       expect(extendCallCount).toBe(0);
 
       await lockManager.close();
-    });
+    }, 5000);
 
     it('should update timestamps for jobs without initial timestamp', async () => {
-      // TODO: Move timeout to test options: { timeout: 5000 }
-
       const mockWorkerContext: LockManagerWorkerContext = {
         extendJobLocks: async () => [],
         emit: () => true,
@@ -413,7 +403,7 @@ describe('LockManager', () => {
       expect(lockManager.getActiveJobCount()).toBe(1);
 
       await lockManager.close();
-    });
+    }, 5000);
   });
 
   describe('integration with Worker', () => {
@@ -428,11 +418,9 @@ describe('LockManager', () => {
     afterEach(async () => {
       await queue.close();
       await removeAllQueueData(new IORedis(redisHost), queueName);
-    });
+    }, 15000);
 
     it('should track jobs during processing', async () => {
-      // TODO: Move timeout to test options: { timeout: 10000 }
-
       let lockManagerInstance: any;
       let maxTrackedJobs = 0;
 
@@ -478,18 +466,16 @@ describe('LockManager', () => {
       await delay(50);
 
       // Lock manager should have tracked jobs
-      expect(maxTrackedJobs).to.be.gte(1);
-      expect(maxTrackedJobs).to.be.lte(3);
+      expect(maxTrackedJobs).toBeGreaterThanOrEqual(1);
+      expect(maxTrackedJobs).toBeLessThanOrEqual(3);
 
       // After completion, no jobs should be tracked
       expect(lockManagerInstance.getActiveJobCount()).toBe(0);
 
       await worker.close();
-    });
+    }, 10000);
 
     it('should untrack jobs on failure', async () => {
-      // TODO: Move timeout to test options: { timeout: 10000 }
-
       let lockManagerInstance: any;
 
       const worker = new Worker(
@@ -521,11 +507,9 @@ describe('LockManager', () => {
       expect(lockManagerInstance.getActiveJobCount()).toBe(0);
 
       await worker.close();
-    });
+    }, 10000);
 
     it('should continue renewing locks for long-running jobs', async () => {
-      // TODO: Move timeout to test options: { timeout: 15000 }
-
       let lockRenewalCount = 0;
       let lockManagerInstance: any;
 
@@ -567,11 +551,9 @@ describe('LockManager', () => {
       expect(lockRenewalCount).to.be.gte(2);
 
       await worker.close();
-    });
+    }, 15000);
 
     it('should handle lock manager closure during worker shutdown', async () => {
-      // TODO: Move timeout to test options: { timeout: 10000 }
-
       const worker = new Worker(
         queueName,
         async job => {
@@ -594,13 +576,11 @@ describe('LockManager', () => {
 
       expect(lockManagerInstance.isRunning()).toBe(false);
       expect(lockManagerInstance.getActiveJobCount()).toBe(0);
-    });
+    }, 10000);
   });
 
   describe('telemetry', () => {
     it('should call trace when extending locks', async () => {
-      // TODO: Move timeout to test options: { timeout: 5000 }
-
       let traceCalled = false;
 
       const mockWorkerContext: LockManagerWorkerContext = {
@@ -632,6 +612,6 @@ describe('LockManager', () => {
       expect(traceCalled).toBe(true);
 
       await lockManager.close();
-    });
+    }, 5000);
   });
 });

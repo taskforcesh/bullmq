@@ -41,6 +41,7 @@ class Queue(EventEmitter):
         @param opts: Job options that affects how the job is going to be processed.
         """
         merged_opts = {**self.jobsOpts, **(opts or {})}
+
         job = Job(self, name, data, merged_opts)
         job_id = await self.scripts.addJob(job)
         job.id = job_id
@@ -363,7 +364,7 @@ class Queue(EventEmitter):
         return self.getJobs(['delayed'], start, end, True)
 
     def getFailed(self, start = 0, end=-1):
-        return self.getJobs(['completed'], start, end, False)
+        return self.getJobs(['failed'], start, end, False)
 
     def getPrioritized(self, start = 0, end=-1):
         return self.getJobs(['prioritized'], start, end, True)

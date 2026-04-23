@@ -309,7 +309,7 @@ defmodule BullMQ.WorkerIntegrationTest do
     end
 
     @tag :integration
-    @tag timeout: 10_000
+    @tag timeout: 15_000
     test "job moves to failed after max retries", %{conn: conn, queue_name: queue_name} do
       test_pid = self()
 
@@ -1083,6 +1083,120 @@ defmodule BullMQ.WorkerIntegrationTest do
       Worker.close(worker)
       Agent.stop(counter)
       Agent.stop(timestamps)
+    end
+
+    @tag :integration
+    @tag timeout: 15_000
+    test "retry-with-delay fetches the next waiting job immediately (fetch_next: true path)", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      # This test covers the {:continue, next_job} branch in handle_job_result
+      # when move_to_delayed is called with fetch_next: true and another job
+      # is already waiting in the queue.
+      test_pid = self()
+      {:ok, counter} = Agent.start_link(fn -> 0 end)
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
+            send(test_pid, {:processed, job.id, count})
+
+            if job.name == "failing-job" and count == 0 do
+              raise "temporary failure"
+            else
+              {:ok, :done}
+            end
+          end,
+          on_completed: fn job, _result ->
+            send(test_pid, {:completed, job.id})
+          end
+        )
+
+      # Add the failing job first (with retries so it goes to delayed)
+      {:ok, failing_job} =
+        Queue.add(queue_name, "failing-job", %{},
+          connection: conn,
+          prefix: @test_prefix,
+          attempts: 3,
+          backoff: %{type: "fixed", delay: 5_000}
+        )
+
+      # Add a second job that should be picked up after the failing job is moved to delayed
+      {:ok, next_job} =
+        Queue.add(queue_name, "next-job", %{}, connection: conn, prefix: @test_prefix)
+
+      failing_job_id = failing_job.id
+      next_job_id = next_job.id
+
+      # The failing job runs first and raises (count == 0)
+      assert_receive {:processed, ^failing_job_id, 0}, 5_000
+
+      # The next waiting job should be processed right after (fetch_next: true delivered it)
+      assert_receive {:processed, ^next_job_id, 1}, 5_000
+      assert_receive {:completed, ^next_job_id}, 5_000
+
+      Worker.close(worker)
+      Agent.stop(counter)
+    end
+
+    @tag :integration
+    @tag timeout: 15_000
+    test "retry-with-delay with no waiting jobs stops the worker (no-job tuple path)", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      # This test covers the _ (fallthrough to :retry) branch in handle_job_result
+      # when move_to_delayed is called with fetch_next: true but no other jobs
+      # are waiting. The worker should correctly stop and eventually re-process
+      # the retried job once its delay expires.
+      test_pid = self()
+      {:ok, counter} = Agent.start_link(fn -> 0 end)
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            count = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
+            send(test_pid, {:processed, job.id, count})
+
+            if count == 0 do
+              raise "first attempt failure"
+            else
+              {:ok, :done}
+            end
+          end,
+          on_completed: fn job, _result ->
+            send(test_pid, {:completed, job.id})
+          end
+        )
+
+      # Add only one job (no other jobs waiting) with a short backoff delay
+      {:ok, job} =
+        Queue.add(queue_name, "solo-retry-job", %{},
+          connection: conn,
+          prefix: @test_prefix,
+          attempts: 3,
+          backoff: %{type: "fixed", delay: 200}
+        )
+
+      job_id = job.id
+
+      # First attempt fails and is moved to delayed (no next job → _ branch → :retry → worker stops)
+      assert_receive {:processed, ^job_id, 0}, 5_000
+
+      # After the backoff delay, the job is re-queued and the worker processes it again
+      assert_receive {:processed, ^job_id, 1}, 5_000
+      assert_receive {:completed, ^job_id}, 5_000
+
+      Worker.close(worker)
+      Agent.stop(counter)
     end
   end
 

@@ -321,10 +321,10 @@ export class Queue<
       SpanKind.PRODUCER,
       'add',
       `${this.name}.${name}`,
-      async (span, srcPropagationMedatada) => {
-        if (srcPropagationMedatada && !opts?.telemetry?.omitContext) {
+      async (span, srcPropagationMetadata) => {
+        if (srcPropagationMetadata && !opts?.telemetry?.omitContext) {
           const telemetry = {
-            metadata: srcPropagationMedatada,
+            metadata: srcPropagationMetadata,
           };
           opts = { ...opts, telemetry };
         }
@@ -375,15 +375,17 @@ export class Queue<
         throw new Error("JobId cannot be '0' or start with 0:");
       }
 
+      const mergedOpts = {
+        ...this.jobsOpts,
+        ...opts,
+        jobId,
+      };
+
       const job = await this.Job.create<DataType, ResultType, NameType>(
         this as MinimalQueue,
         name,
         data,
-        {
-          ...this.jobsOpts,
-          ...opts,
-          jobId,
-        },
+        mergedOpts,
       );
       this.emit('waiting', job as JobBase<DataType, ResultType, NameType>);
 
@@ -405,7 +407,7 @@ export class Queue<
       SpanKind.PRODUCER,
       'addBulk',
       this.name,
-      async (span, srcPropagationMedatada) => {
+      async (span, srcPropagationMetadata) => {
         if (span) {
           span.setAttributes({
             [TelemetryAttributes.BulkNames]: jobs.map(job => job.name),
@@ -417,11 +419,11 @@ export class Queue<
           this as MinimalQueue,
           jobs.map(job => {
             let telemetry = job.opts?.telemetry;
-            if (srcPropagationMedatada) {
+            if (srcPropagationMetadata) {
               const omitContext = job.opts?.telemetry?.omitContext;
               const telemetryMetadata =
                 job.opts?.telemetry?.metadata ||
-                (!omitContext && srcPropagationMedatada);
+                (!omitContext && srcPropagationMetadata);
 
               if (telemetryMetadata || omitContext) {
                 telemetry = {
@@ -431,15 +433,17 @@ export class Queue<
               }
             }
 
+            const mergedOpts = {
+              ...this.jobsOpts,
+              ...job.opts,
+              jobId: job.opts?.jobId,
+              telemetry,
+            };
+
             return {
               name: job.name,
               data: job.data,
-              opts: {
-                ...this.jobsOpts,
-                ...job.opts,
-                jobId: job.opts?.jobId,
-                telemetry,
-              },
+              opts: mergedOpts,
             };
           }),
         );

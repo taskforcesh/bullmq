@@ -111,7 +111,7 @@ describe('events', () => {
   it('should emit waiting when a job has been added', async () => {
     const waiting = new Promise<void>(resolve => {
       queue.on('waiting', job => {
-        expect(job.id).to.be.string;
+        expect(job.id).toBeTypeOf('string');
         resolve();
       });
     });
@@ -192,7 +192,7 @@ describe('events', () => {
 
     const drained = new Promise<void>(resolve => {
       queueEvents.once('drained', id => {
-        expect(id).to.be.string;
+        expect(id).toBeTypeOf('string');
         resolve();
       });
     });
@@ -205,8 +205,8 @@ describe('events', () => {
     await drained;
 
     const jobs = await queue.getJobCountByTypes('completed');
-    expect(jobs).to.be.gte(1);
-    expect(jobs).to.be.lte(2);
+    expect(jobs).toBeGreaterThanOrEqual(1);
+    expect(jobs).toBeLessThanOrEqual(2);
 
     await worker.close();
   });
@@ -228,7 +228,7 @@ describe('events', () => {
 
       const drained = new Promise<void>(resolve => {
         queueEvents.once('drained', id => {
-          expect(id).to.be.string;
+          expect(id).toBeTypeOf('string');
           resolve();
         });
       });

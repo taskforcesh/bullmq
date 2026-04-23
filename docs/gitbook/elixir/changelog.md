@@ -1,3 +1,24 @@
+## [1.3.2](https://github.com/taskforcesh/bullmq/compare/vex1.3.1...vex1.3.2) (2026-04-10)
+
+
+### Bug Fixes
+
+* **worker:** emit active event as soon as getting next job (elixir) (python) ([#3936](https://github.com/taskforcesh/bullmq/issues/3936)) ref [#3911](https://github.com/taskforcesh/bullmq/issues/3911) ([d5eca5a](https://github.com/taskforcesh/bullmq/commit/d5eca5acff37b7a95f72c136685105504fc7f5be))
+
+## [1.3.1](https://github.com/taskforcesh/bullmq/compare/vex1.3.0...vex1.3.1) (2026-04-09)
+
+
+### Performance Improvements
+
+* **delayed:** allow to fetch next job when moving job to delayed (python) (elixir) ([#3870](https://github.com/taskforcesh/bullmq/issues/3870)) ([0cb0b8c](https://github.com/taskforcesh/bullmq/commit/0cb0b8cf5981ad8d56fd539071eacbe0df4b55ad))
+
+# [1.3.0](https://github.com/taskforcesh/bullmq/compare/vex1.2.7...vex1.3.0) (2026-04-03)
+
+
+### Features
+
+* **deduplication:** add keepLastIfActive option for at-least-once-after-active semantics ([#3902](https://github.com/taskforcesh/bullmq/issues/3902)) ([aa529bc](https://github.com/taskforcesh/bullmq/commit/aa529bc512b15cdb9d173cc9cc3b0d9f8b8959eb))
+
 ## [1.2.7](https://github.com/taskforcesh/bullmq/compare/vex1.2.6...vex1.2.7) (2026-03-06)
 
 

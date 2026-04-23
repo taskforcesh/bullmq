@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/taskforcesh/bullmq/compare/vphp1.0.1...vphp1.0.2) (2026-04-03)
+
+
+### Features
+
+* **deduplication:** add keepLastIfActive option for at-least-once-after-active semantics ([#3902](https://github.com/taskforcesh/bullmq/issues/3902)) ([aa529bc](https://github.com/taskforcesh/bullmq/commit/aa529bc512b15cdb9d173cc9cc3b0d9f8b8959eb))
+
 ## [1.0.1](https://github.com/taskforcesh/bullmq/compare/vphp1.0.0...vphp1.0.1) (2025-12-19)
 
 

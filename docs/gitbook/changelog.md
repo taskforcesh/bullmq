@@ -1,3 +1,115 @@
+# [5.76.0](https://github.com/taskforcesh/bullmq/compare/v5.75.2...v5.76.0) (2026-04-22)
+
+
+### Features
+
+* **python:** add type hints to worker.py methods ([#4035](https://github.com/taskforcesh/bullmq/issues/4035)) ([1423b58](https://github.com/taskforcesh/bullmq/commit/1423b584b5707b3f71ee2fba5eb14122fb7b0275))
+
+## [5.75.2](https://github.com/taskforcesh/bullmq/compare/v5.75.1...v5.75.2) (2026-04-20)
+
+
+### Bug Fixes
+
+* handle ioredis Cluster connect status in waitUntilReady ([#2402](https://github.com/taskforcesh/bullmq/issues/2402)) ([#4055](https://github.com/taskforcesh/bullmq/issues/4055)) ([422e2d5](https://github.com/taskforcesh/bullmq/commit/422e2d5091f2f318e0f6bd3e1872a71deee92aec))
+
+## [5.75.1](https://github.com/taskforcesh/bullmq/compare/v5.75.0...v5.75.1) (2026-04-20)
+
+
+### Bug Fixes
+
+* Nothing changed, triggered by a python version release
+
+# [5.75.0](https://github.com/taskforcesh/bullmq/compare/v5.74.2...v5.75.0) (2026-04-20)
+
+
+### Features
+
+* Nothing changed, triggered by a python version release
+
+## [5.74.2](https://github.com/taskforcesh/bullmq/compare/v5.74.1...v5.74.2) (2026-04-20)
+
+
+### Bug Fixes
+
+* **types:** correct unsafe type cast in getJob to include undefined ([37c4bb3](https://github.com/taskforcesh/bullmq/commit/37c4bb3725fe668fb4fbe27e3474b72eafa6a6fe))
+
+## [5.74.1](https://github.com/taskforcesh/bullmq/compare/v5.74.0...v5.74.1) (2026-04-15)
+
+
+### Bug Fixes
+
+* **sandbox:** remove returnvalue from JobJsonSandbox interface ([#3950](https://github.com/taskforcesh/bullmq/issues/3950)) ([e9d0c2d](https://github.com/taskforcesh/bullmq/commit/e9d0c2d50ac9cd3c91e5f7a9f8466ae9c98ff87d))
+
+# [5.74.0](https://github.com/taskforcesh/bullmq/compare/v5.73.5...v5.74.0) (2026-04-15)
+
+
+### Features
+
+* **sandbox:** add getDependencies proxy for sandboxed processors ([#3922](https://github.com/taskforcesh/bullmq/issues/3922)) ref [#3533](https://github.com/taskforcesh/bullmq/issues/3533) ([ec420d1](https://github.com/taskforcesh/bullmq/commit/ec420d1b09a28514ff8d84e762db3a638ba267ec))
+
+## [5.73.5](https://github.com/taskforcesh/bullmq/compare/v5.73.4...v5.73.5) (2026-04-12)
+
+
+### Bug Fixes
+
+* **worker:** resume processing after pause with doNotWaitActive ([#3974](https://github.com/taskforcesh/bullmq/issues/3974)) fixes [#3971](https://github.com/taskforcesh/bullmq/issues/3971) ([8b8d464](https://github.com/taskforcesh/bullmq/commit/8b8d46441f7af7f9bd75d81283a8804ff5fc4bc1))
+
+## [5.73.4](https://github.com/taskforcesh/bullmq/compare/v5.73.3...v5.73.4) (2026-04-10)
+
+
+### Bug Fixes
+
+* **worker:** emit active event as soon as getting next job (elixir) (python) ([#3936](https://github.com/taskforcesh/bullmq/issues/3936)) ref [#3911](https://github.com/taskforcesh/bullmq/issues/3911) ([d5eca5a](https://github.com/taskforcesh/bullmq/commit/d5eca5acff37b7a95f72c136685105504fc7f5be))
+
+## [5.73.3](https://github.com/taskforcesh/bullmq/compare/v5.73.2...v5.73.3) (2026-04-09)
+
+
+### Performance Improvements
+
+* **delayed:** allow to fetch next job when moving job to delayed (python) (elixir) ([#3870](https://github.com/taskforcesh/bullmq/issues/3870)) ([0cb0b8c](https://github.com/taskforcesh/bullmq/commit/0cb0b8cf5981ad8d56fd539071eacbe0df4b55ad))
+
+## [5.73.2](https://github.com/taskforcesh/bullmq/compare/v5.73.1...v5.73.2) (2026-04-09)
+
+
+### Bug Fixes
+
+* **flow:** correctly propagate root jobId from pipeline results ([#3905](https://github.com/taskforcesh/bullmq/issues/3905)) ([242f264](https://github.com/taskforcesh/bullmq/commit/242f2648f6ba51f0023aa9a6688f0cd3e0ec2d70))
+
+## [5.73.1](https://github.com/taskforcesh/bullmq/compare/v5.73.0...v5.73.1) (2026-04-08)
+
+
+### Bug Fixes
+
+* **sandbox:** add missing type declarations to SandboxedJob interface ([#3946](https://github.com/taskforcesh/bullmq/issues/3946)) fixes [#3925](https://github.com/taskforcesh/bullmq/issues/3925) ([4c6b2b2](https://github.com/taskforcesh/bullmq/commit/4c6b2b2d73b5053f3bd3bee2019533b6e7b5682b))
+
+# [5.73.0](https://github.com/taskforcesh/bullmq/compare/v5.72.1...v5.73.0) (2026-04-03)
+
+
+### Features
+
+* **sandbox:** add getDependenciesCount proxy for jobs ([#3923](https://github.com/taskforcesh/bullmq/issues/3923)) ref [#3533](https://github.com/taskforcesh/bullmq/issues/3533) ([cbfe437](https://github.com/taskforcesh/bullmq/commit/cbfe437a9aa967bd960890f8ddfb9b01a8c83505))
+
+## [5.72.1](https://github.com/taskforcesh/bullmq/compare/v5.72.0...v5.72.1) (2026-04-02)
+
+
+### Bug Fixes
+
+* **cancellation:** use native AbortController implementation if found ([#3903](https://github.com/taskforcesh/bullmq/issues/3903)) ([46880af](https://github.com/taskforcesh/bullmq/commit/46880af9629e9aee9abbc2782074a3e76d17b924))
+
+# [5.72.0](https://github.com/taskforcesh/bullmq/compare/v5.71.1...v5.72.0) (2026-04-01)
+
+
+### Features
+
+* **deduplication:** add keepLastIfActive option for at-least-once-after-active semantics ([#3902](https://github.com/taskforcesh/bullmq/issues/3902)) ([aa529bc](https://github.com/taskforcesh/bullmq/commit/aa529bc512b15cdb9d173cc9cc3b0d9f8b8959eb))
+
+## [5.71.1](https://github.com/taskforcesh/bullmq/compare/v5.71.0...v5.71.1) (2026-03-25)
+
+
+### Bug Fixes
+
+* **deps:** update dependency ioredis to v5.10.1 ([#3897](https://github.com/taskforcesh/bullmq/issues/3897)) ([60f645a](https://github.com/taskforcesh/bullmq/commit/60f645a472102336a6294e66f2b0a801a5a5207d))
+
 # [5.71.0](https://github.com/taskforcesh/bullmq/compare/v5.70.4...v5.71.0) (2026-03-11)
 
 

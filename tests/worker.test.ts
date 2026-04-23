@@ -66,7 +66,6 @@ describe('workers', () => {
   });
 
   it('process a lifo queue', async () => {
-    // TODO: Move timeout to test options: { timeout: 3000 }
     let currentValue = 0;
     let first = true;
 
@@ -108,7 +107,7 @@ describe('workers', () => {
     await processing;
 
     await worker.close();
-  });
+  }, 3000);
 
   it('process several jobs serially', async () => {
     let counter = 1;
@@ -539,7 +538,7 @@ describe('workers', () => {
     });
 
     await worker.close();
-  }); // TODO: Add { timeout: 8000 } to the it() options
+  }, 8000);
 
   it('do not call moveToActive more than concurrency factor + 1', async () => {
     const numJobs = 57;
@@ -640,7 +639,6 @@ describe('workers', () => {
   });
 
   it('does not process a job that is being processed when a new queue starts', async () => {
-    // TODO: Move timeout to test options: { timeout: 12000 }
     let err;
 
     const worker = new Worker(
@@ -684,7 +682,7 @@ describe('workers', () => {
     if (err) {
       throw err;
     }
-  });
+  }, 12000);
 
   it('process a job that throws an exception', async () => {
     const jobError = new Error('Job Failed');
@@ -1457,7 +1455,7 @@ describe('workers', () => {
       const worker = new Worker(
         queueName,
         async (job, token) => {
-          expect(token).to.be.string;
+          expect(token).toBeTypeOf('string');
           expect(job.data.foo).toBe('bar');
         },
         { connection, prefix },
@@ -1475,8 +1473,8 @@ describe('workers', () => {
       const completed = new Promise<void>((resolve, reject) => {
         worker.on('completed', async (job: Job) => {
           try {
-            expect(job.finishedOn).to.be.string;
-            const gotJob = await queue.getJob(job.id);
+            expect(job.finishedOn).toBeTypeOf('number');
+            const gotJob = await queue.getJob(job.id!);
             expect(gotJob).toBe(undefined);
             const counts = await queue.getJobCounts('completed');
             expect(counts.completed).toBe(0);
@@ -1846,8 +1844,6 @@ describe('workers', () => {
 
   describe('when adding delayed job after standard one when worker is drained', () => {
     it('pick standard job without delay', async () => {
-      // TODO: Move timeout to test options: { timeout: 6000 }
-
       const worker = new Worker(
         queueName,
         async job => {
@@ -1896,7 +1892,7 @@ describe('workers', () => {
 
       await completing2;
       await worker.close();
-    });
+    }, 6000);
   });
 
   describe('when prioritized jobs are added', () => {
@@ -2015,7 +2011,6 @@ describe('workers', () => {
 
     describe('while processing last active job', () => {
       it('should process prioritized job whithout delay', async () => {
-        // TODO: Move timeout to test options: { timeout: 1000 }
         await queue.add('test1', { p: 2 }, { priority: 2 });
         let counter = 0;
         let processor;
@@ -2044,12 +2039,11 @@ describe('workers', () => {
         await processing;
 
         await worker.close();
-      });
+      }, 1000);
     });
 
     describe('when using custom jobId', () => {
       it('should process prioritized jobs', async () => {
-        // TODO: Move timeout to test options: { timeout: 1000 }
         await queue.add('test1', { p: 2 }, { priority: 2, jobId: 'custom1' });
         await queue.add('test2', { p: 3 }, { priority: 3, jobId: 'custom2' });
         let counter = 0;
@@ -2074,7 +2068,7 @@ describe('workers', () => {
         await processing;
 
         await worker.close();
-      });
+      }, 1000);
     });
   });
 
@@ -2338,8 +2332,6 @@ describe('workers', () => {
   });
 
   it('keeps locks for all the jobs that are processed concurrently', async () => {
-    // TODO: Move timeout to test options: { timeout: 10000 }
-
     const concurrency = 57;
 
     const lockKey = (jobId: string) => `${prefix}:${queueName}:${jobId}:lock`;
@@ -2392,7 +2384,7 @@ describe('workers', () => {
     await processing;
 
     await worker!.close();
-  });
+  }, 10000);
 
   it('emits error if lock is lost', async () => {
     const worker = new Worker(
@@ -2429,8 +2421,6 @@ describe('workers', () => {
   });
 
   it('emits error if lock is "stolen"', async function () {
-    // TODO: Move timeout to test options: { timeout: 10000 }
-
     const connection = new IORedis({
       host: redisHost,
       maxRetriesPerRequest: null,
@@ -2467,11 +2457,9 @@ describe('workers', () => {
 
     await worker.close();
     await connection.quit();
-  });
+  }, 10000);
 
   it('emits error and continues running when _getNextJob fails', async () => {
-    // TODO: Move timeout to test options: { timeout: 10000 }
-
     const worker = new Worker(
       queueName,
       async () => {
@@ -2537,11 +2525,10 @@ describe('workers', () => {
     // Clean up
     stub.restore();
     await worker.close();
-  });
+  }, 10000);
 
   it('continues processing after a worker has stalled', async () => {
     let first = true;
-    // TODO: Move timeout to test options: { timeout: 10000 }
 
     const worker = new Worker(
       queueName,
@@ -2570,10 +2557,9 @@ describe('workers', () => {
     await completed;
 
     await worker.close();
-  });
+  }, 10000);
 
   it('max stalled count cannot be less than zero', async () => {
-    // TODO: Move timeout to test options: { timeout: 4000 }
     expect(
       () =>
         new Worker(queueName, NoopProc, {
@@ -2582,10 +2568,9 @@ describe('workers', () => {
           maxStalledCount: -1,
         }),
     ).toThrow('maxStalledCount must be greater or equal than 0');
-  });
+  }, 4000);
 
   it('max started attempts cannot be less than zero', async () => {
-    // TODO: Move timeout to test options: { timeout: 4000 }
     expect(
       () =>
         new Worker(queueName, NoopProc, {
@@ -2594,10 +2579,9 @@ describe('workers', () => {
           maxStartedAttempts: -1,
         }),
     ).toThrow('maxStartedAttempts must be greater or equal than 0');
-  });
+  }, 4000);
 
   it('stalled interval cannot be zero', async () => {
-    // TODO: Move timeout to test options: { timeout: 4000 }
     expect(
       () =>
         new Worker(queueName, NoopProc, {
@@ -2606,10 +2590,9 @@ describe('workers', () => {
           stalledInterval: 0,
         }),
     ).toThrow('stalledInterval must be greater than 0');
-  });
+  }, 4000);
 
   it('drain delay cannot be zero', async () => {
-    // TODO: Move timeout to test options: { timeout: 4000 }
     expect(
       () =>
         new Worker(queueName, NoopProc, {
@@ -2618,10 +2601,9 @@ describe('workers', () => {
           drainDelay: 0,
         }),
     ).toThrow('drainDelay must be greater than 0');
-  });
+  }, 4000);
 
   it('lock extender continues to run until all active jobs are completed when closing a worker', async () => {
-    // TODO: Move timeout to test options: { timeout: 4000 }
     let worker: Worker;
 
     const startProcessing = new Promise<void>(resolve => {
@@ -2652,7 +2634,7 @@ describe('workers', () => {
     await worker.close();
 
     await completed;
-  });
+  }, 4000);
 
   describe('Concurrency process', () => {
     it('should thrown an exception if I specify a concurrency of 0', () => {
@@ -2719,7 +2701,6 @@ describe('workers', () => {
     //This job use delay to check that at any time we have 4 process in parallel.
     //Due to time to get new jobs and call process, false negative can appear.
     it('should process job respecting the concurrency set', async () => {
-      // TODO: Move timeout to test options: { timeout: 10000 }
       let nbProcessing = 0;
       let pendingMessageToProcess = 8;
       let wait = 10;
@@ -2765,12 +2746,11 @@ describe('workers', () => {
 
       await processing;
       await worker.close();
-    });
+    }, 10000);
 
     describe('when changing concurrency', () => {
       describe('when increasing value', () => {
         it('should process job respecting the current concurrency set', async () => {
-          // TODO: Move timeout to test options: { timeout: 10000 }
           let nbProcessing = 0;
           let pendingMessageToProcess = 16;
           let wait = 10;
@@ -2836,12 +2816,11 @@ describe('workers', () => {
           await waiting2;
 
           await worker.close();
-        });
+        }, 10000);
       });
 
       describe('when decreasing value', () => {
         it('should process job respecting the current concurrency set', async () => {
-          // TODO: Move timeout to test options: { timeout: 10000 }
           let nbProcessing = 0;
           let pendingMessageToProcess = 20;
           let wait = 100;
@@ -2905,7 +2884,7 @@ describe('workers', () => {
           await waiting1;
 
           await worker.close();
-        });
+        }, 10000);
       });
     });
 
@@ -3010,6 +2989,56 @@ describe('workers', () => {
         worker.run();
 
         await pausing;
+
+        await worker.close();
+      });
+
+      it('should resume processing after pause with doNotWaitActive', async () => {
+        const worker = new Worker(
+          queueName,
+          async () => {
+            await delay(50);
+          },
+          {
+            connection,
+            prefix,
+          },
+        );
+        await worker.waitUntilReady();
+
+        const firstCompleted = new Promise<void>(resolve => {
+          worker.once('completed', () => resolve());
+        });
+
+        // Process first job to ensure the worker is running
+        await queue.add('test', { seq: 'first' });
+
+        await firstCompleted;
+
+        expect(worker.isRunning()).toBe(true);
+        expect(worker.isPaused()).toBe(false);
+
+        // Pause with doNotWaitActive=true (main loop keeps running)
+        await worker.pause(true);
+        expect(worker.isPaused()).toBe(true);
+        expect(worker.isRunning()).toBe(true);
+
+        // Resume should work even though isRunning() is true
+        worker.resume();
+        expect(worker.isPaused()).toBe(false);
+        expect(worker.isRunning()).toBe(true);
+
+        const secondCompleted = new Promise<void>(resolve => {
+          worker.once('completed', job => {
+            expect(job.data.seq).toBe('after-resume');
+            resolve();
+          });
+        });
+
+        // Verify the worker actually processes new jobs after resume
+        await queue.add('test', { seq: 'after-resume' });
+
+        await secondCompleted;
 
         await worker.close();
       });
@@ -3693,8 +3722,6 @@ describe('workers', () => {
     });
 
     it('should retry a job after a delay if a fixed backoff is given', async () => {
-      // TODO: Move timeout to test options: { timeout: 10000 }
-
       const worker = new Worker(
         queueName,
         async job => {
@@ -3726,12 +3753,10 @@ describe('workers', () => {
       });
 
       await worker.close();
-    });
+    }, 10000);
 
     describe('when UnrecoverableError is throw', () => {
       it('moves job to failed', async () => {
-        // TODO: Move timeout to test options: { timeout: 8000 }
-
         const worker = new Worker(
           queueName,
           async job => {
@@ -3776,13 +3801,11 @@ describe('workers', () => {
         expect(state).toBe('failed');
 
         await worker.close();
-      });
+      }, 8000);
     });
 
     describe('when providing a way to execute step jobs', () => {
       it('should retry a job after a delay if a fixed backoff is given, keeping the current step', async () => {
-        // TODO: Move timeout to test options: { timeout: 8000 }
-
         enum Step {
           Initial,
           Second,
@@ -3844,7 +3867,7 @@ describe('workers', () => {
         });
 
         await worker.close();
-      });
+      }, 8000);
 
       describe('when timeout is provided', () => {
         it('should check if timeout is reached in each step', async () => {
@@ -3929,8 +3952,6 @@ describe('workers', () => {
 
       describe('when moving job to delayed in one step', () => {
         it('should retry job after a delay time, keeping the current step', async () => {
-          // TODO: Move timeout to test options: { timeout: 8000 }
-
           enum Step {
             Initial,
             Second,
@@ -3987,7 +4008,7 @@ describe('workers', () => {
           });
 
           await worker.close();
-        });
+        }, 8000);
 
         describe('when passing maxStartedAttempts', () => {
           it('should fail job when consuming the max started attempts', async () => {
@@ -4098,8 +4119,6 @@ describe('workers', () => {
 
       describe('when moving job to waiting in one step', () => {
         it('should retry job right away, keeping the current step', async () => {
-          // TODO: Move timeout to test options: { timeout: 1000 }
-
           enum Step {
             Initial,
             Second,
@@ -4154,12 +4173,11 @@ describe('workers', () => {
           });
 
           await worker.close();
-        });
+        }, 1000);
       });
 
       describe('when creating children at runtime', () => {
         it('should wait children as one step of the parent job', async () => {
-          // TODO: Move timeout to test options: { timeout: 8000 }
           const parentQueueName = `parent-queue-${v4()}`;
           const parentQueue = new Queue(parentQueueName, {
             connection,
@@ -4274,11 +4292,10 @@ describe('workers', () => {
           await childrenWorker.close();
           await parentQueue.close();
           await removeAllQueueData(new IORedis(redisHost), parentQueueName);
-        });
+        }, 8000);
 
         describe('when skip attempt option is provided as true', () => {
           it('should wait children as one step of the parent job whithout incrementing attemptMade', async () => {
-            // TODO: Move timeout to test options: { timeout: 8000 }
             const parentQueueName = `parent-queue-${v4()}`;
             const parentQueue = new Queue(parentQueueName, {
               connection,
@@ -4397,14 +4414,12 @@ describe('workers', () => {
             await childrenWorker.close();
             await parentQueue.close();
             await removeAllQueueData(new IORedis(redisHost), parentQueueName);
-          });
+          }, 8000);
         });
       });
     });
 
     it('should retry a job after a delay if an exponential backoff is given', async () => {
-      // TODO: Move timeout to test options: { timeout: 10000 }
-
       const worker = new Worker(
         queueName,
         async job => {
@@ -4440,11 +4455,9 @@ describe('workers', () => {
       });
 
       await worker.close();
-    });
+    }, 10000);
 
     it('should retry a job after a delay if a custom backoff is given', async () => {
-      // TODO: Move timeout to test options: { timeout: 10000 }
-
       const worker = new Worker(
         queueName,
         async job => {
@@ -4486,12 +4499,10 @@ describe('workers', () => {
       });
 
       await worker.close();
-    });
+    }, 10000);
 
     describe('when applying custom backoff by type', () => {
       it('should retry a job after a delay for custom type', async () => {
-        // TODO: Move timeout to test options: { timeout: 10000 }
-
         const worker = new Worker(
           queueName,
           async job => {
@@ -4567,7 +4578,7 @@ describe('workers', () => {
         });
 
         await worker.close();
-      });
+      }, 10000);
     });
 
     it('should not retry a job if the custom backoff returns -1', async () => {
@@ -4620,8 +4631,6 @@ describe('workers', () => {
     it('should retry a job after a delay if a custom backoff is given based on the error thrown', async () => {
       class CustomError extends Error {}
 
-      // TODO: Move timeout to test options: { timeout: 10000 }
-
       const worker = new Worker(
         queueName,
         async job => {
@@ -4668,14 +4677,12 @@ describe('workers', () => {
       });
 
       await worker.close();
-    });
+    }, 10000);
 
     it('should retry a job after a delay if a custom backoff is given based on the job data', async () => {
       class CustomError extends Error {
         failedIds: number[];
       }
-
-      // TODO: Move timeout to test options: { timeout: 5000 }
 
       const worker = new Worker(
         queueName,
@@ -4730,11 +4737,9 @@ describe('workers', () => {
       });
 
       await worker.close();
-    });
+    }, 5000);
 
     it('should be able to handle a custom backoff if it returns a promise', async () => {
-      // TODO: Move timeout to test options: { timeout: 10000 }
-
       const worker = new Worker(
         queueName,
         async (job: Job) => {
@@ -4775,7 +4780,7 @@ describe('workers', () => {
       });
 
       await worker.close();
-    });
+    }, 10000);
 
     it('should not retry a job that has been removed', async () => {
       const failedError = new Error('failed');
@@ -5386,6 +5391,31 @@ describe('workers', () => {
       expect(job.failedReason).toBe('job failed for some reason');
 
       await worker.close();
+    });
+
+    describe('when there is a job in waiting', () => {
+      it('should emit active event when calling getNextJob', async () => {
+        const worker = new Worker(queueName, null, { connection, prefix });
+        const token = 'my-token';
+
+        await queue.add('test', { foo: 'bar' });
+
+        const activated = new Promise<Job>(resolve => {
+          worker.on('active', resolve);
+        });
+
+        const job = (await worker.getNextJob(token)) as Job;
+
+        const activatedJob = await activated;
+
+        expect(activatedJob.id).toBe(job.id);
+
+        const isActive = await job.isActive();
+        expect(isActive).toBe(true);
+
+        await job.moveToCompleted('done', token);
+        await worker.close();
+      });
     });
   });
 

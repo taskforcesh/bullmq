@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bullmq"
-version = "2.19.6"
+version = "2.23.0"
 description='BullMQ for Python'
 readme="README.md"
 authors = [
@@ -28,7 +28,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pre-commit==4.5.1",
-    "build==1.4.0",
+    "build==1.4.2",
     "types-redis==4.6.0.20241004"
 ]
 

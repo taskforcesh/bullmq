@@ -82,7 +82,7 @@ export class Job<
    * Stacktrace for the error (for failed jobs).
    * @defaultValue null
    */
-  stacktrace: string[] = null;
+  stacktrace: string[] | null = null;
 
   /**
    * An amount of milliseconds to wait until this job can be processed.
@@ -270,7 +270,7 @@ export class Job<
    * @param name - the name of the job.
    * @param data - the payload of the job.
    * @param opts - the options bag for this job.
-   * @returns
+   * @returns The created Job instance
    */
   static async create<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
@@ -295,9 +295,9 @@ export class Job<
   /**
    * Creates a bulk of jobs and adds them atomically to the given queue.
    *
-   * @param queue -the queue were to add the jobs.
+   * @param queue - the queue where to add the jobs.
    * @param jobs - an array of jobs to be added to the queue.
-   * @returns
+   * @returns The created Job instances
    */
   static async createBulk<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
@@ -344,7 +344,7 @@ export class Job<
    * @param queue - the queue where the job belongs to.
    * @param json - the plain object containing the job.
    * @param jobId - an optional job id (overrides the id coming from the JSON object)
-   * @returns
+   * @returns A Job instance reconstructed from the JSON data
    */
   static fromJSON<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
@@ -815,12 +815,12 @@ export class Job<
       SpanKind.INTERNAL,
       this.getSpanOperation(shouldRetry, retryDelay),
       this.queue.name,
-      async (span, dstPropagationMedatadata) => {
+      async (span, dstPropagationMetadata) => {
         this.setSpanJobAttributes(span);
 
         let tm;
-        if (!this.opts?.telemetry?.omitContext && dstPropagationMedatadata) {
-          tm = dstPropagationMedatadata;
+        if (!this.opts?.telemetry?.omitContext && dstPropagationMetadata) {
+          tm = dstPropagationMetadata;
         }
         let result;
 
@@ -841,7 +841,7 @@ export class Job<
               Date.now(),
               retryDelay,
               token,
-              { fieldsToUpdate },
+              { fieldsToUpdate, fetchNext },
             );
 
             this.recordJobMetrics('delayed');
@@ -1083,7 +1083,7 @@ export class Job<
 
   /**
    * Retrieves the failures of child jobs that were explicitly ignored while using ignoreDependencyOnFailure option.
-   * This method is useful for inspecting which child jobs were intentionally ignored when an error occured.
+   * This method is useful for inspecting which child jobs were intentionally ignored when an error occurred.
    * @see {@link https://docs.bullmq.io/guide/flows/ignore-dependency}
    *
    * @returns Object mapping children job keys with their failure values.
@@ -1414,18 +1414,12 @@ export class Job<
     const now = Date.now();
     const delay = timestamp - now;
     const finalDelay = delay > 0 ? delay : 0;
-    const movedToDelayed = await this.scripts.moveToDelayed(
-      this.id,
-      now,
-      finalDelay,
-      token,
-      { skipAttempt: true },
-    );
+    await this.scripts.moveToDelayed(this.id, now, finalDelay, token, {
+      skipAttempt: true,
+    });
     this.delay = finalDelay;
 
     this.recordJobMetrics('delayed');
-
-    return movedToDelayed;
   }
 
   /**
@@ -1513,9 +1507,9 @@ export class Job<
   /**
    * Adds the job to Redis.
    *
-   * @param client -
-   * @param parentOpts -
-   * @returns
+   * @param client - The Redis client to use for adding the job.
+   * @param parentOpts - Options for the parent-child relationship.
+   * @returns The job ID
    */
   addJob(client: RedisClient, parentOpts?: ParentKeyOpts): Promise<string> {
     const jobData = this.asJSON();
@@ -1565,7 +1559,7 @@ export class Job<
     }
 
     if (this.opts.delay && this.opts.repeat && !this.opts.repeat?.count) {
-      throw new Error(`Delay and repeat options could not be used together`);
+      throw new Error(`Delay and repeat options cannot be used together`);
     }
 
     const enabledExclusiveOptions = exclusiveOptions.filter(

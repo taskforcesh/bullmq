@@ -131,6 +131,63 @@ Or if you want to stop deduplication only if a specific job is the one that caus
 const isDeduplicatedKeyRemoved = await job.removeDeduplicationKey();
 ```
 
+## Keep Last If Active Mode
+
+In some use cases, you need to ensure that a job runs at least once after each time new data becomes available, even if a job with the same deduplication ID is already being processed. Common examples include data synchronization, cache invalidation, and deployment pipelines.
+
+With `keepLastIfActive: true`, when a job is added while an existing job with the same deduplication ID is already active (being processed), the new job's data is stored internally. Once the active job finishes (either completes or fails), a new job is automatically created with the latest stored data and added to the queue.
+
+If multiple jobs are added while the active job is running, only the most recent data is kept — earlier additions are overwritten. This guarantees:
+
+- **No parallel execution**: At most 1 job per deduplication ID is active at any time.
+- **At most 2 jobs**: 1 active + 1 waiting (created on completion/failure).
+- **Latest data wins**: The next job always uses the most recently added data.
+- **Normal deduplication when not active**: If the existing job is in waiting or delayed state, jobs are deduplicated as usual.
+
+```typescript
+import { Queue, Worker } from 'bullmq';
+
+const deployQueue = new Queue('Deploy');
+
+const worker = new Worker('Deploy', async job => {
+  console.log(`Deploying commit ${job.data.commit}`);
+  // ... perform deployment
+});
+
+// Webhook handler: multiple pushes may arrive while a deploy is running
+async function onGitPush(commitData) {
+  await deployQueue.add(
+    'deploy',
+    { commit: commitData.sha },
+    {
+      deduplication: {
+        id: `deploy-${commitData.repo}`,
+        keepLastIfActive: true,
+      },
+    },
+  );
+}
+
+// Push 1 at 0ms: Job added and starts processing
+// Push 2 at 100ms (job active): Data stored, deduplicated event emitted
+// Push 3 at 5000ms (job still active): Data overwritten with latest
+// Push 4 at 5100ms (job still active): Data overwritten again
+// Job completes at 10000ms: New job created with Push 4's data
+// Result: Exactly 2 deployments, the last one always reflects the latest push
+```
+
+{% hint style="info" %}
+When `keepLastIfActive` is set, the `ttl` option is ignored. The dedup key is kept alive (without expiry) for the entire duration the job exists, ensuring no parallel execution regardless of processing time. The key is cleaned up automatically when the job completes or fails.
+{% endhint %}
+
+{% hint style="warning" %}
+When the active job is retried (e.g., due to `attempts` configuration), the stored next-job data is preserved and the new job will only be created once the active job ultimately completes or exhausts all retries.
+{% endhint %}
+
+{% hint style="info" %}
+`keepLastIfActive` can be combined with the `delay` option to create a **continuous debounce** pattern. When a delayed job is waiting and a new job arrives, the waiting job is replaced with the latest data. When the active job completes and a stored next-job exists, it is requeued with the original delay, restarting the debounce window. This ensures that rapid bursts of data are collapsed while still guaranteeing processing of the most recent update.
+{% endhint %}
+
 ## Read more:
 
 - 💡 [Add Job API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#add)

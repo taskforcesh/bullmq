@@ -296,7 +296,7 @@ describe('flows', () => {
 
           for (let i = 0; i < values.length; i++) {
             const jobKey = queue.toKey(tree.children![i].job.id!);
-            expect(childrenValues[jobKey]).to.be.deep.equal(values[i]);
+            expect(childrenValues[jobKey]).toEqual(values[i]);
           }
           resolve();
         } catch (err) {
@@ -402,7 +402,7 @@ describe('flows', () => {
 
           for (let i = 0; i < values.length; i++) {
             const jobKey = queue.toKey(tree.children![i].job.id!);
-            expect(childrenValues[jobKey]).to.be.deep.equal(values[i]);
+            expect(childrenValues[jobKey]).toEqual(values[i]);
           }
           resolve();
         } catch (err) {
@@ -703,7 +703,7 @@ describe('flows', () => {
 
       const completed = new Promise<void>(resolve => {
         parentWorker.on('completed', async (job: Job) => {
-          expect(job.finishedOn).to.be.string;
+          expect(job.finishedOn).toBeTypeOf('number');
           const counts = await parentQueue.getJobCounts('completed');
           expect(counts.completed).toBe(1);
           resolve();
@@ -816,12 +816,16 @@ describe('flows', () => {
       await parentWorker.waitUntilReady();
       await childrenWorker.waitUntilReady();
 
-      const completed = new Promise<void>(resolve => {
+      const completed = new Promise<void>((resolve, reject) => {
         parentWorker.on('completed', async (job: Job) => {
-          expect(job.finishedOn).to.be.string;
-          const counts = await parentQueue.getJobCounts('completed');
-          expect(counts.completed).toBe(1);
-          resolve();
+          try {
+            expect(job.finishedOn).toBeTypeOf('number');
+            const counts = await parentQueue.getJobCounts('completed');
+            expect(counts.completed).toBe(1);
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
         });
       });
 
@@ -1735,13 +1739,13 @@ describe('flows', () => {
           processed: {},
         });
         expect(nextProcessedCursor).toBe(0);
-        expect(Object.keys(processed)).toHaveLength(3);
+        expect(Object.keys(processed!)).toHaveLength(3);
 
         const childrenValues = await job.getChildrenValues();
 
         for (let i = 0; i < values.length; i++) {
           const jobKey = queue.toKey(tree.children[i].job.id);
-          expect(childrenValues[jobKey]).to.be.deep.equal(values[i]);
+          expect(childrenValues[jobKey]).toEqual(values[i]);
         }
       };
 
@@ -1756,14 +1760,18 @@ describe('flows', () => {
       await parentWorker.waitUntilReady();
       await childrenWorker.waitUntilReady();
 
-      const completed = new Promise<void>(resolve => {
+      const completed = new Promise<void>((resolve, reject) => {
         parentWorker.on('completed', async (job: Job) => {
-          expect(job.finishedOn).to.be.string;
-          const gotJob = await parentQueue.getJob(job.id);
-          expect(gotJob).toBeUndefined();
-          const counts = await parentQueue.getJobCounts('completed');
-          expect(counts.completed).toBe(0);
-          resolve();
+          try {
+            expect(job.finishedOn).toBeTypeOf('number');
+            const gotJob = await parentQueue.getJob(job.id);
+            expect(gotJob).toBeUndefined();
+            const counts = await parentQueue.getJobCounts('completed');
+            expect(counts.completed).toBe(0);
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
         });
       });
 
@@ -1904,14 +1912,18 @@ describe('flows', () => {
       await childrenWorker.waitUntilReady();
       await grandchildrenWorker.waitUntilReady();
 
-      const completed = new Promise<void>(resolve => {
+      const completed = new Promise<void>((resolve, reject) => {
         parentWorker.on('completed', async (job: Job) => {
-          expect(job.finishedOn).to.be.string;
-          const gotJob = await parentQueue.getJob(job.id);
-          expect(gotJob).toBeUndefined();
-          const counts = await parentQueue.getJobCounts('completed');
-          expect(counts.completed).toBe(0);
-          resolve();
+          try {
+            expect(job.finishedOn).toBeTypeOf('number');
+            const gotJob = await parentQueue.getJob(job.id!);
+            expect(gotJob).toBeUndefined();
+            const counts = await parentQueue.getJobCounts('completed');
+            expect(counts.completed).toBe(0);
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
         });
       });
 
@@ -2423,13 +2435,13 @@ describe('flows', () => {
                 processed: {},
               });
             expect(nextProcessedCursor).toBe(0);
-            expect(Object.keys(processed)).toHaveLength(1);
+            expect(Object.keys(processed!)).toHaveLength(1);
 
             const childrenValues = await job.getChildrenValues();
 
             for (let i = 0; i < values.length; i++) {
               const jobKey = childrenQueue.toKey(tree.children[i].job.id);
-              expect(childrenValues[jobKey]).to.be.deep.equal(values[i]);
+              expect(childrenValues[jobKey]).toEqual(values[i]);
             }
             resolve();
           } catch (err) {
@@ -2538,13 +2550,13 @@ describe('flows', () => {
                 processed: {},
               });
             expect(nextProcessedCursor).toBe(0);
-            expect(Object.keys(processed)).toHaveLength(3);
+            expect(Object.keys(processed!)).toHaveLength(3);
 
             const childrenValues = await job.getChildrenValues();
 
             for (let i = 0; i < values.length; i++) {
               const jobKey = queue.toKey(tree.children[i].job.id);
-              expect(childrenValues[jobKey]).to.be.deep.equal(values[i]);
+              expect(childrenValues[jobKey]).toEqual(values[i]);
             }
             resolve();
           } catch (err) {
@@ -4307,7 +4319,7 @@ describe('flows', () => {
 
             for (let i = 0; i < values.length; i++) {
               const jobKey = queue.toKey(tree.children[i].job.id);
-              expect(childrenValues[jobKey]).to.be.deep.equal(values[i]);
+              expect(childrenValues[jobKey]).toEqual(values[i]);
             }
             resolve();
           } catch (err) {
@@ -4456,7 +4468,7 @@ describe('flows', () => {
 
             for (let i = 0; i < values.length; i++) {
               const jobKey = queue.toKey(tree.children[i].job.id);
-              expect(childrenValues[jobKey]).to.be.deep.equal(values[i]);
+              expect(childrenValues[jobKey]).toEqual(values[i]);
             }
             resolve();
           } catch (err) {
@@ -4542,8 +4554,8 @@ describe('flows', () => {
             case 0:
               {
                 const jobKey = queue.toKey(tree.children[0].children[0].job.id);
-                expect(childrenValues[jobKey]).to.be.deep.equal(values[1]);
-                expect(waitingChildrenCount).to.be.deep.equal(0);
+                expect(childrenValues[jobKey]).toEqual(values[1]);
+                expect(waitingChildrenCount).toEqual(0);
               }
               break;
             case 1:
@@ -4551,8 +4563,8 @@ describe('flows', () => {
                 const jobKey = queue.toKey(
                   tree.children[0].children[0].children[0].job.id,
                 );
-                expect(childrenValues[jobKey]).to.be.deep.equal(values[2]);
-                expect(waitingChildrenCount).to.be.deep.equal(1);
+                expect(childrenValues[jobKey]).toEqual(values[2]);
+                expect(waitingChildrenCount).toEqual(1);
               }
               break;
           }
@@ -4577,8 +4589,8 @@ describe('flows', () => {
           const childrenValues = await job.getChildrenValues();
 
           const jobKey = queue.toKey(tree.children[0].job.id);
-          expect(childrenValues[jobKey]).to.be.deep.equal(values[0]);
-          expect(processed[jobKey]).to.be.deep.equal(values[0]);
+          expect(childrenValues[jobKey]).toEqual(values[0]);
+          expect(processed[jobKey]).toEqual(values[0]);
 
           resolve();
         } catch (err) {
@@ -4741,8 +4753,8 @@ describe('flows', () => {
             const childrenValues = await job.getChildrenValues();
 
             const jobKey = queue.toKey(tree.children[0].job.id);
-            expect(childrenValues[jobKey]).to.be.deep.equal(values[0]);
-            expect(processed[jobKey]).to.be.deep.equal(values[0]);
+            expect(childrenValues[jobKey]).toEqual(values[0]);
+            expect(processed[jobKey]).toEqual(values[0]);
 
             resolve();
           } catch (err) {
@@ -4841,8 +4853,8 @@ describe('flows', () => {
             const childrenValues = await job.getChildrenValues();
 
             const jobKey = queue.toKey(tree.children[0].job.id);
-            expect(childrenValues[jobKey]).to.be.deep.equal(values[0]);
-            expect(processed[jobKey]).to.be.deep.equal(values[0]);
+            expect(childrenValues[jobKey]).toEqual(values[0]);
+            expect(processed[jobKey]).toEqual(values[0]);
 
             resolve();
           } catch (err) {
@@ -5066,7 +5078,7 @@ describe('flows', () => {
 
             for (let i = 0; i < values.length; i++) {
               const jobKey = queue.toKey(tree.children[i].job.id);
-              expect(childrenValues[jobKey]).to.be.deep.equal(values[i]);
+              expect(childrenValues[jobKey]).toEqual(values[i]);
             }
             resolve();
           } catch (err) {
@@ -5165,7 +5177,7 @@ describe('flows', () => {
             const childrenValues = await job.getChildrenValues();
             const index = job.name === 'root-job-1' ? 0 : 1;
             const jobKey = queue.toKey(trees[index].children[0].job.id);
-            expect(childrenValues[jobKey]).to.be.deep.equal(values[index]);
+            expect(childrenValues[jobKey]).toEqual(values[index]);
 
             processedRoot++;
             if (processedRoot === 2) {
@@ -6091,6 +6103,38 @@ describe('flows', () => {
   });
 
   describe('when root parent job has deduplication option', () => {
+    it('should return deduplicated root job id when flow has no children', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+      const dedupId = 'dedup-root-without-children';
+
+      const firstTree = await flow.add({
+        name: 'root',
+        data: { order: 1 },
+        queueName,
+        opts: {
+          deduplication: { id: dedupId },
+          delay: 1000,
+        },
+      });
+
+      const secondTree = await flow.add({
+        name: 'root',
+        data: { order: 2 },
+        queueName,
+        opts: {
+          deduplication: { id: dedupId },
+          delay: 1000,
+        },
+      });
+
+      expect(secondTree.job.id).toBe(firstTree.job.id);
+
+      const deduplicationJobId = await queue.getDeduplicationJobId(dedupId);
+      expect(deduplicationJobId).toBe(firstTree.job.id);
+
+      await flow.close();
+    });
+
     it('should deduplicate root parent job when added again with same deduplication id', async () => {
       const flow = new FlowProducer({ connection, prefix });
       const queueEvents = new QueueEvents(queueName, { connection, prefix });
@@ -6114,7 +6158,7 @@ describe('flows', () => {
         );
       });
 
-      await flow.add({
+      const firstTree = await flow.add({
         name: 'parent',
         data: { order: 1 },
         queueName,
@@ -6132,7 +6176,7 @@ describe('flows', () => {
       });
 
       // Add second flow with same deduplication id
-      await flow.add({
+      const secondTree = await flow.add({
         name: 'parent',
         data: { order: 2 },
         queueName,
@@ -6150,6 +6194,8 @@ describe('flows', () => {
       });
 
       await deduplicatedPromise;
+      expect(firstTree.job.id).toBe('parent1');
+      expect(secondTree.job.id).toBe('parent1');
 
       // Verify only first parent exists
       const parent1 = await queue.getJob('parent1');
@@ -6166,6 +6212,150 @@ describe('flows', () => {
       expect(childJobs[0].name).toBe('child1');
 
       await queueEvents.close();
+      await flow.close();
+    });
+
+    it('should return deduplicated id for nested flows', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+      const dedupId = 'dedup-nested-root';
+
+      const firstTree = await flow.add({
+        name: 'parent',
+        data: { order: 1 },
+        queueName,
+        opts: {
+          deduplication: { id: dedupId },
+        },
+        children: [
+          {
+            queueName,
+            name: 'child-1',
+            data: {},
+            children: [
+              {
+                queueName,
+                name: 'grandchild-1',
+                data: {},
+              },
+            ],
+          },
+        ],
+      });
+
+      const secondTree = await flow.add({
+        name: 'parent',
+        data: { order: 2 },
+        queueName,
+        opts: {
+          deduplication: { id: dedupId },
+        },
+        children: [
+          {
+            queueName,
+            name: 'child-2',
+            data: {},
+            children: [
+              {
+                queueName,
+                name: 'grandchild-2',
+                data: {},
+              },
+            ],
+          },
+        ],
+      });
+
+      expect(secondTree.job.id).toBe(firstTree.job.id);
+      await flow.close();
+    });
+
+    it('should return deduplicated ids from addBulk when roots share deduplication id', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+      const dedupId = 'dedup-bulk-root';
+
+      const [firstTree, secondTree] = await flow.addBulk([
+        {
+          name: 'root-1',
+          data: { idx: 1 },
+          queueName,
+          opts: {
+            deduplication: { id: dedupId },
+            delay: 1000,
+          },
+        },
+        {
+          name: 'root-2',
+          data: { idx: 2 },
+          queueName,
+          opts: {
+            deduplication: { id: dedupId },
+            delay: 1000,
+          },
+        },
+      ]);
+
+      expect(secondTree.job.id).toBe(firstTree.job.id);
+      const deduplicationJobId = await queue.getDeduplicationJobId(dedupId);
+      expect(deduplicationJobId).toBe(firstTree.job.id);
+
+      await flow.close();
+    });
+
+    it('should return same deduplicated id for concurrent add calls', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+      const dedupId = 'dedup-concurrent-root';
+      const numberOfCalls = 8;
+
+      const trees = await Promise.all(
+        [...Array(numberOfCalls)].map((_, index) =>
+          flow.add({
+            name: `root-${index}`,
+            data: { index },
+            queueName,
+            opts: {
+              deduplication: { id: dedupId },
+              delay: 1000,
+            },
+          }),
+        ),
+      );
+
+      const uniqueIds = new Set(trees.map(tree => tree.job.id));
+      expect(uniqueIds.size).toBe(1);
+
+      await flow.close();
+    });
+
+    it('should not corrupt id mapping for successful jobs when some addBulk commands fail', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+
+      const trees = await flow.addBulk([
+        {
+          name: 'valid-root',
+          data: {},
+          queueName,
+          opts: {
+            deduplication: { id: 'dedup-valid-on-partial-failure' },
+            delay: 1000,
+          },
+        },
+        {
+          name: 'invalid-root',
+          data: {},
+          queueName,
+          opts: {
+            parent: { id: 'missing-parent', queue: `${prefix}:${queueName}` },
+          },
+        },
+      ]);
+
+      const [validTree, invalidTree] = trees;
+      const validJob = await queue.getJob(validTree.job.id);
+      const invalidJob = await queue.getJob(invalidTree.job.id);
+
+      expect(validJob).toBeDefined();
+      expect(invalidJob).toBeUndefined();
+
       await flow.close();
     });
   });

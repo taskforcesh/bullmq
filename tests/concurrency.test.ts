@@ -113,7 +113,7 @@ describe('Concurrency', () => {
 
     await worker.close();
     await queue.close();
-  }); // TODO: Add { timeout: 16000 } to the it() options
+  }, 16000);
 
   it('should run max concurrency for jobs added', async () => {
     const queue = new Queue(queueName, { connection, prefix });
@@ -181,7 +181,7 @@ describe('Concurrency', () => {
 
     await worker.close();
     await queue.close();
-  }); // TODO: Add { timeout: 4000 } to the it() options
+  }, 4000);
 
   it('emits drained global event only once when worker is idle', async () => {
     const queue = new Queue(queueName, { connection, prefix });
@@ -221,7 +221,7 @@ describe('Concurrency', () => {
     await worker.close();
     await queue.close();
     await queueEvents.close();
-  }); // TODO: Add { timeout: 6000 } to the it() options
+  }, 6000);
 
   describe('when global dynamic limit is used', () => {
     it('should run max concurrency for jobs added respecting global dynamic limit', async () => {
@@ -383,7 +383,7 @@ describe('Concurrency', () => {
         await queueEvents.close();
         await worker.close();
         await queue.close();
-      }); // TODO: Add { timeout: 4000 } to the it() options
+      }, 4000);
     });
   });
 
@@ -476,7 +476,7 @@ describe('Concurrency', () => {
       await flow.close();
       await worker.close();
       await queue.close();
-    }); // TODO: Add { timeout: 16000 } to the it() options
+    }, 16000);
   });
 
   it('should automatically process stalled jobs respecting group order', async () => {
@@ -624,7 +624,7 @@ describe('Concurrency', () => {
 
       await worker.close();
       await queue.close();
-    }); // TODO: Add { timeout: 20000 } to the it() options
+    }, 20000);
 
     describe('when backoff is 0', () => {
       it('processes jobs without getting stuck', async () => {

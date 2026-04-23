@@ -1227,7 +1227,7 @@ describe('repeat', () => {
               'months',
               true,
             );
-            expect(diff).to.be.gte(1);
+            expect(diff).toBeGreaterThanOrEqual(1);
           }
           prev = job;
 
@@ -1967,7 +1967,7 @@ describe('repeat', () => {
       worker.on('completed', job => {
         clock.tick(nextTick);
         if (prevType) {
-          expect(prevType).to.not.be.eql(job.data.type);
+          expect(prevType).not.toEqual(job.data.type);
         }
         prevType = job.data.type;
         counter++;

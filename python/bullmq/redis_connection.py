@@ -32,7 +32,7 @@ SCRIPT_DEFINITIONS = {
     "isJobInList": "isJobInList-1.lua",
     "moveStalledJobsToWait": "moveStalledJobsToWait-8.lua",
     "moveToActive": "moveToActive-11.lua",
-    "moveToDelayed": "moveToDelayed-8.lua",
+    "moveToDelayed": "moveToDelayed-12.lua",
     "moveToFinished": "moveToFinished-14.lua",
     "moveToWaitingChildren": "moveToWaitingChildren-7.lua",
     "obliterate": "obliterate-2.lua",
@@ -85,11 +85,12 @@ class RedisConnection:
                 "username": None,
             }
             finalOpts = {**defaultOpts, **redisOpts}
+            finalOpts.pop('single_connection_client', None)
 
-            self.conn = redis.Redis(decode_responses=True, retry=retry, retry_on_error=retry_errors, **finalOpts)
+            self.conn = redis.Redis(decode_responses=True, retry=retry, retry_on_error=retry_errors, single_connection_client=True, **finalOpts)
         else:
             self.conn = redis.from_url(redisOpts, decode_responses=True, retry=retry,
-                retry_on_error=retry_errors)
+                retry_on_error=retry_errors, single_connection_client=True)
 
         # Add driver identification for redis-py
         self._add_driver_info()

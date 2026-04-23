@@ -3,11 +3,23 @@
   "extends": [
     "config:recommended",
     ":semanticCommits",
-    ":maintainLockFilesWeekly"
+    ":maintainLockFilesWeekly",
+    ":enableVulnerabilityAlerts"
   ],
   "labels": ["dependencies"],
   "rangeStrategy": "pin",
   "packageRules": [
+    {
+      "description": "🚨 Security vulnerabilities (OSV/GitHub alerts)",
+      "matchUpdateTypes": ["major", "minor", "patch"],
+      "matchDepTypes": ["dependencies", "devDependencies"],
+      "vulnerabilityFixVersion": true,
+      "groupName": null,
+      "prPriority": 100,
+      "labels": ["security", "osv"],
+      "commitMessageSuffix": "[SECURITY]",
+      "branchTopic": "security-{{depName}}"
+    },
     {
       "description": "Group all non-major devDependencies",
       "matchDepTypes": ["devDependencies"],
@@ -41,7 +53,10 @@
     }
   ],
   "vulnerabilityAlerts": {
-    "labels": ["security"]
+    "enabled": true,
+    "labels": ["security", "osv"]
   },
+  "osvVulnerabilityAlerts": true,
+  "prCreation": "immediate",
   "schedule": ["before 9am on monday"]
 }

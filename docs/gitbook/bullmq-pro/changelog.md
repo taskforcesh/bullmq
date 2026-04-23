@@ -1,3 +1,17 @@
+# [7.44.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.43.1...v7.44.0) (2026-04-15)
+
+
+### Features
+
+* add group affinity to batches ([#412](https://github.com/taskforcesh/bullmq-pro/issues/412)) ([fd705ef](https://github.com/taskforcesh/bullmq-pro/commit/fd705ef9687ab5a8f8b3de8426ece2a54c379a47))
+
+## [7.43.1](https://github.com/taskforcesh/bullmq-pro/compare/v7.43.0...v7.43.1) (2026-04-08)
+
+
+### Bug Fixes
+
+* **groups:** extend obliterate logic to consider groups ([#410](https://github.com/taskforcesh/bullmq-pro/issues/410)) ([a186efb](https://github.com/taskforcesh/bullmq-pro/commit/a186efb1dea3d765ea3f4ff98ea556fbf48de724))
+
 # [7.43.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.42.1...v7.43.0) (2026-03-11)
 
 

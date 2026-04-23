@@ -138,7 +138,7 @@ describe('metrics', () => {
     expect(metrics.data.length).toBe(numPoints);
     expect(metrics.count).toBe(metrics.data.length);
     expect(processed).toBe(numJobs);
-    expect(metrics.data).to.be.deep.equal(fixture);
+    expect(metrics.data).toEqual(fixture);
   });
 
   it('should only keep metrics for "maxDataPoints"', async function () {
@@ -209,7 +209,7 @@ describe('metrics', () => {
     expect(metrics.data.length).toBe(MetricsTime.FIFTEEN_MINUTES);
     expect(metrics.count).toBe(metrics.data.length);
     expect(processed).toBe(numJobs);
-    expect(metrics.data).to.be.deep.equal(fixture);
+    expect(metrics.data).toEqual(fixture);
   });
 
   it('should gather metrics for failed jobs', async () => {
@@ -279,7 +279,7 @@ describe('metrics', () => {
     expect(metrics.data.length).toBe(numPoints);
     expect(metrics.count).toBe(metrics.data.length);
     expect(processed).toBe(numJobs);
-    expect(metrics.data).to.be.deep.equal(fixture);
+    expect(metrics.data).toEqual(fixture);
   });
 
   it('should get metrics with pagination', async () => {
@@ -363,6 +363,6 @@ describe('metrics', () => {
     }
 
     const metrics = await queue.getMetrics('completed');
-    expect(data).to.be.deep.equal(metrics.data);
+    expect(data).toEqual(metrics.data);
   });
 });

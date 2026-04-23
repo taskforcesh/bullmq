@@ -33,3 +33,12 @@ class DeduplicationOptions(TypedDict, total=False):
     
     This is useful in debounce mode where you want to keep only the latest job data.
     """
+
+    keepLastIfActive: bool
+    """
+    If true, when a duplicate job is detected and the existing job is currently
+    active (being processed), a new job will be added to the queue once the
+    active job finishes. This ensures at most 2 jobs exist: one active and one
+    waiting. If multiple jobs are added while one is active, only the latest
+    data is kept for the next job.
+    """
