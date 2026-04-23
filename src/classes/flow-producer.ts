@@ -293,7 +293,11 @@ export class FlowProducer extends EventEmitter {
       async span => {
         span?.setAttributes({
           [TelemetryAttributes.BulkCount]: flows.length,
+          [TelemetryAttributes.BulkCount_]: flows.length,
           [TelemetryAttributes.BulkNames]: flows
+            .map(flow => flow.name)
+            .join(','),
+          [TelemetryAttributes.BulkNames_]: flows
             .map(flow => flow.name)
             .join(','),
         });

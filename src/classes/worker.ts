@@ -741,6 +741,7 @@ export class Worker<
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
           [TelemetryAttributes.WorkerRateLimit]: expireTimeMs,
+          [TelemetryAttributes.WorkerRateLimit_]: expireTimeMs,
         });
 
         await this.client.then(client =>
@@ -1069,6 +1070,7 @@ will never work with more accuracy than 1ms. */
             [TelemetryAttributes.JobAttemptFinishedTimestamp]:
               job.finishedOn || now,
             [TelemetryAttributes.JobProcessedTimestamp]: job.processedOn,
+            [TelemetryAttributes.JobProcessedTimestamp_]: job.processedOn,
           });
         }
       },
@@ -1111,6 +1113,7 @@ will never work with more accuracy than 1ms. */
 
       span?.setAttributes({
         [TelemetryAttributes.JobAttemptsMade]: job.attemptsMade,
+        [TelemetryAttributes.JobAttemptsMade_]: job.attemptsMade,
       });
 
       if (Array.isArray(completed)) {
@@ -1159,9 +1162,11 @@ will never work with more accuracy than 1ms. */
 
       span?.addEvent('job failed', {
         [TelemetryAttributes.JobFailedReason]: err.message,
+        [TelemetryAttributes.JobFailedReason_]: err.message,
       });
       span?.setAttributes({
         [TelemetryAttributes.JobAttemptsMade]: job.attemptsMade,
+        [TelemetryAttributes.JobAttemptsMade_]: job.attemptsMade,
       });
 
       // Note: result can be undefined if moveToFailed fails (e.g., lock was lost)
@@ -1187,6 +1192,7 @@ will never work with more accuracy than 1ms. */
           [TelemetryAttributes.WorkerId]: this.id,
           [TelemetryAttributes.WorkerName]: this.opts.name,
           [TelemetryAttributes.WorkerDoNotWaitActive]: doNotWaitActive,
+          [TelemetryAttributes.WorkerDoNotWaitActive_]: doNotWaitActive,
         });
 
         if (!this.paused) {
@@ -1281,6 +1287,7 @@ will never work with more accuracy than 1ms. */
             [TelemetryAttributes.WorkerId]: this.id,
             [TelemetryAttributes.WorkerName]: this.opts.name,
             [TelemetryAttributes.WorkerForceClose]: force,
+            [TelemetryAttributes.WorkerForceClose_]: force,
           });
           this.emit('closing', 'closing queue');
           this.abortDelayController?.abort();
@@ -1447,6 +1454,7 @@ will never work with more accuracy than 1ms. */
           [TelemetryAttributes.WorkerId]: this.id,
           [TelemetryAttributes.WorkerName]: this.opts.name,
           [TelemetryAttributes.WorkerStalledJobs]: stalled,
+          [TelemetryAttributes.WorkerStalledJobs_]: stalled,
         });
 
         stalled.forEach((jobId: string) => {
