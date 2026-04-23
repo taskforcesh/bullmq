@@ -1,3 +1,10 @@
+# [2.23.0](https://github.com/taskforcesh/bullmq/compare/vpy2.22.0...vpy2.23.0) (2026-04-22)
+
+
+### Features
+
+* **python:** add type hints to worker.py methods ([#4035](https://github.com/taskforcesh/bullmq/issues/4035)) ([1423b58](https://github.com/taskforcesh/bullmq/commit/1423b584b5707b3f71ee2fba5eb14122fb7b0275))
+
 # [2.22.0](https://github.com/taskforcesh/bullmq/compare/vpy2.21.1...vpy2.22.0) (2026-04-20)
 
 
