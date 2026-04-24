@@ -1,6 +1,10 @@
 from typing import Callable
 from uuid import uuid4
-from redis.exceptions import ConnectionError
+from redis.exceptions import (
+    BusyLoadingError,
+    ConnectionError as RedisConnectionError,
+    TimeoutError as RedisTimeoutError,
+)
 from bullmq.custom_errors import UnrecoverableError, WaitingChildrenError
 from bullmq.scripts import Scripts
 from bullmq.redis_connection import RedisConnection
@@ -20,6 +24,11 @@ maximum_block_timeout = 10
 # Obviously we can still process much faster than 1 job per millisecond but delays and
 # rate limits will never work with more accuracy than 1ms.
 minimum_block_timeout = 0.001
+
+# Short delay (in seconds) used to space out retries after a transient error
+# in the main worker loop. Mirrors the DELAY_TIME_1 constant used by the
+# Node.js implementation for the same purpose.
+short_retry_delay = 0.1
 
 
 class Worker(EventEmitter):
@@ -182,7 +191,19 @@ class Worker(EventEmitter):
         block_timeout = self.getBlockTimeout(self.blockUntil)
         block_timeout = block_timeout if self.blockingRedisConnection.capabilities.get("canDoubleTimeout", False) else math.ceil(block_timeout)
 
-        result = await self.bclient.bzpopmin(self.scripts.keys["marker"], block_timeout)
+        try:
+            result = await self.bclient.bzpopmin(self.scripts.keys["marker"], block_timeout)
+        except Exception as err:
+            # Mirror the Node.js worker: on a transient connection failure
+            # we short-sleep before surfacing the error so the outer retry
+            # loop cannot spin at full CPU while Redis is unavailable.
+            # Non-connection errors are also slowed down here to avoid
+            # hanging the app with an error storm (issue #3103).
+            if not self.closing and not self.closed:
+                if not self.isConnectionError(err):
+                    self.emit("error", err)
+                await asyncio.sleep(short_retry_delay)
+            raise
         if result:
             [_key, member, score] = result
 
@@ -275,13 +296,22 @@ class Worker(EventEmitter):
             except Exception as err:
                 # Check if this is a connection error that should be retried
                 is_connection_error = self.isConnectionError(err)
-                
+
                 if not is_connection_error:
                     # Swallow error if locally not paused or not closing since we did not force a disconnection
                     if not (self.paused or self.closing):
                         self.emit("error", err)
-                    
+
                     if only_emit_error:
+                        # Without a short backoff a non-connection error
+                        # that keeps happening (e.g. a misconfigured script
+                        # or a transient Redis error type we don't classify
+                        # as a connection error yet) would cause the outer
+                        # worker loop to re-enter retryIfFailed immediately
+                        # and busy-loop the CPU. Sleep briefly here so the
+                        # retry rate stays bounded. See issue #3103.
+                        if not self.closing and not self.closed:
+                            await asyncio.sleep(short_retry_delay)
                         return None
                     else:
                         raise err
@@ -289,19 +319,57 @@ class Worker(EventEmitter):
                     # For connection errors, wait and retry
                     if delay_in_ms and not self.closing and not self.closed:
                         await asyncio.sleep(delay_in_ms / 1000.0)
-                    
+
                     retry += 1
                     if retry >= max_retries:
                         # If we've reached max retries, raise the last error
                         raise err
-        
+
         return None
-    
+
     def isConnectionError(self, error: Exception) -> bool:
         """
-        Check if an error is a connection-related error.
+        Check if an error is a connection-related error that should trigger a
+        retry with backoff rather than being surfaced to the user.
+
+        This mirrors the Node.js worker's `isNotConnectionError` check. We
+        deliberately classify a broad range of transient failures as
+        connection errors so that losing the Redis server does not cause the
+        worker to busy-loop (see issue #3103). In particular, Redis client
+        libraries can surface a dropped connection as `ConnectionError`,
+        `TimeoutError`, `BusyLoadingError`, or even a bare `OSError` /
+        `asyncio.TimeoutError` depending on where the failure occurs.
         """
-        return isinstance(error, ConnectionError)
+        if isinstance(
+            error,
+            (
+                RedisConnectionError,
+                RedisTimeoutError,
+                BusyLoadingError,
+                ConnectionRefusedError,
+                ConnectionResetError,
+                asyncio.TimeoutError,
+            ),
+        ):
+            return True
+
+        # Some failure modes (e.g. DNS or socket failures raised before the
+        # redis client has a chance to wrap them) surface as a plain
+        # `OSError`. Treat the well-known transient errno values or a
+        # message containing ECONNREFUSED as a connection error.
+        if isinstance(error, OSError):
+            transient_errnos = {
+                getattr(__import__("errno"), name, None)
+                for name in ("ECONNREFUSED", "ECONNRESET", "ENETUNREACH",
+                             "EHOSTUNREACH", "EPIPE")
+            }
+            transient_errnos.discard(None)
+            if error.errno in transient_errnos:
+                return True
+            if "ECONNREFUSED" in str(error):
+                return True
+
+        return False
 
     async def extendLocks(self):
         # Renew all the locks for the jobs that are still active
