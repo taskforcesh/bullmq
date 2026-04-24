@@ -419,22 +419,22 @@ export async function trace<T>(
  * randomUUID helper to generate a uuid v4 using native crypto depencency.
  */
 export function randomUUID() {
-  try {
+  if (typeof cryptoRandomUUID === 'function') {
     return cryptoRandomUUID();
-  } catch (error) {
-    const bytes = randomBytes(16);
-
-    // Set version to 4 (bits 4-7 of the 7th byte)
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    // Set variant to RFC 4122 (bits 6-7 of the 9th byte)
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-
-    return [
-      bytes.toString('hex', 0, 4),
-      bytes.toString('hex', 4, 6),
-      bytes.toString('hex', 6, 8),
-      bytes.toString('hex', 8, 10),
-      bytes.toString('hex', 10, 16),
-    ].join('-');
   }
+
+  const bytes = randomBytes(16);
+
+  // Set version to 4 (bits 4-7 of the 7th byte)
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  // Set variant to RFC 4122 (bits 6-7 of the 9th byte)
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+  return [
+    bytes.toString('hex', 0, 4),
+    bytes.toString('hex', 4, 6),
+    bytes.toString('hex', 6, 8),
+    bytes.toString('hex', 8, 10),
+    bytes.toString('hex', 10, 16),
+  ].join('-');
 }
