@@ -68,13 +68,29 @@ class RedisConnection:
         "canDoubleTimeout": False
     }
 
-    def __init__(self, redisOpts: Union[dict, str, redis.Redis] = {}):
+    def __init__(self, redisOpts: Union[dict, str, redis.Redis] = {}, isBlocking: bool = False):
         self.version = None
+        self.shared = False
+        self.isBlocking = isBlocking
         retry = Retry(ExponentialBackoff(cap=20, base=1), 20)
         retry_errors = [BusyLoadingError, ConnectionError, TimeoutError]
 
         if isinstance(redisOpts, redis.Redis):
-            self.conn = redisOpts
+            # The caller supplied an already-constructed Redis client. We treat
+            # this as a "shared" connection and must not close it in close().
+            # For blocking usage (e.g. the Worker's bclient) we cannot reuse the
+            # shared client directly because blocking commands like BZPOPMIN
+            # would monopolise the single underlying socket and corrupt replies
+            # of subsequent commands issued through the same client (this was
+            # the root cause of empty job.data / None job.name observed when a
+            # single redis.asyncio.Redis instance was passed to both Queue and
+            # Worker). Instead, derive a sibling client bound to a dedicated
+            # connection from the same pool via Redis.client().
+            self.shared = True
+            if isBlocking and hasattr(redisOpts, "client"):
+                self.conn = redisOpts.client()
+            else:
+                self.conn = redisOpts
         elif isinstance(redisOpts, dict):
             defaultOpts = {
                 "host": "localhost",
@@ -107,12 +123,21 @@ class RedisConnection:
         """
         Disconnect from Redis
         """
+        if self.shared:
+            return None
         return self.conn.disconnect()
 
     async def close(self):
         """
         Close the connection
+
+        When the underlying client was supplied by the caller (shared=True),
+        we must not close it, as it remains owned by the caller. This mirrors
+        the behaviour of the Node implementation's ``shared`` flag on
+        RedisConnection.
         """
+        if self.shared:
+            return None
         return await self.conn.aclose()
 
     async def getRedisVersion(self):
