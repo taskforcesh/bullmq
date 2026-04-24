@@ -416,7 +416,7 @@ export async function trace<T>(
 }
 
 /**
- * randomUUID helper to generate a uuid v4 using native crypto depencency.
+ * randomUUID helper to generate a UUID v4 using native crypto dependency.
  */
 export function randomUUID() {
   if (typeof cryptoRandomUUID === 'function') {
