@@ -12,7 +12,7 @@ import {
   expect,
 } from 'vitest';
 
-import { v4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { Job, Queue, QueueEvents, Worker } from '../src/classes';
 import { JobsOptions } from '../src/types';
 import { delay, getParentKey, removeAllQueueData } from '../src/utils';
@@ -29,7 +29,7 @@ describe('Job', () => {
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
   });
 
@@ -119,7 +119,7 @@ describe('Job', () => {
     describe('when parent key is missing', () => {
       it('throws an error', async () => {
         const data = { foo: 'bar' };
-        const parentId = v4();
+        const parentId = randomUUID();
         const opts: JobsOptions = {
           parent: { id: parentId, queue: `${prefix}:${queueName}` },
         };
@@ -362,7 +362,7 @@ describe('Job', () => {
       const values = [{ idx: 0, bar: 'something' }];
       const token = 'my-token';
       const token2 = 'my-token2';
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       const parentQueue = new Queue(parentQueueName, { connection, prefix });
       const parentWorker = new Worker(parentQueueName, null, {
@@ -719,7 +719,7 @@ describe('Job', () => {
       ];
       const token = 'my-token';
 
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       const parentQueue = new Queue(parentQueueName, { connection, prefix });
 

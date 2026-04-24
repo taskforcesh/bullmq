@@ -9,7 +9,7 @@ import {
   expect,
 } from 'vitest';
 
-import { v4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { Queue, QueueEvents, Worker, UnrecoverableError } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
@@ -27,7 +27,7 @@ describe('Job Cancellation - Advanced Scenarios', () => {
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
@@ -478,7 +478,9 @@ describe('Job Cancellation - Advanced Scenarios', () => {
         queueName,
         async (job, token, signal) => {
           startedCount++;
-          if (startedCount === 3) {allStartedResolve();}
+          if (startedCount === 3) {
+            allStartedResolve();
+          }
           for (let i = 0; i < 100; i++) {
             if (signal?.aborted) {
               jobStatuses.set(job.id!, 'cancelled');

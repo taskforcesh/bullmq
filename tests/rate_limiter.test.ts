@@ -10,7 +10,7 @@ import {
   expect,
 } from 'vitest';
 
-import { v4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import {
   FlowProducer,
   Queue,
@@ -35,7 +35,7 @@ describe('Rate Limiter', () => {
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
@@ -422,7 +422,7 @@ describe('Rate Limiter', () => {
   describe('when using flows', () => {
     it('should obey the rate limit per queue', { timeout: 20000 }, async () => {
       const name = 'child-job';
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
       const parentQueueEvents = new QueueEvents(parentQueueName, {
         connection,
         prefix,

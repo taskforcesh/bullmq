@@ -9,7 +9,7 @@ import {
   expect,
 } from 'vitest';
 
-import { v4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { FlowProducer, JobScheduler, Queue, Worker } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
 import {
@@ -200,7 +200,7 @@ describe('Telemetry', () => {
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     telemetryClient = new MockTelemetry('mockTracer');
 
     queue = new Queue(queueName, {

@@ -12,7 +12,7 @@ import {
   expect,
 } from 'vitest';
 
-import { v4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 const NoopProc = () => Promise.resolve();
 
@@ -28,7 +28,7 @@ describe('stalled jobs', () => {
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
   });
 
@@ -414,7 +414,7 @@ describe('stalled jobs', () => {
       it('should move parent to failed when child is moved to failed', async () => {
         // TODO: Move timeout to test options: { timeout: 6000 }
         const concurrency = 4;
-        const parentQueueName = `parent-queue-${v4()}`;
+        const parentQueueName = `parent-queue-${randomUUID()}`;
 
         const parentQueue = new Queue(parentQueueName, {
           connection,
@@ -516,7 +516,7 @@ describe('stalled jobs', () => {
       it('should start processing parent when child is moved to failed', async () => {
         // TODO: Move timeout to test options: { timeout: 6000 }
         const concurrency = 4;
-        const parentQueueName = `parent-queue-${v4()}`;
+        const parentQueueName = `parent-queue-${randomUUID()}`;
 
         const parentQueue = new Queue(parentQueueName, {
           connection,
@@ -608,7 +608,7 @@ describe('stalled jobs', () => {
       it('should move parent to waiting when child is moved to failed and save child failedReason', async () => {
         // TODO: Move timeout to test options: { timeout: 6000 }
         const concurrency = 4;
-        const parentQueueName = `parent-queue-${v4()}`;
+        const parentQueueName = `parent-queue-${randomUUID()}`;
 
         const parentQueue = new Queue(parentQueueName, {
           connection,
@@ -702,7 +702,7 @@ describe('stalled jobs', () => {
       it('should move parent to waiting when child is moved to failed', async () => {
         // TODO: Move timeout to test options: { timeout: 6000 }
         const concurrency = 4;
-        const parentQueueName = `parent-queue-${v4()}`;
+        const parentQueueName = `parent-queue-${randomUUID()}`;
 
         const parentQueue = new Queue(parentQueueName, {
           connection,

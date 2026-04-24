@@ -11,7 +11,7 @@ import {
 } from 'vitest';
 
 import * as sinon from 'sinon';
-import { v4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { rrulestr } from 'rrule';
 import {
   Job,
@@ -58,7 +58,7 @@ describe('Job Scheduler', () => {
       shouldClearNativeTimers: true,
       toFake: ['Date', 'setTimeout', 'clearTimeout'],
     });
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     repeat = new Repeat(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
@@ -1153,7 +1153,7 @@ describe('Job Scheduler', () => {
   describe('when using removeOnComplete', () => {
     it('should remove repeated job', async () => {
       // TODO: Move timeout to test options: { timeout: 10000 }
-      const queueName2 = `test-${v4()}`;
+      const queueName2 = `test-${randomUUID()}`;
       const queue2 = new Queue(queueName2, {
         connection: new IORedis(redisHost, {
           maxRetriesPerRequest: null,
@@ -3968,7 +3968,7 @@ describe('Job Scheduler', () => {
         every: ONE_MINUTE,
       });
 
-      let schedulersBefore = await queue.getJobSchedulers();
+      const schedulersBefore = await queue.getJobSchedulers();
       expect(schedulersBefore.length).toEqual(1);
 
       const worker = new Worker(queueName, async () => {}, {
