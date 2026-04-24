@@ -14,9 +14,8 @@ import {
 import * as sinon from 'sinon';
 
 import { default as IORedis } from 'ioredis';
-import { randomUUID } from 'crypto';
 import { FlowProducer, Queue, QueueEvents, Worker } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 
 describe('Jobs getters', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';

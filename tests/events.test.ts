@@ -1,5 +1,4 @@
 import { default as IORedis } from 'ioredis';
-import { randomUUID } from 'crypto';
 import {
   describe,
   beforeEach,
@@ -20,7 +19,7 @@ import {
   QueueEventsProducer,
   Worker,
 } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 
 describe('events', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';

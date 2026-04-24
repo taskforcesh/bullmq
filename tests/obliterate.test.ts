@@ -10,9 +10,8 @@ import {
   expect,
 } from 'vitest';
 
-import { randomUUID } from 'crypto';
 import { Queue, QueueEvents, FlowProducer, Worker, Job } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 
 describe('Obliterate', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';

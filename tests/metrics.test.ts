@@ -10,10 +10,9 @@ import {
 } from 'vitest';
 
 import * as sinon from 'sinon';
-import { randomUUID } from 'crypto';
 
 import { Queue, QueueEvents, Repeat, Worker } from '../src/classes';
-import { removeAllQueueData } from '../src/utils';
+import { randomUUID, removeAllQueueData } from '../src/utils';
 import { MetricsTime } from '../src/enums';
 
 const ONE_SECOND = 1000;

@@ -9,9 +9,8 @@ import {
   expect,
 } from 'vitest';
 
-import { randomUUID } from 'crypto';
 import { Queue, QueueEvents, Worker, Job } from '../src/classes';
-import { removeAllQueueData, delay } from '../src/utils';
+import { removeAllQueueData, delay, randomUUID } from '../src/utils';
 
 describe('bulk jobs', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';

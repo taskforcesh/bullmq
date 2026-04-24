@@ -1,5 +1,5 @@
 import { FlowProducer, Queue, Worker, QueueEvents } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
 import {
@@ -11,8 +11,6 @@ import {
   it,
   expect,
 } from 'vitest';
-
-import { randomUUID } from 'crypto';
 
 const NoopProc = () => Promise.resolve();
 

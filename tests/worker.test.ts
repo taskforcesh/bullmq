@@ -11,7 +11,6 @@ import {
 } from 'vitest';
 
 import * as sinon from 'sinon';
-import { randomUUID } from 'crypto';
 import {
   Queue,
   QueueEvents,
@@ -27,6 +26,7 @@ import { JobsOptions, KeepJobs } from '../src/types';
 import {
   delay,
   isRedisVersionLowerThan,
+  randomUUID,
   removeAllQueueData,
 } from '../src/utils';
 

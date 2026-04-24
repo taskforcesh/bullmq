@@ -9,10 +9,9 @@ import {
   expect,
 } from 'vitest';
 
-import { randomUUID } from 'crypto';
 import { LockManager, Queue, Worker } from '../src/classes';
 import { LockManagerWorkerContext } from '../src/interfaces';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 
 describe('LockManager', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';

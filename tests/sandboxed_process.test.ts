@@ -21,8 +21,7 @@ import {
   Worker,
 } from '../src/classes';
 
-import { randomUUID } from 'crypto';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 const { stdout, stderr } = require('test-console');
 
 describe('Sandboxed process using child processes', () => {

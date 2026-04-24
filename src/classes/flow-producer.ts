@@ -1,6 +1,5 @@
 import { EventEmitter } from 'events';
 import { Redis, ChainableCommander } from 'ioredis';
-import { randomUUID } from 'crypto';
 import {
   FlowJob,
   FlowQueuesOpts,
@@ -12,7 +11,7 @@ import {
   Tracer,
   ContextManager,
 } from '../interfaces';
-import { getParentKey, isRedisInstance, trace } from '../utils';
+import { getParentKey, isRedisInstance, randomUUID, trace } from '../utils';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { RedisConnection } from './redis-connection';

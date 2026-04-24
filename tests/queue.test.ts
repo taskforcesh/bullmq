@@ -11,9 +11,8 @@ import {
 
 import { after } from 'lodash';
 import * as sinon from 'sinon';
-import { randomUUID } from 'crypto';
 import { FlowProducer, Job, Queue, Worker } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 import { version as currentPackageVersion } from '../src/version';
 
 describe('queues', () => {

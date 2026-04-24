@@ -9,9 +9,8 @@ import {
   expect,
 } from 'vitest';
 
-import { randomUUID } from 'crypto';
 import { FlowProducer, JobScheduler, Queue, Worker } from '../src/classes';
-import { removeAllQueueData } from '../src/utils';
+import { randomUUID, removeAllQueueData } from '../src/utils';
 import {
   Telemetry,
   ContextManager,

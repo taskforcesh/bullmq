@@ -10,9 +10,8 @@ import {
 } from 'vitest';
 
 import { default as IORedis } from 'ioredis';
-import { randomUUID } from 'crypto';
 import { Queue, Job, Worker, QueueEvents } from '../src/classes';
-import { removeAllQueueData, delay } from '../src/utils';
+import { randomUUID, removeAllQueueData, delay } from '../src/utils';
 
 describe('Delayed jobs', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';

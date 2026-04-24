@@ -1,5 +1,4 @@
 import { default as IORedis, RedisOptions } from 'ioredis';
-import { randomUUID } from 'crypto';
 import {
   describe,
   beforeEach,
@@ -18,7 +17,7 @@ import {
   FlowProducer,
   RedisConnection,
 } from '../src/classes';
-import { removeAllQueueData } from '../src/utils';
+import { randomUUID, removeAllQueueData } from '../src/utils';
 
 import * as sinon from 'sinon';
 

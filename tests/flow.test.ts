@@ -9,7 +9,6 @@ import {
   expect,
 } from 'vitest';
 
-import { randomUUID } from 'crypto';
 import {
   Job,
   Queue,
@@ -21,7 +20,7 @@ import {
   DelayedError,
   RateLimitError,
 } from '../src/classes';
-import { removeAllQueueData, delay } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 
 describe('flows', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';

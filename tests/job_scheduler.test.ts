@@ -11,7 +11,6 @@ import {
 } from 'vitest';
 
 import * as sinon from 'sinon';
-import { randomUUID } from 'crypto';
 import { rrulestr } from 'rrule';
 import {
   Job,
@@ -22,7 +21,7 @@ import {
   Worker,
 } from '../src/classes';
 import { JobsOptions } from '../src/types';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 
 const moment = require('moment');
 

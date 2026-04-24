@@ -10,7 +10,6 @@ import {
   expect,
 } from 'vitest';
 
-import { randomUUID } from 'crypto';
 import {
   FlowProducer,
   Queue,
@@ -20,7 +19,7 @@ import {
   UnrecoverableError,
   Job,
 } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 
 describe('Rate Limiter', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';

@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto';
 import {
   BaseJobOptions,
   BulkJobOptions,
@@ -22,6 +21,7 @@ import { RedisConnection } from './redis-connection';
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { JobScheduler } from './job-scheduler';
 import { version } from '../version';
+import { randomUUID } from '../utils';
 
 export interface ObliterateOpts {
   /**

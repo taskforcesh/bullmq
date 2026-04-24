@@ -10,9 +10,8 @@ import {
   expect,
 } from 'vitest';
 
-import { randomUUID } from 'crypto';
 import { Job, Queue, QueueEvents, Repeat, Worker } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 
 const ONE_SECOND = 1000;
 const ONE_MINUTE = 60 * ONE_SECOND;

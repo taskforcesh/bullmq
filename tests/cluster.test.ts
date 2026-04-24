@@ -10,9 +10,8 @@ import {
 } from 'vitest';
 
 import * as sinon from 'sinon';
-import { randomUUID } from 'crypto';
 import { Queue, Worker, QueueEvents } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 
 describe('Cluster support', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';

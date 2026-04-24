@@ -9,9 +9,8 @@ import {
   expect,
 } from 'vitest';
 
-import { randomUUID } from 'crypto';
 import { Queue, QueueEvents, Worker, UnrecoverableError } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 
 describe('Job Cancellation', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';

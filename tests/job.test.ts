@@ -12,10 +12,14 @@ import {
   expect,
 } from 'vitest';
 
-import { randomUUID } from 'crypto';
 import { Job, Queue, QueueEvents, Worker } from '../src/classes';
 import { JobsOptions } from '../src/types';
-import { delay, getParentKey, removeAllQueueData } from '../src/utils';
+import {
+  delay,
+  getParentKey,
+  randomUUID,
+  removeAllQueueData,
+} from '../src/utils';
 
 describe('Job', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';

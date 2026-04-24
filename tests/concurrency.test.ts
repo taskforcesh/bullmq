@@ -16,9 +16,7 @@ import {
   Worker,
   RateLimitError,
 } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
-
-import { randomUUID } from 'crypto';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 
 import ProgressBar from 'progress';
 import { after } from 'lodash';

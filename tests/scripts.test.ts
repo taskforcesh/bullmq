@@ -9,9 +9,8 @@ import {
   expect,
 } from 'vitest';
 
-import { randomUUID } from 'crypto';
 import { Queue } from '../src/classes';
-import { removeAllQueueData } from '../src/utils';
+import { randomUUID, removeAllQueueData } from '../src/utils';
 
 describe('scripts', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';

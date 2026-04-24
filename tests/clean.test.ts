@@ -10,7 +10,6 @@ import {
   expect,
 } from 'vitest';
 
-import { randomUUID } from 'crypto';
 import {
   FlowProducer,
   Queue,
@@ -18,7 +17,7 @@ import {
   WaitingChildrenError,
   Worker,
 } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 
 describe('Cleaner', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
