@@ -115,5 +115,41 @@ function sandboxProcessTests(
         expect(child.childProcess.spawnargs).toContain('--no-warnings');
       }
     });
+
+    // Regression: https://github.com/taskforcesh/bullmq/issues/1833
+    // When the parent Node.js process is launched with `--watch`, the flag
+    // must not be forwarded to sandboxed children. Inheriting it causes the
+    // child runtime to also enter watch mode, which interferes with IPC and
+    // leaves jobs stuck in the `active` state.
+    it('should strip node --watch flags from execArgv before spawning the child', async () => {
+      const processor = __dirname + '/fixtures/fixture_processor_bar.js';
+      const watchFlags = [
+        '--watch',
+        '--watch-path=./src',
+        '--watch-preserve-output',
+        '--watch-kill-signal=SIGTERM',
+      ];
+      process.execArgv.push(...watchFlags);
+
+      try {
+        const child = await pool.retain(processor, NoopProc);
+        expect(child).toBeTruthy();
+        if (!useWorkerThreads) {
+          const args = child.childProcess.spawnargs;
+          for (const flag of watchFlags) {
+            expect(args).not.toContain(flag);
+          }
+        }
+      } finally {
+        // Remove only the flags we added so we don't disturb sibling tests
+        // that also mutate process.execArgv.
+        for (const flag of watchFlags) {
+          const idx = process.execArgv.indexOf(flag);
+          if (idx !== -1) {
+            process.execArgv.splice(idx, 1);
+          }
+        }
+      }
+    });
   });
 }
