@@ -255,7 +255,7 @@ describe('flows', () => {
       expect(remainingJobCount).toBe(1);
       await worker.close();
       await flow.close();
-    }); // TODO: Add { timeout: 8000 } to the it() options
+    }, 8000);
   });
 
   it('should process children before the parent', async () => {
@@ -779,7 +779,7 @@ describe('flows', () => {
       await parentQueue.close();
 
       await removeAllQueueData(new IORedis(redisHost), parentQueueName);
-    }); // TODO: Add { timeout: 8000 } to the it() options
+    }, 8000);
   });
 
   describe('when removeDependencyOnFailure is provided', async () => {
@@ -879,12 +879,11 @@ describe('flows', () => {
       await parentQueue.close();
 
       await removeAllQueueData(new IORedis(redisHost), parentQueueName);
-    }); // TODO: Add { timeout: 8000 } to the it() options
+    }, 8000);
   });
 
   describe('when chaining flows at runtime using step jobs', () => {
     it('should wait children as one step of the parent job', async () => {
-      // TODO: Move timeout to test options: { timeout: 8000 }
       const childrenQueueName = `children-queue-${v4()}`;
       const grandchildrenQueueName = `grandchildren-queue-${v4()}`;
 
@@ -1001,7 +1000,7 @@ describe('flows', () => {
       await grandchildrenWorker.close();
       await removeAllQueueData(new IORedis(redisHost), childrenQueueName);
       await removeAllQueueData(new IORedis(redisHost), grandchildrenQueueName);
-    });
+    }, 8000);
 
     describe('when parent has pending children to be processed when trying to move it to completed', () => {
       it('should fail parent with pending dependencies error', async () => {
@@ -2023,7 +2022,7 @@ describe('flows', () => {
 
       await removeAllQueueData(new IORedis(redisHost), parentQueueName);
       await removeAllQueueData(new IORedis(redisHost), grandchildrenQueueName);
-    }); // TODO: Add { timeout: 8000 } to the it() options
+    }, 8000);
   });
 
   describe('when backoff strategy is provided', async () => {
@@ -2213,8 +2212,6 @@ describe('flows', () => {
     });
 
     it('processes parent jobs added while a child job is active', async () => {
-      // TODO: Move timeout to test options: { timeout: 10_000 }
-
       const worker = new Worker(
         queueName,
         async () => {
@@ -2275,7 +2272,7 @@ describe('flows', () => {
 
       await worker.close();
       await flow.close();
-    });
+    }, 10000);
 
     describe('when job already have a parent', async () => {
       it('throws an error', async () => {
@@ -2658,7 +2655,7 @@ describe('flows', () => {
 
       await removeAllQueueData(new IORedis(redisHost), parentQueueName);
       await removeAllQueueData(new IORedis(redisHost), grandChildrenQueueName);
-    }); // TODO: Add { timeout: 8000 } to the it() options
+    }, 8000);
   });
 
   describe('when failParentOnFailure option is provided', async () => {
@@ -3400,7 +3397,7 @@ describe('flows', () => {
           new IORedis(redisHost),
           grandChildrenQueueName,
         );
-      }); // TODO: Add { timeout: 8000 } to the it() options
+      }, 8000);
     });
 
     describe('when ignoreDependencyOnFailure is provided', async () => {
@@ -3559,7 +3556,7 @@ describe('flows', () => {
           new IORedis(redisHost),
           grandChildrenQueueName,
         );
-      }); // TODO: Add { timeout: 8000 } to the it() options
+      }, 8000);
     });
   });
 
@@ -4815,7 +4812,7 @@ describe('flows', () => {
       await flow.close();
 
       await removeAllQueueData(new IORedis(redisHost), topQueueName);
-    }); // TODO: Add { timeout: 4500 } to the it() options
+    }, 4500);
   });
 
   describe('when children have delay', () => {
