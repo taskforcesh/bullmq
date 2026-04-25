@@ -407,13 +407,14 @@ export class Job<
       job.returnvalue = getReturnValue(json.returnvalue);
     }
 
-    if (json.parentKey) {
-      job.parentKey = json.parentKey;
-    }
-
-    if (json.parent) {
-      job.parent = JSON.parse(json.parent);
-    }
+    // The job hash's `parentKey` and `parent` fields are the source of truth
+    // for the live parent link. `opts.parent` is preserved as a historical
+    // record of how the job was created, but the constructor's derivation of
+    // `this.parent`/`this.parentKey` from `opts.parent` must not leak back
+    // into the rehydrated state when those hash fields have been cleared
+    // (e.g. by `removeChildDependency`). Always assign from the hash.
+    job.parentKey = json.parentKey;
+    job.parent = json.parent ? JSON.parse(json.parent) : undefined;
 
     if (json.pb) {
       job.processedBy = json.pb;
