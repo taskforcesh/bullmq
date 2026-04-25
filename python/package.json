@@ -60,6 +60,12 @@
           "changelogFile": "../docs/gitbook/python/changelog.md"
         }
       ],
+      [
+        "@semantic-release/exec",
+        {
+          "prepareCmd": "sed -i 's/__version__ = \".*\"/__version__ = \"${nextRelease.version}\"/' bullmq/__init__.py"
+        }
+      ],
       "semantic-release-pypi",
       "@semantic-release/github"
     ]
