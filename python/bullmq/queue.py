@@ -1,5 +1,5 @@
 import asyncio
-from typing import Union
+from typing import List, Union
 from bullmq.event_emitter import EventEmitter
 from bullmq.redis_connection import RedisConnection
 from bullmq.types import QueueBaseOptions, RetryJobsOptions, JobOptions, PromoteJobsOptions
@@ -29,10 +29,10 @@ class Queue(EventEmitter):
         self.keys = self.scripts.queue_keys.getKeys(name)
         self.qualifiedName = self.scripts.queue_keys.getQueueQualifiedName(name)
 
-    def toKey(self, type: str):
+    def toKey(self, type: str) -> str:
         return self.scripts.queue_keys.toKey(self.name, type)
 
-    async def add(self, name: str, data, opts: JobOptions = {}):
+    async def add(self, name: str, data, opts: JobOptions | None = None) -> Job:
         """
         Adds a new job to the queue.
 
@@ -40,6 +40,7 @@ class Queue(EventEmitter):
         @param data: Arbitrary data to append to the job.
         @param opts: Job options that affects how the job is going to be processed.
         """
+        opts = opts if opts is not None else {}
         merged_opts = {**self.jobsOpts, **(opts or {})}
 
         job = Job(self, name, data, merged_opts)
@@ -47,7 +48,7 @@ class Queue(EventEmitter):
         job.id = job_id
         return job
 
-    async def addBulk(self, jobs: list[dict[str, Union[dict, str]]]):
+    async def addBulk(self, jobs: list[dict[str, Union[dict, str]]]) -> List[Job]:
         """
         Adds an array of jobs to the queue. This method may be faster than adding
         one job at a time in a sequence
@@ -105,7 +106,7 @@ class Queue(EventEmitter):
         """
         return self.scripts.pause(False)
 
-    async def isPaused(self):
+    async def isPaused(self) -> bool:
         """
         Returns true if the queue is currently paused.
         """
@@ -118,7 +119,7 @@ class Queue(EventEmitter):
         """
         return self.client.pttl(self.keys["limiter"])
 
-    async def get_workers(self):
+    async def get_workers(self) -> list[dict]:
         """
         Get the worker list related to the queue. i.e. all the known
         workers that are available to process jobs for this queue.
@@ -131,11 +132,11 @@ class Queue(EventEmitter):
 
         return await self._base_get_clients(matcher)
 
-    async def get_workers_count(self):
+    async def get_workers_count(self) -> int:
         workers = await self.get_workers()
         return len(workers)
 
-    async def _base_get_clients(self, matcher):
+    async def _base_get_clients(self, matcher) -> list[dict]:
         client = self.client
         try:
             if is_redis_cluster(client):
@@ -164,7 +165,7 @@ class Queue(EventEmitter):
             return await client.client_list()
         return await client.execute_command("CLIENT", "LIST")
 
-    def _parse_client_list(self, client_list, matcher):
+    def _parse_client_list(self, client_list, matcher) -> list[dict]:
         if isinstance(client_list, bytes):
             client_list = client_list.decode()
 
@@ -199,7 +200,7 @@ class Queue(EventEmitter):
 
         return result
 
-    async def getJobLogs(self, job_id:str, start = 0, end = -1, asc = True):
+    async def getJobLogs(self, job_id:str, start = 0, end = -1, asc = True) -> dict:
         """
         Returns the logs for a given Job.
 
@@ -224,7 +225,7 @@ class Queue(EventEmitter):
             "count": result[1]
         }
    
-    async def obliterate(self, force: bool = False):
+    async def obliterate(self, force: bool = False) -> None:
         """
         Completely destroys the queue and all of its contents irreversibly.
         This method will the *pause* the queue and requires that there are no
@@ -242,7 +243,7 @@ class Queue(EventEmitter):
             if cursor is None or cursor == 0 or cursor == "0":
                 break
 
-    async def drain(self, delayed: bool = False):
+    async def drain(self, delayed: bool = False) -> None:
         """
         Drains the queue, removes all jobs that are waiting
         or delayed, but not active, completed or failed.
@@ -251,10 +252,11 @@ class Queue(EventEmitter):
         """
         await self.scripts.drain(delayed)
 
-    async def retryJobs(self, opts: RetryJobsOptions = {}):
+    async def retryJobs(self, opts: RetryJobsOptions | None = None) -> None:
         """
         Retry all the failed or completed jobs.
         """
+        opts = opts if opts is not None else {}
         while True:
             cursor = await self.scripts.retryJobs(
                 opts.get("state"),
@@ -264,10 +266,11 @@ class Queue(EventEmitter):
             if cursor is None or cursor == 0 or cursor == "0":
                 break
 
-    async def promoteJobs(self, opts: PromoteJobsOptions = {}):
+    async def promoteJobs(self, opts: PromoteJobsOptions | None = None) -> None:
         """
         Retry all the delayed jobs.
         """
+        opts = opts if opts is not None else {}
         while True:
             cursor = await self.scripts.promoteJobs(
                 opts.get("count")
@@ -289,14 +292,14 @@ class Queue(EventEmitter):
         """
         return self.client.delete(self.toKey("priority"))
 
-    async def getJobCountByTypes(self, *types):
+    async def getJobCountByTypes(self, *types) -> int:
         result = await self.getJobCounts(*types)
-        sum = 0
+        total = 0
         for attribute in result:
-            sum += result[attribute]
-        return sum
+            total += result[attribute]
+        return total
 
-    async def getJobCounts(self, *types):
+    async def getJobCounts(self, *types) -> dict:
         """
         Returns the job counts for each type specified or every list/set in the queue by default.
 
@@ -311,7 +314,7 @@ class Queue(EventEmitter):
             counts[current_types[index]] = val or 0
         return counts
 
-    async def getCountsPerPriority(self, priorities):
+    async def getCountsPerPriority(self, priorities) -> dict:
         """
         Returns the number of jobs per priority.
 
@@ -328,7 +331,7 @@ class Queue(EventEmitter):
             counts[f"{unique_priorities[index]}"] = val or 0
         return counts
 
-    async def clean(self, grace: int, limit: int, type: str):
+    async def clean(self, grace: int, limit: int, type: str) -> list:
         """
         Cleans jobs from a queue. Similar to drain but keeps jobs within a certain
         grace period
@@ -375,7 +378,7 @@ class Queue(EventEmitter):
     def getWaitingChildren(self, start = 0, end=-1):
         return self.getJobs(['waiting-children'], start, end, True)
 
-    async def getJobs(self, types, start=0, end=-1, asc:bool=False):
+    async def getJobs(self, types, start=0, end=-1, asc:bool=False) -> List[Job]:
         current_types = self.sanitizeJobTypes(types)
         job_ids = await self.scripts.getRanges(current_types, start, end, asc)
         tasks = [asyncio.create_task(Job.fromId(self, i)) for i in job_ids]
@@ -398,7 +401,7 @@ class Queue(EventEmitter):
 
         return jobs
 
-    def sanitizeJobTypes(self, types):
+    def sanitizeJobTypes(self, types) -> list[str]:
         current_types = list(types)
 
         if len(types) > 0:
@@ -423,7 +426,7 @@ class Queue(EventEmitter):
             'waiting-children'
         ]
 
-    async def close(self):
+    async def close(self) -> None:
         """
         Close the queue instance.
         """
