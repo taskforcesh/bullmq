@@ -4125,10 +4125,10 @@ msgpackr-extract@^3.0.2:
     "@msgpackr-extract/msgpackr-extract-linux-x64" "3.0.3"
     "@msgpackr-extract/msgpackr-extract-win32-x64" "3.0.3"
 
-msgpackr@1.11.5:
-  version "1.11.5"
-  resolved "https://registry.yarnpkg.com/msgpackr/-/msgpackr-1.11.5.tgz#edf0b9d9cb7d8ed6897dd0e42cfb865a2f4b602e"
-  integrity sha512-UjkUHN0yqp9RWKy0Lplhh+wlpdt9oQBYgULZOiFhV3VclSF1JnSQWZ5r9gORQlNYaUKQoR8itv7g7z1xDDuACA==
+msgpackr@1.11.10:
+  version "1.11.10"
+  resolved "https://registry.yarnpkg.com/msgpackr/-/msgpackr-1.11.10.tgz#393d821ed34433d419b2e66826bfa1b7a33b39ef"
+  integrity sha512-iCZNq+HszvF+fC3anCm4nBmWEnbeIAfpDs6IStAEKhQ2YSgkjzVG2FF9XJqwwQh5bH3N9OUTUt4QwVN6MLMLtA==
   optionalDependencies:
     msgpackr-extract "^3.0.2"
 
