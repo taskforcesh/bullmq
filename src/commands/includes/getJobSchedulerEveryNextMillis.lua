@@ -8,7 +8,15 @@ local function getJobSchedulerEveryNextMillis(prevMillis, every, now, offset, st
             nextMillis = tonumber(startDate)
             nextMillis = nextMillis > now and nextMillis or now
         else
-            nextMillis = now
+            if offset and offset > 0 then
+                -- Align to the next slot that respects the offset
+                nextMillis = math.floor(now / every) * every + offset
+                if nextMillis <= now then
+                    nextMillis = nextMillis + every
+                end
+            else
+                nextMillis = now
+            end
         end
     else
         nextMillis = prevMillis + every
