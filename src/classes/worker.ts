@@ -325,6 +325,7 @@ export class Worker<
           useWorkerThreads: this.opts.useWorkerThreads,
           workerForkOptions: this.opts.workerForkOptions,
           workerThreadsOptions: this.opts.workerThreadsOptions,
+          reuseChildProcess: this.opts.reuseChildProcess,
         });
 
         this.createSandbox(processor);
