@@ -1,3 +1,10 @@
+## [5.76.2](https://github.com/taskforcesh/bullmq/compare/v5.76.1...v5.76.2) (2026-04-25)
+
+
+### Bug Fixes
+
+* **deps:** replace uuid with crypto ([#4099](https://github.com/taskforcesh/bullmq/issues/4099)) ([595016e](https://github.com/taskforcesh/bullmq/commit/595016ef1d3a960ad83dfbbc189034561e099482))
+
 # [5.76.0](https://github.com/taskforcesh/bullmq/compare/v5.75.2...v5.76.0) (2026-04-22)
 
 
