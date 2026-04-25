@@ -10,7 +10,6 @@ import {
   expect,
 } from 'vitest';
 
-import { v4 } from 'uuid';
 import {
   FlowProducer,
   Queue,
@@ -18,7 +17,7 @@ import {
   WaitingChildrenError,
   Worker,
 } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 
 describe('Cleaner', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
@@ -27,13 +26,13 @@ describe('Cleaner', () => {
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  let connection;
+  let connection: IORedis;
   beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
@@ -554,7 +553,7 @@ describe('Cleaner', () => {
 
       describe('when parent has pending children in different queue', async () => {
         it('keeps parent in waiting-children', async () => {
-          const childrenQueueName = `test-${v4()}`;
+          const childrenQueueName = `test-${randomUUID()}`;
           const childrenQueue = new Queue(childrenQueueName, {
             connection,
             prefix,
@@ -698,7 +697,7 @@ describe('Cleaner', () => {
     describe('when parent belongs to different queue', async () => {
       describe('when parent has more than 1 pending children', async () => {
         it('deletes each children until trying to move parent to wait', async () => {
-          const parentQueueName = `test-${v4()}`;
+          const parentQueueName = `test-${randomUUID()}`;
           const parentQueue = new Queue(parentQueueName, {
             connection,
             prefix,
@@ -754,7 +753,7 @@ describe('Cleaner', () => {
 
       describe('when parent has only 1 pending children', async () => {
         it('moves parent to wait to try to process it', async () => {
-          const parentQueueName = `test-${v4()}`;
+          const parentQueueName = `test-${randomUUID()}`;
           const parentQueue = new Queue(parentQueueName, {
             connection,
             prefix,
@@ -1050,7 +1049,7 @@ describe('Cleaner', () => {
     });
 
     it('should not remove jobs in the waiting-children state', async () => {
-      const childrenQueueName = `test-children-${v4()}`;
+      const childrenQueueName = `test-children-${randomUUID()}`;
       const childrenQueue = new Queue(childrenQueueName, {
         connection,
         prefix,

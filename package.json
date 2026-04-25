@@ -19,6 +19,9 @@
   "files": [
     "dist"
   ],
+  "engines": {
+    "node": ">=12.22.0"
+  },
   "scripts": {
     "build": "npm run pretest && npm run tsc:all && npm run copy:main:type && npm run clean:temp:files && npm run copy:lua && npm run copy:includes:lua",
     "circular:references": "madge --circular --extensions ts ./src",
@@ -64,8 +67,7 @@
     "msgpackr": "1.11.5",
     "node-abort-controller": "3.1.1",
     "semver": "7.7.4",
-    "tslib": "2.8.1",
-    "uuid": "11.1.0"
+    "tslib": "2.8.1"
   },
   "devDependencies": {
     "@commitlint/cli": "20.5.0",

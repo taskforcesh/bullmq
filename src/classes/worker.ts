@@ -2,7 +2,6 @@ import * as fs from 'fs';
 import { URL } from 'url';
 import type { Cluster, Redis } from 'ioredis';
 import * as path from 'path';
-import { v4 } from 'uuid';
 import { AbortController } from './abort-controller';
 
 import {
@@ -22,6 +21,7 @@ import {
   DELAY_TIME_1,
   isNotConnectionError,
   isRedisInstance,
+  randomUUID,
 } from '../utils';
 import { QueueBase } from './queue-base';
 import { Repeat } from './repeat';
@@ -269,7 +269,7 @@ export class Worker<
     this.opts.lockRenewTime =
       this.opts.lockRenewTime || this.opts.lockDuration / 2;
 
-    this.id = v4();
+    this.id = randomUUID();
 
     this.createLockManager();
 

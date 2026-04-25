@@ -14,9 +14,8 @@ import {
 import * as sinon from 'sinon';
 
 import { default as IORedis } from 'ioredis';
-import { v4 } from 'uuid';
 import { FlowProducer, Queue, QueueEvents, Worker } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 
 describe('Jobs getters', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
@@ -24,13 +23,13 @@ describe('Jobs getters', () => {
   let queue: Queue;
   let queueName: string;
 
-  let connection;
+  let connection: IORedis;
   beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
   });
 
