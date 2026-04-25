@@ -661,13 +661,42 @@ export class Worker<
    * @param token - worker token to be assigned to retrieved job
    * @returns a Job or undefined if no job was available in the queue.
    */
-  async getNextJob(token: string, { block = true }: GetNextJobOptions = {}) {
+  async getNextJob(
+    token: string,
+    { block = true }: GetNextJobOptions = {},
+  ): Promise<Job<DataType, ResultType, NameType> | undefined> {
     const nextJob = await this._getNextJob(
       await this.client,
       await this.blockingConnection.client,
       token,
       { block },
     );
+
+    // If the fetched job has a deferred failure (e.g. exceeded maxStalledCount
+    // in the stalled checker), move it to failed right away so that manual
+    // processing consumers do not need to run the full processJob lifecycle
+    // just to surface the failure. This matches the documented behaviour of
+    // stalled handling when manually fetching jobs.
+    //
+    // After failing such a job, recursively fetch the next job (without
+    // blocking) so that callers still receive a runnable job when one is
+    // available behind it, instead of unexpectedly getting `undefined` while
+    // other jobs are waiting. Recursion terminates naturally: each call
+    // either returns a runnable job, fails one and recurses, or returns
+    // undefined when the queue drains.
+    if (nextJob) {
+      const unrecoverableErrorMessage =
+        this.getUnrecoverableErrorMessage(nextJob);
+      if (unrecoverableErrorMessage) {
+        await this.handleFailed(
+          new UnrecoverableError(unrecoverableErrorMessage),
+          nextJob,
+          token,
+          () => false,
+        );
+        return this.getNextJob(token, { block: false });
+      }
+    }
 
     return this.trace<Job<DataType, ResultType, NameType> | undefined>(
       SpanKind.INTERNAL,
