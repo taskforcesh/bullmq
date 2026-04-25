@@ -378,6 +378,9 @@ class Worker(EventEmitter):
 
 
 async def getCompleted(task_set: set, emit_callback) -> tuple[list[Job], set]:
+    if not task_set:
+        await asyncio.sleep(0)
+        return [], set()
     job_set, pending = await asyncio.wait(task_set, return_when=asyncio.FIRST_COMPLETED)
     jobs = [extract_result(job_task, emit_callback) for job_task in job_set]
     # we filter `None` out to remove:
