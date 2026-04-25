@@ -1,10 +1,17 @@
+## [5.76.2](https://github.com/taskforcesh/bullmq/compare/v5.76.1...v5.76.2) (2026-04-25)
+
+
+### Bug Fixes
+
+* **deps:** replace uuid with crypto ([#4099](https://github.com/taskforcesh/bullmq/issues/4099)) ([595016e](https://github.com/taskforcesh/bullmq/commit/595016ef1d3a960ad83dfbbc189034561e099482))
+
 ## [5.76.1](https://github.com/taskforcesh/bullmq/compare/v5.76.0...v5.76.1) (2026-04-22)
 
 
 ### Bug Fixes
 
 * **worker:** use scheduler registry to discriminate repeatable keys ([#4007](https://github.com/taskforcesh/bullmq/issues/4007)) ([ea7705d](https://github.com/taskforcesh/bullmq/commit/ea7705df6938cb432eceff242f6828054766f61a))
-
+ 
 # [5.76.0](https://github.com/taskforcesh/bullmq/compare/v5.75.2...v5.76.0) (2026-04-22)
 
 
