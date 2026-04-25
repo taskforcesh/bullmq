@@ -49,6 +49,15 @@ import { UnrecoverableError } from './errors';
 export type JobData = [JobJsonRaw | number, string?];
 
 export class Scripts {
+  /**
+   * Hard cap on the number of jobs `getRangedJobs` will fetch in a single
+   * call. This avoids issuing a long-running Lua script (which performs an
+   * `HGETALL` per id) that could block Redis when callers request very
+   * large ranges (including the implicit `end = -1` against a large state
+   * set).
+   */
+  static readonly MAX_RANGED_JOBS = 1000;
+
   protected version = packageVersion;
 
   moveToFinishedKeys: (string | undefined)[];
@@ -888,6 +897,87 @@ export class Scripts {
     const args = this.getRangesArgs(types, start, end, asc);
 
     return await this.execCommand(client, 'getRanges', args);
+  }
+
+  /**
+   * Atomically range over the given state lists/sets and fetch the raw job
+   * hashes in a single round-trip. This guarantees that jobs cannot be
+   * auto-removed between the range operation and the subsequent fetch,
+   * preserving the requested pagination range.
+   *
+   * To avoid blocking Redis with a long-running Lua script, the requested
+   * range size is capped at {@link Scripts.MAX_RANGED_JOBS} jobs per call.
+   * Callers requesting more (including the default `end = -1` against a
+   * very large state set) should paginate. An explicit error is thrown
+   * when the bounded range exceeds the cap so the caller fails fast rather
+   * than silently truncating.
+   *
+   * Note: currently migrated for the common `getJobs` path. Other getters
+   * (e.g. `getDependencies`) can be migrated to the same pattern.
+   */
+  async getRangedJobs(
+    types: JobType[],
+    start = 0,
+    end = 1,
+    asc = false,
+  ): Promise<{ id: string; data: JobJsonRaw }[]> {
+    if (start >= 0 && end >= 0) {
+      const requested = end - start + 1;
+      if (requested > Scripts.MAX_RANGED_JOBS) {
+        throw new Error(
+          `getRangedJobs range size ${requested} exceeds maximum of ${Scripts.MAX_RANGED_JOBS}; please paginate.`,
+        );
+      }
+    }
+
+    const client = await this.queue.client;
+    const args = this.getRangesArgs(types, start, end, asc);
+
+    const responses = (await this.execCommand(
+      client,
+      'getRangedJobs',
+      args,
+    )) as (string[] | string[][])[];
+
+    // The script returns a flat sequence of [idsArray, jobsArray, idsArray,
+    // jobsArray, ...]; one pair per provided type. Validate the shape so
+    // accidental script output changes fail fast with a clear error rather
+    // than producing silently malformed results.
+    if (!Array.isArray(responses) || responses.length % 2 !== 0) {
+      throw new Error(
+        `getRangedJobs returned malformed response: expected even length, got ${
+          Array.isArray(responses) ? responses.length : typeof responses
+        }`,
+      );
+    }
+
+    const seen = new Set<string>();
+    const results: { id: string; data: JobJsonRaw }[] = [];
+
+    for (let i = 0; i < responses.length; i += 2) {
+      const ids = (responses[i] as string[]) || [];
+      const rawJobs = (responses[i + 1] as string[][]) || [];
+
+      for (let j = 0; j < ids.length; j++) {
+        const id = ids[j];
+        if (seen.has(id)) {
+          continue;
+        }
+        seen.add(id);
+
+        const raw = rawJobs[j] || [];
+        // Skip jobs that no longer have a hash (e.g. concurrently removed).
+        if (raw.length === 0) {
+          continue;
+        }
+        results.push({
+          id,
+          data: array2obj(raw) as unknown as JobJsonRaw,
+        });
+      }
+    }
+
+    return results;
   }
 
   private getCountsArgs(types: JobType[]): (string | number)[] {

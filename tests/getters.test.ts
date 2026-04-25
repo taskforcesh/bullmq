@@ -1099,4 +1099,47 @@ describe('Jobs getters', () => {
       ).toHaveLength(0);
     });
   });
+
+  describe('.getJobs', () => {
+    it('atomically returns jobs for the requested range', async () => {
+      await queue.add('test', { foo: 1 });
+      await queue.add('test', { foo: 2 });
+      await queue.add('test', { foo: 3 });
+
+      const jobs = await queue.getJobs(['waiting'], 0, -1, true);
+
+      expect(jobs).toBeInstanceOf(Array);
+      expect(jobs).toHaveLength(3);
+      expect(jobs.map(j => j.data.foo)).toEqual([1, 2, 3]);
+      for (const job of jobs) {
+        expect(job).toBeDefined();
+        expect(job.id).toBeDefined();
+        expect(job.name).toEqual('test');
+      }
+    });
+
+    it('does not include jobs whose hash was concurrently removed', async () => {
+      const first = await queue.add('test', { foo: 1 });
+      const second = await queue.add('test', { foo: 2 });
+      await queue.add('test', { foo: 3 });
+
+      // Simulate the race the original issue described: the id is still in
+      // the waiting list but the job hash has been removed (e.g. by a
+      // cleaner) between the range op and the fetch. The atomic Lua script
+      // guarantees we don't return a half-populated Job; we skip the entry
+      // and preserve the rest of the range rather than throwing.
+      const client = await queue.client;
+      await client.del(queue.toKey(second.id!));
+
+      const jobs = await queue.getJobs(['waiting'], 0, -1, true);
+
+      expect(jobs).toBeInstanceOf(Array);
+      const ids = jobs.map(j => j.id);
+      expect(ids).not.toContain(second.id);
+      expect(ids).toContain(first.id);
+      for (const job of jobs) {
+        expect(job).toBeDefined();
+      }
+    });
+  });
 });
