@@ -5547,6 +5547,79 @@ describe('flows', () => {
       });
     });
 
+    describe('when removing a deeply nested flow', () => {
+      it('removes the whole tree iteratively without stack overflow', async () => {
+        const parentQueueName = `parent-queue-${v4()}`;
+        const name = 'child-job';
+        const depth = 200;
+
+        // Build a deeply nested chain of children.
+        type ChildSpec = {
+          name: string;
+          data: { level: number };
+          queueName: string;
+          children?: ChildSpec[];
+        };
+        let innermost: ChildSpec = {
+          name,
+          data: { level: depth },
+          queueName,
+        };
+        for (let level = depth - 1; level >= 1; level--) {
+          innermost = {
+            name,
+            data: { level },
+            queueName,
+            children: [innermost],
+          };
+        }
+
+        const flow = new FlowProducer({ connection, prefix });
+        const tree = await flow.add({
+          name: 'parent-job',
+          queueName: parentQueueName,
+          data: {},
+          children: [innermost],
+        });
+
+        expect(await tree.job.getState()).toBe('waiting-children');
+
+        // Collect every child job id from the tree so we can assert removal.
+        const childIds: string[] = [];
+        const walk = (node: JobNode): void => {
+          childIds.push(node.job.id!);
+          if (node.children) {
+            for (const child of node.children) {
+              walk(child);
+            }
+          }
+        };
+        for (const child of tree.children!) {
+          walk(child);
+        }
+        expect(childIds).toHaveLength(depth);
+
+        // Must not throw "too many nested calls" or similar Lua recursion errors.
+        await tree.job.remove();
+
+        const parentQueue = new Queue(parentQueueName, { connection, prefix });
+        const parentJob = await Job.fromId(parentQueue, tree.job.id);
+        expect(parentJob).toBeUndefined();
+
+        for (const childId of childIds) {
+          const childJob = await Job.fromId(queue, childId);
+          expect(childJob).toBeUndefined();
+        }
+
+        const jobs = await queue.getJobCountByTypes('waiting');
+        expect(jobs).toBe(0);
+
+        await flow.close();
+        await parentQueue.close();
+        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      });
+    });
+
     describe('when there are processed children', () => {
       it('removes all children when removing a parent', async () => {
         const parentQueueName = `parent-queue-${randomUUID()}`;
