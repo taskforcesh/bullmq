@@ -111,6 +111,37 @@ describe('Job Scheduler', () => {
     });
   });
 
+  // Regression for https://github.com/taskforcesh/bullmq/issues/3937:
+  // the scheduler id is an identity (e.g. a per-instance UUID) and must
+  // not inherit the queue's NameType constraint — otherwise typed
+  // queues reject any scheduler id that isn't also a job-name literal.
+  describe('when the queue has a constrained NameType', () => {
+    it('accepts a free-string scheduler id distinct from any job name', async () => {
+      type ReportJobs = 'generate-report' | 'send-email';
+      const typedQueueName = `typed-${randomUUID()}`;
+      const typedQueue = new Queue<unknown, unknown, ReportJobs>(
+        typedQueueName,
+        { connection, prefix },
+      );
+      await typedQueue.waitUntilReady();
+
+      try {
+        const dynamicInstanceId = `inst_${randomUUID()}`;
+        const job = await typedQueue.upsertJobScheduler(
+          dynamicInstanceId,
+          { every: 60_000 },
+          { name: 'generate-report', data: {} },
+        );
+
+        expect(job!.repeatJobKey).toBeDefined();
+        expect(job!.name).toBe('generate-report');
+      } finally {
+        await typedQueue.close();
+        await removeAllQueueData(new IORedis(redisHost), typedQueueName);
+      }
+    });
+  });
+
   it('it should stop repeating after endDate', async () => {
     const every = 100;
     const date = new Date('2017-02-07 9:24:00');
