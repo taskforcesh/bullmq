@@ -142,9 +142,12 @@ function sandboxProcessTests(
         }
       } finally {
         // Remove only the flags we added so we don't disturb sibling tests
-        // that also mutate process.execArgv.
+        // that also mutate process.execArgv. We push() each flag onto the
+        // end, so lastIndexOf() targets our own entry — using indexOf()
+        // would remove a pre-existing --watch* if the runner itself was
+        // started with `node --watch`.
         for (const flag of watchFlags) {
-          const idx = process.execArgv.indexOf(flag);
+          const idx = process.execArgv.lastIndexOf(flag);
           if (idx !== -1) {
             process.execArgv.splice(idx, 1);
           }
