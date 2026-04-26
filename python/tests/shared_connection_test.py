@@ -1,24 +1,18 @@
 """
-Regression tests for issue #3401.
+Tests for sharing a ``redis.asyncio.Redis`` instance with ``Queue`` and
+``Worker``.
 
-When a user passes the SAME ``redis.asyncio.Redis`` instance to both
-``Queue`` and ``Worker``, the worker's blocking client (used for
-``BZPOPMIN``) must not share its underlying socket with the regular
-command client. Otherwise the blocking command monopolises the socket
-and corrupts replies of subsequent commands, surfacing as empty job
-data and a ``None`` job name inside the processor.
+The blocking client used for ``BZPOPMIN`` cannot share a socket with the
+regular command client; sharing one causes the blocking command to
+monopolise the socket and corrupt replies of subsequent commands. These
+tests cover:
 
-These tests exercise ``RedisConnection`` and ``Worker`` construction
-with a shared client and verify that:
-
-1. A ``Worker`` created from an externally-supplied ``redis.Redis``
-   instance uses a distinct underlying ``conn`` for blocking commands
-   than the one used for regular commands.
-2. A shared ``RedisConnection`` never closes or disconnects the
-   caller-owned client.
-3. The non-blocking shared ``RedisConnection`` still exposes the exact
-   same client instance the caller provided (so it is genuinely
-   shared).
+* ``RedisConnection`` honours the caller's ownership of an externally
+  supplied Redis client (``shared=True``) and never closes it;
+* ``isBlocking=True`` derives a dedicated sibling client from the
+  caller's pool and treats that sibling as our own to release;
+* a ``Worker`` built from a shared client exposes distinct underlying
+  clients for regular vs blocking commands.
 """
 
 import unittest
@@ -53,38 +47,33 @@ def _make_fake_redis_sibling():
     return sibling
 
 
-class TestSharedConnectionBlockingDuplication(unittest.TestCase):
-    """Issue #3401 regression tests."""
+class TestSharedConnection(unittest.TestCase):
+    """Behaviour of RedisConnection when handed an external Redis client."""
 
     @patch.object(RedisConnection, 'loadCommands')
-    def test_shared_flag_set_when_client_is_external(self, _mock_load):
+    def test_shared_flag_set_when_reusing_caller_client(self, _mock_load):
         client = _make_fake_redis()
         conn = RedisConnection(client)
         self.assertTrue(conn.shared)
-
-    @patch.object(RedisConnection, 'loadCommands')
-    def test_non_blocking_shared_reuses_caller_client(self, _mock_load):
-        client = _make_fake_redis()
-        conn = RedisConnection(client, isBlocking=False)
         self.assertIs(conn.conn, client)
-        client.client.assert_not_called()
 
     @patch.object(RedisConnection, 'loadCommands')
-    def test_blocking_shared_does_not_reuse_caller_client(self, _mock_load):
-        """The blocking wrapper MUST NOT reuse the caller's client.
-
-        This is the core of the bug fix: with a shared client, the
-        blocking connection has to derive a dedicated socket via
-        ``Redis.client()`` so that ``BZPOPMIN`` does not starve and
-        interleave replies of subsequent commands.
-        """
+    def test_shared_flag_unset_when_blocking_derives_sibling(self, _mock_load):
+        # The blocking sibling is created by us, not handed in by the
+        # caller, so it must be eligible for cleanup in close().
         client = _make_fake_redis()
         conn = RedisConnection(client, isBlocking=True)
+        self.assertFalse(conn.shared)
         self.assertIsNot(conn.conn, client)
+
+    @patch.object(RedisConnection, 'loadCommands')
+    def test_blocking_calls_redis_client_to_derive_sibling(self, _mock_load):
+        client = _make_fake_redis()
+        RedisConnection(client, isBlocking=True)
         client.client.assert_called_once_with()
 
     @patch.object(RedisConnection, 'loadCommands')
-    def test_shared_close_does_not_close_caller_client(self, _mock_load):
+    def test_close_leaves_caller_client_open(self, _mock_load):
         import asyncio
         client = _make_fake_redis()
         conn = RedisConnection(client)
@@ -92,33 +81,31 @@ class TestSharedConnectionBlockingDuplication(unittest.TestCase):
         client.aclose.assert_not_called()
 
     @patch.object(RedisConnection, 'loadCommands')
-    def test_shared_disconnect_is_a_noop(self, _mock_load):
-        """disconnect() must not touch a caller-owned client.
-
-        ``redis.asyncio.Redis`` instances do not expose ``disconnect``
-        directly, so the pre-fix code would have attempted it on the
-        user's pool. We simply assert the call returns cleanly and the
-        shared flag is honoured.
-        """
+    def test_close_releases_derived_blocking_sibling(self, _mock_load):
+        # The sibling is owned by us, so close() must release it.
+        import asyncio
         client = _make_fake_redis()
-        conn = RedisConnection(client)
-        # Must not raise and must not touch the client.
-        result = conn.disconnect()
-        self.assertIsNone(result)
+        conn = RedisConnection(client, isBlocking=True)
+        sibling = conn.conn
+        asyncio.run(conn.close())
+        sibling.aclose.assert_awaited_once()
+        client.aclose.assert_not_called()
 
     @patch.object(RedisConnection, 'loadCommands')
-    def test_worker_blocking_connection_is_isolated_when_sharing_client(
+    def test_shared_disconnect_is_a_noop(self, _mock_load):
+        # redis.asyncio.Redis instances do not expose disconnect()
+        # directly, so the early-return must fire before any attribute
+        # access on the caller's client.
+        client = _make_fake_redis()
+        conn = RedisConnection(client)
+        self.assertIsNone(conn.disconnect())
+
+    @patch.object(RedisConnection, 'loadCommands')
+    def test_worker_isolates_blocking_client_from_shared_caller_client(
         self, _mock_load
     ):
-        """End-to-end check for issue #3401.
-
-        When a single ``redis.Redis`` instance is handed to both
-        ``Queue`` and ``Worker``, the worker's blocking client must be
-        a different Redis wrapper than its regular command client.
-        """
-        # Patch out the Lua-script registration path that Scripts runs
-        # during Worker construction, and the autorun so we don't spin
-        # up an event loop.
+        # Patch out Lua-script registration and the autorun timer so we
+        # don't spin up an event loop during construction.
         with patch('bullmq.worker.Scripts'), \
                 patch('bullmq.worker.Timer'):
             client = _make_fake_redis()
@@ -128,20 +115,24 @@ class TestSharedConnectionBlockingDuplication(unittest.TestCase):
                 {"connection": client, "autorun": False},
             )
 
-            # Both connections exist.
             self.assertIsNotNone(worker.redisConnection)
             self.assertIsNotNone(worker.blockingRedisConnection)
 
-            # They must be flagged as shared (externally owned).
+            # The regular connection reuses the caller's client and is
+            # left alone on close(). The blocking connection is derived
+            # from the caller's pool but owned by us, so close() releases
+            # it without touching the caller's client.
             self.assertTrue(worker.redisConnection.shared)
-            self.assertTrue(worker.blockingRedisConnection.shared)
+            self.assertFalse(worker.blockingRedisConnection.shared)
 
-            # CRITICAL: the regular client is the caller's client,
-            # but the blocking client is a distinct instance so that
-            # BZPOPMIN does not corrupt replies of regular commands.
             self.assertIs(worker.client, client)
             self.assertIsNot(worker.bclient, client)
             self.assertIsNot(worker.bclient, worker.client)
+
+            import asyncio
+            asyncio.run(worker.close(force=True))
+            client.aclose.assert_not_called()
+            worker.bclient.aclose.assert_awaited()
 
 
 if __name__ == '__main__':

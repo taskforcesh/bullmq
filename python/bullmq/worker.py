@@ -39,13 +39,8 @@ class Worker(EventEmitter):
         self.opts = final_opts
         redis_opts = opts.get("connection", {})
         self.redisConnection = RedisConnection(redis_opts)
-        # The blocking client must NEVER share its underlying socket with the
-        # regular client: blocking commands such as BZPOPMIN hold the socket
-        # for extended periods and would interleave with replies of regular
-        # commands, which surfaces as empty job data and None job names in the
-        # worker. Passing isBlocking=True causes RedisConnection to duplicate
-        # an externally-supplied Redis instance so that the blocking commands
-        # run on a dedicated connection.
+        # Blocking commands like BZPOPMIN need a dedicated socket so they
+        # cannot starve the regular command client.
         self.blockingRedisConnection = RedisConnection(redis_opts, isBlocking=True)
         self.client = self.redisConnection.conn
         self.bclient = self.blockingRedisConnection.conn
