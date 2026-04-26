@@ -68,13 +68,23 @@ class RedisConnection:
         "canDoubleTimeout": False
     }
 
-    def __init__(self, redisOpts: Union[dict, str, redis.Redis] = {}):
+    def __init__(self, redisOpts: Union[dict, str, redis.Redis] = {}, isBlocking: bool = False):
         self.version = None
+        self.shared = False
+        self.isBlocking = isBlocking
         retry = Retry(ExponentialBackoff(cap=20, base=1), 20)
         retry_errors = [BusyLoadingError, ConnectionError, TimeoutError]
 
         if isinstance(redisOpts, redis.Redis):
-            self.conn = redisOpts
+            # Blocking commands need a dedicated socket from the caller's
+            # pool; sharing one would corrupt replies of regular commands.
+            if isBlocking and hasattr(redisOpts, "client"):
+                self.conn = redisOpts.client()
+            else:
+                self.conn = redisOpts
+            # Only the directly-reused caller client is "shared" — a derived
+            # sibling is owned by us and must be cleaned up in close().
+            self.shared = self.conn is redisOpts
         elif isinstance(redisOpts, dict):
             defaultOpts = {
                 "host": "localhost",
@@ -107,12 +117,18 @@ class RedisConnection:
         """
         Disconnect from Redis
         """
+        if self.shared:
+            return None
         return self.conn.disconnect()
 
     async def close(self):
         """
-        Close the connection
+        Close the connection.
+
+        A shared connection is left open; it remains owned by the caller.
         """
+        if self.shared:
+            return None
         return await self.conn.aclose()
 
     async def getRedisVersion(self):
