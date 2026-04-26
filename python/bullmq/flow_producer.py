@@ -36,7 +36,13 @@ class FlowProducer:
         """
         Initialize a connection
         """
-        self.redisConnection = RedisConnection(redisOpts)
+        # Allow the connection to be supplied either as the first
+        # positional arg (legacy signature) or via opts["connection"]
+        # (matching the Queue / Worker convention). When redisOpts is
+        # empty we fall back to opts.connection so users who follow the
+        # newer convention are not silently routed to localhost.
+        connection_opts = redisOpts or opts.get("connection", {})
+        self.redisConnection = RedisConnection(connection_opts)
         self.client = self.redisConnection.conn
         self.opts: dict = opts
         self.prefix = opts.get("prefix", "bull")
