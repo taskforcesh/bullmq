@@ -15,6 +15,8 @@ from bullmq.types import WorkerOptions
 from bullmq.utils import extract_result
 
 import asyncio
+import errno
+import re
 import traceback
 import time
 import math
@@ -29,6 +31,22 @@ minimum_block_timeout = 0.001
 # in the main worker loop. Mirrors the DELAY_TIME_1 constant used by the
 # Node.js implementation for the same purpose.
 short_retry_delay = 0.1
+
+# Errnos that indicate a transient/retryable network failure. Used by
+# Worker.isConnectionError to classify bare OSErrors raised before the
+# redis client has a chance to wrap them.
+TRANSIENT_ERRNOS = {
+    getattr(errno, name)
+    for name in ("ECONNREFUSED", "ECONNRESET", "ENETUNREACH",
+                 "EHOSTUNREACH", "EPIPE")
+    if hasattr(errno, name)
+}
+
+# asyncio aggregates per-host connect attempts into a single OSError
+# whose message looks like "Multiple exceptions: [Errno 61] Connect call
+# failed ('127.0.0.1', 6379)". In that case error.errno is None, so we
+# extract the embedded errno from the message instead.
+_ERRNO_PATTERN = re.compile(r"\[Errno (\d+)\]")
 
 
 class Worker(EventEmitter):
@@ -193,15 +211,12 @@ class Worker(EventEmitter):
 
         try:
             result = await self.bclient.bzpopmin(self.scripts.keys["marker"], block_timeout)
-        except Exception as err:
-            # Mirror the Node.js worker: on a transient connection failure
-            # we short-sleep before surfacing the error so the outer retry
-            # loop cannot spin at full CPU while Redis is unavailable.
-            # Non-connection errors are also slowed down here to avoid
-            # hanging the app with an error storm (issue #3103).
+        except Exception:
+            # Short-sleep before re-raising so the outer retryIfFailed loop
+            # cannot spin at full CPU while Redis is unavailable. The error
+            # itself is emitted exactly once by retryIfFailed when it
+            # propagates up the run() call chain.
             if not self.closing and not self.closed:
-                if not self.isConnectionError(err):
-                    self.emit("error", err)
                 await asyncio.sleep(short_retry_delay)
             raise
         if result:
@@ -353,21 +368,16 @@ class Worker(EventEmitter):
         ):
             return True
 
-        # Some failure modes (e.g. DNS or socket failures raised before the
-        # redis client has a chance to wrap them) surface as a plain
-        # `OSError`. Treat the well-known transient errno values or a
-        # message containing ECONNREFUSED as a connection error.
+        # DNS or socket failures raised before the redis client has a
+        # chance to wrap them surface as a plain OSError. Match either
+        # error.errno or any [Errno N] embedded in the message string.
         if isinstance(error, OSError):
-            transient_errnos = {
-                getattr(__import__("errno"), name, None)
-                for name in ("ECONNREFUSED", "ECONNRESET", "ENETUNREACH",
-                             "EHOSTUNREACH", "EPIPE")
-            }
-            transient_errnos.discard(None)
-            if error.errno in transient_errnos:
+            if error.errno in TRANSIENT_ERRNOS:
                 return True
-            if "ECONNREFUSED" in str(error):
-                return True
+            return any(
+                int(n) in TRANSIENT_ERRNOS
+                for n in _ERRNO_PATTERN.findall(str(error))
+            )
 
         return False
 

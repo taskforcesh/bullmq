@@ -79,13 +79,21 @@ class TestIsConnectionError(unittest.TestCase):
     def test_asyncio_timeout_is_transient(self):
         self.assertTrue(self.worker.isConnectionError(asyncio.TimeoutError()))
 
-    def test_os_error_with_econnrefused_message_is_transient(self):
-        # Mirrors the bare OSError raised by asyncio before the redis
-        # client has a chance to wrap it.
+    def test_os_error_with_aggregated_errno_message_is_transient(self):
+        # Mirrors the bare OSError asyncio raises when every connect()
+        # attempt fails: a single string message embedding "[Errno N]"
+        # per host, with err.errno left unset. This is the exact failure
+        # mode reported in issue #3103.
         err = OSError(
-            "Multiple exceptions: [Errno 61] Connect call failed "
-            "('127.0.0.1', 6379) - ECONNREFUSED"
+            f"Multiple exceptions: [Errno {errno.ECONNREFUSED}] "
+            "Connect call failed ('127.0.0.1', 6379)"
         )
+        self.assertIsNone(err.errno)
+        self.assertTrue(self.worker.isConnectionError(err))
+
+    def test_os_error_with_errno_attribute_is_transient(self):
+        # Covers the simpler case where err.errno is populated directly.
+        err = OSError(errno.ECONNRESET, "connection reset")
         self.assertTrue(self.worker.isConnectionError(err))
 
     def test_plain_value_error_is_not_transient(self):
@@ -202,6 +210,23 @@ class TestWaitForJobBacksOff(unittest.IsolatedAsyncioTestCase):
             f"waitForJob re-raised after only {elapsed * 1000:.1f}ms; "
             "the short backoff did not kick in",
         )
+
+    async def test_waitForJob_does_not_emit_error_directly(self):
+        # waitForJob must rely on retryIfFailed to emit "error" exactly
+        # once per failure. Emitting from both sites caused duplicate
+        # error events / log lines for a single Redis failure.
+        emitted = []
+        self.worker.on("error", lambda err: emitted.append(err))
+
+        self.worker.bclient = MagicMock()
+        self.worker.bclient.bzpopmin = AsyncMock(
+            side_effect=ValueError("not a connection error")
+        )
+
+        with self.assertRaises(ValueError):
+            await self.worker.waitForJob()
+
+        self.assertEqual(emitted, [])
 
     async def test_worker_can_be_closed_after_disconnect_errors(self):
         # After a burst of connection errors the worker must still be
