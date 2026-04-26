@@ -4723,7 +4723,7 @@ describe('flows', () => {
       const delayed = new Promise<void>((resolve, reject) => {
         queueEvents.on('delayed', async ({ jobId, delay }) => {
           try {
-            const milliseconds = delay - Date.now();
+            const milliseconds = Number(delay) - Date.now();
             expect(milliseconds).to.be.lessThanOrEqual(3000);
             expect(milliseconds).toBeGreaterThan(2000);
             resolve();
