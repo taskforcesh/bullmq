@@ -144,23 +144,29 @@ end
 local jobId = "repeat:" .. jobSchedulerId .. ":" .. nextMillis
 local jobKey = prefixKey .. jobId
 
--- If there's already a job with this ID, in a state 
--- that is not updatable (active, completed, failed) we must 
+-- If there's already a job with this ID, in a state
+-- that is not updatable (active, completed, failed) we must
 -- handle the collision
 local hasCollision = false
 if rcall("EXISTS", jobKey) == 1 then
     if every then
-        -- For 'every' case: try next time slot to avoid collision
-        local nextSlotMillis = nextMillis + every
-        local nextSlotJobId = "repeat:" .. jobSchedulerId .. ":" .. nextSlotMillis
-        local nextSlotJobKey = prefixKey .. nextSlotJobId
+        -- For 'every' case: walk forward through subsequent slots
+        -- until we find a free one. Stale completed/failed jobs from
+        -- a previous scheduler under the same id can occupy several
+        -- consecutive slots (issue #3063), so a single retry is not
+        -- enough. The scan is bounded so we don't spin if the
+        -- scheduler is genuinely contested.
+        local maxSlotScans = 32
+        local slotScanned = 0
+        repeat
+            nextMillis = nextMillis + every
+            jobId = "repeat:" .. jobSchedulerId .. ":" .. nextMillis
+            jobKey = prefixKey .. jobId
+            slotScanned = slotScanned + 1
+        until rcall("EXISTS", jobKey) == 0 or slotScanned >= maxSlotScans
 
-        if rcall("EXISTS", nextSlotJobKey) == 0 then
-            -- Next slot is free, use it
-            nextMillis = nextSlotMillis
-            jobId = nextSlotJobId
-        else
-            -- Next slot also has a job, return error code
+        if rcall("EXISTS", jobKey) == 1 then
+            -- Every scanned slot still has a job, return error code
             return -11 -- SchedulerJobSlotsBusy
         end
     else
