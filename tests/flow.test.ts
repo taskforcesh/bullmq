@@ -7,6 +7,7 @@ import {
   afterAll,
   it,
   expect,
+  vi,
 } from 'vitest';
 
 import {
@@ -6320,6 +6321,62 @@ describe('flows', () => {
       expect(uniqueIds.size).toBe(1);
 
       await flow.close();
+    });
+
+    // Regression for https://github.com/taskforcesh/bullmq/issues/3851:
+    // FlowProducer.add() and addBulk() ignored a `null` return from
+    // `multi.exec()` (which ioredis emits when the transaction is
+    // aborted, e.g. against a READONLY replica). The reporter saw
+    // .add() resolve with a half-formed JobNode whose id pointed at
+    // nothing in Redis. The producer must surface the abort.
+    it('throws when redis transaction is aborted on FlowProducer.add', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+      await flow.waitUntilReady();
+
+      const client = (await (flow as any).connection.client) as IORedis;
+      const realMulti = client.multi.bind(client);
+      const multiSpy = vi
+        .spyOn(client, 'multi')
+        .mockImplementationOnce((...args: any[]) => {
+          const m = realMulti(...args);
+          // Override exec() to mirror the ioredis behaviour when the
+          // transaction is aborted: a single null return.
+          (m as any).exec = async () => null;
+          return m;
+        });
+
+      try {
+        await expect(
+          flow.add({ name: 'parent', data: {}, queueName }),
+        ).rejects.toThrow(/transaction was aborted/);
+      } finally {
+        multiSpy.mockRestore();
+        await flow.close();
+      }
+    });
+
+    it('throws when redis transaction is aborted on FlowProducer.addBulk', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+      await flow.waitUntilReady();
+
+      const client = (await (flow as any).connection.client) as IORedis;
+      const realMulti = client.multi.bind(client);
+      const multiSpy = vi
+        .spyOn(client, 'multi')
+        .mockImplementationOnce((...args: any[]) => {
+          const m = realMulti(...args);
+          (m as any).exec = async () => null;
+          return m;
+        });
+
+      try {
+        await expect(
+          flow.addBulk([{ name: 'parent', data: {}, queueName }]),
+        ).rejects.toThrow(/transaction was aborted/);
+      } finally {
+        multiSpy.mockRestore();
+        await flow.close();
+      }
     });
 
     it('should not corrupt id mapping for successful jobs when some addBulk commands fail', async () => {

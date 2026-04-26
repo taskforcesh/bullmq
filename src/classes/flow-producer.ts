@@ -225,12 +225,26 @@ export class FlowProducer extends EventEmitter {
         const results = (await multi.exec()) as
           | [null | Error, string | number][]
           | null;
-        const [result] = results || [];
-        if (result) {
-          const [err, jobId] = result;
-          if (!err && typeof jobId === 'string') {
-            jobsTree.job.id = jobId;
+
+        // Surface transaction-level and per-command failures instead
+        // of silently returning a half-formed JobNode (issue #3851).
+        // ioredis returns `null` from exec() when the multi was
+        // aborted (READONLY replica, WATCH conflict, pipeline error)
+        // and `[err, value]` per command otherwise.
+        if (!results) {
+          throw new Error(
+            'Flow could not be added: Redis transaction was aborted',
+          );
+        }
+        for (const [err] of results) {
+          if (err) {
+            throw err;
           }
+        }
+
+        const [, jobId] = results[0] ?? [];
+        if (typeof jobId === 'string') {
+          jobsTree.job.id = jobId;
         }
 
         return jobsTree;
@@ -302,8 +316,22 @@ export class FlowProducer extends EventEmitter {
         const results = (await multi.exec()) as
           | [null | Error, string | number][]
           | null;
+
+        // Surface a transaction-level abort (e.g. READONLY replica or
+        // pipeline error) so callers can distinguish "nothing was
+        // added" from "some flows partially failed" (issue #3851).
+        // Per-command errors are NOT thrown here on purpose: callers
+        // can detect partially-failed roots via the returned tree's
+        // missing job id (and there is an existing test that relies
+        // on that semantics for addBulk).
+        if (!results) {
+          throw new Error(
+            'Flows could not be added: Redis transaction was aborted',
+          );
+        }
+
         for (let index = 0; index < jobsTrees.length; ++index) {
-          const result = results?.[index];
+          const result = results[index];
           if (!result) {
             continue;
           }
