@@ -76,21 +76,15 @@ class RedisConnection:
         retry_errors = [BusyLoadingError, ConnectionError, TimeoutError]
 
         if isinstance(redisOpts, redis.Redis):
-            # The caller supplied an already-constructed Redis client. We treat
-            # this as a "shared" connection and must not close it in close().
-            # For blocking usage (e.g. the Worker's bclient) we cannot reuse the
-            # shared client directly because blocking commands like BZPOPMIN
-            # would monopolise the single underlying socket and corrupt replies
-            # of subsequent commands issued through the same client (this was
-            # the root cause of empty job.data / None job.name observed when a
-            # single redis.asyncio.Redis instance was passed to both Queue and
-            # Worker). Instead, derive a sibling client bound to a dedicated
-            # connection from the same pool via Redis.client().
-            self.shared = True
+            # Blocking commands need a dedicated socket from the caller's
+            # pool; sharing one would corrupt replies of regular commands.
             if isBlocking and hasattr(redisOpts, "client"):
                 self.conn = redisOpts.client()
             else:
                 self.conn = redisOpts
+            # Only the directly-reused caller client is "shared" — a derived
+            # sibling is owned by us and must be cleaned up in close().
+            self.shared = self.conn is redisOpts
         elif isinstance(redisOpts, dict):
             defaultOpts = {
                 "host": "localhost",
@@ -129,12 +123,9 @@ class RedisConnection:
 
     async def close(self):
         """
-        Close the connection
+        Close the connection.
 
-        When the underlying client was supplied by the caller (shared=True),
-        we must not close it, as it remains owned by the caller. This mirrors
-        the behaviour of the Node implementation's ``shared`` flag on
-        RedisConnection.
+        A shared connection is left open; it remains owned by the caller.
         """
         if self.shared:
             return None
