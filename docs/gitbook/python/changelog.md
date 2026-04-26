@@ -1,3 +1,10 @@
+## [2.23.1](https://github.com/taskforcesh/bullmq/compare/vpy2.23.0...vpy2.23.1) (2026-04-26)
+
+
+### Bug Fixes
+
+* **queue:** guard getCompleted against empty task set [python] ([#3885](https://github.com/taskforcesh/bullmq/issues/3885)) ([19b9ca0](https://github.com/taskforcesh/bullmq/commit/19b9ca08be6f6efbc58291fa55efd93a0663d536))
+
 # [2.23.0](https://github.com/taskforcesh/bullmq/compare/vpy2.22.0...vpy2.23.0) (2026-04-22)
 
 
