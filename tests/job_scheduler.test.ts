@@ -111,6 +111,57 @@ describe('Job Scheduler', () => {
     });
   });
 
+  // Regression for https://github.com/taskforcesh/bullmq/issues/3063:
+  // when a scheduler is removed and re-upserted under the same id, any
+  // previously-completed jobs from the prior scheduler keep their
+  // hash keys in Redis (removeJobScheduler only cleans up the
+  // currently-delayed entry). The old collision recovery walked at
+  // most one slot ahead, so several consecutive stale slots caused
+  // addJobScheduler to fail with SchedulerJobSlotsBusy and no new
+  // delayed job to be created.
+  describe('when re-upserting a scheduler with stale completed jobs in adjacent slots', () => {
+    it('skips past the stale slots and schedules a new job', async () => {
+      const every = 60_000;
+      const date = new Date('2017-02-07 09:00:00');
+      clock.setSystemTime(date);
+
+      // Plant stale completed-job hashes from a hypothetical prior
+      // scheduler under id 'stale-test'. Three consecutive slots are
+      // occupied so the single-retry recovery would have failed.
+      const client = await queue.client;
+      const planted: string[] = [];
+      for (let i = 0; i < 3; i++) {
+        const millis = date.getTime() + i * every;
+        const id = `repeat:stale-test:${millis}`;
+        await client.hset(`${prefix}:${queueName}:${id}`, 'name', 'stale');
+        await client.zadd(
+          `${prefix}:${queueName}:completed`,
+          millis,
+          id,
+        );
+        planted.push(id);
+      }
+
+      const job = await queue.upsertJobScheduler(
+        'stale-test',
+        { every },
+        { name: 'fresh', data: {} },
+      );
+
+      expect(job).toBeDefined();
+      expect(job!.id).toBeDefined();
+
+      // The new job must land beyond the stale slots.
+      const expectedMinNext = date.getTime() + 3 * every;
+      const newMillis = Number(job!.id!.split(':').pop());
+      expect(newMillis).toBeGreaterThanOrEqual(expectedMinNext);
+
+      const delayed = await queue.getDelayed();
+      expect(delayed).toHaveLength(1);
+      expect(planted).not.toContain(delayed[0].id);
+    });
+  });
+
   it('it should stop repeating after endDate', async () => {
     const every = 100;
     const date = new Date('2017-02-07 9:24:00');
