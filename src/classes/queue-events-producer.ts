@@ -40,7 +40,15 @@ export class QueueEventsProducer extends QueueBase {
     const args: any[] = ['MAXLEN', '~', maxEvents, '*', 'event', eventName];
 
     for (const [key, value] of Object.entries(restArgs)) {
-      args.push(key, value);
+      // Object values would otherwise be stringified by Redis as
+      // "[object Object]". Serialize them as JSON so consumers can
+      // parse them back into the original structure.
+      args.push(
+        key,
+        typeof value === 'object' && value !== null
+          ? JSON.stringify(value)
+          : value,
+      );
     }
 
     await client.xadd(key, ...args);
