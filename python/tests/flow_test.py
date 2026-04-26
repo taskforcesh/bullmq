@@ -284,5 +284,52 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         await child_queue.obliterate()
         await child_queue.close()
 
+class TestFlowProducerConstruction(unittest.TestCase):
+    """Unit tests for FlowProducer construction (no Redis required)."""
+
+    def _make_producer(self, redis_opts=None, opts=None):
+        # Patch RedisConnection so we can assert on the connection
+        # argument it receives without actually opening a socket.
+        from unittest.mock import patch, MagicMock
+        with patch(
+            "bullmq.flow_producer.RedisConnection"
+        ) as redis_connection_cls, patch(
+            "bullmq.flow_producer.Scripts"
+        ):
+            redis_connection_cls.return_value = MagicMock(conn=MagicMock())
+            kwargs = {}
+            if redis_opts is not None:
+                kwargs["redisOpts"] = redis_opts
+            if opts is not None:
+                kwargs["opts"] = opts
+            FlowProducer(**kwargs)
+            return redis_connection_cls
+
+    def test_uses_first_positional_arg_when_supplied(self):
+        url = "redis://example.com:6379"
+        rc = self._make_producer(redis_opts=url)
+        rc.assert_called_once_with(url)
+
+    def test_falls_back_to_opts_connection_when_first_arg_is_empty(self):
+        # Regression for #3619: passing the connection via opts is the
+        # documented Queue/Worker convention. FlowProducer used to
+        # ignore it and silently default to localhost.
+        url = "redis://example.com:6379"
+        rc = self._make_producer(redis_opts={}, opts={"connection": url})
+        rc.assert_called_once_with(url)
+
+    def test_first_positional_arg_takes_precedence(self):
+        legacy_url = "redis://legacy:6379"
+        opts_url = "redis://opts:6379"
+        rc = self._make_producer(
+            redis_opts=legacy_url, opts={"connection": opts_url}
+        )
+        rc.assert_called_once_with(legacy_url)
+
+    def test_defaults_to_empty_dict_when_neither_supplied(self):
+        rc = self._make_producer()
+        rc.assert_called_once_with({})
+
+
 if __name__ == '__main__':
     unittest.main()
