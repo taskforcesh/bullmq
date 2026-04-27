@@ -16,9 +16,7 @@ import {
   Worker,
   RateLimitError,
 } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
-
-import { v4 } from 'uuid';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 
 import ProgressBar from 'progress';
 import { after } from 'lodash';
@@ -28,13 +26,13 @@ describe('Concurrency', () => {
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queueName: string;
 
-  let connection;
+  let connection: IORedis;
   beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     await new IORedis().flushall();
   });
 

@@ -99,7 +99,7 @@ export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
 
   /**
    *  Skip stalled check for this worker. Note that other workers could still
-   *  perform stalled checkd and move jobs back to wait for jobs being processed
+   *  perform stalled checks and move jobs back to wait for jobs being processed
    *  by this worker.
    *
    *  @defaultValue false
@@ -136,7 +136,7 @@ export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
    * The time in milliseconds before the lock is automatically renewed.
    *
    * It is not recommended to modify this value, which is by default set to
-   * halv the lockDuration value, which is optimal for most use cases.
+   * half the lockDuration value, which is optimal for most use cases.
    */
   lockRenewTime?: number;
 

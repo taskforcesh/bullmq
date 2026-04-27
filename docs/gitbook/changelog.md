@@ -1,9 +1,44 @@
+## [5.76.2](https://github.com/taskforcesh/bullmq/compare/v5.76.1...v5.76.2) (2026-04-25)
+
+
+### Bug Fixes
+
+* **deps:** replace uuid with crypto ([#4099](https://github.com/taskforcesh/bullmq/issues/4099)) ([595016e](https://github.com/taskforcesh/bullmq/commit/595016ef1d3a960ad83dfbbc189034561e099482))
+
+## [5.76.1](https://github.com/taskforcesh/bullmq/compare/v5.76.0...v5.76.1) (2026-04-22)
+
+
+### Bug Fixes
+
+* **worker:** use scheduler registry to discriminate repeatable keys ([#4007](https://github.com/taskforcesh/bullmq/issues/4007)) ([ea7705d](https://github.com/taskforcesh/bullmq/commit/ea7705df6938cb432eceff242f6828054766f61a))
+ 
+# [5.76.0](https://github.com/taskforcesh/bullmq/compare/v5.75.2...v5.76.0) (2026-04-22)
+
+
+### Features
+
+* Nothing changed, triggered by a python version release
+
+## [5.75.2](https://github.com/taskforcesh/bullmq/compare/v5.75.1...v5.75.2) (2026-04-20)
+
+
+### Bug Fixes
+
+* handle ioredis Cluster connect status in waitUntilReady ([#2402](https://github.com/taskforcesh/bullmq/issues/2402)) ([#4055](https://github.com/taskforcesh/bullmq/issues/4055)) ([422e2d5](https://github.com/taskforcesh/bullmq/commit/422e2d5091f2f318e0f6bd3e1872a71deee92aec))
+
+## [5.75.1](https://github.com/taskforcesh/bullmq/compare/v5.75.0...v5.75.1) (2026-04-20)
+
+
+### Bug Fixes
+
+* Nothing changed, triggered by a python version release
+
 # [5.75.0](https://github.com/taskforcesh/bullmq/compare/v5.74.2...v5.75.0) (2026-04-20)
 
 
 ### Features
 
-* **python:** add type hints to Timer class ([#4024](https://github.com/taskforcesh/bullmq/issues/4024)) ([8c78e30](https://github.com/taskforcesh/bullmq/commit/8c78e3004dcd5df726d9b7277dd455d0d224791f))
+* Nothing changed, triggered by a python version release
 
 ## [5.74.2](https://github.com/taskforcesh/bullmq/compare/v5.74.1...v5.74.2) (2026-04-20)
 

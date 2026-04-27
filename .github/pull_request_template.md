@@ -1,7 +1,39 @@
 <!--
   Thank you for submitting a PR! 
   Please fill out all sections below to help us understand your changes.
+
+  PR TITLE FORMAT
+  ───────────────
+  We use Conventional Commits: <type>(<scope>): <description>
+
+  If your change affects one or more ports, append a tag at the end of the
+  PR title (outside the conventional-commit part) to indicate their status:
+
+    [python] / [elixir] / [php]
+      → The change is ONLY relevant to that port (Node.js is NOT affected).
+        Multiple ports can be listed: [python][elixir]
+
+    (python) / (elixir) / (php)
+      → The change affects that port AND Node.js.
+        Multiple ports can be listed: (python)(php)
+
+  Examples:
+    fix(worker): handle stalled jobs correctly (python)(elixir)
+    docs: update rate-limiting guide [python]
+    feat(queue): add group priority support
+
+  Please check all three ports below before setting your title.
 -->
+
+### Port Impact Checklist
+<!--
+  Review each port and tick every box that applies.
+  If a port is not affected at all, leave its box unchecked.
+-->
+
+- [ ] **Python** – does this change need to be ported or documented in the Python library?
+- [ ] **Elixir** – does this change need to be ported or documented in the Elixir library?
+- [ ] **PHP** – does this change need to be ported or documented in the PHP library?
 
 ### Why
 <!-- 

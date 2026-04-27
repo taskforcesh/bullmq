@@ -21,8 +21,7 @@ import {
   Worker,
 } from '../src/classes';
 
-import { v4 } from 'uuid';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 const { stdout, stderr } = require('test-console');
 
 describe('Sandboxed process using child processes', () => {
@@ -41,7 +40,7 @@ describe('Sandboxed process using child processes', () => {
     });
 
     beforeEach(async () => {
-      queueName = `test-${v4()}`;
+      queueName = `test-${randomUUID()}`;
       queue = new Queue(queueName, { connection, prefix });
       queueEvents = new QueueEvents(queueName, { connection, prefix });
       await queueEvents.waitUntilReady();
@@ -174,7 +173,7 @@ describe('Sandboxed process using worker threads', () => {
     });
 
     beforeEach(async () => {
-      queueName = `test-${v4()}`;
+      queueName = `test-${randomUUID()}`;
       queue = new Queue(queueName, { connection, prefix });
       queueEvents = new QueueEvents(queueName, { connection, prefix });
       await queueEvents.waitUntilReady();
@@ -245,7 +244,7 @@ function sandboxProcessTests(
     });
 
     beforeEach(async () => {
-      queueName = `test-${v4()}`;
+      queueName = `test-${randomUUID()}`;
       queue = new Queue(queueName, { connection, prefix });
       queueEvents = new QueueEvents(queueName, { connection, prefix });
       await queueEvents.waitUntilReady();
@@ -913,7 +912,7 @@ function sandboxProcessTests(
         __dirname + '/fixtures/fixture_processor_get_children_values_child.js';
       const parentProcessFile =
         __dirname + '/fixtures/fixture_processor_get_children_values.js';
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       const parentWorker = new Worker(parentQueueName, parentProcessFile, {
         connection,
@@ -978,7 +977,7 @@ function sandboxProcessTests(
         __dirname + '/fixtures/fixture_processor_get_children_values_child.js';
       const parentProcessFile =
         __dirname + '/fixtures/fixture_processor_get_children_values.js';
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       const parentWorker = new Worker(parentQueueName, parentProcessFile, {
         connection,
@@ -1035,7 +1034,7 @@ function sandboxProcessTests(
         '/fixtures/fixture_processor_get_children_failures_child.js';
       const parentProcessFile =
         __dirname + '/fixtures/fixture_processor_get_children_failures.js';
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       const parentWorker = new Worker(parentQueueName, parentProcessFile, {
         connection,
@@ -1098,7 +1097,7 @@ function sandboxProcessTests(
         '/fixtures/fixture_processor_get_dependencies_count_child.js';
       const parentProcessFile =
         __dirname + '/fixtures/fixture_processor_get_dependencies_count.js';
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       const parentWorker = new Worker(parentQueueName, parentProcessFile, {
         connection,
@@ -1162,7 +1161,7 @@ function sandboxProcessTests(
           '/fixtures/fixture_processor_get_dependencies_count_child.js';
         const parentProcessFile =
           __dirname + '/fixtures/fixture_processor_get_dependencies_count.js';
-        const parentQueueName = `parent-queue-${v4()}`;
+        const parentQueueName = `parent-queue-${randomUUID()}`;
 
         const parentWorker = new Worker(parentQueueName, parentProcessFile, {
           connection,
@@ -1227,7 +1226,7 @@ function sandboxProcessTests(
         __dirname + '/fixtures/fixture_processor_get_dependencies_child.js';
       const parentProcessFile =
         __dirname + '/fixtures/fixture_processor_get_dependencies.js';
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       const parentWorker = new Worker(parentQueueName, parentProcessFile, {
         connection,
@@ -1290,7 +1289,7 @@ function sandboxProcessTests(
           __dirname + '/fixtures/fixture_processor_get_dependencies_child.js';
         const parentProcessFile =
           __dirname + '/fixtures/fixture_processor_get_dependencies.js';
-        const parentQueueName = `parent-queue-${v4()}`;
+        const parentQueueName = `parent-queue-${randomUUID()}`;
 
         const parentWorker = new Worker(parentQueueName, parentProcessFile, {
           connection,
@@ -1441,7 +1440,7 @@ function sandboxProcessTests(
       const processFile =
         __dirname + '/fixtures/fixture_processor_move_to_wait_for_children.js';
 
-      const childQueueName = `test-${v4()}`;
+      const childQueueName = `test-${randomUUID()}`;
 
       const parentWorker = new Worker(queueName, processFile, {
         autorun: false,
@@ -1582,7 +1581,7 @@ function sandboxProcessTests(
 
     it('includes parent', async () => {
       const processFile = __dirname + '/fixtures/fixture_processor_parent.js';
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       const worker = new Worker(queueName, processFile, {
         connection,

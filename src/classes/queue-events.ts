@@ -139,6 +139,8 @@ export interface QueueEventsListener extends IoredisListener {
    * Listen to 'error' event.
    *
    * This event is triggered when an error in the Redis backend is thrown.
+   *
+   * @param args - The error that was thrown.
    */
   error: (args: Error) => void;
 
