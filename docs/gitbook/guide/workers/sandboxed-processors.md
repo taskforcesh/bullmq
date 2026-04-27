@@ -25,7 +25,7 @@ and pass its path to the worker constructor:
 ```typescript
 import { Worker } from 'bullmq';
 
-const processorFile = path.join(__dirname, 'my_procesor.js');
+const processorFile = path.join(__dirname, 'my_processor.js');
 worker = new Worker(queueName, processorFile);
 ```
 
@@ -38,7 +38,7 @@ Processors can be defined using URL instances:
 ```typescript
 import { pathToFileURL } from 'url';
 
-const processorUrl = pathToFileURL(__dirname + '/my_procesor.js');
+const processorUrl = pathToFileURL(__dirname + '/my_processor.js');
 
 worker = new Worker(queueName, processorUrl);
 ```
@@ -56,7 +56,7 @@ In order to enable worker threads support use the `useWorkerThreads` option when
 ```typescript
 import { Worker } from 'bullmq';
 
-const processorFile = path.join(__dirname, 'my_procesor.js');
+const processorFile = path.join(__dirname, 'my_processor.js');
 worker = new Worker(queueName, processorFile, { useWorkerThreads: true });
 ```
 
@@ -69,7 +69,7 @@ However, if you have known memory leaks in your processor or its dependencies, y
 ```typescript
 import { Worker } from 'bullmq';
 
-const processorFile = path.join(__dirname, 'my_procesor.js');
+const processorFile = path.join(__dirname, 'my_processor.js');
 worker = new Worker(queueName, processorFile, { reuseChildProcess: false });
 ```
 
