@@ -157,19 +157,35 @@ export class Child extends EventEmitter {
       return;
     }
 
-    const onExit = onExitOnce(this.childProcess || this.worker);
+    const parent = this.childProcess || this.worker;
+    const onExit = new Promise<void>(resolve => {
+      parent.once('exit', () => resolve());
+
+      /**
+       * Re-check after attaching the listener to close the race window where the process exits (and
+       * removeAllListeners is called) between the guard above and the listener registration.
+       */
+      if (this.hasProcessExited()) {
+        resolve();
+      }
+    });
+
     this.killProcess(signal);
 
     if (timeoutMs !== undefined && (timeoutMs === 0 || isFinite(timeoutMs))) {
-      const timeoutHandle = setTimeout(() => {
-        if (!this.hasProcessExited()) {
-          this.killProcess('SIGKILL');
-        }
-      }, timeoutMs);
+      const escalate = new Promise<void>(resolve =>
+        setTimeout(() => {
+          if (!this.hasProcessExited()) {
+            this.killProcess('SIGKILL');
+          }
+          resolve();
+        }, timeoutMs),
+      );
+
+      await Promise.race([onExit, escalate]);
+    } else {
       await onExit;
-      clearTimeout(timeoutHandle);
     }
-    await onExit;
   }
 
   private async initChild() {
@@ -217,12 +233,6 @@ export class Child extends EventEmitter {
   hasProcessExited(): boolean {
     return !!(this.exitCode !== null || this.signalCode);
   }
-}
-
-function onExitOnce(child: ChildProcess | Worker): Promise<void> {
-  return new Promise(resolve => {
-    child.once('exit', () => resolve());
-  });
 }
 
 const getFreePort = async () => {
