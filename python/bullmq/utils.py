@@ -1,15 +1,16 @@
+import asyncio
 import json
 import traceback
-from typing import Any
+from typing import Any, Callable, Optional
 
 import semver
 
 
-def isRedisVersionLowerThan(current_version, minimum_version):
+def isRedisVersionLowerThan(current_version: str, minimum_version: str) -> bool:
     return semver.Version.parse(current_version).compare(minimum_version) == -1
 
 
-def extract_result(job_task, emit_callback):
+def extract_result(job_task: asyncio.Task, emit_callback: Callable[[str, Any], None]) -> Any:
     try:
         return job_task.result()
     except Exception as e:
@@ -19,7 +20,7 @@ def extract_result(job_task, emit_callback):
             traceback.print_exc()
             emit_callback("error", e)
 
-def get_parent_key(opts: dict[str, str]):
+def get_parent_key(opts: dict[str, str]) -> Optional[str]:
     if opts:
         return f"{opts.get('queue')}:{opts.get('id')}"
 
