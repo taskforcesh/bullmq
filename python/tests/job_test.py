@@ -277,5 +277,36 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
 
         await queue.close()
 
+    async def test_is_state_methods_return_false_when_awaited_for_pending_job(self):
+        """Regression: prior to making these methods async, calling them without
+        ``await`` returned a coroutine object. In Python a coroutine is always
+        truthy, so ``if job.isCompleted():`` reported True regardless of state.
+        This test ensures the now-awaitable forms return False for a freshly
+        queued (waiting) job."""
+        import inspect
+
+        queue = Queue(queueName, {"prefix": prefix})
+        job = await queue.add("test", {"foo": "bar"}, {})
+
+        # All five converted methods are coroutines now and return False
+        # when awaited on a freshly added (waiting) job.
+        for method in (
+            job.isCompleted,
+            job.isFailed,
+            job.isDelayed,
+            job.isWaitingChildren,
+            job.isActive,
+        ):
+            self.assertTrue(
+                inspect.iscoroutinefunction(method),
+                f"{method.__name__} should be async",
+            )
+            self.assertFalse(
+                await method(),
+                f"awaited {method.__name__}() should be False for a waiting job",
+            )
+
+        await queue.close()
+
 if __name__ == '__main__':
     unittest.main()
