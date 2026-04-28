@@ -905,5 +905,50 @@ describe('events', { timeout: 8000 }, () => {
       await queueEvents2.close();
       await removeAllQueueData(new IORedis(redisHost), queueName2);
     });
+
+    // Regression for https://github.com/taskforcesh/bullmq/issues/2984:
+    // nested object payloads were silently coerced to "[object Object]"
+    // because Redis xadd calls .toString() on each value. The producer
+    // now JSON-stringifies non-primitive values so consumers can parse
+    // them back.
+    it('serializes nested object payloads as JSON', async () => {
+      const queueName2 = `test-${randomUUID()}`;
+      const queueEventsProducer = new QueueEventsProducer(queueName2, {
+        connection,
+        prefix,
+      });
+      const queueEvents2 = new QueueEvents(queueName2, {
+        autorun: false,
+        connection,
+        prefix,
+        lastEventId: '0-0',
+      });
+      await queueEvents2.waitUntilReady();
+
+      interface CustomListener extends QueueEventsListener {
+        nested: (args: { nested: string }, id: string) => void;
+      }
+      const customEvent = new Promise<void>(resolve => {
+        queueEvents2.on<CustomListener>('nested', async ({ nested }) => {
+          // The value arrives as a JSON string; the consumer is
+          // responsible for parsing custom event payloads.
+          expect(typeof nested).toBe('string');
+          expect(JSON.parse(nested)).toEqual({ object: 'hello' });
+          resolve();
+        });
+      });
+
+      await queueEventsProducer.publishEvent({
+        eventName: 'nested',
+        nested: { object: 'hello' },
+      });
+
+      queueEvents2.run();
+      await customEvent;
+
+      await queueEventsProducer.close();
+      await queueEvents2.close();
+      await removeAllQueueData(new IORedis(redisHost), queueName2);
+    });
   });
 });
