@@ -200,7 +200,7 @@ class Queue(EventEmitter):
 
         return result
 
-    async def getJobLogs(self, job_id:str, start = 0, end = -1, asc = True) -> dict:
+    async def getJobLogs(self, job_id: str, start=0, end=-1, asc=True) -> dict:
         """
         Returns the logs for a given Job.
 
@@ -378,7 +378,7 @@ class Queue(EventEmitter):
     def getWaitingChildren(self, start = 0, end=-1):
         return self.getJobs(['waiting-children'], start, end, True)
 
-    async def getJobs(self, types, start=0, end=-1, asc:bool=False) -> List[Job]:
+    async def getJobs(self, types, start=0, end=-1, asc: bool = False) -> List[Job]:
         current_types = self.sanitizeJobTypes(types)
         job_ids = await self.scripts.getRanges(current_types, start, end, asc)
         tasks = [asyncio.create_task(Job.fromId(self, i)) for i in job_ids]
