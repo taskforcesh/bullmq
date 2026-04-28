@@ -1,5 +1,5 @@
 import redis.asyncio as redis
-from typing import Union
+from typing import Optional, Union
 from redis.backoff import ExponentialBackoff
 from redis.asyncio.retry import Retry
 from redis.exceptions import (
@@ -69,7 +69,7 @@ class RedisConnection:
     }
 
     def __init__(self, redisOpts: Union[dict, str, redis.Redis] = {}):
-        self.version = None
+        self.version: Optional[str] = None
         retry = Retry(ExponentialBackoff(cap=20, base=1), 20)
         retry_errors = [BusyLoadingError, ConnectionError, TimeoutError]
 
@@ -94,7 +94,7 @@ class RedisConnection:
         self.commands = {}
         self.loadCommands()
 
-    def loadCommands(self):
+    def loadCommands(self) -> None:
         """
         Load and register all Lua scripts on the Redis client.
         This is called once during initialization to avoid re-registering
@@ -109,13 +109,13 @@ class RedisConnection:
         """
         return self.conn.disconnect()
 
-    async def close(self):
+    async def close(self) -> None:
         """
         Close the connection
         """
         return await self.conn.aclose()
 
-    async def getRedisVersion(self):
+    async def getRedisVersion(self) -> Optional[str]:
         if self.version is not None:
             return self.version
 
@@ -131,7 +131,7 @@ class RedisConnection:
         }
         return self.version
 
-    async def set_client_name(self, name: str):
+    async def set_client_name(self, name: str) -> None:
         if not name:
             return
 
@@ -147,13 +147,13 @@ class RedisConnection:
             self._set_client_name_on_pool(self.conn, name)
             await self._set_client_name_on_client(self.conn, name)
 
-    async def _set_client_name_on_client(self, client, name: str):
+    async def _set_client_name_on_client(self, client, name: str) -> None:
         if hasattr(client, "client_setname"):
             await client.client_setname(name)
         else:
             await client.execute_command("CLIENT", "SETNAME", name)
 
-    def _set_client_name_on_pool(self, client, name: str):
+    def _set_client_name_on_pool(self, client, name: str) -> None:
         pool = getattr(client, "connection_pool", None)
         if pool is None:
             return
