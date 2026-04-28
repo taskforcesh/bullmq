@@ -73,3 +73,42 @@ class TestIsRedisVersionLowerThan(unittest.TestCase):
         self.assertFalse(isRedisVersionLowerThan('6.0.0', '6.0.0'))
         self.assertFalse(isRedisVersionLowerThan('7.2.0', '6.0.0'))
 
+class TestRedisConnectionSkipFlags(unittest.IsolatedAsyncioTestCase):
+    @patch.object(RedisConnection, 'loadCommands')
+    def test_default_skip_flags_are_false(self, _mock_load):
+        conn = RedisConnection({"host": "localhost"})
+        self.assertFalse(conn.skipVersionCheck)
+        self.assertFalse(conn.skipWaitingForReady)
+
+    @patch.object(RedisConnection, 'loadCommands')
+    def test_skip_flags_persist_when_set(self, _mock_load):
+        conn = RedisConnection(
+            {"host": "localhost"},
+            skipVersionCheck=True,
+            skipWaitingForReady=True,
+        )
+        self.assertTrue(conn.skipVersionCheck)
+        self.assertTrue(conn.skipWaitingForReady)
+
+    @patch.object(RedisConnection, 'loadCommands')
+    async def test_skip_version_check_short_circuits_get_redis_version(self, _mock_load):
+        # When skipVersionCheck is True, getRedisVersion should NOT call info()
+        # and should report the documented minimum supported version.
+        from unittest.mock import AsyncMock
+        conn = RedisConnection(
+            {"host": "localhost"},
+            skipVersionCheck=True,
+        )
+        conn.conn = AsyncMock()
+        conn.conn.info = AsyncMock(side_effect=AssertionError(
+            "info() should not be called when skipVersionCheck is True"
+        ))
+
+        version = await conn.getRedisVersion()
+
+        self.assertEqual(version, RedisConnection.minimum_version)
+        self.assertEqual(conn.version, RedisConnection.minimum_version)
+        # capabilities should still be populated based on the assumed version.
+        self.assertIn("canBlockFor1Ms", conn.capabilities)
+        self.assertIn("canDoubleTimeout", conn.capabilities)
+
