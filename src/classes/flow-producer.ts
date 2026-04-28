@@ -192,6 +192,7 @@ export class FlowProducer extends EventEmitter {
     if (this.closing) {
       return;
     }
+    assertNoDeduplication(flow);
     const client = await this.connection.client;
     const multi = client.multi();
 
@@ -280,6 +281,7 @@ export class FlowProducer extends EventEmitter {
     if (this.closing) {
       return;
     }
+    flows.forEach(assertNoDeduplication);
     const client = await this.connection.client;
     const multi = client.multi();
 
@@ -592,5 +594,18 @@ export class FlowProducer extends EventEmitter {
    */
   disconnect(): Promise<void> {
     return this.connection.disconnect();
+  }
+}
+
+// Deduplication is incompatible with FlowProducer because parent ids must be
+// known before the multi.exec() commits. A dedup hit returns the existing
+// job's id rather than the freshly generated one, which would orphan the
+// flow's children. See https://github.com/taskforcesh/bullmq/issues/2780.
+function assertNoDeduplication(flow: FlowJob): void {
+  if (flow?.opts?.deduplication || flow?.opts?.debounce) {
+    throw new Error(
+      `Deduplication and debounce are not supported in flows ` +
+        `(queue "${flow.queueName}", job "${flow.name}").`,
+    );
   }
 }
