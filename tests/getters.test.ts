@@ -1099,5 +1099,118 @@ describe('Jobs getters', () => {
         metrics.split('\n').filter(l => l.startsWith('bullmq_job_count')),
       ).toHaveLength(0);
     });
+
+    it('should export bullmq_job_completed_total and bullmq_job_failed_total counters from getMetrics', async () => {
+      const counts = {
+        waiting: 0,
+        active: 0,
+        completed: 1,
+        failed: 1,
+        delayed: 0,
+        paused: 0,
+      };
+      sinon.stub(queue, 'getJobCounts').resolves(counts);
+      const getMetricsStub = sinon.stub(queue, 'getMetrics');
+      getMetricsStub.withArgs('completed').resolves({
+        meta: { count: 42, prevTS: 0, prevCount: 0 },
+        data: [],
+        count: 0,
+      });
+      getMetricsStub.withArgs('failed').resolves({
+        meta: { count: 7, prevTS: 0, prevCount: 0 },
+        data: [],
+        count: 0,
+      });
+
+      const metrics = await queue.exportPrometheusMetrics();
+
+      expect(metrics).toContain(
+        '# HELP bullmq_job_completed_total Total number of completed jobs',
+      );
+      expect(metrics).toContain('# TYPE bullmq_job_completed_total counter');
+      expect(metrics).toContain(
+        `bullmq_job_completed_total{queue="${queueName}"} 42`,
+      );
+
+      expect(metrics).toContain(
+        '# HELP bullmq_job_failed_total Total number of failed jobs',
+      );
+      expect(metrics).toContain('# TYPE bullmq_job_failed_total counter');
+      expect(metrics).toContain(
+        `bullmq_job_failed_total{queue="${queueName}"} 7`,
+      );
+    });
+
+    it('should emit zero-valued counters when metrics collection is disabled', async () => {
+      const counts = {
+        waiting: 0,
+        active: 0,
+        completed: 0,
+        failed: 0,
+        delayed: 0,
+        paused: 0,
+      };
+      sinon.stub(queue, 'getJobCounts').resolves(counts);
+      // getMetrics returns count=0 when meta keys are absent (no exception thrown)
+      const getMetricsStub = sinon.stub(queue, 'getMetrics');
+      getMetricsStub.resolves({
+        meta: { count: 0, prevTS: 0, prevCount: 0 },
+        data: [],
+        count: 0,
+      });
+
+      const metrics = await queue.exportPrometheusMetrics();
+
+      expect(metrics).toContain(
+        `bullmq_job_completed_total{queue="${queueName}"} 0`,
+      );
+      expect(metrics).toContain(
+        `bullmq_job_failed_total{queue="${queueName}"} 0`,
+      );
+    });
+
+    it('should escape special characters in queue names and global variable values', async () => {
+      // Raw queue name contains a literal double-quote, a single backslash,
+      // and a real newline character.
+      const rawName =
+        'queue' + '"' + 'name' + '\\' + 'with' + '\n' + 'specials';
+      const escapingQueue = new Queue(rawName, {
+        connection,
+        prefix,
+      });
+      try {
+        const counts = {
+          waiting: 1,
+          active: 0,
+          completed: 0,
+          failed: 0,
+          delayed: 0,
+          paused: 0,
+        };
+        sinon.stub(escapingQueue, 'getJobCounts').resolves(counts);
+        sinon.stub(escapingQueue, 'getMetrics').resolves({
+          meta: { count: 0, prevTS: 0, prevCount: 0 },
+          data: [],
+          count: 0,
+        });
+
+        const rawEnv = 'pro' + '"' + 'd';
+        const metrics = await escapingQueue.exportPrometheusMetrics({
+          env: rawEnv,
+        });
+
+        // Per the Prometheus exposition format, label values must escape
+        // backslashes, double-quotes, and newlines.
+        const expectedEscapedName =
+          'queue' + '\\"' + 'name' + '\\\\' + 'with' + '\\n' + 'specials';
+        expect(metrics).toContain('queue=' + '"' + expectedEscapedName + '"');
+
+        const expectedEscapedEnv = 'pro' + '\\"' + 'd';
+        expect(metrics).toContain('env=' + '"' + expectedEscapedEnv + '"');
+      } finally {
+        await escapingQueue.close();
+        await removeAllQueueData(new IORedis(redisHost), rawName);
+      }
+    });
   });
 });
