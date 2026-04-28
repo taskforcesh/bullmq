@@ -5549,7 +5549,7 @@ describe('flows', () => {
 
     describe('when removing a deeply nested flow', () => {
       it('removes the whole tree iteratively without stack overflow', async () => {
-        const parentQueueName = `parent-queue-${v4()}`;
+        const parentQueueName = `parent-queue-${randomUUID()}`;
         const name = 'child-job';
         const depth = 200;
 
