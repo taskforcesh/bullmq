@@ -283,6 +283,26 @@ describe('Jobs getters', () => {
     expect(jobs[1].data.baz).toBe('qux');
   });
 
+  // Regression for https://github.com/taskforcesh/bullmq/issues/3767:
+  // Job.fromId returns `undefined` when the job hash has been deleted
+  // between getRanges() and fromId(). The public type for getJobs /
+  // getActive / getWaiting promises a populated array, so getJobs must
+  // filter the gaps out instead of leaking undefined entries to user
+  // code.
+  it('does not return undefined entries when a job is removed concurrently', async () => {
+    const a = await queue.add('test', { foo: 'bar' });
+    const b = await queue.add('test', { baz: 'qux' });
+
+    // Simulate the race: delete one job's hash directly while leaving
+    // its id in the waiting list.
+    const client = await queue.client;
+    await client.del(`${prefix}:${queueName}:${a.id}`);
+
+    const jobs = await queue.getWaiting();
+    expect(jobs).not.toContain(undefined);
+    expect(jobs.map(job => job.id)).toEqual([b.id]);
+  });
+
   it('should get all waiting jobs when no range is provided', async () => {
     await Promise.all([
       queue.add('test', { foo: 'bar' }),

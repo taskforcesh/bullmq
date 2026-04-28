@@ -490,9 +490,15 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
 
     const jobIds = await this.getRanges(currentTypes, start, end, asc);
 
-    return Promise.all(
+    // Job.fromId returns `undefined` when the job hash has been removed
+    // between `getRanges` and `fromId` — a race that surfaces when the
+    // worker (or another caller) cleans up a job concurrently. The
+    // public type promises `JobBase[]`, so filter the gaps out instead
+    // of leaking `undefined` entries to user code (issue #3767).
+    const jobs = await Promise.all(
       jobIds.map(jobId => this.Job.fromId(this, jobId) as Promise<JobBase>),
     );
+    return jobs.filter((job): job is JobBase => job !== undefined);
   }
 
   /**
