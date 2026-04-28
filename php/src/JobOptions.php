@@ -96,6 +96,13 @@ class JobOptions
     public ?array $parent = null;
 
     /**
+     * Deduplication options.
+     *
+     * @var array{id?: string, ttl?: int, extend?: bool, replace?: bool, keepLastIfActive?: bool}|null
+     */
+    public ?array $deduplication = null;
+
+    /**
      * Create JobOptions from an associative array.
      *
      * @param array<string, mixed> $options
@@ -148,6 +155,9 @@ class JobOptions
         }
         if (isset($options['parent'])) {
             $instance->parent = $options['parent'];
+        }
+        if (isset($options['deduplication'])) {
+            $instance->deduplication = $options['deduplication'];
         }
 
         return $instance;
@@ -203,6 +213,9 @@ class JobOptions
         }
         if ($this->parent !== null) {
             $result['parent'] = $this->parent;
+        }
+        if ($this->deduplication !== null) {
+            $result['de'] = $this->deduplication;
         }
 
         return $result;

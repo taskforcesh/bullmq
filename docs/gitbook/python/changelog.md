@@ -1,3 +1,78 @@
+## [2.23.1](https://github.com/taskforcesh/bullmq/compare/vpy2.23.0...vpy2.23.1) (2026-04-26)
+
+
+### Bug Fixes
+
+* **queue:** guard getCompleted against empty task set [python] ([#3885](https://github.com/taskforcesh/bullmq/issues/3885)) ([19b9ca0](https://github.com/taskforcesh/bullmq/commit/19b9ca08be6f6efbc58291fa55efd93a0663d536))
+
+# [2.23.0](https://github.com/taskforcesh/bullmq/compare/vpy2.22.0...vpy2.23.0) (2026-04-22)
+
+
+### Features
+
+* **python:** add type hints to worker.py methods ([#4035](https://github.com/taskforcesh/bullmq/issues/4035)) ([1423b58](https://github.com/taskforcesh/bullmq/commit/1423b584b5707b3f71ee2fba5eb14122fb7b0275))
+
+# [2.22.0](https://github.com/taskforcesh/bullmq/compare/vpy2.21.1...vpy2.22.0) (2026-04-20)
+
+
+### Features
+
+* **job:** add return type hints to Job methods ([#4003](https://github.com/taskforcesh/bullmq/issues/4003)) [python] ([704690c](https://github.com/taskforcesh/bullmq/commit/704690c62f4cedddf82379335b8ff42a46fda7f3))
+
+## [2.21.1](https://github.com/taskforcesh/bullmq/compare/vpy2.21.0...vpy2.21.1) (2026-04-20)
+
+
+### Bug Fixes
+
+* **queue:** getFailed() incorrectly returns completed jobs ([#3996](https://github.com/taskforcesh/bullmq/issues/3996)) [python] ([f77f249](https://github.com/taskforcesh/bullmq/commit/f77f249acb82daf331bd61e1f425780270888d8d))
+
+# [2.21.0](https://github.com/taskforcesh/bullmq/compare/vpy2.20.4...vpy2.21.0) (2026-04-20)
+
+
+### Bug Fixes
+
+* **queue:** use slice reversal instead of reverse() which returns None ([#4022](https://github.com/taskforcesh/bullmq/issues/4022)) ([1652435](https://github.com/taskforcesh/bullmq/commit/1652435b06f583015055df4e74ee7dea203bdae4))
+
+
+### Features
+
+* **python:** add type hints to Timer class ([#4024](https://github.com/taskforcesh/bullmq/issues/4024)) ([8c78e30](https://github.com/taskforcesh/bullmq/commit/8c78e3004dcd5df726d9b7277dd455d0d224791f))
+
+## [2.20.4](https://github.com/taskforcesh/bullmq/compare/vpy2.20.3...vpy2.20.4) (2026-04-17)
+
+
+### Bug Fixes
+
+* **error:** export UnrecoverableError from package root ([#4047](https://github.com/taskforcesh/bullmq/issues/4047)) [python] ([be9f032](https://github.com/taskforcesh/bullmq/commit/be9f03246d1644f397d660fba91285604a824284))
+
+## [2.20.3](https://github.com/taskforcesh/bullmq/compare/vpy2.20.2...vpy2.20.3) (2026-04-10)
+
+
+### Bug Fixes
+
+* **worker:** emit active event as soon as getting next job (elixir) (python) ([#3936](https://github.com/taskforcesh/bullmq/issues/3936)) ref [#3911](https://github.com/taskforcesh/bullmq/issues/3911) ([d5eca5a](https://github.com/taskforcesh/bullmq/commit/d5eca5acff37b7a95f72c136685105504fc7f5be))
+
+## [2.20.2](https://github.com/taskforcesh/bullmq/compare/vpy2.20.1...vpy2.20.2) (2026-04-09)
+
+
+### Performance Improvements
+
+* **delayed:** allow to fetch next job when moving job to delayed (python) (elixir) ([#3870](https://github.com/taskforcesh/bullmq/issues/3870)) ([0cb0b8c](https://github.com/taskforcesh/bullmq/commit/0cb0b8cf5981ad8d56fd539071eacbe0df4b55ad))
+
+## [2.20.1](https://github.com/taskforcesh/bullmq/compare/vpy2.20.0...vpy2.20.1) (2026-04-09)
+
+
+### Bug Fixes
+
+* **connection:** use single_connection_client as true ([#3887](https://github.com/taskforcesh/bullmq/issues/3887)) fixes [#2243](https://github.com/taskforcesh/bullmq/issues/2243) [python] ([bf45186](https://github.com/taskforcesh/bullmq/commit/bf451868b932125d857280a5a21173bfafbc2801))
+
+# [2.20.0](https://github.com/taskforcesh/bullmq/compare/vpy2.19.8...vpy2.20.0) (2026-04-03)
+
+
+### Features
+
+* **deduplication:** add keepLastIfActive option for at-least-once-after-active semantics ([#3902](https://github.com/taskforcesh/bullmq/issues/3902)) ([aa529bc](https://github.com/taskforcesh/bullmq/commit/aa529bc512b15cdb9d173cc9cc3b0d9f8b8959eb))
+
 ## [2.19.8](https://github.com/taskforcesh/bullmq/compare/vpy2.19.7...vpy2.19.8) (2026-03-19)
 
 

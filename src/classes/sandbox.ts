@@ -96,6 +96,26 @@ const sandbox = <T, R, N extends string>(
                       });
                     }
                     break;
+                  case ParentCommand.GetDependenciesCount:
+                    {
+                      const value = await job.getDependenciesCount(msg.value);
+                      child.send({
+                        requestId: msg.requestId,
+                        cmd: ChildCommand.GetDependenciesCountResponse,
+                        value,
+                      });
+                    }
+                    break;
+                  case ParentCommand.GetDependencies:
+                    {
+                      const value = await job.getDependencies(msg.value);
+                      child.send({
+                        requestId: msg.requestId,
+                        cmd: ChildCommand.GetDependenciesResponse,
+                        value,
+                      });
+                    }
+                    break;
                 }
               } catch (err) {
                 reject(err);

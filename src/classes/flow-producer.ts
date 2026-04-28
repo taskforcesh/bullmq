@@ -1,6 +1,5 @@
 import { EventEmitter } from 'events';
 import { Redis, ChainableCommander } from 'ioredis';
-import { v4 } from 'uuid';
 import {
   FlowJob,
   FlowQueuesOpts,
@@ -12,7 +11,7 @@ import {
   Tracer,
   ContextManager,
 } from '../interfaces';
-import { getParentKey, isRedisInstance, trace } from '../utils';
+import { getParentKey, isRedisInstance, randomUUID, trace } from '../utils';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { RedisConnection } from './redis-connection';
@@ -223,7 +222,16 @@ export class FlowProducer extends EventEmitter {
           },
         });
 
-        await multi.exec();
+        const results = (await multi.exec()) as
+          | [null | Error, string | number][]
+          | null;
+        const [result] = results || [];
+        if (result) {
+          const [err, jobId] = result;
+          if (!err && typeof jobId === 'string') {
+            jobsTree.job.id = jobId;
+          }
+        }
 
         return jobsTree;
       },
@@ -291,7 +299,20 @@ export class FlowProducer extends EventEmitter {
 
         const jobsTrees = await this.addNodes(multi, flows);
 
-        await multi.exec();
+        const results = (await multi.exec()) as
+          | [null | Error, string | number][]
+          | null;
+        for (let index = 0; index < jobsTrees.length; ++index) {
+          const result = results?.[index];
+          if (!result) {
+            continue;
+          }
+
+          const [err, jobId] = result;
+          if (!err && typeof jobId === 'string') {
+            jobsTrees[index].job.id = jobId;
+          }
+        }
 
         return jobsTrees;
       },
@@ -320,7 +341,7 @@ export class FlowProducer extends EventEmitter {
     const queueOpts = queuesOpts && queuesOpts[node.queueName];
 
     const jobsOpts = queueOpts?.defaultJobOptions ?? {};
-    const jobId = node.opts?.jobId || v4();
+    const jobId = node.opts?.jobId || randomUUID();
 
     return trace<Promise<JobNode>>(
       this.telemetry,
@@ -328,7 +349,7 @@ export class FlowProducer extends EventEmitter {
       node.queueName,
       'addNode',
       node.queueName,
-      async (span, srcPropagationMedatada) => {
+      async (span, srcPropagationMetadata) => {
         span?.setAttributes({
           [TelemetryAttributes.JobName]: node.name,
           [TelemetryAttributes.JobId]: jobId,
@@ -336,11 +357,11 @@ export class FlowProducer extends EventEmitter {
         const opts = node.opts;
         let telemetry = opts?.telemetry;
 
-        if (srcPropagationMedatada && opts) {
+        if (srcPropagationMetadata && opts) {
           const omitContext = opts.telemetry?.omitContext;
           const telemetryMetadata =
             opts.telemetry?.metadata ||
-            (!omitContext && srcPropagationMedatada);
+            (!omitContext && srcPropagationMetadata);
 
           if (telemetryMetadata || omitContext) {
             telemetry = {

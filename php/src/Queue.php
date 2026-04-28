@@ -153,6 +153,7 @@ class Queue
             $opts = $jobData['opts'] ?? [];
 
             $job = new Job($this, $name, $data, $opts);
+
             if ($job->id === null) {
                 $job->id = $this->generateJobId();
             }

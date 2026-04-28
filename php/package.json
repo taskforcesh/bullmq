@@ -12,7 +12,7 @@
     "semantic-release:debug": "semantic-release --no-ci --dry-run --debug"
   },
   "devDependencies": {
-    "@commitlint/cli": "20.5.0",
+    "@commitlint/cli": "20.5.2",
     "@commitlint/config-conventional": "20.5.0",
     "@semantic-release/changelog": "6.0.3",
     "@semantic-release/commit-analyzer": "13.0.1",
@@ -35,7 +35,7 @@
         {
           "releaseRules": [
             {
-              "message": "!(*\\[php\\]*)",
+              "message": "!(*\\(php\\)*|*\\[php\\]*)",
               "release": false
             }
           ]
@@ -46,7 +46,7 @@
         {
           "preset": "angular",
           "presetConfig": {
-            "ignoreCommits": "^(?![^]*\\[php\\]).*$"
+            "ignoreCommits": "^(?![^]*\\(php\\))(?![^]*\\[php\\]).*$"
           }
         }
       ],
@@ -62,11 +62,18 @@
           "prepareCmd": "node scripts/updateVersion.js ${nextRelease.version}"
         }
       ],
-      "@semantic-release/github"
+      [
+        "@semantic-release/github",
+        {
+          "successComment": false,
+          "failComment": false
+        }
+      ]
     ]
   },
   "packageManager": "yarn@1.22.22",
   "resolutions": {
-    "ajv": "8.18.0"
+    "ajv": "8.18.0",
+    "picomatch": ">=2.3.2"
   }
 }

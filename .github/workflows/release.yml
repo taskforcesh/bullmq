@@ -25,9 +25,9 @@ jobs:
         with:
           fetch-depth: 0
       - name: Setup Node.js
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: '24.13.1'
+          node-version: '24.14.1'
           cache: 'yarn'
       - name: Install dependencies Node
         run: yarn install --frozen-lockfile --non-interactive
@@ -158,6 +158,7 @@ jobs:
             
             # Add and commit changes (only add files that exist)
             git add pyproject.toml || true
+            git add bullmq/__init__.py || true
             git add ../docs/gitbook/python/changelog.md || true
             
             # Check if there are actually changes to commit after adding
@@ -174,6 +175,7 @@ jobs:
 
               This PR contains:
               - Updated pyproject.toml
+              - Updated __init__.py
               - Updated changelog
               - Updated API documentation (if any)
 

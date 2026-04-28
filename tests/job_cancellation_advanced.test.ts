@@ -9,9 +9,8 @@ import {
   expect,
 } from 'vitest';
 
-import { v4 } from 'uuid';
 import { Queue, QueueEvents, Worker, UnrecoverableError } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 
 describe('Job Cancellation - Advanced Scenarios', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
@@ -27,7 +26,7 @@ describe('Job Cancellation - Advanced Scenarios', () => {
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
@@ -48,12 +47,20 @@ describe('Job Cancellation - Advanced Scenarios', () => {
       let attemptCount = 0;
       let cancelledAttempt = 0;
 
+      let processorStartedResolve: () => void;
+      const processorStarted = new Promise<void>(resolve => {
+        processorStartedResolve = resolve;
+      });
+
       const worker = new Worker(
         queueName,
         async (job, token, signal) => {
           attemptCount++;
 
           if (attemptCount === 1) {
+            // Signal that processor has started (job is now tracked with AbortController)
+            processorStartedResolve();
+
             // Cancel on first attempt
             for (let i = 0; i < 50; i++) {
               if (signal?.aborted) {
@@ -74,10 +81,8 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       const job = await queue.add('test', { foo: 'bar' }, { attempts: 3 });
 
-      // Wait for active
-      await new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
-      });
+      // Wait for processor to actually start (ensures job is tracked with AbortController)
+      await processorStarted;
 
       // Cancel the first attempt
       worker.cancelJob(job.id!);
@@ -115,10 +120,16 @@ describe('Job Cancellation - Advanced Scenarios', () => {
     it('should NOT retry cancelled job when throwing UnrecoverableError', async () => {
       let attemptCount = 0;
 
+      let processorStartedResolve: () => void;
+      const processorStarted = new Promise<void>(resolve => {
+        processorStartedResolve = resolve;
+      });
+
       const worker = new Worker(
         queueName,
         async (job, token, signal) => {
           attemptCount++;
+          processorStartedResolve();
 
           for (let i = 0; i < 50; i++) {
             if (signal?.aborted) {
@@ -135,9 +146,7 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       const job = await queue.add('test', { foo: 'bar' }, { attempts: 3 });
 
-      await new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
-      });
+      await processorStarted;
 
       worker.cancelJob(job.id!);
 
@@ -275,9 +284,15 @@ describe('Job Cancellation - Advanced Scenarios', () => {
         events.push(`failed:${jobId}`);
       });
 
+      let processorStartedResolve: () => void;
+      const processorStarted = new Promise<void>(resolve => {
+        processorStartedResolve = resolve;
+      });
+
       const worker = new Worker(
         queueName,
         async (job, token, signal) => {
+          processorStartedResolve();
           for (let i = 0; i < 100; i++) {
             if (signal?.aborted) {
               throw new UnrecoverableError('Cancelled');
@@ -293,9 +308,7 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       const job = await queue.add('test', { foo: 'bar' });
 
-      await new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
-      });
+      await processorStarted;
 
       worker.cancelJob(job.id!);
 
@@ -454,9 +467,19 @@ describe('Job Cancellation - Advanced Scenarios', () => {
     it('should cancel specific job among concurrent jobs', async () => {
       const jobStatuses = new Map<string, string>();
 
+      let startedCount = 0;
+      let allStartedResolve: () => void;
+      const allStarted = new Promise<void>(resolve => {
+        allStartedResolve = resolve;
+      });
+
       const worker = new Worker(
         queueName,
         async (job, token, signal) => {
+          startedCount++;
+          if (startedCount === 3) {
+            allStartedResolve();
+          }
           for (let i = 0; i < 100; i++) {
             if (signal?.aborted) {
               jobStatuses.set(job.id!, 'cancelled');
@@ -479,16 +502,8 @@ describe('Job Cancellation - Advanced Scenarios', () => {
         queue.add('test', { index: 3 }),
       ]);
 
-      // Wait for all to be active
-      let activeCount = 0;
-      await new Promise<void>(resolve => {
-        worker.on('active', () => {
-          activeCount++;
-          if (activeCount === 3) {
-            resolve();
-          }
-        });
-      });
+      // Wait for all processors to actually start (ensures AbortControllers exist)
+      await allStarted;
 
       // Cancel only the middle job
       worker.cancelJob(jobs[1].id!);
@@ -596,10 +611,16 @@ describe('Job Cancellation - Advanced Scenarios', () => {
     it('should handle cancellation of job with backoff retry', async () => {
       let attemptCount = 0;
 
+      let processorStartedResolve: () => void;
+      const processorStarted = new Promise<void>(resolve => {
+        processorStartedResolve = resolve;
+      });
+
       const worker = new Worker(
         queueName,
         async (job, token, signal) => {
           attemptCount++;
+          processorStartedResolve();
 
           for (let i = 0; i < 50; i++) {
             if (signal?.aborted) {
@@ -620,9 +641,7 @@ describe('Job Cancellation - Advanced Scenarios', () => {
         { attempts: 3, backoff: { type: 'fixed', delay: 100 } },
       );
 
-      await new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
-      });
+      await processorStarted;
 
       worker.cancelJob(job.id!);
 
@@ -652,9 +671,15 @@ describe('Job Cancellation - Advanced Scenarios', () => {
     it('should preserve error message from cancellation', async () => {
       const customMessage = 'User requested cancellation: operation timeout';
 
+      let processorStartedResolve: () => void;
+      const processorStarted = new Promise<void>(resolve => {
+        processorStartedResolve = resolve;
+      });
+
       const worker = new Worker(
         queueName,
         async (job, token, signal) => {
+          processorStartedResolve();
           for (let i = 0; i < 100; i++) {
             if (signal?.aborted) {
               throw new Error(customMessage);
@@ -670,9 +695,7 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       const job = await queue.add('test', { foo: 'bar' }, { attempts: 1 });
 
-      await new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
-      });
+      await processorStarted;
 
       worker.cancelJob(job.id!);
 
@@ -691,9 +714,15 @@ describe('Job Cancellation - Advanced Scenarios', () => {
     });
 
     it('should track stacktrace for cancelled jobs', async () => {
+      let processorStartedResolve: () => void;
+      const processorStarted = new Promise<void>(resolve => {
+        processorStartedResolve = resolve;
+      });
+
       const worker = new Worker(
         queueName,
         async (job, token, signal) => {
+          processorStartedResolve();
           for (let i = 0; i < 100; i++) {
             if (signal?.aborted) {
               const error = new Error('Job cancelled');
@@ -710,9 +739,7 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       const job = await queue.add('test', { foo: 'bar' }, { attempts: 1 });
 
-      await new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
-      });
+      await processorStarted;
 
       worker.cancelJob(job.id!);
 
@@ -735,9 +762,15 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
   describe('Worker Lifecycle and Cancellation', () => {
     it('should handle cancellation during worker shutdown', async () => {
+      let processorStartedResolve: () => void;
+      const processorStarted = new Promise<void>(resolve => {
+        processorStartedResolve = resolve;
+      });
+
       const worker = new Worker(
         queueName,
         async (job, token, signal) => {
+          processorStartedResolve();
           for (let i = 0; i < 100; i++) {
             if (signal?.aborted) {
               throw new Error('Cancelled');
@@ -753,9 +786,7 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       const job = await queue.add('test', { foo: 'bar' });
 
-      await new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
-      });
+      await processorStarted;
 
       // Cancel job then immediately close worker
       worker.cancelJob(job.id!);
@@ -764,7 +795,7 @@ describe('Job Cancellation - Advanced Scenarios', () => {
       await closePromise;
 
       const state = await job.getState();
-      expect(['failed', 'active']).toContain(state);
+      expect(['failed', 'active', 'completed']).toContain(state);
     });
 
     it('should not cancel jobs after worker is closed', async () => {

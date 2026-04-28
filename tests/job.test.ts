@@ -12,10 +12,14 @@ import {
   expect,
 } from 'vitest';
 
-import { v4 } from 'uuid';
 import { Job, Queue, QueueEvents, Worker } from '../src/classes';
 import { JobsOptions } from '../src/types';
-import { delay, getParentKey, removeAllQueueData } from '../src/utils';
+import {
+  delay,
+  getParentKey,
+  randomUUID,
+  removeAllQueueData,
+} from '../src/utils';
 
 describe('Job', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
@@ -29,7 +33,7 @@ describe('Job', () => {
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
   });
 
@@ -119,7 +123,7 @@ describe('Job', () => {
     describe('when parent key is missing', () => {
       it('throws an error', async () => {
         const data = { foo: 'bar' };
-        const parentId = v4();
+        const parentId = randomUUID();
         const opts: JobsOptions = {
           parent: { id: parentId, queue: `${prefix}:${queueName}` },
         };
@@ -134,7 +138,7 @@ describe('Job', () => {
         const data = { foo: 'bar' };
         const opts = { repeat: { every: 200 }, delay: 1000 };
         await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
-          'Delay and repeat options could not be used together',
+          'Delay and repeat options cannot be used together',
         );
       });
     });
@@ -362,7 +366,7 @@ describe('Job', () => {
       const values = [{ idx: 0, bar: 'something' }];
       const token = 'my-token';
       const token2 = 'my-token2';
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       const parentQueue = new Queue(parentQueueName, { connection, prefix });
       const parentWorker = new Worker(parentQueueName, null, {
@@ -719,7 +723,7 @@ describe('Job', () => {
       ];
       const token = 'my-token';
 
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       const parentQueue = new Queue(parentQueueName, { connection, prefix });
 
@@ -948,6 +952,106 @@ describe('Job', () => {
         expect(isDelayed).toBe(true);
         expect(state).toBe('delayed');
         await worker.close();
+      });
+
+      describe('when fetchNext is true and', () => {
+        describe('when another job is waiting', () => {
+          it('returns the next job data after moving the failed job to delayed', async () => {
+            const worker = new Worker(queueName, null, { connection, prefix });
+            const token = 'my-token';
+
+            await Job.create(
+              queue,
+              'test',
+              { foo: 'bar' },
+              { attempts: 3, backoff: 300 },
+            );
+            const nextJob = await Job.create(queue, 'test2', { baz: 'qux' });
+
+            const job = (await worker.getNextJob(token)) as Job;
+
+            const result = await job.moveToFailed(
+              new Error('test error'),
+              token,
+              true,
+            );
+
+            const isDelayed = await job.isDelayed();
+            expect(isDelayed).toBe(true);
+
+            // result should contain the next job data: [jobData, jobId, limitUntil, delayUntil]
+            expect(result).toBeDefined();
+            expect(Array.isArray(result)).toBe(true);
+            expect(result![1]).toBe(nextJob.id);
+            expect(result![0]).toMatchObject({ name: 'test2' });
+            expect(result![2]).toBe(0);
+            expect(result![3]).toBe(0);
+
+            await worker.close();
+          });
+        });
+
+        describe('when no job is waiting', () => {
+          it('does not return any job data after moving the failed job to delayed', async () => {
+            const worker = new Worker(queueName, null, { connection, prefix });
+            const token = 'my-token';
+
+            await Job.create(
+              queue,
+              'test',
+              { foo: 'bar' },
+              { attempts: 3, backoff: 300 },
+            );
+
+            const job = (await worker.getNextJob(token)) as Job;
+
+            const result = await job.moveToFailed(
+              new Error('test error'),
+              token,
+              true,
+            );
+
+            const isDelayed = await job.isDelayed();
+            expect(isDelayed).toBe(true);
+
+            expect(result).toEqual([]);
+            expect(Array.isArray(result)).toBe(true);
+
+            await worker.close();
+          });
+        });
+      });
+
+      describe('when fetchNext is false and another job is waiting', () => {
+        it('does not return next job data', async () => {
+          const worker = new Worker(queueName, null, { connection, prefix });
+          const token = 'my-token';
+
+          await Job.create(
+            queue,
+            'test',
+            { foo: 'bar' },
+            { attempts: 3, backoff: 300 },
+          );
+          await Job.create(queue, 'test2', { baz: 'qux' });
+
+          const job = (await worker.getNextJob(token)) as Job;
+
+          const result = await job.moveToFailed(
+            new Error('test error'),
+            token,
+            false,
+          );
+
+          const isDelayed = await job.isDelayed();
+          expect(isDelayed).toBe(true);
+
+          // when fetchNext is false, the result should not include next job data
+          // and is expected to be an empty array
+          expect(result).toEqual([]);
+
+          await worker.close();
+        });
       });
     });
 
