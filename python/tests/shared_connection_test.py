@@ -15,11 +15,16 @@ tests cover:
   clients for regular vs blocking commands.
 """
 
+import asyncio
+import os
 import unittest
+from asyncio import Future
 from unittest.mock import MagicMock, patch
+from uuid import uuid4
 
 import redis.asyncio as redis
 
+from bullmq import Job, Queue
 from bullmq.redis_connection import RedisConnection
 from bullmq.worker import Worker
 
@@ -133,6 +138,77 @@ class TestSharedConnection(unittest.TestCase):
             asyncio.run(worker.close(force=True))
             client.aclose.assert_not_called()
             worker.bclient.aclose.assert_awaited()
+
+
+class TestSharedConnectionIntegration(unittest.IsolatedAsyncioTestCase):
+    """Real-Redis regression coverage for the original failure mode: when a
+    single ``redis.asyncio.Redis`` client was reused for both regular and
+    blocking commands, replies interleaved and the worker observed
+    ``job.name == None`` / ``job.data == {}``. The fix derives a dedicated
+    sibling client for blocking commands; this test exercises the path
+    end-to-end against a real Redis instance.
+    """
+
+    redis_host = os.environ.get('REDIS_HOST', 'localhost')
+    prefix = os.environ.get('BULLMQ_TEST_PREFIX', 'bull')
+
+    async def asyncSetUp(self):
+        self.queue_name = f"__test_shared_conn__{uuid4().hex}"
+        cleanup = redis.Redis(host=self.redis_host)
+        await cleanup.flushdb()
+        await cleanup.aclose()
+
+    async def asyncTearDown(self):
+        cleanup = redis.Redis(host=self.redis_host)
+        await cleanup.flushdb()
+        await cleanup.aclose()
+
+    async def test_shared_client_preserves_job_name_and_data(self):
+        client = redis.Redis(host=self.redis_host)
+
+        queue = Queue(
+            self.queue_name,
+            {"prefix": self.prefix, "connection": client},
+        )
+
+        job_name = "shared-conn-job"
+        job_data = {"foo": "bar", "n": 7, "nested": {"k": "v"}}
+        await queue.add(job_name, job_data, {"removeOnComplete": False})
+
+        seen: Future = asyncio.get_event_loop().create_future()
+
+        async def processor(job: Job, token: str):
+            if not seen.done():
+                seen.set_result((job.name, job.data))
+            return "ok"
+
+        worker = Worker(
+            self.queue_name,
+            processor,
+            {"prefix": self.prefix, "connection": client},
+        )
+
+        try:
+            seen_name, seen_data = await asyncio.wait_for(seen, timeout=10)
+            # Guard against the original interleaved-reply symptom.
+            self.assertIsNotNone(seen_name)
+            self.assertNotEqual(seen_data, {})
+            self.assertEqual(seen_name, job_name)
+            self.assertEqual(seen_data, job_data)
+
+            # Worker must own its blocking sibling but treat the caller's
+            # client as shared.
+            self.assertTrue(worker.redisConnection.shared)
+            self.assertFalse(worker.blockingRedisConnection.shared)
+            self.assertIs(worker.client, client)
+            self.assertIsNot(worker.bclient, client)
+        finally:
+            await worker.close(force=True)
+            await queue.close()
+
+        # The shared client must still be usable after the worker closes.
+        self.assertTrue(await client.ping())
+        await client.aclose()
 
 
 if __name__ == '__main__':
