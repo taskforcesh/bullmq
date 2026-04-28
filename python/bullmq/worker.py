@@ -39,7 +39,9 @@ class Worker(EventEmitter):
         self.opts = final_opts
         redis_opts = opts.get("connection", {})
         self.redisConnection = RedisConnection(redis_opts)
-        self.blockingRedisConnection = RedisConnection(redis_opts)
+        # Blocking commands like BZPOPMIN need a dedicated socket so they
+        # cannot starve the regular command client.
+        self.blockingRedisConnection = RedisConnection(redis_opts, isBlocking=True)
         self.client = self.redisConnection.conn
         self.bclient = self.blockingRedisConnection.conn
         self.prefix = opts.get("prefix", "bull")
