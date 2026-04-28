@@ -550,6 +550,7 @@ export class FlowProducer extends EventEmitter {
    *
    * @param node - The flow node containing the queue name and other job options.
    * @param queueKeys - The queue keys helper used to resolve key names.
+   * @param prefix - The Redis key prefix used for the queue.
    * @returns A queue-like object with the client, keys, and options needed to create jobs.
    */
   private queueFromNode(
