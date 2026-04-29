@@ -1,8 +1,11 @@
 /**
- * Metadata about a Queue, stored under the queue's Redis `meta` key.
+ * Publicly relevant metadata fields for a Queue, read from the queue's
+ * Redis `meta` key.
  *
- * These values mirror the configuration applied via `Queue.setGlobalConcurrency`,
- * `Queue.setGlobalRateLimit`, and the queue's pause/version state.
+ * This interface documents the subset of meta-hash fields that BullMQ
+ * exposes to consumers (e.g. via `Queue.getQueueOpts`, `Queue.getRateLimit`,
+ * `Queue.isPaused`); the underlying hash also stores internal fields
+ * (e.g. metrics counters) that are not part of this type.
  */
 export interface QueueMeta {
   /**
@@ -24,8 +27,12 @@ export interface QueueMeta {
   duration?: number;
 
   /**
-   * Maximum length of the queue's events stream (`MAXLEN ~ N`).
-   * Older events are evicted in roughly-FIFO order when this is exceeded.
+   * Approximate maximum length of the queue's events stream
+   * (`XADD ... MAXLEN ~ N`). Older events are evicted in FIFO order.
+   *
+   * Note: this is a best-effort target — Redis's `~` (fast trim) mode
+   * may retain more events than this value. Set without `~` semantics
+   * is not exposed by BullMQ.
    */
   maxLenEvents?: number;
 
