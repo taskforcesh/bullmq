@@ -1,3 +1,10 @@
+# [2.25.0](https://github.com/taskforcesh/bullmq/compare/vpy2.24.0...vpy2.25.0) (2026-04-29)
+
+
+### Features
+
+* **queue:** add skipVersionCheck and skipWaitingForReady to QueueBaseOptions [python] ([#4086](https://github.com/taskforcesh/bullmq/issues/4086)) ([54311e5](https://github.com/taskforcesh/bullmq/commit/54311e59445562f65065b772800b8449f7d99f83))
+
 # [2.24.0](https://github.com/taskforcesh/bullmq/compare/vpy2.23.1...vpy2.24.0) (2026-04-28)
 
 
