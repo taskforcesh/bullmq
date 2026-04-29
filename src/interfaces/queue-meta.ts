@@ -27,12 +27,13 @@ export interface QueueMeta {
   duration?: number;
 
   /**
-   * Approximate maximum length of the queue's events stream
-   * (`XADD ... MAXLEN ~ N`). Older events are evicted in FIFO order.
+   * Maximum length of the queue's events stream. Older events are evicted
+   * in FIFO order once the stream grows beyond this size.
    *
-   * Note: this is a best-effort target — Redis's `~` (fast trim) mode
-   * may retain more events than this value. Set without `~` semantics
-   * is not exposed by BullMQ.
+   * Note: `maxLenEvents` is not a guaranteed upper bound. BullMQ relies on
+   * Redis's `XTRIM` "fast trim" (`MAXLEN ~ N`), which is a best-effort
+   * cap — the stream may retain noticeably more events than this value at
+   * any given moment.
    */
   maxLenEvents?: number;
 
