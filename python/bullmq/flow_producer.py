@@ -36,7 +36,11 @@ class FlowProducer:
         """
         Initialize a connection
         """
-        self.redisConnection = RedisConnection(redisOpts)
+        self.redisConnection = RedisConnection(
+            redisOpts,
+            skipVersionCheck=opts.get("skipVersionCheck", False),
+            skipWaitingForReady=opts.get("skipWaitingForReady", False),
+        )
         self.client = self.redisConnection.conn
         self.opts: dict = opts
         self.prefix = opts.get("prefix", "bull")

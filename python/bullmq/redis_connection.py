@@ -68,8 +68,15 @@ class RedisConnection:
         "canDoubleTimeout": False
     }
 
-    def __init__(self, redisOpts: Union[dict, str, redis.Redis] = {}):
+    def __init__(
+        self,
+        redisOpts: Union[dict, str, redis.Redis] = {},
+        skipVersionCheck: bool = False,
+        skipWaitingForReady: bool = False,
+    ):
         self.version: Optional[str] = None
+        self.skipVersionCheck = skipVersionCheck
+        self.skipWaitingForReady = skipWaitingForReady
         retry = Retry(ExponentialBackoff(cap=20, base=1), 20)
         retry_errors = [BusyLoadingError, ConnectionError, TimeoutError]
 
@@ -117,6 +124,18 @@ class RedisConnection:
 
     async def getRedisVersion(self) -> Optional[str]:
         if self.version is not None:
+            return self.version
+
+        # Mirror the JS RedisConnection: when skipVersionCheck is enabled we
+        # report the minimum supported version without calling INFO. This lets
+        # callers bypass the version comparison while still getting capability
+        # flags consistent with a baseline-compatible Redis.
+        if self.skipVersionCheck:
+            self.version = self.minimum_version
+            self.capabilities = {
+                "canBlockFor1Ms": not isRedisVersionLowerThan(self.version, '7.0.8'),
+                "canDoubleTimeout": not isRedisVersionLowerThan(self.version, '6.0.0'),
+            }
             return self.version
 
         doc = await self.conn.info()
