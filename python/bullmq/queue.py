@@ -1,5 +1,5 @@
 import asyncio
-from typing import List, Union
+from typing import Union
 from bullmq.event_emitter import EventEmitter
 from bullmq.redis_connection import RedisConnection
 from bullmq.types import QueueBaseOptions, RetryJobsOptions, JobOptions, PromoteJobsOptions
@@ -48,7 +48,7 @@ class Queue(EventEmitter):
         job.id = job_id
         return job
 
-    async def addBulk(self, jobs: list[dict[str, Union[dict, str]]]) -> List[Job]:
+    async def addBulk(self, jobs: list[dict[str, Union[dict, str]]]) -> list[Job]:
         """
         Adds an array of jobs to the queue. This method may be faster than adding
         one job at a time in a sequence
@@ -331,7 +331,7 @@ class Queue(EventEmitter):
             counts[f"{unique_priorities[index]}"] = val or 0
         return counts
 
-    async def clean(self, grace: int, limit: int, type: str) -> list:
+    async def clean(self, grace: int, limit: int, type: str) -> list[str]:
         """
         Cleans jobs from a queue. Similar to drain but keeps jobs within a certain
         grace period
@@ -378,28 +378,18 @@ class Queue(EventEmitter):
     def getWaitingChildren(self, start = 0, end=-1):
         return self.getJobs(['waiting-children'], start, end, True)
 
-    async def getJobs(self, types, start=0, end=-1, asc: bool = False) -> List[Job]:
+    async def getJobs(self, types, start=0, end=-1, asc: bool = False) -> list[Job]:
         current_types = self.sanitizeJobTypes(types)
         job_ids = await self.scripts.getRanges(current_types, start, end, asc)
         tasks = [asyncio.create_task(Job.fromId(self, i)) for i in job_ids]
-        job_set, _ = await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
-        jobs = [extract_result(job_task, self.emit) for job_task in job_set]
-        jobs_len = len(jobs)
+        # Use gather to wait for all tasks while preserving order (asyncio.wait
+        # returns an unordered set). return_exceptions=True ensures one failed
+        # fetch does not cancel the rest; extract_result handles each result.
+        await asyncio.gather(*tasks, return_exceptions=True)
+        jobs = [extract_result(job_task, self.emit) for job_task in tasks]
 
-        # we filter `None` out to remove:
-        jobs = list(filter(lambda j: j is not None, jobs))
-
-        for index, job_id in enumerate(job_ids):
-            pivot_job = jobs[index]
-
-            for i in range(index,jobs_len):
-                current_job = jobs[i]
-                if current_job and current_job.id == job_id:
-                    jobs[index] = current_job
-                    jobs[i] = pivot_job
-                    continue
-
-        return jobs
+        # we filter `None` out to remove jobs that no longer exist or failed:
+        return [job for job in jobs if job is not None]
 
     def sanitizeJobTypes(self, types) -> list[str]:
         current_types = list(types)
