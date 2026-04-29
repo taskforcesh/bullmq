@@ -1,3 +1,10 @@
+# [2.24.0](https://github.com/taskforcesh/bullmq/compare/vpy2.23.1...vpy2.24.0) (2026-04-28)
+
+
+### Features
+
+* **connection:** add return type hints to RedisConnection methods [python] ([#4025](https://github.com/taskforcesh/bullmq/issues/4025)) ([4ca9c27](https://github.com/taskforcesh/bullmq/commit/4ca9c27ea68d303b86a80cbb24c8e390d87a5e8f))
+
 ## [2.23.1](https://github.com/taskforcesh/bullmq/compare/vpy2.23.0...vpy2.23.1) (2026-04-26)
 
 
