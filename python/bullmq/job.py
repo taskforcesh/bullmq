@@ -186,8 +186,8 @@ class Job:
 
         return score is not None
 
-    def isInList(self, list_name: str):
-        return self.scripts.isJobInList(self.scripts.toKey(list_name), self.id)
+    async def isInList(self, list_name: str) -> bool:
+        return await self.scripts.isJobInList(self.scripts.toKey(list_name), self.id)
 
     async def moveToCompleted(self, return_value, token:str, fetchNext:bool = False):
         stringified_return_value = json.dumps(return_value, separators=(',', ':'), allow_nan=False)

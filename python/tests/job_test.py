@@ -220,10 +220,12 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         child_queue_name = f"__test_child_queue__{uuid4().hex}"
 
         moved_to_waiting = Future()
+        parent_in_waiting_children = asyncio.Event()
 
         async def child_process(job: Job, token: str):
-            # Sleep so parent has a chance to move to waiting-children before we finish.
-            await asyncio.sleep(0.5)
+            # Wait until parent has signalled it has entered waiting-children
+            # state. This avoids relying on an arbitrary sleep to force ordering.
+            await asyncio.wait_for(parent_in_waiting_children.wait(), timeout=10)
             return "child-done"
 
         async def parent_process(job: Job, token: str):
@@ -231,6 +233,7 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
             if should_wait:
                 if not moved_to_waiting.done():
                     moved_to_waiting.set_result(job)
+                parent_in_waiting_children.set()
                 raise WaitingChildrenError
             return "parent-done"
 
@@ -238,35 +241,41 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         child_worker = Worker(child_queue_name, child_process, {"prefix": prefix})
 
         flow = FlowProducer({}, {"prefix": prefix})
-        await flow.add(
-            {
-                "name": 'parent-job',
-                "queueName": parent_queue_name,
-                "data": {},
-                "children": [
-                    {"name": 'child-job', "data": {"foo": 'bar'}, "queueName": child_queue_name}
-                ]
-            }
-        )
+        try:
+            await flow.add(
+                {
+                    "name": 'parent-job',
+                    "queueName": parent_queue_name,
+                    "data": {},
+                    "children": [
+                        {"name": 'child-job', "data": {"foo": 'bar'}, "queueName": child_queue_name}
+                    ]
+                }
+            )
 
-        parent_job = await moved_to_waiting
+            parent_job = await asyncio.wait_for(moved_to_waiting, timeout=10)
 
-        # Parent should be in waiting-children state
-        self.assertTrue(await parent_job.isWaitingChildren())
+            # Parent should be in waiting-children state
+            self.assertTrue(await parent_job.isWaitingChildren())
+        finally:
+            # Make sure cleanup runs even if the assertion or wait_for fails so
+            # the test process does not hang on lingering workers/queues.
+            if not parent_in_waiting_children.is_set():
+                parent_in_waiting_children.set()
 
-        await parent_worker.close()
-        await child_worker.close()
-        await flow.close()
+            await parent_worker.close()
+            await child_worker.close()
+            await flow.close()
 
-        parent_queue = Queue(parent_queue_name, {"prefix": prefix})
-        await parent_queue.pause()
-        await parent_queue.obliterate()
-        await parent_queue.close()
+            parent_queue = Queue(parent_queue_name, {"prefix": prefix})
+            await parent_queue.pause()
+            await parent_queue.obliterate()
+            await parent_queue.close()
 
-        child_queue = Queue(child_queue_name, {"prefix": prefix})
-        await child_queue.pause()
-        await child_queue.obliterate()
-        await child_queue.close()
+            child_queue = Queue(child_queue_name, {"prefix": prefix})
+            await child_queue.pause()
+            await child_queue.obliterate()
+            await child_queue.close()
 
     async def test_is_waiting_children_returns_false_when_job_is_waiting(self):
         """isWaitingChildren should return False when job is not in waiting-children state."""
