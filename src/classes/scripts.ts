@@ -83,6 +83,8 @@ export class Scripts {
    * @param commandName - The base name of the Lua script (without version suffix).
    * @param args - Positional arguments forwarded to the Lua script (keys followed by argv).
    * @returns The raw result produced by the Lua script.
+   *
+   * @private
    */
   public execCommand(
     client: RedisClient | ChainableCommander,
@@ -95,12 +97,14 @@ export class Scripts {
 
   /**
    * Checks whether a job with the given id is present in a Redis list
-   * (e.g. the wait or active list). Uses `LPOS` on Redis >= 6.0.6, and
+   * (e.g. the wait or active list). Uses `LPOS` on Redis \>= 6.0.6, and
    * falls back to a Lua script on older versions.
    *
    * @param listKey - The Redis list key to search.
    * @param jobId - The job id to look up in the list.
    * @returns `true` if the job is found in the list, `false` otherwise.
+   *
+   * @private
    */
   async isJobInList(listKey: string, jobId: string): Promise<boolean> {
     const client = await this.queue.client;
@@ -382,6 +386,8 @@ export class Scripts {
    * @returns The repeatable job key that was stored (either `customKey` or,
    * for backwards-compatible entries, `legacyCustomKey`). The actual delayed
    * iteration is scheduled later when the job for `nextMillis` is created.
+   *
+   * @private
    */
   async addRepeatableJob(
     customKey: string,
@@ -409,6 +415,8 @@ export class Scripts {
    * @param deduplicationId - The deduplication id whose key should be cleared.
    * @param jobId - The id of the job that currently owns the dedup key.
    * @returns `1` if the key was removed, `0` otherwise.
+   *
+   * @private
    */
   async removeDeduplicationKey(
     deduplicationId: string,
@@ -443,6 +451,8 @@ export class Scripts {
    * @returns A tuple of `[jobId, delay]`, where `delay` is the computed delay in milliseconds
    * for the next iteration. When `delay` is `0`, the job is enqueued immediately.
    * @throws An error resolved from `finishedErrors` when the Lua script returns a negative status code.
+   *
+   * @private
    */
   async addJobScheduler(
     jobSchedulerId: string,
