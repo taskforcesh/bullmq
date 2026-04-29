@@ -1,3 +1,10 @@
+## [5.76.3](https://github.com/taskforcesh/bullmq/compare/v5.76.2...v5.76.3) (2026-04-28)
+
+
+### Bug Fixes
+
+* **metrics:** add total counters to Prometheus export for accurate counts with auto-removal ([#3967](https://github.com/taskforcesh/bullmq/issues/3967)) ([0bf1b4d](https://github.com/taskforcesh/bullmq/commit/0bf1b4d38475b320c89947b9779ec7301ec10117))
+
 ## [5.76.2](https://github.com/taskforcesh/bullmq/compare/v5.76.1...v5.76.2) (2026-04-25)
 
 
