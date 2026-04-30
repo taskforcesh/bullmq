@@ -51,10 +51,14 @@ queueEvents.on(
 );
 ```
 
-The `QueueEvents` class is implemented using [Redis streams](https://redis.io/topics/streams-intro). This has some nice properties, for example, it provides guarantees that the events are delivered and not lost during disconnections such as it would be the case with standard pub-sub.
+The `QueueEvents` class is implemented using [Redis streams](https://redis.io/topics/streams-intro). Compared to standard pub-sub this is more robust across short consumer disconnections, since events buffered in the stream while the consumer is offline can still be read once it reconnects — up to the limits described below.
 
 {% hint style="danger" %}
-The event stream is auto-trimmed so that its size does not grow too much, by default it is \~10.000 events, but this can be configured with the `streams.events.maxLen` option.
+**`QueueEvents` is best-effort, not at-least-once.** The events stream is auto-trimmed on every job state transition with `XTRIM MAXLEN ~ <maxLenEvents>` (default `10000`). If producers (e.g. workers completing jobs) emit events faster than your `QueueEvents` instance drains them, the backlog can exceed `maxLenEvents` and the oldest unread events will be evicted by Redis before the consumer ever reads them. This is consistent with the internal `QueueMeta.maxLenEvents` documentation, which already describes the cap as best-effort — note also that the `~` modifier in `XTRIM` is approximate, so the actual length may briefly exceed `maxLenEvents` by a small amount, but it remains a hard cap.
+
+You can widen the buffer with the [`streams.events.maxLen`](https://api.docs.bullmq.io/interfaces/v5.QueueOptions.html#streams) option on the `Queue` (e.g. `100000` or higher) to reduce the risk of loss when producer and consumer rates differ. Note that this only reduces the risk; it does not eliminate it. Under sustained back-pressure — many concurrent workers finishing jobs faster than a single Node process can drain via `XREAD` — events can still be lost regardless of how large `maxLen` is set.
+
+If you need guaranteed delivery of completion notifications (for example, to count exactly how many jobs finished), prefer the per-`Worker` `'completed'` and `'failed'` listeners. Those are driven by the worker's own active-list bookkeeping and are not subject to stream trimming. Use `QueueEvents` for monitoring, dashboards, and aggregation across workers — scenarios where occasional missed events are acceptable.
 {% endhint %}
 
 ### Manual trim events
