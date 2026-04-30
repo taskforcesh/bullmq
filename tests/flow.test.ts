@@ -6359,7 +6359,7 @@ describe('flows', () => {
   describe('when add is called with a non-existing parent', () => {
     it('throws an error instead of silently dropping the job', async () => {
       const flow = new FlowProducer({ connection, prefix });
-      const missingParentId = `missing-parent-${v4()}`;
+      const missingParentId = `missing-parent-${randomUUID()}`;
       const parentKey = `${prefix}:${queueName}:${missingParentId}`;
 
       await expect(
