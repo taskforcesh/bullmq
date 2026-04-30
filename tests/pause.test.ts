@@ -9,9 +9,8 @@ import {
   expect,
 } from 'vitest';
 
-import { v4 } from 'uuid';
 import { Job, Queue, QueueEvents, Worker } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 
 describe('Pause', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
@@ -21,13 +20,13 @@ describe('Pause', () => {
   let queueName: string;
   let queueEvents: QueueEvents;
 
-  let connection;
+  let connection: IORedis;
   beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
@@ -361,7 +360,7 @@ describe('Pause', () => {
     await delay(10);
 
     return worker.close();
-  }); // TODO: Add { timeout: 8000 } to the it() options
+  }, 8000);
 
   describe('when backoff is 0', () => {
     it('moves job into paused queue', async () => {

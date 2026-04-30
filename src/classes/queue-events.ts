@@ -139,6 +139,8 @@ export interface QueueEventsListener extends IoredisListener {
    * Listen to 'error' event.
    *
    * This event is triggered when an error in the Redis backend is thrown.
+   *
+   * @param args - The error that was thrown.
    */
   error: (args: Error) => void;
 
@@ -429,7 +431,7 @@ export class QueueEvents extends QueueBase {
     if (!this.closing) {
       this.closing = (async () => {
         try {
-          // As the connection has been wrongly markes as "shared" by QueueBase,
+          // As the connection has been wrongly marked as "shared" by QueueBase,
           // we need to forcibly close it here. We should fix QueueBase to avoid this in the future.
           const client = await this.client;
           client.disconnect();

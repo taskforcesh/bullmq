@@ -1,5 +1,4 @@
 import { default as IORedis } from 'ioredis';
-import { v4 } from 'uuid';
 import {
   describe,
   beforeEach,
@@ -20,13 +19,12 @@ import {
   QueueEventsProducer,
   Worker,
 } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 
-describe('events', () => {
+describe('events', { timeout: 8000 }, () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
-  // TODO: Move timeout to test options: { timeout: 8000 }
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
@@ -37,7 +35,7 @@ describe('events', () => {
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queue.waitUntilReady();
@@ -56,7 +54,7 @@ describe('events', () => {
 
   describe('when autorun option is provided as false', () => {
     it('emits waiting when a job has been added', async () => {
-      const queueName2 = `test-${v4()}`;
+      const queueName2 = `test-${randomUUID()}`;
       const queue2 = new Queue(queueName2, { connection, prefix });
       const queueEvents2 = new QueueEvents(queueName2, {
         autorun: false,
@@ -83,7 +81,7 @@ describe('events', () => {
 
     describe('when run method is called when queueEvent is running', () => {
       it('throws error', async () => {
-        const queueName2 = `test-${v4()}`;
+        const queueName2 = `test-${randomUUID()}`;
         const queue2 = new Queue(queueName2, { connection, prefix });
         const queueEvents2 = new QueueEvents(queueName2, {
           autorun: false,
@@ -443,7 +441,7 @@ describe('events', () => {
         prefix,
       });
       const name = 'parent-job';
-      const childrenQueueName = `children-queue-${v4()}`;
+      const childrenQueueName = `children-queue-${randomUUID()}`;
 
       const childrenWorker = new Worker(
         childrenQueueName,
@@ -840,7 +838,7 @@ describe('events', () => {
   });
 
   it('should trim events manually', async () => {
-    const queueName = 'test-manual-' + v4();
+    const queueName = 'test-manual-' + randomUUID();
     const trimmedQueue = new Queue(queueName, { connection, prefix });
 
     await trimmedQueue.add('test', {});
@@ -866,7 +864,7 @@ describe('events', () => {
 
   describe('when publishing custom events', () => {
     it('emits waiting when a job has been added', async () => {
-      const queueName2 = `test-${v4()}`;
+      const queueName2 = `test-${randomUUID()}`;
       const queueEventsProducer = new QueueEventsProducer(queueName2, {
         connection,
         prefix,

@@ -1,5 +1,4 @@
 import { default as IORedis } from 'ioredis';
-import { v4 } from 'uuid';
 import {
   describe,
   beforeEach,
@@ -11,7 +10,7 @@ import {
 } from 'vitest';
 
 import { Job, Queue, QueueEvents, Worker } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 
 describe('deduplication', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
@@ -28,7 +27,7 @@ describe('deduplication', () => {
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queue.waitUntilReady();

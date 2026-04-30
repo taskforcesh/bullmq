@@ -38,8 +38,18 @@ class Worker(EventEmitter):
         final_opts.update(opts or {})
         self.opts = final_opts
         redis_opts = opts.get("connection", {})
-        self.redisConnection = RedisConnection(redis_opts)
-        self.blockingRedisConnection = RedisConnection(redis_opts)
+        skip_version_check = opts.get("skipVersionCheck", False)
+        skip_waiting_for_ready = opts.get("skipWaitingForReady", False)
+        self.redisConnection = RedisConnection(
+            redis_opts,
+            skipVersionCheck=skip_version_check,
+            skipWaitingForReady=skip_waiting_for_ready,
+        )
+        self.blockingRedisConnection = RedisConnection(
+            redis_opts,
+            skipVersionCheck=skip_version_check,
+            skipWaitingForReady=skip_waiting_for_ready,
+        )
         self.client = self.redisConnection.conn
         self.bclient = self.blockingRedisConnection.conn
         self.prefix = opts.get("prefix", "bull")
@@ -160,8 +170,8 @@ class Worker(EventEmitter):
 
         return self.nextJobFromJobData(job_data, id, limit_until, delay_until, token)
 
-    def nextJobFromJobData(self, job_data = None, job_id: str = None, limit_until: int = 0,
-        delay_until: int = 0, token: str = None):
+    def nextJobFromJobData(self, job_data: dict | None = None, job_id: str | None = None, limit_until: int = 0,
+        delay_until: int = 0, token: str | None = None) -> Job | None:
         self.limitUntil = max(limit_until, 0) or 0
 
         if not job_data:
@@ -178,7 +188,7 @@ class Worker(EventEmitter):
             job_instance.token = token
             return job_instance
 
-    async def waitForJob(self):
+    async def waitForJob(self) -> int:
         block_timeout = self.getBlockTimeout(self.blockUntil)
         block_timeout = block_timeout if self.blockingRedisConnection.capabilities.get("canDoubleTimeout", False) else math.ceil(block_timeout)
 
@@ -200,7 +210,7 @@ class Worker(EventEmitter):
         await self.blockingRedisConnection.set_client_name(self.clientName)
         self._client_name_set = True
 
-    def getBlockTimeout(self, block_until: int):
+    def getBlockTimeout(self, block_until: int) -> float:
         if block_until:
             block_timeout = None
             block_delay = block_until - int(time.time() * 1000)
@@ -297,7 +307,7 @@ class Worker(EventEmitter):
         
         return None
     
-    def isConnectionError(self, error):
+    def isConnectionError(self, error: Exception) -> bool:
         """
         Check if an error is a connection-related error.
         """
@@ -378,6 +388,9 @@ class Worker(EventEmitter):
 
 
 async def getCompleted(task_set: set, emit_callback) -> tuple[list[Job], set]:
+    if not task_set:
+        await asyncio.sleep(0)
+        return [], set()
     job_set, pending = await asyncio.wait(task_set, return_when=asyncio.FIRST_COMPLETED)
     jobs = [extract_result(job_task, emit_callback) for job_task in job_set]
     # we filter `None` out to remove:
