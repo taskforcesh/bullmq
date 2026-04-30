@@ -5417,6 +5417,152 @@ describe('workers', () => {
         await worker.close();
       });
     });
+
+    describe('when a stalled job has exhausted its max stalled attempts', () => {
+      it(
+        'should move the job to failed automatically on the next getNextJob ' +
+          'call and return undefined when no other jobs are waiting',
+        async () => {
+        const worker = new Worker(queueName, null, {
+          autorun: false,
+          connection,
+          prefix,
+          lockDuration: 1000,
+          stalledInterval: 100,
+          maxStalledCount: 0,
+        });
+
+        const token = 'my-token';
+
+        await queue.add('test', { foo: 'bar' });
+
+        // Manually fetch a job to move it to active and acquire the lock.
+        const firstJob = (await worker.getNextJob(token)) as Job;
+        expect(firstJob).toBeDefined();
+
+        // Simulate losing the lock by releasing it so the stalled checker can
+        // detect the job as stalled.
+        const client = await worker.client;
+        await client.del(`${prefix}:${queueName}:${firstJob.id}:lock`);
+
+        const stalled = new Promise<string>(resolve => {
+          worker.on('stalled', resolve);
+        });
+
+        const failed = new Promise<{ job: Job | undefined; err: Error }>(
+          resolve => {
+            worker.on('failed', (job, err) => resolve({ job, err }));
+          },
+        );
+
+        // Run the stalled checker twice. The first pass marks the active
+        // job as potentially stalled; the second pass moves it back to wait
+        // and (since maxStalledCount=0) flags it with a deferred failure.
+        // The `stalled-check` debounce key must be cleared between passes.
+        await (worker as any).moveStalledJobsToWait();
+        await client.del(`${prefix}:${queueName}:stalled-check`);
+        await (worker as any).moveStalledJobsToWait();
+
+        const stalledJobId = await stalled;
+        expect(stalledJobId).toBe(firstJob.id);
+
+        // Fetching again should automatically surface the deferred failure
+        // and move the job to the failed state. Since there are no other
+        // waiting jobs, the call should return undefined.
+        const nextFetched = await worker.getNextJob(token, { block: false });
+        expect(nextFetched).toBeUndefined();
+
+        const { job: failedJob, err } = await failed;
+        expect(failedJob?.id).toBe(firstJob.id);
+        expect(err).toBeInstanceOf(UnrecoverableError);
+        expect(err.message).toBe('job stalled more than allowable limit');
+
+        const counts = await queue.getJobCounts(
+          'failed',
+          'wait',
+          'active',
+        );
+        expect(counts.failed).toBe(1);
+        expect(counts.wait).toBe(0);
+        expect(counts.active).toBe(0);
+
+        await worker.close();
+        },
+      );
+
+      it('should fail the deferred-failure job and return the next waiting job', async () => {
+        const worker = new Worker(queueName, null, {
+          autorun: false,
+          connection,
+          prefix,
+          lockDuration: 1000,
+          stalledInterval: 100,
+          maxStalledCount: 0,
+        });
+
+        const token = 'my-token';
+
+        await queue.add('stalled-job', { foo: 'bar' });
+
+        // Move the first job to active and acquire its lock.
+        const firstJob = (await worker.getNextJob(token)) as Job;
+        expect(firstJob).toBeDefined();
+
+        // Simulate losing the lock so the stalled checker flags it.
+        const client = await worker.client;
+        await client.del(`${prefix}:${queueName}:${firstJob.id}:lock`);
+
+        const stalled = new Promise<string>(resolve => {
+          worker.on('stalled', resolve);
+        });
+
+        const failed = new Promise<{ job: Job | undefined; err: Error }>(
+          resolve => {
+            worker.on('failed', (job, err) => resolve({ job, err }));
+          },
+        );
+
+        // Two passes are needed: the first marks the active job as
+        // potentially stalled, the second moves it back to wait with the
+        // deferred-failure flag (since maxStalledCount=0). Clear the
+        // `stalled-check` debounce key between passes.
+        await (worker as any).moveStalledJobsToWait();
+        await client.del(`${prefix}:${queueName}:stalled-check`);
+        await (worker as any).moveStalledJobsToWait();
+
+        const stalledJobId = await stalled;
+        expect(stalledJobId).toBe(firstJob.id);
+
+        // Add a second job that should be returned after the deferred-failure
+        // job is processed.
+        const secondAdded = await queue.add('runnable-job', { foo: 'baz' });
+
+        // The next fetch should silently fail the stalled job and surface the
+        // newly added job to the caller, preserving the getNextJob contract.
+        const nextFetched = (await worker.getNextJob(token, {
+          block: false,
+        })) as Job;
+        expect(nextFetched).toBeDefined();
+        expect(nextFetched.id).toBe(secondAdded.id);
+
+        const { job: failedJob, err } = await failed;
+        expect(failedJob?.id).toBe(firstJob.id);
+        expect(err).toBeInstanceOf(UnrecoverableError);
+        expect(err.message).toBe('job stalled more than allowable limit');
+
+        const counts = await queue.getJobCounts(
+          'failed',
+          'wait',
+          'active',
+        );
+        expect(counts.failed).toBe(1);
+        expect(counts.wait).toBe(0);
+        expect(counts.active).toBe(1);
+
+        await nextFetched.moveToCompleted('done', token);
+        await worker.close();
+      });
+    });
   });
 
   describe('non-blocking', () => {

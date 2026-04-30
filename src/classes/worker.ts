@@ -661,19 +661,53 @@ export class Worker<
    * @param token - worker token to be assigned to retrieved job
    * @returns a Job or undefined if no job was available in the queue.
    */
-  async getNextJob(token: string, { block = true }: GetNextJobOptions = {}) {
-    const nextJob = await this._getNextJob(
-      await this.client,
-      await this.blockingConnection.client,
-      token,
-      { block },
-    );
-
+  async getNextJob(
+    token: string,
+    { block = true }: GetNextJobOptions = {},
+  ): Promise<Job<DataType, ResultType, NameType> | undefined> {
     return this.trace<Job<DataType, ResultType, NameType> | undefined>(
       SpanKind.INTERNAL,
       'getNextJob',
       this.name,
       async span => {
+        let nextJob = await this._getNextJob(
+          await this.client,
+          await this.blockingConnection.client,
+          token,
+          { block },
+        );
+
+        // If the fetched job has a deferred failure (e.g. exceeded
+        // maxStalledCount in the stalled checker), move it to failed
+        // right away so manual-processing consumers don't need to run
+        // the full processJob lifecycle just to surface the failure.
+        //
+        // After failing such a job, fetch the next one preserving the
+        // caller's `block` option so a blocking caller continues to
+        // block until a runnable job is available rather than getting
+        // an unexpected `undefined`. Loop terminates naturally: each
+        // iteration either returns a runnable job, fails one and tries
+        // again, or returns undefined when the queue drains.
+        while (nextJob) {
+          const unrecoverableErrorMessage =
+            this.getUnrecoverableErrorMessage(nextJob);
+          if (!unrecoverableErrorMessage) {
+            break;
+          }
+          await this.handleFailed(
+            new UnrecoverableError(unrecoverableErrorMessage),
+            nextJob,
+            token,
+            () => false,
+          );
+          nextJob = await this._getNextJob(
+            await this.client,
+            await this.blockingConnection.client,
+            token,
+            { block },
+          );
+        }
+
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
           [TelemetryAttributes.QueueName]: this.name,
@@ -684,7 +718,7 @@ export class Worker<
 
         return nextJob;
       },
-      nextJob?.opts?.telemetry?.metadata,
+      undefined,
     );
   }
 
