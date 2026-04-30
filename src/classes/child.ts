@@ -117,8 +117,13 @@ export class Child extends EventEmitter {
     parent.on('message', (...args) => this.emit('message', ...args));
     parent.on('close', (...args) => this.emit('close', ...args));
 
-    parent.stdout.pipe(process.stdout);
-    parent.stderr.pipe(process.stderr);
+    // `parent.stdout`/`parent.stderr` may be null when the underlying runtime
+    // does not pipe child stdio (e.g. Bun ignores `worker_threads` stdout/stderr
+    // options, and Node returns null when `stdio: 'ignore'` is passed in
+    // `workerForkOptions`). Guard the pipe calls so initialization does not throw.
+    // See https://github.com/taskforcesh/bullmq/issues/2232
+    parent.stdout?.pipe(process.stdout);
+    parent.stderr?.pipe(process.stderr);
 
     await this.initChild();
   }
