@@ -3952,7 +3952,7 @@ describe('Job Scheduler', () => {
     await worker.close();
   });
 
-  it('should create a new delayed job when removing and upserting a scheduler after job completion', async () => {
+  it('preserves the prior completed job and advances to the next slot when re-upserting a scheduler over a completed terminal job', async () => {
     const date = new Date('2024-01-01 10:00:00');
     clock.setSystemTime(date);
 
@@ -3968,19 +3968,20 @@ describe('Job Scheduler', () => {
 
     let waiting = await queue.getWaiting();
     expect(waiting.length).toEqual(1);
+    const initialJobId = waiting[0].id!;
 
-    const worker = new Worker(
-      queueName,
-      async () => {},
-      { autorun: false, connection, prefix },
-    );
+    const worker = new Worker(queueName, async () => {}, {
+      autorun: false,
+      connection,
+      prefix,
+    });
+    await worker.waitUntilReady();
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
-    // Wait for the job to be completed. Attach the listener before the worker
-    // starts processing to avoid races where the no-op job completes before
-    // the listener is registered.
+    // Attach a one-shot listener before the worker starts so we can't miss
+    // the completion event for our no-op processor.
     const completing = new Promise<void>(resolve => {
-      worker.on('completed', () => {
+      worker.once('completed', () => {
         resolve();
       });
     });
@@ -3989,31 +3990,45 @@ describe('Job Scheduler', () => {
 
     await completing;
 
-    // Verify the job is now completed
+    // Verify the job is now completed and capture its id so we can prove
+    // the re-upsert below does NOT remove it.
     const completed = await queue.getCompleted();
     expect(completed.length).toBeGreaterThanOrEqual(1);
+    const completedIds = completed.map(j => j.id);
+    expect(completedIds).toContain(initialJobId);
 
-    // Now remove the scheduler
+    // Remove the scheduler and assert it actually drained any pending
+    // waiting / delayed entries before we re-upsert (otherwise the final
+    // assertion below could pass even when removal silently failed).
     await queue.removeJobScheduler(jobSchedulerId);
+    expect((await queue.getJobSchedulers()).length).toEqual(0);
+    expect(await queue.getWaitingCount()).toEqual(0);
+    expect(await queue.getDelayedCount()).toEqual(0);
 
-    // Verify scheduler is removed
-    const schedulersAfterRemove = await queue.getJobSchedulers();
-    expect(schedulersAfterRemove.length).toEqual(0);
-
-    // Upsert the scheduler again with the same params - this should create a new job
-    // even though a completed job with the same calculated ID already exists
+    // Re-upsert with the same params. Without the fix this would silently
+    // remove the completed job and create a new one with the colliding id.
+    // With the fix the completed job is preserved and the new job lands in
+    // the next slot.
     const job = await queue.upsertJobScheduler(
       jobSchedulerId,
       { every },
       { name: 'test-job', data: { foo: 'bar' } },
     );
 
-    // Verify a new job was created (either in waiting or delayed)
     expect(job).toBeTruthy();
+
+    // The completed job from the prior run must still be intact.
+    const completedAfterUpsert = await queue.getCompleted();
+    expect(completedAfterUpsert.map(j => j.id)).toContain(initialJobId);
 
     waiting = await queue.getWaiting();
     const delayed = await queue.getDelayed();
     expect(waiting.length + delayed.length).toBeGreaterThanOrEqual(1);
+
+    // The newly scheduled job must use a *different* id than the preserved
+    // completed one, since the original slot is still occupied.
+    const newJobId = (waiting[0] || delayed[0]).id;
+    expect(newJobId).not.toEqual(initialJobId);
 
     // Verify the scheduler exists
     const schedulers = await queue.getJobSchedulers();

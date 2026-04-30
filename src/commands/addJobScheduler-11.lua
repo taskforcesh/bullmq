@@ -149,13 +149,36 @@ local jobKey = prefixKey .. jobId
 -- handle the collision
 local hasCollision = false
 if rcall("EXISTS", jobKey) == 1 then
-    -- Check if the existing job is in a terminal state (completed or failed)
-    -- If so, remove it and allow creating a new job with the same ID
+    -- A *completed* terminal job represents a successful prior run
+    -- that the user may legitimately want to keep around for tracking,
+    -- audit or analytics. Silently removing it on a re-upsert would
+    -- be surprising (#3994 review feedback). Instead, advance to the
+    -- next slot when an `every` interval is available; if not, return
+    -- SchedulerJobSlotsBusy so the caller can decide what to do.
+    --
+    -- A *failed* terminal job represents a prior error that is
+    -- normally expected to be replaced when the scheduler is upserted
+    -- again with the same id, so we keep the previous remove-and-
+    -- replace behavior on that branch.
     local completedKey = prefixKey .. "completed"
     local failedKey = prefixKey .. "failed"
     if rcall("ZSCORE", completedKey, jobId) then
-        rcall("ZREM", completedKey, jobId)
-        removeJob(jobId, true, prefixKey, true --[[remove debounce key]] )
+        if every then
+            local nextSlotMillis = nextMillis + every
+            local nextSlotJobId = "repeat:" .. jobSchedulerId .. ":" .. nextSlotMillis
+            local nextSlotJobKey = prefixKey .. nextSlotJobId
+
+            if rcall("EXISTS", nextSlotJobKey) == 0 then
+                nextMillis = nextSlotMillis
+                jobId = nextSlotJobId
+            else
+                return -11 -- SchedulerJobSlotsBusy
+            end
+        else
+            -- No interval available to advance to: surface the
+            -- collision instead of dropping the completed job.
+            return -11 -- SchedulerJobSlotsBusy
+        end
     elseif rcall("ZSCORE", failedKey, jobId) then
         rcall("ZREM", failedKey, jobId)
         removeJob(jobId, true, prefixKey, true --[[remove debounce key]] )
