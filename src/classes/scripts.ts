@@ -50,11 +50,12 @@ export type JobData = [JobJsonRaw | number, string?];
 
 export class Scripts {
   /**
-   * Hard cap on the number of jobs `getRangedJobs` will fetch in a single
-   * call. This avoids issuing a long-running Lua script (which performs an
-   * `HGETALL` per id) that could block Redis when callers request very
-   * large ranges (including the implicit `end = -1` against a large state
-   * set).
+   * Maximum number of jobs `getRangedJobs` fetches in a single Lua-script
+   * invocation. Larger ranges are transparently split into multiple
+   * back-to-back invocations and the results are concatenated, so no
+   * caller-visible breaking change is introduced. Bounding each Lua call
+   * keeps the per-invocation `HGETALL` loop short enough to avoid
+   * blocking Redis.
    */
   static readonly MAX_RANGED_JOBS = 1000;
 
@@ -905,12 +906,12 @@ export class Scripts {
    * auto-removed between the range operation and the subsequent fetch,
    * preserving the requested pagination range.
    *
-   * To avoid blocking Redis with a long-running Lua script, the requested
-   * range size is capped at {@link Scripts.MAX_RANGED_JOBS} jobs per call.
-   * Callers requesting more (including the default `end = -1` against a
-   * very large state set) should paginate. An explicit error is thrown
-   * when the bounded range exceeds the cap so the caller fails fast rather
-   * than silently truncating.
+   * Large ranges are transparently split into batches of at most
+   * {@link Scripts.MAX_RANGED_JOBS} jobs per Lua invocation, and the
+   * batched results are concatenated before being returned. This keeps
+   * each Lua script execution short enough to avoid blocking Redis while
+   * remaining backward-compatible with callers that pass an unbounded
+   * range (including the default `end = -1`).
    *
    * Note: currently migrated for the common `getJobs` path. Other getters
    * (e.g. `getDependencies`) can be migrated to the same pattern.
@@ -918,62 +919,93 @@ export class Scripts {
   async getRangedJobs(
     types: JobType[],
     start = 0,
-    end = 1,
+    end = -1,
     asc = false,
   ): Promise<{ id: string; data: JobJsonRaw }[]> {
-    if (start >= 0 && end >= 0) {
-      const requested = end - start + 1;
-      if (requested > Scripts.MAX_RANGED_JOBS) {
-        throw new Error(
-          `getRangedJobs range size ${requested} exceeds maximum of ${Scripts.MAX_RANGED_JOBS}; please paginate.`,
-        );
-      }
-    }
-
     const client = await this.queue.client;
-    const args = this.getRangesArgs(types, start, end, asc);
-
-    const responses = (await this.execCommand(
-      client,
-      'getRangedJobs',
-      args,
-    )) as (string[] | string[][])[];
-
-    // The script returns a flat sequence of [idsArray, jobsArray, idsArray,
-    // jobsArray, ...]; one pair per provided type. Validate the shape so
-    // accidental script output changes fail fast with a clear error rather
-    // than producing silently malformed results.
-    if (!Array.isArray(responses) || responses.length % 2 !== 0) {
-      throw new Error(
-        `getRangedJobs returned malformed response: expected even length, got ${
-          Array.isArray(responses) ? responses.length : typeof responses
-        }`,
-      );
-    }
 
     const seen = new Set<string>();
     const results: { id: string; data: JobJsonRaw }[] = [];
+    const isUnbounded = end < 0;
+    const requestedSize = isUnbounded
+      ? Number.POSITIVE_INFINITY
+      : end - start + 1;
+    if (requestedSize <= 0) {
+      return [];
+    }
 
-    for (let i = 0; i < responses.length; i += 2) {
-      const ids = (responses[i] as string[]) || [];
-      const rawJobs = (responses[i + 1] as string[][]) || [];
-
-      for (let j = 0; j < ids.length; j++) {
-        const id = ids[j];
-        if (seen.has(id)) {
-          continue;
+    // Iterate one type at a time so each Lua invocation is bounded by
+    // MAX_RANGED_JOBS regardless of how many types are requested. The
+    // existing call signature returns an across-types union of jobs; the
+    // semantics here are unchanged, only the chunking strategy differs.
+    for (const type of types) {
+      let batchStart = start;
+      // For each type we keep advancing the batch window until we either
+      // exhaust the requested range or the script returns fewer jobs than
+      // the batch can hold (which means this type has no more entries in
+      // the requested range).
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const remaining = isUnbounded
+          ? Scripts.MAX_RANGED_JOBS
+          : Math.min(Scripts.MAX_RANGED_JOBS, end - batchStart + 1);
+        if (remaining <= 0) {
+          break;
         }
-        seen.add(id);
+        const batchEnd = batchStart + remaining - 1;
 
-        const raw = rawJobs[j] || [];
-        // Skip jobs that no longer have a hash (e.g. concurrently removed).
-        if (raw.length === 0) {
-          continue;
+        const args = this.getRangesArgs([type], batchStart, batchEnd, asc);
+        const responses = (await this.execCommand(
+          client,
+          'getRangedJobs',
+          args,
+        )) as (string[] | string[][])[];
+
+        // The script returns [idsArray, jobsArray] per type. We pass a
+        // single type per call here so the response should have exactly
+        // two entries; validate the shape so an accidental script output
+        // change fails fast with a clear error.
+        if (
+          !Array.isArray(responses) ||
+          responses.length !== 2 ||
+          !Array.isArray(responses[0])
+        ) {
+          throw new Error(
+            `getRangedJobs returned malformed response for type "${type}": expected length 2, got ${
+              Array.isArray(responses) ? responses.length : typeof responses
+            }`,
+          );
         }
-        results.push({
-          id,
-          data: array2obj(raw) as unknown as JobJsonRaw,
-        });
+
+        const ids = responses[0] as string[];
+        const rawJobs = (responses[1] as string[][]) || [];
+
+        for (let j = 0; j < ids.length; j++) {
+          const id = ids[j];
+          if (seen.has(id)) {
+            continue;
+          }
+          seen.add(id);
+
+          // The script runs atomically, so the HGETALL for an id we just
+          // ranged is guaranteed to return the job hash (no concurrent
+          // removal can race a Lua script).
+          const raw = rawJobs[j] as string[];
+          results.push({
+            id,
+            data: array2obj(raw) as unknown as JobJsonRaw,
+          });
+        }
+
+        // Short read => this type has no more entries in the requested
+        // range. Stop iterating this type and move on.
+        if (ids.length < remaining) {
+          break;
+        }
+        batchStart = batchEnd + 1;
+        if (!isUnbounded && batchStart > end) {
+          break;
+        }
       }
     }
 
