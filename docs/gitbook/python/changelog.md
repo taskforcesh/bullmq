@@ -1,3 +1,57 @@
+# [2.24.0](https://github.com/taskforcesh/bullmq/compare/vpy2.23.1...vpy2.24.0) (2026-04-28)
+
+
+### Features
+
+* **connection:** add return type hints to RedisConnection methods [python] ([#4025](https://github.com/taskforcesh/bullmq/issues/4025)) ([4ca9c27](https://github.com/taskforcesh/bullmq/commit/4ca9c27ea68d303b86a80cbb24c8e390d87a5e8f))
+
+## [2.23.1](https://github.com/taskforcesh/bullmq/compare/vpy2.23.0...vpy2.23.1) (2026-04-26)
+
+
+### Bug Fixes
+
+* **queue:** guard getCompleted against empty task set [python] ([#3885](https://github.com/taskforcesh/bullmq/issues/3885)) ([19b9ca0](https://github.com/taskforcesh/bullmq/commit/19b9ca08be6f6efbc58291fa55efd93a0663d536))
+
+# [2.23.0](https://github.com/taskforcesh/bullmq/compare/vpy2.22.0...vpy2.23.0) (2026-04-22)
+
+
+### Features
+
+* **python:** add type hints to worker.py methods ([#4035](https://github.com/taskforcesh/bullmq/issues/4035)) ([1423b58](https://github.com/taskforcesh/bullmq/commit/1423b584b5707b3f71ee2fba5eb14122fb7b0275))
+
+# [2.22.0](https://github.com/taskforcesh/bullmq/compare/vpy2.21.1...vpy2.22.0) (2026-04-20)
+
+
+### Features
+
+* **job:** add return type hints to Job methods ([#4003](https://github.com/taskforcesh/bullmq/issues/4003)) [python] ([704690c](https://github.com/taskforcesh/bullmq/commit/704690c62f4cedddf82379335b8ff42a46fda7f3))
+
+## [2.21.1](https://github.com/taskforcesh/bullmq/compare/vpy2.21.0...vpy2.21.1) (2026-04-20)
+
+
+### Bug Fixes
+
+* **queue:** getFailed() incorrectly returns completed jobs ([#3996](https://github.com/taskforcesh/bullmq/issues/3996)) [python] ([f77f249](https://github.com/taskforcesh/bullmq/commit/f77f249acb82daf331bd61e1f425780270888d8d))
+
+# [2.21.0](https://github.com/taskforcesh/bullmq/compare/vpy2.20.4...vpy2.21.0) (2026-04-20)
+
+
+### Bug Fixes
+
+* **queue:** use slice reversal instead of reverse() which returns None ([#4022](https://github.com/taskforcesh/bullmq/issues/4022)) ([1652435](https://github.com/taskforcesh/bullmq/commit/1652435b06f583015055df4e74ee7dea203bdae4))
+
+
+### Features
+
+* **python:** add type hints to Timer class ([#4024](https://github.com/taskforcesh/bullmq/issues/4024)) ([8c78e30](https://github.com/taskforcesh/bullmq/commit/8c78e3004dcd5df726d9b7277dd455d0d224791f))
+
+## [2.20.4](https://github.com/taskforcesh/bullmq/compare/vpy2.20.3...vpy2.20.4) (2026-04-17)
+
+
+### Bug Fixes
+
+* **error:** export UnrecoverableError from package root ([#4047](https://github.com/taskforcesh/bullmq/issues/4047)) [python] ([be9f032](https://github.com/taskforcesh/bullmq/commit/be9f03246d1644f397d660fba91285604a824284))
+
 ## [2.20.3](https://github.com/taskforcesh/bullmq/compare/vpy2.20.2...vpy2.20.3) (2026-04-10)
 
 

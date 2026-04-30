@@ -19,7 +19,11 @@ class Queue(EventEmitter):
         """
         self.name = name
         redisOpts = opts.get("connection", {})
-        self.redisConnection = RedisConnection(redisOpts)
+        self.redisConnection = RedisConnection(
+            redisOpts,
+            skipVersionCheck=opts.get("skipVersionCheck", False),
+            skipWaitingForReady=opts.get("skipWaitingForReady", False),
+        )
         self.client = self.redisConnection.conn
         self.opts = opts
         self.jobsOpts = opts.get("defaultJobOptions", {})
@@ -367,7 +371,7 @@ class Queue(EventEmitter):
         return self.getJobs(['delayed'], start, end, True)
 
     def getFailed(self, start = 0, end=-1):
-        return self.getJobs(['completed'], start, end, False)
+        return self.getJobs(['failed'], start, end, False)
 
     def getPrioritized(self, start = 0, end=-1):
         return self.getJobs(['prioritized'], start, end, True)

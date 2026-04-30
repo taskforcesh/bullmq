@@ -11,7 +11,6 @@ import {
 } from 'vitest';
 
 import * as sinon from 'sinon';
-import { v4 } from 'uuid';
 import { rrulestr } from 'rrule';
 import {
   Job,
@@ -22,7 +21,7 @@ import {
   Worker,
 } from '../src/classes';
 import { JobsOptions } from '../src/types';
-import { removeAllQueueData } from '../src/utils';
+import { randomUUID, removeAllQueueData } from '../src/utils';
 import {
   createRepeatableJobKey,
   extractRepeatableJobChecksumFromRedisKey,
@@ -59,7 +58,7 @@ describe('repeat', () => {
       shouldClearNativeTimers: true,
       toFake: ['Date', 'setTimeout', 'clearTimeout'],
     });
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     repeat = new Repeat(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
@@ -547,7 +546,7 @@ describe('repeat', () => {
   describe('when using removeOnComplete', () => {
     it('should remove repeated job', async () => {
       // TODO: Move timeout to test options: { timeout: 10000 }
-      const queueName2 = `test-${v4()}`;
+      const queueName2 = `test-${randomUUID()}`;
       const queue2 = new Queue(queueName2, {
         connection,
         prefix,

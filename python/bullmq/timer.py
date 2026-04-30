@@ -1,10 +1,11 @@
 import asyncio
+from typing import Any, Awaitable, Callable
 
 # Credits: https://stackoverflow.com/questions/45419723/python-timer-with-asyncio-coroutine
 
 
 class Timer:
-    def __init__(self, interval: int, callback, emit_callback, *args, **kwargs):
+    def __init__(self, interval: float, callback: Callable[..., Awaitable[Any]], emit_callback: Callable[[str, Any], None], *args: Any, **kwargs: Any) -> None:
         self.interval = interval
         self.args = args
         self.kwargs = kwargs
@@ -13,7 +14,7 @@ class Timer:
         self._ok = True
         self._task = asyncio.ensure_future(self._job())
 
-    async def _job(self):
+    async def _job(self) -> None:
         try:
             while self._ok:
                 await asyncio.sleep(self.interval)
@@ -22,6 +23,6 @@ class Timer:
             self.emit("error", err)
             pass
 
-    def stop(self):
+    def stop(self) -> None:
         self._ok = False
         self._task.cancel()
