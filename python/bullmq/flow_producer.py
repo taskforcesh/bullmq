@@ -12,10 +12,11 @@ class MinimalQueue:
     Instantiate a MinimalQueue object
     """
 
-    def __init__(self, name: str, queue_keys, redisConnection, scripts, opts: QueueBaseOptions = {}):
+    def __init__(self, name: str, queue_keys, redisConnection, scripts, opts: QueueBaseOptions | None = None):
         """
         Initialize a connection
         """
+        opts = opts or {}
         self.name = name
         self.redisConnection = redisConnection
         self.client = self.redisConnection.conn
@@ -32,10 +33,13 @@ class FlowProducer:
     """
 
     #TODO: pass only queueOpts, no need 2 parameters in next breaking change
-    def __init__(self, redisOpts: Union[dict, str] = {}, opts: QueueBaseOptions = {}):
+    def __init__(self, redisOpts: Union[dict, str] | None = None, opts: QueueBaseOptions | None = None):
         """
         Initialize a connection
         """
+        if redisOpts is None:
+            redisOpts = {}
+        opts = opts or {}
         self.redisConnection = RedisConnection(redisOpts)
         self.client = self.redisConnection.conn
         self.opts: dict = opts
@@ -116,8 +120,8 @@ class FlowProducer:
 
             return {"job": job}
 
-    async def add(self, flow: dict, opts: Optional[dict] = None) -> dict:
-        opts = opts if opts is not None else {}
+    async def add(self, flow: dict, opts: dict | None = None) -> dict:
+        opts = opts or {}
         parent_opts = flow.get("opts", {}).get("parent", None)
 
         async with self.redisConnection.conn.pipeline(transaction=True) as pipe:
@@ -126,13 +130,10 @@ class FlowProducer:
             return jobs_tree
 
     async def addBulk(self, flows: list[dict]) -> list[dict]:
-        result = None
         async with self.redisConnection.conn.pipeline(transaction=True) as pipe:
             job_trees = await self.addNodes(flows, pipe)
             await pipe.execute()
-            result = job_trees
-
-        return result
+            return job_trees
 
     async def close(self):
         """
