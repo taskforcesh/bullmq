@@ -45,7 +45,7 @@ class Queue(EventEmitter):
         @param opts: Job options that affects how the job is going to be processed.
         """
         opts = opts if opts is not None else {}
-        merged_opts = {**self.jobsOpts, **(opts or {})}
+        merged_opts = {**self.jobsOpts, **opts}
 
         job = Job(self, name, data, merged_opts)
         job_id = await self.scripts.addJob(job)
