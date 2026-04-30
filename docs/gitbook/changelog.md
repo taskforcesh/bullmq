@@ -1,3 +1,10 @@
+## [5.76.4](https://github.com/taskforcesh/bullmq/compare/v5.76.3...v5.76.4) (2026-04-29)
+
+
+### Bug Fixes
+
+* **flow-producer:** surface ParentJobNotExist errors from add() ([#3264](https://github.com/taskforcesh/bullmq/issues/3264)) ([#4058](https://github.com/taskforcesh/bullmq/issues/4058)) ([7ed0eec](https://github.com/taskforcesh/bullmq/commit/7ed0eeca96a3c5168e822831b2f3d938ab37bb91))
+
 ## [5.76.3](https://github.com/taskforcesh/bullmq/compare/v5.76.2...v5.76.3) (2026-04-28)
 
 
