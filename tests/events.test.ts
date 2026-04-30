@@ -905,5 +905,98 @@ describe('events', { timeout: 8000 }, () => {
       await queueEvents2.close();
       await removeAllQueueData(new IORedis(redisHost), queueName2);
     });
+
+    it('preserves payload value types across publish/consume', async () => {
+      const queueName2 = `test-${v4()}`;
+      const queueEventsProducer = new QueueEventsProducer(queueName2, {
+        connection,
+        prefix,
+      });
+      const queueEvents2 = new QueueEvents(queueName2, {
+        autorun: false,
+        connection,
+        prefix,
+        lastEventId: '0-0',
+      });
+      await queueEvents2.waitUntilReady();
+
+      interface CustomListener extends QueueEventsListener {
+        nested: (
+          args: {
+            text: string;
+            data: { object: string };
+            count: number;
+            flag: boolean;
+          },
+          id: string,
+        ) => void;
+      }
+      const customEvent = new Promise<void>(resolve => {
+        queueEvents2.on<CustomListener>(
+          'nested',
+          async ({ text, data, count, flag }) => {
+            await delay(250);
+            // Strings arrive as strings (no extra JSON.parse needed),
+            // objects as objects, numbers as numbers, booleans as booleans.
+            await expect(text).toBe('hello');
+            await expect(data).toEqual({ object: 'hello' });
+            await expect(count).toBe(42);
+            await expect(flag).toBe(true);
+            resolve();
+          },
+        );
+      });
+
+      interface CustomEventPayload {
+        eventName: string;
+        text: string;
+        data: { object: string };
+        count: number;
+        flag: boolean;
+      }
+
+      await queueEventsProducer.publishEvent<CustomEventPayload>({
+        eventName: 'nested',
+        text: 'hello',
+        data: { object: 'hello' },
+        count: 42,
+        flag: true,
+      });
+
+      queueEvents2.run();
+      await customEvent;
+
+      await queueEventsProducer.close();
+      await queueEvents2.close();
+      await removeAllQueueData(new IORedis(redisHost), queueName2);
+    });
+
+    it('throws a clear error when a payload value cannot be JSON-encoded', async () => {
+      const queueName2 = `test-${v4()}`;
+      const queueEventsProducer = new QueueEventsProducer(queueName2, {
+        connection,
+        prefix,
+      });
+
+      // BigInt cannot be JSON.stringified and the call throws synchronously.
+      await expect(
+        queueEventsProducer.publishEvent({
+          eventName: 'unsupported',
+          big: BigInt(1) as unknown as string,
+        }),
+      ).rejects.toThrow(/key "big"/);
+
+      // `undefined`/functions/symbols make JSON.stringify return undefined;
+      // we should reject those too instead of pushing an invalid XADD arg.
+      await expect(
+        queueEventsProducer.publishEvent({
+          eventName: 'unsupported',
+          fn: (() => 1) as unknown as string,
+        }),
+      ).rejects.toThrow(/key "fn"/);
+
+      await queueEventsProducer.close();
+      await removeAllQueueData(new IORedis(redisHost), queueName2);
+    });
   });
 });
