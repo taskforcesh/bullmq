@@ -6,7 +6,7 @@
 
   The queue needs to be "paused" or it will return an error
   If the queue has currently active jobs then the script by default will return error,
-  however this behaviour can be overrided using the 'force' option.
+  however this behaviour can be overridden using the 'force' option.
   
   Input:
     KEYS[1] meta
