@@ -10,9 +10,8 @@ import {
 } from 'vitest';
 
 import { default as IORedis } from 'ioredis';
-import { v4 } from 'uuid';
 import { Queue, Job, Worker, QueueEvents } from '../src/classes';
-import { removeAllQueueData, delay } from '../src/utils';
+import { randomUUID, removeAllQueueData, delay } from '../src/utils';
 
 describe('Delayed jobs', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
@@ -22,13 +21,13 @@ describe('Delayed jobs', () => {
   let queue: Queue;
   let queueName: string;
 
-  let connection;
+  let connection: IORedis;
   beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     await queue.waitUntilReady();
   });
