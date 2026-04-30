@@ -665,44 +665,49 @@ export class Worker<
     token: string,
     { block = true }: GetNextJobOptions = {},
   ): Promise<Job<DataType, ResultType, NameType> | undefined> {
-    const nextJob = await this._getNextJob(
-      await this.client,
-      await this.blockingConnection.client,
-      token,
-      { block },
-    );
-
-    // If the fetched job has a deferred failure (e.g. exceeded maxStalledCount
-    // in the stalled checker), move it to failed right away so that manual
-    // processing consumers do not need to run the full processJob lifecycle
-    // just to surface the failure. This matches the documented behaviour of
-    // stalled handling when manually fetching jobs.
-    //
-    // After failing such a job, recursively fetch the next job (without
-    // blocking) so that callers still receive a runnable job when one is
-    // available behind it, instead of unexpectedly getting `undefined` while
-    // other jobs are waiting. Recursion terminates naturally: each call
-    // either returns a runnable job, fails one and recurses, or returns
-    // undefined when the queue drains.
-    if (nextJob) {
-      const unrecoverableErrorMessage =
-        this.getUnrecoverableErrorMessage(nextJob);
-      if (unrecoverableErrorMessage) {
-        await this.handleFailed(
-          new UnrecoverableError(unrecoverableErrorMessage),
-          nextJob,
-          token,
-          () => false,
-        );
-        return this.getNextJob(token, { block: false });
-      }
-    }
-
     return this.trace<Job<DataType, ResultType, NameType> | undefined>(
       SpanKind.INTERNAL,
       'getNextJob',
       this.name,
       async span => {
+        let nextJob = await this._getNextJob(
+          await this.client,
+          await this.blockingConnection.client,
+          token,
+          { block },
+        );
+
+        // If the fetched job has a deferred failure (e.g. exceeded
+        // maxStalledCount in the stalled checker), move it to failed
+        // right away so manual-processing consumers don't need to run
+        // the full processJob lifecycle just to surface the failure.
+        //
+        // After failing such a job, fetch the next one preserving the
+        // caller's `block` option so a blocking caller continues to
+        // block until a runnable job is available rather than getting
+        // an unexpected `undefined`. Loop terminates naturally: each
+        // iteration either returns a runnable job, fails one and tries
+        // again, or returns undefined when the queue drains.
+        while (nextJob) {
+          const unrecoverableErrorMessage =
+            this.getUnrecoverableErrorMessage(nextJob);
+          if (!unrecoverableErrorMessage) {
+            break;
+          }
+          await this.handleFailed(
+            new UnrecoverableError(unrecoverableErrorMessage),
+            nextJob,
+            token,
+            () => false,
+          );
+          nextJob = await this._getNextJob(
+            await this.client,
+            await this.blockingConnection.client,
+            token,
+            { block },
+          );
+        }
+
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
           [TelemetryAttributes.QueueName]: this.name,
@@ -713,7 +718,7 @@ export class Worker<
 
         return nextJob;
       },
-      nextJob?.opts?.telemetry?.metadata,
+      undefined,
     );
   }
 
