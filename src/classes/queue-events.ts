@@ -107,7 +107,8 @@ export interface QueueEventsListener extends IoredisListener {
    *
    * @param args - An object containing details about the delayed job.
    *  - `jobId` - The unique identifier of the job that was delayed.
-   *  - `delay` - The delay duration in milliseconds before the job becomes active.
+   *  - `delay` - The timestamp at which the job will become active, in milliseconds
+   *    elapsed since January 1, 1970 UTC.
    * @param id - The identifier of the event.
    */
   delayed: (args: { jobId: string; delay: number }, id: string) => void;
@@ -404,6 +405,9 @@ export class QueueEvents extends QueueBase {
               break;
             case 'completed':
               args.returnvalue = JSON.parse(args.returnvalue);
+              break;
+            case 'delayed':
+              (args as Record<string, any>).delay = Number(args.delay);
               break;
           }
 
