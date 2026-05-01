@@ -1,3 +1,10 @@
+# [7.45.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.44.0...v7.45.0) (2026-05-01)
+
+
+### Features
+
+* **deps:** upgrade bullmq to v5.76.3 ([#415](https://github.com/taskforcesh/bullmq-pro/issues/415)) ([da96a50](https://github.com/taskforcesh/bullmq-pro/commit/da96a509b9abf62060370cfb297d1dcf2990c614))
+
 # [7.44.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.43.1...v7.44.0) (2026-04-15)
 
 
@@ -15,9 +22,23 @@
 # [7.43.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.42.1...v7.43.0) (2026-03-11)
 
 
+### Bug Fixes
+
+* **auto-remove:** remove orphaned jobs when auto-remove is enabled ([#3853](https://github.com/taskforcesh/bullmq/issues/3853)) ([504b536](https://github.com/taskforcesh/bullmq/commit/504b53689a29b3b4ddc902d25211a92da6a4d7af))
+
+* **deps:** update dependency ioredis to v5.9.3 ([#3821](https://github.com/taskforcesh/bullmq/issues/3821)) fixes [#3793](https://github.com/taskforcesh/bullmq/issues/3793) ([0fafcc0](https://github.com/taskforcesh/bullmq/commit/0fafcc0950698f6a8a55a2b77ef1b82af5d5712f))
+* **sandbox:** ensure non-bullmq messages are ignored ([#3704](https://github.com/taskforcesh/bullmq/issues/3704)) fixes [#3703](https://github.com/taskforcesh/bullmq/issues/3703) ([9c72258](https://github.com/taskforcesh/bullmq/commit/9c722585bd9873561fae3f32971d65cf00a7d092))
+* **job-scheduler:** handle empty scheduler hash fallback ([#3797](https://github.com/taskforcesh/bullmq/issues/3797)) fixes [#3796](https://github.com/taskforcesh/bullmq/issues/3796) ([87386ca](https://github.com/taskforcesh/bullmq/commit/87386ca88e29755fc68e6cc8fcfebfb7f8f8237f))
+* **queue:** forward error from repeat or job-scheduler instances ([#3775](https://github.com/taskforcesh/bullmq/issues/3775)) fixes [#3774](https://github.com/taskforcesh/bullmq/issues/3774) ([a62241f](https://github.com/taskforcesh/bullmq/commit/a62241f5831a1d3bb6c328a9037ea852be7832cd))
+* **utils:** use exact import of DatabaseType ([#3786](https://github.com/taskforcesh/bullmq/issues/3786)) ([d249301](https://github.com/taskforcesh/bullmq/commit/d249301ddc9afc607c9e86a8a44312af682e6be0))
+* **connection:** merge redisOptions when duplicating cluster ([#3759](https://github.com/taskforcesh/bullmq/issues/3759)) ([afb878f](https://github.com/taskforcesh/bullmq/commit/afb878f97ebeaf89c1308b7dde0b5a440381d113))
+
+
 ### Features
 
-* **deps:** upgrade bullmq to v5.70.2 ([#408](https://github.com/taskforcesh/bullmq-pro/issues/408)) ([3d57898](https://github.com/taskforcesh/bullmq-pro/commit/3d578984e185711c146e522a07023867a2145372))
+* **worker:** add cancelation support to sandboxed processors ([#3806](https://github.com/taskforcesh/bullmq/issues/3806)) ([0d3879b](https://github.com/taskforcesh/bullmq/commit/0d3879b02ec9738d90213e1a479d53359f3a71aa))
+* **otel:** enable metrics ([#3769](https://github.com/taskforcesh/bullmq/issues/3769)) ([f85e870](https://github.com/taskforcesh/bullmq/commit/f85e87032a822826cbeed19eedff7ccb1e6ce085))
+* **connection:** add datatype for version differentiation ([#3746](https://github.com/taskforcesh/bullmq/issues/3746)) ([af9197d](https://github.com/taskforcesh/bullmq/commit/af9197d16941d49c9e3d86f10d96681beea676bc))
 
 ## [7.42.1](https://github.com/taskforcesh/bullmq-pro/compare/v7.42.0...v7.42.1) (2026-02-12)
 
@@ -29,9 +50,23 @@
 # [7.42.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.41.1...v7.42.0) (2026-01-28)
 
 
+### Bug Fixes
+
+* **deps:** use caret versioning for ioredis dependency ([#3719](https://github.com/taskforcesh/bullmq/issues/3719)) fixes [#3718](https://github.com/taskforcesh/bullmq/issues/3718) ([de0fca8](https://github.com/taskforcesh/bullmq/commit/de0fca894f47d8aa2b2c66ca9475e526ca477508))
+* fix worker connection name on cluster [#3340](https://github.com/taskforcesh/bullmq/issues/3340) (elixir) (python) ([#3660](https://github.com/taskforcesh/bullmq/issues/3660)) ([fa22e84](https://github.com/taskforcesh/bullmq/commit/fa22e844d29961db95df58f2ae63b440d71c11f6))
+* **deps:** update dependency ioredis to v5.9.2 ([#3713](https://github.com/taskforcesh/bullmq/issues/3713)) ([87e74b5](https://github.com/taskforcesh/bullmq/commit/87e74b5713b5017c29789094d6ac6ff26bfe79c1))
+* **deps:** update dependency ioredis to v5.9.1 ([#3676](https://github.com/taskforcesh/bullmq/issues/3676)) fixes [#3667](https://github.com/taskforcesh/bullmq/issues/3667) ([661c581](https://github.com/taskforcesh/bullmq/commit/661c581270186bc405967b91326daff061370d03))
+* **flow:** remove debounce option from flow producer ([#3646](https://github.com/taskforcesh/bullmq/issues/3646)) ([cc74805](https://github.com/taskforcesh/bullmq/commit/cc74805d5eda14ed684e2111c91de8890e752768))
+
+
 ### Features
 
-* **deps:** upgrade bullmq to v5.67.2 ([#403](https://github.com/taskforcesh/bullmq-pro/issues/403)) ([b4e5b1d](https://github.com/taskforcesh/bullmq-pro/commit/b4e5b1d7d960ec61d39a9190d5d30b332eb2e086))
+* **job:** add job name and id as telemetry attributes in complete, retry, delay and failed spans ([#3707](https://github.com/taskforcesh/bullmq/issues/3707)) ref [#3692](https://github.com/taskforcesh/bullmq/issues/3692) ([6294b36](https://github.com/taskforcesh/bullmq/commit/6294b36f775c20f7d43387d9bde3185629e88df4))
+
+
+### Performance Improvements
+
+* **job:** apply limit when removing jobs by max age (python) (elixir) ([#3694](https://github.com/taskforcesh/bullmq/issues/3694)) fixes [#3672](https://github.com/taskforcesh/bullmq/issues/3672) ([a8fc316](https://github.com/taskforcesh/bullmq/commit/a8fc316c0989bd3edb54577ceb02bff0c600aa93))
 
 ## [7.41.1](https://github.com/taskforcesh/bullmq-pro/compare/v7.41.0...v7.41.1) (2026-01-19)
 
