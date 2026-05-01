@@ -78,17 +78,14 @@ class TestRedisConnectionSkipFlags(unittest.IsolatedAsyncioTestCase):
     def test_default_skip_flags_are_false(self, _mock_load):
         conn = RedisConnection({"host": "localhost"})
         self.assertFalse(conn.skipVersionCheck)
-        self.assertFalse(conn.skipWaitingForReady)
 
     @patch.object(RedisConnection, 'loadCommands')
     def test_skip_flags_persist_when_set(self, _mock_load):
         conn = RedisConnection(
             {"host": "localhost"},
             skipVersionCheck=True,
-            skipWaitingForReady=True,
         )
         self.assertTrue(conn.skipVersionCheck)
-        self.assertTrue(conn.skipWaitingForReady)
 
     @patch.object(RedisConnection, 'loadCommands')
     async def test_skip_version_check_short_circuits_get_redis_version(self, _mock_load):
