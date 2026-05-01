@@ -72,11 +72,9 @@ class RedisConnection:
         self,
         redisOpts: Union[dict, str, redis.Redis] = {},
         skipVersionCheck: bool = False,
-        skipWaitingForReady: bool = False,
     ):
         self.version: Optional[str] = None
         self.skipVersionCheck = skipVersionCheck
-        self.skipWaitingForReady = skipWaitingForReady
         retry = Retry(ExponentialBackoff(cap=20, base=1), 20)
         retry_errors = [BusyLoadingError, ConnectionError, TimeoutError]
 

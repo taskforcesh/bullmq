@@ -38,8 +38,7 @@ class FlowProducer:
         """
         self.redisConnection = RedisConnection(
             redisOpts,
-            skipVersionCheck=opts.get("skipVersionCheck", False),
-            skipWaitingForReady=opts.get("skipWaitingForReady", False),
+            skipVersionCheck=opts.get("skipVersionCheck", False)
         )
         self.client = self.redisConnection.conn
         self.opts: dict = opts
