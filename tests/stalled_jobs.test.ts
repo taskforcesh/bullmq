@@ -1062,7 +1062,7 @@ describe('stalled jobs', () => {
         }));
 
         const twoFailed = new Promise(resolve => {
-          worker.on('active', after(2, resolve));
+          worker.on('failed', after(2, resolve));
         });
 
         queue.addBulk(jobs);
