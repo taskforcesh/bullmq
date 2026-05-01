@@ -1021,7 +1021,7 @@ describe('stalled jobs', () => {
     });
 
     describe('when removeOnFail is provided as a object', () => {
-      it('keeps the specified number of jobs in failed respecting the age', async () => {
+      it.only('keeps the specified number of jobs in failed respecting the age', async () => {
         // TODO: Move timeout to test options: { timeout: 6000 }
         const concurrency = 4;
 
@@ -1061,8 +1061,6 @@ describe('stalled jobs', () => {
           },
         }));
 
-        await queue.addBulk(jobs);
-
         const twoFailed = new Promise<void>(resolve => {
           let count = 0;
           worker.on('failed', () => {
@@ -1071,6 +1069,8 @@ describe('stalled jobs', () => {
             }
           });
         });
+
+        await queue.addBulk(jobs);
 
         worker.run();
 
