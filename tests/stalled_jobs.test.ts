@@ -1061,21 +1061,15 @@ describe('stalled jobs', () => {
           },
         }));
 
-        const twoFailed = new Promise<void>(resolve => {
-          let count = 0;
-          worker.on('failed', () => {
-            if (++count >= 2) {
-              resolve();
-            }
-          });
+        const twoFailed = new Promise(resolve => {
+          worker.on('active', after(2, resolve));
         });
 
-        await queue.addBulk(jobs);
+        queue.addBulk(jobs);
 
         worker.run();
 
-        await allActive;
-        await twoFailed;
+        await Promise.all([allActive, twoFailed]);
 
         await worker.close(true);
 
