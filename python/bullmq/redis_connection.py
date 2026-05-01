@@ -72,7 +72,14 @@ class RedisConnection:
         self,
         redisOpts: Union[dict, str, redis.Redis] = {},
         skipVersionCheck: bool = False,
+        skipWaitingForReady: bool = False,
     ):
+        if skipWaitingForReady:
+            warnings.warn(
+                "skipWaitingForReady is deprecated and has no effect. It will be removed in a future release.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         self.version: Optional[str] = None
         self.skipVersionCheck = skipVersionCheck
         retry = Retry(ExponentialBackoff(cap=20, base=1), 20)
