@@ -484,7 +484,7 @@ describe('events', { timeout: 8000 }, () => {
       });
 
       const flow = new FlowProducer({ connection, prefix });
-      await flow.add({
+      flow.add({
         name,
         queueName,
         data: {},
@@ -495,8 +495,7 @@ describe('events', { timeout: 8000 }, () => {
       worker.run();
       childrenWorker.run();
 
-      await waitingChildren;
-      await waiting;
+      await Promise.all([waitingChildren, waiting]);
 
       await worker.close();
       await childrenWorker.close();
