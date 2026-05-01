@@ -1021,7 +1021,7 @@ describe('stalled jobs', () => {
     });
 
     describe('when removeOnFail is provided as a object', () => {
-      it.only('keeps the specified number of jobs in failed respecting the age', async () => {
+      it('keeps the specified number of jobs in failed respecting the age', async () => {
         // TODO: Move timeout to test options: { timeout: 6000 }
         const concurrency = 4;
 
