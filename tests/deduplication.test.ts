@@ -352,7 +352,7 @@ describe('deduplication', () => {
         { foo: 'bar' },
         { jobId: 'a1', deduplication: { id: dedupId } },
       );
-      await queue.add(
+      queue.add(
         testName,
         { foo: 'bar' },
         { jobId: 'a2', deduplication: { id: dedupId } },
