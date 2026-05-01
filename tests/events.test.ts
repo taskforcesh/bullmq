@@ -493,9 +493,12 @@ describe('events', { timeout: 8000 }, () => {
         ],
       });
       worker.run();
+
+      await waitingChildren;
+
       childrenWorker.run();
 
-      await Promise.all([waitingChildren, waiting]);
+      await waiting;
 
       await worker.close();
       await childrenWorker.close();
