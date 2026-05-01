@@ -66,3 +66,11 @@ class WorkerOptions(TypedDict, total=False):
 
     @default False
     """
+
+    skipWaitingForReady: bool
+    """
+    Skip waiting for connection ready.
+
+    @deprecated This option has no effect and will be removed in a future release.
+    @default False
+    """
