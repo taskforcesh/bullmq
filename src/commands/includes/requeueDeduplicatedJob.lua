@@ -20,11 +20,12 @@ local function requeueDeduplicatedJob(prefix, deduplicationId, eventStreamKey,
         "name", "data", "opts", "pk", "pd", "pdk", "rjk", "jid")
 
     local customJobId = nextData[8]
+    local jobCounter = rcall("INCR", prefix .. "id")
     local newJobId
     if customJobId and customJobId ~= "" and customJobId ~= false then
       newJobId = customJobId
     else
-      newJobId = rcall("INCR", prefix .. "id") .. ""
+      newJobId = jobCounter .. ""
     end
     local newJobIdKey = prefix .. newJobId
     local newOpts = cjson.decode(nextData[3])
