@@ -455,36 +455,47 @@ describe('events', { timeout: 8000 }, () => {
           prefix,
         },
       );
-      const waitingChildren = new Promise<void>((resolve, reject) => {
-        queueEvents.once('waiting-children', async ({ jobId }) => {
-          try {
-            const job = await queue.getJob(jobId);
-            const state = await job?.getState();
-            expect(state).toBe('waiting-children');
-            expect(job?.name).toBe(name);
-            resolve();
-          } catch (err) {
-            reject(err);
-          }
-        });
-      });
-
-      const waiting = new Promise<void>((resolve, reject) => {
-        queueEvents.on('waiting', async ({ jobId, prev }) => {
-          try {
-            const job = await queue.getJob(jobId);
-            expect(prev).toBe('waiting-children');
-            if (job?.name === name) {
+      let waitingChildrenJob:
+        | { state: string | undefined; jobName: string | undefined }
+        | undefined;
+      const waitingChildren = Promise.race([
+        new Promise<void>((resolve, reject) => {
+          queueEvents.once('waiting-children', async ({ jobId }) => {
+            try {
+              const job = await queue.getJob(jobId);
+              const state = await job?.getState();
+              waitingChildrenJob = { state, jobName: job?.name };
               resolve();
+            } catch (err) {
+              reject(err);
             }
-          } catch (err) {
-            reject(err);
-          }
-        });
-      });
+          });
+        }),
+        delay(100),
+      ]);
+
+      let waitingResult:
+        | { prev: string; jobName: string | undefined }
+        | undefined;
+      const waiting = Promise.race([
+        new Promise<void>((resolve, reject) => {
+          queueEvents.on('waiting', async ({ jobId, prev }) => {
+            try {
+              const job = await queue.getJob(jobId);
+              if (job?.name === name) {
+                waitingResult = { prev, jobName: job?.name };
+                resolve();
+              }
+            } catch (err) {
+              reject(err);
+            }
+          });
+        }),
+        delay(100),
+      ]);
 
       const flow = new FlowProducer({ connection, prefix });
-      flow.add({
+      await flow.add({
         name,
         queueName,
         data: {},
@@ -495,10 +506,13 @@ describe('events', { timeout: 8000 }, () => {
       worker.run();
 
       await waitingChildren;
+      expect(waitingChildrenJob?.state).toBe('waiting-children');
+      expect(waitingChildrenJob?.jobName).toBe(name);
 
       childrenWorker.run();
 
       await waiting;
+      expect(waitingResult?.prev).toBe('waiting-children');
 
       await worker.close();
       await childrenWorker.close();

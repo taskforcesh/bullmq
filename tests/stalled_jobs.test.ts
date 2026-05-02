@@ -1044,13 +1044,19 @@ describe('stalled jobs', () => {
           },
         );
 
-        const allActive = new Promise(resolve => {
-          worker.on('active', after(concurrency, resolve));
-        });
+        const allActive = Promise.race([
+          new Promise(resolve => {
+            worker.on('active', after(concurrency, resolve));
+          }),
+          delay(100),
+        ]);
 
-        const twoFailed = new Promise(resolve => {
-          worker.on('failed', after(2, resolve));
-        });
+        const failures = Promise.race([
+          new Promise(resolve => {
+            worker.on('failed', after(2, resolve));
+          }),
+          delay(100),
+        ]);
 
         await worker.waitUntilReady();
 
@@ -1069,7 +1075,7 @@ describe('stalled jobs', () => {
 
         worker.run();
 
-        await Promise.all([allActive, twoFailed]);
+        await Promise.all([allActive, failures]);
 
         await worker.close(true);
 
