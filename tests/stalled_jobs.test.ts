@@ -1048,6 +1048,10 @@ describe('stalled jobs', () => {
           worker.on('active', after(concurrency, resolve));
         });
 
+        const twoFailed = new Promise(resolve => {
+          worker.on('failed', after(2, resolve));
+        });
+
         await worker.waitUntilReady();
 
         const jobs = Array.from(Array(4).keys()).map(index => ({
@@ -1060,10 +1064,6 @@ describe('stalled jobs', () => {
             },
           },
         }));
-
-        const twoFailed = new Promise(resolve => {
-          worker.on('failed', after(2, resolve));
-        });
 
         queue.addBulk(jobs);
 
