@@ -46,7 +46,7 @@ end
 
 rcall("SET", stalledCheckKey, timestamp, "PX", maxCheckTime)
 
--- Trim events before emiting them to avoid trimming events emitted in this script
+-- Trim events before emitting them to avoid trimming events emitted in this script
 trimEvents(metaKey, eventStreamKey)
 
 -- Move all stalled jobs to wait
