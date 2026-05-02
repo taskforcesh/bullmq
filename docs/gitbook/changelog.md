@@ -1,3 +1,10 @@
+## [5.76.5](https://github.com/taskforcesh/bullmq/compare/v5.76.4...v5.76.5) (2026-05-02)
+
+
+### Bug Fixes
+
+* **deps:** update dependency msgpackr to v1.11.12 ([#3939](https://github.com/taskforcesh/bullmq/issues/3939)) ([b47f00b](https://github.com/taskforcesh/bullmq/commit/b47f00b9a2c5766ca92cebc867369f2c467a220d))
+
 ## [5.76.4](https://github.com/taskforcesh/bullmq/compare/v5.76.3...v5.76.4) (2026-04-29)
 
 
