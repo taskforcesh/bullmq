@@ -170,7 +170,7 @@ const sandbox = <T, R, N extends string>(
         child.off('message', msgHandler);
         child.off('exit', exitHandler);
         if (child.exitCode === null && child.signalCode === null) {
-          childPool.release(child);
+          await childPool.release(child);
         }
       }
     }

@@ -26,4 +26,13 @@ export interface SandboxedOptions {
    * @see {@link https://nodejs.org/api/worker_threads.html#new-workerfilename-options}
    */
   workerThreadsOptions?: WorkerThreadsOptions;
+
+  /**
+   * When false, sandboxed child processes (or worker threads) are terminated after
+   * each job instead of being reused.
+   * This can be used to prevent known memory leaks from accumulating across jobs.
+   *
+   * @defaultValue true
+   */
+  reuseChildProcess?: boolean;
 }
