@@ -477,22 +477,19 @@ describe('events', { timeout: 8000 }, () => {
       let waitingResult:
         | { prev: string; jobName: string | undefined }
         | undefined;
-      const waiting = Promise.race([
-        new Promise<void>((resolve, reject) => {
-          queueEvents.on('waiting', async ({ jobId, prev }) => {
-            try {
-              const job = await queue.getJob(jobId);
-              if (job?.name === name) {
-                waitingResult = { prev, jobName: job?.name };
-                resolve();
-              }
-            } catch (err) {
-              reject(err);
+      const waiting = new Promise<void>((resolve, reject) => {
+        queueEvents.on('waiting', async ({ jobId, prev }) => {
+          try {
+            const job = await queue.getJob(jobId);
+            if (job?.name === name) {
+              waitingResult = { prev, jobName: job?.name };
+              resolve();
             }
-          });
-        }),
-        delay(100),
-      ]);
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
 
       const flow = new FlowProducer({ connection, prefix });
       await flow.add({
