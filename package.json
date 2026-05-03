@@ -112,7 +112,7 @@
     "test-console": "2.0.0",
     "ts-node": "10.9.2",
     "typedoc": "0.28.19",
-    "typescript": "5.9.3",
+    "typescript": "6.0.3",
     "vitest": "4.1.5"
   },
   "commitlint": {
