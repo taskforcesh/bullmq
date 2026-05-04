@@ -1,3 +1,10 @@
+## [2.25.1](https://github.com/taskforcesh/bullmq/compare/vpy2.25.0...vpy2.25.1) (2026-05-04)
+
+
+### Bug Fixes
+
+* **connection:** deprecate skipWaitingForReady option as is not having any effect [python] ([#4140](https://github.com/taskforcesh/bullmq/issues/4140)) ([c9c0c0a](https://github.com/taskforcesh/bullmq/commit/c9c0c0a03218511deb73eac74c31ac50ba9c4f77))
+
 # [2.25.0](https://github.com/taskforcesh/bullmq/compare/vpy2.24.0...vpy2.25.0) (2026-04-29)
 
 
