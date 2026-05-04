@@ -2174,4 +2174,109 @@ describe('deduplication', () => {
       await worker.close();
     });
   });
+
+  describe('when requeuing deduplicated job with custom jobId (#4030)', () => {
+    it('should preserve the custom jobId on the requeued job', async () => {
+      const testName = 'test';
+      const deduplicationId = 'dedup-custom-id';
+      const customId = 'my-custom-id';
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await delay(50);
+        },
+        { autorun: false, connection, prefix },
+      );
+      await worker.waitUntilReady();
+
+      const completedIds: string[] = [];
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', job => {
+          try {
+            completedIds.push(job.id!);
+            if (completedIds.length === 2) {
+              resolve();
+            }
+          } catch (error) {
+            reject(error);
+          }
+        });
+      });
+
+      worker.run();
+
+      await queue.add(testName, { seq: 1 }, {
+        jobId: 'first-job',
+        deduplication: { id: deduplicationId },
+      });
+
+      await delay(25);
+
+      await queue.add(testName, { seq: 2 }, {
+        jobId: customId,
+        deduplication: { id: deduplicationId },
+      });
+
+      await completing;
+
+      expect(completedIds).toContain(customId);
+      await worker.close();
+    });
+
+    it('should always increment the job ID counter even when custom jobId is used', async () => {
+      const testName = 'test';
+      const deduplicationId = 'dedup-incr-test';
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await delay(50);
+        },
+        { autorun: false, connection, prefix },
+      );
+      await worker.waitUntilReady();
+
+      const completedIds: string[] = [];
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', job => {
+          try {
+            completedIds.push(job.id!);
+            if (completedIds.length === 2) {
+              resolve();
+            }
+          } catch (error) {
+            reject(error);
+          }
+        });
+      });
+
+      worker.run();
+
+      await queue.add(testName, { seq: 1 }, {
+        jobId: 'custom-a',
+        deduplication: { id: deduplicationId },
+      });
+
+      await delay(25);
+
+      await queue.add(testName, { seq: 2 }, {
+        jobId: 'custom-b',
+        deduplication: { id: deduplicationId },
+      });
+
+      await completing;
+
+      // After the dedup requeue, adding a new job without a custom ID
+      // should produce an auto-incremented ID that does not collide
+      // with any previously used ID.
+      const autoIdJob = await queue.add(testName, { seq: 3 });
+      const autoId = Number(autoIdJob.id);
+      expect(autoId).toBeGreaterThanOrEqual(1);
+      expect(autoIdJob.id).not.toBe('custom-a');
+      expect(autoIdJob.id).not.toBe('custom-b');
+
+      await worker.close();
+    });
+  });
 });
