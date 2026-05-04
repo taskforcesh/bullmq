@@ -74,9 +74,14 @@ class RedisConnection:
         skipVersionCheck: bool = False,
         skipWaitingForReady: bool = False,
     ):
+        if skipWaitingForReady:
+            warnings.warn(
+                "skipWaitingForReady is deprecated and has no effect. It will be removed in a future release.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         self.version: Optional[str] = None
         self.skipVersionCheck = skipVersionCheck
-        self.skipWaitingForReady = skipWaitingForReady
         retry = Retry(ExponentialBackoff(cap=20, base=1), 20)
         retry_errors = [BusyLoadingError, ConnectionError, TimeoutError]
 
