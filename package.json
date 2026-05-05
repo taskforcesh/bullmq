@@ -70,8 +70,8 @@
     "tslib": "2.8.1"
   },
   "devDependencies": {
-    "@commitlint/cli": "20.5.2",
-    "@commitlint/config-conventional": "20.5.0",
+    "@commitlint/cli": "20.5.3",
+    "@commitlint/config-conventional": "20.5.3",
     "@semantic-release/changelog": "6.0.3",
     "@semantic-release/commit-analyzer": "13.0.1",
     "@semantic-release/exec": "7.1.0",
@@ -96,7 +96,7 @@
     "eslint-plugin-promise": "7.3.0",
     "eslint-plugin-tsdoc": "0.5.2",
     "fast-glob": "3.3.3",
-    "globals": "17.5.0",
+    "globals": "17.6.0",
     "husky": "9.1.7",
     "lint-staged": "16.4.0",
     "madge": "8.0.0",
