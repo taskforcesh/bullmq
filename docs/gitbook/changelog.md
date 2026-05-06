@@ -1,3 +1,66 @@
+## [5.76.5](https://github.com/taskforcesh/bullmq/compare/v5.76.4...v5.76.5) (2026-05-02)
+
+
+### Bug Fixes
+
+* **deps:** update dependency msgpackr to v1.11.12 ([#3939](https://github.com/taskforcesh/bullmq/issues/3939)) ([b47f00b](https://github.com/taskforcesh/bullmq/commit/b47f00b9a2c5766ca92cebc867369f2c467a220d))
+
+## [5.76.4](https://github.com/taskforcesh/bullmq/compare/v5.76.3...v5.76.4) (2026-04-29)
+
+
+### Bug Fixes
+
+* **flow-producer:** surface ParentJobNotExist errors from add() ([#3264](https://github.com/taskforcesh/bullmq/issues/3264)) ([#4058](https://github.com/taskforcesh/bullmq/issues/4058)) ([7ed0eec](https://github.com/taskforcesh/bullmq/commit/7ed0eeca96a3c5168e822831b2f3d938ab37bb91))
+
+## [5.76.3](https://github.com/taskforcesh/bullmq/compare/v5.76.2...v5.76.3) (2026-04-28)
+
+
+### Bug Fixes
+
+* **metrics:** add total counters to Prometheus export for accurate counts with auto-removal ([#3967](https://github.com/taskforcesh/bullmq/issues/3967)) ([0bf1b4d](https://github.com/taskforcesh/bullmq/commit/0bf1b4d38475b320c89947b9779ec7301ec10117))
+
+## [5.76.2](https://github.com/taskforcesh/bullmq/compare/v5.76.1...v5.76.2) (2026-04-25)
+
+
+### Bug Fixes
+
+* **deps:** replace uuid with crypto ([#4099](https://github.com/taskforcesh/bullmq/issues/4099)) ([595016e](https://github.com/taskforcesh/bullmq/commit/595016ef1d3a960ad83dfbbc189034561e099482))
+
+## [5.76.1](https://github.com/taskforcesh/bullmq/compare/v5.76.0...v5.76.1) (2026-04-22)
+
+
+### Bug Fixes
+
+* **worker:** use scheduler registry to discriminate repeatable keys ([#4007](https://github.com/taskforcesh/bullmq/issues/4007)) ([ea7705d](https://github.com/taskforcesh/bullmq/commit/ea7705df6938cb432eceff242f6828054766f61a))
+ 
+# [5.76.0](https://github.com/taskforcesh/bullmq/compare/v5.75.2...v5.76.0) (2026-04-22)
+
+
+### Features
+
+* Nothing changed, triggered by a python version release
+
+## [5.75.2](https://github.com/taskforcesh/bullmq/compare/v5.75.1...v5.75.2) (2026-04-20)
+
+
+### Bug Fixes
+
+* handle ioredis Cluster connect status in waitUntilReady ([#2402](https://github.com/taskforcesh/bullmq/issues/2402)) ([#4055](https://github.com/taskforcesh/bullmq/issues/4055)) ([422e2d5](https://github.com/taskforcesh/bullmq/commit/422e2d5091f2f318e0f6bd3e1872a71deee92aec))
+
+## [5.75.1](https://github.com/taskforcesh/bullmq/compare/v5.75.0...v5.75.1) (2026-04-20)
+
+
+### Bug Fixes
+
+* Nothing changed, triggered by a python version release
+
+# [5.75.0](https://github.com/taskforcesh/bullmq/compare/v5.74.2...v5.75.0) (2026-04-20)
+
+
+### Features
+
+* Nothing changed, triggered by a python version release
+
 ## [5.74.2](https://github.com/taskforcesh/bullmq/compare/v5.74.1...v5.74.2) (2026-04-20)
 
 

@@ -1,4 +1,3 @@
-import { v4 } from 'uuid';
 import {
   BaseJobOptions,
   BulkJobOptions,
@@ -22,6 +21,7 @@ import { RedisConnection } from './redis-connection';
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { JobScheduler } from './job-scheduler';
 import { version } from '../version';
+import { randomUUID } from '../utils';
 
 export interface ObliterateOpts {
   /**
@@ -148,7 +148,7 @@ export class Queue<
   ResultType = ExtractResultType<DataTypeOrJob, DefaultResultType>,
   NameType extends string = ExtractNameType<DataTypeOrJob, DefaultNameType>,
 > extends QueueGetters<JobBase<DataTypeOrJob, ResultType, NameType>> {
-  token = v4();
+  token = randomUUID();
   jobsOpts: BaseJobOptions;
   opts: QueueOptions;
 

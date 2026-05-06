@@ -1,5 +1,6 @@
 import { Cluster, Redis } from 'ioredis';
 import { AbortController } from '../classes/abort-controller';
+import { randomBytes, randomUUID as cryptoRandomUUID } from 'crypto';
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
@@ -412,4 +413,28 @@ export async function trace<T>(
       span.end();
     }
   }
+}
+
+/**
+ * randomUUID helper to generate a UUID v4 using native crypto dependency.
+ */
+export function randomUUID() {
+  if (typeof cryptoRandomUUID === 'function') {
+    return cryptoRandomUUID();
+  }
+
+  const bytes = randomBytes(16);
+
+  // Set version to 4 (bits 4-7 of the 7th byte)
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  // Set variant to RFC 4122 (bits 6-7 of the 9th byte)
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+  return [
+    bytes.toString('hex', 0, 4),
+    bytes.toString('hex', 4, 6),
+    bytes.toString('hex', 6, 8),
+    bytes.toString('hex', 8, 10),
+    bytes.toString('hex', 10, 16),
+  ].join('-');
 }

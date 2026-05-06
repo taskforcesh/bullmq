@@ -59,3 +59,18 @@ class WorkerOptions(TypedDict, total=False):
     """
     Options for connecting to a Redis instance.
     """
+
+    skipVersionCheck: bool
+    """
+    Avoid version validation to be greater or equal than v5.0.0.
+
+    @default False
+    """
+
+    skipWaitingForReady: bool
+    """
+    Skip waiting for connection ready.
+
+    @deprecated This option has no effect and will be removed in a future release.
+    @default False
+    """

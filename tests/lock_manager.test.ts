@@ -9,10 +9,9 @@ import {
   expect,
 } from 'vitest';
 
-import { v4 } from 'uuid';
 import { LockManager, Queue, Worker } from '../src/classes';
 import { LockManagerWorkerContext } from '../src/interfaces';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 
 describe('LockManager', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
@@ -411,7 +410,7 @@ describe('LockManager', () => {
     let queueName: string;
 
     beforeEach(async () => {
-      queueName = `test-lock-manager-${v4()}`;
+      queueName = `test-lock-manager-${randomUUID()}`;
       queue = new Queue(queueName, { connection, prefix });
     });
 

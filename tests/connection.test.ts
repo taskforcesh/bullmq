@@ -1,5 +1,4 @@
 import { default as IORedis, RedisOptions } from 'ioredis';
-import { v4 } from 'uuid';
 import {
   describe,
   beforeEach,
@@ -18,7 +17,7 @@ import {
   FlowProducer,
   RedisConnection,
 } from '../src/classes';
-import { removeAllQueueData } from '../src/utils';
+import { randomUUID, removeAllQueueData } from '../src/utils';
 
 import * as sinon from 'sinon';
 
@@ -336,6 +335,51 @@ describe('RedisConnection', () => {
     });
   });
 
+  describe('waitUntilReady()', () => {
+    it('returns immediately when standalone client status is "ready"', async () => {
+      const fakeClient: any = {
+        status: 'ready',
+        isCluster: false,
+        connect: sinon.stub().resolves(),
+        on: sinon.stub(),
+        once: sinon.stub(),
+        removeListener: sinon.stub(),
+        setMaxListeners: sinon.stub(),
+        getMaxListeners: sinon.stub().returns(10),
+      };
+
+      await expect(
+        RedisConnection.waitUntilReady(fakeClient),
+      ).resolves.toBeUndefined();
+      expect(fakeClient.connect.called).toBe(false);
+    });
+
+    // Regression test for https://github.com/taskforcesh/bullmq/issues/2402.
+    // ioredis Cluster reports its connected status as 'connect' rather than
+    // 'ready', which previously caused waitUntilReady to hang and emit a
+    // spurious "Connection is closed" error during disconnect.
+    it('returns immediately when cluster client status is "connect"', async () => {
+      const fakeCluster: any = {
+        status: 'connect',
+        isCluster: true,
+        connect: sinon.stub().resolves(),
+        disconnect: sinon.stub(),
+        duplicate: sinon.stub(),
+        on: sinon.stub(),
+        once: sinon.stub(),
+        removeListener: sinon.stub(),
+        setMaxListeners: sinon.stub(),
+        getMaxListeners: sinon.stub().returns(10),
+      };
+
+      await expect(
+        RedisConnection.waitUntilReady(fakeCluster),
+      ).resolves.toBeUndefined();
+      expect(fakeCluster.connect.called).toBe(false);
+      expect(fakeCluster.once.called).toBe(false);
+    });
+  });
+
   describe('Queue', () => {
     it('propagates skipWaitingForReady to RedisConnection', () => {
       const queue = new Queue('test', {
@@ -419,13 +463,13 @@ describe('connection', () => {
   let queue: Queue;
   let queueName: string;
 
-  let connection;
+  let connection: IORedis;
   beforeAll(async () => {
     connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
   });
 

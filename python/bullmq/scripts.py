@@ -247,7 +247,8 @@ class Scripts:
             result = response or []
 
             if asc and commands[i] == "lrange":
-                results+=result.reverse()
+                result.reverse()
+                results+=result
             else:
                 results+=result
 
