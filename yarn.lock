@@ -4091,10 +4091,10 @@ msgpackr-extract@^3.0.2:
     "@msgpackr-extract/msgpackr-extract-linux-x64" "3.0.3"
     "@msgpackr-extract/msgpackr-extract-win32-x64" "3.0.3"
 
-msgpackr@1.11.12:
-  version "1.11.12"
-  resolved "https://registry.yarnpkg.com/msgpackr/-/msgpackr-1.11.12.tgz#52ca309b13a66f05443413794ab37bb6217a4425"
-  integrity sha512-RBdJ1Un7yGlXWajrkxcSa93nvQ0w4zBf60c0yYv7YtBelP8H2FA7XsfBbMHtXKXUMUxH7zV3Zuozh+kUQWhHvg==
+msgpackr@2.0.1:
+  version "2.0.1"
+  resolved "https://registry.yarnpkg.com/msgpackr/-/msgpackr-2.0.1.tgz#bb335e9b86940248ba113319765071c4fb199283"
+  integrity sha512-9J+tqTEsbHqY8YohazYgty7LgerFIWxvMLpUjqETSmjHojtJm2WnX2kK/2a1fLI7CO7ERP1YSEUXMucz4j+yBA==
   optionalDependencies:
     msgpackr-extract "^3.0.2"
 
