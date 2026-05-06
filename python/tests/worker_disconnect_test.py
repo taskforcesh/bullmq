@@ -22,6 +22,7 @@ running Redis instance.
 
 import asyncio
 import errno
+import socket
 import time
 import unittest
 from unittest.mock import AsyncMock, MagicMock
@@ -29,6 +30,23 @@ from unittest.mock import AsyncMock, MagicMock
 import redis.exceptions
 
 from bullmq import Worker
+
+
+def _find_closed_port():
+    """Return a TCP port that is guaranteed to be closed at the moment
+    the function returns.
+
+    Binding to port 0 lets the OS pick a free port; we close the socket
+    immediately so the port is released. There is a tiny race window
+    where another process could grab the port before the Worker's
+    Redis client tries to connect, but for these tests we never let
+    the run loop start, so the port is only ever inspected — not
+    actually connected to. This is more reliable than hard-coding a
+    high port that might be in use on some CI runners.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
 
 
 def _build_offline_worker():
@@ -42,7 +60,7 @@ def _build_offline_worker():
         "issue_3103_queue",
         None,
         {
-            "connection": {"host": "127.0.0.1", "port": 59999},
+            "connection": {"host": "127.0.0.1", "port": _find_closed_port()},
             "autorun": False,
             "runRetryDelay": 50,
         },
@@ -95,6 +113,26 @@ class TestIsConnectionError(unittest.TestCase):
         # Covers the simpler case where err.errno is populated directly.
         err = OSError(errno.ECONNRESET, "connection reset")
         self.assertTrue(self.worker.isConnectionError(err))
+
+    def test_os_error_with_mnemonic_message_is_transient(self):
+        # Some failure paths (notably hiredis-backed errors and certain
+        # asyncio variants) raise an OSError whose errno is None and
+        # whose message carries only the mnemonic, e.g. "ECONNREFUSED"
+        # or "Connection refused", with no embedded "[Errno N]".
+        for message in (
+            "ECONNREFUSED",
+            "[hiredis] ECONNRESET while reading",
+            "Connection refused",
+            "Connection reset by peer",
+            "Network is unreachable",
+        ):
+            with self.subTest(message=message):
+                err = OSError(message)
+                self.assertIsNone(err.errno)
+                self.assertTrue(
+                    self.worker.isConnectionError(err),
+                    f"OSError({message!r}) was not classified as transient",
+                )
 
     def test_plain_value_error_is_not_transient(self):
         # Programmer errors must still bubble up so users can fix them.
@@ -210,6 +248,41 @@ class TestWaitForJobBacksOff(unittest.IsolatedAsyncioTestCase):
             f"waitForJob re-raised after only {elapsed * 1000:.1f}ms; "
             "the short backoff did not kick in",
         )
+
+    async def test_waitForJob_does_not_delay_programmer_error(self):
+        # Programmer errors (e.g. ValueError) must propagate immediately.
+        # Adding the connection-error backoff to every exception type
+        # would silently throttle real bugs at 1-per-100ms, making them
+        # much harder to diagnose in production logs.
+        boom = ValueError("not a connection error")
+        self.worker.bclient = MagicMock()
+        self.worker.bclient.bzpopmin = AsyncMock(side_effect=boom)
+
+        started = time.monotonic()
+        with self.assertRaises(ValueError):
+            await self.worker.waitForJob()
+        elapsed = time.monotonic() - started
+
+        self.assertLess(
+            elapsed,
+            0.05,
+            f"waitForJob delayed a programmer error by {elapsed * 1000:.1f}ms; "
+            "the connection-error backoff is leaking onto non-transient errors",
+        )
+
+    async def test_waitForJob_propagates_cancelled_error_immediately(self):
+        # asyncio.CancelledError implements cooperative cancellation;
+        # delaying its propagation would defeat the cancel signal and
+        # could keep run() alive past close(force=True).
+        self.worker.bclient = MagicMock()
+        self.worker.bclient.bzpopmin = AsyncMock(side_effect=asyncio.CancelledError())
+
+        started = time.monotonic()
+        with self.assertRaises(asyncio.CancelledError):
+            await self.worker.waitForJob()
+        elapsed = time.monotonic() - started
+
+        self.assertLess(elapsed, 0.05)
 
     async def test_waitForJob_does_not_emit_error_directly(self):
         # waitForJob must rely on retryIfFailed to emit "error" exactly

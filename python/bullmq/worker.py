@@ -48,6 +48,24 @@ TRANSIENT_ERRNOS = {
 # extract the embedded errno from the message instead.
 _ERRNO_PATTERN = re.compile(r"\[Errno (\d+)\]")
 
+# Mnemonics / human-readable fragments that the OS, asyncio, or hiredis
+# emit for the same transient failures we treat as connection errors via
+# TRANSIENT_ERRNOS. Mirrors Node's `errorMessage.includes(...)` check —
+# some Python OSError instances carry only the mnemonic string and have
+# neither error.errno nor a "[Errno N]" embedded in the message.
+_TRANSIENT_MESSAGE_FRAGMENTS = (
+    "ECONNREFUSED",
+    "ECONNRESET",
+    "ENETUNREACH",
+    "EHOSTUNREACH",
+    "EPIPE",
+    "Connection refused",
+    "Connection reset",
+    "Network is unreachable",
+    "No route to host",
+    "Broken pipe",
+)
+
 
 class Worker(EventEmitter):
     def __init__(self, name: str, processor: Callable[[Job, str], asyncio.Future], opts: WorkerOptions = {}):
@@ -211,12 +229,23 @@ class Worker(EventEmitter):
 
         try:
             result = await self.bclient.bzpopmin(self.scripts.keys["marker"], block_timeout)
-        except Exception:
-            # Short-sleep before re-raising so the outer retryIfFailed loop
-            # cannot spin at full CPU while Redis is unavailable. The error
+        except (asyncio.CancelledError, KeyboardInterrupt, SystemExit):
+            # Cooperative cancellation must propagate immediately;
+            # adding a sleep here would defeat the cancel signal.
+            raise
+        except Exception as err:
+            # Short-sleep before re-raising connection errors so the outer
+            # retryIfFailed loop cannot spin at full CPU while Redis is
+            # unavailable. Programmer errors and other non-connection
+            # exceptions propagate immediately so real bugs surface fast
+            # instead of being throttled to one-per-100ms. The error
             # itself is emitted exactly once by retryIfFailed when it
             # propagates up the run() call chain.
-            if not self.closing and not self.closed:
+            if (
+                self.isConnectionError(err)
+                and not self.closing
+                and not self.closed
+            ):
                 await asyncio.sleep(short_retry_delay)
             raise
         if result:
@@ -370,14 +399,19 @@ class Worker(EventEmitter):
 
         # DNS or socket failures raised before the redis client has a
         # chance to wrap them surface as a plain OSError. Match either
-        # error.errno or any [Errno N] embedded in the message string.
+        # error.errno, any [Errno N] embedded in the message string, or
+        # a known mnemonic / human-readable fragment (some failure paths
+        # emit only "ECONNREFUSED" / "Connection refused" with no errno).
         if isinstance(error, OSError):
             if error.errno in TRANSIENT_ERRNOS:
                 return True
-            return any(
+            message = str(error)
+            if any(
                 int(n) in TRANSIENT_ERRNOS
-                for n in _ERRNO_PATTERN.findall(str(error))
-            )
+                for n in _ERRNO_PATTERN.findall(message)
+            ):
+                return True
+            return any(fragment in message for fragment in _TRANSIENT_MESSAGE_FRAGMENTS)
 
         return False
 
