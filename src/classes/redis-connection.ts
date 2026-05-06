@@ -26,6 +26,8 @@ const deprecationMessage =
 
 const clusterReconnectPromise = Symbol('bullmqClusterReconnectPromise');
 const clusterPatchedForBlocking = Symbol('bullmqClusterPatchedForBlocking');
+const clusterOriginalBzpopmin = Symbol('bullmqClusterOriginalBzpopmin');
+const clusterWrappedBzpopmin = Symbol('bullmqClusterWrappedBzpopmin');
 
 interface RedisCapabilities {
   canDoubleTimeout: boolean;
@@ -35,6 +37,8 @@ interface RedisCapabilities {
 interface BlockingClusterClient {
   [clusterReconnectPromise]?: Promise<void> | null;
   [clusterPatchedForBlocking]?: boolean;
+  [clusterOriginalBzpopmin]?: BlockingClusterClient['bzpopmin'];
+  [clusterWrappedBzpopmin]?: BlockingClusterClient['bzpopmin'];
   bzpopmin: (...args: any[]) => Promise<unknown>;
   connect: () => Promise<void>;
   disconnect: (reconnect?: boolean) => void;
@@ -72,6 +76,7 @@ export class RedisConnection extends EventEmitter {
   private handleClientError: (e: Error) => void;
   private handleClientClose: () => void;
   private handleClientReady: () => void;
+  private patchedBlockingClusterClient?: BlockingClusterClient;
 
   constructor(
     opts: ConnectionOptions,
@@ -330,13 +335,12 @@ export class RedisConnection extends EventEmitter {
       return;
     }
 
-    const bzpopmin = blockingClient.bzpopmin.bind(blockingClient);
-    blockingClient[clusterPatchedForBlocking] = true;
-    blockingClient.bzpopmin = async (...args: any[]) => {
+    const bzpopmin = blockingClient.bzpopmin;
+    const wrappedBzpopmin = async (...args: any[]) => {
       await this.reconnectClusterIfNeeded(blockingClient);
 
       try {
-        return await bzpopmin(...args);
+        return await bzpopmin.apply(blockingClient, args);
       } catch (error) {
         const commandError = error as Error;
         if (
@@ -351,6 +355,31 @@ export class RedisConnection extends EventEmitter {
         throw commandError;
       }
     };
+
+    blockingClient[clusterOriginalBzpopmin] = bzpopmin;
+    blockingClient[clusterWrappedBzpopmin] = wrappedBzpopmin;
+    blockingClient[clusterPatchedForBlocking] = true;
+    blockingClient.bzpopmin = wrappedBzpopmin;
+    this.patchedBlockingClusterClient = blockingClient;
+  }
+
+  private restoreBlockingClusterClient(): void {
+    const client = this.patchedBlockingClusterClient;
+    if (!client) {
+      return;
+    }
+
+    if (
+      client[clusterOriginalBzpopmin] &&
+      client.bzpopmin === client[clusterWrappedBzpopmin]
+    ) {
+      client.bzpopmin = client[clusterOriginalBzpopmin];
+    }
+
+    delete client[clusterOriginalBzpopmin];
+    delete client[clusterWrappedBzpopmin];
+    delete client[clusterPatchedForBlocking];
+    this.patchedBlockingClusterClient = undefined;
   }
 
   private isClusterWithEmptyNodes(client: BlockingClusterClient): boolean {
@@ -477,6 +506,7 @@ export class RedisConnection extends EventEmitter {
           throw error;
         }
       } finally {
+        this.restoreBlockingClusterClient();
         this._client.off('error', this.handleClientError);
         this._client.off('close', this.handleClientClose);
         this._client.off('ready', this.handleClientReady);

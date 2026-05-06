@@ -121,6 +121,29 @@ describe('RedisConnection', () => {
       await connection.close(true);
     });
 
+    it('restores patched bzpopmin when a shared blocking cluster connection closes', async () => {
+      const bzpopmin = sinon.stub().resolves(['marker', '0', '1']);
+      const cluster = createMockClusterClient({ bzpopmin });
+      const originalBzpopmin = cluster.bzpopmin;
+      const connection = new RedisConnection(cluster as any, {
+        shared: true,
+        blocking: true,
+        skipVersionCheck: true,
+        skipWaitingForReady: true,
+      });
+
+      const client = await connection.client;
+      expect((client as any).bzpopmin).not.toBe(originalBzpopmin);
+
+      await connection.close();
+
+      expect(cluster.bzpopmin).toBe(originalBzpopmin);
+      await (cluster as any).bzpopmin('marker', 1);
+      expect(cluster.disconnect.called).toBe(false);
+      expect(cluster.connect.called).toBe(false);
+      expect(bzpopmin.calledOnceWith('marker', 1)).toBe(true);
+    });
+
     it('does not reconnect an empty-node blocking cluster while closing', async () => {
       const bzpopmin = sinon.stub().resolves(['marker', '0', '1']);
       const cluster = createMockClusterClient({
