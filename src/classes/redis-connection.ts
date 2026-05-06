@@ -24,6 +24,9 @@ const overrideMessage = [
 const deprecationMessage =
   'BullMQ: Your redis options maxRetriesPerRequest must be null.';
 
+const clusterReconnectPromise = Symbol('bullmqClusterReconnectPromise');
+const clusterPatchedForBlocking = Symbol('bullmqClusterPatchedForBlocking');
+
 interface RedisCapabilities {
   canDoubleTimeout: boolean;
   canBlockFor1Ms: boolean;
@@ -245,6 +248,8 @@ export class RedisConnection extends EventEmitter {
 
     this._client.on('ready', this.handleClientReady);
 
+    this.patchBlockingClusterClient();
+
     if (!this.extraOptions.skipWaitingForReady) {
       await RedisConnection.waitUntilReady(this._client);
     }
@@ -301,6 +306,69 @@ export class RedisConnection extends EventEmitter {
     }
 
     return this._client;
+  }
+
+  private patchBlockingClusterClient(): void {
+    const client = this._client as any;
+    if (
+      !this.extraOptions.blocking ||
+      !isRedisCluster(client) ||
+      typeof client.bzpopmin !== 'function' ||
+      client[clusterPatchedForBlocking]
+    ) {
+      return;
+    }
+
+    const bzpopmin = client.bzpopmin.bind(client);
+    client[clusterPatchedForBlocking] = true;
+    client.bzpopmin = async (...args: any[]) => {
+      await this.reconnectClusterIfNeeded(client);
+
+      try {
+        return await bzpopmin(...args);
+      } catch (error) {
+        if (this.shouldReconnectClusterAfterError(client, error as Error)) {
+          await this.reconnectCluster(client);
+        }
+        throw error;
+      }
+    };
+  }
+
+  private isClusterWithEmptyNodes(client: any): boolean {
+    return typeof client.nodes === 'function' && client.nodes().length === 0;
+  }
+
+  private async reconnectClusterIfNeeded(client: any): Promise<void> {
+    if (this.isClusterWithEmptyNodes(client)) {
+      await this.reconnectCluster(client);
+    }
+  }
+
+  private shouldReconnectClusterAfterError(client: any, error: Error): boolean {
+    const message = [
+      error.message,
+      (error as any).cause?.message,
+      (error as any).lastNodeError?.message,
+    ].join(' ');
+
+    return (
+      this.isClusterWithEmptyNodes(client) ||
+      /Command timed out|Failed to refresh slots cache/i.test(message)
+    );
+  }
+
+  private async reconnectCluster(client: any): Promise<void> {
+    if (!client[clusterReconnectPromise]) {
+      client[clusterReconnectPromise] = (async () => {
+        client.disconnect(false);
+        await client.connect();
+      })().finally(() => {
+        client[clusterReconnectPromise] = null;
+      });
+    }
+
+    await client[clusterReconnectPromise];
   }
 
   async disconnect(wait = true): Promise<void> {
