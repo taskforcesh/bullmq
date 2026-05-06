@@ -10,9 +10,9 @@ local function getJobSchedulerEveryNextMillis(prevMillis, every, now, offset, st
         else
             nextMillis = now
             -- For the first iteration with no startDate and an explicit
-            -- offset, align nextMillis to the next `offset` slot
-            -- strictly after now. Without this the user-supplied offset
-            -- is recorded but ignored, and the first job fires at now
+            -- offset, align nextMillis to the next offset slot strictly
+            -- after now. Without this the user-supplied offset is
+            -- recorded but ignored, and the first job fires at now
             -- instead of the next aligned timestamp (issue #3705).
             if offset and offset > 0 then
                 local aligned = math.floor(nextMillis / every) * every + offset
