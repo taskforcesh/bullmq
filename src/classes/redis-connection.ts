@@ -32,6 +32,16 @@ interface RedisCapabilities {
   canBlockFor1Ms: boolean;
 }
 
+interface BlockingClusterClient {
+  [clusterReconnectPromise]?: Promise<void> | null;
+  [clusterPatchedForBlocking]?: boolean;
+  bzpopmin: (...args: any[]) => Promise<unknown>;
+  connect: () => Promise<void>;
+  disconnect: (reconnect?: boolean) => void;
+  nodes?: () => unknown[];
+  status?: string;
+}
+
 export interface RawCommand {
   content: string;
   name: string;
@@ -309,43 +319,73 @@ export class RedisConnection extends EventEmitter {
   }
 
   private patchBlockingClusterClient(): void {
-    const client = this._client as any;
+    const client = this._client;
+    const blockingClient = client as unknown as BlockingClusterClient;
     if (
       !this.extraOptions.blocking ||
       !isRedisCluster(client) ||
-      typeof client.bzpopmin !== 'function' ||
-      client[clusterPatchedForBlocking]
+      typeof blockingClient.bzpopmin !== 'function' ||
+      blockingClient[clusterPatchedForBlocking]
     ) {
       return;
     }
 
-    const bzpopmin = client.bzpopmin.bind(client);
-    client[clusterPatchedForBlocking] = true;
-    client.bzpopmin = async (...args: any[]) => {
-      await this.reconnectClusterIfNeeded(client);
+    const bzpopmin = blockingClient.bzpopmin.bind(blockingClient);
+    blockingClient[clusterPatchedForBlocking] = true;
+    blockingClient.bzpopmin = async (...args: any[]) => {
+      await this.reconnectClusterIfNeeded(blockingClient);
 
       try {
         return await bzpopmin(...args);
       } catch (error) {
-        if (this.shouldReconnectClusterAfterError(client, error as Error)) {
-          await this.reconnectCluster(client);
+        const commandError = error as Error;
+        if (
+          this.shouldReconnectClusterAfterError(blockingClient, commandError)
+        ) {
+          try {
+            await this.reconnectCluster(blockingClient);
+          } catch {
+            // Preserve the original command failure if best-effort recovery fails.
+          }
         }
-        throw error;
+        throw commandError;
       }
     };
   }
 
-  private isClusterWithEmptyNodes(client: any): boolean {
+  private isClusterWithEmptyNodes(client: BlockingClusterClient): boolean {
     return typeof client.nodes === 'function' && client.nodes().length === 0;
   }
 
-  private async reconnectClusterIfNeeded(client: any): Promise<void> {
-    if (this.isClusterWithEmptyNodes(client)) {
+  private isReconnectingDisabled(client: BlockingClusterClient): boolean {
+    return (
+      this.closing ||
+      this.status === 'closing' ||
+      this.status === 'closed' ||
+      client.status === 'end' ||
+      client.status === 'closing'
+    );
+  }
+
+  private async reconnectClusterIfNeeded(
+    client: BlockingClusterClient,
+  ): Promise<void> {
+    if (
+      !this.isReconnectingDisabled(client) &&
+      this.isClusterWithEmptyNodes(client)
+    ) {
       await this.reconnectCluster(client);
     }
   }
 
-  private shouldReconnectClusterAfterError(client: any, error: Error): boolean {
+  private shouldReconnectClusterAfterError(
+    client: BlockingClusterClient,
+    error: Error,
+  ): boolean {
+    if (this.isReconnectingDisabled(client)) {
+      return false;
+    }
+
     const message = [
       error.message,
       (error as any).cause?.message,
@@ -358,7 +398,11 @@ export class RedisConnection extends EventEmitter {
     );
   }
 
-  private async reconnectCluster(client: any): Promise<void> {
+  private async reconnectCluster(client: BlockingClusterClient): Promise<void> {
+    if (this.isReconnectingDisabled(client)) {
+      return;
+    }
+
     if (!client[clusterReconnectPromise]) {
       client[clusterReconnectPromise] = (async () => {
         client.disconnect(false);
