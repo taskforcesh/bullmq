@@ -1,3 +1,10 @@
+## [2.25.2](https://github.com/taskforcesh/bullmq/compare/vpy2.25.1...vpy2.25.2) (2026-05-10)
+
+
+### Bug Fixes
+
+* **worker:** [python] avoid tight error loop on Redis disconnect ([#4102](https://github.com/taskforcesh/bullmq/issues/4102)) ([51c935b](https://github.com/taskforcesh/bullmq/commit/51c935bdbf19744edccf1b39002585d81a014613))
+
 ## [2.25.1](https://github.com/taskforcesh/bullmq/compare/vpy2.25.0...vpy2.25.1) (2026-05-04)
 
 
