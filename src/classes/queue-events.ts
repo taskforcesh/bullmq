@@ -355,7 +355,7 @@ export class QueueEvents extends QueueBase {
         this.running = true;
         const client = await this.client;
 
-        // TODO: Planed for deprecation as it has no really a use case
+        // TODO: Planned for deprecation as it really has no use case
         try {
           await client.client('SETNAME', this.clientName(QUEUE_EVENT_SUFFIX));
         } catch (err) {
@@ -396,7 +396,7 @@ export class QueueEvents extends QueueBase {
           const args = array2obj(events[i][1]);
 
           //
-          // TODO: we may need to have a separate xtream for progress data
+          // TODO: we may need to have a separate stream for progress data
           // to avoid this hack.
           switch (args.event) {
             case 'progress':
