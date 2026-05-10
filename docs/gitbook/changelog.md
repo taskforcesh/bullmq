@@ -1,3 +1,31 @@
+## [5.76.6](https://github.com/taskforcesh/bullmq/compare/v5.76.5...v5.76.6) (2026-05-06)
+
+
+### Bug Fixes
+
+* **connection:** reconnect wedged blocking cluster clients ([#4151](https://github.com/taskforcesh/bullmq/issues/4151)) ([e94e8cd](https://github.com/taskforcesh/bullmq/commit/e94e8cdfadbea9508412bcfdc51dabb920d7692c))
+
+## [5.76.5](https://github.com/taskforcesh/bullmq/compare/v5.76.4...v5.76.5) (2026-05-02)
+
+
+### Bug Fixes
+
+* **deps:** update dependency msgpackr to v1.11.12 ([#3939](https://github.com/taskforcesh/bullmq/issues/3939)) ([b47f00b](https://github.com/taskforcesh/bullmq/commit/b47f00b9a2c5766ca92cebc867369f2c467a220d))
+
+## [5.76.4](https://github.com/taskforcesh/bullmq/compare/v5.76.3...v5.76.4) (2026-04-29)
+
+
+### Bug Fixes
+
+* **flow-producer:** surface ParentJobNotExist errors from add() ([#3264](https://github.com/taskforcesh/bullmq/issues/3264)) ([#4058](https://github.com/taskforcesh/bullmq/issues/4058)) ([7ed0eec](https://github.com/taskforcesh/bullmq/commit/7ed0eeca96a3c5168e822831b2f3d938ab37bb91))
+
+## [5.76.3](https://github.com/taskforcesh/bullmq/compare/v5.76.2...v5.76.3) (2026-04-28)
+
+
+### Bug Fixes
+
+* **metrics:** add total counters to Prometheus export for accurate counts with auto-removal ([#3967](https://github.com/taskforcesh/bullmq/issues/3967)) ([0bf1b4d](https://github.com/taskforcesh/bullmq/commit/0bf1b4d38475b320c89947b9779ec7301ec10117))
+
 ## [5.76.2](https://github.com/taskforcesh/bullmq/compare/v5.76.1...v5.76.2) (2026-04-25)
 
 

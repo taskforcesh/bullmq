@@ -83,8 +83,15 @@ class Worker(EventEmitter):
         final_opts.update(opts or {})
         self.opts = final_opts
         redis_opts = opts.get("connection", {})
-        self.redisConnection = RedisConnection(redis_opts)
-        self.blockingRedisConnection = RedisConnection(redis_opts)
+        skip_version_check = opts.get("skipVersionCheck", False)
+        self.redisConnection = RedisConnection(
+            redis_opts,
+            skipVersionCheck=skip_version_check,
+        )
+        self.blockingRedisConnection = RedisConnection(
+            redis_opts,
+            skipVersionCheck=skip_version_check,
+        )
         self.client = self.redisConnection.conn
         self.bclient = self.blockingRedisConnection.conn
         self.prefix = opts.get("prefix", "bull")
