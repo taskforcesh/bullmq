@@ -1,3 +1,10 @@
+## [5.76.7](https://github.com/taskforcesh/bullmq/compare/v5.76.6...v5.76.7) (2026-05-11)
+
+
+### Bug Fixes
+
+* **deps:** update dependency semver to v7.8.0 [security] ([#4160](https://github.com/taskforcesh/bullmq/issues/4160)) ([093743a](https://github.com/taskforcesh/bullmq/commit/093743a0d5b24f170280e0bd754ef5c378576846))
+
 ## [5.76.6](https://github.com/taskforcesh/bullmq/compare/v5.76.5...v5.76.6) (2026-05-06)
 
 
