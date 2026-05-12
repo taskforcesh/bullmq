@@ -1,3 +1,10 @@
+## [5.76.8](https://github.com/taskforcesh/bullmq/compare/v5.76.7...v5.76.8) (2026-05-12)
+
+
+### Bug Fixes
+
+* **scheduler:** align first 'every' job to the next offset slot ([#4113](https://github.com/taskforcesh/bullmq/issues/4113)) fixes [#3705](https://github.com/taskforcesh/bullmq/issues/3705) ([1b8f900](https://github.com/taskforcesh/bullmq/commit/1b8f9009bd8a59d3a82839e6732c6e7e87eb01d2))
+
 ## [5.76.7](https://github.com/taskforcesh/bullmq/compare/v5.76.6...v5.76.7) (2026-05-11)
 
 
