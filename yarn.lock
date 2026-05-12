@@ -1285,10 +1285,10 @@
   resolved "https://registry.yarnpkg.com/@types/msgpack/-/msgpack-0.0.34.tgz#d21045a8b594588e1eb38e31123d8a2339d68f1a"
   integrity sha512-kapJ2u0HZO7rmkeWkdcfFazZ+UQbGF5Fn2YM2uVTgI4Otdyi3CYDlQarEXI0tMRFvfflIeMTodukX6RtPlFiLw==
 
-"@types/node@24.12.2":
-  version "24.12.2"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-24.12.2.tgz#353cb161dbf1785ea25e8829ba7ec574c5c629ac"
-  integrity sha512-A1sre26ke7HDIuY/M23nd9gfB+nrmhtYyMINbjI1zHJxYteKR6qSMX56FsmjMcDb3SMcjJg5BiRRgOCC/yBD0g==
+"@types/node@24.12.4":
+  version "24.12.4"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-24.12.4.tgz#2709745569811dcbdc57c097fafdd387c6330382"
+  integrity sha512-GUUEShf+PBCGW2KaXwcIt3Yk+e3pkKwWKb9GSyM9WQVE+ep2jzmHdGsHzu4wgcZy5fN9FBdVzjpBQsYlpfpgLA==
   dependencies:
     undici-types "~7.16.0"
 
