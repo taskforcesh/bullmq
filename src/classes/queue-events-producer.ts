@@ -39,8 +39,34 @@ export class QueueEventsProducer extends QueueBase {
     const { eventName, ...restArgs } = argsObj;
     const args: any[] = ['MAXLEN', '~', maxEvents, '*', 'event', eventName];
 
-    for (const [key, value] of Object.entries(restArgs)) {
-      args.push(key, value);
+    // Always JSON-encode payload values so the consumer side can
+    // symmetrically JSON-decode them. This guarantees that listeners
+    // receive values with their original type (string stays string,
+    // number stays number, object stays object), instead of having to
+    // guess whether a field was stringified or not.
+    //
+    // We guard each call with try/catch and reject `undefined` results
+    // so values that JSON cannot represent (BigInt, circular refs,
+    // functions, symbols, `undefined`) fail loudly with the offending
+    // key, rather than silently producing invalid XADD arguments.
+    for (const [field, value] of Object.entries(restArgs)) {
+      let serialized: string | undefined;
+      try {
+        serialized = JSON.stringify(value);
+      } catch (err) {
+        throw new Error(
+          `QueueEventsProducer.publishEvent: failed to JSON-encode value for key "${field}": ${
+            (err as Error).message
+          }`,
+        );
+      }
+      if (serialized === undefined) {
+        throw new Error(
+          `QueueEventsProducer.publishEvent: value for key "${field}" cannot be JSON-encoded ` +
+            `(got ${typeof value}). Convert it to a serializable value before publishing.`,
+        );
+      }
+      args.push(field, serialized);
     }
 
     await client.xadd(key, ...args);
