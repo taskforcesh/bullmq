@@ -107,10 +107,14 @@ export interface QueueEventsListener extends IoredisListener {
    *
    * @param args - An object containing details about the delayed job.
    *  - `jobId` - The unique identifier of the job that was delayed.
-   *  - `delay` - The delay duration in milliseconds before the job becomes active.
+   *  - `delay` - When the job becomes active, in milliseconds since the Unix
+   *    epoch (January 1, 1970, UTC). The value is delivered as a string
+   *    because it travels through the Redis events stream; call
+   *    `Number(delay)` (or `parseInt(delay, 10)`) before doing arithmetic
+   *    on it.
    * @param id - The identifier of the event.
    */
-  delayed: (args: { jobId: string; delay: number }, id: string) => void;
+  delayed: (args: { jobId: string; delay: string }, id: string) => void;
 
   /**
    * Listen to 'drained' event.
