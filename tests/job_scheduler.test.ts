@@ -11,7 +11,6 @@ import {
 } from 'vitest';
 
 import * as sinon from 'sinon';
-import { v4 } from 'uuid';
 import { rrulestr } from 'rrule';
 import {
   Job,
@@ -22,7 +21,7 @@ import {
   Worker,
 } from '../src/classes';
 import { JobsOptions } from '../src/types';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 
 const moment = require('moment');
 
@@ -58,7 +57,7 @@ describe('Job Scheduler', () => {
       shouldClearNativeTimers: true,
       toFake: ['Date', 'setTimeout', 'clearTimeout'],
     });
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     repeat = new Repeat(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
@@ -1153,7 +1152,7 @@ describe('Job Scheduler', () => {
   describe('when using removeOnComplete', () => {
     it('should remove repeated job', async () => {
       // TODO: Move timeout to test options: { timeout: 10000 }
-      const queueName2 = `test-${v4()}`;
+      const queueName2 = `test-${randomUUID()}`;
       const queue2 = new Queue(queueName2, {
         connection: new IORedis(redisHost, {
           maxRetriesPerRequest: null,
@@ -1609,6 +1608,40 @@ describe('Job Scheduler', () => {
       await completing;
 
       await worker.close();
+    });
+  });
+
+  // Regression for https://github.com/taskforcesh/bullmq/issues/3705:
+  // upsertJobScheduler with `every` and an explicit `offset` used to
+  // align the first job to the next `offset` slot after now, e.g.
+  // `every: 15min, offset: 3min` produced jobs at :03, :18, :33, :48.
+  // PR #3446 (v5.58.8) regressed this — the offset was recorded but
+  // ignored, and the first job ran immediately at `now`.
+  describe("when 'every' and offset are provided on upsert", () => {
+    it('aligns the first job to the next offset slot after now', async () => {
+      const every = 15 * 60 * 1000;
+      const offset = 3 * 60 * 1000;
+      // 9:10 — between :03 and :18 within the 15-min slot.
+      const date = new Date('2017-02-07 9:10:00');
+      clock.setSystemTime(date);
+
+      await queue.upsertJobScheduler(
+        'test',
+        { every, offset },
+        { name: 'test', data: {} },
+      );
+
+      const expectedNext =
+        Math.floor(date.getTime() / every) * every + offset + every;
+
+      const schedulers = await queue.getJobSchedulers();
+      expect(schedulers).toHaveLength(1);
+      expect(schedulers[0].next).toBe(expectedNext);
+
+      const delayed = await queue.getDelayed();
+      expect(delayed).toHaveLength(1);
+      // The delayed job's timestamp + delay should equal the next slot.
+      expect(delayed[0].timestamp + delayed[0].delay).toBe(expectedNext);
     });
   });
 
@@ -3968,7 +4001,7 @@ describe('Job Scheduler', () => {
         every: ONE_MINUTE,
       });
 
-      let schedulersBefore = await queue.getJobSchedulers();
+      const schedulersBefore = await queue.getJobSchedulers();
       expect(schedulersBefore.length).toEqual(1);
 
       const worker = new Worker(queueName, async () => {}, {

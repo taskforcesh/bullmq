@@ -1,9 +1,65 @@
+## [5.76.8](https://github.com/taskforcesh/bullmq/compare/v5.76.7...v5.76.8) (2026-05-12)
+
+
+### Bug Fixes
+
+* **scheduler:** align first 'every' job to the next offset slot ([#4113](https://github.com/taskforcesh/bullmq/issues/4113)) fixes [#3705](https://github.com/taskforcesh/bullmq/issues/3705) ([1b8f900](https://github.com/taskforcesh/bullmq/commit/1b8f9009bd8a59d3a82839e6732c6e7e87eb01d2))
+
+## [5.76.7](https://github.com/taskforcesh/bullmq/compare/v5.76.6...v5.76.7) (2026-05-11)
+
+
+### Bug Fixes
+
+* **deps:** update dependency semver to v7.8.0 [security] ([#4160](https://github.com/taskforcesh/bullmq/issues/4160)) ([093743a](https://github.com/taskforcesh/bullmq/commit/093743a0d5b24f170280e0bd754ef5c378576846))
+
+## [5.76.6](https://github.com/taskforcesh/bullmq/compare/v5.76.5...v5.76.6) (2026-05-06)
+
+
+### Bug Fixes
+
+* **connection:** reconnect wedged blocking cluster clients ([#4151](https://github.com/taskforcesh/bullmq/issues/4151)) ([e94e8cd](https://github.com/taskforcesh/bullmq/commit/e94e8cdfadbea9508412bcfdc51dabb920d7692c))
+
+## [5.76.5](https://github.com/taskforcesh/bullmq/compare/v5.76.4...v5.76.5) (2026-05-02)
+
+
+### Bug Fixes
+
+* **deps:** update dependency msgpackr to v1.11.12 ([#3939](https://github.com/taskforcesh/bullmq/issues/3939)) ([b47f00b](https://github.com/taskforcesh/bullmq/commit/b47f00b9a2c5766ca92cebc867369f2c467a220d))
+
+## [5.76.4](https://github.com/taskforcesh/bullmq/compare/v5.76.3...v5.76.4) (2026-04-29)
+
+
+### Bug Fixes
+
+* **flow-producer:** surface ParentJobNotExist errors from add() ([#3264](https://github.com/taskforcesh/bullmq/issues/3264)) ([#4058](https://github.com/taskforcesh/bullmq/issues/4058)) ([7ed0eec](https://github.com/taskforcesh/bullmq/commit/7ed0eeca96a3c5168e822831b2f3d938ab37bb91))
+
+## [5.76.3](https://github.com/taskforcesh/bullmq/compare/v5.76.2...v5.76.3) (2026-04-28)
+
+
+### Bug Fixes
+
+* **metrics:** add total counters to Prometheus export for accurate counts with auto-removal ([#3967](https://github.com/taskforcesh/bullmq/issues/3967)) ([0bf1b4d](https://github.com/taskforcesh/bullmq/commit/0bf1b4d38475b320c89947b9779ec7301ec10117))
+
+## [5.76.2](https://github.com/taskforcesh/bullmq/compare/v5.76.1...v5.76.2) (2026-04-25)
+
+
+### Bug Fixes
+
+* **deps:** replace uuid with crypto ([#4099](https://github.com/taskforcesh/bullmq/issues/4099)) ([595016e](https://github.com/taskforcesh/bullmq/commit/595016ef1d3a960ad83dfbbc189034561e099482))
+
+## [5.76.1](https://github.com/taskforcesh/bullmq/compare/v5.76.0...v5.76.1) (2026-04-22)
+
+
+### Bug Fixes
+
+* **worker:** use scheduler registry to discriminate repeatable keys ([#4007](https://github.com/taskforcesh/bullmq/issues/4007)) ([ea7705d](https://github.com/taskforcesh/bullmq/commit/ea7705df6938cb432eceff242f6828054766f61a))
+ 
 # [5.76.0](https://github.com/taskforcesh/bullmq/compare/v5.75.2...v5.76.0) (2026-04-22)
 
 
 ### Features
 
-* **python:** add type hints to worker.py methods ([#4035](https://github.com/taskforcesh/bullmq/issues/4035)) ([1423b58](https://github.com/taskforcesh/bullmq/commit/1423b584b5707b3f71ee2fba5eb14122fb7b0275))
+* Nothing changed, triggered by a python version release
 
 ## [5.75.2](https://github.com/taskforcesh/bullmq/compare/v5.75.1...v5.75.2) (2026-04-20)
 
