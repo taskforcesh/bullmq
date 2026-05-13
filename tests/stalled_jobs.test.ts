@@ -1046,19 +1046,13 @@ describe('stalled jobs', () => {
 
         await worker.waitUntilReady();
 
-        const allActive = Promise.race([
-          new Promise(resolve => {
-            worker.on('active', after(concurrency, resolve));
-          }),
-          delay(100),
-        ]);
+        const allActive = new Promise(resolve => {
+          worker.on('active', after(concurrency, resolve));
+        });
 
-        const failures = Promise.race([
-          new Promise(resolve => {
-            worker.on('failed', after(2, resolve));
-          }),
-          delay(100),
-        ]);
+        const failures = new Promise(resolve => {
+          worker.on('failed', after(2, resolve));
+        });
 
         const jobs = Array.from(Array(4).keys()).map(index => ({
           name: 'test',
