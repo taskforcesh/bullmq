@@ -2181,25 +2181,31 @@ describe('deduplication', () => {
       const deduplicationId = 'dedup-custom-id';
       const customId = 'my-custom-id';
 
+      let resolveFirstProcessing: () => void;
+      const firstProcessingStarted = new Promise<void>(resolve => {
+        resolveFirstProcessing = resolve;
+      });
+
+      const processedData: any[] = [];
       const worker = new Worker(
         queueName,
-        async () => {
-          await delay(50);
+        async job => {
+          if (processedData.length === 0) {
+            resolveFirstProcessing();
+            await delay(500);
+          }
+          processedData.push(job.id);
         },
         { autorun: false, connection, prefix },
       );
       await worker.waitUntilReady();
 
-      const completedIds: string[] = [];
-      const completing = new Promise<void>((resolve, reject) => {
-        worker.on('completed', job => {
-          try {
-            completedIds.push(job.id!);
-            if (completedIds.length === 2) {
-              resolve();
-            }
-          } catch (error) {
-            reject(error);
+      const allCompleted = new Promise<void>(resolve => {
+        let count = 0;
+        worker.on('completed', () => {
+          count++;
+          if (count === 2) {
+            resolve();
           }
         });
       });
@@ -2207,20 +2213,19 @@ describe('deduplication', () => {
       worker.run();
 
       await queue.add(testName, { seq: 1 }, {
-        jobId: 'first-job',
-        deduplication: { id: deduplicationId },
+        deduplication: { id: deduplicationId, keepLastIfActive: true },
       });
 
-      await delay(25);
+      await firstProcessingStarted;
 
       await queue.add(testName, { seq: 2 }, {
         jobId: customId,
-        deduplication: { id: deduplicationId },
+        deduplication: { id: deduplicationId, keepLastIfActive: true },
       });
 
-      await completing;
+      await allCompleted;
 
-      expect(completedIds).toContain(customId);
+      expect(processedData).toContain(customId);
       await worker.close();
     });
 
@@ -2228,25 +2233,31 @@ describe('deduplication', () => {
       const testName = 'test';
       const deduplicationId = 'dedup-incr-test';
 
+      let resolveFirstProcessing: () => void;
+      const firstProcessingStarted = new Promise<void>(resolve => {
+        resolveFirstProcessing = resolve;
+      });
+
+      const processedData: any[] = [];
       const worker = new Worker(
         queueName,
-        async () => {
-          await delay(50);
+        async job => {
+          if (processedData.length === 0) {
+            resolveFirstProcessing();
+            await delay(500);
+          }
+          processedData.push(job.id);
         },
         { autorun: false, connection, prefix },
       );
       await worker.waitUntilReady();
 
-      const completedIds: string[] = [];
-      const completing = new Promise<void>((resolve, reject) => {
-        worker.on('completed', job => {
-          try {
-            completedIds.push(job.id!);
-            if (completedIds.length === 2) {
-              resolve();
-            }
-          } catch (error) {
-            reject(error);
+      const allCompleted = new Promise<void>(resolve => {
+        let count = 0;
+        worker.on('completed', () => {
+          count++;
+          if (count === 2) {
+            resolve();
           }
         });
       });
@@ -2254,26 +2265,21 @@ describe('deduplication', () => {
       worker.run();
 
       await queue.add(testName, { seq: 1 }, {
-        jobId: 'custom-a',
-        deduplication: { id: deduplicationId },
+        deduplication: { id: deduplicationId, keepLastIfActive: true },
       });
 
-      await delay(25);
+      await firstProcessingStarted;
 
       await queue.add(testName, { seq: 2 }, {
         jobId: 'custom-b',
-        deduplication: { id: deduplicationId },
+        deduplication: { id: deduplicationId, keepLastIfActive: true },
       });
 
-      await completing;
+      await allCompleted;
 
-      // After the dedup requeue, adding a new job without a custom ID
-      // should produce an auto-incremented ID that does not collide
-      // with any previously used ID.
       const autoIdJob = await queue.add(testName, { seq: 3 });
       const autoId = Number(autoIdJob.id);
       expect(autoId).toBeGreaterThanOrEqual(1);
-      expect(autoIdJob.id).not.toBe('custom-a');
       expect(autoIdJob.id).not.toBe('custom-b');
 
       await worker.close();
