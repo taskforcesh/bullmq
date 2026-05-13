@@ -1611,6 +1611,40 @@ describe('Job Scheduler', () => {
     });
   });
 
+  // Regression for https://github.com/taskforcesh/bullmq/issues/3705:
+  // upsertJobScheduler with `every` and an explicit `offset` used to
+  // align the first job to the next `offset` slot after now, e.g.
+  // `every: 15min, offset: 3min` produced jobs at :03, :18, :33, :48.
+  // PR #3446 (v5.58.8) regressed this — the offset was recorded but
+  // ignored, and the first job ran immediately at `now`.
+  describe("when 'every' and offset are provided on upsert", () => {
+    it('aligns the first job to the next offset slot after now', async () => {
+      const every = 15 * 60 * 1000;
+      const offset = 3 * 60 * 1000;
+      // 9:10 — between :03 and :18 within the 15-min slot.
+      const date = new Date('2017-02-07 9:10:00');
+      clock.setSystemTime(date);
+
+      await queue.upsertJobScheduler(
+        'test',
+        { every, offset },
+        { name: 'test', data: {} },
+      );
+
+      const expectedNext =
+        Math.floor(date.getTime() / every) * every + offset + every;
+
+      const schedulers = await queue.getJobSchedulers();
+      expect(schedulers).toHaveLength(1);
+      expect(schedulers[0].next).toBe(expectedNext);
+
+      const delayed = await queue.getDelayed();
+      expect(delayed).toHaveLength(1);
+      // The delayed job's timestamp + delay should equal the next slot.
+      expect(delayed[0].timestamp + delayed[0].delay).toBe(expectedNext);
+    });
+  });
+
   describe("when using 'every' and offset plus delay of being picked by a worker is same as delay", function () {
     it('should repeat every 2 seconds and start immediately', async () => {
       const offset = 1900;
