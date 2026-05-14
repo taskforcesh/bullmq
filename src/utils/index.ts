@@ -152,10 +152,20 @@ export function decreaseMaxListeners(
   increaseMaxListeners(emitter, -count);
 }
 
-type RemoveAllQueueDataClient = Pick<
-  RedisClient,
-  'scanStream' | 'pipeline' | 'quit'
-> & {
+type RemoveAllQueueDataPipeline = {
+  del(key: string): any;
+  exec(): Promise<any>;
+};
+
+type RemoveAllQueueDataClient = {
+  scanStream(options: { match: string; count?: number }): {
+    on(event: 'data', listener: (keys: string[]) => void): any;
+    on(event: 'end', listener: () => void): any;
+    on(event: 'error', listener: (error: Error) => void): any;
+  };
+  pipeline(): RemoveAllQueueDataPipeline;
+  quit(): Promise<any>;
+
   // Optional to keep compatibility with raw ioredis Redis instances.
   isCluster?: boolean;
 };

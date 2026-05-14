@@ -170,7 +170,7 @@ describe('Cluster support', () => {
         });
 
         // Verify that duplicate was called with connectionName directly
-        expect(duplicateStub.calledOnce).to.be.true;
+        expect(duplicateStub.calledOnce).toBe(true);
         const duplicateCall = duplicateStub.getCall(0);
 
         // First argument should be an object with connectionName for regular Redis
@@ -302,12 +302,9 @@ describe('Cluster support', () => {
         expect(workers[1]).toHaveProperty('name', queueName);
 
         // Verify all nodes were queried
-        expect((mockNode1.client as sinon.SinonStub).calledWith('LIST')).to.be
-          .true;
-        expect((mockNode2.client as sinon.SinonStub).calledWith('LIST')).to.be
-          .true;
-        expect((mockNode3.client as sinon.SinonStub).calledWith('LIST')).to.be
-          .true;
+        expect((mockNode1.clientList as sinon.SinonStub).called).toBe(true);
+        expect((mockNode2.clientList as sinon.SinonStub).called).toBe(true);
+        expect((mockNode3.clientList as sinon.SinonStub).called).toBe(true);
       });
 
       it('should return workers from node with most matching connections', async () => {
