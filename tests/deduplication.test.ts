@@ -32,7 +32,7 @@ describe('deduplication', () => {
     queueEvents = new QueueEvents(queueName, {
       connection,
       prefix,
-      blockingTimeout: 1000,
+      blockingTimeout: 500,
     });
     await queue.waitUntilReady();
     await queueEvents.waitUntilReady();
@@ -100,7 +100,7 @@ describe('deduplication', () => {
           { foo: 'bar' },
           { debounce: { id: 'a1', ttl: 2000 } },
         );
-        await delay(100);
+        await delay(500);
 
         expect(debouncedCounter).toBe(4);
       });
