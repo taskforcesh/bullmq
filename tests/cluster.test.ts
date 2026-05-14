@@ -11,7 +11,144 @@ import {
 
 import * as sinon from 'sinon';
 import { Queue, Worker, QueueEvents } from '../src/classes';
+import { createIORedisClient } from '../src/classes/ioredis-client';
 import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+
+describe('createIORedisClient Cluster duplicate routing', () => {
+  it('should route duplicate({ connectionName }) through redisOptions for Cluster', () => {
+    const fakeClusterDuplicate = sinon.stub().returns({
+      isCluster: true,
+      options: {},
+      duplicate: sinon.stub(),
+      pipeline: sinon.stub().returns({ exec: sinon.stub() }),
+      multi: sinon.stub(),
+      defineCommand: sinon.stub(),
+      hset: sinon.stub(),
+      set: sinon.stub(),
+      zrange: sinon.stub(),
+      zrevrange: sinon.stub(),
+      xadd: sinon.stub(),
+      xread: sinon.stub(),
+      xtrim: sinon.stub(),
+      bzpopmin: sinon.stub(),
+      scan: sinon.stub(),
+      client: sinon.stub(),
+      status: 'ready',
+      on: sinon.stub(),
+      once: sinon.stub(),
+      off: sinon.stub(),
+      connect: sinon.stub(),
+      disconnect: sinon.stub(),
+      scanStream: sinon.stub(),
+    });
+
+    // Minimal ioredis Cluster-like object
+    const fakeCluster = {
+      isCluster: true,
+      options: { redisOptions: { password: 'secret' } },
+      duplicate: fakeClusterDuplicate,
+      pipeline: sinon.stub().returns({ exec: sinon.stub() }),
+      multi: sinon.stub(),
+      defineCommand: sinon.stub(),
+      hset: sinon.stub(),
+      set: sinon.stub(),
+      zrange: sinon.stub(),
+      zrevrange: sinon.stub(),
+      xadd: sinon.stub(),
+      xread: sinon.stub(),
+      xtrim: sinon.stub(),
+      bzpopmin: sinon.stub(),
+      scan: sinon.stub(),
+      client: sinon.stub(),
+      status: 'ready',
+      on: sinon.stub(),
+      once: sinon.stub(),
+      off: sinon.stub(),
+      connect: sinon.stub(),
+      disconnect: sinon.stub(),
+      scanStream: sinon.stub(),
+    } as any;
+
+    const adapted = createIORedisClient(fakeCluster);
+    adapted.duplicate({ connectionName: 'bull:abc:w:myWorker' });
+
+    expect(fakeClusterDuplicate.calledOnce).toBe(true);
+    const args = fakeClusterDuplicate.getCall(0).args;
+
+    // First arg must be undefined (startup nodes)
+    expect(args[0]).toBeUndefined();
+
+    // Second arg must carry redisOptions with merged connectionName + existing options
+    expect(args[1]).toHaveProperty('redisOptions');
+    expect(args[1].redisOptions.connectionName).toBe('bull:abc:w:myWorker');
+    // Existing redisOptions (e.g. password) must be preserved
+    expect(args[1].redisOptions.password).toBe('secret');
+  });
+
+  it('should pass options directly for non-Cluster Redis', () => {
+    const fakeRedisDuplicate = sinon.stub().returns({
+      isCluster: false,
+      options: {},
+      duplicate: sinon.stub(),
+      pipeline: sinon.stub().returns({ exec: sinon.stub() }),
+      multi: sinon.stub(),
+      defineCommand: sinon.stub(),
+      hset: sinon.stub(),
+      set: sinon.stub(),
+      zrange: sinon.stub(),
+      zrevrange: sinon.stub(),
+      xadd: sinon.stub(),
+      xread: sinon.stub(),
+      xtrim: sinon.stub(),
+      bzpopmin: sinon.stub(),
+      scan: sinon.stub(),
+      client: sinon.stub(),
+      status: 'ready',
+      on: sinon.stub(),
+      once: sinon.stub(),
+      off: sinon.stub(),
+      connect: sinon.stub(),
+      disconnect: sinon.stub(),
+      scanStream: sinon.stub(),
+    });
+
+    const fakeRedis = {
+      isCluster: false,
+      options: {},
+      duplicate: fakeRedisDuplicate,
+      pipeline: sinon.stub().returns({ exec: sinon.stub() }),
+      multi: sinon.stub(),
+      defineCommand: sinon.stub(),
+      hset: sinon.stub(),
+      set: sinon.stub(),
+      zrange: sinon.stub(),
+      zrevrange: sinon.stub(),
+      xadd: sinon.stub(),
+      xread: sinon.stub(),
+      xtrim: sinon.stub(),
+      bzpopmin: sinon.stub(),
+      scan: sinon.stub(),
+      client: sinon.stub(),
+      status: 'ready',
+      on: sinon.stub(),
+      once: sinon.stub(),
+      off: sinon.stub(),
+      connect: sinon.stub(),
+      disconnect: sinon.stub(),
+      scanStream: sinon.stub(),
+    } as any;
+
+    const adapted = createIORedisClient(fakeRedis);
+    adapted.duplicate({ connectionName: 'bull:abc:w:myWorker' });
+
+    expect(fakeRedisDuplicate.calledOnce).toBe(true);
+    const args = fakeRedisDuplicate.getCall(0).args;
+
+    // For non-cluster, options go directly as first arg
+    expect(args[0]).toEqual({ connectionName: 'bull:abc:w:myWorker' });
+    expect(args[1]).toBeUndefined();
+  });
+});
 
 describe('Cluster support', () => {
   const redisHost = process.env.REDIS_HOST || 'localhost';
