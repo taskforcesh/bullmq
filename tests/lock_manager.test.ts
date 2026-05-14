@@ -8,7 +8,7 @@ import {
   expect,
 } from 'vitest';
 
-import { v4 } from 'uuid';
+import { randomUUID } from '../src/utils';
 import { LockManager, Queue, Worker } from '../src/classes';
 import { LockManagerWorkerContext } from '../src/interfaces';
 import { delay, removeAllQueueData } from '../src/utils';
@@ -410,7 +410,7 @@ describe('LockManager', () => {
     let queueName: string;
 
     beforeEach(async () => {
-      queueName = `test-lock-manager-${v4()}`;
+      queueName = `test-lock-manager-${randomUUID()}`;
       queue = new Queue(queueName, { connection, prefix });
     });
 

@@ -8,7 +8,7 @@ import {
   expect,
 } from 'vitest';
 
-import { v4 } from 'uuid';
+import { randomUUID } from '../src/utils';
 import { Queue, QueueEvents, Worker, Job } from '../src/classes';
 import { removeAllQueueData, delay } from '../src/utils';
 import { createTestConnection } from './connection-factory';
@@ -25,7 +25,7 @@ describe('bulk jobs', () => {
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
   });
 
@@ -73,7 +73,7 @@ describe('bulk jobs', () => {
 
   it('should allow to pass parent option', async () => {
     const name = 'test';
-    const parentQueueName = `parent-queue-${v4()}`;
+    const parentQueueName = `parent-queue-${randomUUID()}`;
     const parentQueue = new Queue(parentQueueName, { connection, prefix });
 
     const parentWorker = new Worker(parentQueueName, null, {

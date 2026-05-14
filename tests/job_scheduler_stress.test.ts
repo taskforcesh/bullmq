@@ -9,7 +9,7 @@ import {
   expect,
 } from 'vitest';
 
-import { v4 } from 'uuid';
+import { randomUUID } from '../src/utils';
 import { Job, Queue, QueueEvents, Repeat, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 import { createTestConnection } from './connection-factory';
@@ -32,7 +32,7 @@ describe('Job Scheduler Stress', () => {
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     repeat = new Repeat(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
