@@ -6,6 +6,11 @@ import semver
 
 
 def isRedisVersionLowerThan(current_version, minimum_version):
+    # When the Redis server does not advertise a version (e.g. some hosted
+    # services) we treat it as "unknown, assume modern" rather than raising,
+    # so callers don't crash on a missing field.
+    if current_version is None:
+        return False
     return semver.Version.parse(current_version).compare(minimum_version) == -1
 
 

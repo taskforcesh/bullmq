@@ -21,8 +21,7 @@ import {
   Worker,
 } from '../src/classes';
 
-import { v4 } from 'uuid';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 const { stdout, stderr } = require('test-console');
 
 describe('Sandboxed process using child processes', () => {
@@ -41,7 +40,7 @@ describe('Sandboxed process using child processes', () => {
     });
 
     beforeEach(async () => {
-      queueName = `test-${v4()}`;
+      queueName = `test-${randomUUID()}`;
       queue = new Queue(queueName, { connection, prefix });
       queueEvents = new QueueEvents(queueName, { connection, prefix });
       await queueEvents.waitUntilReady();
@@ -174,7 +173,7 @@ describe('Sandboxed process using worker threads', () => {
     });
 
     beforeEach(async () => {
-      queueName = `test-${v4()}`;
+      queueName = `test-${randomUUID()}`;
       queue = new Queue(queueName, { connection, prefix });
       queueEvents = new QueueEvents(queueName, { connection, prefix });
       await queueEvents.waitUntilReady();
@@ -245,7 +244,7 @@ function sandboxProcessTests(
     });
 
     beforeEach(async () => {
-      queueName = `test-${v4()}`;
+      queueName = `test-${randomUUID()}`;
       queue = new Queue(queueName, { connection, prefix });
       queueEvents = new QueueEvents(queueName, { connection, prefix });
       await queueEvents.waitUntilReady();
@@ -810,7 +809,7 @@ function sandboxProcessTests(
         __dirname + '/fixtures/fixture_processor_get_children_values_child.js';
       const parentProcessFile =
         __dirname + '/fixtures/fixture_processor_get_children_values.js';
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       const parentWorker = new Worker(parentQueueName, parentProcessFile, {
         connection,
@@ -875,7 +874,7 @@ function sandboxProcessTests(
         __dirname + '/fixtures/fixture_processor_get_children_values_child.js';
       const parentProcessFile =
         __dirname + '/fixtures/fixture_processor_get_children_values.js';
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       const parentWorker = new Worker(parentQueueName, parentProcessFile, {
         connection,
@@ -932,7 +931,7 @@ function sandboxProcessTests(
         '/fixtures/fixture_processor_get_children_failures_child.js';
       const parentProcessFile =
         __dirname + '/fixtures/fixture_processor_get_children_failures.js';
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       const parentWorker = new Worker(parentQueueName, parentProcessFile, {
         connection,
@@ -995,7 +994,7 @@ function sandboxProcessTests(
         '/fixtures/fixture_processor_get_dependencies_count_child.js';
       const parentProcessFile =
         __dirname + '/fixtures/fixture_processor_get_dependencies_count.js';
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       const parentWorker = new Worker(parentQueueName, parentProcessFile, {
         connection,
@@ -1046,19 +1045,85 @@ function sandboxProcessTests(
     });
 
     it('will fail job if calling getDependenciesCount is too slow', async () => {
-      const getDependenciesCount = Job.prototype.getDependenciesCount;
-      Job.prototype.getDependenciesCount = async function () {
-        await delay(50000);
-        return getDependenciesCount.call(this);
-      };
+      const originalGetDependenciesCount = Job.prototype.getDependenciesCount;
+      try {
+        Job.prototype.getDependenciesCount = async function () {
+          await delay(50000);
+          return originalGetDependenciesCount.call(this);
+        };
 
+        const childJobId = 'child-job-id';
+        const childProcessFile =
+          __dirname +
+          '/fixtures/fixture_processor_get_dependencies_count_child.js';
+        const parentProcessFile =
+          __dirname + '/fixtures/fixture_processor_get_dependencies_count.js';
+        const parentQueueName = `parent-queue-${randomUUID()}`;
+
+        const parentWorker = new Worker(parentQueueName, parentProcessFile, {
+          connection,
+          prefix,
+          drainDelay: 1,
+          useWorkerThreads,
+        });
+
+        const childWorker = new Worker(queueName, childProcessFile, {
+          connection,
+          prefix,
+          drainDelay: 1,
+          useWorkerThreads,
+        });
+
+        const parentFailing = new Promise<void>((resolve, reject) => {
+          parentWorker.on('failed', async (_, error: Error) => {
+            try {
+              expect(error.message).toEqual(
+                'TimeoutError: getDependenciesCount timed out in (500ms)',
+              );
+              resolve();
+            } catch (err) {
+              await parentWorker.close();
+              reject(err);
+            }
+          });
+
+          parentWorker.on('completed', async () => {
+            await parentWorker.close();
+            reject(
+              new Error(
+                'Expected parent job to fail with timeout, but it completed',
+              ),
+            );
+          });
+        });
+
+        const flow = new FlowProducer({ connection, prefix });
+        await flow.add({
+          name: 'parent-job',
+          queueName: parentQueueName,
+          opts: { jobId: 'job-id' },
+          children: [
+            { name: 'child-job', queueName, opts: { jobId: childJobId } },
+          ],
+        });
+
+        await parentFailing;
+        await parentWorker.close();
+        await childWorker.close();
+        await flow.close();
+        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      } finally {
+        Job.prototype.getDependenciesCount = originalGetDependenciesCount;
+      }
+    });
+
+    it('can get dependencies by calling getDependencies', async () => {
       const childJobId = 'child-job-id';
       const childProcessFile =
-        __dirname +
-        '/fixtures/fixture_processor_get_dependencies_count_child.js';
+        __dirname + '/fixtures/fixture_processor_get_dependencies_child.js';
       const parentProcessFile =
-        __dirname + '/fixtures/fixture_processor_get_dependencies_count.js';
-      const parentQueueName = `parent-queue-${v4()}`;
+        __dirname + '/fixtures/fixture_processor_get_dependencies.js';
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       const parentWorker = new Worker(parentQueueName, parentProcessFile, {
         connection,
@@ -1074,17 +1139,20 @@ function sandboxProcessTests(
         useWorkerThreads,
       });
 
-      const parentFailing = new Promise<void>((resolve, reject) => {
-        parentWorker.on('failed', async (_, error: Error) => {
+      const parentCompleting = new Promise<void>((resolve, reject) => {
+        parentWorker.on('completed', async (job: Job, value: any) => {
           try {
-            expect(error.message).toEqual(
-              'TimeoutError: getDependenciesCount timed out in (500ms)',
-            );
+            expect(value).toHaveProperty('processed');
             resolve();
           } catch (err) {
             await parentWorker.close();
             reject(err);
           }
+        });
+
+        parentWorker.on('failed', async (_, error: Error) => {
+          await parentWorker.close();
+          reject(error);
         });
       });
 
@@ -1098,13 +1166,83 @@ function sandboxProcessTests(
         ],
       });
 
-      await parentFailing;
+      await parentCompleting;
       await parentWorker.close();
       await childWorker.close();
       await flow.close();
-
-      Job.prototype.getDependenciesCount = getDependenciesCount;
       await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+    });
+
+    it('will fail job if calling getDependencies is too slow', async () => {
+      const originalGetDependencies = Job.prototype.getDependencies;
+      try {
+        Job.prototype.getDependencies = async function () {
+          await delay(50000);
+          return originalGetDependencies.call(this);
+        };
+
+        const childJobId = 'child-job-id';
+        const childProcessFile =
+          __dirname + '/fixtures/fixture_processor_get_dependencies_child.js';
+        const parentProcessFile =
+          __dirname + '/fixtures/fixture_processor_get_dependencies.js';
+        const parentQueueName = `parent-queue-${randomUUID()}`;
+
+        const parentWorker = new Worker(parentQueueName, parentProcessFile, {
+          connection,
+          prefix,
+          drainDelay: 1,
+          useWorkerThreads,
+        });
+
+        const childWorker = new Worker(queueName, childProcessFile, {
+          connection,
+          prefix,
+          drainDelay: 1,
+          useWorkerThreads,
+        });
+
+        const parentFailing = new Promise<void>((resolve, reject) => {
+          parentWorker.on('failed', async (_, error: Error) => {
+            try {
+              expect(error.message).toEqual(
+                'TimeoutError: getDependencies timed out in (500ms)',
+              );
+              resolve();
+            } catch (err) {
+              await parentWorker.close();
+              reject(err);
+            }
+          });
+
+          parentWorker.on('completed', async () => {
+            await parentWorker.close();
+            reject(
+              new Error(
+                'Expected parent job to fail with timeout, but it completed',
+              ),
+            );
+          });
+        });
+
+        const flow = new FlowProducer({ connection, prefix });
+        await flow.add({
+          name: 'parent-job',
+          queueName: parentQueueName,
+          opts: { jobId: 'job-id' },
+          children: [
+            { name: 'child-job', queueName, opts: { jobId: childJobId } },
+          ],
+        });
+
+        await parentFailing;
+        await parentWorker.close();
+        await childWorker.close();
+        await flow.close();
+        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      } finally {
+        Job.prototype.getDependencies = originalGetDependencies;
+      }
     });
 
     it('should process and move to delayed', async () => {
@@ -1199,7 +1337,7 @@ function sandboxProcessTests(
       const processFile =
         __dirname + '/fixtures/fixture_processor_move_to_wait_for_children.js';
 
-      const childQueueName = `test-${v4()}`;
+      const childQueueName = `test-${randomUUID()}`;
 
       const parentWorker = new Worker(queueName, processFile, {
         autorun: false,
@@ -1340,7 +1478,7 @@ function sandboxProcessTests(
 
     it('includes parent', async () => {
       const processFile = __dirname + '/fixtures/fixture_processor_parent.js';
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       const worker = new Worker(queueName, processFile, {
         connection,

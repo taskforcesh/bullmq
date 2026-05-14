@@ -2,7 +2,6 @@ import * as fs from 'fs';
 import { URL } from 'url';
 import type { Cluster, Redis } from 'ioredis';
 import * as path from 'path';
-import { v4 } from 'uuid';
 import { AbortController } from './abort-controller';
 
 import {
@@ -22,6 +21,7 @@ import {
   DELAY_TIME_1,
   isNotConnectionError,
   isRedisInstance,
+  randomUUID,
 } from '../utils';
 import { QueueBase } from './queue-base';
 import { Repeat } from './repeat';
@@ -196,6 +196,7 @@ export class Worker<
   protected lockManager: LockManager;
   private processorAcceptsSignal = false;
 
+  private stalledCheckerRunning = false;
   private stalledCheckStopper?: () => void;
   private waiting: Promise<number> | null = null;
   private _repeat: Repeat; // To be deprecated in v6 in favor of Job Scheduler
@@ -268,7 +269,7 @@ export class Worker<
     this.opts.lockRenewTime =
       this.opts.lockRenewTime || this.opts.lockDuration / 2;
 
-    this.id = v4();
+    this.id = randomUUID();
 
     this.createLockManager();
 
@@ -909,7 +910,27 @@ will never work with more accuracy than 1ms. */
       try {
         await this.retryIfFailed(
           async () => {
-            if (job.repeatJobKey && job.repeatJobKey.split(':').length < 5) {
+            // We need to distinguish between new job schedulers and legacy
+            // repeatable jobs. Legacy repeatable keys always contain 5+
+            // colon segments, but a user-provided jobSchedulerId may also
+            // contain 5+ segments, so we cannot rely on the segment count
+            // alone (see issue #3828). When the key has 5+ segments we
+            // probe the per-id scheduler metadata hash (`repeat:<id>` with
+            // the `ic` field) via `JobScheduler.isJobScheduler()` to confirm
+            // it really is a scheduler before falling back to the legacy
+            // repeatable path.
+            const hasRepeatJobKey = !!job.repeatJobKey;
+            const hasLegacyKeyShape =
+              hasRepeatJobKey && job.repeatJobKey.split(':').length >= 5;
+            let isJobScheduler = hasRepeatJobKey && !hasLegacyKeyShape;
+            if (hasLegacyKeyShape) {
+              const jobScheduler = await this.jobScheduler;
+              isJobScheduler = await jobScheduler.isJobScheduler(
+                job.repeatJobKey,
+              );
+            }
+
+            if (isJobScheduler) {
               const jobScheduler = await this.jobScheduler;
               await jobScheduler.upsertJobScheduler(
                 // Most of these arguments are not really needed
@@ -1185,7 +1206,7 @@ will never work with more accuracy than 1ms. */
    * Resumes processing of this worker (if paused).
    */
   resume(): void {
-    if (!this.running) {
+    if (!this.running || this.paused) {
       this.trace<void>(SpanKind.INTERNAL, 'resume', this.name, span => {
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
@@ -1194,10 +1215,21 @@ will never work with more accuracy than 1ms. */
 
         this.paused = false;
 
-        if (this.processFn) {
-          this.run();
+        if (!this.running) {
+          if (this.processFn) {
+            this.run();
+          }
+        } else {
+          // TODO: await for startStalledCheckTimer in next breaking change, that will convert resume method to async
+          // Main loop is still running (pause was called with doNotWaitActive=true).
+          // Restart the stalled checker since pause() stopped it.
+          void this.startStalledCheckTimer().catch(err => {
+            this.emit('error', err);
+          });
         }
         this.emit('resumed');
+      }).catch(err => {
+        this.emit('error', err);
       });
     }
   }
@@ -1298,7 +1330,7 @@ will never work with more accuracy than 1ms. */
    */
   async startStalledCheckTimer(): Promise<void> {
     if (!this.opts.skipStalledCheck) {
-      if (!this.closing) {
+      if (!this.closing && !this.stalledCheckerRunning) {
         await this.trace<void>(
           SpanKind.INTERNAL,
           'startStalledCheckTimer',
@@ -1309,9 +1341,14 @@ will never work with more accuracy than 1ms. */
               [TelemetryAttributes.WorkerName]: this.opts.name,
             });
 
-            this.stalledChecker().catch(err => {
-              this.emit('error', <Error>err);
-            });
+            this.stalledCheckerRunning = true;
+            this.stalledChecker()
+              .catch(err => {
+                this.emit('error', <Error>err);
+              })
+              .finally(() => {
+                this.stalledCheckerRunning = false;
+              });
           },
         );
       }

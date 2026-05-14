@@ -1,6 +1,7 @@
 import { AbortController } from './abort-controller';
 import { ParentCommand } from '../enums';
 import {
+  DependenciesOpts,
   MoveToWaitingChildrenOpts,
   Receiver,
   SandboxedJob,
@@ -303,6 +304,25 @@ export class ChildProcessor {
           processed?: number;
           unprocessed?: number;
         }>;
+      },
+
+      /**
+       * Proxy `getDependencies` function.
+       */
+      getDependencies: async (opts?: DependenciesOpts) => {
+        const requestId = Math.random().toString(36).substring(2, 15);
+        await send({
+          requestId,
+          cmd: ParentCommand.GetDependencies,
+          value: opts,
+        });
+
+        return waitResponse(
+          requestId,
+          this.receiver,
+          RESPONSE_TIMEOUT,
+          'getDependencies',
+        );
       },
     };
 

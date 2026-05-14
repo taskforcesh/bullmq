@@ -82,7 +82,7 @@ export class Job<
    * Stacktrace for the error (for failed jobs).
    * @defaultValue null
    */
-  stacktrace: string[] = null;
+  stacktrace: string[] | null = null;
 
   /**
    * An amount of milliseconds to wait until this job can be processed.
@@ -815,12 +815,12 @@ export class Job<
       SpanKind.INTERNAL,
       this.getSpanOperation(shouldRetry, retryDelay),
       this.queue.name,
-      async (span, dstPropagationMedatadata) => {
+      async (span, dstPropagationMetadata) => {
         this.setSpanJobAttributes(span);
 
         let tm;
-        if (!this.opts?.telemetry?.omitContext && dstPropagationMedatadata) {
-          tm = dstPropagationMedatadata;
+        if (!this.opts?.telemetry?.omitContext && dstPropagationMetadata) {
+          tm = dstPropagationMetadata;
         }
         let result;
 
@@ -1083,7 +1083,7 @@ export class Job<
 
   /**
    * Retrieves the failures of child jobs that were explicitly ignored while using ignoreDependencyOnFailure option.
-   * This method is useful for inspecting which child jobs were intentionally ignored when an error occured.
+   * This method is useful for inspecting which child jobs were intentionally ignored when an error occurred.
    * @see {@link https://docs.bullmq.io/guide/flows/ignore-dependency}
    *
    * @returns Object mapping children job keys with their failure values.
