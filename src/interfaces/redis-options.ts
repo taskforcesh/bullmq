@@ -14,6 +14,5 @@ export type ConnectionOptions =
   | RedisOptions
   | ClusterOptions
   | IORedis.Redis
-  | IORedis.Cluster
   | IRedisClient
   | IORedis.Cluster;
