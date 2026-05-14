@@ -56,13 +56,33 @@ export interface IRedisClient {
   // Lua script engine
   // ============================================================
 
-  /** Register a Lua script as a named command. */
+  /**
+   * Register a Lua script as a named command so it can later be invoked via
+   * {@link runCommand}.
+   *
+   * @param name       - Command name that will be callable via runCommand.
+   * @param definition - Script definition.
+   *   - `numberOfKeys` – number of KEYS[] arguments the script expects.
+   *   - `lua`          – Lua source code.
+   *   - `readOnly`     – (optional) hint that the script only reads data;
+   *                       some adapters (e.g. ioredis) use this to route the
+   *                       call to a replica in read-only mode.
+   */
   defineCommand(
     name: string,
-    definition: { numberOfKeys: number; lua: string },
+    definition: { numberOfKeys: number; lua: string; readOnly?: boolean },
   ): void;
 
-  /** Execute a previously registered Lua script command by name. */
+  /**
+   * Execute a previously registered Lua script command by name.
+   *
+   * @param name - The command name passed to {@link defineCommand}.
+   * @param args - Arguments forwarded to the script (KEYS first, then ARGV).
+   * @returns A `Promise<any>` whose resolved value matches the return value of
+   *   the Lua script.  BullMQ scripts return integers, strings, or arrays of
+   *   strings/integers.  Callers in {@link Scripts.execCommand} cast the result
+   *   to the expected concrete type after the call.
+   */
   runCommand(name: string, args: any[]): Promise<any>;
 
   // ============================================================

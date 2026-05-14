@@ -34,9 +34,6 @@ describe('Concurrency', () => {
 
   beforeEach(async () => {
     queueName = `test-${randomUUID()}`;
-    const flushClient = createTestConnection();
-    await (flushClient as any).flushall();
-    await flushClient.quit();
   });
 
   afterEach(async () => {
