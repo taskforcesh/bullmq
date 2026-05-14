@@ -9,6 +9,7 @@ import {
   decreaseMaxListeners,
   increaseMaxListeners,
   isNotConnectionError,
+  isRedisCluster,
   isRedisInstance,
   isRedisVersionLowerThan,
 } from '../utils';

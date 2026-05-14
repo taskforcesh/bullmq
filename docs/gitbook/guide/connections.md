@@ -61,6 +61,10 @@ Note that in the third example, even though the ioredis instance is being reused
 
 BullMQ does not create node-redis clients directly. Create the raw client in your application and wrap it with `createNodeRedisClient` before passing it to BullMQ.
 
+{% hint style="info" %}
+When using BullMQ's node-redis adapter, install `redis` v5 or newer. BullMQ declares `redis >= 5.0.0` as a peer dependency for this adapter.
+{% endhint %}
+
 ```typescript
 import { Queue, Worker, createNodeRedisClient } from 'bullmq';
 import { createClient } from 'redis';

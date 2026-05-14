@@ -139,7 +139,9 @@ export function isRedisInstance(
   return redisApi.every(name => typeof obj[name] === 'function');
 }
 
-export function isRedisCluster(obj: unknown): obj is IRedisClient {
+export function isRedisCluster(
+  obj: unknown,
+): obj is IRedisClient & { isCluster: true } {
   return isRedisInstance(obj) && !!(obj as any).isCluster;
 }
 
@@ -150,15 +152,24 @@ export function decreaseMaxListeners(
   increaseMaxListeners(emitter, -count);
 }
 
+type RemoveAllQueueDataClient = Pick<
+  RedisClient,
+  'scanStream' | 'pipeline' | 'quit'
+> & {
+  // Optional to keep compatibility with raw ioredis Redis instances.
+  isCluster?: boolean;
+};
+
 export async function removeAllQueueData(
-  client: RedisClient,
+  client: RemoveAllQueueDataClient,
   queueName: string,
   prefix = process.env.BULLMQ_TEST_PREFIX || 'bull',
 ): Promise<void | boolean> {
   if (client.isCluster) {
-    // todo compat with cluster ?
+    // scanStream is not cluster-safe across all key slots.
+    // Applies to adapter clients and raw ioredis Cluster clients alike.
     // @see https://github.com/luin/ioredis/issues/175
-    return Promise.resolve(false);
+    return false;
   }
   const pattern = `${prefix}:${queueName}:*`;
   const pendingOperations: Promise<any>[] = [];

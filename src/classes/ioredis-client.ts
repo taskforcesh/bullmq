@@ -285,5 +285,28 @@ function augmentTransaction(commander: ChainableCommander): IRedisTransaction {
  * Check if an object already implements {@link IRedisClient}.
  */
 export function isIRedisClient(obj: any): obj is IRedisClient {
-  return obj && typeof obj.runCommand === 'function';
+  if (!obj || typeof obj !== 'object') {
+    return false;
+  }
+
+  // Fast path for in-place ioredis augmentation.
+  if ((obj as any).__bullmq_iredis === true) {
+    return true;
+  }
+
+  // Fallback structural check for wrapper-based adapters
+  // (node-redis, Bun, or custom IRedisClient implementations).
+  return (
+    typeof obj.runCommand === 'function' &&
+    typeof obj.defineCommand === 'function' &&
+    typeof obj.pipeline === 'function' &&
+    typeof obj.multi === 'function' &&
+    typeof obj.duplicate === 'function' &&
+    typeof obj.scanStream === 'function' &&
+    typeof obj.connect === 'function' &&
+    typeof obj.disconnect === 'function' &&
+    typeof obj.on === 'function' &&
+    typeof obj.status === 'string' &&
+    typeof obj.isCluster === 'boolean'
+  );
 }

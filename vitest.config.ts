@@ -6,7 +6,13 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
 
     // Exclude old mocha tests (test_*.ts pattern)
-    exclude: ['tests/test_*.ts', 'tests/bun-redis.test.ts', 'node_modules/**'],
+    exclude: [
+      'tests/test_*.ts',
+      'tests/bun-redis.test.ts',
+      'tests/node-redis.test.ts',
+      'tests/adapter-conformance.test.ts',
+      'node_modules/**',
+    ],
 
     // Global test timeout
     testTimeout: 10000,

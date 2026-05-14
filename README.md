@@ -176,6 +176,8 @@ Install:
 $ yarn add bullmq
 ```
 
+If you use the node-redis adapter (`createNodeRedisClient`), install `redis` v5 or newer (`redis >= 5.0.0`).
+
 Add jobs to the queue:
 
 ```ts
