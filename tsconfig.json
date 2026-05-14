@@ -10,6 +10,7 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "strict": true,
+    "useDefineForClassFields": false,
     "jsx": "preserve",
     "importHelpers": true,
     "moduleResolution": "node",

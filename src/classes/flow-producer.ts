@@ -1,11 +1,11 @@
 import { EventEmitter } from 'events';
-import { Redis, ChainableCommander } from 'ioredis';
 import { v4 } from 'uuid';
 import {
   FlowJob,
   FlowQueuesOpts,
   FlowOpts,
   IoredisListener,
+  IRedisTransaction,
   ParentOptions,
   QueueBaseOptions,
   RedisClient,
@@ -19,7 +19,7 @@ import { RedisConnection } from './redis-connection';
 import { SpanKind, TelemetryAttributes } from '../enums';
 
 export interface AddNodeOpts {
-  multi: ChainableCommander;
+  multi: IRedisTransaction;
   node: FlowJob;
   parent?: {
     parentOpts: ParentOptions;
@@ -32,7 +32,7 @@ export interface AddNodeOpts {
 }
 
 export interface AddChildrenOpts {
-  multi: ChainableCommander;
+  multi: IRedisTransaction;
   nodes: FlowJob[];
   parent: {
     parentOpts: ParentOptions;
@@ -326,7 +326,7 @@ export class FlowProducer extends EventEmitter {
    * a parent and a child job at the same time depending on where it is located
    * in the tree hierarchy.
    *
-   * @param multi - ioredis ChainableCommander
+   * @param multi - IRedisTransaction
    * @param node - the node representing a job to be added to some queue
    * @param parent - parent data sent to children to create the "links" to their parent
    * @returns
@@ -394,7 +394,7 @@ export class FlowProducer extends EventEmitter {
             node.prefix || this.opts.prefix,
           );
 
-          await job.addJob(<Redis>(multi as unknown), {
+          await job.addJob(multi, {
             parentDependenciesKey: parent?.parentDependenciesKey,
             addToWaitingChildren: true,
             parentKey,
@@ -420,7 +420,7 @@ export class FlowProducer extends EventEmitter {
 
           return { job, children };
         } else {
-          await job.addJob(<Redis>(multi as unknown), {
+          await job.addJob(multi, {
             parentDependenciesKey: parent?.parentDependenciesKey,
             parentKey,
           });
@@ -437,12 +437,12 @@ export class FlowProducer extends EventEmitter {
    * a parent and a child job at the same time depending on where it is located
    * in the tree hierarchy.
    *
-   * @param multi - ioredis ChainableCommander
+   * @param multi - IRedisTransaction
    * @param nodes - the nodes representing jobs to be added to some queue
    * @returns
    */
   protected addNodes(
-    multi: ChainableCommander,
+    multi: IRedisTransaction,
     nodes: FlowJob[],
   ): Promise<JobNode[]> {
     return Promise.all(

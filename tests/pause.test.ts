@@ -1,4 +1,3 @@
-import { default as IORedis } from 'ioredis';
 import {
   describe,
   beforeEach,
@@ -12,9 +11,9 @@ import {
 import { v4 } from 'uuid';
 import { Job, Queue, QueueEvents, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
+import { createTestConnection } from './connection-factory';
 
 describe('Pause', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
   let queue: Queue;
@@ -23,7 +22,7 @@ describe('Pause', () => {
 
   let connection;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
@@ -36,7 +35,7 @@ describe('Pause', () => {
   afterEach(async () => {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async function () {

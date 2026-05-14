@@ -9,13 +9,12 @@ import {
   expect,
 } from 'vitest';
 
-import { default as IORedis } from 'ioredis';
 import { v4 } from 'uuid';
 import { Queue, Job, Worker, QueueEvents } from '../src/classes';
 import { removeAllQueueData, delay } from '../src/utils';
+import { createTestConnection } from './connection-factory';
 
 describe('Delayed jobs', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   // TODO: Move timeout to test options: { timeout: 15000 }
 
@@ -24,7 +23,7 @@ describe('Delayed jobs', () => {
 
   let connection;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
@@ -35,7 +34,7 @@ describe('Delayed jobs', () => {
 
   afterEach(async () => {
     await queue.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async function () {
@@ -69,7 +68,7 @@ describe('Delayed jobs', () => {
       worker.on('completed', async function (job) {
         try {
           expect(Date.now() > timestamp + delay);
-          expect(job.processedOn! - job.timestamp).to.be.greaterThanOrEqual(
+          expect(job.processedOn! - job.timestamp).toBeGreaterThanOrEqual(
             delay,
           );
           expect(
@@ -132,7 +131,7 @@ describe('Delayed jobs', () => {
         worker.on('completed', async function (job) {
           try {
             expect(Date.now() > timestamp + delayTime);
-            expect(job.processedOn! - job.timestamp).to.be.greaterThanOrEqual(
+            expect(job.processedOn! - job.timestamp).toBeGreaterThanOrEqual(
               delayTime,
             );
             expect(
@@ -221,8 +220,8 @@ describe('Delayed jobs', () => {
       const waiting = new Promise<void>(resolve => {
         queueEvents.on('waiting', () => {
           const currentDelay = Date.now() - timestamp;
-          expect(currentDelay).to.be.greaterThanOrEqual(delayTime);
-          expect(currentDelay).to.be.lessThanOrEqual(delayTime * margin);
+          expect(currentDelay).toBeGreaterThanOrEqual(delayTime);
+          expect(currentDelay).toBeLessThanOrEqual(delayTime * margin);
           resolve();
         });
       });
@@ -264,7 +263,7 @@ describe('Delayed jobs', () => {
       worker.on('completed', async function (job) {
         try {
           expect(Date.now() > timestamp + delayTime);
-          expect(job.processedOn! - job.timestamp).to.be.greaterThanOrEqual(
+          expect(job.processedOn! - job.timestamp).toBeGreaterThanOrEqual(
             delayTime,
           );
           expect(
@@ -323,7 +322,7 @@ describe('Delayed jobs', () => {
         order++;
         try {
           expect(order).toBe(job.data.order);
-          expect(job.processedOn! - job.timestamp).to.be.greaterThanOrEqual(
+          expect(job.processedOn! - job.timestamp).toBeGreaterThanOrEqual(
             job.opts.delay,
           );
           expect(
@@ -380,10 +379,9 @@ describe('Delayed jobs', () => {
         count++;
         try {
           const delayed = job.processedOn! - job.timestamp;
-          expect(
-            delayed,
-            'waited at least delay time',
-          ).to.be.greaterThanOrEqual(job.opts.delay);
+          expect(delayed, 'waited at least delay time').toBeGreaterThanOrEqual(
+            job.opts.delay,
+          );
           expect(delayed, 'processedOn is not within margin').toBeLessThan(
             job.opts.delay * margin,
           );
@@ -450,7 +448,7 @@ describe('Delayed jobs', () => {
             expect(
               delayed,
               'waited at least delay time',
-            ).to.be.greaterThanOrEqual(delay_);
+            ).toBeGreaterThanOrEqual(delay_);
             expect(
               delayed,
               'waited less than delay time and margin',

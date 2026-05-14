@@ -1,4 +1,3 @@
-import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
 import {
   describe,
@@ -19,9 +18,9 @@ import {
   Worker,
 } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
+import { createTestConnection } from './connection-factory';
 
 describe('Cleaner', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queue: Queue;
   let queueEvents: QueueEvents;
@@ -29,7 +28,7 @@ describe('Cleaner', () => {
 
   let connection;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
@@ -43,7 +42,7 @@ describe('Cleaner', () => {
   afterEach(async () => {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async function () {
@@ -748,7 +747,7 @@ describe('Cleaner', () => {
           expect(parentWaitCount).toEqual(1);
           await parentQueue.close();
           await flow.close();
-          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+          await removeAllQueueData(createTestConnection(), parentQueueName);
         });
       });
 
@@ -800,7 +799,7 @@ describe('Cleaner', () => {
           expect(parentWaitCount).toEqual(1);
           await parentQueue.close();
           await flow.close();
-          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+          await removeAllQueueData(createTestConnection(), parentQueueName);
         });
       });
     });
@@ -816,7 +815,7 @@ describe('Cleaner', () => {
     );
     await worker.waitUntilReady();
 
-    const client = new IORedis(redisHost);
+    const client = createTestConnection();
 
     await queue.add('test', { some: 'data' });
     await queue.add('test', { some: 'data' });
@@ -914,7 +913,7 @@ describe('Cleaner', () => {
 
       const orphanedIds = ['9990', '9991', '9992'];
       for (const id of orphanedIds) {
-        await client.hset(`${baseKey}:${id}`, 'name', 'orphaned', 'data', '{}');
+        await client.hset(`${baseKey}:${id}`, { name: 'orphaned', data: '{}' });
       }
 
       const removed = await queue.removeOrphanedJobs();
@@ -1102,7 +1101,7 @@ describe('Cleaner', () => {
       // Create orphaned jobs
       const orphanedIds = ['8001', '8002', '8003'];
       for (const id of orphanedIds) {
-        await client.hset(`${baseKey}:${id}`, 'name', 'orphan', 'data', '{}');
+        await client.hset(`${baseKey}:${id}`, { name: 'orphan', data: '{}' });
       }
 
       const removed = await queue.removeOrphanedJobs();
@@ -1172,13 +1171,10 @@ describe('Cleaner', () => {
 
       // Create an orphan with a custom-looking ID
       const orphanId = 'orphan-custom-id';
-      await client.hset(
-        `${baseKey}:${orphanId}`,
-        'name',
-        'orphan',
-        'data',
-        '{}',
-      );
+      await client.hset(`${baseKey}:${orphanId}`, {
+        name: 'orphan',
+        data: '{}',
+      });
 
       const removed = await queue.removeOrphanedJobs();
       expect(removed).toBe(1);
@@ -1217,7 +1213,7 @@ describe('Cleaner', () => {
       for (let i = 0; i < orphanCount; i++) {
         const id = `orphan-${String(i).padStart(4, '0')}`;
         orphanedIds.push(id);
-        pipeline.hset(`${baseKey}:${id}`, 'name', 'orphan', 'data', '{}');
+        pipeline.hset(`${baseKey}:${id}`, { name: 'orphan', data: '{}' });
       }
       await pipeline.exec();
 

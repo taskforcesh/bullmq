@@ -1,4 +1,3 @@
-import { default as IORedis } from 'ioredis';
 import { after, times } from 'lodash';
 import {
   describe,
@@ -29,11 +28,11 @@ import {
   isRedisVersionLowerThan,
   removeAllQueueData,
 } from '../src/utils';
+import { createTestConnection } from './connection-factory';
 
 const NoopProc = () => Promise.resolve();
 
 describe('workers', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
   const sandbox = sinon.createSandbox();
@@ -42,9 +41,9 @@ describe('workers', () => {
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  let connection: IORedis;
+  let connection;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
@@ -58,7 +57,7 @@ describe('workers', () => {
     sandbox.restore();
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async function () {
@@ -215,8 +214,8 @@ describe('workers', () => {
       await trimmedEventsQueue.client
     ).xlen(trimmedEventsQueue.keys.events);
 
-    expect(eventsLength).to.be.lt(numUpdateProgress + 10);
-    expect(eventsLength).to.be.gte(maxEvents);
+    expect(eventsLength).toBeLessThan(numUpdateProgress + 10);
+    expect(eventsLength).toBeGreaterThanOrEqual(maxEvents);
 
     await worker.close();
     await trimmedEventsQueue.close();
@@ -572,8 +571,8 @@ describe('workers', () => {
 
     await queue.addBulk(jobsData);
 
-    expect(bclientSpy.callCount).to.be.gte(0);
-    expect(bclientSpy.callCount).to.be.lte(1);
+    expect(bclientSpy.callCount).toBeGreaterThanOrEqual(0);
+    expect(bclientSpy.callCount).toBeLessThanOrEqual(1);
 
     await new Promise<void>(resolve => {
       worker.on('completed', () => {
@@ -1112,8 +1111,8 @@ describe('workers', () => {
       });
 
       const count = await queue.getJobCounts('active', 'failed');
-      expect(count.active).to.be.eq(0);
-      expect(count.failed).to.be.eq(1);
+      expect(count.active).toBe(0);
+      expect(count.failed).toBe(1);
       await closing;
     });
 
@@ -1151,8 +1150,8 @@ describe('workers', () => {
       });
 
       const count = await queue.getJobCounts('active', 'completed');
-      expect(count.active).to.be.eq(0);
-      expect(count.completed).to.be.eq(1);
+      expect(count.active).toBe(0);
+      expect(count.completed).toBe(1);
       await closing;
     });
   });
@@ -1208,9 +1207,9 @@ describe('workers', () => {
           });
           await worker.waitUntilReady();
 
-          expect(
-            worker['getBlockTimeout'](Date.now() - 1),
-          ).to.be.lessThanOrEqual(0);
+          expect(worker['getBlockTimeout'](Date.now() - 1)).toBeLessThanOrEqual(
+            0,
+          );
           await worker.close();
         });
       });
@@ -1250,10 +1249,7 @@ describe('workers', () => {
     it('should not fail', async () => {
       const queueName2 = `test-${v4()}`;
 
-      const connection = new IORedis({
-        host: redisHost,
-        maxRetriesPerRequest: null,
-      });
+      const connection = createTestConnection();
 
       const queue1 = new Queue(queueName2, { connection, prefix });
 
@@ -1289,7 +1285,7 @@ describe('workers', () => {
       await worker.close();
       await queue1.close();
       await connection.quit();
-      await removeAllQueueData(new IORedis(redisHost), queueName2);
+      await removeAllQueueData(createTestConnection(), queueName2);
     });
   });
 
@@ -1886,7 +1882,7 @@ describe('workers', () => {
           'completed',
           after(2, job => {
             const timeDiff = Date.now() - now;
-            expect(timeDiff).to.be.greaterThanOrEqual(4000);
+            expect(timeDiff).toBeGreaterThanOrEqual(4000);
             expect(timeDiff).toBeLessThan(4500);
             expect(job.delay).toBe(0);
             resolve();
@@ -2080,7 +2076,7 @@ describe('workers', () => {
 
   describe('when sharing a redis connection between workers', () => {
     it('should not close the connection', async () => {
-      const connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+      const connection = createTestConnection();
 
       return new Promise<void>((resolve, reject) => {
         connection.on('ready', async () => {
@@ -2116,9 +2112,7 @@ describe('workers', () => {
 
     describe('when connection is passed into a queue', () => {
       it('should not close the connection', async () => {
-        const connection = new IORedis(redisHost, {
-          maxRetriesPerRequest: null,
-        });
+        const connection = createTestConnection();
         const queueName2 = `test-shared-${v4()}`;
 
         const queue2 = new Queue(queueName2, {
@@ -2159,7 +2153,7 @@ describe('workers', () => {
         });
 
         await queue2.close();
-        await removeAllQueueData(new IORedis(redisHost), queueName2);
+        await removeAllQueueData(createTestConnection(), queueName2);
       });
     });
   });
@@ -2431,10 +2425,7 @@ describe('workers', () => {
   it('emits error if lock is "stolen"', async function () {
     // TODO: Move timeout to test options: { timeout: 10000 }
 
-    const connection = new IORedis({
-      host: redisHost,
-      maxRetriesPerRequest: null,
-    });
+    const connection = createTestConnection();
 
     const worker = new Worker(
       queueName,
@@ -2942,8 +2933,8 @@ describe('workers', () => {
             // Pause when all 4 works are processing
             await worker.pause();
             // Wait for all the active jobs to finalize.
-            expect(nbJobFinish).to.be.gte(3);
-            expect(nbJobFinish).to.be.lte(4);
+            expect(nbJobFinish).toBeGreaterThanOrEqual(3);
+            expect(nbJobFinish).toBeLessThanOrEqual(4);
           }
         });
 
@@ -3176,7 +3167,9 @@ describe('workers', () => {
                 expect(gotJob!.delay).toEqual(0);
                 resolve();
               } else {
-                expect(job?.delay).to.be.gte(2 ** (attemptsMade! - 1) * 200);
+                expect(job?.delay).toBeGreaterThanOrEqual(
+                  2 ** (attemptsMade! - 1) * 200,
+                );
               }
             } catch (err) {
               reject(err);
@@ -3222,7 +3215,9 @@ describe('workers', () => {
                   expect(job!.delay).toEqual(0);
                   resolve();
                 } else {
-                  expect(job?.delay).to.be.lte(2 ** (attemptsMade! - 1) * 200);
+                  expect(job?.delay).toBeLessThanOrEqual(
+                    2 ** (attemptsMade! - 1) * 200,
+                  );
                 }
               } catch (err) {
                 reject(err);
@@ -3268,10 +3263,10 @@ describe('workers', () => {
                     expect(job!.delay).toEqual(0);
                     resolve();
                   } else {
-                    expect(job?.delay).to.be.lte(
+                    expect(job?.delay).toBeLessThanOrEqual(
                       2 ** (attemptsMade! - 1) * 200,
                     );
-                    expect(job?.delay).to.be.gte(
+                    expect(job?.delay).toBeGreaterThanOrEqual(
                       2 ** (attemptsMade! - 1) * 200 * 0.5,
                     );
                   }
@@ -3323,8 +3318,8 @@ describe('workers', () => {
                 const gotJob = await queue.getJob(job.id!);
                 expect(gotJob!.delay).toEqual(0);
                 const timeDiff = Date.now() - now;
-                expect(timeDiff).to.be.greaterThanOrEqual(2250);
-                expect(timeDiff).to.be.lessThanOrEqual(2750);
+                expect(timeDiff).toBeGreaterThanOrEqual(2250);
+                expect(timeDiff).toBeLessThanOrEqual(2750);
                 resolve();
               }
             } catch (err) {
@@ -3370,7 +3365,7 @@ describe('workers', () => {
                   expect(job!.delay).toEqual(0);
                   resolve();
                 } else {
-                  expect(job?.delay).to.be.lte(750);
+                  expect(job?.delay).toBeLessThanOrEqual(750);
                 }
               } catch (err) {
                 reject(err);
@@ -3416,8 +3411,8 @@ describe('workers', () => {
                     expect(job!.delay).toEqual(0);
                     resolve();
                   } else {
-                    expect(job?.delay).to.be.lte(750);
-                    expect(job?.delay).to.be.gte(325);
+                    expect(job?.delay).toBeLessThanOrEqual(750);
+                    expect(job?.delay).toBeGreaterThanOrEqual(325);
                   }
                 } catch (err) {
                   reject(err);
@@ -4323,7 +4318,7 @@ describe('workers', () => {
           await worker.close();
           await childrenWorker.close();
           await parentQueue.close();
-          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+          await removeAllQueueData(createTestConnection(), parentQueueName);
         });
 
         describe('when skip attempt option is provided as true', () => {
@@ -4446,7 +4441,7 @@ describe('workers', () => {
             await worker.close();
             await childrenWorker.close();
             await parentQueue.close();
-            await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+            await removeAllQueueData(createTestConnection(), parentQueueName);
           });
         });
       });
@@ -5202,7 +5197,7 @@ describe('workers', () => {
         await parentWorker.close();
 
         await parentQueue.close();
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(createTestConnection(), parentQueueName);
       });
 
       describe('when job is not in active state', () => {
@@ -5287,7 +5282,7 @@ describe('workers', () => {
           await parentWorker.close();
 
           await parentQueue.close();
-          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+          await removeAllQueueData(createTestConnection(), parentQueueName);
         });
       });
     });
@@ -5347,7 +5342,7 @@ describe('workers', () => {
         ) ||
         childrenWorker.databaseType === 'dragonfly'
       ) {
-        expect(unprocessed1!.length).to.be.greaterThanOrEqual(50);
+        expect(unprocessed1!.length).toBeGreaterThanOrEqual(50);
         expect(nextCursor1).not.toBe(0);
       } else {
         expect(unprocessed1!.length).toBe(65);
@@ -5370,7 +5365,7 @@ describe('workers', () => {
         ) ||
         childrenWorker.databaseType === 'dragonfly'
       ) {
-        expect(unprocessed2!.length).to.be.lessThanOrEqual(15);
+        expect(unprocessed2!.length).toBeLessThanOrEqual(15);
         expect(nextCursor2).toBe(0);
       } else {
         expect(unprocessed2!.length).toBe(65);
@@ -5403,14 +5398,14 @@ describe('workers', () => {
           },
         });
 
-      expect(unprocessed3!.length).to.be.greaterThanOrEqual(50);
+      expect(unprocessed3!.length).toBeGreaterThanOrEqual(50);
       expect(nextCursor3).not.toBe(0);
 
       await childrenWorker.close();
       await parentWorker.close();
 
       await parentQueue.close();
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
 
     it('should allow to fail jobs manually', async () => {

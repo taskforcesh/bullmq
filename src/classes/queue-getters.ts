@@ -6,7 +6,6 @@ import { clientCommandMessageReg, QUEUE_EVENT_SUFFIX } from '../utils';
 import { JobState, JobType } from '../types';
 import { JobJsonRaw, Metrics, QueueMeta } from '../interfaces';
 import { MetricNames, TelemetryAttributes } from '../enums';
-import type { Cluster } from 'ioredis';
 
 /**
  * Provides different getters for different aspects of a queue.
@@ -536,11 +535,11 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
     const client = await this.client;
     try {
       if (client.isCluster) {
-        const clusterNodes = (client as Cluster).nodes();
+        const clusterNodes = client.nodes();
         const clientsPerNode: { [index: string]: string }[][] = [];
         for (let nodeIndex = 0; nodeIndex < clusterNodes.length; nodeIndex++) {
           const node = clusterNodes[nodeIndex];
-          const clients = (await node.client('LIST')) as string;
+          const clients = await node.clientList();
           const list = this.parseClientList(clients, matcher);
           clientsPerNode.push(list);
         }
@@ -552,7 +551,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
         );
         return clientsFromNodeWithMostConnections;
       } else {
-        const clients = (await client.client('LIST')) as string;
+        const clients = await client.clientList();
         const list = this.parseClientList(clients, matcher);
         return list;
       }

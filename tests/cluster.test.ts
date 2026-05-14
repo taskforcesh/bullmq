@@ -76,12 +76,14 @@ describe('Cluster support', () => {
           off: sinon.stub(),
         };
 
+        const duplicateStub = sinon.stub().returns(duplicatedConnection);
+
         // Create a mock cluster connection that satisfies isRedisInstance check
         const mockClusterConnection = {
           isCluster: true,
           connect: sinon.stub().resolves(),
           disconnect: sinon.stub().resolves(),
-          duplicate: sinon.stub().returns(duplicatedConnection),
+          duplicate: duplicateStub,
           defineCommand: sinon.stub(),
           info: sinon.stub().resolves('redis_version:7.0.0'),
           options: {},
@@ -103,12 +105,8 @@ describe('Cluster support', () => {
         });
 
         // Verify that duplicate was called with the correct arguments for cluster
-        expect(
-          (mockClusterConnection.duplicate as sinon.SinonStub).calledOnce,
-        ).toBe(true);
-        const duplicateCall = (
-          mockClusterConnection.duplicate as sinon.SinonStub
-        ).getCall(0);
+        expect(duplicateStub.calledOnce).toBe(true);
+        const duplicateCall = duplicateStub.getCall(0);
 
         // First argument should be undefined for cluster
         expect(duplicateCall.args[0]).toBeUndefined();
@@ -144,12 +142,14 @@ describe('Cluster support', () => {
           off: sinon.stub(),
         };
 
+        const duplicateStub = sinon.stub().returns(duplicatedConnection);
+
         // Create a mock Redis connection (non-cluster) that satisfies isRedisInstance check
         const mockRedisConnection = {
           isCluster: false,
           connect: sinon.stub().resolves(),
           disconnect: sinon.stub().resolves(),
-          duplicate: sinon.stub().returns(duplicatedConnection),
+          duplicate: duplicateStub,
           defineCommand: sinon.stub(),
           info: sinon.stub().resolves('redis_version:7.0.0'),
           options: {},
@@ -171,11 +171,8 @@ describe('Cluster support', () => {
         });
 
         // Verify that duplicate was called with connectionName directly
-        expect((mockRedisConnection.duplicate as sinon.SinonStub).calledOnce).to
-          .be.true;
-        const duplicateCall = (
-          mockRedisConnection.duplicate as sinon.SinonStub
-        ).getCall(0);
+        expect(duplicateStub.calledOnce).to.be.true;
+        const duplicateCall = duplicateStub.getCall(0);
 
         // First argument should be an object with connectionName for regular Redis
         expect(duplicateCall.args[0]).toHaveProperty('connectionName');
@@ -206,11 +203,13 @@ describe('Cluster support', () => {
           off: sinon.stub(),
         };
 
+        const duplicateStub = sinon.stub().returns(duplicatedConnection);
+
         const mockClusterConnection = {
           isCluster: true,
           connect: sinon.stub().resolves(),
           disconnect: sinon.stub().resolves(),
-          duplicate: sinon.stub().returns(duplicatedConnection),
+          duplicate: duplicateStub,
           defineCommand: sinon.stub(),
           info: sinon.stub().resolves('redis_version:7.0.0'),
           options: {},
@@ -229,12 +228,8 @@ describe('Cluster support', () => {
           name: workerName,
         });
 
-        expect(
-          (mockClusterConnection.duplicate as sinon.SinonStub).calledOnce,
-        ).toBe(true);
-        const duplicateCall = (
-          mockClusterConnection.duplicate as sinon.SinonStub
-        ).getCall(0);
+        expect(duplicateStub.calledOnce).toBe(true);
+        const duplicateCall = duplicateStub.getCall(0);
 
         expect(duplicateCall.args[1].redisOptions.connectionName).toContain(
           `:w:${workerName}`,
@@ -281,13 +276,13 @@ describe('Cluster support', () => {
         ]);
 
         const mockNode1 = {
-          client: sinon.stub().resolves(clientListNode1),
+          clientList: sinon.stub().resolves(clientListNode1),
         };
         const mockNode2 = {
-          client: sinon.stub().resolves(clientListNode2),
+          clientList: sinon.stub().resolves(clientListNode2),
         };
         const mockNode3 = {
-          client: sinon.stub().resolves(clientListNode3),
+          clientList: sinon.stub().resolves(clientListNode3),
         };
 
         const mockClusterClient = {
@@ -349,10 +344,10 @@ describe('Cluster support', () => {
         ]);
 
         const mockNode1 = {
-          client: sinon.stub().resolves(clientListNode1),
+          clientList: sinon.stub().resolves(clientListNode1),
         };
         const mockNode2 = {
-          client: sinon.stub().resolves(clientListNode2),
+          clientList: sinon.stub().resolves(clientListNode2),
         };
 
         const mockClusterClient = {
@@ -389,10 +384,10 @@ describe('Cluster support', () => {
         ]);
 
         const mockNode1 = {
-          client: sinon.stub().resolves(clientListNode1),
+          clientList: sinon.stub().resolves(clientListNode1),
         };
         const mockNode2 = {
-          client: sinon.stub().resolves(clientListNode2),
+          clientList: sinon.stub().resolves(clientListNode2),
         };
 
         const mockClusterClient = {
@@ -460,10 +455,10 @@ describe('Cluster support', () => {
       ]);
 
       const mockNode1 = {
-        client: sinon.stub().resolves(clientListNode1),
+        clientList: sinon.stub().resolves(clientListNode1),
       };
       const mockNode2 = {
-        client: sinon.stub().resolves(clientListNode2),
+        clientList: sinon.stub().resolves(clientListNode2),
       };
 
       const mockClusterClient = {
@@ -509,10 +504,10 @@ describe('Cluster support', () => {
       ]);
 
       const mockNode1 = {
-        client: sinon.stub().resolves(clientListNode1),
+        clientList: sinon.stub().resolves(clientListNode1),
       };
       const mockNode2 = {
-        client: sinon.stub().resolves(clientListNode2),
+        clientList: sinon.stub().resolves(clientListNode2),
       };
 
       const mockClusterClient = {
@@ -551,7 +546,7 @@ describe('Cluster support', () => {
         ]);
 
         const mockNode1 = {
-          client: sinon.stub().resolves(clientListNode1),
+          clientList: sinon.stub().resolves(clientListNode1),
         };
 
         const mockClusterClient = {
@@ -602,10 +597,10 @@ describe('Cluster support', () => {
         ]);
 
         const mockNode1 = {
-          client: sinon.stub().resolves(clientListNode1),
+          clientList: sinon.stub().resolves(clientListNode1),
         };
         const mockNode2 = {
-          client: sinon.stub().resolves(clientListNode2),
+          clientList: sinon.stub().resolves(clientListNode2),
         };
 
         const mockClusterClient = {
@@ -653,10 +648,10 @@ describe('Cluster support', () => {
         ]);
 
         const mockNode1 = {
-          client: sinon.stub().resolves(clientListNode1),
+          clientList: sinon.stub().resolves(clientListNode1),
         };
         const mockNode2 = {
-          client: sinon.stub().resolves(clientListNode2),
+          clientList: sinon.stub().resolves(clientListNode2),
         };
 
         const mockClusterClient = {

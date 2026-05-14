@@ -58,10 +58,10 @@ jobs:
             exit 1
           fi
 
-  node-redis:
+  ioredis-redis:
     runs-on: ubuntu-latest
 
-    name: testing node@${{ matrix.node-version }}, redis@${{ matrix.redis-version }}
+    name: testing ioredis node@${{ matrix.node-version }}, redis@${{ matrix.redis-version }}
 
     strategy:
       matrix:
@@ -88,6 +88,32 @@ jobs:
         run: yarn lint
       - run: yarn build
       - run: yarn test
+
+  node-redis:
+    runs-on: ubuntu-latest
+
+    name: testing node-redis node@${{ matrix.node-version }}, redis@${{ matrix.redis-version }}
+
+    strategy:
+      matrix:
+        node-version: [lts/*]
+        redis-version: [7-alpine]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'yarn'
+      - name: Start Redis
+        uses: supercharge/redis-github-action@bc274cb7238cd63a45029db04ee48c07a72609fd # 1.8.1
+        with:
+          redis-version: ${{ matrix.redis-version }}
+      - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
+      - run: yarn build
+      - run: yarn test:node-redis
 
   node-valkey:
     runs-on: ubuntu-latest
@@ -173,6 +199,7 @@ jobs:
           redis-version: ${{ matrix.redis-version }}
       - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
       - run: yarn build
+      - run: yarn test:bun-client
       - run: yarn test:bun
 
   # node-upstash:

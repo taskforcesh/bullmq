@@ -4,17 +4,18 @@ import { default as IORedis } from 'ioredis';
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import { ConnectionOptions, RedisOptions, RedisClient } from '../interfaces';
+import { IRedisClient } from '../interfaces/redis-client';
 import {
   decreaseMaxListeners,
   increaseMaxListeners,
   isNotConnectionError,
-  isRedisCluster,
   isRedisInstance,
   isRedisVersionLowerThan,
 } from '../utils';
 import { version as packageVersion } from '../version';
 import * as scripts from '../scripts';
 import { DatabaseType } from '../types';
+import { createIORedisClient, isIRedisClient } from './ioredis-client';
 
 const overrideMessage = [
   'BullMQ: WARNING! Your redis options maxRetriesPerRequest must be null',
@@ -38,6 +39,30 @@ export interface RawCommand {
 export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
   static recommendedMinimumVersion = '6.2.0';
+
+  /**
+   * Optional factory that creates an {@link IRedisClient} from raw options.
+   *
+   * When set, {@link RedisConnection} will call this factory instead of
+   * creating an ioredis client internally.  This allows swapping the Redis
+   * driver (e.g. node-redis, Bun built-in) without changing consumer code.
+   *
+   * The factory receives the merged {@link RedisOptions} and must return
+   * an **already-augmented** {@link IRedisClient} (e.g. via
+   * `createNodeRedisClient`).
+   *
+   * @example
+   * ```ts
+   * import { createClient } from 'redis';
+   * import { RedisConnection, createNodeRedisClient } from 'bullmq';
+   *
+   * RedisConnection.clientFactory = (opts) => {
+   *   const raw = createClient({ url: `redis://${opts.host ?? '127.0.0.1'}:${opts.port ?? 6379}` });
+   *   return createNodeRedisClient(raw);
+   * };
+   * ```
+   */
+  static clientFactory?: (opts: RedisOptions) => IRedisClient;
 
   closing: boolean;
   capabilities: RedisCapabilities = {
@@ -96,7 +121,10 @@ export class RedisConnection extends EventEmitter {
         this.opts.maxRetriesPerRequest = null;
       }
     } else {
-      this._client = opts;
+      // Wrap raw ioredis instances in the IRedisClient adapter if not already wrapped
+      this._client = isIRedisClient(opts)
+        ? opts
+        : createIORedisClient(opts as any);
 
       // Test if the redis instance is using keyPrefix
       // and if so, throw an error.
@@ -106,7 +134,7 @@ export class RedisConnection extends EventEmitter {
         );
       }
 
-      if (isRedisCluster(this._client)) {
+      if (this._client.isCluster) {
         this.opts = this._client.options.redisOptions;
       } else {
         this.opts = this._client.options;
@@ -220,21 +248,23 @@ export class RedisConnection extends EventEmitter {
     const finalScripts =
       providedScripts || (scripts as Record<string, RawCommand>);
     for (const property in finalScripts as Record<string, RawCommand>) {
-      // Only define the command if not already defined
       const commandName = `${finalScripts[property].name}:${packageVersion}`;
-      if (!(<any>this._client)[commandName]) {
-        (<any>this._client).defineCommand(commandName, {
-          numberOfKeys: finalScripts[property].keys,
-          lua: finalScripts[property].content,
-        });
-      }
+      this._client.defineCommand(commandName, {
+        numberOfKeys: finalScripts[property].keys,
+        lua: finalScripts[property].content,
+      });
     }
   }
 
   private async init() {
     if (!this._client) {
-      const { url, ...rest } = this.opts;
-      this._client = url ? new IORedis(url, rest) : new IORedis(rest);
+      if (RedisConnection.clientFactory) {
+        this._client = RedisConnection.clientFactory(this.opts);
+      } else {
+        const { url, ...rest } = this.opts;
+        const ioredisClient = url ? new IORedis(url, rest) : new IORedis(rest);
+        this._client = createIORedisClient(ioredisClient);
+      }
     }
 
     increaseMaxListeners(this._client, 3);

@@ -7,6 +7,7 @@ import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import {
   ChildMessage,
   ContextManager,
+  IRedisClient,
   ParentOptions,
   RedisClient,
   Span,
@@ -91,7 +92,7 @@ export function delay(
 }
 
 export function increaseMaxListeners(
-  emitter: EventEmitter,
+  emitter: { getMaxListeners(): number; setMaxListeners(n: number): any },
   count: number,
 ): void {
   const maxListeners = emitter.getMaxListeners();
@@ -127,7 +128,9 @@ export const optsEncodeMap = {
   /*/ Legacy for backwards compatibility */ debounce: 'de', // TODO: remove in next breaking change
 } as const;
 
-export function isRedisInstance(obj: any): obj is Redis | Cluster {
+export function isRedisInstance(
+  obj: any,
+): obj is IRedisClient | Redis | Cluster {
   if (!obj) {
     return false;
   }
@@ -135,12 +138,12 @@ export function isRedisInstance(obj: any): obj is Redis | Cluster {
   return redisApi.every(name => typeof obj[name] === 'function');
 }
 
-export function isRedisCluster(obj: unknown): obj is Cluster {
-  return isRedisInstance(obj) && (<Cluster>obj).isCluster;
+export function isRedisCluster(obj: unknown): obj is IRedisClient {
+  return isRedisInstance(obj) && !!(obj as any).isCluster;
 }
 
 export function decreaseMaxListeners(
-  emitter: EventEmitter,
+  emitter: { getMaxListeners(): number; setMaxListeners(n: number): any },
   count: number,
 ): void {
   increaseMaxListeners(emitter, -count);
@@ -151,7 +154,7 @@ export async function removeAllQueueData(
   queueName: string,
   prefix = process.env.BULLMQ_TEST_PREFIX || 'bull',
 ): Promise<void | boolean> {
-  if (client instanceof Cluster) {
+  if (client.isCluster) {
     // todo compat with cluster ?
     // @see https://github.com/luin/ioredis/issues/175
     return Promise.resolve(false);
@@ -211,7 +214,13 @@ export function isNotConnectionError(error: Error): boolean {
   return (
     errorMessage !== CONNECTION_CLOSED_ERROR_MSG &&
     !errorMessage.includes('ECONNREFUSED') &&
-    code !== 'ECONNREFUSED'
+    !errorMessage.includes('The client is closed') &&
+    !errorMessage.includes('ClientClosedError') &&
+    !errorMessage.includes('Socket closed unexpectedly') &&
+    !errorMessage.includes('Disconnects client') &&
+    !errorMessage.includes('Connection closed') &&
+    code !== 'ECONNREFUSED' &&
+    code !== 'ERR_REDIS_CONNECTION_CLOSED'
   );
 }
 

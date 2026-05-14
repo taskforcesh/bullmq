@@ -1,6 +1,5 @@
 import { FlowProducer, Queue, Worker, QueueEvents } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
-import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
 import {
   describe,
@@ -13,18 +12,18 @@ import {
 } from 'vitest';
 
 import { v4 } from 'uuid';
+import { createTestConnection } from './connection-factory';
 
 const NoopProc = () => Promise.resolve();
 
 describe('stalled jobs', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queue: Queue;
   let queueName: string;
 
-  let connection: IORedis;
+  let connection;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
@@ -34,7 +33,7 @@ describe('stalled jobs', () => {
 
   afterEach(async () => {
     await queue.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async function () {
@@ -508,7 +507,7 @@ describe('stalled jobs', () => {
         await parentWorker.close();
         await parentQueue.close();
         await flow.close();
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(createTestConnection(), parentQueueName);
       });
     });
 
@@ -600,7 +599,7 @@ describe('stalled jobs', () => {
         await worker2.close();
         await parentQueue.close();
         await flow.close();
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(createTestConnection(), parentQueueName);
       });
     });
 
@@ -694,7 +693,7 @@ describe('stalled jobs', () => {
         await worker2.close();
         await parentQueue.close();
         await flow.close();
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(createTestConnection(), parentQueueName);
       });
     });
 
@@ -783,7 +782,7 @@ describe('stalled jobs', () => {
         await worker2.close();
         await parentQueue.close();
         await flow.close();
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(createTestConnection(), parentQueueName);
       });
     });
 

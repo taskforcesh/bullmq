@@ -1,4 +1,3 @@
-import { default as IORedis } from 'ioredis';
 import {
   describe,
   beforeEach,
@@ -12,9 +11,9 @@ import {
 import { v4 } from 'uuid';
 import { Queue } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
+import { createTestConnection } from './connection-factory';
 
 describe('scripts', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
   let queue: Queue;
@@ -22,7 +21,7 @@ describe('scripts', () => {
 
   let connection;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
@@ -33,7 +32,7 @@ describe('scripts', () => {
 
   afterEach(async () => {
     await queue.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async function () {
@@ -150,7 +149,7 @@ describe('scripts', () => {
       const scripts = queue['scripts'];
 
       const client = await queue.client;
-      await client.hmset(testHash, {
+      await client.hset(testHash, {
         a: JSON.stringify('a'),
         b: JSON.stringify('b'),
         c: JSON.stringify('c'),
@@ -180,7 +179,7 @@ describe('scripts', () => {
       const scripts = queue['scripts'];
 
       const client = await queue.client;
-      await client.hmset(testHash, {
+      await client.hset(testHash, {
         a: JSON.stringify('a'),
         b: JSON.stringify('b'),
         c: JSON.stringify('c'),
@@ -228,7 +227,7 @@ describe('scripts', () => {
           return acc;
         });
 
-      await client.hmset(testHash, items);
+      await client.hset(testHash, items);
 
       const pagedItems: any[] = [];
       for (let i = 0; i < numPages; i++) {

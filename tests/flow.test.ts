@@ -1,4 +1,3 @@
-import { default as IORedis } from 'ioredis';
 import {
   describe,
   beforeEach,
@@ -22,17 +21,18 @@ import {
   RateLimitError,
 } from '../src/classes';
 import { removeAllQueueData, delay } from '../src/utils';
+import { createTestConnection } from './connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 describe('flows', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
   let queue: Queue;
   let queueName: string;
 
-  let connection: IORedis;
+  let connection: IRedisClient;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
@@ -42,7 +42,7 @@ describe('flows', () => {
 
   afterEach(async () => {
     await queue.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async function () {
@@ -357,7 +357,7 @@ describe('flows', () => {
 
     await flow.close();
 
-    await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+    await removeAllQueueData(createTestConnection(), parentQueueName);
   });
 
   it('should allow parent opts on the root job', async () => {
@@ -462,8 +462,8 @@ describe('flows', () => {
     await flow.close();
 
     await grandparentQueue.close();
-    await removeAllQueueData(new IORedis(redisHost), grandparentQueueName);
-    await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+    await removeAllQueueData(createTestConnection(), grandparentQueueName);
+    await removeAllQueueData(createTestConnection(), parentQueueName);
   });
 
   describe('when removeChildDependency is called', () => {
@@ -778,7 +778,7 @@ describe('flows', () => {
       await flow.close();
       await parentQueue.close();
 
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     }); // TODO: Add { timeout: 8000 } to the it() options
   });
 
@@ -878,7 +878,7 @@ describe('flows', () => {
       await flow.close();
       await parentQueue.close();
 
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     }); // TODO: Add { timeout: 8000 } to the it() options
   });
 
@@ -999,8 +999,8 @@ describe('flows', () => {
       await worker.close();
       await childrenWorker.close();
       await grandchildrenWorker.close();
-      await removeAllQueueData(new IORedis(redisHost), childrenQueueName);
-      await removeAllQueueData(new IORedis(redisHost), grandchildrenQueueName);
+      await removeAllQueueData(createTestConnection(), childrenQueueName);
+      await removeAllQueueData(createTestConnection(), grandchildrenQueueName);
     });
 
     describe('when parent has pending children to be processed when trying to move it to completed', () => {
@@ -1086,7 +1086,7 @@ describe('flows', () => {
         await flow.close();
         await worker.close();
         await queueEvents.close();
-        await removeAllQueueData(new IORedis(redisHost), childrenQueueName);
+        await removeAllQueueData(createTestConnection(), childrenQueueName);
       });
 
       describe('when parent has pending children to be processed when trying to move it to completed', () => {
@@ -1174,7 +1174,7 @@ describe('flows', () => {
           await flow.close();
           await worker.close();
           await queueEvents.close();
-          await removeAllQueueData(new IORedis(redisHost), childrenQueueName);
+          await removeAllQueueData(createTestConnection(), childrenQueueName);
         });
       });
     });
@@ -1827,7 +1827,7 @@ describe('flows', () => {
 
       await flow.close();
 
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
   });
 
@@ -2021,8 +2021,8 @@ describe('flows', () => {
 
       await flow.close();
 
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
-      await removeAllQueueData(new IORedis(redisHost), grandchildrenQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
+      await removeAllQueueData(createTestConnection(), grandchildrenQueueName);
     }); // TODO: Add { timeout: 8000 } to the it() options
   });
 
@@ -2118,7 +2118,7 @@ describe('flows', () => {
 
       await flow.close();
 
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
   });
 
@@ -2491,11 +2491,11 @@ describe('flows', () => {
       await flow.close();
       await childrenQueue.close();
       await removeAllQueueData(
-        new IORedis(redisHost),
+        createTestConnection(),
         parentQueueName,
         customPrefix,
       );
-      await removeAllQueueData(new IORedis(redisHost), queueName, customPrefix);
+      await removeAllQueueData(createTestConnection(), queueName, customPrefix);
     });
   });
 
@@ -2656,8 +2656,8 @@ describe('flows', () => {
 
       await flow.close();
 
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
-      await removeAllQueueData(new IORedis(redisHost), grandChildrenQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
+      await removeAllQueueData(createTestConnection(), grandChildrenQueueName);
     }); // TODO: Add { timeout: 8000 } to the it() options
   });
 
@@ -2818,9 +2818,9 @@ describe('flows', () => {
         await flow.close();
         await queueEvents.close();
 
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(createTestConnection(), parentQueueName);
         await removeAllQueueData(
-          new IORedis(redisHost),
+          createTestConnection(),
           grandChildrenQueueName,
         );
       });
@@ -2958,9 +2958,9 @@ describe('flows', () => {
         await childrenWorker.close();
         await grandchildrenWorker.close();
         await queueEvents.close();
-        await removeAllQueueData(new IORedis(redisHost), childrenQueueName);
+        await removeAllQueueData(createTestConnection(), childrenQueueName);
         await removeAllQueueData(
-          new IORedis(redisHost),
+          createTestConnection(),
           grandchildrenQueueName,
         );
       });
@@ -3097,9 +3097,9 @@ describe('flows', () => {
         await childrenWorker.close();
         await grandchildrenWorker.close();
         await queueEvents.close();
-        await removeAllQueueData(new IORedis(redisHost), childrenQueueName);
+        await removeAllQueueData(createTestConnection(), childrenQueueName);
         await removeAllQueueData(
-          new IORedis(redisHost),
+          createTestConnection(),
           grandchildrenQueueName,
         );
       });
@@ -3248,9 +3248,9 @@ describe('flows', () => {
         await flow.close();
         await queueEvents.close();
 
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(createTestConnection(), parentQueueName);
         await removeAllQueueData(
-          new IORedis(redisHost),
+          createTestConnection(),
           grandChildrenQueueName,
         );
       });
@@ -3395,9 +3395,9 @@ describe('flows', () => {
         await flow.close();
         await queueEvents.close();
 
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(createTestConnection(), parentQueueName);
         await removeAllQueueData(
-          new IORedis(redisHost),
+          createTestConnection(),
           grandChildrenQueueName,
         );
       }); // TODO: Add { timeout: 8000 } to the it() options
@@ -3554,9 +3554,9 @@ describe('flows', () => {
         await flow.close();
         await queueEvents.close();
 
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(createTestConnection(), parentQueueName);
         await removeAllQueueData(
-          new IORedis(redisHost),
+          createTestConnection(),
           grandChildrenQueueName,
         );
       }); // TODO: Add { timeout: 8000 } to the it() options
@@ -3631,7 +3631,7 @@ describe('flows', () => {
       await parentWorker.close();
       await childrenWorker.close();
       await flow.close();
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
 
     it('should start processing parent after child fails even with more unprocessed children', async () => {
@@ -3723,7 +3723,7 @@ describe('flows', () => {
       await waitingChildren;
       await childrenWorker.close();
       await flow.close();
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
 
     it('should ignore parent if a child has already failed and another one fails afterwards', async () => {
@@ -3813,7 +3813,7 @@ describe('flows', () => {
       await waitingChildren;
       await childrenWorker.close();
       await flow.close();
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
 
     it('should move the parent to delayed after a child fails', async () => {
@@ -3901,7 +3901,7 @@ describe('flows', () => {
       await childrenWorker.close();
       await parentQueue.close();
       await flow.close();
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
 
     it('should move the parent to prioritized after a child fails', async () => {
@@ -3992,7 +3992,7 @@ describe('flows', () => {
       await childrenWorker.close();
       await parentQueue.close();
       await flow.close();
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
   });
 
@@ -4084,7 +4084,7 @@ describe('flows', () => {
 
     await flow.close();
 
-    await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+    await removeAllQueueData(createTestConnection(), parentQueueName);
   });
 
   it('should get a flow tree', async () => {
@@ -4145,7 +4145,7 @@ describe('flows', () => {
 
     await flow.close();
 
-    await removeAllQueueData(new IORedis(redisHost), topQueueName);
+    await removeAllQueueData(createTestConnection(), topQueueName);
   });
 
   it('should get part of flow tree', async () => {
@@ -4202,7 +4202,7 @@ describe('flows', () => {
     const isWaitingChildren = await job.isWaitingChildren();
 
     expect(isWaitingChildren).toBe(true);
-    expect(children.length).to.be.greaterThanOrEqual(2);
+    expect(children.length).toBeGreaterThanOrEqual(2);
 
     expect(children[0].job.id).toBeTruthy();
     expect(children[0].children).toBeUndefined();
@@ -4212,7 +4212,7 @@ describe('flows', () => {
 
     await flow.close();
 
-    await removeAllQueueData(new IORedis(redisHost), topQueueName);
+    await removeAllQueueData(createTestConnection(), topQueueName);
   });
 
   describe('when prefix is not provided in getFlow', () => {
@@ -4273,7 +4273,7 @@ describe('flows', () => {
 
       await flow.close();
 
-      await removeAllQueueData(new IORedis(redisHost), topQueueName);
+      await removeAllQueueData(createTestConnection(), topQueueName);
     });
   });
 
@@ -4389,7 +4389,7 @@ describe('flows', () => {
       await flow.close();
       await parentQueue.close();
 
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
   });
 
@@ -4426,7 +4426,7 @@ describe('flows', () => {
 
     await flow.close();
 
-    await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+    await removeAllQueueData(createTestConnection(), parentQueueName);
   });
 
   it('should allow passing custom jobId in options', async () => {
@@ -4527,7 +4527,7 @@ describe('flows', () => {
 
     await flow.close();
 
-    await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+    await removeAllQueueData(createTestConnection(), parentQueueName);
   });
 
   it('should process a chain of jobs', async () => {
@@ -4658,7 +4658,7 @@ describe('flows', () => {
 
     await flow.close();
 
-    await removeAllQueueData(new IORedis(redisHost), topQueueName);
+    await removeAllQueueData(createTestConnection(), topQueueName);
   });
 
   it('should add meta key to both parents and children', async () => {
@@ -4698,7 +4698,7 @@ describe('flows', () => {
 
     await flow.close();
 
-    await removeAllQueueData(new IORedis(redisHost), topQueueName);
+    await removeAllQueueData(createTestConnection(), topQueueName);
   });
 
   describe('when parent has delay', () => {
@@ -4728,7 +4728,7 @@ describe('flows', () => {
         queueEvents.on('delayed', async ({ jobId, delay }) => {
           try {
             const milliseconds = delay - Date.now();
-            expect(milliseconds).to.be.lessThanOrEqual(3000);
+            expect(milliseconds).toBeLessThanOrEqual(3000);
             expect(milliseconds).toBeGreaterThan(2000);
             resolve();
           } catch (error) {
@@ -4814,7 +4814,7 @@ describe('flows', () => {
       await queueEvents.close();
       await flow.close();
 
-      await removeAllQueueData(new IORedis(redisHost), topQueueName);
+      await removeAllQueueData(createTestConnection(), topQueueName);
     }); // TODO: Add { timeout: 4500 } to the it() options
   });
 
@@ -4910,7 +4910,7 @@ describe('flows', () => {
       await parentWorker.close();
       await flow.close();
 
-      await removeAllQueueData(new IORedis(redisHost), topQueueName);
+      await removeAllQueueData(createTestConnection(), topQueueName);
     });
   });
 
@@ -4960,7 +4960,7 @@ describe('flows', () => {
 
     await flow.close();
     await parentQueue.close();
-    await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+    await removeAllQueueData(createTestConnection(), parentQueueName);
   });
 
   it('should not process parent until queue is unpaused', async () => {
@@ -5031,7 +5031,7 @@ describe('flows', () => {
 
     await flow.close();
     await parentQueue.close();
-    await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+    await removeAllQueueData(createTestConnection(), parentQueueName);
   });
 
   describe('.addBulk', () => {
@@ -5140,8 +5140,8 @@ describe('flows', () => {
       await flow.close();
 
       await grandparentQueue.close();
-      await removeAllQueueData(new IORedis(redisHost), grandparentQueueName);
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), grandparentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
 
     it('should process jobs', async () => {
@@ -5262,7 +5262,7 @@ describe('flows', () => {
 
       await flow.close();
 
-      await removeAllQueueData(new IORedis(redisHost), rootQueueName);
+      await removeAllQueueData(createTestConnection(), rootQueueName);
     });
   });
 
@@ -5359,7 +5359,7 @@ describe('flows', () => {
       } finally {
         await worker.close();
         await flow.close();
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(createTestConnection(), parentQueueName);
       }
     });
 
@@ -5422,7 +5422,7 @@ describe('flows', () => {
       await flow.close();
       await childrenWorker.close();
       await parentWorker.close();
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
   });
 
@@ -5484,7 +5484,7 @@ describe('flows', () => {
 
       await flow.close();
       await parentQueue.close();
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
 
     describe('when removeChildren option is provided as false', () => {
@@ -5547,7 +5547,7 @@ describe('flows', () => {
 
         await flow.close();
         await parentQueue.close();
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(createTestConnection(), parentQueueName);
       });
     });
 
@@ -5635,7 +5635,7 @@ describe('flows', () => {
         await childrenWorker.close();
         await parentWorker.close();
         await parentQueue.close();
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(createTestConnection(), parentQueueName);
       });
 
       describe('when there is a grand parent', () => {
@@ -5748,10 +5748,10 @@ describe('flows', () => {
           await parentWorker.close();
           await parentQueue.close();
           await removeAllQueueData(
-            new IORedis(redisHost),
+            createTestConnection(),
             grandparentQueueName,
           );
-          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+          await removeAllQueueData(createTestConnection(), parentQueueName);
         });
       });
     });
@@ -5861,7 +5861,7 @@ describe('flows', () => {
         await childrenWorker.close();
         await parentWorker.close();
         await parentQueue.close();
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(createTestConnection(), parentQueueName);
       });
     });
 
@@ -5898,7 +5898,7 @@ describe('flows', () => {
 
       await flow.close();
       await worker.close();
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
 
     it('should remove from parent dependencies and move parent to wait', async () => {
@@ -5945,7 +5945,7 @@ describe('flows', () => {
 
       await flow.close();
       await parentQueue.close();
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
 
     it(`should only move parent to wait when all children have been removed`, async () => {
@@ -5976,7 +5976,7 @@ describe('flows', () => {
       expect(await tree.job.getState()).toBe('waiting');
 
       await flow.close();
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
   });
 
@@ -6036,7 +6036,7 @@ describe('flows', () => {
         await flow.close();
         await childrenWorker.close();
         await parentWorker.close();
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(createTestConnection(), parentQueueName);
       });
     });
 
@@ -6097,7 +6097,7 @@ describe('flows', () => {
         await flow.close();
         await childrenWorker.close();
         await parentWorker.close();
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(createTestConnection(), parentQueueName);
       });
     });
   });

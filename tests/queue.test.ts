@@ -1,4 +1,3 @@
-import { default as IORedis } from 'ioredis';
 import {
   describe,
   beforeEach,
@@ -15,18 +14,18 @@ import { v4 } from 'uuid';
 import { FlowProducer, Job, Queue, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 import { version as currentPackageVersion } from '../src/version';
+import { createTestConnection } from './connection-factory';
 
 describe('queues', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   const sandbox = sinon.createSandbox();
 
   let queue: Queue;
   let queueName: string;
 
-  let connection: IORedis;
+  let connection;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
@@ -38,7 +37,7 @@ describe('queues', () => {
   afterEach(async () => {
     sandbox.restore();
     await queue.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async function () {
@@ -104,7 +103,7 @@ describe('queues', () => {
     const version = await queue.getVersion();
     expect(version).toBe(null);
     await queue.close();
-    await removeAllQueueData(new IORedis(redisHost), exQueueName);
+    await removeAllQueueData(createTestConnection(), exQueueName);
   });
 
   describe('.getMeta', () => {
@@ -393,7 +392,7 @@ describe('queues', () => {
             expect(parentWaitCount).toEqual(1);
             await parentQueue.close();
             await flow.close();
-            await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+            await removeAllQueueData(createTestConnection(), parentQueueName);
           });
         });
 
@@ -441,7 +440,7 @@ describe('queues', () => {
             expect(parentWaitCount).toEqual(1);
             await parentQueue.close();
             await flow.close();
-            await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+            await removeAllQueueData(createTestConnection(), parentQueueName);
           });
         });
       });

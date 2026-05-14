@@ -1,4 +1,3 @@
-import { default as IORedis } from 'ioredis';
 import {
   describe,
   beforeEach,
@@ -22,24 +21,26 @@ import { v4 } from 'uuid';
 
 import ProgressBar from 'progress';
 import { after } from 'lodash';
+import { createTestConnection } from './connection-factory';
 
 describe('Concurrency', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queueName: string;
 
   let connection;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
     queueName = `test-${v4()}`;
-    await new IORedis().flushall();
+    const flushClient = createTestConnection();
+    await (flushClient as any).flushall();
+    await flushClient.quit();
   });
 
   afterEach(async () => {
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async function () {
@@ -74,7 +75,7 @@ describe('Concurrency', () => {
         async job => {
           try {
             // Check order is correct
-            expect(job.id).to.be.eq(`${++lastJobId}`);
+            expect(job.id).toBe(`${++lastJobId}`);
             count++;
             parallelJobs++;
             await delay(100);
@@ -141,7 +142,7 @@ describe('Concurrency', () => {
         async job => {
           try {
             // Check order is correct
-            expect(job.id).to.be.eq(`${++lastJobId}`);
+            expect(job.id).toBe(`${++lastJobId}`);
             count++;
             parallelJobs++;
             await delay(100);
@@ -271,7 +272,7 @@ describe('Concurrency', () => {
           after(numJobs, async () => {
             try {
               const timeDiff = new Date().getTime() - startTime;
-              expect(timeDiff).to.be.gte(
+              expect(timeDiff).toBeGreaterThanOrEqual(
                 numJobs * (dynamicLimit + duration) - duration,
               );
               resolve();
@@ -353,7 +354,7 @@ describe('Concurrency', () => {
             after(numJobs, async () => {
               try {
                 const timeDiff = new Date().getTime() - startTime;
-                expect(timeDiff).to.be.gte(numJobs * dynamicLimit);
+                expect(timeDiff).toBeGreaterThanOrEqual(numJobs * dynamicLimit);
                 resolve();
               } catch (err) {
                 reject(err);

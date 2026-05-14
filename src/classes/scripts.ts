@@ -43,7 +43,7 @@ import {
   isRedisVersionLowerThan,
   objectToFlatArray,
 } from '../utils';
-import { ChainableCommander } from 'ioredis';
+import { IRedisTransaction } from '../interfaces';
 import { version as packageVersion } from '../version';
 import { UnrecoverableError } from './errors';
 export type JobData = [JobJsonRaw | number, string?];
@@ -75,12 +75,12 @@ export class Scripts {
   }
 
   public execCommand(
-    client: RedisClient | ChainableCommander,
+    client: RedisClient | IRedisTransaction,
     commandName: string,
     args: any[],
-  ) {
+  ): any {
     const commandNameWithVersion = `${commandName}:${this.version}`;
-    return (<any>client)[commandNameWithVersion](args);
+    return client.runCommand(commandNameWithVersion, args);
   }
 
   async isJobInList(listKey: string, jobId: string): Promise<boolean> {
@@ -121,7 +121,7 @@ export class Scripts {
   }
 
   protected addDelayedJob(
-    client: RedisClient,
+    client: RedisClient | IRedisTransaction,
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
@@ -155,7 +155,7 @@ export class Scripts {
   }
 
   protected addPrioritizedJob(
-    client: RedisClient,
+    client: RedisClient | IRedisTransaction,
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
@@ -186,7 +186,7 @@ export class Scripts {
   }
 
   protected addParentJob(
-    client: RedisClient,
+    client: RedisClient | IRedisTransaction,
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
@@ -220,7 +220,7 @@ export class Scripts {
   }
 
   protected addStandardJob(
-    client: RedisClient,
+    client: RedisClient | IRedisTransaction,
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
@@ -231,7 +231,7 @@ export class Scripts {
   }
 
   async addJob(
-    client: RedisClient,
+    client: RedisClient | IRedisTransaction,
     job: JobJson,
     opts: RedisJobOptions,
     jobId: string,
@@ -596,7 +596,7 @@ export class Scripts {
     jobId: string,
     token: string,
     duration: number,
-    client?: RedisClient | ChainableCommander,
+    client?: RedisClient | IRedisTransaction,
   ): Promise<number> {
     client = client || (await this.queue.client);
     const args = [
