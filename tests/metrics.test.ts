@@ -9,10 +9,9 @@ import {
 } from 'vitest';
 
 import * as sinon from 'sinon';
-import { v4 } from 'uuid';
 
 import { Queue, QueueEvents, Repeat, Worker } from '../src/classes';
-import { removeAllQueueData } from '../src/utils';
+import { randomUUID, removeAllQueueData } from '../src/utils';
 import { MetricsTime } from '../src/enums';
 import { createTestConnection } from './connection-factory';
 
@@ -43,7 +42,7 @@ describe('metrics', () => {
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     repeat = new Repeat(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });

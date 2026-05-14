@@ -8,6 +8,19 @@ import { JobJsonRaw, Metrics, QueueMeta } from '../interfaces';
 import { MetricNames, TelemetryAttributes } from '../enums';
 
 /**
+ * Escape a Prometheus label value per the text exposition format.
+ * https://prometheus.io/docs/instrumenting/exposition_formats/
+ *
+ * Backslashes, double quotes, and newlines must be escaped.
+ */
+function escapePrometheusLabelValue(value: string): string {
+  return String(value)
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n');
+}
+
+/**
  * Provides different getters for different aspects of a queue.
  */
 export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
@@ -85,7 +98,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
   /**
    * Returns the time to live for a rate limited key in milliseconds.
    * @param maxJobs - max jobs to be considered in rate limit state. If not passed
-   * it will return the remaining ttl without considering if max jobs is excedeed.
+   * it will return the remaining ttl without considering if max jobs is exceeded.
    * @returns -2 if the key does not exist.
    * -1 if the key exists but has no associated expire.
    * @see {@link https://redis.io/commands/pttl/}
@@ -691,18 +704,42 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
     );
     metrics.push('# TYPE bullmq_job_count gauge');
 
+    const escapedQueueName = escapePrometheusLabelValue(this.name);
+
     const variables = !globalVariables
       ? ''
       : Object.keys(globalVariables).reduce(
-          (acc, curr) => `${acc}, ${curr}="${globalVariables[curr]}"`,
+          (acc, curr) =>
+            `${acc}, ${curr}="${escapePrometheusLabelValue(
+              globalVariables[curr],
+            )}"`,
           '',
         );
 
     for (const [state, count] of Object.entries(counts)) {
       metrics.push(
-        `bullmq_job_count{queue="${this.name}", state="${state}"${variables}} ${count}`,
+        `bullmq_job_count{queue="${escapedQueueName}", state="${state}"${variables}} ${count}`,
       );
     }
+
+    const [completedMetrics, failedMetrics] = await Promise.all([
+      this.getMetrics('completed'),
+      this.getMetrics('failed'),
+    ]);
+
+    metrics.push(
+      '# HELP bullmq_job_completed_total Total number of completed jobs',
+    );
+    metrics.push('# TYPE bullmq_job_completed_total counter');
+    metrics.push(
+      `bullmq_job_completed_total{queue="${escapedQueueName}"${variables}} ${completedMetrics.meta.count}`,
+    );
+
+    metrics.push('# HELP bullmq_job_failed_total Total number of failed jobs');
+    metrics.push('# TYPE bullmq_job_failed_total counter');
+    metrics.push(
+      `bullmq_job_failed_total{queue="${escapedQueueName}"${variables}} ${failedMetrics.meta.count}`,
+    );
 
     return metrics.join('\n');
   }

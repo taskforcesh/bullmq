@@ -139,6 +139,8 @@ export interface QueueEventsListener extends IoredisListener {
    * Listen to 'error' event.
    *
    * This event is triggered when an error in the Redis backend is thrown.
+   *
+   * @param args - The error that was thrown.
    */
   error: (args: Error) => void;
 
@@ -352,7 +354,7 @@ export class QueueEvents extends QueueBase {
         this.running = true;
         const client = await this.client;
 
-        // TODO: Planed for deprecation as it has no really a use case
+        // TODO: Planned for deprecation as it really has no use case
         try {
           await client.clientSetName(this.clientName(QUEUE_EVENT_SUFFIX));
         } catch (err) {
@@ -396,7 +398,7 @@ export class QueueEvents extends QueueBase {
           const args = array2obj(events[i][1]);
 
           //
-          // TODO: we may need to have a separate xtream for progress data
+          // TODO: we may need to have a separate stream for progress data
           // to avoid this hack.
           switch (args.event) {
             case 'progress':
@@ -431,7 +433,7 @@ export class QueueEvents extends QueueBase {
     if (!this.closing) {
       this.closing = (async () => {
         try {
-          // As the connection has been wrongly markes as "shared" by QueueBase,
+          // As the connection has been wrongly marked as "shared" by QueueBase,
           // we need to forcibly close it here. We should fix QueueBase to avoid this in the future.
           const client = await this.client;
           client.disconnect();
