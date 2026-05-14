@@ -13,7 +13,6 @@ import {
   it,
 } from 'bun:test';
 import { RedisClient } from 'bun';
-import { v4 } from 'uuid';
 import {
   FlowProducer,
   Job,
@@ -23,6 +22,7 @@ import {
 } from '../src/classes';
 import { createBunRedisClient } from '../src/classes/bun-redis-client';
 import { IRedisClient } from '../src/interfaces/redis-client';
+import { randomUUID } from '../src/utils';
 
 const redisHost = process.env.REDIS_HOST || 'localhost';
 const redisPort = Number(process.env.REDIS_PORT) || 6379;
@@ -133,7 +133,7 @@ describe('bun redis adapter', () => {
     let queueName: string;
 
     beforeEach(async () => {
-      queueName = `test-bun-${v4()}`;
+      queueName = `test-bun-${randomUUID()}`;
       queue = new Queue(queueName, {
         connection: client,
         prefix,
@@ -159,7 +159,7 @@ describe('bun redis adapter', () => {
 
   describe('Worker processing via bun adapter', () => {
     it('should process a job to completion', async () => {
-      const queueName = `test-bun-worker-${v4()}`;
+      const queueName = `test-bun-worker-${randomUUID()}`;
       const queue = new Queue(queueName, {
         connection: client,
         prefix,
@@ -201,8 +201,8 @@ describe('bun redis adapter', () => {
 
   describe('FlowProducer via bun adapter', () => {
     it('should create a parent-child flow', async () => {
-      const parentQueueName = `test-bun-flow-parent-${v4()}`;
-      const childQueueName = `test-bun-flow-child-${v4()}`;
+      const parentQueueName = `test-bun-flow-parent-${randomUUID()}`;
+      const childQueueName = `test-bun-flow-child-${randomUUID()}`;
 
       const flow = new FlowProducer({ connection: client, prefix });
 
