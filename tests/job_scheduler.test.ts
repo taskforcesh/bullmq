@@ -199,9 +199,7 @@ describe('Job Scheduler', () => {
         const worker = new Worker(
           queueName,
           async () => {
-            console.error('scheduler step: processor start');
             await clock.tickAsync(1);
-            console.error('scheduler step: processor done');
           },
           {
             connection,
@@ -209,65 +207,32 @@ describe('Job Scheduler', () => {
             concurrency: 1,
           },
         );
-        console.error('scheduler step: worker ready start');
         await worker.waitUntilReady();
-        console.error('scheduler step: worker ready done');
 
         const jobSchedulerId = 'test';
-        console.error('scheduler step: upsert 1 start');
         await queue.upsertJobScheduler(jobSchedulerId, {
           every: ONE_MINUTE * 5,
         });
-        console.error('scheduler step: upsert 1 done');
-        console.error('scheduler step: tick 1 start');
         await clock.tickAsync(1);
-        console.error('scheduler step: tick 1 done');
-        console.error('scheduler step: upsert 2 start');
         await queue.upsertJobScheduler(jobSchedulerId, {
           every: ONE_MINUTE * 5,
         });
-        console.error('scheduler step: upsert 2 done');
-
-        console.error('scheduler step: upsert 3 start');
         await queue.upsertJobScheduler(jobSchedulerId, {
           every: ONE_MINUTE * 5,
         });
-        console.error('scheduler step: upsert 3 done');
-
-        console.error('scheduler step: upsert 4 start');
         await queue.upsertJobScheduler(jobSchedulerId, {
           every: ONE_MINUTE * 5,
         });
-        console.error('scheduler step: upsert 4 done');
-
-        console.error('scheduler step: get schedulers start');
         const repeatableJobs = await queue.getJobSchedulers();
-        console.error('scheduler step: get schedulers done');
         expect(repeatableJobs.length).toEqual(1);
-        console.error('scheduler step: tick minute start');
         await clock.tickAsync(ONE_MINUTE);
-        console.error('scheduler step: tick minute done');
-        console.error('scheduler step: get count start');
         const count = await queue.getJobCountByTypes('delayed', 'waiting');
-        console.error('scheduler step: get count done', count);
         expect(count).toBe(1);
 
-        console.error('scheduler step: close worker start');
         const blockingConnection = (worker as any).blockingConnection;
         const blockingClient = await blockingConnection.client;
-        console.error('scheduler step: close state', {
-          waiting: !!(worker as any).waiting,
-          running: (worker as any).running,
-          mainLoopRunning: !!(worker as any).mainLoopRunning,
-          drained: (worker as any).drained,
-          blockUntil: (worker as any).blockUntil,
-          blockingConnectionStatus: blockingConnection.status,
-          blockingClientStatus: blockingClient.status,
-          blockingRawOpen: (blockingClient as any).raw?.isOpen,
-          blockingRawReady: (blockingClient as any).raw?.isReady,
-        });
+
         await worker.close();
-        console.error('scheduler step: close worker done');
       },
     );
 
