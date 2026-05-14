@@ -17,7 +17,7 @@ import {
 } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
-import { v4 } from 'uuid';
+import { randomUUID } from '../src/utils';
 
 import ProgressBar from 'progress';
 import { after } from 'lodash';
@@ -33,7 +33,7 @@ describe('Concurrency', () => {
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     const flushClient = createTestConnection();
     await (flushClient as any).flushall();
     await flushClient.quit();

@@ -280,11 +280,14 @@ export class RedisConnection extends EventEmitter {
     const finalScripts =
       providedScripts || (scripts as Record<string, RawCommand>);
     for (const property in finalScripts as Record<string, RawCommand>) {
+      // Only define the command if not already defined
       const commandName = `${finalScripts[property].name}:${packageVersion}`;
-      this._client.defineCommand(commandName, {
-        numberOfKeys: finalScripts[property].keys,
-        lua: finalScripts[property].content,
-      });
+      if (!(<any>this._client)[commandName]) {
+        this._client.defineCommand(commandName, {
+          numberOfKeys: finalScripts[property].keys,
+          lua: finalScripts[property].content,
+        });
+      }
     }
   }
 

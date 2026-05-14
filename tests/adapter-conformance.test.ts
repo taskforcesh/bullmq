@@ -16,7 +16,7 @@ import {
   IRedisClient,
   IRedisTransaction,
 } from '../src/interfaces/redis-client';
-import { v4 } from 'uuid';
+import { randomUUID } from '../src/utils';
 import { Readable } from 'stream';
 
 // ---------------------------------------------------------------------------

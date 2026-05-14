@@ -15,7 +15,7 @@ import {
 } from '../src/classes';
 import { createNodeRedisClient } from '../src/classes/node-redis-client';
 import { IRedisClient } from '../src/interfaces/redis-client';
-import { v4 } from 'uuid';
+import { randomUUID } from '../src/utils';
 
 const redisHost = process.env.REDIS_HOST || 'localhost';
 const redisPort = Number(process.env.REDIS_PORT) || 6379;
@@ -224,7 +224,7 @@ describe('node-redis adapter', () => {
     let queueName: string;
 
     beforeEach(async () => {
-      queueName = `test-nr-${v4()}`;
+      queueName = `test-nr-${randomUUID()}`;
       queue = new Queue(queueName, {
         connection: client,
         prefix,
@@ -274,7 +274,7 @@ describe('node-redis adapter', () => {
 
   describe('Worker processing via node-redis', () => {
     it('should process a job to completion', async () => {
-      const queueName = `test-nr-worker-${v4()}`;
+      const queueName = `test-nr-worker-${randomUUID()}`;
       const queue = new Queue(queueName, {
         connection: client,
         prefix,
@@ -317,8 +317,8 @@ describe('node-redis adapter', () => {
 
   describe('FlowProducer via node-redis', () => {
     it('should create a parent-child flow', async () => {
-      const parentQueueName = `test-nr-flow-parent-${v4()}`;
-      const childQueueName = `test-nr-flow-child-${v4()}`;
+      const parentQueueName = `test-nr-flow-parent-${randomUUID()}`;
+      const childQueueName = `test-nr-flow-child-${randomUUID()}`;
 
       const flow = new FlowProducer({ connection: client, prefix });
 

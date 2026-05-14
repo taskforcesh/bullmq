@@ -8,7 +8,7 @@ import {
   expect,
 } from 'vitest';
 
-import { v4 } from 'uuid';
+import { randomUUID } from '../src/utils';
 import { Queue } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
 import { createTestConnection } from './connection-factory';
@@ -25,7 +25,7 @@ describe('scripts', () => {
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     await queue.waitUntilReady();
   });
