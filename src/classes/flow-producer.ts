@@ -15,7 +15,7 @@ import { getParentKey, isRedisInstance, randomUUID, trace } from '../utils';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { RedisConnection } from './redis-connection';
-import { SpanKind, TelemetryAttributes } from '../enums';
+import { ErrorCode, SpanKind, TelemetryAttributes } from '../enums';
 
 export interface AddNodeOpts {
   multi: IRedisTransaction;
@@ -228,7 +228,13 @@ export class FlowProducer extends EventEmitter {
         const [result] = results || [];
         if (result) {
           const [err, jobId] = result;
-          if (!err && typeof jobId === 'string') {
+          if (err) {
+            throw err;
+          }
+          if (typeof jobId === 'number' && jobId < 0) {
+            throw this.toFlowError(jobId, parentKey);
+          }
+          if (typeof jobId === 'string') {
             jobsTree.job.id = jobId;
           }
         }
@@ -573,6 +579,30 @@ export class FlowProducer extends EventEmitter {
       databaseType: this.connection.databaseType,
       trace: async (): Promise<any> => {},
     };
+  }
+
+  /**
+   * Translates numeric addJob Lua error codes returned by root flow exec.
+   *
+   * @param code - Numeric error code returned from Redis.
+   * @param parentKey - Parent key for contextual error messages.
+   */
+  private toFlowError(code: number, parentKey?: string): Error {
+    let error: Error;
+    switch (code) {
+      case ErrorCode.ParentJobNotExist:
+        error = new Error(`Missing key for parent job ${parentKey}. addJob`);
+        break;
+      case ErrorCode.ParentJobCannotBeReplaced:
+        error = new Error(
+          `The parent job ${parentKey} cannot be replaced. addJob`,
+        );
+        break;
+      default:
+        error = new Error(`Unknown code ${code} error for addJob`);
+    }
+    (error as any).code = code;
+    return error;
   }
 
   /**
