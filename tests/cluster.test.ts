@@ -56,66 +56,62 @@ describe('Cluster support', () => {
     return lines.join('\n') + '\n';
   }
 
+  // Build an IRedisClient-shaped mock so isIRedisClient returns true
+  // and createIORedisClient is bypassed.
+  function buildMockIRedisClient(
+    overrides: Record<string, any> = {},
+  ): Record<string, any> {
+    return {
+      status: 'ready',
+      isCluster: false,
+      options: {},
+      connect: sinon.stub().resolves(),
+      disconnect: sinon.stub().resolves(),
+      duplicate: sinon.stub(),
+      defineCommand: sinon.stub(),
+      runCommand: sinon.stub(),
+      pipeline: sinon.stub().returns({ del: sinon.stub(), exec: sinon.stub() }),
+      multi: sinon.stub(),
+      scanStream: sinon.stub(),
+      info: sinon.stub().resolves('redis_version:7.0.0'),
+      quit: sinon.stub().resolves(),
+      on: sinon.stub(),
+      once: sinon.stub(),
+      off: sinon.stub(),
+      emit: sinon.stub(),
+      removeListener: sinon.stub(),
+      removeAllListeners: sinon.stub(),
+      getMaxListeners: sinon.stub().returns(10),
+      setMaxListeners: sinon.stub(),
+      ...overrides,
+    };
+  }
+
   describe('Worker connection name on cluster', () => {
     describe('when connection is a cluster instance', () => {
-      it('should use Cluster.duplicate with redisOptions for connectionName', async () => {
-        const duplicatedConnection = {
-          on: sinon.stub(),
-          once: sinon.stub(),
-          status: 'ready',
-          options: { connectionName: 'test-connection' },
-          connect: sinon.stub().resolves(),
-          disconnect: sinon.stub().resolves(),
-          duplicate: sinon.stub(),
-          defineCommand: sinon.stub(),
-          info: sinon.stub().resolves('redis_version:7.0.0'),
-          quit: sinon.stub().resolves(),
-          getMaxListeners: sinon.stub().returns(10),
-          setMaxListeners: sinon.stub(),
-          off: sinon.stub(),
-        };
-
+      it('should pass connectionName when duplicating a cluster connection', async () => {
+        const duplicatedConnection = buildMockIRedisClient();
         const duplicateStub = sinon.stub().returns(duplicatedConnection);
 
-        // Create a mock cluster connection that satisfies isRedisInstance check
-        const mockClusterConnection = {
+        const mockClusterConnection = buildMockIRedisClient({
           isCluster: true,
-          connect: sinon.stub().resolves(),
-          disconnect: sinon.stub().resolves(),
           duplicate: duplicateStub,
-          defineCommand: sinon.stub(),
-          info: sinon.stub().resolves('redis_version:7.0.0'),
-          options: {},
-          status: 'ready',
-          on: sinon.stub(),
-          once: sinon.stub(),
-          getMaxListeners: sinon.stub().returns(10),
-          setMaxListeners: sinon.stub(),
-          off: sinon.stub(),
-        };
+        });
 
         const workerName = 'testWorker';
-        // Create worker with the mock cluster connection
         const worker = new Worker(queueName, async () => {}, {
           autorun: false,
-          connection: mockClusterConnection as unknown as Cluster,
+          connection: mockClusterConnection as any,
           prefix,
           name: workerName,
         });
 
-        // Verify that duplicate was called with the correct arguments for cluster
         expect(duplicateStub.calledOnce).toBe(true);
         const duplicateCall = duplicateStub.getCall(0);
 
-        // First argument should be undefined for cluster
-        expect(duplicateCall.args[0]).toBeUndefined();
-
-        // Second argument should contain redisOptions with connectionName
-        expect(duplicateCall.args[1]).toHaveProperty('redisOptions');
-        expect(duplicateCall.args[1].redisOptions).toHaveProperty(
-          'connectionName',
-        );
-        expect(duplicateCall.args[1].redisOptions.connectionName).toContain(
+        // IRedisClient.duplicate receives { connectionName } as first arg
+        expect(duplicateCall.args[0]).toHaveProperty('connectionName');
+        expect(duplicateCall.args[0].connectionName).toContain(
           `:w:${workerName}`,
         );
 
@@ -124,56 +120,26 @@ describe('Cluster support', () => {
     });
 
     describe('when connection is a regular Redis instance', () => {
-      it('should use Redis.duplicate with connectionName directly', async () => {
-        const duplicatedConnection = {
-          on: sinon.stub(),
-          once: sinon.stub(),
-          status: 'ready',
-          options: { connectionName: 'test-connection' },
-          connect: sinon.stub().resolves(),
-          disconnect: sinon.stub().resolves(),
-          duplicate: sinon.stub(),
-          defineCommand: sinon.stub(),
-          info: sinon.stub().resolves('redis_version:7.0.0'),
-          quit: sinon.stub().resolves(),
-          getMaxListeners: sinon.stub().returns(10),
-          setMaxListeners: sinon.stub(),
-          off: sinon.stub(),
-        };
-
+      it('should pass connectionName when duplicating a non-cluster connection', async () => {
+        const duplicatedConnection = buildMockIRedisClient();
         const duplicateStub = sinon.stub().returns(duplicatedConnection);
 
-        // Create a mock Redis connection (non-cluster) that satisfies isRedisInstance check
-        const mockRedisConnection = {
+        const mockRedisConnection = buildMockIRedisClient({
           isCluster: false,
-          connect: sinon.stub().resolves(),
-          disconnect: sinon.stub().resolves(),
           duplicate: duplicateStub,
-          defineCommand: sinon.stub(),
-          info: sinon.stub().resolves('redis_version:7.0.0'),
-          options: {},
-          status: 'ready',
-          on: sinon.stub(),
-          once: sinon.stub(),
-          getMaxListeners: sinon.stub().returns(10),
-          setMaxListeners: sinon.stub(),
-          off: sinon.stub(),
-        };
+        });
 
         const workerName = 'testWorker';
-        // Create worker with the mock Redis connection
         const worker = new Worker(queueName, async () => {}, {
           autorun: false,
-          connection: mockRedisConnection as unknown as Redis,
+          connection: mockRedisConnection as any,
           prefix,
           name: workerName,
         });
 
-        // Verify that duplicate was called with connectionName directly
         expect(duplicateStub.calledOnce).toBe(true);
         const duplicateCall = duplicateStub.getCall(0);
 
-        // First argument should be an object with connectionName for regular Redis
         expect(duplicateCall.args[0]).toHaveProperty('connectionName');
         expect(duplicateCall.args[0].connectionName).toContain(
           `:w:${workerName}`,
@@ -186,43 +152,17 @@ describe('Cluster support', () => {
     describe('when worker has a name option', () => {
       it('should include worker name in connection name for cluster', async () => {
         const workerName = 'myWorker';
-        const duplicatedConnection = {
-          on: sinon.stub(),
-          once: sinon.stub(),
-          status: 'ready',
-          options: { connectionName: 'test-connection' },
-          connect: sinon.stub().resolves(),
-          disconnect: sinon.stub().resolves(),
-          duplicate: sinon.stub(),
-          defineCommand: sinon.stub(),
-          info: sinon.stub().resolves('redis_version:7.0.0'),
-          quit: sinon.stub().resolves(),
-          getMaxListeners: sinon.stub().returns(10),
-          setMaxListeners: sinon.stub(),
-          off: sinon.stub(),
-        };
-
+        const duplicatedConnection = buildMockIRedisClient();
         const duplicateStub = sinon.stub().returns(duplicatedConnection);
 
-        const mockClusterConnection = {
+        const mockClusterConnection = buildMockIRedisClient({
           isCluster: true,
-          connect: sinon.stub().resolves(),
-          disconnect: sinon.stub().resolves(),
           duplicate: duplicateStub,
-          defineCommand: sinon.stub(),
-          info: sinon.stub().resolves('redis_version:7.0.0'),
-          options: {},
-          status: 'ready',
-          on: sinon.stub(),
-          once: sinon.stub(),
-          getMaxListeners: sinon.stub().returns(10),
-          setMaxListeners: sinon.stub(),
-          off: sinon.stub(),
-        };
+        });
 
         const worker = new Worker(queueName, async () => {}, {
           autorun: false,
-          connection: mockClusterConnection as unknown as Cluster,
+          connection: mockClusterConnection as any,
           prefix,
           name: workerName,
         });
@@ -230,7 +170,7 @@ describe('Cluster support', () => {
         expect(duplicateStub.calledOnce).toBe(true);
         const duplicateCall = duplicateStub.getCall(0);
 
-        expect(duplicateCall.args[1].redisOptions.connectionName).toContain(
+        expect(duplicateCall.args[0].connectionName).toContain(
           `:w:${workerName}`,
         );
 
@@ -669,10 +609,10 @@ describe('Cluster support', () => {
     describe('when cluster nodes return empty client lists', () => {
       it('should return empty array', async () => {
         const mockNode1 = {
-          client: sinon.stub().resolves(''),
+          clientList: sinon.stub().resolves(''),
         };
         const mockNode2 = {
-          client: sinon.stub().resolves(''),
+          clientList: sinon.stub().resolves(''),
         };
 
         const mockClusterClient = {

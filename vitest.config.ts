@@ -9,6 +9,7 @@ export default defineConfig({
     exclude: [
       'tests/test_*.ts',
       'tests/bun-redis.test.ts',
+      'tests/bun-adapter-suite.test.ts',
       'tests/node-redis.test.ts',
       'tests/adapter-conformance.test.ts',
       'node_modules/**',

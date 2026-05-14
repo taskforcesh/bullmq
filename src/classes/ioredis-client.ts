@@ -44,11 +44,26 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
     return augmentTransaction(origMulti(...args));
   };
 
-  // Duplicate — ensure the result is also augmented
+  // Duplicate — ensure the result is also augmented.
+  // ioredis Cluster.duplicate(startupNodes?, options?) expects connection
+  // options under `redisOptions`, while Redis.duplicate(options?) takes them
+  // at the top level.  We normalise the call so that callers can always pass
+  // a simple `{ connectionName }` object regardless of the client type.
   if (typeof client.duplicate === 'function') {
     const origDuplicate = client.duplicate.bind(client);
-    a.duplicate = function (...args: any[]): IRedisClient {
-      return createIORedisClient(origDuplicate(...args));
+    const clientIsCluster = !!(client as any).isCluster;
+
+    a.duplicate = function (opts?: Record<string, any>): IRedisClient {
+      if (clientIsCluster) {
+        const existingRedisOpts = (client as any).options?.redisOptions || {};
+        const mergedRedisOpts = opts
+          ? { ...existingRedisOpts, ...opts }
+          : existingRedisOpts;
+        return createIORedisClient(
+          origDuplicate(undefined, { redisOptions: mergedRedisOpts }),
+        );
+      }
+      return createIORedisClient(origDuplicate(opts as any));
     };
   }
 
