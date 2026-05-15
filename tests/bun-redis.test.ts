@@ -140,7 +140,7 @@ describe('bun redis adapter', () => {
       });
     });
 
-    afterAll(async () => {
+    afterEach(async () => {
       if (queue) {
         await queue.close();
         await cleanQueue(queueName);
