@@ -56,7 +56,7 @@
     "test:vitest:watch": "vitest",
     "test:vitest:ui": "vitest --ui",
     "test:node-redis": "vitest run --config vitest.node-redis.config.ts",
-    "test:node-redis:conformance": "vitest run tests/adapter-conformance.test.ts",
+    "test:node-redis:conformance": "vitest run --config vitest.node-redis.config.ts tests/adapter-conformance.test.ts",
     "test:bun": "bun test --timeout 30000 tests/bun-adapter-suite.test.ts",
     "test:bun-client": "bun test --timeout 20000 tests/bun-redis.test.ts",
     "test:watch": "vitest --watch",

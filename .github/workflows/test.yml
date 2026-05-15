@@ -114,6 +114,7 @@ jobs:
       - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
       - run: yarn build
       - run: yarn test:node-redis
+      - run: yarn test:node-redis:conformance
 
   node-valkey:
     runs-on: ubuntu-latest

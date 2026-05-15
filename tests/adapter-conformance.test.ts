@@ -401,13 +401,19 @@ describe('Adapter Conformance', () => {
     });
 
     it('should scan return [cursor, keys] tuple', async () => {
-      const [cursor, keys] = await client.scan(0, {
-        MATCH: `${testPrefix}scan:*`,
-        COUNT: 100,
-      });
-      expect(typeof cursor).toBe('string');
-      expect(Array.isArray(keys)).toBe(true);
-      expect(keys.length).toBeGreaterThan(0);
+      let allKeys: string[] = [];
+      let cursor = '0';
+      do {
+        const [nextCursor, keys] = await client.scan(cursor, {
+          MATCH: `${testPrefix}scan:*`,
+          COUNT: 100,
+        });
+        cursor = nextCursor;
+        expect(typeof cursor).toBe('string');
+        expect(Array.isArray(keys)).toBe(true);
+        allKeys = allKeys.concat(keys);
+      } while (cursor !== '0');
+      expect(allKeys.length).toBeGreaterThan(0);
     });
 
     it('should scan with string cursor', async () => {

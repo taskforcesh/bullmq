@@ -8,7 +8,7 @@ import { defineConfig } from 'vitest/config';
  */
 export default defineConfig({
   test: {
-    include: ['tests/node-redis.test.ts'],
+    include: ['tests/node-redis.test.ts', 'tests/adapter-conformance.test.ts'],
     testTimeout: 10000,
     hookTimeout: 10000,
     sequence: { concurrent: false },

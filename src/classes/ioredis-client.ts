@@ -14,9 +14,14 @@ import { IRedisClient, IRedisTransaction } from '../interfaces/redis-client';
  *   - `pipeline/multi` – add `runCommand` to the returned ChainableCommander
  *   - translate structured option objects to ioredis varargs where needed
  *
- * Methods are added directly to the existing instance (zero-overhead
- * augmentation, no wrapper object).  If the instance has already been
- * augmented, it is returned as-is.
+ * **Side-effect warning:** This function mutates the provided instance
+ * in-place for zero-overhead augmentation.  When a user passes their own
+ * ioredis client to BullMQ, the overrides are written onto that shared
+ * object.  All overrides are **backward-compatible**: they detect whether
+ * they are called with the ioredis native varargs style or the IRedisClient
+ * structured-options style and dispatch accordingly.  External code that
+ * calls e.g. `client.hset(key, 'f1', 'v1')` will continue to work after
+ * augmentation.
  */
 export function createIORedisClient<TClient extends Redis | Cluster>(
   client: TClient,
@@ -27,6 +32,12 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
     return a as TClient & IRedisClient;
   }
   a.__bullmq_iredis = true;
+
+  // Ensure isCluster is a boolean.  ioredis Cluster sets it to true;
+  // plain Redis leaves it undefined.
+  if (typeof a.isCluster !== 'boolean') {
+    a.isCluster = false;
+  }
 
   // Lua script engine
   a.runCommand = function (name: string, args: any[]): any {
@@ -69,71 +80,103 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
 
   // --- Structured → ioredis varargs translations ---
 
-  // hset(key, { f1: v1, f2: v2 }) → ioredis hset(key, f1, v1, f2, v2)
+  // hset: structured { f1: v1 } → ioredis hset(key, f1, v1, …)
+  // Backward-compatible: if second arg is a string, caller is using ioredis varargs.
   const origHset = (client as any).hset.bind(client);
   a.hset = function (
     key: string,
-    data: Record<string, string | number>,
+    dataOrField: Record<string, string | number> | string,
+    ...rest: any[]
   ): Promise<number> {
+    if (typeof dataOrField === 'string') {
+      return origHset(key, dataOrField, ...rest);
+    }
     const args: (string | number)[] = [key];
-    for (const [f, v] of Object.entries(data)) {
+    for (const [f, v] of Object.entries(dataOrField)) {
       args.push(f, v);
     }
     return origHset(...args);
   };
 
-  // set(key, value, { PX?: n }) → ioredis set(key, value, 'PX', n)
+  // set: structured { PX?: n } → ioredis set(key, value, 'PX', n)
+  // Backward-compatible: if third arg is a string, caller is using ioredis varargs.
   const origSet = (client as any).set.bind(client);
   a.set = function (
     key: string,
     value: string | number,
-    options?: { PX?: number; EX?: number },
+    optionsOrModifier?: { PX?: number; EX?: number } | string,
+    ...rest: any[]
   ): Promise<string | null> {
+    if (typeof optionsOrModifier === 'string' || optionsOrModifier == null) {
+      return origSet(
+        key,
+        value,
+        ...(optionsOrModifier != null ? [optionsOrModifier, ...rest] : []),
+      );
+    }
     const args: any[] = [key, value];
-    if (options?.PX != null) {
-      args.push('PX', options.PX);
-    } else if (options?.EX != null) {
-      args.push('EX', options.EX);
+    if (optionsOrModifier.PX != null) {
+      args.push('PX', optionsOrModifier.PX);
+    } else if (optionsOrModifier.EX != null) {
+      args.push('EX', optionsOrModifier.EX);
     }
     return origSet(...args);
   };
 
-  // zrange(key, start, end, { WITHSCORES? }) → ioredis zrange(key, start, end [, 'WITHSCORES'])
+  // zrange: structured { WITHSCORES? } → ioredis zrange(key, start, end, 'WITHSCORES')
+  // Backward-compatible: if fourth arg is a string, caller is using ioredis varargs.
   const origZrange = (client as any).zrange.bind(client);
   a.zrange = function (
     key: string,
     start: number,
     end: number,
-    options?: { WITHSCORES?: boolean },
+    optionsOrStr?: { WITHSCORES?: boolean } | string,
+    ...rest: any[]
   ): Promise<string[]> {
-    if (options?.WITHSCORES) {
+    if (typeof optionsOrStr === 'string') {
+      return origZrange(key, start, end, optionsOrStr, ...rest);
+    }
+    if (optionsOrStr?.WITHSCORES) {
       return origZrange(key, start, end, 'WITHSCORES');
     }
     return origZrange(key, start, end);
   };
 
-  // zrevrange(key, start, end, { WITHSCORES? })
+  // zrevrange: structured { WITHSCORES? } → ioredis zrevrange(key, start, end, 'WITHSCORES')
+  // Backward-compatible: if fourth arg is a string, caller is using ioredis varargs.
   const origZrevrange = (client as any).zrevrange.bind(client);
   a.zrevrange = function (
     key: string,
     start: number,
     end: number,
-    options?: { WITHSCORES?: boolean },
+    optionsOrStr?: { WITHSCORES?: boolean } | string,
+    ...rest: any[]
   ): Promise<string[]> {
-    if (options?.WITHSCORES) {
+    if (typeof optionsOrStr === 'string') {
+      return origZrevrange(key, start, end, optionsOrStr, ...rest);
+    }
+    if (optionsOrStr?.WITHSCORES) {
       return origZrevrange(key, start, end, 'WITHSCORES');
     }
     return origZrevrange(key, start, end);
   };
 
-  // xadd(key, id, fields, { MAXLEN?, approximate? })
+  // xadd: structured (key, id, { field: value }, { MAXLEN? }) → ioredis varargs
+  // Backward-compatible: if third arg is a string, caller is using ioredis varargs
+  // (e.g. xadd(key, id, field1, val1, field2, val2)).
   const origXadd = (client as any).xadd.bind(client);
   a.xadd = function (
     key: string,
-    id: string,
-    fields: Record<string, string | number>,
-    options?: { MAXLEN?: number; approximate?: boolean },
+    idOrModifier: string,
+    fieldsOrArg: Record<string, string | number> | string,
+    ...rest: any[]
   ): Promise<string> {
+    if (typeof fieldsOrArg === 'string') {
+      return origXadd(key, idOrModifier, fieldsOrArg, ...rest);
+    }
+    const options = rest[0] as
+      | { MAXLEN?: number; approximate?: boolean }
+      | undefined;
     const args: any[] = [key];
     if (options?.MAXLEN != null) {
       args.push('MAXLEN');
@@ -142,19 +185,25 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
       }
       args.push(options.MAXLEN);
     }
-    args.push(id);
-    for (const [f, v] of Object.entries(fields)) {
+    args.push(idOrModifier);
+    for (const [f, v] of Object.entries(fieldsOrArg)) {
       args.push(f, v);
     }
     return origXadd(...args);
   };
 
-  // xread([{ key, id }], { BLOCK?, COUNT? })
+  // xread: structured ([{ key, id }], { BLOCK?, COUNT? }) → ioredis varargs
+  // Backward-compatible: if first arg is a string, caller is using ioredis varargs
+  // (e.g. xread('BLOCK', 5000, 'STREAMS', key, id)).
   const origXread = (client as any).xread.bind(client);
   a.xread = function (
-    streams: { key: string; id: string }[],
-    options?: { BLOCK?: number; COUNT?: number },
+    streamsOrModifier: { key: string; id: string }[] | string,
+    ...rest: any[]
   ): Promise<any> {
+    if (typeof streamsOrModifier === 'string') {
+      return origXread(streamsOrModifier, ...rest);
+    }
+    const options = rest[0] as { BLOCK?: number; COUNT?: number } | undefined;
     const args: any[] = [];
     if (options?.BLOCK != null) {
       args.push('BLOCK', options.BLOCK);
@@ -163,32 +212,41 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
       args.push('COUNT', options.COUNT);
     }
     args.push('STREAMS');
-    for (const s of streams) {
+    for (const s of streamsOrModifier) {
       args.push(s.key);
     }
-    for (const s of streams) {
+    for (const s of streamsOrModifier) {
       args.push(s.id);
     }
     return origXread(...args);
   };
 
-  // xtrim(key, strategy, threshold, { approximate? })
+  // xtrim: structured (key, 'MAXLEN', threshold, { approximate? })
+  // ioredis native is the same positional shape, so this is already compatible.
   const origXtrim = (client as any).xtrim.bind(client);
   a.xtrim = function (
     key: string,
     strategy: 'MAXLEN',
-    threshold: number,
-    options?: { approximate?: boolean },
+    thresholdOrApprox: number | string,
+    ...rest: any[]
   ): Promise<number> {
+    // Varargs passthrough: xtrim(key, 'MAXLEN', '~', 1000) or xtrim(key, 'MAXLEN', 1000)
+    if (typeof thresholdOrApprox === 'string' || rest.length === 0) {
+      return origXtrim(key, strategy, thresholdOrApprox, ...rest);
+    }
+    const options = rest[0] as { approximate?: boolean } | undefined;
     const args: any[] = [key, strategy];
     if (options?.approximate !== false) {
       args.push('~');
     }
-    args.push(threshold);
+    args.push(thresholdOrApprox);
     return origXtrim(...args);
   };
 
-  // bzpopmin → convert [key, member, score] array to object
+  // bzpopmin → convert ioredis [key, member, score] tuple to { key, member, score }
+  // This is a return-value transformation, not a calling-convention change,
+  // so external code that used to receive the raw array will see an object instead.
+  // BullMQ requires the object form; the raw array form is not preserved.
   const origBzpopmin = (client as any).bzpopmin.bind(client);
   a.bzpopmin = function (
     key: string,
