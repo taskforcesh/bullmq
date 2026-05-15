@@ -547,7 +547,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
   > {
     const client = await this.client;
     try {
-      if (client.isCluster) {
+      if (client.isCluster && typeof client.nodes === 'function') {
         const clusterNodes = client.nodes();
         const clientsPerNode: { [index: string]: string }[][] = [];
         for (let nodeIndex = 0; nodeIndex < clusterNodes.length; nodeIndex++) {
