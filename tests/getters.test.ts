@@ -1211,7 +1211,7 @@ describe('Jobs getters', () => {
         expect(metrics).toContain('env=' + '"' + expectedEscapedEnv + '"');
       } finally {
         await escapingQueue.close();
-        await removeAllQueueData(new IORedis(redisHost), rawName);
+        await removeAllQueueData(createTestConnection(), rawName);
       }
     });
   });
