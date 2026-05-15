@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import { EventEmitter } from 'events';
 import { Readable } from 'stream';
 import { IRedisClient, IRedisTransaction } from '../interfaces/redis-client';
+import { ConnectionClosedError } from './errors/connection-closed-error';
 
 /**
  * Adapter that wraps a `node-redis` (i.e. `@redis/client`) RedisClient
@@ -417,13 +418,19 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
       if (this._destroying && isConnectionClosedError(err)) {
         return null;
       }
+      if (isConnectionClosedError(err)) {
+        throw new ConnectionClosedError(err.message, err);
+      }
       // NOSCRIPT – fall back to EVAL which also caches the script
       if (err?.message?.includes?.('NOSCRIPT')) {
         try {
           return await this.raw.eval(lua, { keys, arguments: argv });
         } catch (evalErr: any) {
-          if (this._destroying && evalErr?.message === 'Disconnects client') {
+          if (this._destroying && isConnectionClosedError(evalErr)) {
             return null;
+          }
+          if (isConnectionClosedError(evalErr)) {
+            throw new ConnectionClosedError(evalErr.message, evalErr);
           }
           throw evalErr;
         }
@@ -643,8 +650,11 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
     try {
       result = await this.raw.xRead(streamArgs, opts);
     } catch (err: any) {
-      if (this._destroying && err?.message === 'Disconnects client') {
+      if (this._destroying && isConnectionClosedError(err)) {
         return null;
+      }
+      if (isConnectionClosedError(err)) {
+        throw new ConnectionClosedError(err.message, err);
       }
       throw err;
     }
@@ -689,6 +699,9 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
     } catch (err: any) {
       if (this._destroying && isConnectionClosedError(err)) {
         return null;
+      }
+      if (isConnectionClosedError(err)) {
+        throw new ConnectionClosedError(err.message, err);
       }
       throw err;
     }

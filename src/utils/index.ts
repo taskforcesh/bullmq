@@ -5,6 +5,7 @@ import { randomBytes, randomUUID as cryptoRandomUUID } from 'crypto';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
+import { ConnectionClosedError } from '../classes/errors/connection-closed-error';
 import {
   ChildMessage,
   ContextManager,
@@ -232,17 +233,14 @@ export const DELAY_TIME_5 = 5000;
 export const DELAY_TIME_1 = 100;
 
 export function isNotConnectionError(error: Error): boolean {
+  if (error instanceof ConnectionClosedError) {
+    return false;
+  }
   const { code, message: errorMessage } = error as any;
   return (
     errorMessage !== CONNECTION_CLOSED_ERROR_MSG &&
     !errorMessage.includes('ECONNREFUSED') &&
-    !errorMessage.includes('The client is closed') &&
-    !errorMessage.includes('ClientClosedError') &&
-    !errorMessage.includes('Socket closed unexpectedly') &&
-    !errorMessage.includes('Disconnects client') &&
-    !errorMessage.includes('Connection closed') &&
-    code !== 'ECONNREFUSED' &&
-    code !== 'ERR_REDIS_CONNECTION_CLOSED'
+    code !== 'ECONNREFUSED'
   );
 }
 
