@@ -154,7 +154,7 @@ export function decreaseMaxListeners(
 }
 
 type RemoveAllQueueDataPipeline = {
-  del(key: string): any;
+  del(...keys: string[]): any;
   exec(): Promise<any>;
 };
 
