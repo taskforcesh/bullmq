@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import { EventEmitter } from 'events';
 import { Readable } from 'stream';
 import { IRedisClient, IRedisTransaction } from '../interfaces/redis-client';
+import { ConnectionClosedError } from './errors/connection-closed-error';
 
 /**
  * Adapter that wraps Bun's built-in `RedisClient` so that it conforms to
@@ -38,6 +39,20 @@ interface LuaScript {
 
 function normalizeScriptArgs(args: any[]): any[] {
   return args.length === 1 && Array.isArray(args[0]) ? args[0] : args;
+}
+
+/**
+ * Returns true when the error is one that Bun's Redis client throws because
+ * the underlying TCP connection has been closed or is in the process of being
+ * closed (either intentionally via disconnect()/quit() or unexpectedly).
+ */
+function isBunConnectionClosedError(err: any): boolean {
+  const msg: string = err?.message ?? '';
+  return (
+    msg === 'Socket closed unexpectedly' ||
+    msg.startsWith('Connection closed') ||
+    msg === 'Connection is closed.'
+  );
 }
 
 function normalizeStringCollection(reply: any): string[] {
@@ -469,7 +484,14 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     command: string,
     args: RedisCommandArgument[],
   ): Promise<T> {
-    const run = this._sendQueue.then(() => this.raw.send<T>(command, args));
+    const run = this._sendQueue.then(() =>
+      (this.raw.send<T>(command, args) as Promise<T>).catch((err: any) => {
+        if (isBunConnectionClosedError(err)) {
+          throw new ConnectionClosedError(err.message, err);
+        }
+        throw err;
+      }),
+    );
     this._sendQueue = run.then(
       (): void => undefined,
       (): void => undefined,

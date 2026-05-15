@@ -3980,9 +3980,8 @@ describe('Job Scheduler', () => {
 
     await worker.close();
   });
-});
 
-describe('when job scheduler id contains 5 or more colon segments', () => {
+  describe('when job scheduler id contains 5 or more colon segments', () => {
   it('should not create duplicate schedulers after a job completes (issue #3828)', async () => {
     const date = new Date('2017-02-07 9:24:00');
     clock.setSystemTime(date);
@@ -4062,4 +4061,5 @@ describe('when job scheduler id contains 5 or more colon segments', () => {
     const isScheduler = await jobScheduler.isJobScheduler(legacyKey);
     expect(isScheduler).toBe(false);
   });
+});
 });

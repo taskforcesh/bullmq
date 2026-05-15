@@ -17,6 +17,7 @@ import { version as packageVersion } from '../version';
 import * as scripts from '../scripts';
 import { DatabaseType } from '../types';
 import { createIORedisClient, isIRedisClient } from './ioredis-client';
+import { ConnectionClosedError } from './errors/connection-closed-error';
 
 const overrideMessage = [
   'BullMQ: WARNING! Your redis options maxRetriesPerRequest must be null',
@@ -223,7 +224,7 @@ export class RedisConnection extends EventEmitter {
     }
 
     if (client.status === 'end') {
-      throw new Error(CONNECTION_CLOSED_ERROR_MSG);
+      throw new ConnectionClosedError(CONNECTION_CLOSED_ERROR_MSG);
     }
 
     let handleReady: () => void;
@@ -243,7 +244,9 @@ export class RedisConnection extends EventEmitter {
 
         handleEnd = () => {
           if (client.status !== 'end') {
-            reject(lastError || new Error(CONNECTION_CLOSED_ERROR_MSG));
+            reject(
+              lastError || new ConnectionClosedError(CONNECTION_CLOSED_ERROR_MSG),
+            );
           } else {
             if (lastError) {
               reject(lastError);
