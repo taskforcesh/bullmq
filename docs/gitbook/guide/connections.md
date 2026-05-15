@@ -57,6 +57,14 @@ const mySecondWorker = new Worker('mySecondWorker', async job => {}, {
 
 Note that in the third example, even though the ioredis instance is being reused, the worker will create a duplicated connection that it needs internally to make blocking connections. Consult the [ioredis](https://github.com/luin/ioredis/blob/master/API.md) documentation to learn how to properly create an instance of `IORedis`.
 
+{% hint style="warning" %}
+**Important:** When you pass an ioredis client instance to BullMQ, the instance is augmented in-place to conform to BullMQ's `IRedisClient` interface. This means BullMQ will override certain methods (such as `pipeline`, `multi`, `duplicate`, `hset`, `set`, `zrange`, `xadd`, `xread`, `xtrim`, `bzpopmin`, and `scan`) on your shared ioredis object.
+
+All overrides are backward-compatible: they detect whether they are called with ioredis native varargs style or BullMQ's structured-options style and dispatch accordingly. External code that calls methods like `client.hset(key, 'field', 'value')` will continue to work after augmentation.
+
+If you need to use the same ioredis instance with other code that might be sensitive to these modifications, consider creating a separate ioredis instance specifically for BullMQ.
+{% endhint %}
+
 ### Using node-redis
 
 BullMQ does not create node-redis clients directly. Create the raw client in your application and wrap it with `createNodeRedisClient` before passing it to BullMQ.
