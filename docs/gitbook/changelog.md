@@ -1,3 +1,10 @@
+## [5.76.9](https://github.com/taskforcesh/bullmq/compare/v5.76.8...v5.76.9) (2026-05-16)
+
+
+### Bug Fixes
+
+* **build:** remove source map generation ([#4167](https://github.com/taskforcesh/bullmq/issues/4167)) ([41713ca](https://github.com/taskforcesh/bullmq/commit/41713ca67f9a0d0c45c27bbccb7a79320204c3ac))
+
 ## [5.76.8](https://github.com/taskforcesh/bullmq/compare/v5.76.7...v5.76.8) (2026-05-12)
 
 
