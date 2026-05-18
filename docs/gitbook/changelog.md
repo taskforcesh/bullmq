@@ -1,3 +1,10 @@
+## [5.76.10](https://github.com/taskforcesh/bullmq/compare/v5.76.9...v5.76.10) (2026-05-17)
+
+
+### Bug Fixes
+
+* **flow:** respect parent attribute deletion from child when calling removeChildDependency ([#4169](https://github.com/taskforcesh/bullmq/issues/4169)) ([6396b4e](https://github.com/taskforcesh/bullmq/commit/6396b4e2a146d733d01d8d9629cc8c8ffb8fac2d))
+
 ## [5.76.9](https://github.com/taskforcesh/bullmq/compare/v5.76.8...v5.76.9) (2026-05-16)
 
 
