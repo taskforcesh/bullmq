@@ -29,7 +29,11 @@ describe('deduplication', () => {
   beforeEach(async () => {
     queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
-    queueEvents = new QueueEvents(queueName, { connection, prefix });
+    queueEvents = new QueueEvents(queueName, {
+      connection,
+      prefix,
+      blockingTimeout: 500,
+    });
     await queue.waitUntilReady();
     await queueEvents.waitUntilReady();
   });
@@ -96,7 +100,7 @@ describe('deduplication', () => {
           { foo: 'bar' },
           { debounce: { id: 'a1', ttl: 2000 } },
         );
-        await delay(100);
+        await delay(500);
 
         expect(debouncedCounter).toBe(4);
       });
@@ -326,19 +330,29 @@ describe('deduplication', () => {
       const testName = 'test';
       const dedupId = 'dedupId';
 
+      let deduplicatedResult:
+        | {
+            jobId: string;
+            deduplicationId: string;
+            deduplicatedJobId: string;
+            job: any;
+            deduplicatedJob: any;
+          }
+        | undefined;
       const waitingEvent = new Promise<void>((resolve, reject) => {
         queueEvents.once(
           'deduplicated',
           async ({ jobId, deduplicationId, deduplicatedJobId }) => {
             try {
               const job = await queue.getJob(jobId);
-              expect(job).toBeDefined();
-              expect(jobId).toBe('a1');
-              expect(deduplicationId).toBe(dedupId);
-
               const deduplicatedJob = await queue.getJob(deduplicatedJobId);
-              expect(deduplicatedJob).toBeUndefined();
-              expect(deduplicatedJobId).toBe('a2');
+              deduplicatedResult = {
+                jobId,
+                deduplicationId,
+                deduplicatedJobId,
+                job,
+                deduplicatedJob,
+              };
               resolve();
             } catch (error) {
               reject(error);
@@ -359,6 +373,11 @@ describe('deduplication', () => {
       );
 
       await waitingEvent;
+      expect(deduplicatedResult?.job).toBeDefined();
+      expect(deduplicatedResult?.jobId).toBe('a1');
+      expect(deduplicatedResult?.deduplicationId).toBe(dedupId);
+      expect(deduplicatedResult?.deduplicatedJob).toBeUndefined();
+      expect(deduplicatedResult?.deduplicatedJobId).toBe('a2');
     });
 
     describe('when removing deduplication key', () => {

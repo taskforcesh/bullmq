@@ -15,7 +15,7 @@ import { getParentKey, isRedisInstance, randomUUID, trace } from '../utils';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { RedisConnection } from './redis-connection';
-import { SpanKind, TelemetryAttributes } from '../enums';
+import { ErrorCode, SpanKind, TelemetryAttributes } from '../enums';
 
 export interface AddNodeOpts {
   multi: ChainableCommander;
@@ -228,7 +228,16 @@ export class FlowProducer extends EventEmitter {
         const [result] = results || [];
         if (result) {
           const [err, jobId] = result;
-          if (!err && typeof jobId === 'string') {
+          // Surface failures of the root flow job so that callers do not
+          // silently lose jobs (for example when adding a child node
+          // whose parent does not exist in Redis, see GH #3264).
+          if (err) {
+            throw err;
+          }
+          if (typeof jobId === 'number' && jobId < 0) {
+            throw this.toFlowError(jobId, parentKey);
+          }
+          if (typeof jobId === 'string') {
             jobsTree.job.id = jobId;
           }
         }
@@ -548,9 +557,10 @@ export class FlowProducer extends EventEmitter {
    * Helper factory method that creates a queue-like object
    * required to create jobs in any queue.
    *
-   * @param node -
-   * @param queueKeys -
-   * @returns
+   * @param node - The flow node containing the queue name and other job options.
+   * @param queueKeys - The queue keys helper used to resolve key names.
+   * @param prefix - The Redis key prefix used for the queue.
+   * @returns A queue-like object with the client, keys, and options needed to create jobs.
    */
   private queueFromNode(
     node: Omit<NodeOpts, 'id' | 'depth' | 'maxChildren'>,
@@ -573,6 +583,37 @@ export class FlowProducer extends EventEmitter {
       databaseType: this.connection.databaseType,
       trace: async (): Promise<any> => {},
     };
+  }
+
+  /**
+   * Translates a numeric error code returned by the addJob Lua script
+   * into a descriptive Error. Without this translation, a failed
+   * `multi.exec()` result would be silently ignored and the job would
+   * appear to be "dropped" with no feedback to the caller.
+   *
+   * Messages and the attached `code` property are kept aligned with
+   * `Scripts.finishedErrors` so programmatic callers can key off the
+   * same `(err as any).code` across both code paths.
+   *
+   * @param code - the numeric error code returned from Redis.
+   * @param parentKey - the parent key, when available, for the error message.
+   */
+  private toFlowError(code: number, parentKey?: string): Error {
+    let error: Error;
+    switch (code) {
+      case ErrorCode.ParentJobNotExist:
+        error = new Error(`Missing key for parent job ${parentKey}. addJob`);
+        break;
+      case ErrorCode.ParentJobCannotBeReplaced:
+        error = new Error(
+          `The parent job ${parentKey} cannot be replaced. addJob`,
+        );
+        break;
+      default:
+        error = new Error(`Unknown code ${code} error for addJob`);
+    }
+    (error as any).code = code;
+    return error;
   }
 
   /**

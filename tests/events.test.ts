@@ -37,7 +37,11 @@ describe('events', { timeout: 8000 }, () => {
   beforeEach(async () => {
     queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
-    queueEvents = new QueueEvents(queueName, { connection, prefix });
+    queueEvents = new QueueEvents(queueName, {
+      connection,
+      prefix,
+      blockingTimeout: 1000,
+    });
     await queue.waitUntilReady();
     await queueEvents.waitUntilReady();
   });
@@ -455,13 +459,15 @@ describe('events', { timeout: 8000 }, () => {
           prefix,
         },
       );
+      let waitingChildrenJob:
+        | { state: string | undefined; jobName: string | undefined }
+        | undefined;
       const waitingChildren = new Promise<void>((resolve, reject) => {
         queueEvents.once('waiting-children', async ({ jobId }) => {
           try {
             const job = await queue.getJob(jobId);
             const state = await job?.getState();
-            expect(state).toBe('waiting-children');
-            expect(job?.name).toBe(name);
+            waitingChildrenJob = { state, jobName: job?.name };
             resolve();
           } catch (err) {
             reject(err);
@@ -469,12 +475,15 @@ describe('events', { timeout: 8000 }, () => {
         });
       });
 
+      let waitingResult:
+        | { prev: string; jobName: string | undefined }
+        | undefined;
       const waiting = new Promise<void>((resolve, reject) => {
         queueEvents.on('waiting', async ({ jobId, prev }) => {
           try {
             const job = await queue.getJob(jobId);
-            expect(prev).toBe('waiting-children');
             if (job?.name === name) {
+              waitingResult = { prev, jobName: job?.name };
               resolve();
             }
           } catch (err) {
@@ -493,10 +502,15 @@ describe('events', { timeout: 8000 }, () => {
         ],
       });
       worker.run();
-      childrenWorker.run();
 
       await waitingChildren;
+      expect(waitingChildrenJob?.state).toBe('waiting-children');
+      expect(waitingChildrenJob?.jobName).toBe(name);
+
+      childrenWorker.run();
+
       await waiting;
+      expect(waitingResult?.prev).toBe('waiting-children');
 
       await worker.close();
       await childrenWorker.close();
