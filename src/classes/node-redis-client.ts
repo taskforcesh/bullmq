@@ -199,6 +199,8 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
   private _statusOverride: string | undefined;
   private _hasConnected = false;
   private _destroying = false;
+  private _connectPromise: Promise<void> | undefined;
+  private _connectionName: string | undefined;
 
   /**
    * Expose connection status using the vocabulary that
@@ -247,10 +249,21 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
   constructor(private readonly raw: TClient) {
     super();
 
-    // Track first connection so status can distinguish 'wait' vs 'end'
+    // Track first connection so status can distinguish 'wait' vs 'end'.
+    // When a _connectionName is set (via duplicate()), delay the 'ready'
+    // event until CLIENT SETNAME completes so that callers waiting for
+    // 'ready' (e.g. RedisConnection.waitUntilReady) see the name already
+    // applied.
     raw.on('ready', () => {
       this._hasConnected = true;
-      this.emit('ready');
+      if (this._connectionName) {
+        this.raw.clientSetName(this._connectionName).then(
+          () => this.emit('ready'),
+          () => this.emit('ready'), // emit ready even if setName fails
+        );
+      } else {
+        this.emit('ready');
+      }
     });
     raw.on('error', (err: Error) => {
       // Suppress the expected DisconnectsClientError that node-redis emits
@@ -262,6 +275,22 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
     });
     raw.on('end', () => this.emit('close'));
     raw.on('reconnecting', () => this.emit('reconnecting'));
+
+    // Auto-connect eagerly, like ioredis does in its constructor.
+    // This ensures commands can be issued immediately without an
+    // explicit connect() call. The promise is stored so that
+    // connect() is idempotent and callers can still await it.
+    if (!raw.isOpen) {
+      this._connectPromise = raw.connect().then(
+        () => {
+          this._connectPromise = undefined;
+        },
+        (err: Error) => {
+          this._connectPromise = undefined;
+          // Don't throw — errors surface via the 'error' event.
+        },
+      );
+    }
   }
 
   // ---------------------------------------------------------------
@@ -269,8 +298,20 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
   // ---------------------------------------------------------------
 
   async connect(): Promise<void> {
+    if (this._connectPromise) {
+      return this._connectPromise;
+    }
     if (!this.raw.isOpen) {
-      await this.raw.connect();
+      this._connectPromise = this.raw.connect().then(
+        () => {
+          this._connectPromise = undefined;
+        },
+        (err: Error) => {
+          this._connectPromise = undefined;
+          throw err;
+        },
+      );
+      return this._connectPromise;
     }
   }
 
@@ -349,19 +390,14 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
       (adapter as any)[name] = (...args: any[]) =>
         adapter.runCommand(name, args);
     }
-    // Handle connectionName option (ioredis calls CLIENT SETNAME automatically)
+    // Handle connectionName option (ioredis calls CLIENT SETNAME automatically).
+    // Setting _connectionName BEFORE auto-connect resolves ensures the
+    // constructor's 'ready' handler applies CLIENT SETNAME before emitting
+    // 'ready', so callers (like RedisConnection.waitUntilReady) see the name
+    // already set when the connection is reported as ready.
     const opts = args[0];
     if (opts && typeof opts === 'object' && opts.connectionName) {
-      const name = opts.connectionName;
-      const origConnect = adapter.connect.bind(adapter);
-      adapter.connect = async () => {
-        await origConnect();
-        try {
-          await adapter.clientSetName(name);
-        } catch {
-          // Client may have been closed before setName completes
-        }
-      };
+      adapter._connectionName = opts.connectionName;
     }
     return adapter;
   }
@@ -753,6 +789,7 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
 
   scanStream(options: { match: string; count?: number }): Readable {
     const raw = this.raw;
+    const connectPromise = this._connectPromise;
     const scanOpts: any = {};
     if (options.match) {
       scanOpts.MATCH = options.match;
@@ -765,6 +802,9 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
       objectMode: true,
       async read() {
         try {
+          if (connectPromise) {
+            await connectPromise;
+          }
           for await (const keys of raw.scanIterator(scanOpts)) {
             if (!readable.push(Array.isArray(keys) ? keys : [keys])) {
               return; // backpressure

@@ -56,7 +56,7 @@
     "test:vitest:watch": "vitest",
     "test:vitest:ui": "vitest --ui",
     "test:ioredis": "vitest run tests/cluster.test.ts tests/connection.test.ts tests/sandboxed_process.test.ts",
-    "test:node-redis": "vitest run --config vitest.node-redis.config.ts",
+    "test:node-redis": "vitest run --no-file-parallelism --config vitest.node-redis.config.ts",
     "test:bun": "bun node_modules/vitest/dist/cli.js run --no-file-parallelism --config vitest.bun.config.ts",
     "test:bun:smoke": "bun test --timeout 20000 tests/bun-redis.test.ts tests/bun-adapter-suite.test.ts",
     "test:watch": "vitest --watch",
