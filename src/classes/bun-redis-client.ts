@@ -51,7 +51,8 @@ function isBunConnectionClosedError(err: any): boolean {
   return (
     msg === 'Socket closed unexpectedly' ||
     msg.startsWith('Connection closed') ||
-    msg === 'Connection is closed.'
+    msg === 'Connection is closed.' ||
+    msg === 'Connection has failed'
   );
 }
 
@@ -117,6 +118,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
   private _closed = false;
   private _closing = false;
   private _connecting?: Promise<void>;
+  private _connectionName: string | undefined;
   // Serialize raw send() calls per connection to avoid Bun delivering
   // concurrent command responses to the wrong pending promise.
   private _sendQueue: Promise<void> = Promise.resolve();
@@ -177,7 +179,10 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
    * Wire up Bun's callback-style events into EventEmitter and auto-reconnect.
    */
   private _setupCallbacks(): void {
-    // Bridge Bun's callback-style events into EventEmitter
+    // Bridge Bun's callback-style events into EventEmitter.
+    // When _connectionName is set (via duplicate()), delay the 'ready'
+    // event until CLIENT SETNAME completes so callers waiting for 'ready'
+    // see the name already applied.
     this.raw.onconnect = () => {
       this._hasConnected = true;
       this._closed = false;
@@ -185,7 +190,14 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
       this._reconnecting = false;
       this._reconnectAttempts = 0;
       this._statusOverride = undefined;
-      this.emit('ready');
+      if (this._connectionName) {
+        this.clientSetName(this._connectionName).then(
+          () => this.emit('ready'),
+          () => this.emit('ready'), // emit ready even if setName fails
+        );
+      } else {
+        this.emit('ready');
+      }
     };
     this.raw.onclose = (error?: Error) => {
       if (this._closing) {
@@ -313,6 +325,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     this._reconnecting = false;
 
     const raw = this.raw;
+    raw.onconnect = () => {};
     raw.onclose = () => {};
     raw.onerror = () => {};
     if (raw.connected) {
@@ -404,19 +417,12 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
       (adapter as any)[name] = (...a: any[]) => adapter.runCommand(name, a);
     }
 
-    // Handle connectionName option
+    // Handle connectionName option (ioredis calls CLIENT SETNAME automatically).
+    // Setting _connectionName ensures the onconnect handler applies CLIENT
+    // SETNAME before emitting 'ready'.
     const opts = args[0];
     if (opts && typeof opts === 'object' && opts.connectionName) {
-      const connName = opts.connectionName;
-      const origConnect = adapter.connect.bind(adapter);
-      adapter.connect = async () => {
-        await origConnect();
-        try {
-          await adapter.clientSetName(connName);
-        } catch {
-          // Client may have been closed before setName completes
-        }
-      };
+      adapter._connectionName = opts.connectionName;
     }
     return adapter;
   }
@@ -437,10 +443,10 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     });
     (this as any)[name] = (...args: any[]) => this.runCommand(name, args);
 
-    // Pre-load the script into Redis
-    this.sendCommand('SCRIPT', ['LOAD', definition.lua]).catch(() => {
-      // Ignore – runCommand has NOSCRIPT fallback
-    });
+    // Note: We intentionally skip SCRIPT LOAD here. The first EVALSHA call
+    // will get a NOSCRIPT error and fall back to EVAL, which also loads the
+    // script for subsequent calls. This avoids fire-and-forget sendCommand
+    // calls that can trigger spurious unhandled rejection reports in Bun.
   }
 
   async runCommand(name: string, args: any[]): Promise<any> {
@@ -480,18 +486,37 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     return execute();
   }
 
-  async sendCommand<T = any>(
+  sendCommand<T = any>(
     command: string,
     args: RedisCommandArgument[],
   ): Promise<T> {
-    const run = this._sendQueue.then(() =>
-      (this.raw.send<T>(command, args) as Promise<T>).catch((err: any) => {
-        if (isBunConnectionClosedError(err)) {
-          throw new ConnectionClosedError(err.message, err);
-        }
-        throw err;
-      }),
-    );
+    // If the connection is already closing/closed, return a rejected promise
+    // directly without going through _sendQueue.
+    if (this._closing || this._closed) {
+      return Promise.reject(new ConnectionClosedError('Connection is closed'));
+    }
+    const run: Promise<T> = this._sendQueue.then(() => {
+      if (this._closing || this._closed) {
+        return Promise.reject<T>(
+          new ConnectionClosedError('Connection is closed'),
+        );
+      }
+      return (this.raw.send<T>(command, args) as Promise<T>).catch(
+        (err: any) => {
+          if (isBunConnectionClosedError(err)) {
+            return Promise.reject<T>(
+              new ConnectionClosedError(
+                this._closing || this._closed
+                  ? 'Connection is closed'
+                  : err.message,
+                err,
+              ),
+            );
+          }
+          throw err;
+        },
+      );
+    });
     this._sendQueue = run.then(
       (): void => undefined,
       (): void => undefined,

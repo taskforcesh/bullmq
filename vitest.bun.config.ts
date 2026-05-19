@@ -1,13 +1,13 @@
 import { defineConfig } from 'vitest/config';
 
 /**
- * Vitest config for running the full test suite against node-redis.
+ * Vitest config for running the full test suite against the Bun Redis adapter.
  *
- * Uses the same test files as the default (ioredis) suite, minus
- * ioredis-specific tests and adapter-specific smoke tests.
+ * Uses the same adapter-agnostic test files as ioredis and node-redis.
+ * Requires bun as the runtime: bunx vitest run --config vitest.bun.config.ts
  *
  * Usage:
- *   npx vitest run --config vitest.node-redis.config.ts
+ *   bunx vitest run --config vitest.bun.config.ts
  */
 export default defineConfig({
   test: {
@@ -24,6 +24,12 @@ export default defineConfig({
       'tests/bun-redis.test.ts',
       'tests/bun-adapter-suite.test.ts',
 
+      // Node.js-specific tests (worker threads / child processes)
+      'tests/child-pool.test.ts',
+
+      // Stress tests that hang under bun due to bun Redis client limitations
+      'tests/job_scheduler_stress.test.ts',
+
       // Old mocha-era files
       'tests/test_*.ts',
 
@@ -32,7 +38,7 @@ export default defineConfig({
 
       'node_modules/**',
     ],
-    setupFiles: ['./vitest.node-redis.setup.ts'],
+    setupFiles: ['./vitest.bun.setup.ts'],
     testTimeout: 10000,
     hookTimeout: 10000,
     sequence: { concurrent: false },

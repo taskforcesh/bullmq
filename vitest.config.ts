@@ -5,13 +5,28 @@ export default defineConfig({
     // Test files follow the pattern *.test.ts (new Vitest tests)
     include: ['tests/**/*.test.ts'],
 
-    // Exclude old mocha tests (test_*.ts pattern)
+    // Exclude adapter-specific smoke tests, ioredis-specific tests, and legacy files.
+    // The adapter-agnostic suite must be identical for ioredis, node-redis, and bun.
+    // ioredis-specific tests (cluster, connection, sandboxed_process) run separately
+    // via test:ioredis.
     exclude: [
-      'tests/test_*.ts',
-      'tests/bun-redis.test.ts',
-      'tests/bun-adapter-suite.test.ts',
+      // ioredis-specific tests (direct ioredis imports / cluster / connection internals)
+      'tests/cluster.test.ts',
+      'tests/connection.test.ts',
+      'tests/sandboxed_process.test.ts',
+
+      // Adapter-specific smoke tests (self-contained, not factory-based)
       'tests/node-redis.test.ts',
       'tests/adapter-conformance.test.ts',
+      'tests/bun-redis.test.ts',
+      'tests/bun-adapter-suite.test.ts',
+
+      // Old mocha-era files
+      'tests/test_*.ts',
+
+      // Debug/scratch files
+      'tests/debug-*.test.ts',
+
       'node_modules/**',
     ],
 

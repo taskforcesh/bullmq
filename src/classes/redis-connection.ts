@@ -245,7 +245,8 @@ export class RedisConnection extends EventEmitter {
         handleEnd = () => {
           if (client.status !== 'end') {
             reject(
-              lastError || new ConnectionClosedError(CONNECTION_CLOSED_ERROR_MSG),
+              lastError ||
+                new ConnectionClosedError(CONNECTION_CLOSED_ERROR_MSG),
             );
           } else {
             if (lastError) {
@@ -592,6 +593,9 @@ export class RedisConnection extends EventEmitter {
           if (status == 'initializing' || force) {
             // If we have not still connected to Redis, we need to disconnect.
             this._client.disconnect();
+            // Suppress any rejection from the in-flight init() so it doesn't
+            // become an unhandled rejection after we close the connection.
+            this.initializing?.catch(() => {});
           } else {
             await this._client.quit();
           }

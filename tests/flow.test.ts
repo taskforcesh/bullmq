@@ -6139,6 +6139,7 @@ describe('flows', () => {
       const flow = new FlowProducer({ connection, prefix });
       const queueEvents = new QueueEvents(queueName, { connection, prefix });
       await queueEvents.waitUntilReady();
+      await delay(50); // allow XREAD to start blocking
 
       const dedupId = 'dedup-parent-id';
 

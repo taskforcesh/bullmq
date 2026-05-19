@@ -41,6 +41,7 @@ describe('events', () => {
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queue.waitUntilReady();
     await queueEvents.waitUntilReady();
+    await delay(50); // allow XREAD to start blocking before emitting events
   });
 
   afterEach(async () => {
@@ -485,6 +486,7 @@ describe('events', () => {
       });
 
       const flow = new FlowProducer({ connection, prefix });
+      await delay(50); // additional delay since XREAD from '$' is unstable
       await flow.add({
         name,
         queueName,
