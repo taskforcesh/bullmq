@@ -200,7 +200,7 @@ jobs:
           redis-version: ${{ matrix.redis-version }}
       - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
       - run: yarn build
-      - run: yarn test:bun-client
+      - run: yarn test:bun:smoke
       - run: yarn test:bun
 
   # node-upstash:

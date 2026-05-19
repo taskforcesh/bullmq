@@ -4,10 +4,10 @@ import { defineConfig } from 'vitest/config';
  * Vitest config for running the full test suite against the Bun Redis adapter.
  *
  * Uses the same adapter-agnostic test files as ioredis and node-redis.
- * Requires bun as the runtime: bunx vitest run --config vitest.bun.config.ts
+ * Requires bun as the runtime: bun node_modules/vitest/dist/cli.js run --config vitest.bun.config.ts
  *
  * Usage:
- *   bunx vitest run --config vitest.bun.config.ts
+ *   yarn test:bun
  */
 export default defineConfig({
   test: {
