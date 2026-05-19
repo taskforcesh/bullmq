@@ -6,7 +6,7 @@
     "incremental": true,
     "declaration": true,
     "outDir": "dist/esm",
-    "sourceMap": true,
+    "sourceMap": false,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "strict": true,

@@ -29,7 +29,11 @@ describe('deduplication', () => {
   beforeEach(async () => {
     queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
-    queueEvents = new QueueEvents(queueName, { connection, prefix });
+    queueEvents = new QueueEvents(queueName, {
+      connection,
+      prefix,
+      blockingTimeout: 500,
+    });
     await queue.waitUntilReady();
     await queueEvents.waitUntilReady();
     await delay(50); // allow XREAD to start blocking before emitting events
@@ -97,7 +101,7 @@ describe('deduplication', () => {
           { foo: 'bar' },
           { debounce: { id: 'a1', ttl: 2000 } },
         );
-        await delay(100);
+        await delay(500);
 
         expect(debouncedCounter).toBe(4);
       });

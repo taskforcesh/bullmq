@@ -410,10 +410,14 @@ export class Job<
 
     if (json.parentKey) {
       job.parentKey = json.parentKey;
+    } else {
+      job.parentKey = undefined;
     }
 
     if (json.parent) {
       job.parent = JSON.parse(json.parent);
+    } else {
+      job.parent = undefined;
     }
 
     if (json.pb) {

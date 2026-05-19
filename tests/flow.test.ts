@@ -529,6 +529,39 @@ describe('flows', () => {
       });
     });
 
+    describe('when child is retrieved from getJob', () => {
+      it('does not restore the parent reference', async () => {
+        const flow = new FlowProducer({ connection, prefix });
+        const { job, children } = await flow.add({
+          name: 'parent',
+          data: {},
+          queueName,
+          children: [
+            {
+              queueName,
+              name: 'child0',
+              data: {},
+              opts: {},
+            },
+          ],
+        });
+
+        const relationshipIsBroken =
+          await children![0].job.removeChildDependency();
+
+        expect(relationshipIsBroken).toBe(true);
+        expect(children![0].job.parent).toBeUndefined();
+        expect(children![0].job.parentKey).toBeUndefined();
+
+        const childJob = await queue.getJob(children![0].job.id!);
+
+        expect(childJob?.parent).toBeUndefined();
+        expect(childJob?.parentKey).toBeUndefined();
+
+        await flow.close();
+      });
+    });
+
     describe('when there are pending children when calling this method', () => {
       it('keeps parent in waiting-children state', async () => {
         const flow = new FlowProducer({ connection, prefix });
