@@ -32,6 +32,7 @@ describe('deduplication', () => {
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queue.waitUntilReady();
     await queueEvents.waitUntilReady();
+    await delay(50); // allow XREAD to start blocking before emitting events
   });
 
   afterEach(async () => {
