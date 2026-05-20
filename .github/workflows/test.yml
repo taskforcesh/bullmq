@@ -60,7 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: smoke
 
-    name: testing ioredis (with coverage) node@${{ matrix.node-version }}, redis@${{ matrix.redis-version }}
+    name: testing node@${{ matrix.node-version }}, redis@${{ matrix.redis-version }}
 
     env:
       allowed_coverage_change: -0.25
@@ -111,7 +111,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: ioredis-redis
 
-    name: testing ioredis node@${{ matrix.node-version }}, redis@${{ matrix.redis-version }}
+    name: testing node@${{ matrix.node-version }}, redis@${{ matrix.redis-version }}
 
     strategy:
       fail-fast: false
