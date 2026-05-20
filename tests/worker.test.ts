@@ -1214,7 +1214,6 @@ describe('workers', () => {
         );
         await worker.waitUntilReady();
 
-        const name = 'test';
         const jobs = Array.from(Array(50).keys()).map(index => ({
           name: 'test',
           data: { index },
