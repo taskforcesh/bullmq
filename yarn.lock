@@ -1810,7 +1810,7 @@ bottleneck@^2.15.3:
   resolved "https://registry.yarnpkg.com/bottleneck/-/bottleneck-2.19.5.tgz#5df0b90f59fd47656ebe63c78a98419205cadd91"
   integrity sha512-VHiNCbI1lKdl44tGrhNfU3lup0Tj/ZBMJB5/2ZbNXRCPuRCO7ed2mgcK4r17y+KB2EfuYuRaVlwNbAeaWGSpbw==
 
-brace-expansion@>=1.1.13, brace-expansion@^1.1.7, brace-expansion@^5.0.2, brace-expansion@^5.0.5:
+brace-expansion@>=1.1.13, brace-expansion@^1.1.7, brace-expansion@^5.0.5:
   version "5.0.6"
   resolved "https://registry.yarnpkg.com/brace-expansion/-/brace-expansion-5.0.6.tgz#ec68fe0a641a29d8711579caf641d05bae1f2285"
   integrity sha512-kLpxurY4Z4r9sgMsyG0Z9uzsBlgiU/EFKhj/h91/8yHu0edo7XuixOIH3VcJ8kkxs6/jPzoI6U9Vj3WqbMQ94g==
