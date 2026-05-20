@@ -1092,37 +1092,35 @@ describe('stalled jobs', () => {
         });
 
         const errorMessage = 'job stalled more than allowable limit';
-        // Two jobs (index 2 and 3) were left active when the first worker was
-        // closed and will be picked up as stalled by worker2. Wait for both
-        // failures so the test is robust to event ordering and does not hang
-        // if job id '4' never arrives at the handler.
+        // Two jobs (index 2 and 3, ids '3' and '4') were left active when the
+        // first worker was closed and will be picked up as stalled by worker2.
+        // Wait for both failures so the test is robust to event ordering and
+        // does not hang on a specific job id.
         const expectedStalledFailures = 2;
-        const lastFailedJob = new Promise<{ id: string; index: number }>(
-          (resolve, reject) => {
-            let received = 0;
-            let last: { id: string; index: number } | undefined;
-            worker2.on('failed', async (job, failedReason, prev) => {
-              try {
-                expect(prev).toBe('active');
-                expect(failedReason.message).toBe(errorMessage);
-              } catch (err) {
-                reject(err);
-                return;
-              }
-              received += 1;
-              last = { id: job.id!, index: job.data.index };
-              if (received === expectedStalledFailures) {
-                resolve(last);
-              }
-            });
-          },
-        );
+        const stalledFailures = new Promise<
+          Array<{ id: string; index: number }>
+        >((resolve, reject) => {
+          const received: Array<{ id: string; index: number }> = [];
+          worker2.on('failed', async (job, failedReason, prev) => {
+            try {
+              expect(prev).toBe('active');
+              expect(failedReason.message).toBe(errorMessage);
+            } catch (err) {
+              reject(err);
+              return;
+            }
+            received.push({ id: job.id!, index: job.data.index });
+            if (received.length === expectedStalledFailures) {
+              resolve(received);
+            }
+          });
+        });
 
-        const { id: lastId, index: lastIndex } = await lastFailedJob;
+        const failures = await stalledFailures;
         const failedCount = await queue.getFailedCount();
         expect(failedCount).toBe(2);
-        expect(lastId).toBe('4');
-        expect(lastIndex).toBe(3);
+        expect(failures.map(f => f.id).sort()).toEqual(['3', '4']);
+        expect(failures.map(f => f.index).sort()).toEqual([2, 3]);
 
         await worker2.close();
       });

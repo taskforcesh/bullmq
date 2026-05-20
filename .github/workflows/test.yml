@@ -280,7 +280,10 @@ jobs:
 
   python:
     runs-on: ubuntu-latest
-    needs: smoke
+    # Depend on the primary node suite (which also runs coverage) so a Node
+    # test failure aborts the cross-language jobs before they consume runner
+    # time. `ioredis-redis` itself depends on `smoke`.
+    needs: ioredis-redis
 
     name: testing python@${{ matrix.python-version }}, redis@${{ matrix.redis-version }}
 
@@ -330,7 +333,7 @@ jobs:
 
   python-dragonflydb:
     runs-on: ubuntu-latest
-    needs: smoke
+    needs: ioredis-redis
 
     name: testing python@${{ matrix.python-version }}, dragonflydb@latest
 
@@ -386,7 +389,7 @@ jobs:
 
   elixir:
     runs-on: ubuntu-latest
-    needs: smoke
+    needs: ioredis-redis
 
     name: testing elixir@${{ matrix.elixir-version }}, otp@${{ matrix.otp-version }}, redis@${{ matrix.redis-version }}
 
@@ -451,7 +454,7 @@ jobs:
 
   php:
     runs-on: ubuntu-latest
-    needs: smoke
+    needs: ioredis-redis
 
     name: testing php@${{ matrix.php-version }}, redis@7
 
