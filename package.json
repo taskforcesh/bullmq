@@ -23,8 +23,9 @@
     "node": ">=12.22.0"
   },
   "scripts": {
-    "build": "npm run pretest && npm run tsc:all && npm run copy:main:type && npm run clean:temp:files && npm run copy:lua && npm run copy:includes:lua",
+    "build": "npm run clean:dist && npm run pretest && npm run tsc:all && npm run copy:main:type && npm run clean:temp:files && npm run copy:lua && npm run copy:includes:lua",
     "circular:references": "madge --circular --extensions ts ./src",
+    "clean:dist": "rimraf dist",
     "clean:scripts": "rimraf rawScripts src/scripts",
     "clean:temp:files": "rimraf dist/cjs/bullmq.d.ts dist/esm/bullmq.d.ts dist/tsdoc-metadata.json",
     "copy:includes:lua": "cpx \"./src/commands/includes/*.lua\" ./dist/cjs/commands/includes && cpx \"./src/commands/includes/*.lua\" ./dist/esm/commands/includes",
@@ -52,10 +53,11 @@
     "semantic-release:debug": "semantic-release --no-ci --dry-run --debug",
     "semantic-release-prepare": "ts-node tools/semantic-release-prepare",
     "test": "vitest run --no-file-parallelism",
+    "test:smoke": "vitest run --no-file-parallelism --bail=1 tests/async_fifo_queue.test.ts tests/script_loader.test.ts tests/scripts.test.ts tests/child-pool.test.ts tests/bulk.test.ts tests/queue.test.ts",
     "test:vitest": "vitest run --no-file-parallelism",
     "test:vitest:watch": "vitest",
     "test:vitest:ui": "vitest --ui",
-    "test:ioredis": "vitest run tests/cluster.test.ts tests/connection.test.ts tests/sandboxed_process.test.ts",
+    "test:ioredis": "vitest run --no-file-parallelism --config vitest.ioredis.config.ts",
     "test:node-redis": "vitest run --no-file-parallelism --config vitest.node-redis.config.ts",
     "test:bun": "bun node_modules/vitest/dist/cli.js run --no-file-parallelism --config vitest.bun.config.ts",
     "test:bun:smoke": "bun test --timeout 20000 tests/bun-redis.test.ts tests/bun-adapter-suite.test.ts",

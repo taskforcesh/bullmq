@@ -3,8 +3,6 @@ name: OSV-Scanner Scheduled Scan
 on:
   schedule:
     - cron: '30 12 * * 1'
-  pull_request:
-    branches: [master]
   merge_group:
     branches: [master]
 

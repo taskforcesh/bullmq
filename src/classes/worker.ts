@@ -1368,18 +1368,15 @@ will never work with more accuracy than 1ms. */
    * @returns
    */
   private async whenCurrentJobsFinished(reconnect = true) {
-    //
-    // Force reconnection of blocking connection to abort blocking redis call immediately.
-    //
-    if (this.waiting) {
-      // If we are not going to reconnect, we will not wait for the disconnection.
-      await this.blockingConnection.disconnect(reconnect);
+    // The blocking connection is dedicated to bzpopmin, so it is safe to
+    // always disconnect it whenever the main loop is running. Waiting for the
+    // actual disconnect ('end' event) is required to avoid a race where the
+    // bzpopmin call is still in flight when the main loop awaits its result.
+    if (this.mainLoopRunning) {
+      await this.blockingConnection.disconnect(true);
+      await this.mainLoopRunning;
     } else {
       reconnect = false;
-    }
-
-    if (this.mainLoopRunning) {
-      await this.mainLoopRunning;
     }
 
     reconnect && (await this.blockingConnection.reconnect());

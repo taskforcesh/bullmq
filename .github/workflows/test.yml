@@ -15,10 +15,55 @@ concurrency:
 
 permissions:
   contents: read # to fetch code (actions/checkout)
+  # Required by the OSV scanner reusable workflow for uploading SARIF results.
+  actions: read
+  security-events: write
 
 jobs:
+  # Vulnerability scan gate. Runs first because it's fast and a failure
+  # here would block merging regardless of test outcomes.
+  osv-scan:
+    uses: 'google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.5'
+    with:
+      scan-args: |-
+        --config=osv-scanner.toml
+        -r
+        ./
+
+  # Fast smoke test gate. Runs a small subset of fast, representative tests
+  # against the default (node + ioredis) adapter with --bail so we fail fast.
+  # All other heavier jobs depend on this so a quick failure cancels the rest.
+  smoke:
+    runs-on: ubuntu-latest
+    needs: osv-scan
+
+    name: smoke (lint + fast tests on node@lts, ioredis, redis@7)
+
+    env:
+      node-version: lts/*
+      redis-version: 7-alpine
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - name: Use Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: ${{ env.node-version }}
+          cache: 'yarn'
+      - name: Start Redis
+        uses: supercharge/redis-github-action@bc274cb7238cd63a45029db04ee48c07a72609fd # 1.8.1
+        with:
+          redis-version: ${{ env.redis-version }}
+      - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
+      - name: Run ESLint
+        run: yarn lint
+      - run: yarn build
+      - run: yarn test:smoke
+
   coverage:
     runs-on: ubuntu-latest
+    needs: smoke
 
     name: coverage for node@lts, redis@7
     env:
@@ -58,14 +103,51 @@ jobs:
             exit 1
           fi
 
+  # Primary ioredis test run on a single (current LTS) Node version.
+  # Acts as the gating job for the other adapters: if this passes,
+  # node-redis, node-valkey, node-dragonflydb, bun, and the additional
+  # ioredis Node/Redis version matrix run in parallel.
   ioredis-redis:
     runs-on: ubuntu-latest
+    needs: smoke
 
     name: testing ioredis node@${{ matrix.node-version }}, redis@${{ matrix.redis-version }}
 
     strategy:
       matrix:
-        node-version: [lts/*, lts/-1, lts/-2]
+        node-version: [lts/*]
+        redis-version: [7-alpine]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'yarn'
+      - name: Start Redis
+        uses: supercharge/redis-github-action@bc274cb7238cd63a45029db04ee48c07a72609fd # 1.8.1
+        with:
+          redis-version: ${{ matrix.redis-version }}
+      - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
+      - run: yarn build
+      - run: yarn test
+      - run: yarn test:ioredis
+
+  # Additional ioredis matrix coverage. Only runs once the primary
+  # ioredis-redis job has passed to avoid burning runner time on
+  # multiple Node/Redis versions when the suite is already broken.
+  ioredis-redis-extra:
+    runs-on: ubuntu-latest
+    needs: ioredis-redis
+
+    name: testing ioredis node@${{ matrix.node-version }}, redis@${{ matrix.redis-version }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [lts/-1, lts/-2]
         redis-version: [7-alpine]
         include:
           - node-version: 'lts/*'
@@ -84,14 +166,13 @@ jobs:
         with:
           redis-version: ${{ matrix.redis-version }}
       - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
-      - name: Run ESLint
-        run: yarn lint
       - run: yarn build
       - run: yarn test
       - run: yarn test:ioredis
 
   node-redis:
     runs-on: ubuntu-latest
+    needs: ioredis-redis
 
     name: testing node-redis node@${{ matrix.node-version }}, redis@${{ matrix.redis-version }}
 
@@ -118,6 +199,7 @@ jobs:
 
   node-valkey:
     runs-on: ubuntu-latest
+    needs: ioredis-redis
 
     env:
       node-version: lts/*
@@ -144,6 +226,7 @@ jobs:
 
   node-dragonflydb:
     runs-on: ubuntu-latest
+    needs: ioredis-redis
 
     env:
       node-version: lts/*
@@ -174,6 +257,7 @@ jobs:
 
   bun-redis:
     runs-on: ubuntu-latest
+    needs: ioredis-redis
 
     name: testing bun@${{ matrix.bun-version }}, redis@${{ matrix.redis-version }}
 
@@ -226,6 +310,7 @@ jobs:
 
   python:
     runs-on: ubuntu-latest
+    needs: smoke
 
     name: testing python@${{ matrix.python-version }}, redis@${{ matrix.redis-version }}
 
@@ -275,6 +360,7 @@ jobs:
 
   python-dragonflydb:
     runs-on: ubuntu-latest
+    needs: smoke
 
     name: testing python@${{ matrix.python-version }}, dragonflydb@latest
 
@@ -330,6 +416,7 @@ jobs:
 
   elixir:
     runs-on: ubuntu-latest
+    needs: smoke
 
     name: testing elixir@${{ matrix.elixir-version }}, otp@${{ matrix.otp-version }}, redis@${{ matrix.redis-version }}
 
@@ -394,6 +481,7 @@ jobs:
 
   php:
     runs-on: ubuntu-latest
+    needs: smoke
 
     name: testing php@${{ matrix.php-version }}, redis@7
 

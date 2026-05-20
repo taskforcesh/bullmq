@@ -113,6 +113,10 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
   implements IRedisClient
 {
   private scripts = new Map<string, LuaScript>();
+  // Tracks which script SHAs have been loaded server-side on the current
+  // raw connection. Cleared on (re)connect since SCRIPT cache is per-server
+  // and is also lost across our internal raw-client swap.
+  private _loadedScriptShas = new Set<string>();
   private _statusOverride: string | undefined;
   private _hasConnected = false;
   private _closed = false;
@@ -190,6 +194,9 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
       this._reconnecting = false;
       this._reconnectAttempts = 0;
       this._statusOverride = undefined;
+      // The server-side SCRIPT cache is gone for this (possibly new) raw
+      // connection. Force re-loading on next use.
+      this._loadedScriptShas.clear();
       if (this._connectionName) {
         this.clientSetName(this._connectionName).then(
           () => this.emit('ready'),
@@ -473,17 +480,47 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
 
     const execute = async () => {
       try {
-        return await this.sendCommand('EVALSHA', evalArgs);
+        const result = await this.sendCommand('EVALSHA', evalArgs);
+        this._loadedScriptShas.add(sha);
+        return result;
       } catch (err: any) {
         if (err?.message?.includes?.('NOSCRIPT')) {
           const evalLuaArgs = [lua, String(keys.length), ...keys, ...argv];
-          return await this.sendCommand('EVAL', evalLuaArgs);
+          const result = await this.sendCommand('EVAL', evalLuaArgs);
+          this._loadedScriptShas.add(sha);
+          return result;
         }
         throw err;
       }
     };
 
     return execute();
+  }
+
+  /**
+   * Ensure the given scripts are present in the server-side SCRIPT cache so
+   * that subsequent EVALSHA calls (e.g. inside a MULTI/EXEC) won't fail with
+   * NOSCRIPT. Each script is SCRIPT LOAD'd at most once per connection.
+   */
+  async ensureScriptsLoaded(scripts: LuaScript[]): Promise<void> {
+    const toLoad: LuaScript[] = [];
+    const seen = new Set<string>();
+    for (const s of scripts) {
+      if (this._loadedScriptShas.has(s.sha) || seen.has(s.sha)) {
+        continue;
+      }
+      seen.add(s.sha);
+      toLoad.push(s);
+    }
+    if (toLoad.length === 0) {
+      return;
+    }
+    await Promise.all(
+      toLoad.map(async s => {
+        await this.sendCommand('SCRIPT', ['LOAD', s.lua]);
+        this._loadedScriptShas.add(s.sha);
+      }),
+    );
   }
 
   sendCommand<T = any>(
@@ -1033,6 +1070,9 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
 class BunRedisTransaction implements IRedisTransaction {
   private commands: { cmd: string; args: (string | Buffer)[] }[] = [];
   private transformers: ((val: any) => any)[] = [];
+  // Scripts that need to be SCRIPT LOAD'd before exec() so the EVALSHA
+  // calls queued in this transaction won't NOSCRIPT.
+  private scriptsToLoad: LuaScript[] = [];
 
   constructor(
     private readonly raw: any,
@@ -1170,6 +1210,9 @@ class BunRedisTransaction implements IRedisTransaction {
       }
       return String(a);
     });
+    // Use EVALSHA for performance. The script is loaded server-side
+    // via SCRIPT LOAD in exec() before any commands are sent.
+    this.scriptsToLoad.push(script);
     this.addCommand('EVALSHA', [
       sha,
       String(cmdKeys.length),
@@ -1182,6 +1225,12 @@ class BunRedisTransaction implements IRedisTransaction {
   async exec(): Promise<[Error | null, any][] | null> {
     if (this.commands.length === 0) {
       return [];
+    }
+
+    // Make sure any Lua scripts referenced via EVALSHA are loaded on the
+    // server before we send EVALSHA inside the pipeline / MULTI block.
+    if (this.scriptsToLoad.length > 0) {
+      await this.adapter.ensureScriptsLoaded(this.scriptsToLoad);
     }
 
     if (!this.transactional) {

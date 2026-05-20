@@ -24,6 +24,9 @@ import * as sinon from 'sinon';
 describe('RedisConnection', () => {
   function createMockClusterClient(overrides: Record<string, any> = {}) {
     return {
+      // Mark as already-augmented IRedisClient so RedisConnection skips
+      // createIORedisClient() and uses the mock directly.
+      __bullmq_iredis: true,
       isCluster: true,
       status: 'ready',
       options: { redisOptions: {} },
@@ -41,6 +44,12 @@ describe('RedisConnection', () => {
       info: sinon.stub().resolves('redis_version:7.0.0'),
       nodes: sinon.stub().returns([{}]),
       bzpopmin: sinon.stub().resolves(null),
+      pipeline: sinon.stub().returns({
+        exec: sinon.stub().resolves([]),
+      }),
+      multi: sinon.stub().returns({
+        exec: sinon.stub().resolves([]),
+      }),
       ...overrides,
     };
   }
