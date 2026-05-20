@@ -872,7 +872,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
   async bzpopmin(
     key: string,
     timeout: number,
-  ): Promise<{ key: string; member: string; score: string } | null> {
+  ): Promise<[key: string, member: string, score: string] | null> {
     let result: any;
     try {
       result = await this.sendCommand('BZPOPMIN', [key, String(timeout)]);
@@ -885,11 +885,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     if (!result || result.length === 0) {
       return null;
     }
-    return {
-      key: String(result[0]),
-      member: String(result[1]),
-      score: String(result[2]),
-    };
+    return [String(result[0]), String(result[1]), String(result[2])];
   }
 
   // ---------------------------------------------------------------

@@ -807,7 +807,7 @@ will never work with more accuracy than 1ms. */
           // function only.
           const result = await bclient.bzpopmin(this.keys.marker, blockTimeout);
           if (result) {
-            const { member, score } = result;
+            const [, member, score] = result;
 
             if (member) {
               const newBlockUntil = parseInt(score);

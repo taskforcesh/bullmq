@@ -243,24 +243,13 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
     return origXtrim(...args);
   };
 
-  // bzpopmin → convert ioredis [key, member, score] tuple to { key, member, score }
-  // This is a return-value transformation, not a calling-convention change,
-  // so external code that used to receive the raw array will see an object instead.
-  // BullMQ requires the object form; the raw array form is not preserved.
-  const origBzpopmin = (client as any).bzpopmin.bind(client);
-  a.bzpopmin = function (
-    key: string,
-    timeout: number,
-  ): Promise<{ key: string; member: string; score: string } | null> {
-    return origBzpopmin(key, timeout).then(
-      (result: [string, string, string] | null) => {
-        if (!result) {
-          return null;
-        }
-        return { key: result[0], member: result[1], score: result[2] };
-      },
-    );
-  };
+  // bzpopmin
+  //
+  // We deliberately do NOT override ioredis' native `bzpopmin` here.
+  // ioredis returns `[key, member, score]` (a tuple) and that is also the
+  // shape required by IRedisClient. Overriding the method on a shared user
+  // instance would change the observable return shape for any non-BullMQ
+  // code that uses `bzpopmin` on the same client.
 
   // clientSetName / clientList
   a.clientSetName = function (name: string): Promise<any> {

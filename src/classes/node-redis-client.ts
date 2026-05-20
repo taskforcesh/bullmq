@@ -728,7 +728,7 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
   async bzpopmin(
     key: string,
     timeout: number,
-  ): Promise<{ key: string; member: string; score: string } | null> {
+  ): Promise<[key: string, member: string, score: string] | null> {
     let result: { key: string; value: string; score: number | string } | null;
     try {
       result = await this.raw.bzPopMin(key, timeout);
@@ -744,11 +744,7 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
     if (!result) {
       return null;
     }
-    return {
-      key: result.key,
-      member: result.value,
-      score: String(result.score),
-    };
+    return [result.key, result.value, String(result.score)];
   }
 
   // ---------------------------------------------------------------

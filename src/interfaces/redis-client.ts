@@ -199,10 +199,21 @@ export interface IRedisClient {
   // Blocking commands
   // ============================================================
 
+  /**
+   * Block until an element is available in the given sorted set, or the
+   * timeout expires.
+   *
+   * The return shape mirrors ioredis' native `bzpopmin`:
+   * `[key, member, score]` on success, or `null` on timeout. Adapters for
+   * other clients (node-redis, bun) MUST convert their native return value
+   * to this tuple form. This avoids mutating the shape of `bzpopmin` on
+   * shared ioredis instances, which would be a breaking change for code
+   * that uses the same client outside of BullMQ.
+   */
   bzpopmin(
     key: string,
     timeout: number,
-  ): Promise<{ key: string; member: string; score: string } | null>;
+  ): Promise<[key: string, member: string, score: string] | null>;
 
   // ============================================================
   // Server / admin commands

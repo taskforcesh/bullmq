@@ -708,8 +708,8 @@ describe('Adapter Conformance', () => {
       await (client as any).zadd(key('bz-zset'), 5, 'member1');
       const result = await client.bzpopmin(key('bz-zset'), 1);
       expect(result).not.toBeNull();
-      expect(result!.member).toBe('member1');
-      expect(result!.score).toBe('5');
+      expect(result![1]).toBe('member1');
+      expect(result![2]).toBe('5');
     });
   });
 
