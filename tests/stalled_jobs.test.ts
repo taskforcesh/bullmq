@@ -1049,6 +1049,18 @@ describe('stalled jobs', () => {
           worker.on('active', after(concurrency, resolve));
         });
 
+        // Wait for the two intentional failures (jobs with index < 2) so the
+        // age-based cleanup we assert later is deterministic. Without this,
+        // closing the worker right after `allActive` resolves can race the
+        // throw, causing those jobs to fail as stalled instead of via the
+        // processor, which changes their finishedOn timestamps.
+        const initialFailures = new Promise<void>(resolve => {
+          worker.on(
+            'failed',
+            after(2, () => resolve()),
+          );
+        });
+
         await worker.waitUntilReady();
 
         const jobs = Array.from(Array(4).keys()).map(index => ({
@@ -1067,6 +1079,7 @@ describe('stalled jobs', () => {
         worker.run();
 
         await allActive;
+        await initialFailures;
 
         await worker.close(true);
 
@@ -1079,21 +1092,37 @@ describe('stalled jobs', () => {
         });
 
         const errorMessage = 'job stalled more than allowable limit';
-        const allFailed = new Promise<void>(resolve => {
-          worker2.on('failed', async (job, failedReason, prev) => {
-            if (job.id == '4') {
-              const failedCount = await queue.getFailedCount();
-              expect(failedCount).toBe(2);
+        // Two jobs (index 2 and 3) were left active when the first worker was
+        // closed and will be picked up as stalled by worker2. Wait for both
+        // failures so the test is robust to event ordering and does not hang
+        // if job id '4' never arrives at the handler.
+        const expectedStalledFailures = 2;
+        const lastFailedJob = new Promise<{ id: string; index: number }>(
+          (resolve, reject) => {
+            let received = 0;
+            let last: { id: string; index: number } | undefined;
+            worker2.on('failed', async (job, failedReason, prev) => {
+              try {
+                expect(prev).toBe('active');
+                expect(failedReason.message).toBe(errorMessage);
+              } catch (err) {
+                reject(err);
+                return;
+              }
+              received += 1;
+              last = { id: job.id!, index: job.data.index };
+              if (received === expectedStalledFailures) {
+                resolve(last);
+              }
+            });
+          },
+        );
 
-              expect(job.data.index).toBe(3);
-              expect(prev).toBe('active');
-              expect(failedReason.message).toBe(errorMessage);
-              resolve();
-            }
-          });
-        });
-
-        await allFailed;
+        const { id: lastId, index: lastIndex } = await lastFailedJob;
+        const failedCount = await queue.getFailedCount();
+        expect(failedCount).toBe(2);
+        expect(lastId).toBe('4');
+        expect(lastIndex).toBe(3);
 
         await worker2.close();
       });

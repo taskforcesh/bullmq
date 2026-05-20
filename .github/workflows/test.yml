@@ -15,27 +15,15 @@ concurrency:
 
 permissions:
   contents: read # to fetch code (actions/checkout)
-  # Required by the OSV scanner reusable workflow for uploading SARIF results.
-  actions: read
-  security-events: write
 
 jobs:
-  # Vulnerability scan gate. Runs first because it's fast and a failure
-  # here would block merging regardless of test outcomes.
-  osv-scan:
-    uses: 'google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.5'
-    with:
-      scan-args: |-
-        --config=osv-scanner.toml
-        -r
-        ./
-
   # Fast smoke test gate. Runs a small subset of fast, representative tests
   # against the default (node + ioredis) adapter with --bail so we fail fast.
   # All other heavier jobs depend on this so a quick failure cancels the rest.
+  # (Vulnerability scanning runs in the separate `osv-scanner.yml` workflow
+  # and gates merging via branch protection / required checks.)
   smoke:
     runs-on: ubuntu-latest
-    needs: osv-scan
 
     name: smoke (lint + fast tests on node@lts, ioredis, redis@7)
 
@@ -72,7 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: smoke
 
-    name: testing ioredis node@${{ matrix.node-version }}, redis@${{ matrix.redis-version }}
+    name: testing ioredis (with coverage) node@${{ matrix.node-version }}, redis@${{ matrix.redis-version }}
 
     env:
       allowed_coverage_change: -0.25
@@ -176,6 +164,7 @@ jobs:
           redis-version: ${{ matrix.redis-version }}
       - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
       - run: yarn build
+      - run: yarn test:adapter-conformance
       - run: yarn test:node-redis
 
   node-valkey:
