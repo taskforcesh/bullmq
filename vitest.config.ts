@@ -48,7 +48,14 @@ export default defineConfig({
     // Reporter
     reporters: ['verbose'],
 
-    // Coverage configuration
+    // Coverage configuration.
+    //
+    // NOTE: `yarn coverage` uses `vitest.coverage.config.ts`, which runs the
+    // union of the default and ioredis-only suites so adapter-agnostic and
+    // ioredis-specific code paths (sandboxed_process, cluster, connection)
+    // are both included. The settings here only apply to ad-hoc invocations
+    // of `vitest --coverage` against this default config and intentionally
+    // exclude modules that have no coverage in this suite.
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
