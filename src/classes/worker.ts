@@ -1137,6 +1137,7 @@ will never work with more accuracy than 1ms. */
         return;
       }
 
+      const fetchNext = fetchNextCallback() && !(this.closing || this.paused);
       if (
         err instanceof DelayedError ||
         err.name == 'DelayedError' ||
@@ -1145,15 +1146,15 @@ will never work with more accuracy than 1ms. */
         err instanceof WaitingChildrenError ||
         err.name == 'WaitingChildrenError'
       ) {
-        const client = await this.client;
-        return this.moveToActive(client, token, this.opts.name);
+        if (fetchNext) {
+          const client = await this.client;
+          return this.moveToActive(client, token, this.opts.name);
+        } else {
+          return;
+        }
       }
 
-      const result = await job.moveToFailed(
-        err,
-        token,
-        fetchNextCallback() && !(this.closing || this.paused),
-      );
+      const result = await job.moveToFailed(err, token, fetchNext);
 
       this.emit('failed', job, err, 'active');
 

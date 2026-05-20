@@ -6166,7 +6166,11 @@ describe('flows', () => {
 
     it('should deduplicate root parent job when added again with same deduplication id', async () => {
       const flow = new FlowProducer({ connection, prefix });
-      const queueEvents = new QueueEvents(queueName, { connection, prefix });
+      const queueEvents = new QueueEvents(queueName, {
+        connection,
+        prefix,
+        blockingTimeout: 1000,
+      });
       await queueEvents.waitUntilReady();
 
       const dedupId = 'dedup-parent-id';
