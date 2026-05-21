@@ -551,8 +551,11 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
         const clusterNodes = client.nodes();
         const clientsPerNode: { [index: string]: string }[][] = [];
         for (let nodeIndex = 0; nodeIndex < clusterNodes.length; nodeIndex++) {
-          const node = clusterNodes[nodeIndex];
-          const clients = await node.clientList();
+          const node = clusterNodes[nodeIndex] as any;
+          const clients =
+            typeof node.clientList === 'function'
+              ? await node.clientList()
+              : await node.client('LIST');
           const list = this.parseClientList(clients, matcher);
           clientsPerNode.push(list);
         }

@@ -549,7 +549,7 @@ describe('Rate Limiter', () => {
 
           try {
             const timeDiff = new Date().getTime() - startTime;
-            expect(timeDiff).toBeGreaterThanOrEqual(numJobs / 2 - 1 * 1000);
+            expect(timeDiff).toBeGreaterThanOrEqual((numJobs / 2 - 1) * 1000);
             resolve();
           } catch (err) {
             reject(err);

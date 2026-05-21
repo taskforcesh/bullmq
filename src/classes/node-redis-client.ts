@@ -196,11 +196,11 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
   implements IRedisClient
 {
   private scripts = new Map<string, LuaScript>();
-  private _statusOverride: string | undefined;
-  private _hasConnected = false;
-  private _destroying = false;
-  private _connectPromise: Promise<void> | undefined;
-  private _connectionName: string | undefined;
+  private statusOverride: string | undefined;
+  private hasConnected = false;
+  private destroying = false;
+  private connectPromise: Promise<void> | undefined;
+  private connectionName: string | undefined;
 
   /**
    * Expose connection status using the vocabulary that
@@ -210,8 +210,8 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
    *   'end'   → permanently closed
    */
   get status(): string {
-    if (this._statusOverride) {
-      return this._statusOverride;
+    if (this.statusOverride) {
+      return this.statusOverride;
     }
     if (this.raw.isReady) {
       return 'ready';
@@ -220,12 +220,12 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
       return 'connect';
     }
     // Distinguish "never connected" from "disconnected after use"
-    return this._hasConnected ? 'end' : 'wait';
+    return this.hasConnected ? 'end' : 'wait';
   }
   set status(val: string) {
     // Allow RedisConnection to forcibly set 'end'
     if (val === 'end') {
-      this._destroying = true;
+      this.destroying = true;
       if (this.raw.isOpen) {
         try {
           this.raw.quit().catch(() => {});
@@ -234,7 +234,7 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
         }
       }
     }
-    this._statusOverride = val;
+    this.statusOverride = val;
   }
 
   readonly isCluster = false; // TODO: cluster support
@@ -250,14 +250,14 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
     super();
 
     // Track first connection so status can distinguish 'wait' vs 'end'.
-    // When a _connectionName is set (via duplicate()), delay the 'ready'
+    // When a connectionName is set (via duplicate()), delay the 'ready'
     // event until CLIENT SETNAME completes so that callers waiting for
     // 'ready' (e.g. RedisConnection.waitUntilReady) see the name already
     // applied.
     raw.on('ready', () => {
-      this._hasConnected = true;
-      if (this._connectionName) {
-        this.raw.clientSetName(this._connectionName).then(
+      this.hasConnected = true;
+      if (this.connectionName) {
+        this.raw.clientSetName(this.connectionName).then(
           () => this.emit('ready'),
           () => this.emit('ready'), // emit ready even if setName fails
         );
@@ -268,7 +268,7 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
     raw.on('error', (err: Error) => {
       // Suppress the expected DisconnectsClientError that node-redis emits
       // when destroy() is called intentionally (e.g. during close/disconnect).
-      if (this._destroying && isConnectionClosedError(err)) {
+      if (this.destroying && isConnectionClosedError(err)) {
         return;
       }
       this.emit('error', err);
@@ -281,12 +281,12 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
     // explicit connect() call. The promise is stored so that
     // connect() is idempotent and callers can still await it.
     if (!raw.isOpen) {
-      this._connectPromise = raw.connect().then(
+      this.connectPromise = raw.connect().then(
         () => {
-          this._connectPromise = undefined;
+          this.connectPromise = undefined;
         },
         (err: Error) => {
-          this._connectPromise = undefined;
+          this.connectPromise = undefined;
           // Don't throw — errors surface via the 'error' event.
         },
       );
@@ -298,27 +298,51 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
   // ---------------------------------------------------------------
 
   async connect(): Promise<void> {
-    if (this._connectPromise) {
-      return this._connectPromise;
+    if (this.connectPromise) {
+      return this.connectPromise;
     }
     if (!this.raw.isOpen) {
-      this._connectPromise = this.raw.connect().then(
+      this.connectPromise = this.raw.connect().then(
         () => {
-          this._connectPromise = undefined;
+          this.connectPromise = undefined;
         },
         (err: Error) => {
-          this._connectPromise = undefined;
+          this.connectPromise = undefined;
           throw err;
         },
       );
-      return this._connectPromise;
+      return this.connectPromise;
+    }
+    if (!this.raw.isReady) {
+      await new Promise<void>((resolve, reject) => {
+        const onReady = () => {
+          cleanup();
+          resolve();
+        };
+        const onError = (err: Error) => {
+          cleanup();
+          reject(err);
+        };
+        const onEnd = () => {
+          cleanup();
+          reject(new Error('Connection ended before ready event'));
+        };
+        const cleanup = () => {
+          this.off('ready', onReady);
+          this.off('error', onError);
+          this.off('end', onEnd);
+        };
+        this.once('ready', onReady);
+        this.once('error', onError);
+        this.once('end', onEnd);
+      });
     }
   }
 
   disconnect(reconnect = false): void {
-    this._destroying = true;
+    this.destroying = true;
     if (!reconnect) {
-      this._statusOverride = 'end';
+      this.statusOverride = 'end';
     }
     try {
       if (this.raw.isOpen) {
@@ -333,7 +357,7 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
     }
     this.emit('close');
     if (reconnect) {
-      this._statusOverride = undefined;
+      this.statusOverride = undefined;
       this.emit('reconnecting');
       this.connect()
         .catch(err => {
@@ -342,7 +366,7 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
           }
         })
         .finally(() => {
-          this._destroying = false;
+          this.destroying = false;
         });
     } else {
       // Emit both 'close' and 'end' so that all listeners are unblocked.
@@ -352,7 +376,7 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
   }
 
   async quit(): Promise<string> {
-    if (this._destroying || this._statusOverride === 'end') {
+    if (this.destroying || this.statusOverride === 'end') {
       setImmediate(() => {
         this.emit('end');
         this.emit('close');
@@ -360,7 +384,7 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
       return 'OK';
     }
 
-    this._destroying = true;
+    this.destroying = true;
     try {
       if (this.raw.isOpen) {
         try {
@@ -372,7 +396,7 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
     } catch {
       // Swallow errors from already-closing connections
     }
-    this._statusOverride = 'end';
+    this.statusOverride = 'end';
     // Emit on next tick so callers can register listeners after await quit()
     setImmediate(() => {
       this.emit('end');
@@ -391,13 +415,13 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
         adapter.runCommand(name, args);
     }
     // Handle connectionName option (ioredis calls CLIENT SETNAME automatically).
-    // Setting _connectionName BEFORE auto-connect resolves ensures the
+    // Setting connectionName BEFORE auto-connect resolves ensures the
     // constructor's 'ready' handler applies CLIENT SETNAME before emitting
     // 'ready', so callers (like RedisConnection.waitUntilReady) see the name
     // already set when the connection is reported as ready.
     const opts = args[0];
     if (opts && typeof opts === 'object' && opts.connectionName) {
-      adapter._connectionName = opts.connectionName;
+      adapter.connectionName = opts.connectionName;
     }
     return adapter;
   }
@@ -451,7 +475,7 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
     try {
       return await this.raw.evalSha(sha, { keys, arguments: argv });
     } catch (err: any) {
-      if (this._destroying && isConnectionClosedError(err)) {
+      if (this.destroying && isConnectionClosedError(err)) {
         return null;
       }
       if (isConnectionClosedError(err)) {
@@ -462,7 +486,7 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
         try {
           return await this.raw.eval(lua, { keys, arguments: argv });
         } catch (evalErr: any) {
-          if (this._destroying && isConnectionClosedError(evalErr)) {
+          if (this.destroying && isConnectionClosedError(evalErr)) {
             return null;
           }
           if (isConnectionClosedError(evalErr)) {
@@ -686,7 +710,7 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
     try {
       result = await this.raw.xRead(streamArgs, opts);
     } catch (err: any) {
-      if (this._destroying && isConnectionClosedError(err)) {
+      if (this.destroying && isConnectionClosedError(err)) {
         return null;
       }
       if (isConnectionClosedError(err)) {
@@ -733,7 +757,7 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
     try {
       result = await this.raw.bzPopMin(key, timeout);
     } catch (err: any) {
-      if (this._destroying && isConnectionClosedError(err)) {
+      if (this.destroying && isConnectionClosedError(err)) {
         return null;
       }
       if (isConnectionClosedError(err)) {
@@ -785,7 +809,7 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
 
   scanStream(options: { match: string; count?: number }): Readable {
     const raw = this.raw;
-    const connectPromise = this._connectPromise;
+    const connectPromise = this.connectPromise;
     const scanOpts: any = {};
     if (options.match) {
       scanOpts.MATCH = options.match;

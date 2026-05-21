@@ -26,32 +26,32 @@ import { IRedisClient, IRedisTransaction } from '../interfaces/redis-client';
 export function createIORedisClient<TClient extends Redis | Cluster>(
   client: TClient,
 ): TClient & IRedisClient {
-  const a = client as any;
+  const adapter = client as any;
 
-  if (a.__bullmq_iredis) {
-    return a as TClient & IRedisClient;
+  if (adapter.__bullmq_iredis) {
+    return adapter as TClient & IRedisClient;
   }
-  a.__bullmq_iredis = true;
+  adapter.__bullmq_iredis = true;
 
   // Ensure isCluster is a boolean.  ioredis Cluster sets it to true;
   // plain Redis leaves it undefined.
-  if (typeof a.isCluster !== 'boolean') {
-    a.isCluster = false;
+  if (typeof adapter.isCluster !== 'boolean') {
+    adapter.isCluster = false;
   }
 
   // Lua script engine
-  a.runCommand = function (name: string, args: any[]): any {
-    return a[name](args);
+  adapter.runCommand = function (name: string, args: any[]): any {
+    return adapter[name](args);
   };
 
   // Pipeline / Multi — add runCommand + structured overrides
   const origPipeline = client.pipeline.bind(client);
-  a.pipeline = function (...args: any[]): IRedisTransaction {
+  adapter.pipeline = function (...args: any[]): IRedisTransaction {
     return augmentTransaction(origPipeline(...args));
   };
 
   const origMulti = client.multi.bind(client);
-  a.multi = function (...args: any[]): IRedisTransaction {
+  adapter.multi = function (...args: any[]): IRedisTransaction {
     return augmentTransaction(origMulti(...args));
   };
 
@@ -64,7 +64,7 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
     const origDuplicate = client.duplicate.bind(client);
     const clientIsCluster = !!(client as any).isCluster;
 
-    a.duplicate = function (opts?: Record<string, any>): IRedisClient {
+    adapter.duplicate = function (opts?: Record<string, any>): IRedisClient {
       if (clientIsCluster) {
         const existingRedisOpts = (client as any).options?.redisOptions || {};
         const mergedRedisOpts = opts
@@ -83,7 +83,7 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
   // hset: structured { f1: v1 } → ioredis hset(key, f1, v1, …)
   // Backward-compatible: if second arg is a string, caller is using ioredis varargs.
   const origHset = (client as any).hset.bind(client);
-  a.hset = function (
+  adapter.hset = function (
     key: string,
     dataOrField: Record<string, string | number> | string,
     ...rest: any[]
@@ -101,7 +101,7 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
   // set: structured { PX?: n } → ioredis set(key, value, 'PX', n)
   // Backward-compatible: if third arg is a string, caller is using ioredis varargs.
   const origSet = (client as any).set.bind(client);
-  a.set = function (
+  adapter.set = function (
     key: string,
     value: string | number,
     optionsOrModifier?: { PX?: number; EX?: number } | string,
@@ -126,7 +126,7 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
   // zrange: structured { WITHSCORES? } → ioredis zrange(key, start, end, 'WITHSCORES')
   // Backward-compatible: if fourth arg is a string, caller is using ioredis varargs.
   const origZrange = (client as any).zrange.bind(client);
-  a.zrange = function (
+  adapter.zrange = function (
     key: string,
     start: number,
     end: number,
@@ -145,7 +145,7 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
   // zrevrange: structured { WITHSCORES? } → ioredis zrevrange(key, start, end, 'WITHSCORES')
   // Backward-compatible: if fourth arg is a string, caller is using ioredis varargs.
   const origZrevrange = (client as any).zrevrange.bind(client);
-  a.zrevrange = function (
+  adapter.zrevrange = function (
     key: string,
     start: number,
     end: number,
@@ -165,7 +165,7 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
   // Backward-compatible: if third arg is a string, caller is using ioredis varargs
   // (e.g. xadd(key, id, field1, val1, field2, val2)).
   const origXadd = (client as any).xadd.bind(client);
-  a.xadd = function (
+  adapter.xadd = function (
     key: string,
     idOrModifier: string,
     fieldsOrArg: Record<string, string | number> | string,
@@ -196,7 +196,7 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
   // Backward-compatible: if first arg is a string, caller is using ioredis varargs
   // (e.g. xread('BLOCK', 5000, 'STREAMS', key, id)).
   const origXread = (client as any).xread.bind(client);
-  a.xread = function (
+  adapter.xread = function (
     streamsOrModifier: { key: string; id: string }[] | string,
     ...rest: any[]
   ): Promise<any> {
@@ -224,7 +224,7 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
   // xtrim: structured (key, 'MAXLEN', threshold, { approximate? })
   // ioredis native is the same positional shape, so this is already compatible.
   const origXtrim = (client as any).xtrim.bind(client);
-  a.xtrim = function (
+  adapter.xtrim = function (
     key: string,
     strategy: 'MAXLEN',
     thresholdOrApprox: number | string,
@@ -252,10 +252,10 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
   // code that uses `bzpopmin` on the same client.
 
   // clientSetName / clientList
-  a.clientSetName = function (name: string): Promise<any> {
+  adapter.clientSetName = function (name: string): Promise<any> {
     return (client as any).client('SETNAME', name);
   };
-  a.clientList = function (): Promise<string> {
+  adapter.clientList = function (): Promise<string> {
     return (client as any).client('LIST');
   };
 
@@ -263,7 +263,7 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
   // Must detect if called with varargs (ioredis internal, e.g. from scanStream)
   // vs. structured options (IRedisClient interface).
   const origScan = (client as any).scan.bind(client);
-  a.scan = function (cursor: string | number, ...rest: any[]): any {
+  adapter.scan = function (cursor: string | number, ...rest: any[]): any {
     // If called with varargs style (e.g. from scanStream internally),
     // pass through unchanged.
     if (
@@ -285,7 +285,7 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
     return origScan(...args);
   };
 
-  return a as TClient & IRedisClient;
+  return adapter as TClient & IRedisClient;
 }
 
 /**
@@ -293,26 +293,29 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
  * so it satisfies {@link IRedisTransaction}.
  */
 function augmentTransaction(commander: ChainableCommander): IRedisTransaction {
-  const a = commander as any;
-  a.runCommand = function (name: string, args: any[]): any {
-    a[name](args);
-    return a;
+  const transaction = commander as any;
+  transaction.runCommand = function (name: string, args: any[]): any {
+    transaction[name](args);
+    return transaction;
   };
 
   // hset(key, { f1: v1 }) → ioredis pipeline.hset(key, f1, v1, …)
-  const origHset = a.hset.bind(a);
-  a.hset = function (key: string, data: Record<string, string | number>): any {
+  const origHset = transaction.hset.bind(transaction);
+  transaction.hset = function (
+    key: string,
+    data: Record<string, string | number>,
+  ): any {
     const args: (string | number)[] = [key];
     for (const [f, v] of Object.entries(data)) {
       args.push(f, v);
     }
     origHset(...args);
-    return a;
+    return transaction;
   };
 
   // hscan(key, cursor, { COUNT? }) → ioredis hscan(key, cursor, 'COUNT', n)
-  const origHscan = a.hscan.bind(a);
-  a.hscan = function (
+  const origHscan = transaction.hscan.bind(transaction);
+  transaction.hscan = function (
     key: string,
     cursor: string | number,
     options?: { COUNT?: number },
@@ -322,12 +325,12 @@ function augmentTransaction(commander: ChainableCommander): IRedisTransaction {
     } else {
       origHscan(key, cursor);
     }
-    return a;
+    return transaction;
   };
 
   // sscan(key, cursor, { COUNT? })
-  const origSscan = a.sscan.bind(a);
-  a.sscan = function (
+  const origSscan = transaction.sscan.bind(transaction);
+  transaction.sscan = function (
     key: string,
     cursor: string | number,
     options?: { COUNT?: number },
@@ -337,10 +340,10 @@ function augmentTransaction(commander: ChainableCommander): IRedisTransaction {
     } else {
       origSscan(key, cursor);
     }
-    return a;
+    return transaction;
   };
 
-  return a as IRedisTransaction;
+  return transaction as IRedisTransaction;
 }
 
 /**

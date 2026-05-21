@@ -116,41 +116,41 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
   // Tracks which script SHAs have been loaded server-side on the current
   // raw connection. Cleared on (re)connect since SCRIPT cache is per-server
   // and is also lost across our internal raw-client swap.
-  private _loadedScriptShas = new Set<string>();
-  private _statusOverride: string | undefined;
-  private _hasConnected = false;
-  private _closed = false;
-  private _closing = false;
-  private _connecting?: Promise<void>;
-  private _connectionName: string | undefined;
+  private loadedScriptShas = new Set<string>();
+  private statusOverride: string | undefined;
+  private hasConnected = false;
+  private closed = false;
+  private closing = false;
+  private connecting?: Promise<void>;
+  private connectionName: string | undefined;
   // Serialize raw send() calls per connection to avoid Bun delivering
   // concurrent command responses to the wrong pending promise.
-  private _sendQueue: Promise<void> = Promise.resolve();
+  private sendQueue: Promise<void> = Promise.resolve();
   // Auto-reconnect state
-  private _reconnecting = false;
-  private _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private _reconnectAttempts = 0;
-  private _maxReconnectDelay = 20000; // cap at 20s (matches ioredis default)
+  private reconnecting = false;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectAttempts = 0;
+  private maxReconnectDelay = 20000; // cap at 20s (matches ioredis default)
 
   get status(): string {
-    if (this._statusOverride) {
-      return this._statusOverride;
+    if (this.statusOverride) {
+      return this.statusOverride;
     }
-    if (this._closed) {
+    if (this.closed) {
       return 'end';
     }
     if (this.raw.connected) {
       return 'ready';
     }
-    return this._hasConnected ? 'end' : 'wait';
+    return this.hasConnected ? 'end' : 'wait';
   }
   set status(val: string) {
     if (val === 'end') {
-      this._closing = true;
-      this._closed = true;
+      this.closing = true;
+      this.closed = true;
       // Do not call raw.close() here – disconnect()/quit() handle closing.
     }
-    this._statusOverride = val;
+    this.statusOverride = val;
   }
 
   readonly isCluster = false;
@@ -184,21 +184,21 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
    */
   private _setupCallbacks(): void {
     // Bridge Bun's callback-style events into EventEmitter.
-    // When _connectionName is set (via duplicate()), delay the 'ready'
+    // When connectionName is set (via duplicate()), delay the 'ready'
     // event until CLIENT SETNAME completes so callers waiting for 'ready'
     // see the name already applied.
     this.raw.onconnect = () => {
-      this._hasConnected = true;
-      this._closed = false;
-      this._closing = false;
-      this._reconnecting = false;
-      this._reconnectAttempts = 0;
-      this._statusOverride = undefined;
+      this.hasConnected = true;
+      this.closed = false;
+      this.closing = false;
+      this.reconnecting = false;
+      this.reconnectAttempts = 0;
+      this.statusOverride = undefined;
       // The server-side SCRIPT cache is gone for this (possibly new) raw
       // connection. Force re-loading on next use.
-      this._loadedScriptShas.clear();
-      if (this._connectionName) {
-        this.clientSetName(this._connectionName).then(
+      this.loadedScriptShas.clear();
+      if (this.connectionName) {
+        this.clientSetName(this.connectionName).then(
           () => this.emit('ready'),
           () => this.emit('ready'), // emit ready even if setName fails
         );
@@ -207,16 +207,16 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
       }
     };
     this.raw.onclose = (error?: Error) => {
-      if (this._closing) {
+      if (this.closing) {
         // User-initiated close – no reconnect
-        this._closed = true;
+        this.closed = true;
         this.emit('close');
         this.emit('end');
         return;
       }
 
       // Unexpected close – attempt auto-reconnect
-      this._closed = true;
+      this.closed = true;
       this.emit('close');
 
       if (error) {
@@ -231,26 +231,23 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
    * Schedule a reconnection attempt with exponential backoff.
    */
   private _scheduleReconnect(): void {
-    if (this._closing || this._reconnecting) {
+    if (this.closing || this.reconnecting) {
       return;
     }
-    this._reconnecting = true;
-    this._reconnectAttempts++;
+    this.reconnecting = true;
+    this.reconnectAttempts++;
 
     // Exponential backoff: min(e^attempts, 20000) ms, floored at 1000ms
     const delay = Math.max(
-      Math.min(
-        Math.exp(this._reconnectAttempts) * 100,
-        this._maxReconnectDelay,
-      ),
+      Math.min(Math.exp(this.reconnectAttempts) * 100, this.maxReconnectDelay),
       1000,
     );
 
-    this._reconnectTimer = setTimeout(async () => {
-      this._reconnectTimer = null;
+    this.reconnectTimer = setTimeout(async () => {
+      this.reconnectTimer = null;
 
-      if (this._closing) {
-        this._reconnecting = false;
+      if (this.closing) {
+        this.reconnecting = false;
         return;
       }
 
@@ -262,8 +259,8 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
 
         // Swap the raw client reference
         this.raw = newRaw;
-        this._closed = false;
-        this._connecting = undefined;
+        this.closed = false;
+        this.connecting = undefined;
 
         // Re-wire callbacks on the new raw client
         this._setupCallbacks();
@@ -272,8 +269,8 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
         await newRaw.connect();
       } catch (_err) {
         // Reconnect failed – schedule another attempt
-        this._reconnecting = false;
-        if (!this._closing) {
+        this.reconnecting = false;
+        if (!this.closing) {
           this._scheduleReconnect();
         }
       }
@@ -286,50 +283,50 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
 
   async connect(): Promise<void> {
     if (this.raw.connected) {
-      this._hasConnected = true;
-      this._closed = false;
-      this._closing = false;
-      this._statusOverride = undefined;
+      this.hasConnected = true;
+      this.closed = false;
+      this.closing = false;
+      this.statusOverride = undefined;
       return;
     }
 
-    if (!this._connecting) {
-      this._closed = false;
-      this._closing = false;
-      this._statusOverride = undefined;
+    if (!this.connecting) {
+      this.closed = false;
+      this.closing = false;
+      this.statusOverride = undefined;
 
       // If the raw client was previously closed, Bun doesn't support
       // reconnecting on the same instance. Create a fresh raw client.
-      if (this._hasConnected && !this.raw.connected) {
+      if (this.hasConnected && !this.raw.connected) {
         const BunRedisClient = this.raw
           .constructor as BunRedisClientConstructor<TClient>;
         this.raw = new BunRedisClient(this.raw.url);
         this._setupCallbacks();
       }
 
-      this._connecting = this.raw
+      this.connecting = this.raw
         .connect()
         .then(() => {
-          this._hasConnected = true;
-          this._closed = false;
-          this._closing = false;
-          this._statusOverride = undefined;
+          this.hasConnected = true;
+          this.closed = false;
+          this.closing = false;
+          this.statusOverride = undefined;
         })
         .finally(() => {
-          this._connecting = undefined;
+          this.connecting = undefined;
         });
     }
 
-    await this._connecting;
+    await this.connecting;
   }
 
   private _closeRaw(): void {
     // Cancel any pending reconnect
-    if (this._reconnectTimer) {
-      clearTimeout(this._reconnectTimer);
-      this._reconnectTimer = null;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
     }
-    this._reconnecting = false;
+    this.reconnecting = false;
 
     const raw = this.raw;
     raw.onconnect = () => {};
@@ -352,15 +349,15 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
   }
 
   disconnect(reconnect?: boolean): void {
-    if (this._closed && !reconnect) {
+    if (this.closed && !reconnect) {
       return;
     }
 
     if (reconnect) {
       // Close the current raw connection and schedule a reconnect.
-      // Don't set _closing=true so the reconnect logic is allowed to fire.
-      this._closed = true;
-      this._statusOverride = undefined;
+      // Don't set closing=true so the reconnect logic is allowed to fire.
+      this.closed = true;
+      this.statusOverride = undefined;
 
       const raw = this.raw;
       raw.onclose = () => {};
@@ -379,9 +376,9 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
       this.emit('close');
       this._scheduleReconnect();
     } else {
-      this._closing = true;
-      this._closed = true;
-      this._statusOverride = 'end';
+      this.closing = true;
+      this.closed = true;
+      this.statusOverride = 'end';
       this._closeRaw();
       this.emit('close');
       this.emit('end');
@@ -389,16 +386,16 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
   }
 
   async quit(): Promise<string> {
-    if (this._closed) {
+    if (this.closed) {
       setImmediate(() => {
         this.emit('end');
         this.emit('close');
       });
       return 'OK';
     }
-    this._closing = true;
-    this._closed = true;
-    this._statusOverride = 'end';
+    this.closing = true;
+    this.closed = true;
+    this.statusOverride = 'end';
     this._closeRaw();
     // Emit on next tick so callers can register listeners after await quit()
     setImmediate(() => {
@@ -425,11 +422,11 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     }
 
     // Handle connectionName option (ioredis calls CLIENT SETNAME automatically).
-    // Setting _connectionName ensures the onconnect handler applies CLIENT
+    // Setting connectionName ensures the onconnect handler applies CLIENT
     // SETNAME before emitting 'ready'.
     const opts = args[0];
     if (opts && typeof opts === 'object' && opts.connectionName) {
-      adapter._connectionName = opts.connectionName;
+      adapter.connectionName = opts.connectionName;
     }
     return adapter;
   }
@@ -481,13 +478,13 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     const execute = async () => {
       try {
         const result = await this.sendCommand('EVALSHA', evalArgs);
-        this._loadedScriptShas.add(sha);
+        this.loadedScriptShas.add(sha);
         return result;
       } catch (err: any) {
         if (err?.message?.includes?.('NOSCRIPT')) {
           const evalLuaArgs = [lua, String(keys.length), ...keys, ...argv];
           const result = await this.sendCommand('EVAL', evalLuaArgs);
-          this._loadedScriptShas.add(sha);
+          this.loadedScriptShas.add(sha);
           return result;
         }
         throw err;
@@ -506,7 +503,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     const toLoad: LuaScript[] = [];
     const seen = new Set<string>();
     for (const s of scripts) {
-      if (this._loadedScriptShas.has(s.sha) || seen.has(s.sha)) {
+      if (this.loadedScriptShas.has(s.sha) || seen.has(s.sha)) {
         continue;
       }
       seen.add(s.sha);
@@ -518,7 +515,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     await Promise.all(
       toLoad.map(async s => {
         await this.sendCommand('SCRIPT', ['LOAD', s.lua]);
-        this._loadedScriptShas.add(s.sha);
+        this.loadedScriptShas.add(s.sha);
       }),
     );
   }
@@ -528,12 +525,12 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     args: RedisCommandArgument[],
   ): Promise<T> {
     // If the connection is already closing/closed, return a rejected promise
-    // directly without going through _sendQueue.
-    if (this._closing || this._closed) {
+    // directly without going through sendQueue.
+    if (this.closing || this.closed) {
       return Promise.reject(new ConnectionClosedError('Connection is closed'));
     }
-    const run: Promise<T> = this._sendQueue.then(() => {
-      if (this._closing || this._closed) {
+    const run: Promise<T> = this.sendQueue.then(() => {
+      if (this.closing || this.closed) {
         return Promise.reject<T>(
           new ConnectionClosedError('Connection is closed'),
         );
@@ -543,7 +540,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
           if (isBunConnectionClosedError(err)) {
             return Promise.reject<T>(
               new ConnectionClosedError(
-                this._closing || this._closed
+                this.closing || this.closed
                   ? 'Connection is closed'
                   : err.message,
                 err,
@@ -554,7 +551,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
         },
       );
     });
-    this._sendQueue = run.then(
+    this.sendQueue = run.then(
       (): void => undefined,
       (): void => undefined,
     );
@@ -562,8 +559,8 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
   }
 
   async queueExclusive<T>(operation: () => Promise<T>): Promise<T> {
-    const run = this._sendQueue.then(operation, operation);
-    this._sendQueue = run.then(
+    const run = this.sendQueue.then(operation, operation);
+    this.sendQueue = run.then(
       (): void => undefined,
       (): void => undefined,
     );
@@ -814,7 +811,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     try {
       result = await this.sendCommand('XREAD', args);
     } catch (err: any) {
-      if (this._closing) {
+      if (this.closing) {
         return null;
       }
       throw err;
@@ -877,7 +874,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     try {
       result = await this.sendCommand('BZPOPMIN', [key, String(timeout)]);
     } catch (err: any) {
-      if (this._closing) {
+      if (this.closing) {
         return null;
       }
       throw err;
