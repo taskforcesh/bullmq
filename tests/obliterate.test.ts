@@ -1,4 +1,3 @@
-import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
 import {
   describe,
@@ -10,20 +9,21 @@ import {
   expect,
 } from 'vitest';
 
+import { randomUUID } from '../src/utils';
 import { Queue, QueueEvents, FlowProducer, Worker, Job } from '../src/classes';
-import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { delay, removeAllQueueData } from '../src/utils';
+import { createTestConnection } from './connection-factory';
 
 describe('Obliterate', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  let connection: IORedis;
+  let connection;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
@@ -36,7 +36,7 @@ describe('Obliterate', () => {
   afterEach(async () => {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async function () {
@@ -284,7 +284,7 @@ describe('Obliterate', () => {
           expect(parentWaitCount).toEqual(1);
           await parentQueue.close();
           await flow.close();
-          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+          await removeAllQueueData(createTestConnection(), parentQueueName);
         });
       });
 
@@ -327,7 +327,7 @@ describe('Obliterate', () => {
           expect(parentWaitCount).toEqual(1);
           await parentQueue.close();
           await flow.close();
-          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+          await removeAllQueueData(createTestConnection(), parentQueueName);
         });
       });
     });
@@ -363,7 +363,7 @@ describe('Obliterate', () => {
     );
     const client = await queue.client;
     const keys = await client.keys(`${prefix}:${queue.name}:*`);
-    expect(keys.length).to.be.not.eql(0);
+    expect(keys.length).not.toEqual(0);
 
     await worker.close();
   });

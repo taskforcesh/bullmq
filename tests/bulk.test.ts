@@ -1,4 +1,3 @@
-import { default as IORedis } from 'ioredis';
 import {
   describe,
   beforeEach,
@@ -9,19 +8,20 @@ import {
   expect,
 } from 'vitest';
 
+import { randomUUID } from '../src/utils';
 import { Queue, QueueEvents, Worker, Job } from '../src/classes';
-import { removeAllQueueData, delay, randomUUID } from '../src/utils';
+import { removeAllQueueData, delay } from '../src/utils';
+import { createTestConnection } from './connection-factory';
 
 describe('bulk jobs', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
   let queue: Queue;
   let queueName: string;
 
-  let connection: IORedis;
+  let connection;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
@@ -31,7 +31,7 @@ describe('bulk jobs', () => {
 
   afterEach(async () => {
     await queue.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async () => {
@@ -123,7 +123,7 @@ describe('bulk jobs', () => {
     await childrenWorker.close();
     await parentWorker.close();
     await parentQueue.close();
-    await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+    await removeAllQueueData(createTestConnection(), parentQueueName);
   });
 
   it('should keep workers busy', { timeout: 10_000 }, async () => {

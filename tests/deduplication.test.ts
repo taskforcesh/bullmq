@@ -1,4 +1,4 @@
-import { default as IORedis } from 'ioredis';
+import { randomUUID } from '../src/utils';
 import {
   describe,
   beforeEach,
@@ -10,10 +10,10 @@ import {
 } from 'vitest';
 
 import { Job, Queue, QueueEvents, Worker } from '../src/classes';
-import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { delay, removeAllQueueData } from '../src/utils';
+import { createTestConnection } from './connection-factory';
 
 describe('deduplication', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
   // TODO: Move timeout to test options: { timeout: 8000 }
@@ -21,9 +21,9 @@ describe('deduplication', () => {
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  let connection: IORedis;
+  let connection;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
@@ -36,12 +36,13 @@ describe('deduplication', () => {
     });
     await queue.waitUntilReady();
     await queueEvents.waitUntilReady();
+    await delay(50); // allow XREAD to start blocking before emitting events
   });
 
   afterEach(async () => {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async function () {
@@ -330,29 +331,19 @@ describe('deduplication', () => {
       const testName = 'test';
       const dedupId = 'dedupId';
 
-      let deduplicatedResult:
-        | {
-            jobId: string;
-            deduplicationId: string;
-            deduplicatedJobId: string;
-            job: any;
-            deduplicatedJob: any;
-          }
-        | undefined;
       const waitingEvent = new Promise<void>((resolve, reject) => {
         queueEvents.once(
           'deduplicated',
           async ({ jobId, deduplicationId, deduplicatedJobId }) => {
             try {
               const job = await queue.getJob(jobId);
+              expect(job).toBeDefined();
+              expect(jobId).toBe('a1');
+              expect(deduplicationId).toBe(dedupId);
+
               const deduplicatedJob = await queue.getJob(deduplicatedJobId);
-              deduplicatedResult = {
-                jobId,
-                deduplicationId,
-                deduplicatedJobId,
-                job,
-                deduplicatedJob,
-              };
+              expect(deduplicatedJob).toBeUndefined();
+              expect(deduplicatedJobId).toBe('a2');
               resolve();
             } catch (error) {
               reject(error);
@@ -373,11 +364,6 @@ describe('deduplication', () => {
       );
 
       await waitingEvent;
-      expect(deduplicatedResult?.job).toBeDefined();
-      expect(deduplicatedResult?.jobId).toBe('a1');
-      expect(deduplicatedResult?.deduplicationId).toBe(dedupId);
-      expect(deduplicatedResult?.deduplicatedJob).toBeUndefined();
-      expect(deduplicatedResult?.deduplicatedJobId).toBe('a2');
     });
 
     describe('when removing deduplication key', () => {

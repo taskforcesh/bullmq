@@ -1,4 +1,4 @@
-import { default as IORedis } from 'ioredis';
+import { randomUUID } from '../src/utils';
 import {
   describe,
   beforeEach,
@@ -19,19 +19,20 @@ import {
   QueueEventsProducer,
   Worker,
 } from '../src/classes';
-import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { delay, removeAllQueueData } from '../src/utils';
+import { createTestConnection } from './connection-factory';
 
-describe('events', { timeout: 8000 }, () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
+describe('events', () => {
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
+  // TODO: Move timeout to test options: { timeout: 8000 }
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  let connection: IORedis;
+  let connection;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
@@ -44,12 +45,13 @@ describe('events', { timeout: 8000 }, () => {
     });
     await queue.waitUntilReady();
     await queueEvents.waitUntilReady();
+    await delay(50); // allow XREAD to start blocking before emitting events
   });
 
   afterEach(async () => {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async function () {
@@ -80,7 +82,7 @@ describe('events', { timeout: 8000 }, () => {
       await queue2.close();
       await queueEvents2.close();
       await expect(running).resolves.toBeUndefined();
-      await removeAllQueueData(new IORedis(redisHost), queueName2);
+      await removeAllQueueData(createTestConnection(), queueName2);
     });
 
     describe('when run method is called when queueEvent is running', () => {
@@ -105,7 +107,7 @@ describe('events', { timeout: 8000 }, () => {
         await queue2.close();
         await queueEvents2.close();
         await expect(running).resolves.toBeUndefined();
-        await removeAllQueueData(new IORedis(redisHost), queueName2);
+        await removeAllQueueData(createTestConnection(), queueName2);
       });
     });
   });
@@ -459,15 +461,13 @@ describe('events', { timeout: 8000 }, () => {
           prefix,
         },
       );
-      let waitingChildrenJob:
-        | { state: string | undefined; jobName: string | undefined }
-        | undefined;
       const waitingChildren = new Promise<void>((resolve, reject) => {
         queueEvents.once('waiting-children', async ({ jobId }) => {
           try {
             const job = await queue.getJob(jobId);
             const state = await job?.getState();
-            waitingChildrenJob = { state, jobName: job?.name };
+            expect(state).toBe('waiting-children');
+            expect(job?.name).toBe(name);
             resolve();
           } catch (err) {
             reject(err);
@@ -475,15 +475,12 @@ describe('events', { timeout: 8000 }, () => {
         });
       });
 
-      let waitingResult:
-        | { prev: string; jobName: string | undefined }
-        | undefined;
       const waiting = new Promise<void>((resolve, reject) => {
         queueEvents.on('waiting', async ({ jobId, prev }) => {
           try {
             const job = await queue.getJob(jobId);
+            expect(prev).toBe('waiting-children');
             if (job?.name === name) {
-              waitingResult = { prev, jobName: job?.name };
               resolve();
             }
           } catch (err) {
@@ -493,6 +490,7 @@ describe('events', { timeout: 8000 }, () => {
       });
 
       const flow = new FlowProducer({ connection, prefix });
+      await delay(50); // additional delay since XREAD from '$' is unstable
       await flow.add({
         name,
         queueName,
@@ -502,20 +500,15 @@ describe('events', { timeout: 8000 }, () => {
         ],
       });
       worker.run();
-
-      await waitingChildren;
-      expect(waitingChildrenJob?.state).toBe('waiting-children');
-      expect(waitingChildrenJob?.jobName).toBe(name);
-
       childrenWorker.run();
 
+      await waitingChildren;
       await waiting;
-      expect(waitingResult?.prev).toBe('waiting-children');
 
       await worker.close();
       await childrenWorker.close();
       await flow.close();
-      await removeAllQueueData(new IORedis(redisHost), childrenQueueName);
+      await removeAllQueueData(createTestConnection(), childrenQueueName);
     });
   });
 
@@ -573,7 +566,7 @@ describe('events', { timeout: 8000 }, () => {
       expect(eventsLength).toEqual(0);
 
       await trimmedQueue.close();
-      await removeAllQueueData(new IORedis(redisHost), queueName);
+      await removeAllQueueData(createTestConnection(), queueName);
     });
   });
 
@@ -630,11 +623,11 @@ describe('events', { timeout: 8000 }, () => {
 
       const eventsLength = await client.xlen(trimmedQueue.keys.events);
 
-      expect(eventsLength).to.be.lte(2);
+      expect(eventsLength).toBeLessThanOrEqual(2);
 
       await worker.close();
       await trimmedQueue.close();
-      await removeAllQueueData(new IORedis(redisHost), queueName);
+      await removeAllQueueData(createTestConnection(), queueName);
     });
   });
 
@@ -684,12 +677,12 @@ describe('events', { timeout: 8000 }, () => {
 
       const eventsLength = await client.xlen(trimmedQueue.keys.events);
 
-      expect(eventsLength).to.be.lte(45);
-      expect(eventsLength).to.be.gte(20);
+      expect(eventsLength).toBeLessThanOrEqual(45);
+      expect(eventsLength).toBeGreaterThanOrEqual(20);
 
       await worker.close();
       await trimmedQueue.close();
-      await removeAllQueueData(new IORedis(redisHost), queueName);
+      await removeAllQueueData(createTestConnection(), queueName);
     });
 
     describe('when jobs are moved to delayed', () => {
@@ -742,12 +735,12 @@ describe('events', { timeout: 8000 }, () => {
 
         const eventsLength = await client.xlen(trimmedQueue.keys.events);
 
-        expect(eventsLength).to.be.lte(35);
-        expect(eventsLength).to.be.gte(20);
+        expect(eventsLength).toBeLessThanOrEqual(35);
+        expect(eventsLength).toBeGreaterThanOrEqual(20);
 
         await worker.close();
         await trimmedQueue.close();
-        await removeAllQueueData(new IORedis(redisHost), queueName);
+        await removeAllQueueData(createTestConnection(), queueName);
       });
     });
 
@@ -806,12 +799,12 @@ describe('events', { timeout: 8000 }, () => {
 
         const eventsLength = await client.xlen(trimmedQueue.keys.events);
 
-        expect(eventsLength).to.be.lte(35);
-        expect(eventsLength).to.be.gte(20);
+        expect(eventsLength).toBeLessThanOrEqual(35);
+        expect(eventsLength).toBeGreaterThanOrEqual(20);
 
         await worker.close();
         await trimmedQueue.close();
-        await removeAllQueueData(new IORedis(redisHost), queueName);
+        await removeAllQueueData(createTestConnection(), queueName);
       });
     });
 
@@ -842,11 +835,11 @@ describe('events', { timeout: 8000 }, () => {
 
         const eventsLength = await client.xlen(trimmedQueue.keys.events);
 
-        expect(eventsLength).to.be.lte(100);
-        expect(eventsLength).to.be.gte(20);
+        expect(eventsLength).toBeLessThanOrEqual(100);
+        expect(eventsLength).toBeGreaterThanOrEqual(20);
 
         await trimmedQueue.close();
-        await removeAllQueueData(new IORedis(redisHost), queueName);
+        await removeAllQueueData(createTestConnection(), queueName);
       });
     });
   });
@@ -873,7 +866,7 @@ describe('events', { timeout: 8000 }, () => {
     expect(eventsLength).toBe(0);
 
     await trimmedQueue.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   describe('when publishing custom events', () => {
@@ -917,7 +910,7 @@ describe('events', { timeout: 8000 }, () => {
 
       await queueEventsProducer.close();
       await queueEvents2.close();
-      await removeAllQueueData(new IORedis(redisHost), queueName2);
+      await removeAllQueueData(createTestConnection(), queueName2);
     });
   });
 });

@@ -1,4 +1,3 @@
-import { default as IORedis } from 'ioredis';
 import { after, times } from 'lodash';
 import {
   describe,
@@ -11,6 +10,7 @@ import {
 } from 'vitest';
 
 import * as sinon from 'sinon';
+import { randomUUID } from '../src/utils';
 import {
   Queue,
   QueueEvents,
@@ -26,14 +26,13 @@ import { JobsOptions, KeepJobs } from '../src/types';
 import {
   delay,
   isRedisVersionLowerThan,
-  randomUUID,
   removeAllQueueData,
 } from '../src/utils';
+import { createTestConnection } from './connection-factory';
 
 const NoopProc = () => Promise.resolve();
 
 describe('workers', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
   const sandbox = sinon.createSandbox();
@@ -42,9 +41,9 @@ describe('workers', () => {
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  let connection: IORedis;
+  let connection;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
@@ -58,7 +57,7 @@ describe('workers', () => {
     sandbox.restore();
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async function () {
@@ -66,6 +65,7 @@ describe('workers', () => {
   });
 
   it('process a lifo queue', async () => {
+    // TODO: Move timeout to test options: { timeout: 3000 }
     let currentValue = 0;
     let first = true;
 
@@ -107,7 +107,7 @@ describe('workers', () => {
     await processing;
 
     await worker.close();
-  }, 3000);
+  });
 
   it('process several jobs serially', async () => {
     let counter = 1;
@@ -214,8 +214,8 @@ describe('workers', () => {
       await trimmedEventsQueue.client
     ).xlen(trimmedEventsQueue.keys.events);
 
-    expect(eventsLength).to.be.lt(numUpdateProgress + 10);
-    expect(eventsLength).to.be.gte(maxEvents);
+    expect(eventsLength).toBeLessThan(numUpdateProgress + 10);
+    expect(eventsLength).toBeGreaterThanOrEqual(maxEvents);
 
     await worker.close();
     await trimmedEventsQueue.close();
@@ -538,7 +538,7 @@ describe('workers', () => {
     });
 
     await worker.close();
-  }, 8000);
+  }); // TODO: Add { timeout: 8000 } to the it() options
 
   it('do not call moveToActive more than concurrency factor + 1', async () => {
     const numJobs = 57;
@@ -571,8 +571,8 @@ describe('workers', () => {
 
     await queue.addBulk(jobsData);
 
-    expect(bclientSpy.callCount).to.be.gte(0);
-    expect(bclientSpy.callCount).to.be.lte(1);
+    expect(bclientSpy.callCount).toBeGreaterThanOrEqual(0);
+    expect(bclientSpy.callCount).toBeLessThanOrEqual(1);
 
     await new Promise<void>(resolve => {
       worker.on('completed', () => {
@@ -639,6 +639,7 @@ describe('workers', () => {
   });
 
   it('does not process a job that is being processed when a new queue starts', async () => {
+    // TODO: Move timeout to test options: { timeout: 12000 }
     let err;
 
     const worker = new Worker(
@@ -682,7 +683,7 @@ describe('workers', () => {
     if (err) {
       throw err;
     }
-  }, 12000);
+  });
 
   it('process a job that throws an exception', async () => {
     const jobError = new Error('Job Failed');
@@ -1110,8 +1111,8 @@ describe('workers', () => {
       });
 
       const count = await queue.getJobCounts('active', 'failed');
-      expect(count.active).to.be.eq(0);
-      expect(count.failed).to.be.eq(1);
+      expect(count.active).toBe(0);
+      expect(count.failed).toBe(1);
       await closing;
     });
 
@@ -1149,8 +1150,8 @@ describe('workers', () => {
       });
 
       const count = await queue.getJobCounts('active', 'completed');
-      expect(count.active).to.be.eq(0);
-      expect(count.completed).to.be.eq(1);
+      expect(count.active).toBe(0);
+      expect(count.completed).toBe(1);
       await closing;
     });
 
@@ -1285,9 +1286,9 @@ describe('workers', () => {
           });
           await worker.waitUntilReady();
 
-          expect(
-            worker['getBlockTimeout'](Date.now() - 1),
-          ).to.be.lessThanOrEqual(0);
+          expect(worker['getBlockTimeout'](Date.now() - 1)).toBeLessThanOrEqual(
+            0,
+          );
           await worker.close();
         });
       });
@@ -1327,10 +1328,7 @@ describe('workers', () => {
     it('should not fail', async () => {
       const queueName2 = `test-${randomUUID()}`;
 
-      const connection = new IORedis({
-        host: redisHost,
-        maxRetriesPerRequest: null,
-      });
+      const connection = createTestConnection();
 
       const queue1 = new Queue(queueName2, { connection, prefix });
 
@@ -1366,7 +1364,7 @@ describe('workers', () => {
       await worker.close();
       await queue1.close();
       await connection.quit();
-      await removeAllQueueData(new IORedis(redisHost), queueName2);
+      await removeAllQueueData(createTestConnection(), queueName2);
     });
   });
 
@@ -1923,6 +1921,8 @@ describe('workers', () => {
 
   describe('when adding delayed job after standard one when worker is drained', () => {
     it('pick standard job without delay', async () => {
+      // TODO: Move timeout to test options: { timeout: 6000 }
+
       const worker = new Worker(
         queueName,
         async job => {
@@ -1961,7 +1961,7 @@ describe('workers', () => {
           'completed',
           after(2, job => {
             const timeDiff = Date.now() - now;
-            expect(timeDiff).to.be.greaterThanOrEqual(4000);
+            expect(timeDiff).toBeGreaterThanOrEqual(4000);
             expect(timeDiff).toBeLessThan(4500);
             expect(job.delay).toBe(0);
             resolve();
@@ -1971,7 +1971,7 @@ describe('workers', () => {
 
       await completing2;
       await worker.close();
-    }, 6000);
+    });
   });
 
   describe('when prioritized jobs are added', () => {
@@ -2090,6 +2090,7 @@ describe('workers', () => {
 
     describe('while processing last active job', () => {
       it('should process prioritized job whithout delay', async () => {
+        // TODO: Move timeout to test options: { timeout: 1000 }
         await queue.add('test1', { p: 2 }, { priority: 2 });
         let counter = 0;
         let processor;
@@ -2118,11 +2119,12 @@ describe('workers', () => {
         await processing;
 
         await worker.close();
-      }, 1000);
+      });
     });
 
     describe('when using custom jobId', () => {
       it('should process prioritized jobs', async () => {
+        // TODO: Move timeout to test options: { timeout: 1000 }
         await queue.add('test1', { p: 2 }, { priority: 2, jobId: 'custom1' });
         await queue.add('test2', { p: 3 }, { priority: 3, jobId: 'custom2' });
         let counter = 0;
@@ -2147,13 +2149,13 @@ describe('workers', () => {
         await processing;
 
         await worker.close();
-      }, 1000);
+      });
     });
   });
 
   describe('when sharing a redis connection between workers', () => {
     it('should not close the connection', async () => {
-      const connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+      const connection = createTestConnection();
 
       return new Promise<void>((resolve, reject) => {
         connection.on('ready', async () => {
@@ -2189,9 +2191,7 @@ describe('workers', () => {
 
     describe('when connection is passed into a queue', () => {
       it('should not close the connection', async () => {
-        const connection = new IORedis(redisHost, {
-          maxRetriesPerRequest: null,
-        });
+        const connection = createTestConnection();
         const queueName2 = `test-shared-${randomUUID()}`;
 
         const queue2 = new Queue(queueName2, {
@@ -2232,7 +2232,7 @@ describe('workers', () => {
         });
 
         await queue2.close();
-        await removeAllQueueData(new IORedis(redisHost), queueName2);
+        await removeAllQueueData(createTestConnection(), queueName2);
       });
     });
   });
@@ -2411,6 +2411,8 @@ describe('workers', () => {
   });
 
   it('keeps locks for all the jobs that are processed concurrently', async () => {
+    // TODO: Move timeout to test options: { timeout: 10000 }
+
     const concurrency = 57;
 
     const lockKey = (jobId: string) => `${prefix}:${queueName}:${jobId}:lock`;
@@ -2463,7 +2465,7 @@ describe('workers', () => {
     await processing;
 
     await worker!.close();
-  }, 10000);
+  });
 
   it('emits error if lock is lost', async () => {
     const worker = new Worker(
@@ -2500,10 +2502,9 @@ describe('workers', () => {
   });
 
   it('emits error if lock is "stolen"', async function () {
-    const connection = new IORedis({
-      host: redisHost,
-      maxRetriesPerRequest: null,
-    });
+    // TODO: Move timeout to test options: { timeout: 10000 }
+
+    const connection = createTestConnection();
 
     const worker = new Worker(
       queueName,
@@ -2536,9 +2537,11 @@ describe('workers', () => {
 
     await worker.close();
     await connection.quit();
-  }, 10000);
+  });
 
   it('emits error and continues running when _getNextJob fails', async () => {
+    // TODO: Move timeout to test options: { timeout: 10000 }
+
     const worker = new Worker(
       queueName,
       async () => {
@@ -2604,10 +2607,11 @@ describe('workers', () => {
     // Clean up
     stub.restore();
     await worker.close();
-  }, 10000);
+  });
 
   it('continues processing after a worker has stalled', async () => {
     let first = true;
+    // TODO: Move timeout to test options: { timeout: 10000 }
 
     const worker = new Worker(
       queueName,
@@ -2636,9 +2640,10 @@ describe('workers', () => {
     await completed;
 
     await worker.close();
-  }, 10000);
+  });
 
   it('max stalled count cannot be less than zero', async () => {
+    // TODO: Move timeout to test options: { timeout: 4000 }
     expect(
       () =>
         new Worker(queueName, NoopProc, {
@@ -2647,9 +2652,10 @@ describe('workers', () => {
           maxStalledCount: -1,
         }),
     ).toThrow('maxStalledCount must be greater or equal than 0');
-  }, 4000);
+  });
 
   it('max started attempts cannot be less than zero', async () => {
+    // TODO: Move timeout to test options: { timeout: 4000 }
     expect(
       () =>
         new Worker(queueName, NoopProc, {
@@ -2658,9 +2664,10 @@ describe('workers', () => {
           maxStartedAttempts: -1,
         }),
     ).toThrow('maxStartedAttempts must be greater or equal than 0');
-  }, 4000);
+  });
 
   it('stalled interval cannot be zero', async () => {
+    // TODO: Move timeout to test options: { timeout: 4000 }
     expect(
       () =>
         new Worker(queueName, NoopProc, {
@@ -2669,9 +2676,10 @@ describe('workers', () => {
           stalledInterval: 0,
         }),
     ).toThrow('stalledInterval must be greater than 0');
-  }, 4000);
+  });
 
   it('drain delay cannot be zero', async () => {
+    // TODO: Move timeout to test options: { timeout: 4000 }
     expect(
       () =>
         new Worker(queueName, NoopProc, {
@@ -2680,9 +2688,10 @@ describe('workers', () => {
           drainDelay: 0,
         }),
     ).toThrow('drainDelay must be greater than 0');
-  }, 4000);
+  });
 
   it('lock extender continues to run until all active jobs are completed when closing a worker', async () => {
+    // TODO: Move timeout to test options: { timeout: 4000 }
     let worker: Worker;
 
     const startProcessing = new Promise<void>(resolve => {
@@ -2713,7 +2722,7 @@ describe('workers', () => {
     await worker.close();
 
     await completed;
-  }, 4000);
+  });
 
   describe('Concurrency process', () => {
     it('should thrown an exception if I specify a concurrency of 0', () => {
@@ -2780,6 +2789,7 @@ describe('workers', () => {
     //This job use delay to check that at any time we have 4 process in parallel.
     //Due to time to get new jobs and call process, false negative can appear.
     it('should process job respecting the concurrency set', async () => {
+      // TODO: Move timeout to test options: { timeout: 10000 }
       let nbProcessing = 0;
       let pendingMessageToProcess = 8;
       let wait = 10;
@@ -2825,11 +2835,12 @@ describe('workers', () => {
 
       await processing;
       await worker.close();
-    }, 10000);
+    });
 
     describe('when changing concurrency', () => {
       describe('when increasing value', () => {
         it('should process job respecting the current concurrency set', async () => {
+          // TODO: Move timeout to test options: { timeout: 10000 }
           let nbProcessing = 0;
           let pendingMessageToProcess = 16;
           let wait = 10;
@@ -2895,11 +2906,12 @@ describe('workers', () => {
           await waiting2;
 
           await worker.close();
-        }, 10000);
+        });
       });
 
       describe('when decreasing value', () => {
         it('should process job respecting the current concurrency set', async () => {
+          // TODO: Move timeout to test options: { timeout: 10000 }
           let nbProcessing = 0;
           let pendingMessageToProcess = 20;
           let wait = 100;
@@ -2963,7 +2975,7 @@ describe('workers', () => {
           await waiting1;
 
           await worker.close();
-        }, 10000);
+        });
       });
     });
 
@@ -3000,8 +3012,8 @@ describe('workers', () => {
             // Pause when all 4 works are processing
             await worker.pause();
             // Wait for all the active jobs to finalize.
-            expect(nbJobFinish).to.be.gte(3);
-            expect(nbJobFinish).to.be.lte(4);
+            expect(nbJobFinish).toBeGreaterThanOrEqual(3);
+            expect(nbJobFinish).toBeLessThanOrEqual(4);
           }
         });
 
@@ -3234,7 +3246,9 @@ describe('workers', () => {
                 expect(gotJob!.delay).toEqual(0);
                 resolve();
               } else {
-                expect(job?.delay).to.be.gte(2 ** (attemptsMade! - 1) * 200);
+                expect(job?.delay).toBeGreaterThanOrEqual(
+                  2 ** (attemptsMade! - 1) * 200,
+                );
               }
             } catch (err) {
               reject(err);
@@ -3280,7 +3294,9 @@ describe('workers', () => {
                   expect(job!.delay).toEqual(0);
                   resolve();
                 } else {
-                  expect(job?.delay).to.be.lte(2 ** (attemptsMade! - 1) * 200);
+                  expect(job?.delay).toBeLessThanOrEqual(
+                    2 ** (attemptsMade! - 1) * 200,
+                  );
                 }
               } catch (err) {
                 reject(err);
@@ -3326,10 +3342,10 @@ describe('workers', () => {
                     expect(job!.delay).toEqual(0);
                     resolve();
                   } else {
-                    expect(job?.delay).to.be.lte(
+                    expect(job?.delay).toBeLessThanOrEqual(
                       2 ** (attemptsMade! - 1) * 200,
                     );
-                    expect(job?.delay).to.be.gte(
+                    expect(job?.delay).toBeGreaterThanOrEqual(
                       2 ** (attemptsMade! - 1) * 200 * 0.5,
                     );
                   }
@@ -3381,8 +3397,8 @@ describe('workers', () => {
                 const gotJob = await queue.getJob(job.id!);
                 expect(gotJob!.delay).toEqual(0);
                 const timeDiff = Date.now() - now;
-                expect(timeDiff).to.be.greaterThanOrEqual(2250);
-                expect(timeDiff).to.be.lessThanOrEqual(2750);
+                expect(timeDiff).toBeGreaterThanOrEqual(2250);
+                expect(timeDiff).toBeLessThanOrEqual(2750);
                 resolve();
               }
             } catch (err) {
@@ -3428,7 +3444,7 @@ describe('workers', () => {
                   expect(job!.delay).toEqual(0);
                   resolve();
                 } else {
-                  expect(job?.delay).to.be.lte(750);
+                  expect(job?.delay).toBeLessThanOrEqual(750);
                 }
               } catch (err) {
                 reject(err);
@@ -3474,8 +3490,8 @@ describe('workers', () => {
                     expect(job!.delay).toEqual(0);
                     resolve();
                   } else {
-                    expect(job?.delay).to.be.lte(750);
-                    expect(job?.delay).to.be.gte(325);
+                    expect(job?.delay).toBeLessThanOrEqual(750);
+                    expect(job?.delay).toBeGreaterThanOrEqual(325);
                   }
                 } catch (err) {
                   reject(err);
@@ -3801,6 +3817,8 @@ describe('workers', () => {
     });
 
     it('should retry a job after a delay if a fixed backoff is given', async () => {
+      // TODO: Move timeout to test options: { timeout: 10000 }
+
       const worker = new Worker(
         queueName,
         async job => {
@@ -3832,10 +3850,12 @@ describe('workers', () => {
       });
 
       await worker.close();
-    }, 10000);
+    });
 
     describe('when UnrecoverableError is throw', () => {
       it('moves job to failed', async () => {
+        // TODO: Move timeout to test options: { timeout: 8000 }
+
         const worker = new Worker(
           queueName,
           async job => {
@@ -3880,11 +3900,13 @@ describe('workers', () => {
         expect(state).toBe('failed');
 
         await worker.close();
-      }, 8000);
+      });
     });
 
     describe('when providing a way to execute step jobs', () => {
       it('should retry a job after a delay if a fixed backoff is given, keeping the current step', async () => {
+        // TODO: Move timeout to test options: { timeout: 8000 }
+
         enum Step {
           Initial,
           Second,
@@ -3946,7 +3968,7 @@ describe('workers', () => {
         });
 
         await worker.close();
-      }, 8000);
+      });
 
       describe('when timeout is provided', () => {
         it('should check if timeout is reached in each step', async () => {
@@ -4031,6 +4053,8 @@ describe('workers', () => {
 
       describe('when moving job to delayed in one step', () => {
         it('should retry job after a delay time, keeping the current step', async () => {
+          // TODO: Move timeout to test options: { timeout: 8000 }
+
           enum Step {
             Initial,
             Second,
@@ -4087,7 +4111,7 @@ describe('workers', () => {
           });
 
           await worker.close();
-        }, 8000);
+        });
 
         describe('when passing maxStartedAttempts', () => {
           it('should fail job when consuming the max started attempts', async () => {
@@ -4198,6 +4222,8 @@ describe('workers', () => {
 
       describe('when moving job to waiting in one step', () => {
         it('should retry job right away, keeping the current step', async () => {
+          // TODO: Move timeout to test options: { timeout: 1000 }
+
           enum Step {
             Initial,
             Second,
@@ -4252,11 +4278,12 @@ describe('workers', () => {
           });
 
           await worker.close();
-        }, 1000);
+        });
       });
 
       describe('when creating children at runtime', () => {
         it('should wait children as one step of the parent job', async () => {
+          // TODO: Move timeout to test options: { timeout: 8000 }
           const parentQueueName = `parent-queue-${randomUUID()}`;
           const parentQueue = new Queue(parentQueueName, {
             connection,
@@ -4370,11 +4397,12 @@ describe('workers', () => {
           await worker.close();
           await childrenWorker.close();
           await parentQueue.close();
-          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
-        }, 8000);
+          await removeAllQueueData(createTestConnection(), parentQueueName);
+        });
 
         describe('when skip attempt option is provided as true', () => {
           it('should wait children as one step of the parent job whithout incrementing attemptMade', async () => {
+            // TODO: Move timeout to test options: { timeout: 8000 }
             const parentQueueName = `parent-queue-${randomUUID()}`;
             const parentQueue = new Queue(parentQueueName, {
               connection,
@@ -4492,13 +4520,15 @@ describe('workers', () => {
             await worker.close();
             await childrenWorker.close();
             await parentQueue.close();
-            await removeAllQueueData(new IORedis(redisHost), parentQueueName);
-          }, 8000);
+            await removeAllQueueData(createTestConnection(), parentQueueName);
+          });
         });
       });
     });
 
     it('should retry a job after a delay if an exponential backoff is given', async () => {
+      // TODO: Move timeout to test options: { timeout: 10000 }
+
       const worker = new Worker(
         queueName,
         async job => {
@@ -4534,9 +4564,11 @@ describe('workers', () => {
       });
 
       await worker.close();
-    }, 10000);
+    });
 
     it('should retry a job after a delay if a custom backoff is given', async () => {
+      // TODO: Move timeout to test options: { timeout: 10000 }
+
       const worker = new Worker(
         queueName,
         async job => {
@@ -4578,10 +4610,12 @@ describe('workers', () => {
       });
 
       await worker.close();
-    }, 10000);
+    });
 
     describe('when applying custom backoff by type', () => {
       it('should retry a job after a delay for custom type', async () => {
+        // TODO: Move timeout to test options: { timeout: 10000 }
+
         const worker = new Worker(
           queueName,
           async job => {
@@ -4657,7 +4691,7 @@ describe('workers', () => {
         });
 
         await worker.close();
-      }, 10000);
+      });
     });
 
     it('should not retry a job if the custom backoff returns -1', async () => {
@@ -4710,6 +4744,8 @@ describe('workers', () => {
     it('should retry a job after a delay if a custom backoff is given based on the error thrown', async () => {
       class CustomError extends Error {}
 
+      // TODO: Move timeout to test options: { timeout: 10000 }
+
       const worker = new Worker(
         queueName,
         async job => {
@@ -4756,12 +4792,14 @@ describe('workers', () => {
       });
 
       await worker.close();
-    }, 10000);
+    });
 
     it('should retry a job after a delay if a custom backoff is given based on the job data', async () => {
       class CustomError extends Error {
         failedIds: number[];
       }
+
+      // TODO: Move timeout to test options: { timeout: 5000 }
 
       const worker = new Worker(
         queueName,
@@ -4816,9 +4854,11 @@ describe('workers', () => {
       });
 
       await worker.close();
-    }, 5000);
+    });
 
     it('should be able to handle a custom backoff if it returns a promise', async () => {
+      // TODO: Move timeout to test options: { timeout: 10000 }
+
       const worker = new Worker(
         queueName,
         async (job: Job) => {
@@ -4859,7 +4899,7 @@ describe('workers', () => {
       });
 
       await worker.close();
-    }, 10000);
+    });
 
     it('should not retry a job that has been removed', async () => {
       const failedError = new Error('failed');
@@ -5236,7 +5276,7 @@ describe('workers', () => {
         await parentWorker.close();
 
         await parentQueue.close();
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(createTestConnection(), parentQueueName);
       });
 
       describe('when job is not in active state', () => {
@@ -5321,7 +5361,7 @@ describe('workers', () => {
           await parentWorker.close();
 
           await parentQueue.close();
-          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+          await removeAllQueueData(createTestConnection(), parentQueueName);
         });
       });
     });
@@ -5381,7 +5421,7 @@ describe('workers', () => {
         ) ||
         childrenWorker.databaseType === 'dragonfly'
       ) {
-        expect(unprocessed1!.length).to.be.greaterThanOrEqual(50);
+        expect(unprocessed1!.length).toBeGreaterThanOrEqual(50);
         expect(nextCursor1).not.toBe(0);
       } else {
         expect(unprocessed1!.length).toBe(65);
@@ -5404,7 +5444,7 @@ describe('workers', () => {
         ) ||
         childrenWorker.databaseType === 'dragonfly'
       ) {
-        expect(unprocessed2!.length).to.be.lessThanOrEqual(15);
+        expect(unprocessed2!.length).toBeLessThanOrEqual(15);
         expect(nextCursor2).toBe(0);
       } else {
         expect(unprocessed2!.length).toBe(65);
@@ -5437,14 +5477,14 @@ describe('workers', () => {
           },
         });
 
-      expect(unprocessed3!.length).to.be.greaterThanOrEqual(50);
+      expect(unprocessed3!.length).toBeGreaterThanOrEqual(50);
       expect(nextCursor3).not.toBe(0);
 
       await childrenWorker.close();
       await parentWorker.close();
 
       await parentQueue.close();
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
 
     it('should allow to fail jobs manually', async () => {
