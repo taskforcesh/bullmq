@@ -2,113 +2,116 @@ import { Cluster, Redis, ChainableCommander } from 'ioredis';
 import { IRedisClient, IRedisTransaction } from '../interfaces/redis-client';
 
 /**
- * Augments an ioredis Redis / Cluster instance so that it conforms to
- * {@link IRedisClient}.
+ * Per-raw-client cache so repeated calls to `createIORedisClient` with the
+ * same underlying ioredis instance return the same proxy. This preserves
+ * event-listener identity for the BullMQ-facing client.
+ */
+const proxyCache = new WeakMap<object, IRedisClient>();
+
+/**
+ * Wraps an ioredis `Redis` / `Cluster` instance with a `Proxy` so it conforms
+ * to {@link IRedisClient}.
  *
- * Since ioredis already exposes every Redis command that BullMQ uses
- * (hgetall, zrange, xread, pipeline, multi, nodes, …), the adapter
- * only needs to:
+ * For backwards compatibility BullMQ continues to accept a raw `IORedis`
+ * instance through the `connection` option, even though internally it relies
+ * on the `IRedisClient` adapter interface. The returned proxy:
  *
- *   - `runCommand`    – execute a previously defined Lua script by name
- *   - `duplicate`     – ensure the returned instance is also augmented
- *   - `pipeline/multi` – add `runCommand` to the returned ChainableCommander
- *   - translate structured option objects to ioredis varargs where needed
+ *   - exposes `runCommand` (Lua script dispatch by name)
+ *   - exposes structured-options variants of `hset`, `set`, `zrange`,
+ *     `zrevrange`, `xadd`, `xread`, `xtrim`, `scan` (backward-compatible:
+ *     they still accept native ioredis varargs if called that way)
+ *   - returns augmented {@link IRedisTransaction}s from `pipeline()` / `multi()`
+ *   - wraps the result of `duplicate()` in a new proxy
  *
- * **Side-effect warning:** This function mutates the provided instance
- * in-place for zero-overhead augmentation.  When a user passes their own
- * ioredis client to BullMQ, the overrides are written onto that shared
- * object.  All overrides are **backward-compatible**: they detect whether
- * they are called with the ioredis native varargs style or the IRedisClient
- * structured-options style and dispatch accordingly.  External code that
- * calls e.g. `client.hset(key, 'f1', 'v1')` will continue to work after
- * augmentation.
+ * The underlying ioredis instance is **not** mutated. Properties and methods
+ * not in the override table are forwarded to the raw client via the proxy
+ * traps, with `this === target` so EventEmitter / Commander internals work
+ * normally.
  */
 export function createIORedisClient<TClient extends Redis | Cluster>(
   client: TClient,
 ): TClient & IRedisClient {
-  const adapter = client as any;
-
-  if (adapter.__bullmq_iredis) {
-    return adapter as TClient & IRedisClient;
-  }
-  adapter.__bullmq_iredis = true;
-
-  // Ensure isCluster is a boolean.  ioredis Cluster sets it to true;
-  // plain Redis leaves it undefined.
-  if (typeof adapter.isCluster !== 'boolean') {
-    adapter.isCluster = false;
+  const cached = proxyCache.get(client);
+  if (cached) {
+    return cached as TClient & IRedisClient;
   }
 
-  // Lua script engine
-  adapter.runCommand = function (name: string, args: any[]): any {
-    return adapter[name](args);
+  const isCluster = (client as any).isCluster === true;
+  // Cache bound prototype methods so the returned function identity is
+  // stable across accesses (important for `once`/`removeListener` patterns).
+  const boundCache = new Map<PropertyKey, any>();
+
+  // Override table — properties returned by the proxy without touching the
+  // underlying ioredis instance. The arrow functions close over `client`
+  // directly so ioredis internals always see the raw instance as `this`.
+  const overrides: Record<string | symbol, any> = Object.create(null);
+
+  overrides.__bullmq_iredis = true;
+  overrides.isCluster = isCluster;
+
+  // Lua script engine.
+  overrides.runCommand = (name: string, args: any[]): any => {
+    return (client as any)[name](args);
   };
 
-  // Pipeline / Multi — add runCommand + structured overrides
-  const origPipeline = client.pipeline.bind(client);
-  adapter.pipeline = function (...args: any[]): IRedisTransaction {
-    return augmentTransaction(origPipeline(...args));
+  // Pipeline / Multi — wrap the ChainableCommander with structured overrides.
+  overrides.pipeline = (...args: any[]): IRedisTransaction => {
+    return augmentTransaction(client.pipeline(...args));
+  };
+  overrides.multi = (...args: any[]): IRedisTransaction => {
+    return augmentTransaction((client as any).multi(...args));
   };
 
-  const origMulti = client.multi.bind(client);
-  adapter.multi = function (...args: any[]): IRedisTransaction {
-    return augmentTransaction(origMulti(...args));
-  };
-
-  // Duplicate — ensure the result is also augmented.
+  // duplicate — wrap the new raw client with a fresh proxy.
   // ioredis Cluster.duplicate(startupNodes?, options?) expects connection
   // options under `redisOptions`, while Redis.duplicate(options?) takes them
-  // at the top level.  We normalise the call so that callers can always pass
-  // a simple `{ connectionName }` object regardless of the client type.
-  if (typeof client.duplicate === 'function') {
-    const origDuplicate = client.duplicate.bind(client);
-    const clientIsCluster = !!(client as any).isCluster;
-
-    adapter.duplicate = function (opts?: Record<string, any>): IRedisClient {
-      if (clientIsCluster) {
+  // at the top level. Normalise so callers can always pass `{ connectionName }`.
+  if (typeof (client as any).duplicate === 'function') {
+    overrides.duplicate = (opts?: Record<string, any>): IRedisClient => {
+      if (isCluster) {
         const existingRedisOpts = (client as any).options?.redisOptions || {};
         const mergedRedisOpts = opts
           ? { ...existingRedisOpts, ...opts }
           : existingRedisOpts;
         return createIORedisClient(
-          origDuplicate(undefined, { redisOptions: mergedRedisOpts }),
+          (client as any).duplicate(undefined, {
+            redisOptions: mergedRedisOpts,
+          }),
         );
       }
-      return createIORedisClient(origDuplicate(opts as any));
+      return createIORedisClient((client as any).duplicate(opts as any));
     };
   }
 
   // --- Structured → ioredis varargs translations ---
+  // Each override accepts both the IRedisClient structured-options form and
+  // the native ioredis varargs form, dispatching by argument shape.
 
   // hset: structured { f1: v1 } → ioredis hset(key, f1, v1, …)
-  // Backward-compatible: if second arg is a string, caller is using ioredis varargs.
-  const origHset = (client as any).hset.bind(client);
-  adapter.hset = function (
+  overrides.hset = (
     key: string,
     dataOrField: Record<string, string | number> | string,
     ...rest: any[]
-  ): Promise<number> {
+  ): Promise<number> => {
     if (typeof dataOrField === 'string') {
-      return origHset(key, dataOrField, ...rest);
+      return (client as any).hset(key, dataOrField, ...rest);
     }
     const args: (string | number)[] = [key];
     for (const [f, v] of Object.entries(dataOrField)) {
       args.push(f, v);
     }
-    return origHset(...args);
+    return (client as any).hset(...args);
   };
 
   // set: structured { PX?: n } → ioredis set(key, value, 'PX', n)
-  // Backward-compatible: if third arg is a string, caller is using ioredis varargs.
-  const origSet = (client as any).set.bind(client);
-  adapter.set = function (
+  overrides.set = (
     key: string,
     value: string | number,
     optionsOrModifier?: { PX?: number; EX?: number } | string,
     ...rest: any[]
-  ): Promise<string | null> {
+  ): Promise<string | null> => {
     if (typeof optionsOrModifier === 'string' || optionsOrModifier == null) {
-      return origSet(
+      return (client as any).set(
         key,
         value,
         ...(optionsOrModifier != null ? [optionsOrModifier, ...rest] : []),
@@ -120,59 +123,52 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
     } else if (optionsOrModifier.EX != null) {
       args.push('EX', optionsOrModifier.EX);
     }
-    return origSet(...args);
+    return (client as any).set(...args);
   };
 
   // zrange: structured { WITHSCORES? } → ioredis zrange(key, start, end, 'WITHSCORES')
-  // Backward-compatible: if fourth arg is a string, caller is using ioredis varargs.
-  const origZrange = (client as any).zrange.bind(client);
-  adapter.zrange = function (
+  overrides.zrange = (
     key: string,
     start: number,
     end: number,
     optionsOrStr?: { WITHSCORES?: boolean } | string,
     ...rest: any[]
-  ): Promise<string[]> {
+  ): Promise<string[]> => {
     if (typeof optionsOrStr === 'string') {
-      return origZrange(key, start, end, optionsOrStr, ...rest);
+      return (client as any).zrange(key, start, end, optionsOrStr, ...rest);
     }
     if (optionsOrStr?.WITHSCORES) {
-      return origZrange(key, start, end, 'WITHSCORES');
+      return (client as any).zrange(key, start, end, 'WITHSCORES');
     }
-    return origZrange(key, start, end);
+    return (client as any).zrange(key, start, end);
   };
 
   // zrevrange: structured { WITHSCORES? } → ioredis zrevrange(key, start, end, 'WITHSCORES')
-  // Backward-compatible: if fourth arg is a string, caller is using ioredis varargs.
-  const origZrevrange = (client as any).zrevrange.bind(client);
-  adapter.zrevrange = function (
+  overrides.zrevrange = (
     key: string,
     start: number,
     end: number,
     optionsOrStr?: { WITHSCORES?: boolean } | string,
     ...rest: any[]
-  ): Promise<string[]> {
+  ): Promise<string[]> => {
     if (typeof optionsOrStr === 'string') {
-      return origZrevrange(key, start, end, optionsOrStr, ...rest);
+      return (client as any).zrevrange(key, start, end, optionsOrStr, ...rest);
     }
     if (optionsOrStr?.WITHSCORES) {
-      return origZrevrange(key, start, end, 'WITHSCORES');
+      return (client as any).zrevrange(key, start, end, 'WITHSCORES');
     }
-    return origZrevrange(key, start, end);
+    return (client as any).zrevrange(key, start, end);
   };
 
   // xadd: structured (key, id, { field: value }, { MAXLEN? }) → ioredis varargs
-  // Backward-compatible: if third arg is a string, caller is using ioredis varargs
-  // (e.g. xadd(key, id, field1, val1, field2, val2)).
-  const origXadd = (client as any).xadd.bind(client);
-  adapter.xadd = function (
+  overrides.xadd = (
     key: string,
     idOrModifier: string,
     fieldsOrArg: Record<string, string | number> | string,
     ...rest: any[]
-  ): Promise<string> {
+  ): Promise<string> => {
     if (typeof fieldsOrArg === 'string') {
-      return origXadd(key, idOrModifier, fieldsOrArg, ...rest);
+      return (client as any).xadd(key, idOrModifier, fieldsOrArg, ...rest);
     }
     const options = rest[0] as
       | { MAXLEN?: number; approximate?: boolean }
@@ -189,19 +185,16 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
     for (const [f, v] of Object.entries(fieldsOrArg)) {
       args.push(f, v);
     }
-    return origXadd(...args);
+    return (client as any).xadd(...args);
   };
 
   // xread: structured ([{ key, id }], { BLOCK?, COUNT? }) → ioredis varargs
-  // Backward-compatible: if first arg is a string, caller is using ioredis varargs
-  // (e.g. xread('BLOCK', 5000, 'STREAMS', key, id)).
-  const origXread = (client as any).xread.bind(client);
-  adapter.xread = function (
+  overrides.xread = (
     streamsOrModifier: { key: string; id: string }[] | string,
     ...rest: any[]
-  ): Promise<any> {
+  ): Promise<any> => {
     if (typeof streamsOrModifier === 'string') {
-      return origXread(streamsOrModifier, ...rest);
+      return (client as any).xread(streamsOrModifier, ...rest);
     }
     const options = rest[0] as { BLOCK?: number; COUNT?: number } | undefined;
     const args: any[] = [];
@@ -218,21 +211,18 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
     for (const s of streamsOrModifier) {
       args.push(s.id);
     }
-    return origXread(...args);
+    return (client as any).xread(...args);
   };
 
   // xtrim: structured (key, 'MAXLEN', threshold, { approximate? })
-  // ioredis native is the same positional shape, so this is already compatible.
-  const origXtrim = (client as any).xtrim.bind(client);
-  adapter.xtrim = function (
+  overrides.xtrim = (
     key: string,
     strategy: 'MAXLEN',
     thresholdOrApprox: number | string,
     ...rest: any[]
-  ): Promise<number> {
-    // Varargs passthrough: xtrim(key, 'MAXLEN', '~', 1000) or xtrim(key, 'MAXLEN', 1000)
+  ): Promise<number> => {
     if (typeof thresholdOrApprox === 'string' || rest.length === 0) {
-      return origXtrim(key, strategy, thresholdOrApprox, ...rest);
+      return (client as any).xtrim(key, strategy, thresholdOrApprox, ...rest);
     }
     const options = rest[0] as { approximate?: boolean } | undefined;
     const args: any[] = [key, strategy];
@@ -240,40 +230,27 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
       args.push('~');
     }
     args.push(thresholdOrApprox);
-    return origXtrim(...args);
+    return (client as any).xtrim(...args);
   };
 
-  // bzpopmin
-  //
-  // We deliberately do NOT override ioredis' native `bzpopmin` here.
-  // ioredis returns `[key, member, score]` (a tuple) and that is also the
-  // shape required by IRedisClient. Overriding the method on a shared user
-  // instance would change the observable return shape for any non-BullMQ
-  // code that uses `bzpopmin` on the same client.
+  // bzpopmin is not overridden — ioredis already returns
+  // `[key, member, score]`, which matches IRedisClient.
 
-  // clientSetName / clientList
-  adapter.clientSetName = function (name: string): Promise<any> {
-    return (client as any).client('SETNAME', name);
-  };
-  adapter.clientList = function (): Promise<string> {
-    return (client as any).client('LIST');
-  };
+  // clientSetName / clientList helpers that forward to CLIENT subcommands.
+  overrides.clientSetName = (name: string): Promise<any> =>
+    (client as any).client('SETNAME', name);
+  overrides.clientList = (): Promise<string> => (client as any).client('LIST');
 
-  // scan(cursor, { MATCH?, COUNT? })
-  // Must detect if called with varargs (ioredis internal, e.g. from scanStream)
-  // vs. structured options (IRedisClient interface).
-  const origScan = (client as any).scan.bind(client);
-  adapter.scan = function (cursor: string | number, ...rest: any[]): any {
-    // If called with varargs style (e.g. from scanStream internally),
-    // pass through unchanged.
+  // scan(cursor, { MATCH?, COUNT? }) — accepts either structured options or
+  // ioredis varargs (used internally by `scanStream`).
+  overrides.scan = (cursor: string | number, ...rest: any[]): any => {
     if (
       rest.length === 0 ||
       typeof rest[0] === 'string' ||
       typeof rest[0] === 'function'
     ) {
-      return origScan(cursor, ...rest);
+      return (client as any).scan(cursor, ...rest);
     }
-    // Structured options: { MATCH?, COUNT? }
     const options = rest[0] as { MATCH?: string; COUNT?: number };
     const args: any[] = [cursor];
     if (options?.MATCH != null) {
@@ -282,10 +259,63 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
     if (options?.COUNT != null) {
       args.push('COUNT', options.COUNT);
     }
-    return origScan(...args);
+    return (client as any).scan(...args);
   };
 
-  return adapter as TClient & IRedisClient;
+  const proxy = new Proxy(client, {
+    get(target, prop) {
+      if (prop in overrides) {
+        return overrides[prop as string];
+      }
+      // Read against the raw target so getters on the prototype (e.g.
+      // ioredis' EventEmitter internals) see `this === target` rather than
+      // the proxy. This avoids infinite recursion through the proxy traps.
+      const value = Reflect.get(target, prop, target);
+      if (typeof value !== 'function') {
+        return value;
+      }
+      // Own properties (including ioredis commands installed via
+      // `defineCommand` and test-time spies set via `obj.method = spy`)
+      // are bound fresh on each access so reassignment is honoured.
+      if (Object.prototype.hasOwnProperty.call(target, prop)) {
+        return value.bind(target);
+      }
+      // Prototype methods (EventEmitter, Commander, ...) are cached so
+      // identity is stable across accesses.
+      const cachedBound = boundCache.get(prop);
+      if (cachedBound !== undefined) {
+        return cachedBound;
+      }
+      const bound = value.bind(target);
+      boundCache.set(prop, bound);
+      return bound;
+    },
+    set(target, prop, value) {
+      // Allow callers to install their own listeners or set ioredis-owned
+      // properties on the underlying client (rare, but supported by ioredis,
+      // and used by sinon-style spies). Overridden method names cannot be
+      // reassigned through the proxy.
+      if (prop in overrides) {
+        overrides[prop as string] = value;
+        return true;
+      }
+      boundCache.delete(prop);
+      return Reflect.set(target, prop, value);
+    },
+    deleteProperty(target, prop) {
+      if (prop in overrides) {
+        return false;
+      }
+      boundCache.delete(prop);
+      return Reflect.deleteProperty(target, prop);
+    },
+    has(target, prop) {
+      return prop in overrides || Reflect.has(target, prop);
+    },
+  }) as TClient & IRedisClient;
+
+  proxyCache.set(client, proxy);
+  return proxy;
 }
 
 /**
@@ -354,7 +384,7 @@ export function isIRedisClient(obj: any): obj is IRedisClient {
     return false;
   }
 
-  // Fast path for in-place ioredis augmentation.
+  // Fast path for ioredis instances already wrapped by `createIORedisClient`.
   if ((obj as any).__bullmq_iredis === true) {
     return true;
   }
