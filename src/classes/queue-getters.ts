@@ -8,6 +8,10 @@ import { JobJsonRaw, Metrics, QueueMeta } from '../interfaces';
 import { IRedisClient } from '../interfaces/redis-client';
 import { MetricNames, TelemetryAttributes } from '../enums';
 
+interface ClusterNodeWithClientCommand extends IRedisClient {
+  client(command: 'LIST'): Promise<string>;
+}
+
 /**
  * Escape a Prometheus label value per the text exposition format.
  * https://prometheus.io/docs/instrumenting/exposition_formats/
@@ -552,9 +556,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
         const clusterNodes = client.nodes();
         const clientsPerNode: { [index: string]: string }[][] = [];
         for (let nodeIndex = 0; nodeIndex < clusterNodes.length; nodeIndex++) {
-          const node = clusterNodes[nodeIndex] as IRedisClient & {
-            client(command: 'LIST'): Promise<string>;
-          };
+          const node = clusterNodes[nodeIndex] as ClusterNodeWithClientCommand;
           const clients =
             typeof node.clientList === 'function'
               ? await node.clientList()
