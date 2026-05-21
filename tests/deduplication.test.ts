@@ -29,7 +29,11 @@ describe('deduplication', () => {
   beforeEach(async () => {
     queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
-    queueEvents = new QueueEvents(queueName, { connection, prefix });
+    queueEvents = new QueueEvents(queueName, {
+      connection,
+      prefix,
+      blockingTimeout: 500,
+    });
     await queue.waitUntilReady();
     await queueEvents.waitUntilReady();
   });
@@ -96,7 +100,7 @@ describe('deduplication', () => {
           { foo: 'bar' },
           { debounce: { id: 'a1', ttl: 2000 } },
         );
-        await delay(100);
+        await delay(500);
 
         expect(debouncedCounter).toBe(4);
       });
@@ -335,30 +339,27 @@ describe('deduplication', () => {
             deduplicatedJob: any;
           }
         | undefined;
-      const waitingEvent = Promise.race([
-        new Promise<void>((resolve, reject) => {
-          queueEvents.once(
-            'deduplicated',
-            async ({ jobId, deduplicationId, deduplicatedJobId }) => {
-              try {
-                const job = await queue.getJob(jobId);
-                const deduplicatedJob = await queue.getJob(deduplicatedJobId);
-                deduplicatedResult = {
-                  jobId,
-                  deduplicationId,
-                  deduplicatedJobId,
-                  job,
-                  deduplicatedJob,
-                };
-                resolve();
-              } catch (error) {
-                reject(error);
-              }
-            },
-          );
-        }),
-        delay(100),
-      ]);
+      const waitingEvent = new Promise<void>((resolve, reject) => {
+        queueEvents.once(
+          'deduplicated',
+          async ({ jobId, deduplicationId, deduplicatedJobId }) => {
+            try {
+              const job = await queue.getJob(jobId);
+              const deduplicatedJob = await queue.getJob(deduplicatedJobId);
+              deduplicatedResult = {
+                jobId,
+                deduplicationId,
+                deduplicatedJobId,
+                job,
+                deduplicatedJob,
+              };
+              resolve();
+            } catch (error) {
+              reject(error);
+            }
+          },
+        );
+      });
 
       await queue.add(
         testName,

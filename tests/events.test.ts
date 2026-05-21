@@ -37,7 +37,11 @@ describe('events', { timeout: 8000 }, () => {
   beforeEach(async () => {
     queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
-    queueEvents = new QueueEvents(queueName, { connection, prefix });
+    queueEvents = new QueueEvents(queueName, {
+      connection,
+      prefix,
+      blockingTimeout: 1000,
+    });
     await queue.waitUntilReady();
     await queueEvents.waitUntilReady();
   });
@@ -458,21 +462,18 @@ describe('events', { timeout: 8000 }, () => {
       let waitingChildrenJob:
         | { state: string | undefined; jobName: string | undefined }
         | undefined;
-      const waitingChildren = Promise.race([
-        new Promise<void>((resolve, reject) => {
-          queueEvents.once('waiting-children', async ({ jobId }) => {
-            try {
-              const job = await queue.getJob(jobId);
-              const state = await job?.getState();
-              waitingChildrenJob = { state, jobName: job?.name };
-              resolve();
-            } catch (err) {
-              reject(err);
-            }
-          });
-        }),
-        delay(100),
-      ]);
+      const waitingChildren = new Promise<void>((resolve, reject) => {
+        queueEvents.once('waiting-children', async ({ jobId }) => {
+          try {
+            const job = await queue.getJob(jobId);
+            const state = await job?.getState();
+            waitingChildrenJob = { state, jobName: job?.name };
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
 
       let waitingResult:
         | { prev: string; jobName: string | undefined }
