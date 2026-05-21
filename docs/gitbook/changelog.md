@@ -1,3 +1,10 @@
+## [5.76.11](https://github.com/taskforcesh/bullmq/compare/v5.76.10...v5.76.11) (2026-05-21)
+
+
+### Bug Fixes
+
+* **worker:** stop fetching next jobs when closing on manual job movement ([#4178](https://github.com/taskforcesh/bullmq/issues/4178)) fixes [#4163](https://github.com/taskforcesh/bullmq/issues/4163) ([7b9f7e0](https://github.com/taskforcesh/bullmq/commit/7b9f7e0c81427fb9d936a6366c21ef2a96729335))
+
 ## [5.76.10](https://github.com/taskforcesh/bullmq/compare/v5.76.9...v5.76.10) (2026-05-17)
 
 
