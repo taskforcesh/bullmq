@@ -21,9 +21,9 @@ local function requeueDeduplicatedJob(prefix, deduplicationId, eventStreamKey,
 
     -- Always increment the counter to keep it monotonic
     local nextId = rcall("INCR", prefix .. "id") .. ""
-    local storedJobId = nextData[8]
+    local storedJobId = nextData[8] -- index 8 = "jid" (8th field in the HMGET call above)
     local newJobId
-    if storedJobId and storedJobId ~= false then
+    if storedJobId then
       newJobId = storedJobId
     else
       newJobId = nextId
