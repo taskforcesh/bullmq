@@ -5,6 +5,7 @@ import { Job } from './job';
 import { clientCommandMessageReg, QUEUE_EVENT_SUFFIX } from '../utils';
 import { JobState, JobType } from '../types';
 import { JobJsonRaw, Metrics, QueueMeta } from '../interfaces';
+import { IRedisClient } from '../interfaces/redis-client';
 import { MetricNames, TelemetryAttributes } from '../enums';
 
 /**
@@ -551,7 +552,9 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
         const clusterNodes = client.nodes();
         const clientsPerNode: { [index: string]: string }[][] = [];
         for (let nodeIndex = 0; nodeIndex < clusterNodes.length; nodeIndex++) {
-          const node = clusterNodes[nodeIndex] as any;
+          const node = clusterNodes[nodeIndex] as IRedisClient & {
+            client(command: 'LIST'): Promise<string>;
+          };
           const clients =
             typeof node.clientList === 'function'
               ? await node.clientList()
