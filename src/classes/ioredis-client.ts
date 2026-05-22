@@ -13,7 +13,7 @@ const proxyCache = new WeakMap<object, IRedisClient>();
  * to {@link IRedisClient}.
  *
  * For backwards compatibility BullMQ continues to accept a raw `IORedis`
- * instance through the `connection` option, even though internally it relies
+ * instance through tehe `connection` option, even though internally it relies
  * on the `IRedisClient` adapter interface. The returned proxy:
  *
  *   - exposes `runCommand` (Lua script dispatch by name)
@@ -31,6 +31,15 @@ const proxyCache = new WeakMap<object, IRedisClient>();
 export function createIORedisClient<TClient extends Redis | Cluster>(
   client: TClient,
 ): TClient & IRedisClient {
+  // If the caller already passed a proxy produced by this function, return
+  // it as-is. Wrapping a proxy in a second proxy would defeat the WeakMap
+  // cache (the inner raw client is no longer reachable from the outer
+  // argument) and break listener-identity / equality checks for callers
+  // that hold on to the original wrapper.
+  if ((client as any).__bullmq_iredis === true) {
+    return client as TClient & IRedisClient;
+  }
+
   const cached = proxyCache.get(client);
   if (cached) {
     return cached as TClient & IRedisClient;
@@ -291,10 +300,14 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
       return bound;
     },
     set(target, prop, value) {
-      // Allow callers to install their own listeners or set ioredis-owned
-      // properties on the underlying client (rare, but supported by ioredis,
-      // and used by sinon-style spies). Overridden method names cannot be
-      // reassigned through the proxy.
+      // Two assignment paths:
+      //   - Properties present in the override table are reassigned in the
+      //     table itself, so subsequent `get` traps return the new value
+      //     (used by sinon-style spies that stub `runCommand`, `pipeline`,
+      //     etc. on the proxy).
+      //   - All other properties are written through to the raw ioredis
+      //     instance via `Reflect.set`, and any stale bound-method entry is
+      //     invalidated so the next access rebinds the new function.
       if (prop in overrides) {
         overrides[prop as string] = value;
         return true;

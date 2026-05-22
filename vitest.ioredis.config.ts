@@ -13,6 +13,7 @@ export default defineConfig({
     include: [
       'tests/cluster.test.ts',
       'tests/connection.test.ts',
+      'tests/ioredis-client.test.ts',
       'tests/sandboxed_process.test.ts',
     ],
     setupFiles: ['./vitest.setup.ts'],
