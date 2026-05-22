@@ -13,7 +13,8 @@ import * as sinon from 'sinon';
 import { FlowProducer, Job, Queue, Worker } from '../src/classes';
 import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 import { version as currentPackageVersion } from '../src/version';
-import { createTestConnection } from './connection-factory';
+import { createTestConnection } from './utils/connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 describe('queues', () => {
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
@@ -22,7 +23,7 @@ describe('queues', () => {
   let queue: Queue;
   let queueName: string;
 
-  let connection;
+  let connection: IRedisClient;
   beforeAll(async () => {
     connection = createTestConnection();
   });

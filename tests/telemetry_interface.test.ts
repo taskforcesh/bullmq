@@ -27,7 +27,7 @@ import {
 } from '../src/interfaces';
 import * as sinon from 'sinon';
 import { SpanKind, TelemetryAttributes, MetricNames } from '../src/enums';
-import { createTestConnection } from './connection-factory';
+import { createTestConnection } from './utils/connection-factory';
 import { IRedisClient } from '../src/interfaces';
 
 describe('Telemetry', () => {

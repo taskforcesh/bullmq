@@ -1,5 +1,5 @@
 import { FlowProducer, Queue, Worker, QueueEvents } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 import { after } from 'lodash';
 import {
   describe,
@@ -10,9 +10,8 @@ import {
   it,
   expect,
 } from 'vitest';
-
-import { randomUUID } from '../src/utils';
-import { createTestConnection } from './connection-factory';
+import { createTestConnection } from './utils/connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 const NoopProc = () => Promise.resolve();
 
@@ -21,7 +20,7 @@ describe('stalled jobs', () => {
   let queue: Queue;
   let queueName: string;
 
-  let connection;
+  let connection: IRedisClient;
   beforeAll(async () => {
     connection = createTestConnection();
   });

@@ -5,7 +5,7 @@
 import { expect } from 'vitest';
 import { default as IORedis } from 'ioredis';
 import { createIORedisClient } from './src/classes/ioredis-client';
-import { setConnectionFactory } from './tests/connection-factory';
+import { setConnectionFactory } from './tests/utils/connection-factory';
 
 // Configure the default factory: ioredis
 setConnectionFactory(opts => {

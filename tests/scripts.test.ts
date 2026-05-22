@@ -8,10 +8,10 @@ import {
   expect,
 } from 'vitest';
 
-import { randomUUID } from '../src/utils';
 import { Queue } from '../src/classes';
-import { removeAllQueueData } from '../src/utils';
-import { createTestConnection } from './connection-factory';
+import { randomUUID, removeAllQueueData } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 describe('scripts', () => {
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
@@ -19,7 +19,7 @@ describe('scripts', () => {
   let queue: Queue;
   let queueName: string;
 
-  let connection;
+  let connection: IRedisClient;
   beforeAll(async () => {
     connection = createTestConnection();
   });
