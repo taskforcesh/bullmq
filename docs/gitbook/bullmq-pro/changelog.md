@@ -1,3 +1,10 @@
+# [7.46.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.45.1...v7.46.0) (2026-05-21)
+
+
+### Features
+
+* add support for both group concurrency and group rate limit ([#428](https://github.com/taskforcesh/bullmq-pro/issues/428)) ([ede5aa3](https://github.com/taskforcesh/bullmq-pro/commit/ede5aa385f6c7df1edcfccb15e0e064a1798f604))
+
 ## [7.45.1](https://github.com/taskforcesh/bullmq-pro/compare/v7.45.0...v7.45.1) (2026-05-07)
 
 
