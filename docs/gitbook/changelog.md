@@ -1,3 +1,10 @@
+## [5.77.1](https://github.com/taskforcesh/bullmq/compare/v5.77.0...v5.77.1) (2026-05-23)
+
+
+### Bug Fixes
+
+* **connections:** make sure we do not mutate ioredis ([#4182](https://github.com/taskforcesh/bullmq/issues/4182)) ([75a66af](https://github.com/taskforcesh/bullmq/commit/75a66af36f7d56c149e070826a20116ea1ef5e7b))
+
 # [5.77.0](https://github.com/taskforcesh/bullmq/compare/v5.76.11...v5.77.0) (2026-05-21)
 
 
