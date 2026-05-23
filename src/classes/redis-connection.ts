@@ -582,10 +582,11 @@ export class RedisConnection extends EventEmitter {
         new Promise<never>((_, reject) => {
           timeoutHandle = setTimeout(() => {
             reject(
-              new Error(
+              new ConnectionClosedError(
                 `BullMQ: cluster reconnect timed out after ${timeoutMs}ms`,
               ),
             );
+          }, timeoutMs);
           }, timeoutMs);
           // Don't keep the event loop alive solely for this timer.
           timeoutHandle.unref?.();
