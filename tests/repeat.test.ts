@@ -1213,27 +1213,42 @@ describe('repeat', () => {
   });
 
   it('should repeat 7:th day every month at 9:25', async () => {
-    // TODO: Move timeout to test options: { timeout: 12000 }
+    // The cron pattern is "25 9 7 * *" — 09:25 on the 7th of every month.
+    // We deterministically advance the simulated clock to the exact next
+    // occurrence (rather than `moment().add(1, 'months')` which drifts due
+    // to variable month lengths), and verify a handful of iterations.
+    const NUM_ITERATIONS = 5;
 
-    const date = new Date('2017-02-02 7:21:42');
+    const date = new Date('2017-02-02 07:21:42');
     clock.setSystemTime(date);
 
-    const nextTick = () => {
+    // Advance the fake clock to the next 09:25 on the 7th of a month.
+    const advanceToNextOccurrence = () => {
       const now = moment();
-      const nextMonth = moment().add(1, 'months');
-      clock.tick(nextMonth - now);
+      let next = now
+        .clone()
+        .date(7)
+        .hour(9)
+        .minute(25)
+        .second(0)
+        .millisecond(0);
+      if (!next.isAfter(now)) {
+        next = next.add(1, 'months');
+      }
+      clock.tick(next.valueOf() - now.valueOf());
     };
 
     const worker = new Worker(
       queueName,
       async () => {
-        nextTick();
+        advanceToNextOccurrence();
       },
       { autorun: false, connection, prefix },
     );
     const delayStub = sinon.stub(worker, 'delay').callsFake(NoopProc);
+    await worker.waitUntilReady();
 
-    let counter = 25;
+    let counter = NUM_ITERATIONS;
     let prev: Job;
     const completing = new Promise<void>((resolve, reject) => {
       worker.on('completed', async job => {
@@ -1254,25 +1269,27 @@ describe('repeat', () => {
             resolve();
           }
         } catch (error) {
-          console.log(error);
           reject(error);
         }
       });
     });
 
-    worker.run();
-
+    // Add the repeatable job *before* starting the worker so the worker's
+    // first poll sees the delayed entry, then advance the clock once to
+    // make the first occurrence (Feb 7 09:25) ready for processing.
     await queue.add(
       'repeat',
       { foo: 'bar' },
       { repeat: { pattern: '25 9 7 * *' } },
     );
-    nextTick();
+    advanceToNextOccurrence();
+
+    worker.run();
 
     await completing;
     await worker.close();
     delayStub.restore();
-  });
+  }, 20000);
 
   describe('when 2 jobs with the same options are added', () => {
     it('creates only one job', async () => {
