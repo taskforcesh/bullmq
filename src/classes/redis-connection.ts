@@ -587,7 +587,6 @@ export class RedisConnection extends EventEmitter {
               ),
             );
           }, timeoutMs);
-          }, timeoutMs);
           // Don't keep the event loop alive solely for this timer.
           timeoutHandle.unref?.();
         }),
