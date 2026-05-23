@@ -524,38 +524,28 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     command: string,
     args: RedisCommandArgument[],
   ): Promise<T> {
-    // If the connection is already closing/closed, return a rejected promise
-    // directly without going through sendQueue.
+    // If the connection is already closing/closed, return a rejected promise.
     if (this.closing || this.closed) {
       return Promise.reject(new ConnectionClosedError('Connection is closed'));
     }
-    const run: Promise<T> = this.sendQueue.then(() => {
-      if (this.closing || this.closed) {
+
+    // Send directly to the underlying Bun client. Redis protocol guarantees
+    // responses arrive in the same order as requests on a single connection,
+    // so concurrent send() calls are safe and enable implicit pipelining
+    // (multiple commands written to the socket before any response is read).
+    // Only MULTI/EXEC blocks need serialization — those go through
+    // `queueExclusive()`.
+    return (this.raw.send<T>(command, args) as Promise<T>).catch((err: any) => {
+      if (isBunConnectionClosedError(err)) {
         return Promise.reject<T>(
-          new ConnectionClosedError('Connection is closed'),
+          new ConnectionClosedError(
+            this.closing || this.closed ? 'Connection is closed' : err.message,
+            err,
+          ),
         );
       }
-      return (this.raw.send<T>(command, args) as Promise<T>).catch(
-        (err: any) => {
-          if (isBunConnectionClosedError(err)) {
-            return Promise.reject<T>(
-              new ConnectionClosedError(
-                this.closing || this.closed
-                  ? 'Connection is closed'
-                  : err.message,
-                err,
-              ),
-            );
-          }
-          throw err;
-        },
-      );
+      throw err;
     });
-    this.sendQueue = run.then(
-      (): void => undefined,
-      (): void => undefined,
-    );
-    return run;
   }
 
   async queueExclusive<T>(operation: () => Promise<T>): Promise<T> {
@@ -1245,46 +1235,45 @@ class BunRedisTransaction implements IRedisTransaction {
       });
     }
 
-    // Execute as one exclusive queued operation so no command can be interleaved
-    // between MULTI and EXEC on this connection.
-    return this.adapter.queueExclusive(async () => {
-      try {
-        await this.raw.send('MULTI', []);
+    // Execute as a pipelined MULTI/EXEC block. Redis supports multiple
+    // MULTI/EXEC blocks pipelined on the same connection — each MULTI starts
+    // a new transaction context and EXEC commits it, responses arrive in
+    // order. We fire MULTI + all commands + EXEC synchronously (no await
+    // between them) so they're written to the socket buffer as one contiguous
+    // burst with no opportunity for interleaving from other async contexts.
+    try {
+      // Fire MULTI without awaiting — no round-trip needed before commands.
+      this.raw.send('MULTI', []);
 
-        // Queue all MULTI commands in the same turn without awaiting each send.
-        // This avoids yielding between command enqueues before EXEC is issued.
-        const queuedCommandPromises = this.commands.map(({ cmd, args }) =>
-          this.raw.send(cmd, args),
-        );
-
-        // Issue EXEC immediately after enqueuing queued commands.
-        const results = await this.raw.send('EXEC', []);
-
-        // Prevent unhandled rejections from queued command promises.
-        await Promise.allSettled(queuedCommandPromises);
-
-        if (!results) {
-          return null;
-        }
-
-        // Normalize to ioredis format: [Error | null, value][]
-        return results.map((result: any, i: number) => {
-          if (result instanceof Error) {
-            return [result, null];
-          }
-          const transformer = this.transformers[i];
-          const value = transformer ? transformer(result) : result;
-          return [null, value];
-        });
-      } catch (err) {
-        // Try to discard the MULTI state on error
-        try {
-          await this.raw.send('DISCARD', []);
-        } catch {
-          // ignore
-        }
-        throw err;
+      // Fire all queued commands synchronously (no awaits).
+      for (const { cmd, args } of this.commands) {
+        this.raw.send(cmd, args);
       }
-    });
+
+      // EXEC is the only await — it returns the array of results.
+      const results = await this.raw.send('EXEC', []);
+
+      if (!results) {
+        return null;
+      }
+
+      // Normalize to ioredis format: [Error | null, value][]
+      return results.map((result: any, i: number) => {
+        if (result instanceof Error) {
+          return [result, null];
+        }
+        const transformer = this.transformers[i];
+        const value = transformer ? transformer(result) : result;
+        return [null, value];
+      });
+    } catch (err) {
+      // Try to discard the MULTI state on error
+      try {
+        await this.raw.send('DISCARD', []);
+      } catch {
+        // ignore
+      }
+      throw err;
+    }
   }
 }
