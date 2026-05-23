@@ -67,7 +67,7 @@ export interface NodeRedisRawTransaction {
 export interface NodeRedisRawClient {
   isReady: boolean;
   isOpen: boolean;
-  options?: Record<string, unknown>;
+  options?: unknown;
 
   on(event: string, listener: (...args: any[]) => void): this;
   connect(): Promise<void>;
@@ -240,7 +240,7 @@ class NodeRedisAdapter<TClient extends NodeRedisRawClient>
   readonly isCluster = false; // TODO: cluster support
 
   get options(): Record<string, any> {
-    return this.raw.options ?? {};
+    return (this.raw.options as Record<string, any>) ?? {};
   }
   set options(val: Record<string, any>) {
     // no-op – callers sometimes assign

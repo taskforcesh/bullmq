@@ -9,10 +9,10 @@ import {
   expect,
 } from 'vitest';
 
-import { randomUUID } from '../src/utils';
 import { Queue, Job, Worker, QueueEvents } from '../src/classes';
-import { removeAllQueueData, delay } from '../src/utils';
-import { createTestConnection } from './connection-factory';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 describe('Delayed jobs', () => {
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
@@ -21,7 +21,7 @@ describe('Delayed jobs', () => {
   let queue: Queue;
   let queueName: string;
 
-  let connection;
+  let connection: IRedisClient;
   beforeAll(async () => {
     connection = createTestConnection();
   });

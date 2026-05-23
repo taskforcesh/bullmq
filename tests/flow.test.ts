@@ -21,7 +21,7 @@ import {
   RateLimitError,
 } from '../src/classes';
 import { removeAllQueueData, delay } from '../src/utils';
-import { createTestConnection } from './connection-factory';
+import { createTestConnection } from './utils/connection-factory';
 import { IRedisClient } from '../src/interfaces';
 
 describe('flows', () => {

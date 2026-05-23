@@ -13,17 +13,17 @@ import {
 
 import * as sinon from 'sinon';
 
-import { randomUUID } from '../src/utils';
 import { FlowProducer, Queue, QueueEvents, Worker } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
-import { createTestConnection } from './connection-factory';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 describe('Jobs getters', () => {
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queue: Queue;
   let queueName: string;
 
-  let connection;
+  let connection: IRedisClient;
   beforeAll(async () => {
     connection = createTestConnection();
   });

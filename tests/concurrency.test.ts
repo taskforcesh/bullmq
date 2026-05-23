@@ -19,13 +19,14 @@ import { delay, removeAllQueueData, randomUUID } from '../src/utils';
 
 import ProgressBar from 'progress';
 import { after } from 'lodash';
-import { createTestConnection } from './connection-factory';
+import { createTestConnection } from './utils/connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 describe('Concurrency', () => {
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queueName: string;
 
-  let connection;
+  let connection: IRedisClient;
   beforeAll(async () => {
     connection = createTestConnection();
   });

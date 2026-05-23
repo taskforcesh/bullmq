@@ -9,7 +9,6 @@ import {
   expect,
 } from 'vitest';
 
-import { randomUUID } from '../src/utils';
 import {
   FlowProducer,
   Queue,
@@ -17,8 +16,9 @@ import {
   WaitingChildrenError,
   Worker,
 } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
-import { createTestConnection } from './connection-factory';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 describe('Cleaner', () => {
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
@@ -26,7 +26,7 @@ describe('Cleaner', () => {
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  let connection;
+  let connection: IRedisClient;
   beforeAll(async () => {
     connection = createTestConnection();
   });

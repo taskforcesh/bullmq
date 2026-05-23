@@ -11,7 +11,7 @@ import {
 import { randomUUID } from '../src/utils';
 import { Queue, QueueEvents, Worker, UnrecoverableError } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
-import { createTestConnection } from './connection-factory';
+import { createTestConnection } from './utils/connection-factory';
 
 describe('Job Cancellation - Advanced Scenarios', () => {
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';

@@ -5,7 +5,7 @@
  */
 import { createClient } from 'redis';
 import { createNodeRedisClient } from './src/classes/node-redis-client';
-import { setConnectionFactory } from './tests/connection-factory';
+import { setConnectionFactory } from './tests/utils/connection-factory';
 
 setConnectionFactory(opts => {
   const raw = createClient({

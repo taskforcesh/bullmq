@@ -1,4 +1,4 @@
-import type { IRedisClient } from '../src/interfaces/redis-client';
+import type { IRedisClient } from '../../src/interfaces/redis-client';
 
 export interface ConnectionFactoryOpts {
   host?: string;
