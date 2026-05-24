@@ -13,7 +13,7 @@ import * as sinon from 'sinon';
 import { Queue, QueueEvents, Repeat, Worker } from '../src/classes';
 import { randomUUID, removeAllQueueData } from '../src/utils';
 import { MetricsTime } from '../src/enums';
-import { createTestConnection } from './connection-factory';
+import { createTestConnection } from './utils/connection-factory';
 
 const ONE_SECOND = 1000;
 const ONE_MINUTE = 60 * ONE_SECOND;

@@ -9,10 +9,10 @@ import {
   expect,
 } from 'vitest';
 
-import { randomUUID } from '../src/utils';
 import { Job, Queue, QueueEvents, Repeat, Worker } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
-import { createTestConnection } from './connection-factory';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 const ONE_SECOND = 1000;
 const ONE_MINUTE = 60 * ONE_SECOND;
@@ -26,7 +26,7 @@ describe('Job Scheduler Stress', () => {
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  let connection;
+  let connection: IRedisClient;
   beforeAll(async () => {
     connection = createTestConnection();
   });

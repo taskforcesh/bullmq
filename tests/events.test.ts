@@ -1,4 +1,3 @@
-import { randomUUID } from '../src/utils';
 import {
   describe,
   beforeEach,
@@ -19,8 +18,9 @@ import {
   QueueEventsProducer,
   Worker,
 } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
-import { createTestConnection } from './connection-factory';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 describe('events', () => {
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
@@ -30,7 +30,7 @@ describe('events', () => {
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  let connection;
+  let connection: IRedisClient;
   beforeAll(async () => {
     connection = createTestConnection();
   });
@@ -490,7 +490,6 @@ describe('events', () => {
       });
 
       const flow = new FlowProducer({ connection, prefix });
-      await delay(50); // additional delay since XREAD from '$' is unstable
       await flow.add({
         name,
         queueName,
@@ -519,7 +518,6 @@ describe('events', () => {
     });
 
     let state: string;
-    await delay(50); // additional delay since XREAD from '$' is unstable
     queueEvents.on('waiting', function ({ jobId }) {
       expect(jobId).toBe('1');
       expect(state).toBeUndefined();

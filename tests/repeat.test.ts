@@ -27,7 +27,8 @@ import {
   getRepeatableJobKeyPrefix,
   getRepeatJobIdCheckum,
 } from './utils/repeat_utils';
-import { createTestConnection } from './connection-factory';
+import { createTestConnection } from './utils/connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 const moment = require('moment');
 
@@ -47,7 +48,7 @@ describe('repeat', () => {
   let queueName: string;
   let clock: sinon.SinonFakeTimers;
 
-  let connection;
+  let connection: IRedisClient;
   beforeAll(async () => {
     connection = createTestConnection();
   });

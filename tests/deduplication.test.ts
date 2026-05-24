@@ -1,4 +1,3 @@
-import { randomUUID } from '../src/utils';
 import {
   describe,
   beforeEach,
@@ -10,8 +9,9 @@ import {
 } from 'vitest';
 
 import { Job, Queue, QueueEvents, Worker } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
-import { createTestConnection } from './connection-factory';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 describe('deduplication', () => {
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
@@ -21,7 +21,7 @@ describe('deduplication', () => {
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  let connection;
+  let connection: IRedisClient;
   beforeAll(async () => {
     connection = createTestConnection();
   });

@@ -10,7 +10,6 @@ import {
 } from 'vitest';
 
 import * as sinon from 'sinon';
-import { randomUUID } from '../src/utils';
 import {
   Queue,
   QueueEvents,
@@ -21,14 +20,15 @@ import {
   DelayedError,
   WaitingError,
 } from '../src/classes';
-import { MinimalJob } from '../src/interfaces';
+import { MinimalJob, IRedisClient } from '../src/interfaces';
 import { JobsOptions, KeepJobs } from '../src/types';
 import {
   delay,
   isRedisVersionLowerThan,
+  randomUUID,
   removeAllQueueData,
 } from '../src/utils';
-import { createTestConnection } from './connection-factory';
+import { createTestConnection } from './utils/connection-factory';
 
 const NoopProc = () => Promise.resolve();
 
@@ -41,7 +41,7 @@ describe('workers', () => {
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  let connection;
+  let connection: IRedisClient;
   beforeAll(async () => {
     connection = createTestConnection();
   });

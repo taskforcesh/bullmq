@@ -10,7 +10,6 @@ import {
 } from 'vitest';
 
 import * as sinon from 'sinon';
-import { randomUUID } from '../src/utils';
 import { rrulestr } from 'rrule';
 import {
   Job,
@@ -21,8 +20,9 @@ import {
   Worker,
 } from '../src/classes';
 import { JobsOptions } from '../src/types';
-import { delay, removeAllQueueData } from '../src/utils';
-import { createTestConnection } from './connection-factory';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 const moment = require('moment');
 
@@ -42,7 +42,7 @@ describe('Job Scheduler', () => {
   let queueName: string;
   let clock: sinon.SinonFakeTimers;
 
-  let connection;
+  let connection: IRedisClient;
   beforeAll(async () => {
     connection = createTestConnection();
   });

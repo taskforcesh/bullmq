@@ -9,7 +9,6 @@ import {
   expect,
 } from 'vitest';
 
-import { randomUUID } from '../src/utils';
 import {
   FlowProducer,
   Queue,
@@ -19,8 +18,9 @@ import {
   UnrecoverableError,
   Job,
 } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
-import { createTestConnection } from './connection-factory';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 describe('Rate Limiter', () => {
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
@@ -28,7 +28,7 @@ describe('Rate Limiter', () => {
   let queueName: string;
   let queueEvents: QueueEvents;
 
-  let connection;
+  let connection: IRedisClient;
   beforeAll(async () => {
     connection = createTestConnection();
   });

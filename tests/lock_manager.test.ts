@@ -10,14 +10,14 @@ import {
 
 import { randomUUID } from '../src/utils';
 import { LockManager, Queue, Worker } from '../src/classes';
-import { LockManagerWorkerContext } from '../src/interfaces';
+import { IRedisClient, LockManagerWorkerContext } from '../src/interfaces';
 import { delay, removeAllQueueData } from '../src/utils';
-import { createTestConnection } from './connection-factory';
+import { createTestConnection } from './utils/connection-factory';
 
 describe('LockManager', () => {
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
-  let connection;
+  let connection: IRedisClient;
 
   beforeAll(async () => {
     connection = createTestConnection();

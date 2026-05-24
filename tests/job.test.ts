@@ -11,11 +11,15 @@ import {
   expect,
 } from 'vitest';
 
-import { randomUUID } from '../src/utils';
 import { Job, Queue, QueueEvents, Worker } from '../src/classes';
 import { JobsOptions } from '../src/types';
-import { delay, getParentKey, removeAllQueueData } from '../src/utils';
-import { createTestConnection } from './connection-factory';
+import {
+  delay,
+  getParentKey,
+  randomUUID,
+  removeAllQueueData,
+} from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
 import { IRedisClient } from '../src/interfaces';
 
 describe('Job', () => {

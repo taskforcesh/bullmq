@@ -7,7 +7,7 @@
  */
 import { RedisClient } from 'bun';
 import { createBunRedisClient } from './src/classes/bun-redis-client';
-import { setConnectionFactory } from './tests/connection-factory';
+import { setConnectionFactory } from './tests/utils/connection-factory';
 
 setConnectionFactory(opts => {
   const host = opts?.host || process.env.REDIS_HOST || 'localhost';
