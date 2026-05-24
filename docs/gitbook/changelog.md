@@ -1,3 +1,10 @@
+## [5.77.2](https://github.com/taskforcesh/bullmq/compare/v5.77.1...v5.77.2) (2026-05-24)
+
+
+### Bug Fixes
+
+* **connection:** use more permissive typing on NodeRedisRawClient options ([#4184](https://github.com/taskforcesh/bullmq/issues/4184)) ([#4187](https://github.com/taskforcesh/bullmq/issues/4187)) ([0feec14](https://github.com/taskforcesh/bullmq/commit/0feec14452865c419961edb9c733f9951b6a663f)), closes [#4170](https://github.com/taskforcesh/bullmq/issues/4170)
+
 ## [5.77.1](https://github.com/taskforcesh/bullmq/compare/v5.77.0...v5.77.1) (2026-05-23)
 
 
