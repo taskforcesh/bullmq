@@ -1,3 +1,10 @@
+## [5.77.3](https://github.com/taskforcesh/bullmq/compare/v5.77.2...v5.77.3) (2026-05-25)
+
+
+### Performance Improvements
+
+* **bun-redis:** remove per-command serialization to enable implicit pipelining ([#4188](https://github.com/taskforcesh/bullmq/issues/4188)) ([685b074](https://github.com/taskforcesh/bullmq/commit/685b0744cfeb273778420835010ec1b16b23e22a))
+
 ## [5.77.2](https://github.com/taskforcesh/bullmq/compare/v5.77.1...v5.77.2) (2026-05-24)
 
 
