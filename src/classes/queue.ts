@@ -309,7 +309,14 @@ export class Queue<
    * Adds a new job to the queue.
    *
    * @param name - Name of the job to be added to the queue.
-   * @param data - Arbitrary data to append to the job.
+   * @param data - Arbitrary data to append to the job. The value is
+   * serialized with `JSON.stringify` before being stored in Redis, so it
+   * must be JSON-serializable. The `DataType` type parameter describes the
+   * shape of this payload, not a runtime class: passing a class instance
+   * will store its enumerable own properties, but its prototype methods
+   * and getters/setters will not be available when a worker reads
+   * `job.data` back. Prefer plain objects, or implement `toJSON()` on
+   * the class to control how it is serialized.
    * @param opts - Job options that affects how the job is going to be processed.
    */
   async add(
@@ -398,7 +405,9 @@ export class Queue<
    * one job at a time in a sequence.
    *
    * @param jobs - The array of jobs to add to the queue. Each job is defined by 3
-   * properties, 'name', 'data' and 'opts'. They follow the same signature as 'Queue.add'.
+   * properties, 'name', 'data' and 'opts'. They follow the same signature as 'Queue.add',
+   * including the JSON-serialization caveat for `data` (class instances lose their
+   * prototype methods on the worker side).
    */
   async addBulk(
     jobs: { name: NameType; data: DataType; opts?: BulkJobOptions }[],
