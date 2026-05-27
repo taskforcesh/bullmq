@@ -1,3 +1,45 @@
+## [5.77.4](https://github.com/taskforcesh/bullmq/compare/v5.77.3...v5.77.4) (2026-05-26)
+
+
+### Bug Fixes
+
+* **deduplication:** preserve custom jobId when requeuing keepLastIfActive proto-jobs ([#4190](https://github.com/taskforcesh/bullmq/issues/4190)) fixes [#4030](https://github.com/taskforcesh/bullmq/issues/4030) ([6e4972e](https://github.com/taskforcesh/bullmq/commit/6e4972e8fd721035d680ca291049134c3876f8ba))
+
+## [5.77.3](https://github.com/taskforcesh/bullmq/compare/v5.77.2...v5.77.3) (2026-05-25)
+
+
+### Performance Improvements
+
+* **bun-redis:** remove per-command serialization to enable implicit pipelining ([#4188](https://github.com/taskforcesh/bullmq/issues/4188)) ([685b074](https://github.com/taskforcesh/bullmq/commit/685b0744cfeb273778420835010ec1b16b23e22a))
+
+## [5.77.2](https://github.com/taskforcesh/bullmq/compare/v5.77.1...v5.77.2) (2026-05-24)
+
+
+### Bug Fixes
+
+* **connection:** use more permissive typing on NodeRedisRawClient options ([#4184](https://github.com/taskforcesh/bullmq/issues/4184)) ([#4187](https://github.com/taskforcesh/bullmq/issues/4187)) ([0feec14](https://github.com/taskforcesh/bullmq/commit/0feec14452865c419961edb9c733f9951b6a663f)), closes [#4170](https://github.com/taskforcesh/bullmq/issues/4170)
+
+## [5.77.1](https://github.com/taskforcesh/bullmq/compare/v5.77.0...v5.77.1) (2026-05-23)
+
+
+### Bug Fixes
+
+* **connections:** make sure we do not mutate ioredis ([#4182](https://github.com/taskforcesh/bullmq/issues/4182)) ([75a66af](https://github.com/taskforcesh/bullmq/commit/75a66af36f7d56c149e070826a20116ea1ef5e7b))
+
+# [5.77.0](https://github.com/taskforcesh/bullmq/compare/v5.76.11...v5.77.0) (2026-05-21)
+
+
+### Features
+
+* refactored client code, adding support for node-redis and bun native redis client ([#4170](https://github.com/taskforcesh/bullmq/issues/4170)) ([963c1b5](https://github.com/taskforcesh/bullmq/commit/963c1b51b3b0da0d014698f101598b9dcdff0bd1))
+
+## [5.76.11](https://github.com/taskforcesh/bullmq/compare/v5.76.10...v5.76.11) (2026-05-21)
+
+
+### Bug Fixes
+
+* **worker:** stop fetching next jobs when closing on manual job movement ([#4178](https://github.com/taskforcesh/bullmq/issues/4178)) fixes [#4163](https://github.com/taskforcesh/bullmq/issues/4163) ([7b9f7e0](https://github.com/taskforcesh/bullmq/commit/7b9f7e0c81427fb9d936a6366c21ef2a96729335))
+
 ## [5.76.10](https://github.com/taskforcesh/bullmq/compare/v5.76.9...v5.76.10) (2026-05-17)
 
 
