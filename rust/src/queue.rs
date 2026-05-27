@@ -229,7 +229,10 @@ impl Queue {
         let job_opts = opts.unwrap_or_default();
         Some(JobOptions {
             attempts: job_opts.attempts.or(defaults.attempts),
-            backoff: job_opts.backoff.clone().or_else(|| defaults.backoff.clone()),
+            backoff: job_opts
+                .backoff
+                .clone()
+                .or_else(|| defaults.backoff.clone()),
             remove_on_complete: job_opts
                 .remove_on_complete
                 .clone()
@@ -663,16 +666,16 @@ impl Queue {
             _ => return Err(Error::InvalidConfig(format!("invalid state: {}", state))),
         };
 
-        let max_per_call = if limit == 0 { 10000u32 } else { limit.min(10000) };
+        let max_per_call = if limit == 0 {
+            10000u32
+        } else {
+            limit.min(10000)
+        };
         let max_total = if limit == 0 { u32::MAX } else { limit };
         let mut all_deleted: Vec<String> = Vec::new();
 
         loop {
-            let keys = vec![
-                set_key.clone(),
-                self.keys.events(),
-                self.keys.repeat(),
-            ];
+            let keys = vec![set_key.clone(), self.keys.events(), self.keys.repeat()];
 
             let prefix = self.keys.key_prefix();
             let ts_str = timestamp.to_string();
@@ -756,9 +759,7 @@ impl Queue {
             .conn
             .scripts()
             .get("moveJobsToWait")
-            .ok_or_else(|| {
-                Error::InvalidConfig("moveJobsToWait script not found".to_string())
-            })?
+            .ok_or_else(|| Error::InvalidConfig("moveJobsToWait script not found".to_string()))?
             .clone();
 
         let ts = timestamp.unwrap_or_else(|| {
@@ -784,11 +785,7 @@ impl Queue {
 
         let mut conn = self.conn.conn();
         loop {
-            let args: Vec<&[u8]> = vec![
-                count_str.as_bytes(),
-                ts_str.as_bytes(),
-                state.as_bytes(),
-            ];
+            let args: Vec<&[u8]> = vec![count_str.as_bytes(), ts_str.as_bytes(), state.as_bytes()];
             let result = script.execute(&mut conn, &keys, &args).await?;
 
             match result {
@@ -809,9 +806,7 @@ impl Queue {
             .conn
             .scripts()
             .get("moveJobsToWait")
-            .ok_or_else(|| {
-                Error::InvalidConfig("moveJobsToWait script not found".to_string())
-            })?
+            .ok_or_else(|| Error::InvalidConfig("moveJobsToWait script not found".to_string()))?
             .clone();
 
         let keys = vec![
@@ -831,11 +826,7 @@ impl Queue {
 
         let mut conn = self.conn.conn();
         loop {
-            let args: Vec<&[u8]> = vec![
-                count_str.as_bytes(),
-                ts_str.as_bytes(),
-                b"delayed",
-            ];
+            let args: Vec<&[u8]> = vec![count_str.as_bytes(), ts_str.as_bytes(), b"delayed"];
             let result = script.execute(&mut conn, &keys, &args).await?;
 
             match result {

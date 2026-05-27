@@ -9,9 +9,9 @@
 //! Environment variables:
 //!   REDIS_URL - Redis connection URL (default: redis://127.0.0.1:6379)
 
+use bullmq::options::RedisConnectionOptions;
 use bullmq::worker::{CancellationToken, ProcessorFn};
 use bullmq::{Job, JobOptions, Queue, QueueOptions, Worker, WorkerOptions};
-use bullmq::options::RedisConnectionOptions;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::Notify;
@@ -258,10 +258,25 @@ async fn main() {
     println!("\n{}", "=".repeat(50));
     println!("📊 Summary");
     println!("{}", "=".repeat(50));
-    println!("Add Sequential:  {} jobs/sec", format_number(seq_throughput));
-    println!("Add Parallel:    {} jobs/sec", format_number(par_throughput));
-    println!("Bulk Add:        {} jobs/sec", format_number(bulk_throughput));
-    println!("Processing (10): {} jobs/sec", format_number(proc_throughput));
-    println!("Processing (100):{} jobs/sec", format_number(proc_high_throughput));
+    println!(
+        "Add Sequential:  {} jobs/sec",
+        format_number(seq_throughput)
+    );
+    println!(
+        "Add Parallel:    {} jobs/sec",
+        format_number(par_throughput)
+    );
+    println!(
+        "Bulk Add:        {} jobs/sec",
+        format_number(bulk_throughput)
+    );
+    println!(
+        "Processing (10): {} jobs/sec",
+        format_number(proc_throughput)
+    );
+    println!(
+        "Processing (100):{} jobs/sec",
+        format_number(proc_high_throughput)
+    );
     println!();
 }

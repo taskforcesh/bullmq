@@ -168,7 +168,11 @@ async fn test_processes_jobs_added_before_worker() {
 
     for i in 0..4 {
         queue
-            .add("test", serde_json::json!({"bar": format!("baz{}", i)}), None)
+            .add(
+                "test",
+                serde_json::json!({"bar": format!("baz{}", i)}),
+                None,
+            )
             .await
             .unwrap();
     }
@@ -634,9 +638,7 @@ async fn test_get_job_failed_reason() {
     let job_id = job.id().to_string();
 
     let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {
-        Box::pin(async move {
-            Err(Error::Unrecoverable("something went wrong".to_string()))
-        })
+        Box::pin(async move { Err(Error::Unrecoverable("something went wrong".to_string())) })
     });
 
     let worker_opts = WorkerOptions {
@@ -1297,7 +1299,10 @@ async fn test_remove_on_fail_true() {
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     let fetched = queue.get_job(&job_id).await.unwrap();
-    assert!(fetched.is_none(), "Job should have been removed after failure");
+    assert!(
+        fetched.is_none(),
+        "Job should have been removed after failure"
+    );
 
     let counts = queue.get_job_counts().await.unwrap();
     assert_eq!(counts.failed, 0);
@@ -1672,7 +1677,10 @@ async fn test_process_job_respecting_concurrency() {
     let concurrency = 4u32;
 
     for _ in 0..num_jobs {
-        queue.add("test", serde_json::json!({}), None).await.unwrap();
+        queue
+            .add("test", serde_json::json!({}), None)
+            .await
+            .unwrap();
     }
 
     let current_processing = Arc::new(std::sync::atomic::AtomicU32::new(0));
@@ -1748,8 +1756,14 @@ async fn test_run_job_in_sequence_concurrency_1() {
     };
     let queue = Queue::new(&name, queue_opts).await.unwrap();
 
-    queue.add("test", serde_json::json!({}), None).await.unwrap();
-    queue.add("test", serde_json::json!({}), None).await.unwrap();
+    queue
+        .add("test", serde_json::json!({}), None)
+        .await
+        .unwrap();
+    queue
+        .add("test", serde_json::json!({}), None)
+        .await
+        .unwrap();
 
     let processing = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let processing_clone = processing.clone();
@@ -1812,7 +1826,10 @@ async fn test_should_not_keep_active_jobs() {
     let queue = Queue::new(&name, queue_opts).await.unwrap();
 
     for _ in 0..10 {
-        queue.add("test", serde_json::json!({}), None).await.unwrap();
+        queue
+            .add("test", serde_json::json!({}), None)
+            .await
+            .unwrap();
     }
 
     let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {
@@ -2340,7 +2357,11 @@ async fn test_keep_specified_count_remove_on_fail() {
 
     for i in 0..total_jobs {
         queue
-            .add("test", serde_json::json!({"idx": i}), Some(job_opts.clone()))
+            .add(
+                "test",
+                serde_json::json!({"idx": i}),
+                Some(job_opts.clone()),
+            )
             .await
             .unwrap();
     }
@@ -2409,7 +2430,11 @@ async fn test_remove_all_jobs_count_0_remove_on_fail() {
 
     for i in 0..5 {
         queue
-            .add("test", serde_json::json!({"idx": i}), Some(job_opts.clone()))
+            .add(
+                "test",
+                serde_json::json!({"idx": i}),
+                Some(job_opts.clone()),
+            )
             .await
             .unwrap();
     }
@@ -2605,7 +2630,10 @@ async fn test_lock_extender_runs_until_jobs_complete() {
     };
     let queue = Queue::new(&name, queue_opts).await.unwrap();
 
-    queue.add("test", serde_json::json!({}), None).await.unwrap();
+    queue
+        .add("test", serde_json::json!({}), None)
+        .await
+        .unwrap();
 
     let (tx, mut rx) = mpsc::channel(1);
     let processor: ProcessorFn = Arc::new(move |_job: Job, _token: CancellationToken| {
@@ -2632,7 +2660,10 @@ async fn test_lock_extender_runs_until_jobs_complete() {
 
     // Job should have completed despite lock duration < processing time
     let result = tokio::time::timeout(Duration::from_millis(100), rx.recv()).await;
-    assert!(result.is_ok(), "Job should have completed before close returned");
+    assert!(
+        result.is_ok(),
+        "Job should have completed before close returned"
+    );
 
     // Verify job is completed, not stalled/failed
     let counts = queue.get_job_counts().await.unwrap();
@@ -2715,7 +2746,10 @@ async fn test_does_not_process_job_being_processed_by_another() {
     };
     let queue = Queue::new(&name, queue_opts).await.unwrap();
 
-    queue.add("test", serde_json::json!({}), None).await.unwrap();
+    queue
+        .add("test", serde_json::json!({}), None)
+        .await
+        .unwrap();
 
     let processed_ids = Arc::new(tokio::sync::Mutex::new(Vec::new()));
     let ids1 = processed_ids.clone();
@@ -2769,7 +2803,12 @@ async fn test_does_not_process_job_being_processed_by_another() {
 
     let ids = processed_ids.lock().await;
     // Only one worker should have processed the job
-    assert_eq!(ids.len(), 1, "Job should only be processed once, got: {:?}", ids);
+    assert_eq!(
+        ids.len(),
+        1,
+        "Job should only be processed once, got: {:?}",
+        ids
+    );
 
     worker1.close(5000).await.unwrap();
     worker2.close(5000).await.unwrap();
@@ -2838,7 +2877,11 @@ async fn test_keep_jobs_newer_than_age_remove_on_complete() {
 
     for i in 0..5 {
         queue
-            .add("test", serde_json::json!({"idx": i}), Some(job_opts.clone()))
+            .add(
+                "test",
+                serde_json::json!({"idx": i}),
+                Some(job_opts.clone()),
+            )
             .await
             .unwrap();
     }
@@ -2909,7 +2952,11 @@ async fn test_keep_jobs_with_age_and_count_limit() {
 
     for i in 0..6 {
         queue
-            .add("test", serde_json::json!({"idx": i}), Some(job_opts.clone()))
+            .add(
+                "test",
+                serde_json::json!({"idx": i}),
+                Some(job_opts.clone()),
+            )
             .await
             .unwrap();
     }
@@ -3309,8 +3356,7 @@ async fn test_drain_delay_cannot_be_zero() {
     assert!(result.is_err());
     match result {
         Err(ref e) => assert!(
-            e.to_string()
-                .contains("drainDelay must be greater than 0"),
+            e.to_string().contains("drainDelay must be greater than 0"),
             "got: {}",
             e
         ),
@@ -4179,9 +4225,7 @@ async fn test_worker_emits_error_event_on_failure() {
         .unwrap();
 
     let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {
-        Box::pin(async move {
-            Err(Error::ProcessingError("something went wrong".to_string()))
-        })
+        Box::pin(async move { Err(Error::ProcessingError("something went wrong".to_string())) })
     });
 
     let worker_opts = WorkerOptions {
@@ -4785,7 +4829,10 @@ async fn test_token_deleted_after_move_to_delayed() {
         .query_async(&mut redis_conn)
         .await
         .unwrap();
-    assert!(lock_val.is_none(), "Lock should be deleted after completion");
+    assert!(
+        lock_val.is_none(),
+        "Lock should be deleted after completion"
+    );
 
     worker.close(5000).await.unwrap();
     cleanup_queue(&queue).await;
@@ -4874,7 +4921,11 @@ async fn test_promotes_delayed_jobs_first() {
     // The delayed jobs should have been promoted and processed
     // Job 1 should appear twice (first attempt + retry)
     let final_order = order.lock().await;
-    assert!(final_order.len() >= 5, "Expected at least 5 entries, got {}", final_order.len());
+    assert!(
+        final_order.len() >= 5,
+        "Expected at least 5 entries, got {}",
+        final_order.len()
+    );
     // First entry should be job 1 (initial attempt)
     assert_eq!(final_order[0], "1");
 
@@ -5174,11 +5225,19 @@ async fn test_pause_waits_for_concurrent_processing() {
 
     // After pause, active count should be 0 (active jobs finished)
     let active = active_count.load(std::sync::atomic::Ordering::SeqCst);
-    assert_eq!(active, 0, "Expected 0 active jobs after pause, got {}", active);
+    assert_eq!(
+        active, 0,
+        "Expected 0 active jobs after pause, got {}",
+        active
+    );
 
     // Some jobs finished before pause took full effect
     let finished = finish_count.load(std::sync::atomic::Ordering::SeqCst);
-    assert!(finished >= 4, "Expected at least 4 finished before pause, got {}", finished);
+    assert!(
+        finished >= 4,
+        "Expected at least 4 finished before pause, got {}",
+        finished
+    );
 
     // Resume and let remaining jobs process
     worker.resume();
@@ -5258,7 +5317,11 @@ async fn test_delay_reset_to_zero_after_retries_exhausted() {
 
     // After retries exhausted, delay should be reset to 0
     let fetched = queue.get_job(&job_id).await.unwrap().unwrap();
-    assert_eq!(fetched.delay(), 0, "Delay should be 0 after retries exhausted");
+    assert_eq!(
+        fetched.delay(),
+        0,
+        "Delay should be 0 after retries exhausted"
+    );
 
     worker.close(5000).await.unwrap();
     cleanup_queue(&queue).await;
@@ -5881,13 +5944,7 @@ async fn test_add_bulk_processing() {
     let queue = Queue::new(&name, queue_opts).await.unwrap();
 
     let jobs: Vec<(String, serde_json::Value, Option<JobOptions>)> = (0..5)
-        .map(|i| {
-            (
-                format!("job-{}", i),
-                serde_json::json!({"idx": i}),
-                None,
-            )
-        })
+        .map(|i| (format!("job-{}", i), serde_json::json!({"idx": i}), None))
         .collect();
 
     let added = queue.add_bulk(jobs).await.unwrap();
@@ -6934,8 +6991,10 @@ async fn test_update_progress_as_object() {
 
     let processor: ProcessorFn = Arc::new(move |mut job: Job, _token: CancellationToken| {
         Box::pin(async move {
-            job.update_progress(JobProgress::Object(serde_json::json!({"total": 100, "done": 50})))
-                .await?;
+            job.update_progress(JobProgress::Object(
+                serde_json::json!({"total": 100, "done": 50}),
+            ))
+            .await?;
             Ok(serde_json::json!(null))
         })
     });
@@ -6970,7 +7029,10 @@ async fn test_update_progress_as_object() {
     .await;
 
     assert!(timeout.is_ok(), "Timed out waiting for progress event");
-    assert!(got_progress, "Should have received progress event with object");
+    assert!(
+        got_progress,
+        "Should have received progress event with object"
+    );
 
     worker.close(5000).await.unwrap();
     cleanup_queue(&queue).await;
@@ -7099,7 +7161,11 @@ async fn test_update_data() {
     let queue = Queue::new(&name, queue_opts).await.unwrap();
 
     queue
-        .add("update-data-job", serde_json::json!({"initial": true}), None)
+        .add(
+            "update-data-job",
+            serde_json::json!({"initial": true}),
+            None,
+        )
         .await
         .unwrap();
 
@@ -7252,7 +7318,10 @@ async fn test_retry_failed_job() {
         }
     })
     .await;
-    assert!(timeout.is_ok(), "Timed out waiting for completed event after retry");
+    assert!(
+        timeout.is_ok(),
+        "Timed out waiting for completed event after retry"
+    );
     assert_eq!(attempt_count.load(Ordering::SeqCst), 2);
 
     worker.close(5000).await.unwrap();
@@ -7306,7 +7375,10 @@ async fn test_retry_completed_job() {
         }
     })
     .await;
-    assert!(timeout.is_ok(), "Timed out waiting for first completed event");
+    assert!(
+        timeout.is_ok(),
+        "Timed out waiting for first completed event"
+    );
 
     // Retry from completed state
     job.retry("completed", None).await.unwrap();
@@ -7323,7 +7395,10 @@ async fn test_retry_completed_job() {
         }
     })
     .await;
-    assert!(timeout.is_ok(), "Timed out waiting for second completed event");
+    assert!(
+        timeout.is_ok(),
+        "Timed out waiting for second completed event"
+    );
     assert_eq!(attempt_count.load(Ordering::SeqCst), 2);
 
     worker.close(5000).await.unwrap();
@@ -7506,8 +7581,16 @@ async fn test_custom_backoff_strategy() {
         }
     })
     .await;
-    assert!(timeout.is_ok(), "Timed out waiting for completion (failed_count={})", failed_count);
-    assert!(completed, "Should have completed (failed_count={})", failed_count);
+    assert!(
+        timeout.is_ok(),
+        "Timed out waiting for completion (failed_count={})",
+        failed_count
+    );
+    assert!(
+        completed,
+        "Should have completed (failed_count={})",
+        failed_count
+    );
     assert_eq!(attempt_count.load(Ordering::SeqCst), 3);
 
     worker.close(5000).await.unwrap();
@@ -7581,7 +7664,11 @@ async fn test_custom_backoff_returns_minus_one_no_retry() {
 
     // Give a moment for any unexpected retries
     tokio::time::sleep(Duration::from_millis(200)).await;
-    assert_eq!(attempt_count.load(Ordering::SeqCst), 1, "Should only attempt once");
+    assert_eq!(
+        attempt_count.load(Ordering::SeqCst),
+        1,
+        "Should only attempt once"
+    );
 
     worker.close(5000).await.unwrap();
     cleanup_queue(&queue).await;
@@ -7893,7 +7980,10 @@ async fn test_update_progress_as_string() {
         }
     })
     .await;
-    assert!(timeout.is_ok(), "Timed out waiting for string progress event");
+    assert!(
+        timeout.is_ok(),
+        "Timed out waiting for string progress event"
+    );
 
     worker.close(5000).await.unwrap();
     cleanup_queue(&queue).await;
@@ -7947,7 +8037,10 @@ async fn test_update_progress_as_boolean() {
         }
     })
     .await;
-    assert!(timeout.is_ok(), "Timed out waiting for boolean progress event");
+    assert!(
+        timeout.is_ok(),
+        "Timed out waiting for boolean progress event"
+    );
 
     worker.close(5000).await.unwrap();
     cleanup_queue(&queue).await;
@@ -9357,7 +9450,9 @@ async fn test_delayed_error_moves_job_to_delayed_and_reprocesses() {
                     .unwrap()
                     .as_millis() as u64;
                 job.move_to_delayed(now + 200).await.unwrap();
-                job.update_data(serde_json::json!({"step": 1})).await.unwrap();
+                job.update_data(serde_json::json!({"step": 1}))
+                    .await
+                    .unwrap();
                 return Err(Error::Delayed);
             }
 
@@ -9385,7 +9480,10 @@ async fn test_delayed_error_moves_job_to_delayed_and_reprocesses() {
         }
     })
     .await;
-    assert!(timeout.is_ok(), "Job should eventually complete after being delayed");
+    assert!(
+        timeout.is_ok(),
+        "Job should eventually complete after being delayed"
+    );
 
     // Should have been processed twice (step 0 -> delayed, step 1 -> completed)
     assert_eq!(attempt_count.load(Ordering::SeqCst), 2);
@@ -9425,7 +9523,9 @@ async fn test_delayed_error_does_not_emit_failed_event() {
                     .unwrap()
                     .as_millis() as u64;
                 job.move_to_delayed(now + 100).await.unwrap();
-                job.update_data(serde_json::json!({"step": 1})).await.unwrap();
+                job.update_data(serde_json::json!({"step": 1}))
+                    .await
+                    .unwrap();
                 return Err(Error::Delayed);
             }
 
@@ -10182,10 +10282,7 @@ async fn test_queue_get_job_logs() {
     worker.close(5000).await.unwrap();
 
     // Get all logs ascending
-    let (logs, count) = queue
-        .get_job_logs(job.id(), 0, -1, true)
-        .await
-        .unwrap();
+    let (logs, count) = queue.get_job_logs(job.id(), 0, -1, true).await.unwrap();
     assert_eq!(count, 3);
     assert_eq!(logs.len(), 3);
     assert_eq!(logs[0], "log entry 1");
@@ -10193,20 +10290,14 @@ async fn test_queue_get_job_logs() {
     assert_eq!(logs[2], "log entry 3");
 
     // Get logs descending
-    let (logs_desc, count_desc) = queue
-        .get_job_logs(job.id(), 0, -1, false)
-        .await
-        .unwrap();
+    let (logs_desc, count_desc) = queue.get_job_logs(job.id(), 0, -1, false).await.unwrap();
     assert_eq!(count_desc, 3);
     assert_eq!(logs_desc[0], "log entry 3");
     assert_eq!(logs_desc[1], "log entry 2");
     assert_eq!(logs_desc[2], "log entry 1");
 
     // Get paginated logs
-    let (logs_page, _) = queue
-        .get_job_logs(job.id(), 0, 1, true)
-        .await
-        .unwrap();
+    let (logs_page, _) = queue.get_job_logs(job.id(), 0, 1, true).await.unwrap();
     assert_eq!(logs_page.len(), 2); // LRANGE 0 1 returns 2 elements
 
     cleanup_queue(&queue).await;

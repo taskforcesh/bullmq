@@ -248,12 +248,10 @@ impl Job {
         let result: redis::Value = script.execute(&mut redis_conn, &keys, &args).await?;
 
         match result {
-            redis::Value::Int(code) if code < 0 => {
-                Err(Error::InvalidConfig(format!(
-                    "updateProgress failed with code {}",
-                    code
-                )))
-            }
+            redis::Value::Int(code) if code < 0 => Err(Error::InvalidConfig(format!(
+                "updateProgress failed with code {}",
+                code
+            ))),
             _ => {
                 self.progress = progress.clone();
                 // Notify the worker about the progress update
@@ -290,12 +288,10 @@ impl Job {
         let result: redis::Value = script.execute(&mut redis_conn, &keys, &args).await?;
 
         match result {
-            redis::Value::Int(code) if code < 0 => {
-                Err(Error::InvalidConfig(format!(
-                    "updateData failed with code {}",
-                    code
-                )))
-            }
+            redis::Value::Int(code) if code < 0 => Err(Error::InvalidConfig(format!(
+                "updateData failed with code {}",
+                code
+            ))),
             _ => {
                 self.data = data;
                 Ok(())
@@ -340,11 +336,7 @@ impl Job {
     /// Retry a completed or failed job by moving it back to the wait queue.
     ///
     /// `state` should be `"failed"` or `"completed"`.
-    pub async fn retry(
-        &mut self,
-        state: &str,
-        opts: Option<RetryOptions>,
-    ) -> Result<(), Error> {
+    pub async fn retry(&mut self, state: &str, opts: Option<RetryOptions>) -> Result<(), Error> {
         let ctx = self
             .ctx
             .as_ref()
@@ -876,15 +868,15 @@ impl Job {
         write_uint(&mut opts_buf, ctx.lock_duration).unwrap();
 
         let args: Vec<&[u8]> = vec![
-            prefix.as_bytes(),   // ARGV[1]
-            now_str.as_bytes(),  // ARGV[2]
-            self.id.as_bytes(),  // ARGV[3]
+            prefix.as_bytes(),    // ARGV[1]
+            now_str.as_bytes(),   // ARGV[2]
+            self.id.as_bytes(),   // ARGV[3]
             ctx.token.as_bytes(), // ARGV[4]
             delay_str.as_bytes(), // ARGV[5]
-            skip_attempt,        // ARGV[6]
-            &fields_to_update,   // ARGV[7]
-            fetch_next,          // ARGV[8]
-            &opts_buf,           // ARGV[9]
+            skip_attempt,         // ARGV[6]
+            &fields_to_update,    // ARGV[7]
+            fetch_next,           // ARGV[8]
+            &opts_buf,            // ARGV[9]
         ];
 
         let mut conn = ctx.conn.conn();
@@ -958,10 +950,7 @@ impl Job {
             .get("timestamp")
             .and_then(|t| t.parse().ok())
             .unwrap_or(0);
-        let attempts_made: u32 = fields
-            .get("atm")
-            .and_then(|a| a.parse().ok())
-            .unwrap_or(0);
+        let attempts_made: u32 = fields.get("atm").and_then(|a| a.parse().ok()).unwrap_or(0);
         let attempts_started: u32 = fields.get("ats").and_then(|a| a.parse().ok()).unwrap_or(0);
         let processed_on: Option<u64> = fields.get("processedOn").and_then(|t| t.parse().ok());
         let finished_on: Option<u64> = fields.get("finishedOn").and_then(|t| t.parse().ok());

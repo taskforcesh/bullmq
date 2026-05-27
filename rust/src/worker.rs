@@ -756,7 +756,12 @@ impl Worker {
             if current < desired {
                 if ctx
                     .active_fetchers
-                    .compare_exchange_weak(current, current + 1, Ordering::SeqCst, Ordering::Relaxed)
+                    .compare_exchange_weak(
+                        current,
+                        current + 1,
+                        Ordering::SeqCst,
+                        Ordering::Relaxed,
+                    )
                     .is_ok()
                 {
                     return true;
@@ -810,11 +815,26 @@ impl Worker {
 
         match result {
             Ok(return_value) => {
-                Self::handle_job_completed(ctx, &job_id, token, &return_value, job_attempts, &job_opts).await;
+                Self::handle_job_completed(
+                    ctx,
+                    &job_id,
+                    token,
+                    &return_value,
+                    job_attempts,
+                    &job_opts,
+                )
+                .await;
             }
             Err(e) => {
                 Self::handle_job_failed(
-                    ctx, &job_id, token, e, job_attempts, job_attempts_made, &job_opts, &job_data,
+                    ctx,
+                    &job_id,
+                    token,
+                    e,
+                    job_attempts,
+                    job_attempts_made,
+                    &job_opts,
+                    &job_data,
                 )
                 .await;
             }
@@ -885,9 +905,20 @@ impl Worker {
             !is_unrecoverable && job_attempts > 0 && (job_attempts_made + 1) < job_attempts;
 
         if should_retry {
-            Self::handle_retry(ctx, job_id, token, &error, job_attempts, job_attempts_made, job_opts, job_data).await;
+            Self::handle_retry(
+                ctx,
+                job_id,
+                token,
+                &error,
+                job_attempts,
+                job_attempts_made,
+                job_opts,
+                job_data,
+            )
+            .await;
         } else {
-            Self::move_to_permanent_failure(ctx, job_id, token, &error, job_attempts, job_opts).await;
+            Self::move_to_permanent_failure(ctx, job_id, token, &error, job_attempts, job_opts)
+                .await;
         }
     }
 
@@ -914,7 +945,8 @@ impl Worker {
 
             if delay == -1 {
                 // Custom backoff says don't retry — move to failed
-                Self::move_to_permanent_failure(ctx, job_id, token, error, job_attempts, job_opts).await;
+                Self::move_to_permanent_failure(ctx, job_id, token, error, job_attempts, job_opts)
+                    .await;
                 return;
             } else if delay > 0 {
                 Self::move_to_delayed_for_retry(
@@ -1043,9 +1075,7 @@ impl Worker {
         let args: Vec<&[u8]> = vec![prefix_bytes, &now_bytes, &opts_packed];
 
         let mut redis_conn = conn.conn();
-        let result = script
-            .execute(&mut redis_conn, script_keys, &args)
-            .await?;
+        let result = script.execute(&mut redis_conn, script_keys, &args).await?;
 
         Self::parse_move_to_active_result(&result)
     }
@@ -1125,9 +1155,7 @@ impl Worker {
         ];
 
         let mut redis_conn = conn.conn();
-        let result = script
-            .execute(&mut redis_conn, &script_keys, &args)
-            .await?;
+        let result = script.execute(&mut redis_conn, &script_keys, &args).await?;
 
         match result {
             redis::Value::Int(code) if code < 0 => Err(Error::from_script_code(code)),
@@ -1260,13 +1288,8 @@ impl Worker {
         let fetch_next = b"0"; // Don't fetch next
 
         // Pack opts for fetchNextJob (even though we're not fetching, script expects it)
-        let move_opts = pack_move_to_finished_opts(
-            token,
-            opts,
-            &JobOptions::default(),
-            0,
-            "failed",
-        );
+        let move_opts =
+            pack_move_to_finished_opts(token, opts, &JobOptions::default(), 0, "failed");
 
         let args: Vec<&[u8]> = vec![
             prefix_str.as_bytes(), // ARGV[1] key prefix
@@ -1367,9 +1390,7 @@ impl Worker {
         let args: Vec<&[u8]> = vec![&prefix_bytes, &now_bytes, &opts_packed];
 
         let mut redis_conn = conn.conn();
-        let result = script
-            .execute(&mut redis_conn, &script_keys, &args)
-            .await?;
+        let result = script.execute(&mut redis_conn, &script_keys, &args).await?;
 
         // Parse result
         match result {
@@ -1384,9 +1405,8 @@ impl Worker {
                     if wait_result.is_some() {
                         // Retry fetching
                         let mut redis_conn = conn.conn();
-                        let retry_result = script
-                            .execute(&mut redis_conn, &script_keys, &args)
-                            .await?;
+                        let retry_result =
+                            script.execute(&mut redis_conn, &script_keys, &args).await?;
                         Self::parse_move_to_active_result(&retry_result)
                     } else {
                         Ok(None)
@@ -1400,17 +1420,17 @@ impl Worker {
     }
 
     /// Parse the result of moveToActive script into a Job.
-    fn parse_move_to_active_result(
-        result: &redis::Value,
-    ) -> Result<Option<Job>, Error> {
+    fn parse_move_to_active_result(result: &redis::Value) -> Result<Option<Job>, Error> {
         match result {
             redis::Value::Nil => Ok(None),
             redis::Value::Array(arr) if arr.len() >= 2 => {
                 // The result is [HGETALL_data, job_id, expireTime, nextTimestamp]
                 // arr[0] = array of field/value pairs from HGETALL
                 // arr[1] = job ID
-                if let (Some(redis::Value::Array(fields)), Some(redis::Value::BulkString(id_bytes))) =
-                    (arr.first(), arr.get(1))
+                if let (
+                    Some(redis::Value::Array(fields)),
+                    Some(redis::Value::BulkString(id_bytes)),
+                ) = (arr.first(), arr.get(1))
                 {
                     let job_id = String::from_utf8_lossy(id_bytes).to_string();
                     if job_id == "0" || fields.is_empty() {
@@ -1542,9 +1562,7 @@ impl Worker {
         let args: Vec<&[u8]> = vec![&max_str, &prefix_bytes, &now_bytes, &max_check_time];
 
         let mut redis_conn = conn.conn();
-        let result = script
-            .execute(&mut redis_conn, &script_keys, &args)
-            .await?;
+        let result = script.execute(&mut redis_conn, &script_keys, &args).await?;
 
         // Parse result for stalled job IDs
         if let redis::Value::Array(ref arr) = result {

@@ -221,10 +221,7 @@ async fn test_worker_retries_with_fixed_backoff() {
     .await
     .expect("timeout waiting for job to complete after retries");
 
-    assert_eq!(
-        attempt_count.load(std::sync::atomic::Ordering::Relaxed),
-        3
-    );
+    assert_eq!(attempt_count.load(std::sync::atomic::Ordering::Relaxed), 3);
 
     worker.close(5000).await.unwrap();
     cleanup_queue(&queue).await;
