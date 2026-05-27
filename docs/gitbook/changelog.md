@@ -1,3 +1,10 @@
+## [5.77.4](https://github.com/taskforcesh/bullmq/compare/v5.77.3...v5.77.4) (2026-05-26)
+
+
+### Bug Fixes
+
+* **deduplication:** preserve custom jobId when requeuing keepLastIfActive proto-jobs ([#4190](https://github.com/taskforcesh/bullmq/issues/4190)) fixes [#4030](https://github.com/taskforcesh/bullmq/issues/4030) ([6e4972e](https://github.com/taskforcesh/bullmq/commit/6e4972e8fd721035d680ca291049134c3876f8ba))
+
 ## [5.77.3](https://github.com/taskforcesh/bullmq/compare/v5.77.2...v5.77.3) (2026-05-25)
 
 
