@@ -1,0 +1,80 @@
+name: Rust Tests
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'rust/**'
+      - '.github/workflows/rust-test.yml'
+  pull_request:
+    branches: [master]
+    paths:
+      - 'rust/**'
+      - '.github/workflows/rust-test.yml'
+
+concurrency:
+  group: rust-test-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Rust Tests
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache Cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Check formatting
+        working-directory: rust
+        run: cargo fmt --check
+
+      - name: Run Clippy
+        working-directory: rust
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Build
+        working-directory: rust
+        run: cargo build --all-targets
+
+      - name: Run tests
+        working-directory: rust
+        env:
+          REDIS_URL: redis://127.0.0.1:6379
+        run: cargo test --all-targets
+
+      - name: Build documentation
+        working-directory: rust
+        env:
+          RUSTDOCFLAGS: '-D missing_docs'
+        run: cargo doc --no-deps

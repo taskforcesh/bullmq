@@ -36,9 +36,24 @@ counts = await myQueue.getJobCounts('wait', 'completed', 'failed')
 ```
 
 {% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Queue, QueueOptions};
+
+let queue = Queue::new("Paint", QueueOptions::default()).await?;
+
+let waiting = queue.get_waiting_count().await?;
+let completed = queue.get_completed_count().await?;
+let failed = queue.get_failed_count().await?;
+```
+
+{% endtab %}
 {% endtabs %}
 
 The available status are:
+
 - _completed_,
 - _failed_,
 - _delayed_,
@@ -73,9 +88,20 @@ completed = await myQueue.getJobs(['completed'], 0, 100, True)
 ```
 
 {% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::types::JobState;
+
+let completed = queue.get_jobs(&[JobState::Completed], Some(0), Some(100), true).await?;
+// returns the oldest 100 jobs
+```
+
+{% endtab %}
 {% endtabs %}
 
 ## Read more:
 
-* 💡 [Get Job Counts API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getjobcounts)
-* 💡 [Get Jobs API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getjobs)
+- 💡 [Get Job Counts API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getjobcounts)
+- 💡 [Get Jobs API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getjobs)
