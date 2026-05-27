@@ -2,7 +2,7 @@
 
 When jobs are added to a queue, they will be in different statuses during their lifetime. BullMQ provides methods to retrieve information and jobs from the different statuses.
 
-![Lifecycle of a job](<../../.gitbook/assets/architecture (1).png>)
+<figure><img src="../../.gitbook/assets/simple-architecture.png" alt="Diagram of the lifecycle of a BullMQ job in the queue"><figcaption><p>Lifecycle of a job</p></figcaption></figure>
 
 #### Job Counts
 
@@ -77,5 +77,5 @@ completed = await myQueue.getJobs(['completed'], 0, 100, True)
 
 ## Read more:
 
-* 💡 [Get Job Counts API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getJobCounts)
-* 💡 [Get Jobs API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getJobs)
+* 💡 [Get Job Counts API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getjobcounts)
+* 💡 [Get Jobs API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getjobs)

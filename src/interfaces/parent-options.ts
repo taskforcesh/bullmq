@@ -1,4 +1,4 @@
-export type ParentOptions = {
+export interface ParentOptions {
   /**
    * Parent identifier.
    */
@@ -9,4 +9,4 @@ export type ParentOptions = {
    * @see {@link https://www.gnu.org/software/gawk/manual/html_node/Qualified-Names.html}
    */
   queue: string;
-};
+}

@@ -1,20 +1,25 @@
 import { EventEmitter } from 'events';
-import { QueueBaseOptions, RedisClient, Span } from '../interfaces';
-import { MinimalQueue } from '../types';
+import {
+  MinimalQueue,
+  QueueBaseOptions,
+  RedisClient,
+  Span,
+} from '../interfaces';
 
 import {
-  createScripts,
   delay,
   DELAY_TIME_5,
   isNotConnectionError,
   isRedisInstance,
   trace,
 } from '../utils';
+import { createScripts } from '../utils/create-scripts';
 import { RedisConnection } from './redis-connection';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { Scripts } from './scripts';
 import { SpanKind } from '../enums';
+import { DatabaseType } from '../types/database-type';
 
 /**
  * Base class for all classes that need to interact with queues.
@@ -101,6 +106,13 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
   }
 
   /**
+   * Returns the database type of the Redis instance the client is connected to,
+   */
+  get databaseType(): DatabaseType {
+    return this.connection.databaseType;
+  }
+
+  /**
    * Helper to easily extend Job class calls.
    */
   protected get Job(): typeof Job {
@@ -111,8 +123,8 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
    * Emits an event. Normally used by subclasses to emit events.
    *
    * @param event - The emitted event.
-   * @param args -
-   * @returns
+   * @param args - The arguments to pass to the event listeners.
+   * @returns True if the event had listeners, false otherwise.
    */
   emit(event: string | symbol, ...args: any[]): boolean {
     try {
@@ -187,8 +199,8 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
    * @param operation - operation name (such as add, process, etc)
    * @param destination - destination name (normally the queue name)
    * @param callback - code to wrap with telemetry
-   * @param srcPropagationMedatada -
-   * @returns
+   * @param srcPropagationMetadata - The source propagation metadata for telemetry context.
+   * @returns The result of the callback function.
    */
   trace<T>(
     spanKind: SpanKind,

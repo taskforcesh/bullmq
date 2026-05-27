@@ -1,3 +1,4 @@
+from typing import Union
 from bullmq.types import BackoffOptions
 
 import math
@@ -11,7 +12,7 @@ class Backoffs:
     }    
 
     @staticmethod
-    def normalize(backoff: int | BackoffOptions):
+    def normalize(backoff: Union[int, BackoffOptions]):
         if type(backoff) == int and math.isfinite(backoff):
             return {
                 "type": "fixed",

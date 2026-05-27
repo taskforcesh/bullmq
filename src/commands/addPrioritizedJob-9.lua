@@ -1,5 +1,5 @@
 --[[
-  Adds a priotitized job to the queue by doing the following:
+  Adds a prioritized job to the queue by doing the following:
     - Increases the job counter if needed.
     - Creates a new job key with the job data.
     - Adds the job to the "added" list so that workers gets notified.
@@ -21,11 +21,10 @@
             [3]  name
             [4]  timestamp
             [5]  parentKey?
-            [6]  waitChildrenKey key.
-            [7]  parent dependencies key.
-            [8]  parent? {id, queueKey}
-            [9]  repeat job key
-            [10] deduplication key
+            [6]  parent dependencies key.
+            [7]  parent? {id, queueKey}
+            [8]  repeat job key
+            [9] deduplication key
 
       ARGV[2] Json stringified job data
       ARGV[3] msgpacked options
@@ -53,9 +52,9 @@ local data = ARGV[2]
 local opts = cmsgpack.unpack(ARGV[3])
 
 local parentKey = args[5]
-local parent = args[8]
-local repeatJobKey = args[9]
-local deduplicationKey = args[10]
+local parent = args[7]
+local repeatJobKey = args[8]
+local deduplicationKey = args[9]
 local parentData
 
 -- Includes
@@ -76,7 +75,7 @@ local jobCounter = rcall("INCR", idKey)
 
 local maxEvents = getOrSetMaxEvents(metaKey)
 
-local parentDependenciesKey = args[7]
+local parentDependenciesKey = args[6]
 local timestamp = args[4]
 if args[2] == "" then
     jobId = jobCounter
@@ -92,7 +91,8 @@ else
 end
 
 local deduplicationJobId = deduplicateJob(opts['de'], jobId, KEYS[5],
-  deduplicationKey, eventsKey, maxEvents, args[1])
+  deduplicationKey, eventsKey, maxEvents, args[1], args[3], ARGV[2], opts,
+  parentKey, parentData, parentDependenciesKey, repeatJobKey)
 if deduplicationJobId then
   return deduplicationJobId
 end

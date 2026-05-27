@@ -1,19 +1,10 @@
-import { Job } from '../classes/job';
 import { AdvancedOptions } from './advanced-options';
 import { QueueBaseOptions } from './queue-options';
 import { RateLimiterOptions } from './rate-limiter-options';
 import { MetricsOptions } from './metrics-options';
-import { KeepJobs } from './keep-jobs';
+import { KeepJobs } from '../types/keep-jobs';
 import { Telemetry } from './telemetry';
 import { SandboxedOptions } from './sandboxed-options';
-
-/**
- * An async function that receives `Job`s and handles them.
- */
-export type Processor<T = any, R = any, N extends string = string> = (
-  job: Job<T, R, N>,
-  token?: string,
-) => Promise<R>;
 
 export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
   /**
@@ -52,6 +43,23 @@ export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
   metrics?: MetricsOptions;
 
   /**
+   * Maximum time in milliseconds where the job is idle while being rate limited.
+   * While workers are idle because of a rate limiter, they won't fetch new jobs to process
+   * and delayed jobs won't be promoted.
+   * @defaultValue 30000
+   */
+  maximumRateLimitDelay?: number;
+
+  /**
+   * Defines the maximum number of times a job is allowed to start processing,
+   * regardless of whether it completes or fails. Each time a worker picks up the job
+   * and begins processing it, the attemptsStarted counter is incremented.
+   * If this counter reaches maxStartedAttempts, the job will be moved to the failed state with an UnrecoverableError.
+   * @defaultValue undefined
+   */
+  maxStartedAttempts?: number;
+
+  /**
    * Amount of times a job can be recovered from a stalled state
    * to the `wait` state. If this is exceeded, the job is moved
    * to `failed`.
@@ -71,6 +79,10 @@ export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
    * You can provide an object specifying max
    * age and/or count to keep.
    * Default behavior is to keep the job in the completed set.
+   *
+   * Eviction is evaluated on a best-effort basis when a job finishes,
+   * so aged jobs are only removed once another job completes after
+   * their expiration.
    */
   removeOnComplete?: KeepJobs;
 
@@ -78,12 +90,16 @@ export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
    * You can provide an object specifying max
    * age and/or count to keep.
    * Default behavior is to keep the job in the failed set.
+   *
+   * Eviction is evaluated on a best-effort basis when a job fails, so
+   * aged jobs are only removed once another job fails after their
+   * expiration.
    */
   removeOnFail?: KeepJobs;
 
   /**
    *  Skip stalled check for this worker. Note that other workers could still
-   *  perform stalled checkd and move jobs back to wait for jobs being processed
+   *  perform stalled checks and move jobs back to wait for jobs being processed
    *  by this worker.
    *
    *  @defaultValue false
@@ -120,7 +136,7 @@ export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
    * The time in milliseconds before the lock is automatically renewed.
    *
    * It is not recommended to modify this value, which is by default set to
-   * halv the lockDuration value, which is optimal for most use cases.
+   * half the lockDuration value, which is optimal for most use cases.
    */
   lockRenewTime?: number;
 

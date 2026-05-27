@@ -1,4 +1,5 @@
 import redis.asyncio as redis
+from typing import Optional, Union
 from redis.backoff import ExponentialBackoff
 from redis.asyncio.retry import Retry
 from redis.exceptions import (
@@ -7,7 +8,52 @@ from redis.exceptions import (
    TimeoutError
 )
 import warnings
-from bullmq.utils import isRedisVersionLowerThan
+import os
+from bullmq.utils import isRedisVersionLowerThan, is_redis_cluster, get_cluster_nodes, get_node_client
+
+basePath = os.path.dirname(os.path.realpath(__file__))
+
+# Script definitions mapping script names to their file names
+SCRIPT_DEFINITIONS = {
+    "addStandardJob": "addStandardJob-9.lua",
+    "addDelayedJob": "addDelayedJob-6.lua",
+    "addParentJob": "addParentJob-6.lua",
+    "addPrioritizedJob": "addPrioritizedJob-9.lua",
+    "changePriority": "changePriority-7.lua",
+    "cleanJobsInSet": "cleanJobsInSet-3.lua",
+    "drain": "drain-5.lua",
+    "extendLock": "extendLock-2.lua",
+    "getCounts": "getCounts-1.lua",
+    "getCountsPerPriority": "getCountsPerPriority-4.lua",
+    "getRanges": "getRanges-1.lua",
+    "getState": "getState-8.lua",
+    "getStateV2": "getStateV2-8.lua",
+    "isJobInList": "isJobInList-1.lua",
+    "moveStalledJobsToWait": "moveStalledJobsToWait-8.lua",
+    "moveToActive": "moveToActive-11.lua",
+    "moveToDelayed": "moveToDelayed-12.lua",
+    "moveToFinished": "moveToFinished-14.lua",
+    "moveToWaitingChildren": "moveToWaitingChildren-7.lua",
+    "obliterate": "obliterate-2.lua",
+    "pause": "pause-7.lua",
+    "promote": "promote-9.lua",
+    "removeJob": "removeJob-2.lua",
+    "reprocessJob": "reprocessJob-8.lua",
+    "retryJob": "retryJob-11.lua",
+    "moveJobsToWait": "moveJobsToWait-8.lua",
+    "saveStacktrace": "saveStacktrace-1.lua",
+    "updateData": "updateData-1.lua",
+    "updateProgress": "updateProgress-3.lua",
+}
+
+
+def loadScript(name: str) -> str:
+    """
+    Load a Lua script by name from the commands directory.
+    """
+    with open(f"{basePath}/commands/{name}", "r") as file:
+        return file.read()
+
 
 class RedisConnection:
     """
@@ -22,8 +68,20 @@ class RedisConnection:
         "canDoubleTimeout": False
     }
 
-    def __init__(self, redisOpts: dict | str | redis.Redis = {}):
-        self.version = None
+    def __init__(
+        self,
+        redisOpts: Union[dict, str, redis.Redis] = {},
+        skipVersionCheck: bool = False,
+        skipWaitingForReady: bool = False,
+    ):
+        if skipWaitingForReady:
+            warnings.warn(
+                "skipWaitingForReady is deprecated and has no effect. It will be removed in a future release.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        self.version: Optional[str] = None
+        self.skipVersionCheck = skipVersionCheck
         retry = Retry(ExponentialBackoff(cap=20, base=1), 20)
         retry_errors = [BusyLoadingError, ConnectionError, TimeoutError]
 
@@ -38,11 +96,24 @@ class RedisConnection:
                 "username": None,
             }
             finalOpts = {**defaultOpts, **redisOpts}
+            finalOpts.pop('single_connection_client', None)
 
-            self.conn = redis.Redis(decode_responses=True, retry=retry, retry_on_error=retry_errors, **finalOpts)
+            self.conn = redis.Redis(decode_responses=True, retry=retry, retry_on_error=retry_errors, single_connection_client=True, **finalOpts)
         else:
             self.conn = redis.from_url(redisOpts, decode_responses=True, retry=retry,
-                retry_on_error=retry_errors)
+                retry_on_error=retry_errors, single_connection_client=True)
+
+        self.commands = {}
+        self.loadCommands()
+
+    def loadCommands(self) -> None:
+        """
+        Load and register all Lua scripts on the Redis client.
+        This is called once during initialization to avoid re-registering
+        scripts on every Scripts instance creation.
+        """
+        for name, filename in SCRIPT_DEFINITIONS.items():
+            self.commands[name] = self.conn.register_script(loadScript(filename))
 
     def disconnect(self):
         """
@@ -50,14 +121,26 @@ class RedisConnection:
         """
         return self.conn.disconnect()
 
-    async def close(self):
+    async def close(self) -> None:
         """
         Close the connection
         """
         return await self.conn.aclose()
 
-    async def getRedisVersion(self):
+    async def getRedisVersion(self) -> Optional[str]:
         if self.version is not None:
+            return self.version
+
+        # Mirror the JS RedisConnection: when skipVersionCheck is enabled we
+        # report the minimum supported version without calling INFO. This lets
+        # callers bypass the version comparison while still getting capability
+        # flags consistent with a baseline-compatible Redis.
+        if self.skipVersionCheck:
+            self.version = self.minimum_version
+            self.capabilities = {
+                "canBlockFor1Ms": not isRedisVersionLowerThan(self.version, '7.0.8'),
+                "canDoubleTimeout": not isRedisVersionLowerThan(self.version, '6.0.0'),
+            }
             return self.version
 
         doc = await self.conn.info()
@@ -71,3 +154,34 @@ class RedisConnection:
             "canDoubleTimeout": not isRedisVersionLowerThan(self.version, '6.0.0')
         }
         return self.version
+
+    async def set_client_name(self, name: str) -> None:
+        if not name:
+            return
+
+        self.client_name = name
+
+        if is_redis_cluster(self.conn):
+            nodes = get_cluster_nodes(self.conn)
+            for node in nodes:
+                node_client = get_node_client(node)
+                self._set_client_name_on_pool(node_client, name)
+                await self._set_client_name_on_client(node_client, name)
+        else:
+            self._set_client_name_on_pool(self.conn, name)
+            await self._set_client_name_on_client(self.conn, name)
+
+    async def _set_client_name_on_client(self, client, name: str) -> None:
+        if hasattr(client, "client_setname"):
+            await client.client_setname(name)
+        else:
+            await client.execute_command("CLIENT", "SETNAME", name)
+
+    def _set_client_name_on_pool(self, client, name: str) -> None:
+        pool = getattr(client, "connection_pool", None)
+        if pool is None:
+            return
+
+        connection_kwargs = getattr(pool, "connection_kwargs", None)
+        if isinstance(connection_kwargs, dict):
+            connection_kwargs["client_name"] = name

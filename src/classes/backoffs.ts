@@ -1,5 +1,6 @@
-import { BackoffOptions, MinimalJob } from '../interfaces';
-import { BackoffStrategy } from '../types';
+import { BackoffOptions } from '../interfaces/backoff-options';
+import { MinimalJob } from '../interfaces/minimal-job';
+import { BackoffStrategy } from '../types/backoff-strategy';
 
 export interface BuiltInStrategies {
   [index: string]: (delay: number, jitter?: number) => BackoffStrategy;

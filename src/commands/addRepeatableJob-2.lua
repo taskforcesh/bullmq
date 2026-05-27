@@ -9,7 +9,7 @@
       ARGV[2] msgpacked options
             [1]  name
             [2]  tz?
-            [3]  patten?
+            [3]  pattern?
             [4]  endDate?
             [5]  every?
       ARGV[3] legacy custom key TODO: remove this logic in next breaking change

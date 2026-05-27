@@ -61,4 +61,4 @@ job.data # { color: 'blue' }
 
 ## Read more:
 
-* 💡 [Update Data API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#updateData)
+* 💡 [Update Data API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#updatedata)

@@ -358,7 +358,11 @@ const worker = new Worker(
 );
 ```
 
+{% hint style="info" %}
+Manually moving jobs using special errors does **not** increment the attemptsMade property. This property is incremented on regular job completion or failure (this includes retries using a backoff strategy). To control how many times a job is allowed to skip an attempt made using one of our special errors like: **DelayedError**, **RateLimitError**, **WaitingChildrenError** or **WaitingError**. To control how many times a job is allowed to start processing, use the **maxStartedAttempts** option.
+{% endhint %}
+
 ## Read more:
 
-- 💡 [Move To Delayed API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#moveToDelayed)
-- 💡 [Move To Waiting Children API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#moveToWaitingChildren)
+- 💡 [Move To Delayed API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#movetodelayed)
+- 💡 [Move To Waiting Children API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#movetowaitingchildren)

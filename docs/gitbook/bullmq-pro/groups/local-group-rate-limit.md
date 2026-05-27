@@ -44,4 +44,4 @@ You must specify a default rate limit by passing group.limit option in each Work
 
 ### Read more:
 
-- 💡 [Local Rate Limit Group API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#setGroupRateLimit)
+- 💡 [Local Rate Limit Group API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#setgroupratelimit)

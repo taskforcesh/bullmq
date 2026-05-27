@@ -13,6 +13,7 @@ import {
 } from '../utils';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
+import { createIORedisClient, isIRedisClient } from './ioredis-client';
 
 export interface QueueEventsListener extends IoredisListener {
   /**
@@ -138,6 +139,8 @@ export interface QueueEventsListener extends IoredisListener {
    * Listen to 'error' event.
    *
    * This event is triggered when an error in the Redis backend is thrown.
+   *
+   * @param args - The error that was thrown.
    */
   error: (args: Error) => void;
 
@@ -274,6 +277,7 @@ type KeyOf<T extends object> = Extract<keyof T, string>;
  */
 export class QueueEvents extends QueueBase {
   private running = false;
+  private blocking = false;
 
   constructor(
     name: string,
@@ -287,7 +291,10 @@ export class QueueEvents extends QueueBase {
       {
         ...opts,
         connection: isRedisInstance(connection)
-          ? (<RedisClient>connection).duplicate()
+          ? (isIRedisClient(connection)
+              ? connection
+              : createIORedisClient(connection as any)
+            ).duplicate()
           : connection,
       },
       Connection,
@@ -347,11 +354,14 @@ export class QueueEvents extends QueueBase {
         this.running = true;
         const client = await this.client;
 
-        // TODO: Planed for deprecation as it has no really a use case
+        // TODO: Planned for deprecation as it really has no use case
         try {
-          await client.client('SETNAME', this.clientName(QUEUE_EVENT_SUFFIX));
+          await client.clientSetName(this.clientName(QUEUE_EVENT_SUFFIX));
         } catch (err) {
-          if (!clientCommandMessageReg.test((<Error>err).message)) {
+          if (
+            !clientCommandMessageReg.test((<Error>err).message) &&
+            !this.closing
+          ) {
             throw err;
           }
         }
@@ -373,10 +383,12 @@ export class QueueEvents extends QueueBase {
     let id = opts.lastEventId || '$';
 
     while (!this.closing) {
+      this.blocking = true;
       // Cast to actual return type, see: https://github.com/DefinitelyTyped/DefinitelyTyped/issues/44301
       const data: StreamReadRaw = await this.checkConnectionError(() =>
-        client.xread('BLOCK', opts.blockingTimeout!, 'STREAMS', key, id),
+        client.xread([{ key, id }], { BLOCK: opts.blockingTimeout! }),
       );
+      this.blocking = false;
       if (data) {
         const stream = data[0];
         const events = stream[1];
@@ -386,7 +398,7 @@ export class QueueEvents extends QueueBase {
           const args = array2obj(events[i][1]);
 
           //
-          // TODO: we may need to have a separate xtream for progress data
+          // TODO: we may need to have a separate stream for progress data
           // to avoid this hack.
           switch (args.event) {
             case 'progress':
@@ -417,9 +429,19 @@ export class QueueEvents extends QueueBase {
    *
    * @returns
    */
-  close(): Promise<void> {
+  async close(): Promise<void> {
     if (!this.closing) {
-      this.closing = this.disconnect();
+      this.closing = (async () => {
+        try {
+          // As the connection has been wrongly marked as "shared" by QueueBase,
+          // we need to forcibly close it here. We should fix QueueBase to avoid this in the future.
+          const client = await this.client;
+          client.disconnect();
+          await this.connection.close(this.blocking);
+        } finally {
+          this.closed = true;
+        }
+      })();
     }
     return this.closing;
   }

@@ -85,29 +85,12 @@ export class JobScheduler extends QueueBase {
     now = prevMillis < now ? now : prevMillis;
 
     // Check if we have a start date for the repeatable job
-    const { startDate, immediately, ...filteredRepeatOpts } = repeatOpts;
-    let startMillis = (now > prevMillis ? now : prevMillis) + (offset || 0);
-    if (startDate) {
-      startMillis = new Date(startDate).getTime();
-      startMillis = startMillis > now ? startMillis : now;
-    }
+    const { immediately, ...filteredRepeatOpts } = repeatOpts;
 
     let nextMillis: number;
-    let newOffset: number | null = null;
-    if (every) {
-      const prevSlot =
-        Math.floor((startMillis - (offset || 0)) / every) * every;
+    const newOffset: number | null = every && offset ? offset : null;
 
-      newOffset = typeof offset === 'number' ? offset : startMillis - prevSlot;
-
-      const nextSlot = prevSlot + every;
-
-      if (prevMillis || offset) {
-        nextMillis = nextSlot;
-      } else {
-        nextMillis = prevSlot;
-      }
-    } else if (pattern) {
+    if (pattern) {
       nextMillis = await this.repeatStrategy(now, repeatOpts, jobName);
 
       if (nextMillis < now) {
@@ -115,19 +98,19 @@ export class JobScheduler extends QueueBase {
       }
     }
 
-    if (nextMillis) {
+    if (nextMillis || every) {
       return this.trace<Job<T, R, N>>(
         SpanKind.PRODUCER,
         'add',
         `${this.name}.${jobName}`,
-        async (span, srcPropagationMedatada) => {
+        async (span, srcPropagationMetadata) => {
           let telemetry = opts.telemetry;
 
-          if (srcPropagationMedatada) {
+          if (srcPropagationMetadata) {
             const omitContext = opts.telemetry?.omitContext;
             const telemetryMetadata =
               opts.telemetry?.metadata ||
-              (!omitContext && srcPropagationMedatada);
+              (!omitContext && srcPropagationMetadata);
 
             if (telemetryMetadata || omitContext) {
               telemetry = {
@@ -150,13 +133,21 @@ export class JobScheduler extends QueueBase {
           );
 
           if (override) {
-            const jobId = await this.scripts.addJobScheduler(
+            // Clamp nextMillis to now if it's in the past
+            if (nextMillis < now) {
+              nextMillis = now;
+            }
+
+            const [jobId, delay] = await this.scripts.addJobScheduler(
               jobSchedulerId,
               nextMillis,
               JSON.stringify(typeof jobData === 'undefined' ? {} : jobData),
               Job.optsAsJSON(opts),
               {
                 name: jobName,
+                startDate: repeatOpts.startDate
+                  ? new Date(repeatOpts.startDate).getTime()
+                  : undefined,
                 endDate: endDate ? new Date(endDate).getTime() : undefined,
                 tz: repeatOpts.tz,
                 pattern,
@@ -168,11 +159,15 @@ export class JobScheduler extends QueueBase {
               producerId,
             );
 
+            // Ensure delay is a number (Dragonflydb may return it as a string)
+            const numericDelay =
+              typeof delay === 'string' ? parseInt(delay, 10) : delay;
+
             const job = new this.Job<T, R, N>(
               this,
               jobName,
               jobData,
-              mergedOpts,
+              { ...mergedOpts, delay: numericDelay },
               jobId,
             );
 
@@ -248,6 +243,9 @@ export class JobScheduler extends QueueBase {
       ...opts.repeat,
       offset,
       count: currentCount,
+      startDate: opts.repeat?.startDate
+        ? new Date(opts.repeat.startDate).getTime()
+        : undefined,
       endDate: opts.repeat?.endDate
         ? new Date(opts.repeat.endDate).getTime()
         : undefined,
@@ -274,8 +272,8 @@ export class JobScheduler extends QueueBase {
     key: string,
     jobData: any,
     next?: number,
-  ): JobSchedulerJson<D> {
-    if (jobData) {
+  ): JobSchedulerJson<D> | undefined {
+    if (jobData && Object.keys(jobData).length > 0) {
       const jobSchedulerData: JobSchedulerJson<D> = {
         key,
         name: jobData.name,
@@ -288,6 +286,10 @@ export class JobScheduler extends QueueBase {
 
       if (jobData.limit) {
         jobSchedulerData.limit = parseInt(jobData.limit);
+      }
+
+      if (jobData.startDate) {
+        jobSchedulerData.startDate = parseInt(jobData.startDate);
       }
 
       if (jobData.endDate) {
@@ -341,6 +343,29 @@ export class JobScheduler extends QueueBase {
     };
   }
 
+  /**
+   * Checks if a given id corresponds to a registered job scheduler.
+   *
+   * This is used to disambiguate between new job scheduler ids (which may
+   * contain any number of colon segments) and legacy repeatable job keys
+   * (which always contain 5+ colon segments). Relying purely on segment
+   * count is not safe because a user-provided jobSchedulerId may itself
+   * contain 5+ colon segments, which would otherwise be misclassified as
+   * a legacy repeatable key.
+   *
+   * We cannot use ZSCORE on the shared `repeat` sorted set because legacy
+   * repeatable jobs are stored in the same sorted set and would be reported
+   * as schedulers. Instead, we probe the per-id metadata hash (`repeat:<id>`)
+   * for the `ic` (iteration count) field, which is written exclusively by
+   * `storeJobScheduler` and is never set by the legacy `addRepeatableJob`
+   * flow.
+   */
+  async isJobScheduler(id: string): Promise<boolean> {
+    const client = await this.client;
+    const exists = await client.hexists(`${this.keys.repeat}:${id}`, 'ic');
+    return exists === 1;
+  }
+
   async getScheduler<D = any>(
     id: string,
   ): Promise<JobSchedulerJson<D> | undefined> {
@@ -376,8 +401,10 @@ export class JobScheduler extends QueueBase {
     const jobSchedulersKey = this.keys.repeat;
 
     const result = asc
-      ? await client.zrange(jobSchedulersKey, start, end, 'WITHSCORES')
-      : await client.zrevrange(jobSchedulersKey, start, end, 'WITHSCORES');
+      ? await client.zrange(jobSchedulersKey, start, end, { WITHSCORES: true })
+      : await client.zrevrange(jobSchedulersKey, start, end, {
+          WITHSCORES: true,
+        });
 
     const jobs = [];
     for (let i = 0; i < result.length; i += 2) {

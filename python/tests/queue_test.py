@@ -14,18 +14,18 @@ import unittest
 import os
 import time
 
-queueName = f"__test_queue__{uuid4().hex}"
+queueName = ""
 prefix = os.environ.get('BULLMQ_TEST_PREFIX') or "bull"
 
 class TestQueue(unittest.IsolatedAsyncioTestCase):
 
-    async def asyncSetUp(self):
+    def setUp(self):
         print("Setting up test queue")
-        # Delete test queue
-        queue = Queue(queueName, {"prefix": prefix})
-        await queue.pause()
-        await queue.obliterate()
-        await queue.close()
+        queueName = f"__test_queue__{uuid4().hex}"
+
+    async def asyncTearDown(self):
+        connection = redis.Redis(host='localhost')
+        await connection.flushdb()
 
     async def test_connection_str(self):
         queue = Queue(queueName, {"connection": "redis://localhost:6379", "prefix": prefix})
@@ -48,6 +48,26 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(job2.id, jobs[0].id)
         self.assertEqual(job1.id, jobs[1].id)
+        await queue.close()
+
+    async def test_get_waiting_returns_jobs_in_ascending_order(self):
+        # Exercises getRanges asc=True + lrange path (waiting -> wait -> lrange).
+        # Regression test for a bug where list.reverse() returned None and
+        # caused a TypeError in `results+=None`.
+        queue_name = f"__test_queue__{uuid4().hex}"
+        queue = Queue(queue_name, {"prefix": prefix})
+        job1 = await queue.add("test-job", {"foo": "bar"}, {})
+        job2 = await queue.add("test-job", {"foo": "baz"}, {})
+        job3 = await queue.add("test-job", {"foo": "qux"}, {})
+
+        waiting_jobs = await queue.getWaiting()
+
+        self.assertIsInstance(waiting_jobs, list)
+        self.assertEqual(len(waiting_jobs), 3)
+        # asc=True should return jobs in insertion order (oldest first).
+        self.assertEqual(waiting_jobs[0].id, job1.id)
+        self.assertEqual(waiting_jobs[1].id, job2.id)
+        self.assertEqual(waiting_jobs[2].id, job3.id)
         await queue.close()
 
     async def test_get_job_state(self):
@@ -441,6 +461,10 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         job = await Job.fromId(queue, job.id)
         self.assertIsNone(job)
 
+        waiting_count = await queue.getWaitingCount()
+
+        self.assertEqual(waiting_count, 0)
+
         await queue.close()
 
     async def test_get_counts_per_priority(self):
@@ -469,6 +493,295 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         job = await queue.add("test-job", {"foo": "bar"}, {})
 
         self.assertEqual(job.id, "1")
+        await queue.close()
+
+    async def test_obliterate_with_force_false_should_fail_with_active_jobs(self):
+        """Test that obliterate without force fails when there are active jobs"""
+        queue = Queue(queueName, {"prefix": prefix})
+        
+        # Add jobs
+        await queue.add("test-job", {"foo": "bar"}, {})
+        await queue.add("test-job", {"qux": "baz"}, {})
+        
+        # Create a worker that processes jobs slowly
+        async def process(job: Job, token: str):
+            await asyncio.sleep(1)
+            return "done"
+        
+        worker = Worker(queueName, process, {"prefix": prefix, "autorun": False})
+
+        active_event = Future()
+        worker.on("active", lambda job, result: active_event.set_result(None))
+
+        asyncio.ensure_future(worker.run())
+
+        await active_event
+        
+        # Try to obliterate without force - should fail
+        with self.assertRaises(Exception) as context:
+            await queue.obliterate(force=False)
+        
+        self.assertIn("Cannot obliterate queue with active jobs", str(context.exception))
+        
+        await worker.close()
+        await queue.close()
+
+    async def test_obliterate_with_force_true_should_succeed_with_active_jobs(self):
+        """Test that obliterate with force=True succeeds even with active jobs"""
+        queue = Queue(queueName, {"prefix": prefix})
+        
+        # Add jobs
+        await queue.add("test-job", {"foo": "bar"}, {})
+        await queue.add("test-job", {"qux": "baz"}, {})
+        await queue.add("test-job", {"foo": "bar2"}, {})
+        
+        # Create a worker that processes jobs slowly
+        async def process(job: Job, token: str):
+            await asyncio.sleep(2)
+            return "done"
+        
+        worker = Worker(queueName, process, {"prefix": prefix, "autorun": False})
+
+        active_event = Future()
+        worker.on("active", lambda job, result: active_event.set_result(None))
+
+        asyncio.ensure_future(worker.run())
+
+        await active_event
+        
+        # Verify there are active jobs
+        job_counts = await queue.getJobCounts('active')
+        self.assertGreater(job_counts.get('active', 0), 0)
+        
+        # Obliterate with force=True - should succeed
+        await queue.obliterate(force=True)
+        
+        # Verify all keys are deleted
+        keys = await queue.client.keys(f"{prefix}:{queueName}:*")
+        self.assertEqual(len(keys), 0)
+        
+        await worker.close()
+        await queue.close()
+
+    async def test_obliterate_with_force_true_parameter_conversion(self):
+        """Test that force=True is properly converted to string for Redis"""
+        queue = Queue(queueName, {"prefix": prefix})
+        
+        # Add a few jobs
+        await queue.add("test-job", {"foo": "bar"}, {})
+        await queue.add("test-job", {"foo": "baz"}, {})
+        
+        await queue.obliterate(force=True)
+        
+        await queue.close()
+
+    async def test_drain_count_added_unprocessed_jobs(self):
+        """Test drain removes all waiting jobs but leaves infrastructure keys"""
+        queue = Queue(queueName, {"prefix": prefix})
+        max_jobs = 100
+        
+        # Add jobs with priorities
+        for i in range(1, max_jobs + 1):
+            await queue.add("test", {"foo": "bar", "num": i}, {"priority": i})
+        
+        # Check initial counts
+        initial_count = await queue.getJobCountByTypes("waiting", "prioritized")
+        self.assertEqual(initial_count, max_jobs)
+        
+        prioritized_count = await queue.getJobCounts("prioritized")
+        self.assertEqual(prioritized_count["prioritized"], max_jobs)
+        
+        # Drain the queue
+        await queue.drain()
+        
+        # Check that all jobs are removed
+        count_after_drain = await queue.getJobCountByTypes("waiting", "prioritized")
+        self.assertEqual(count_after_drain, 0)
+        
+        # Check that infrastructure keys remain
+        keys = await queue.client.keys(f"{prefix}:{queueName}:*")
+        self.assertEqual(len(keys), 5)
+        
+        # Verify expected infrastructure keys exist
+        key_types = []
+        for key in keys:
+            key_type = key.split(':')[2]
+            key_types.append(key_type)
+        
+        expected_keys = ['marker', 'events', 'meta', 'pc', 'id']
+        for expected_key in expected_keys:
+            self.assertIn(expected_key, key_types)
+        
+        await queue.close()
+
+    async def test_drain_delayed_false(self):
+        """Test drain with delayed=False keeps delayed jobs"""
+        queue = Queue(queueName, {"prefix": prefix})
+        max_jobs = 50
+        max_delayed_jobs = 50
+        
+        # Add regular jobs
+        for i in range(1, max_jobs + 1):
+            await queue.add("test", {"foo": "bar", "num": i}, {})
+        
+        # Add delayed jobs
+        for i in range(1, max_delayed_jobs + 1):
+            await queue.add("test", {"foo": "bar", "num": i}, {"delay": 10000})
+        
+        # Check initial count
+        initial_count = await queue.getJobCountByTypes("waiting", "delayed")
+        self.assertEqual(initial_count, max_jobs + max_delayed_jobs)
+        
+        # Drain without delayed jobs
+        await queue.drain(delayed=False)
+        
+        # Check that only delayed jobs remain
+        count_after_drain = await queue.getJobCountByTypes("waiting", "delayed")
+        self.assertEqual(count_after_drain, max_delayed_jobs)
+        
+        await queue.close()
+
+    async def test_drain_delayed_true(self):
+        """Test drain with delayed=True removes all jobs including delayed"""
+        queue = Queue(queueName, {"prefix": prefix})
+        max_jobs = 50
+        max_delayed_jobs = 50
+        
+        # Add regular jobs
+        for i in range(1, max_jobs + 1):
+            await queue.add("test", {"foo": "bar", "num": i}, {})
+        
+        # Add delayed jobs
+        for i in range(1, max_delayed_jobs + 1):
+            await queue.add("test", {"foo": "bar", "num": i}, {"delay": 10000})
+        
+        # Check initial count
+        initial_count = await queue.getJobCountByTypes("waiting", "delayed")
+        self.assertEqual(initial_count, max_jobs + max_delayed_jobs)
+        
+        # Drain including delayed jobs
+        await queue.drain(delayed=True)
+        
+        # Check that all jobs are removed
+        count_after_drain = await queue.getJobCountByTypes("waiting", "delayed")
+        self.assertEqual(count_after_drain, 0)
+        
+        await queue.close()
+
+    async def test_get_prioritized_jobs(self):
+        """Test getPrioritized method retrieves prioritized jobs"""
+        queue = Queue(queueName, {"prefix": prefix})
+        
+        # Add jobs with priorities
+        for i in range(8):
+            await queue.add("test", {"idx": i}, {"priority": i + 1})
+        
+        # Get prioritized jobs
+        prioritized_jobs = await queue.getPrioritized()
+        
+        # Verify we got all 8 jobs
+        self.assertEqual(len(prioritized_jobs), 8)
+        
+        await queue.close()
+
+    async def test_drain_paused_queue(self):
+        """Test drain removes paused jobs when queue is paused"""
+        queue = Queue(queueName, {"prefix": prefix})
+        max_jobs = 50
+        
+        # Pause the queue first
+        await queue.pause()
+        
+        # Add jobs (they will go to paused state)
+        for i in range(1, max_jobs + 1):
+            await queue.add("test", {"foo": "bar", "num": i}, {})
+        
+        # Check initial count
+        initial_count = await queue.getJobCountByTypes("paused")
+        self.assertEqual(initial_count, max_jobs)
+        
+        paused_counts = await queue.getJobCounts("paused")
+        self.assertEqual(paused_counts["paused"], max_jobs)
+        
+        # Drain the queue
+        await queue.drain()
+        
+        # Check that all jobs are removed
+        count_after_drain = await queue.getJobCountByTypes("paused")
+        self.assertEqual(count_after_drain, 0)
+        
+        await queue.close()
+
+    async def test_get_failed_returns_only_failed_jobs(self):
+        """Regression test: getFailed() should return only failed jobs, not completed."""
+        queue_name_local = f"__test_queue__{uuid4().hex}"
+        queue = Queue(queue_name_local, {"prefix": prefix})
+
+        async def process(job: Job, token: str):
+            if job.data.get("shouldFail"):
+                raise Exception("intentional failure")
+            return "ok"
+
+        worker = Worker(queue_name_local, process, {"prefix": prefix})
+
+        finished_count = 0
+        done_future = Future()
+
+        def on_finished(job: Job, result):
+            nonlocal finished_count
+            finished_count += 1
+            if finished_count == 2 and not done_future.done():
+                done_future.set_result(None)
+
+        worker.on("completed", on_finished)
+        worker.on("failed", on_finished)
+
+        await queue.add("test", {"shouldFail": True}, {"attempts": 1})
+        await queue.add("test", {"shouldFail": False}, {})
+
+        await done_future
+
+        failed = await queue.getFailed()
+        self.assertEqual(len(failed), 1)
+        self.assertEqual(failed[0].data["shouldFail"], True)
+
+        completed = await queue.getCompleted()
+        self.assertEqual(len(completed), 1)
+        self.assertEqual(completed[0].data["shouldFail"], False)
+
+        await worker.close()
+        await queue.pause()
+        await queue.obliterate()
+        await queue.close()
+
+    async def test_default_job_options(self):
+        """Test that defaultJobOptions are applied to jobs added to the queue"""
+        queue_name = f"__test_queue__{uuid4().hex}"
+        default_attempts = 5
+        default_delay = 2000
+        queue = Queue(queue_name, {
+            "prefix": prefix,
+            "defaultJobOptions": {
+                "attempts": default_attempts,
+                "delay": default_delay
+            }
+        })
+        
+        # Add a job without specifying options
+        job1 = await queue.add("test-job", {"foo": "bar"})
+        
+        # Verify that default options were applied
+        self.assertEqual(job1.attempts, default_attempts)
+        self.assertEqual(job1.delay, default_delay)
+        
+        # Add a job with custom options that should override defaults
+        custom_attempts = 10
+        job2 = await queue.add("test-job", {"foo": "baz"}, {"attempts": custom_attempts})
+        
+        # Verify that custom options override defaults
+        self.assertEqual(job2.attempts, custom_attempts)
+        self.assertEqual(job2.delay, default_delay)  # Should still use default delay
+        
         await queue.close()
 
 if __name__ == '__main__':

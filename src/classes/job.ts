@@ -3,27 +3,29 @@ import {
   BackoffOptions,
   BulkJobOptions,
   DependenciesOpts,
+  IRedisTransaction,
   JobJson,
   JobJsonRaw,
   MinimalJob,
+  MinimalQueue,
   MoveToWaitingChildrenOpts,
   ParentKeys,
   ParentKeyOpts,
   RedisClient,
+  RetryOptions,
   WorkerOptions,
+  Span,
 } from '../interfaces';
 import {
   FinishedStatus,
   JobsOptions,
   JobState,
   JobJsonSandbox,
-  MinimalQueue,
   RedisJobOptions,
   CompressableJobOptions,
   JobProgress,
 } from '../types';
 import {
-  createScripts,
   errorObject,
   isEmpty,
   getParentKey,
@@ -34,11 +36,12 @@ import {
   tryCatch,
   removeUndefinedFields,
 } from '../utils';
+import { createScripts } from '../utils/create-scripts';
 import { Backoffs } from './backoffs';
 import { Scripts } from './scripts';
 import { UnrecoverableError } from './errors/unrecoverable-error';
 import type { QueueEvents } from './queue-events';
-import { SpanKind } from '../enums';
+import { SpanKind, TelemetryAttributes, MetricNames } from '../enums';
 
 const logger = debuglog('bull');
 
@@ -57,8 +60,7 @@ export class Job<
   DataType = any,
   ReturnType = any,
   NameType extends string = string,
-> implements MinimalJob<DataType, ReturnType, NameType>
-{
+> implements MinimalJob<DataType, ReturnType, NameType> {
   /**
    * It includes the prefix, the namespace separator :, and queue name.
    * @see {@link https://www.gnu.org/software/gawk/manual/html_node/Qualified-Names.html}
@@ -81,7 +83,7 @@ export class Job<
    * Stacktrace for the error (for failed jobs).
    * @defaultValue null
    */
-  stacktrace: string[] = null;
+  stacktrace: string[] | null = null;
 
   /**
    * An amount of milliseconds to wait until this job can be processed.
@@ -269,7 +271,7 @@ export class Job<
    * @param name - the name of the job.
    * @param data - the payload of the job.
    * @param opts - the options bag for this job.
-   * @returns
+   * @returns The created Job instance
    */
   static async create<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
@@ -294,9 +296,9 @@ export class Job<
   /**
    * Creates a bulk of jobs and adds them atomically to the given queue.
    *
-   * @param queue -the queue were to add the jobs.
+   * @param queue - the queue where to add the jobs.
    * @param jobs - an array of jobs to be added to the queue.
-   * @returns
+   * @returns The created Job instances
    */
   static async createBulk<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
@@ -316,7 +318,7 @@ export class Job<
     const pipeline = client.pipeline();
 
     for (const job of jobInstances) {
-      job.addJob(<RedisClient>(pipeline as unknown), {
+      job.addJob(pipeline, {
         parentKey: job.parentKey,
         parentDependenciesKey: job.parentKey
           ? `${job.parentKey}:dependencies`
@@ -343,7 +345,7 @@ export class Job<
    * @param queue - the queue where the job belongs to.
    * @param json - the plain object containing the job.
    * @param jobId - an optional job id (overrides the id coming from the JSON object)
-   * @returns
+   * @returns A Job instance reconstructed from the JSON data
    */
   static fromJSON<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
@@ -408,10 +410,14 @@ export class Job<
 
     if (json.parentKey) {
       job.parentKey = json.parentKey;
+    } else {
+      job.parentKey = undefined;
     }
 
     if (json.parent) {
       job.parent = JSON.parse(json.parent);
+    } else {
+      job.parent = undefined;
     }
 
     if (json.pb) {
@@ -563,8 +569,12 @@ export class Job<
       } else {
         // Handle complex compressable fields separately
         if (attributeName === 'telemetry') {
-          options.tm = value.metadata;
-          options.omc = value.omitContext;
+          if (value.metadata !== undefined) {
+            options.tm = value.metadata;
+          }
+          if (value.omitContext !== undefined) {
+            options.omc = value.omitContext;
+          }
         } else {
           options[attributeName] = value;
         }
@@ -717,11 +727,8 @@ export class Job<
       SpanKind.INTERNAL,
       'complete',
       this.queue.name,
-      async (span, dstPropagationMedatadata) => {
-        let tm;
-        if (!this.opts?.telemetry?.omitContext && dstPropagationMedatadata) {
-          tm = dstPropagationMedatadata;
-        }
+      async span => {
+        this.setSpanJobAttributes(span);
 
         await this.queue.waitUntilReady();
 
@@ -748,6 +755,8 @@ export class Job<
         ] as number;
         this.attemptsMade += 1;
 
+        this.recordJobMetrics('completed');
+
         return result;
       },
     );
@@ -759,8 +768,12 @@ export class Job<
    * @param token - Worker token used to acquire completed job.
    * @returns Returns pttl.
    */
-  moveToWait(token?: string): Promise<number> {
-    return this.scripts.moveJobFromActiveToWait(this.id, token);
+  async moveToWait(token?: string): Promise<number> {
+    const result = await this.scripts.moveJobFromActiveToWait(this.id, token);
+
+    this.recordJobMetrics('waiting');
+
+    return result;
   }
 
   private async shouldRetryJob(err: Error): Promise<[boolean, number]> {
@@ -807,10 +820,12 @@ export class Job<
       SpanKind.INTERNAL,
       this.getSpanOperation(shouldRetry, retryDelay),
       this.queue.name,
-      async (span, dstPropagationMedatadata) => {
+      async (span, dstPropagationMetadata) => {
+        this.setSpanJobAttributes(span);
+
         let tm;
-        if (!this.opts?.telemetry?.omitContext && dstPropagationMedatadata) {
-          tm = dstPropagationMedatadata;
+        if (!this.opts?.telemetry?.omitContext && dstPropagationMetadata) {
+          tm = dstPropagationMetadata;
         }
         let result;
 
@@ -831,8 +846,10 @@ export class Job<
               Date.now(),
               retryDelay,
               token,
-              { fieldsToUpdate },
+              { fieldsToUpdate, fetchNext },
             );
+
+            this.recordJobMetrics('delayed');
           } else {
             // Retry immediately
             result = await this.scripts.retryJob(
@@ -843,6 +860,8 @@ export class Job<
                 fieldsToUpdate,
               },
             );
+
+            this.recordJobMetrics('retried');
           }
         } else {
           const args = this.scripts.moveToFailedArgs(
@@ -858,6 +877,9 @@ export class Job<
           finishedOn = args[
             this.scripts.moveToFinishedKeys.length + 1
           ] as number;
+
+          // Only record failed metrics when job is not retrying
+          this.recordJobMetrics('failed');
         }
 
         if (finishedOn && typeof finishedOn === 'number') {
@@ -885,6 +907,67 @@ export class Job<
     }
 
     return 'fail';
+  }
+
+  /**
+   * Records job metrics if a meter is configured in telemetry options.
+   *
+   * @param status - The job status
+   */
+  private recordJobMetrics(
+    status:
+      | 'completed'
+      | 'failed'
+      | 'delayed'
+      | 'retried'
+      | 'waiting'
+      | 'waiting-children',
+  ): void {
+    const meter = this.queue.opts?.telemetry?.meter;
+    if (!meter) {
+      return;
+    }
+
+    const attributes = {
+      [TelemetryAttributes.QueueName]: this.queue.name,
+      [TelemetryAttributes.JobName]: this.name,
+      [TelemetryAttributes.JobStatus]: status,
+    };
+
+    // Record counter metric based on status
+    const statusToCounterName: Record<
+      | 'completed'
+      | 'failed'
+      | 'delayed'
+      | 'retried'
+      | 'waiting'
+      | 'waiting-children',
+      MetricNames
+    > = {
+      completed: MetricNames.JobsCompleted,
+      failed: MetricNames.JobsFailed,
+      delayed: MetricNames.JobsDelayed,
+      retried: MetricNames.JobsRetried,
+      waiting: MetricNames.JobsWaiting,
+      'waiting-children': MetricNames.JobsWaitingChildren,
+    };
+
+    const counterName = statusToCounterName[status];
+    const counter = meter.createCounter(counterName, {
+      description: `Number of jobs ${status}`,
+      unit: '1',
+    });
+    counter.add(1, attributes);
+
+    // Record duration histogram if processedOn is available
+    if (this.processedOn) {
+      const duration = Date.now() - this.processedOn;
+      const histogram = meter.createHistogram(MetricNames.JobDuration, {
+        description: 'Job processing duration',
+        unit: 'ms',
+      });
+      histogram.record(duration, attributes);
+    }
   }
 
   /**
@@ -956,8 +1039,16 @@ export class Job<
   /**
    * Change delay of a delayed job.
    *
-   * @param delay - milliseconds to be added to current time.
+   * Reschedules a delayed job by setting a new delay from the current time.
+   * For example, calling changeDelay(5000) will reschedule the job to execute
+   * 5000 milliseconds (5 seconds) from now, regardless of the original delay.
+   *
+   * @param delay - milliseconds from now when the job should be processed.
    * @returns void
+   * @throws JobNotExist
+   * This exception is thrown if jobId is missing.
+   * @throws JobNotInState
+   * This exception is thrown if job is not in delayed state.
    */
   async changeDelay(delay: number): Promise<void> {
     await this.scripts.changeDelay(this.id, delay);
@@ -997,7 +1088,7 @@ export class Job<
 
   /**
    * Retrieves the failures of child jobs that were explicitly ignored while using ignoreDependencyOnFailure option.
-   * This method is useful for inspecting which child jobs were intentionally ignored when an error occured.
+   * This method is useful for inspecting which child jobs were intentionally ignored when an error occurred.
    * @see {@link https://docs.bullmq.io/guide/flows/ignore-dependency}
    *
    * @returns Object mapping children job keys with their failure values.
@@ -1043,7 +1134,7 @@ export class Job<
     unprocessed?: string[];
   }> {
     const client = await this.queue.client;
-    const multi = client.multi();
+    const multi = client.pipeline();
     if (!opts.processed && !opts.unprocessed && !opts.ignored && !opts.failed) {
       multi.hgetall(this.toKey(`${this.id}:processed`));
       multi.smembers(this.toKey(`${this.id}:dependencies`));
@@ -1078,12 +1169,9 @@ export class Job<
       if (opts.processed) {
         childrenResultOrder.push('processed');
         const processedOpts = Object.assign({ ...defaultOpts }, opts.processed);
-        multi.hscan(
-          this.toKey(`${this.id}:processed`),
-          processedOpts.cursor,
-          'COUNT',
-          processedOpts.count,
-        );
+        multi.hscan(this.toKey(`${this.id}:processed`), processedOpts.cursor, {
+          COUNT: processedOpts.count,
+        });
       }
 
       if (opts.unprocessed) {
@@ -1095,20 +1183,16 @@ export class Job<
         multi.sscan(
           this.toKey(`${this.id}:dependencies`),
           unprocessedOpts.cursor,
-          'COUNT',
-          unprocessedOpts.count,
+          { COUNT: unprocessedOpts.count },
         );
       }
 
       if (opts.ignored) {
         childrenResultOrder.push('ignored');
         const ignoredOpts = Object.assign({ ...defaultOpts }, opts.ignored);
-        multi.hscan(
-          this.toKey(`${this.id}:failed`),
-          ignoredOpts.cursor,
-          'COUNT',
-          ignoredOpts.count,
-        );
+        multi.hscan(this.toKey(`${this.id}:failed`), ignoredOpts.cursor, {
+          COUNT: ignoredOpts.count,
+        });
       }
 
       let failedCursor;
@@ -1328,16 +1412,12 @@ export class Job<
     const now = Date.now();
     const delay = timestamp - now;
     const finalDelay = delay > 0 ? delay : 0;
-    const movedToDelayed = await this.scripts.moveToDelayed(
-      this.id,
-      now,
-      finalDelay,
-      token,
-      { skipAttempt: true },
-    );
+    await this.scripts.moveToDelayed(this.id, now, finalDelay, token, {
+      skipAttempt: true,
+    });
     this.delay = finalDelay;
 
-    return movedToDelayed;
+    this.recordJobMetrics('delayed');
   }
 
   /**
@@ -1357,6 +1437,10 @@ export class Job<
       opts,
     );
 
+    if (movedToWaitingChildren) {
+      this.recordJobMetrics('waiting-children');
+    }
+
     return movedToWaitingChildren;
   }
 
@@ -1375,17 +1459,28 @@ export class Job<
    * Attempts to retry the job. Only a job that has failed or completed can be retried.
    *
    * @param state - completed / failed
-   * @returns If resolved and return code is 1, then the queue emits a waiting event
-   * otherwise the operation was not a success and throw the corresponding error. If the promise
-   * rejects, it indicates that the script failed to execute
+   * @param opts - options to retry a job
+   * @returns A promise that resolves when the job has been successfully moved to the wait queue.
+   * The queue emits a waiting event when the job is successfully moved.
+   * @throws Will throw an error if the job does not exist, is locked, or is not in the expected state.
    */
-  retry(state: FinishedStatus = 'failed'): Promise<void> {
+  async retry(
+    state: FinishedStatus = 'failed',
+    opts: RetryOptions = {},
+  ): Promise<void> {
+    await this.scripts.reprocessJob(this, state, opts);
     this.failedReason = null;
     this.finishedOn = null;
     this.processedOn = null;
     this.returnvalue = null;
 
-    return this.scripts.reprocessJob(this, state);
+    if (opts.resetAttemptsMade) {
+      this.attemptsMade = 0;
+    }
+
+    if (opts.resetAttemptsStarted) {
+      this.attemptsStarted = 0;
+    }
   }
 
   /**
@@ -1410,11 +1505,14 @@ export class Job<
   /**
    * Adds the job to Redis.
    *
-   * @param client -
-   * @param parentOpts -
-   * @returns
+   * @param client - The Redis client to use for adding the job.
+   * @param parentOpts - Options for the parent-child relationship.
+   * @returns The job ID
    */
-  addJob(client: RedisClient, parentOpts?: ParentKeyOpts): Promise<string> {
+  addJob(
+    client: RedisClient | IRedisTransaction,
+    parentOpts?: ParentKeyOpts,
+  ): Promise<string> {
     const jobData = this.asJSON();
 
     this.validateOptions(jobData);
@@ -1426,6 +1524,21 @@ export class Job<
       this.id,
       parentOpts,
     );
+  }
+
+  /**
+   * Removes a deduplication key if job is still the cause of deduplication.
+   * @returns true if the deduplication key was removed.
+   */
+  async removeDeduplicationKey(): Promise<boolean> {
+    if (this.deduplicationId) {
+      const result = await this.scripts.removeDeduplicationKey(
+        this.deduplicationId,
+        this.id,
+      );
+      return result > 0;
+    }
+    return false;
   }
 
   protected validateOptions(jobData: JobJson) {
@@ -1447,7 +1560,7 @@ export class Job<
     }
 
     if (this.opts.delay && this.opts.repeat && !this.opts.repeat?.count) {
-      throw new Error(`Delay and repeat options could not be used together`);
+      throw new Error(`Delay and repeat options cannot be used together`);
     }
 
     const enabledExclusiveOptions = exclusiveOptions.filter(
@@ -1461,8 +1574,19 @@ export class Job<
       );
     }
 
-    if (`${parseInt(this.id, 10)}` === this.id) {
-      throw new Error('Custom Ids cannot be integers');
+    if (this.opts?.jobId) {
+      if (`${parseInt(this.opts.jobId, 10)}` === this.opts?.jobId) {
+        throw new Error('Custom Id cannot be integers');
+      }
+
+      // TODO: replace this check in next breaking check with include(':')
+      // By using split we are still keeping compatibility with old repeatable jobs
+      if (
+        this.opts?.jobId.includes(':') &&
+        this.opts?.jobId?.split(':').length !== 3
+      ) {
+        throw new Error('Custom Id cannot contain :');
+      }
     }
 
     if (this.opts.priority) {
@@ -1472,6 +1596,29 @@ export class Job<
 
       if (this.opts.priority > PRIORITY_LIMIT) {
         throw new Error(`Priority should be between 0 and ${PRIORITY_LIMIT}`);
+      }
+    }
+
+    if (this.opts.deduplication) {
+      if (!this.opts.deduplication?.id) {
+        throw new Error('Deduplication id must be provided');
+      }
+
+      if (this.parentKey) {
+        throw new Error(
+          'Deduplication and parent options cannot be used together',
+        );
+      }
+    }
+
+    // TODO: remove in v6
+    if (this.opts.debounce) {
+      if (!this.opts.debounce?.id) {
+        throw new Error('Debounce id must be provided');
+      }
+
+      if (this.parentKey) {
+        throw new Error('Debounce and parent options cannot be used together');
       }
     }
 
@@ -1497,9 +1644,20 @@ export class Job<
       }
     }
   }
+
+  private setSpanJobAttributes(span?: Span) {
+    span?.setAttributes({
+      [TelemetryAttributes.JobName]: this.name,
+      [TelemetryAttributes.JobId]: this.id,
+    });
+  }
 }
 
-function getTraces(stacktrace: string[]) {
+function getTraces(stacktrace?: string) {
+  if (!stacktrace) {
+    return [];
+  }
+
   const traces = tryCatch(JSON.parse, JSON, [stacktrace]);
 
   if (traces === errorObject || !(traces instanceof Array)) {

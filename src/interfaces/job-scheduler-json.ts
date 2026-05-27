@@ -11,6 +11,7 @@ export interface JobSchedulerJson<D = any> {
   id?: string | null;
   iterationCount?: number;
   limit?: number;
+  startDate?: number;
   endDate?: number;
   tz?: string;
   pattern?: string;

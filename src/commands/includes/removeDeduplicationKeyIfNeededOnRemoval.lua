@@ -4,13 +4,15 @@
 ]]
 
 local function removeDeduplicationKeyIfNeededOnRemoval(prefixKey,
-  jobKey, jobId)
-  local deduplicationId = rcall("HGET", jobKey, "deid")
+  jobId, deduplicationId)
   if deduplicationId then
     local deduplicationKey = prefixKey .. "de:" .. deduplicationId
     local currentJobId = rcall('GET', deduplicationKey)
     if currentJobId and currentJobId == jobId then
-      return rcall("DEL", deduplicationKey)
+      rcall("DEL", deduplicationKey)
+      -- Also clean up any pending dedup-next data for this dedup ID
+      rcall("DEL", prefixKey .. "dn:" .. deduplicationId)
+      return 1
     end
   end
 end

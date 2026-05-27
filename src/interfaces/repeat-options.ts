@@ -52,7 +52,7 @@ export interface RepeatOptions extends Omit<ParserOptions, 'iterator'> {
   prevMillis?: number;
 
   /**
-   * Internal property to store de job id
+   * Internal property to store the job id
    * @deprecated not in use anymore
    */
   jobId?: string;

@@ -1,4 +1,4 @@
-import { JobsOptions } from '../types';
+import { DeduplicationOptions, JobsOptions } from '../types';
 import { QueueOptions } from './queue-options';
 
 export interface FlowJobBase<T> {
@@ -10,9 +10,16 @@ export interface FlowJobBase<T> {
   children?: FlowChildJob[];
 }
 
-export type FlowChildJob = FlowJobBase<Omit<JobsOptions, 'parent'>>;
+export type FlowChildJob = FlowJobBase<
+  Omit<JobsOptions, 'debounce' | 'deduplication' | 'parent'>
+>;
 
-export type FlowJob = FlowJobBase<JobsOptions>;
+export type FlowJob = FlowJobBase<
+  Omit<JobsOptions, 'debounce' | 'deduplication'> & {
+    debounce?: Omit<DeduplicationOptions, 'replace'>;
+    deduplication?: Omit<DeduplicationOptions, 'replace'>;
+  }
+>;
 
 export type FlowQueuesOpts = Record<
   string,

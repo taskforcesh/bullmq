@@ -2,7 +2,6 @@
  * Includes all the scripts needed by the queue and jobs.
  */
 
-/*eslint-env node */
 'use strict';
 import { Packr } from 'msgpackr';
 
@@ -21,10 +20,11 @@ import {
   ParentKeyOpts,
   RedisClient,
   WorkerOptions,
-  KeepJobs,
   MoveToDelayedOpts,
   RepeatableOptions,
   RetryJobOpts,
+  RetryOptions,
+  ScriptQueueContext,
 } from '../interfaces';
 import {
   JobsOptions,
@@ -32,7 +32,7 @@ import {
   JobType,
   FinishedStatus,
   FinishedPropValAttribute,
-  ScriptQueueContext,
+  KeepJobs,
   RedisJobOptions,
   JobProgress,
 } from '../types';
@@ -43,7 +43,7 @@ import {
   isRedisVersionLowerThan,
   objectToFlatArray,
 } from '../utils';
-import { ChainableCommander } from 'ioredis';
+import { IRedisTransaction } from '../interfaces';
 import { version as packageVersion } from '../version';
 import { UnrecoverableError } from './errors';
 export type JobData = [JobJsonRaw | number, string?];
@@ -74,19 +74,48 @@ export class Scripts {
     ];
   }
 
+  /**
+   * Executes a registered Lua script on the given Redis client, resolving the
+   * versioned command name (e.g. `addJob:<packageVersion>`) so the script
+   * belonging to the current BullMQ version is invoked.
+   *
+   * @param client - The Redis client or pipeline/transaction on which to run the command.
+   * @param commandName - The base name of the Lua script (without version suffix).
+   * @param args - Positional arguments forwarded to the Lua script (keys followed by argv).
+   * @returns The raw result produced by the Lua script.
+   *
+   * @private
+   */
   public execCommand(
-    client: RedisClient | ChainableCommander,
+    client: RedisClient | IRedisTransaction,
     commandName: string,
     args: any[],
-  ) {
+  ): any {
     const commandNameWithVersion = `${commandName}:${this.version}`;
-    return (<any>client)[commandNameWithVersion](args);
+    return client.runCommand(commandNameWithVersion, args);
   }
 
+  /**
+   * Checks whether a job with the given id is present in a Redis list
+   * (e.g. the wait or active list). Uses `LPOS` on Redis \>= 6.0.6, and
+   * falls back to a Lua script on older versions.
+   *
+   * @param listKey - The Redis list key to search.
+   * @param jobId - The job id to look up in the list.
+   * @returns `true` if the job is found in the list, `false` otherwise.
+   *
+   * @private
+   */
   async isJobInList(listKey: string, jobId: string): Promise<boolean> {
     const client = await this.queue.client;
     let result;
-    if (isRedisVersionLowerThan(this.queue.redisVersion, '6.0.6')) {
+    if (
+      isRedisVersionLowerThan(
+        this.queue.redisVersion,
+        '6.0.6',
+        this.queue.databaseType,
+      )
+    ) {
       result = await this.execCommand(client, 'isJobInList', [listKey, jobId]);
     } else {
       result = await client.lpos(listKey, jobId);
@@ -115,7 +144,7 @@ export class Scripts {
   }
 
   protected addDelayedJob(
-    client: RedisClient,
+    client: RedisClient | IRedisTransaction,
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
@@ -149,7 +178,7 @@ export class Scripts {
   }
 
   protected addPrioritizedJob(
-    client: RedisClient,
+    client: RedisClient | IRedisTransaction,
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
@@ -169,6 +198,7 @@ export class Scripts {
       queueKeys.meta,
       queueKeys.id,
       queueKeys.delayed,
+      queueKeys['waiting-children'],
       queueKeys.completed,
       queueKeys.events,
     ];
@@ -179,7 +209,7 @@ export class Scripts {
   }
 
   protected addParentJob(
-    client: RedisClient,
+    client: RedisClient | IRedisTransaction,
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
@@ -213,7 +243,7 @@ export class Scripts {
   }
 
   protected addStandardJob(
-    client: RedisClient,
+    client: RedisClient | IRedisTransaction,
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
@@ -224,7 +254,7 @@ export class Scripts {
   }
 
   async addJob(
-    client: RedisClient,
+    client: RedisClient | IRedisTransaction,
     job: JobJson,
     opts: RedisJobOptions,
     jobId: string,
@@ -240,7 +270,6 @@ export class Scripts {
       job.name,
       job.timestamp,
       job.parentKey || null,
-      parentKeyOpts.waitChildrenKey || null,
       parentKeyOpts.parentDependenciesKey || null,
       parent,
       job.repeatJobKey,
@@ -270,7 +299,7 @@ export class Scripts {
 
     let result: string | number;
 
-    if (parentKeyOpts.waitChildrenKey) {
+    if (parentKeyOpts.addToWaitingChildren) {
       result = await this.addParentJob(client, job, encodedOpts, args);
     } else if (typeof opts.delay == 'number' && opts.delay > 0) {
       result = await this.addDelayedJob(client, job, encodedOpts, args);
@@ -344,6 +373,22 @@ export class Scripts {
     return keys.concat(args);
   }
 
+  /**
+   * Adds (or updates) a repeatable job entry in the repeat zset and stores
+   * its repeat options under the corresponding repeat hash. If a previous
+   * delayed iteration for this repeat key exists, it is cleaned up so the
+   * next iteration can be scheduled separately when the job is created.
+   *
+   * @param customKey - The current repeat key identifying this repeatable job.
+   * @param nextMillis - The timestamp (ms since epoch) for the next run.
+   * @param opts - Repeatable options (cron/every pattern, tz, limit, etc.).
+   * @param legacyCustomKey - The previous/legacy repeat key, used for migration and cleanup.
+   * @returns The repeatable job key that was stored (either `customKey` or,
+   * for backwards-compatible entries, `legacyCustomKey`). The actual delayed
+   * iteration is scheduled later when the job for `nextMillis` is created.
+   *
+   * @private
+   */
   async addRepeatableJob(
     customKey: string,
     nextMillis: number,
@@ -361,6 +406,54 @@ export class Scripts {
     return this.execCommand(client, 'addRepeatableJob', args);
   }
 
+  /**
+   * Removes a deduplication key from Redis so that a new job with the same
+   * deduplication id can be enqueued again. The key is only removed if it
+   * currently maps to the provided `jobId`, preventing races between
+   * producers and finishing jobs.
+   *
+   * @param deduplicationId - The deduplication id whose key should be cleared.
+   * @param jobId - The id of the job that currently owns the dedup key.
+   * @returns `1` if the key was removed, `0` otherwise.
+   *
+   * @private
+   */
+  async removeDeduplicationKey(
+    deduplicationId: string,
+    jobId: string,
+  ): Promise<number> {
+    const client = await this.queue.client;
+    const queueKeys = this.queue.keys;
+
+    const keys: string[] = [`${queueKeys.de}:${deduplicationId}`];
+
+    const args = [jobId];
+
+    return this.execCommand(
+      client,
+      'removeDeduplicationKey',
+      keys.concat(args),
+    );
+  }
+
+  /**
+   * Registers a job scheduler and enqueues its next delayed iteration.
+   * The scheduler stores the template data/options so subsequent iterations
+   * can be produced automatically based on the repeat options.
+   *
+   * @param jobSchedulerId - The id that uniquely identifies this scheduler.
+   * @param nextMillis - Timestamp (ms since epoch) for the next iteration.
+   * @param templateData - Serialized template data reused for every iteration.
+   * @param templateOpts - Redis-encoded job options applied to every iteration.
+   * @param opts - Repeat options describing the scheduling pattern.
+   * @param delayedJobOpts - Options applied to the next delayed job that is produced.
+   * @param producerId - Optional id of the job that produced this iteration, used to prevent duplicates.
+   * @returns A tuple of `[jobId, delay]`, where `delay` is the computed delay in milliseconds
+   * for the next iteration. When `delay` is `0`, the job is enqueued immediately.
+   * @throws An error resolved from `finishedErrors` when the Lua script returns a negative status code.
+   *
+   * @private
+   */
   async addJobScheduler(
     jobSchedulerId: string,
     nextMillis: number,
@@ -370,7 +463,7 @@ export class Scripts {
     delayedJobOpts: JobsOptions,
     // The job id of the job that produced this next iteration
     producerId?: string,
-  ): Promise<string> {
+  ): Promise<[string, number]> {
     const client = await this.queue.client;
     const queueKeys = this.queue.keys;
 
@@ -400,7 +493,20 @@ export class Scripts {
       producerId ? this.queue.toKey(producerId) : '',
     ];
 
-    return this.execCommand(client, 'addJobScheduler', keys.concat(args));
+    const result = await this.execCommand(
+      client,
+      'addJobScheduler',
+      keys.concat(args),
+    );
+
+    if (typeof result === 'number' && result < 0) {
+      throw this.finishedErrors({
+        code: result,
+        command: 'addJobScheduler',
+      });
+    }
+
+    return result;
   }
 
   async updateRepeatableJobMillis(
@@ -559,7 +665,7 @@ export class Scripts {
     jobId: string,
     token: string,
     duration: number,
-    client?: RedisClient | ChainableCommander,
+    client?: RedisClient | IRedisTransaction,
   ): Promise<number> {
     client = client || (await this.queue.client);
     const args = [
@@ -586,6 +692,7 @@ export class Scripts {
       pack(jobIds),
       duration,
     ];
+
     return this.execCommand(client, 'extendLocks', args);
   }
 
@@ -733,8 +840,8 @@ export class Scripts {
     return typeof shouldRemove === 'object'
       ? shouldRemove
       : typeof shouldRemove === 'number'
-      ? { count: shouldRemove }
-      : { count: shouldRemove ? 0 : -1 };
+        ? { count: shouldRemove }
+        : { count: shouldRemove ? 0 : -1 };
   }
 
   async moveToFinished(
@@ -994,12 +1101,33 @@ export class Scripts {
       return this.queue.toKey(key);
     });
 
-    if (isRedisVersionLowerThan(this.queue.redisVersion, '6.0.6')) {
+    if (
+      isRedisVersionLowerThan(
+        this.queue.redisVersion,
+        '6.0.6',
+        this.queue.databaseType,
+      )
+    ) {
       return this.execCommand(client, 'getState', keys.concat([jobId]));
     }
     return this.execCommand(client, 'getStateV2', keys.concat([jobId]));
   }
 
+  /**
+   * Change delay of a delayed job.
+   *
+   * Reschedules a delayed job by setting a new delay from the current time.
+   * For example, calling changeDelay(5000) will reschedule the job to execute
+   * 5000 milliseconds (5 seconds) from now, regardless of the original delay.
+   *
+   * @param jobId - the ID of the job to change the delay for.
+   * @param delay - milliseconds from now when the job should be processed.
+   * @returns delay in milliseconds.
+   * @throws JobNotExist
+   * This exception is thrown if jobId is missing.
+   * @throws JobNotInState
+   * This exception is thrown if job is not in delayed state.
+   */
   async changeDelay(jobId: string, delay: number): Promise<void> {
     const client = await this.queue.client;
 
@@ -1078,6 +1206,8 @@ export class Scripts {
     opts: MoveToDelayedOpts = {},
   ): (string | number | Buffer)[] {
     const queueKeys = this.queue.keys;
+    const workerOpts: WorkerOptions = <WorkerOptions>this.queue.opts;
+
     const keys: (string | number | Buffer)[] = [
       queueKeys.marker,
       queueKeys.active,
@@ -1087,7 +1217,13 @@ export class Scripts {
       queueKeys.events,
       queueKeys.meta,
       queueKeys.stalled,
+      queueKeys.wait,
+      queueKeys.limiter,
+      queueKeys.paused,
+      queueKeys.pc,
     ];
+
+    const fetchNext = opts.fetchNext && !this.queue.closing ? 1 : 0;
 
     return keys.concat([
       this.queue.keys[''],
@@ -1098,6 +1234,15 @@ export class Scripts {
       opts.skipAttempt ? '1' : '0',
       opts.fieldsToUpdate
         ? pack(objectToFlatArray(opts.fieldsToUpdate))
+        : void 0,
+      fetchNext,
+      fetchNext
+        ? pack({
+            token,
+            lockDuration: workerOpts.lockDuration,
+            limiter: workerOpts.limiter,
+            name: workerOpts.name,
+          })
         : void 0,
     ]);
   }
@@ -1152,7 +1297,7 @@ export class Scripts {
     delay: number,
     token = '0',
     opts: MoveToDelayedOpts = {},
-  ): Promise<void> {
+  ): Promise<void | any[]> {
     const client = await this.queue.client;
 
     const args = this.moveToDelayedArgs(jobId, timestamp, token, delay, opts);
@@ -1165,6 +1310,8 @@ export class Scripts {
         command: 'moveToDelayed',
         state: 'active',
       });
+    } else if (typeof result !== 'undefined') {
+      return raw2NextJobData(result);
     }
   }
 
@@ -1209,7 +1356,10 @@ export class Scripts {
   }
 
   getRateLimitTtlArgs(maxJobs?: number): (string | number)[] {
-    const keys: (string | number)[] = [this.queue.keys.limiter];
+    const keys: (string | number)[] = [
+      this.queue.keys.limiter,
+      this.queue.keys.meta,
+    ];
 
     return keys.concat([maxJobs ?? '0']);
   }
@@ -1356,19 +1506,20 @@ export class Scripts {
   /**
    * Attempts to reprocess a job
    *
-   * @param job -
+   * @param job - The job to reprocess
    * @param state - The expected job state. If the job is not found
    * on the provided state, then it's not reprocessed. Supported states: 'failed', 'completed'
    *
-   * @returns Returns a promise that evaluates to a return code:
-   * 1 means the operation was a success
-   * 0 means the job does not exist
-   * -1 means the job is currently locked and can't be retried.
-   * -2 means the job was not found in the expected set
+   * @returns A promise that resolves when the job has been successfully moved to the wait queue.
+   * @throws Will throw an error with a code property indicating the failure reason:
+   *   - code 0: Job does not exist
+   *   - code -1: Job is currently locked and can't be retried
+   *   - code -2: Job was not found in the expected set
    */
   async reprocessJob<T = any, R = any, N extends string = string>(
     job: MinimalJob<T, R, N>,
     state: 'failed' | 'completed',
+    opts: RetryOptions = {},
   ): Promise<void> {
     const client = await this.queue.client;
 
@@ -1388,6 +1539,8 @@ export class Scripts {
       (job.opts.lifo ? 'R' : 'L') + 'PUSH',
       state === 'failed' ? 'failedReason' : 'returnvalue',
       state,
+      opts.resetAttemptsMade ? '1' : '0',
+      opts.resetAttemptsStarted ? '1' : '0',
     ];
 
     const result = await this.execCommand(
@@ -1407,6 +1560,28 @@ export class Scripts {
           state,
         });
     }
+  }
+
+  async getMetrics(
+    type: 'completed' | 'failed',
+    start = 0,
+    end = -1,
+  ): Promise<[string[], string[], number]> {
+    const client = await this.queue.client;
+
+    const keys: (string | number)[] = [
+      this.queue.toKey(`metrics:${type}`),
+      this.queue.toKey(`metrics:${type}:data`),
+    ];
+    const args = [start, end];
+
+    const result = await this.execCommand(
+      client,
+      'getMetrics',
+      keys.concat(args),
+    );
+
+    return result;
   }
 
   async moveToActive(client: RedisClient, token: string, name?: string) {
@@ -1681,38 +1856,85 @@ export class Scripts {
     command: string;
     state?: string;
   }): Error {
+    let error: Error;
     switch (code) {
       case ErrorCode.JobNotExist:
-        return new Error(`Missing key for job ${jobId}. ${command}`);
+        error = new Error(`Missing key for job ${jobId}. ${command}`);
+        break;
       case ErrorCode.JobLockNotExist:
-        return new Error(`Missing lock for job ${jobId}. ${command}`);
+        error = new Error(`Missing lock for job ${jobId}. ${command}`);
+        break;
       case ErrorCode.JobNotInState:
-        return new Error(
+        error = new Error(
           `Job ${jobId} is not in the ${state} state. ${command}`,
         );
+        break;
       case ErrorCode.JobPendingChildren:
-        return new Error(`Job ${jobId} has pending dependencies. ${command}`);
+        error = new Error(`Job ${jobId} has pending dependencies. ${command}`);
+        break;
       case ErrorCode.ParentJobNotExist:
-        return new Error(`Missing key for parent job ${parentKey}. ${command}`);
+        error = new Error(
+          `Missing key for parent job ${parentKey}. ${command}`,
+        );
+        break;
       case ErrorCode.JobLockMismatch:
-        return new Error(
+        error = new Error(
           `Lock mismatch for job ${jobId}. Cmd ${command} from ${state}`,
         );
+        break;
       case ErrorCode.ParentJobCannotBeReplaced:
-        return new Error(
+        error = new Error(
           `The parent job ${parentKey} cannot be replaced. ${command}`,
         );
+        break;
       case ErrorCode.JobBelongsToJobScheduler:
-        return new Error(
+        error = new Error(
           `Job ${jobId} belongs to a job scheduler and cannot be removed directly. ${command}`,
         );
+        break;
       case ErrorCode.JobHasFailedChildren:
-        return new UnrecoverableError(
+        error = new UnrecoverableError(
           `Cannot complete job ${jobId} because it has at least one failed child. ${command}`,
         );
+        break;
+      case ErrorCode.SchedulerJobIdCollision:
+        error = new Error(
+          `Cannot create job scheduler iteration - job ID already exists. ${command}`,
+        );
+        break;
+      case ErrorCode.SchedulerJobSlotsBusy:
+        error = new Error(
+          `Cannot create job scheduler iteration - current and next time slots already have jobs. ${command}`,
+        );
+        break;
       default:
-        return new Error(`Unknown code ${code} error for ${jobId}. ${command}`);
+        error = new Error(
+          `Unknown code ${code} error for ${jobId}. ${command}`,
+        );
     }
+
+    // Add the code property to the error object
+    (error as any).code = code;
+    return error;
+  }
+
+  async removeOrphanedJobs(
+    candidateJobIds: string[],
+    stateKeySuffixes: string[],
+    jobSubKeySuffixes: string[],
+  ): Promise<number> {
+    const client = await this.queue.client;
+
+    const args: (string | number)[] = [
+      this.queue.toKey(''),
+      stateKeySuffixes.length,
+      ...stateKeySuffixes,
+      jobSubKeySuffixes.length,
+      ...jobSubKeySuffixes,
+      ...candidateJobIds,
+    ];
+
+    return this.execCommand(client, 'removeOrphanedJobs', args);
   }
 }
 

@@ -17,10 +17,6 @@ if TYPE_CHECKING:
 import time
 import json
 import msgpack
-import os
-
-
-basePath = os.path.dirname(os.path.realpath(__file__))
 
 
 class Scripts:
@@ -31,36 +27,7 @@ class Scripts:
         self.keys = {}
         self.redisConnection = redisConnection
         self.redisClient = redisConnection.conn
-        self.commands = {
-            "addStandardJob": self.redisClient.register_script(self.getScript("addStandardJob-9.lua")),
-            "addDelayedJob": self.redisClient.register_script(self.getScript("addDelayedJob-6.lua")),
-            "addParentJob": self.redisClient.register_script(self.getScript("addParentJob-5.lua")),
-            "addPrioritizedJob": self.redisClient.register_script(self.getScript("addPrioritizedJob-9.lua")),
-            "changePriority": self.redisClient.register_script(self.getScript("changePriority-7.lua")),
-            "cleanJobsInSet": self.redisClient.register_script(self.getScript("cleanJobsInSet-3.lua")),
-            "extendLock": self.redisClient.register_script(self.getScript("extendLock-2.lua")),
-            "getCounts": self.redisClient.register_script(self.getScript("getCounts-1.lua")),
-            "getCountsPerPriority": self.redisClient.register_script(self.getScript("getCountsPerPriority-4.lua")),
-            "getRanges": self.redisClient.register_script(self.getScript("getRanges-1.lua")),
-            "getState": self.redisClient.register_script(self.getScript("getState-8.lua")),
-            "getStateV2": self.redisClient.register_script(self.getScript("getStateV2-8.lua")),
-            "isJobInList": self.redisClient.register_script(self.getScript("isJobInList-1.lua")),
-            "moveStalledJobsToWait": self.redisClient.register_script(self.getScript("moveStalledJobsToWait-8.lua")),
-            "moveToActive": self.redisClient.register_script(self.getScript("moveToActive-11.lua")),
-            "moveToDelayed": self.redisClient.register_script(self.getScript("moveToDelayed-8.lua")),
-            "moveToFinished": self.redisClient.register_script(self.getScript("moveToFinished-14.lua")),
-            "moveToWaitingChildren": self.redisClient.register_script(self.getScript("moveToWaitingChildren-7.lua")),
-            "obliterate": self.redisClient.register_script(self.getScript("obliterate-2.lua")),
-            "pause": self.redisClient.register_script(self.getScript("pause-7.lua")),
-            "promote": self.redisClient.register_script(self.getScript("promote-9.lua")),
-            "removeJob": self.redisClient.register_script(self.getScript("removeJob-2.lua")),
-            "reprocessJob": self.redisClient.register_script(self.getScript("reprocessJob-8.lua")),
-            "retryJob": self.redisClient.register_script(self.getScript("retryJob-11.lua")),
-            "moveJobsToWait": self.redisClient.register_script(self.getScript("moveJobsToWait-8.lua")),
-            "saveStacktrace": self.redisClient.register_script(self.getScript("saveStacktrace-1.lua")),
-            "updateData": self.redisClient.register_script(self.getScript("updateData-1.lua")),
-            "updateProgress": self.redisClient.register_script(self.getScript("updateProgress-3.lua")),
-        }
+        self.commands = redisConnection.commands
 
         self.queue_keys = QueueKeys(prefix)
         self.keys = self.queue_keys.getKeys(queueName)
@@ -72,35 +39,64 @@ class Scripts:
     def toKey(self, name: str):
         return self.queue_keys.toKey(self.queueName, name)
 
-    def getScript(self, name: str):
-        """
-        Get a script by name
-        """
-        file = open(f"{basePath}/commands/{name}", "r")
-        data = file.read()
-        file.close()
-        return data
-
     def getKeys(self, keys: list[str]):
         def mapKey(key):
             return self.keys[key]
         return list(map(mapKey, keys))
 
-    def addJobArgs(self, job: Job, waiting_children_key: str|None):
-        #  We are still lacking some arguments here:
+    def encodeOpts(self, opts: dict) -> dict:
+        """
+        Encode options keys from long form to short form for Redis storage.
+        For example: 'deduplication' -> 'de', 'failParentOnFailure' -> 'fpof'
+        """
+        from bullmq.job import optsEncodeMap
+        
+        encoded = {}
+        for key, value in opts.items():
+            # Use encoded key if available, otherwise use original key
+            encoded_key = optsEncodeMap.get(key, key)
+            encoded[encoded_key] = value
+        return encoded
+
+    def addJobArgs(self, job: Job):
         #  ARGV[1] msgpacked arguments array
-        #         [9]  repeat job key
+        #         [1]  key prefix,
+        #         [2]  custom id (will not generate one automatically)
+        #         [3]  name
+        #         [4]  timestamp
+        #         [5]  parentKey?
+        #         [6]  parent dependencies key.
+        #         [7]  parent? {id, queueKey}
+        #         [8]  repeat job key
+        #         [9]  deduplication key
 
         jsonData = json.dumps(job.data, separators=(',', ':'), allow_nan=False)
-        packedOpts = msgpack.packb(job.opts)
+        
+        # Encode opts keys before packing
+        encodedOpts = self.encodeOpts(job.opts)
+        packedOpts = msgpack.packb(encodedOpts)
 
         parent = job.parent
         parentKey = job.parentKey
+        
+        # Build deduplication key if deduplication ID exists
+        deduplicationKey = None
+        if job.deduplication_id:
+            deduplicationKey = f"{self.keys['']}de:{job.deduplication_id}"
 
         packedArgs = msgpack.packb(
-            [self.keys[""], job.id or "", job.name, job.timestamp, job.parentKey,
-                waiting_children_key,
-                f"{parentKey}:dependencies" if parentKey else None, parent],use_bin_type=True)
+            [
+                self.keys[""],                                              # [1] key prefix
+                job.id or "",                                               # [2] custom id
+                job.name,                                                   # [3] name
+                job.timestamp,                                              # [4] timestamp
+                job.parentKey,                                              # [5] parentKey
+                f"{parentKey}:dependencies" if parentKey else None,         # [6] parent dependencies key
+                parent,                                                     # [7] parent {id, queueKey}
+                job.repeatJobKey,                                           # [8] repeat job key
+                deduplicationKey                                            # [9] deduplication key
+            ],
+            use_bin_type=True)
         
         return [packedArgs, jsonData, packedOpts]
 
@@ -131,7 +127,7 @@ class Scripts:
         """
         keys = self.getKeys(['wait', 'paused', 'meta', 'id', 'completed',
                              'delayed', 'active', 'events', 'marker'])
-        args = self.addJobArgs(job, None)
+        args = self.addJobArgs(job)
         args.append(timestamp)
 
         return self.commands["addStandardJob"](keys=keys, args=args, client=pipe)
@@ -142,7 +138,7 @@ class Scripts:
         """
         keys = self.getKeys(['marker', 'meta', 'id',
                             'delayed', 'completed', 'events'])
-        args = self.addJobArgs(job, None)
+        args = self.addJobArgs(job)
         args.append(timestamp)
 
         return self.commands["addDelayedJob"](keys=keys, args=args, client=pipe)
@@ -153,18 +149,18 @@ class Scripts:
         """
         keys = self.getKeys(['marker', 'meta', 'id', 'prioritized',
                              'delayed', 'completed', 'active', 'events', 'pc'])
-        args = self.addJobArgs(job, None)
+        args = self.addJobArgs(job)
         args.append(timestamp)
 
         return self.commands["addPrioritizedJob"](keys=keys, args=args, client=pipe)
 
-    def addParentJob(self, job: Job, waiting_children_key: str, pipe = None):
+    def addParentJob(self, job: Job, pipe = None):
         """
         Add a job to the queue that is a parent
         """
-        keys = self.getKeys(['meta', 'id', 'delayed', 'completed', 'events'])
-        
-        args = self.addJobArgs(job, waiting_children_key)
+        keys = self.getKeys(['meta', 'id', 'delayed', 'waiting-children', 'completed', 'events'])
+
+        args = self.addJobArgs(job)
 
         return self.commands["addParentJob"](keys=keys, args=args, client=pipe)
 
@@ -229,7 +225,7 @@ class Scripts:
             "completed": "zrange",
             "delayed": "zrange",
             "failed": "zrange",
-            "priority": "zrange",
+            "prioritized": "zrange",
             "repeat": "zrange",
             "waiting-children": "zrange",
             "active": "lrange",
@@ -251,7 +247,8 @@ class Scripts:
             result = response or []
 
             if asc and commands[i] == "lrange":
-                results+=result.reverse()
+                result.reverse()
+                results+=result
             else:
                 results+=result
 
@@ -304,11 +301,29 @@ class Scripts:
         keys.append(self.keys['events'])
         keys.append(self.keys['meta'])
         keys.append(self.keys['stalled'])
+        keys.append(self.keys['wait'])
+        keys.append(self.keys['limiter'])
+        keys.append(self.keys['paused'])
+        keys.append(self.keys['pc'])
+
+        fetch_next = opts.get("fetchNext", False)
 
         args = [self.keys[''], str(timestamp),
                 job_id, token, delay, "1" if opts.get("skipAttempt") else "0"]
         if opts.get("fieldsToUpdate"):
             args.append(msgpack.packb(object_to_flat_array(opts.get("fieldsToUpdate")), use_bin_type=True))
+        else:
+            # Use empty string as placeholder so ARGV positions remain stable and redis-py accepts the args
+            args.append("")
+
+        args.append("1" if fetch_next else "0")
+        if fetch_next:
+            worker_opts = opts.get("workerOpts", {})
+            args.append(msgpack.packb({
+                "token": token,
+                "lockDuration": worker_opts.get("lockDuration", 0),
+                "limiter": worker_opts.get("limiter", None),
+            }, use_bin_type=True))
 
         return (keys, args)
 
@@ -317,14 +332,16 @@ class Scripts:
 
         result = await self.commands["moveToDelayed"](keys=keys, args=args)
 
-        if type(result) == int:
-            if result < 0:
+        if result is not None:
+            if type(result) == int and result < 0:
                 raise self.finishedErrors({
                     "code": result,
                     "jobId": job_id,
                     "command": 'moveToDelayed',
                     "state": 'active'
                     })
+            if type(result) != int:
+                return raw2NextJobData(result)
         return None
 
     def promoteArgs(self, job_id: str):
@@ -445,7 +462,7 @@ class Scripts:
                     })
         return None
 
-    async def reprocessJob(self, job: Job, state: str):
+    async def reprocessJob(self, job: Job, state: str, opts: dict = {}):
         keys = [self.toKey(job.id)]
         keys.append(self.keys['events'])
         keys.append(self.keys[state])
@@ -459,7 +476,9 @@ class Scripts:
             job.id,
             ("R" if job.opts.get("lifo") else "L") + "PUSH",
             "failedReason" if state == "failed" else "returnvalue",
-            state
+            state,
+            "1" if opts.get("resetAttemptsMade") else "0",
+            "1" if opts.get("resetAttemptsStarted") else "0"
             ]
 
         result = await self.commands["reprocessJob"](keys=keys, args=args)
@@ -488,13 +507,24 @@ class Scripts:
         Remove a queue completely
         """
         keys = self.getKeys(['meta', ''])
-        result = await self.commands["obliterate"](keys, args=[count, force or ""])
+        result = await self.commands["obliterate"](keys, args=[count, "force" if force else ""])
         if (result < 0):
             if (result == -1):
                 raise Exception("Cannot obliterate non-paused queue")
             if (result == -2):
                 raise Exception("Cannot obliterate queue with active jobs")
         return result
+
+    async def drain(self, delayed: bool = False):
+        """
+        Drains the queue, removes all jobs that are waiting
+        or delayed, but not active, completed or failed.
+        
+        @param delayed: Pass True if it should also clean the delayed jobs.
+        """
+        keys = self.getKeys(['wait', 'paused', 'delayed', 'prioritized', 'repeat'])
+        args = [self.keys[''], '1' if delayed else '0']
+        await self.commands["drain"](keys, args=args)
 
     def moveJobsToWaitArgs(self, state: str, count: int, timestamp: int) -> int:
         keys = self.getKeys(
@@ -597,9 +627,10 @@ class Scripts:
             "attempts": job.attempts,
             "attemptsMade": job.attemptsMade,
             "maxMetricsSize": getMetricsSize(opts),
-            "fpof": opts.get("failParentOnFailure", False),
-            "cpof": opts.get("continueParentOnFailure", False),
-            "idof": opts.get("ignoreDependencyOnFailure", False)
+            "fpof": job.opts.get("failParentOnFailure", False),
+            "cpof": job.opts.get("continueParentOnFailure", False),
+            "idof": job.opts.get("ignoreDependencyOnFailure", False),
+            "rdof": job.opts.get("removeDependencyOnFailure", False)
         }, use_bin_type=True)
 
         args = [job.id, timestamp, propVal, transformed_value or "", target,

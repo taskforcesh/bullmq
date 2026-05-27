@@ -1,25 +1,24 @@
 import { EventEmitter } from 'events';
-import { Redis, ChainableCommander } from 'ioredis';
-import { v4 } from 'uuid';
 import {
   FlowJob,
   FlowQueuesOpts,
   FlowOpts,
   IoredisListener,
+  IRedisTransaction,
   ParentOptions,
   QueueBaseOptions,
   RedisClient,
   Tracer,
   ContextManager,
 } from '../interfaces';
-import { getParentKey, isRedisInstance, trace } from '../utils';
+import { getParentKey, isRedisInstance, randomUUID, trace } from '../utils';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { RedisConnection } from './redis-connection';
-import { SpanKind, TelemetryAttributes } from '../enums';
+import { ErrorCode, SpanKind, TelemetryAttributes } from '../enums';
 
 export interface AddNodeOpts {
-  multi: ChainableCommander;
+  multi: IRedisTransaction;
   node: FlowJob;
   parent?: {
     parentOpts: ParentOptions;
@@ -32,7 +31,7 @@ export interface AddNodeOpts {
 }
 
 export interface AddChildrenOpts {
-  multi: ChainableCommander;
+  multi: IRedisTransaction;
   nodes: FlowJob[];
   parent: {
     parentOpts: ParentOptions;
@@ -223,7 +222,22 @@ export class FlowProducer extends EventEmitter {
           },
         });
 
-        await multi.exec();
+        const results = (await multi.exec()) as
+          | [null | Error, string | number][]
+          | null;
+        const [result] = results || [];
+        if (result) {
+          const [err, jobId] = result;
+          if (err) {
+            throw err;
+          }
+          if (typeof jobId === 'number' && jobId < 0) {
+            throw this.toFlowError(jobId, parentKey);
+          }
+          if (typeof jobId === 'string') {
+            jobsTree.job.id = jobId;
+          }
+        }
 
         return jobsTree;
       },
@@ -291,7 +305,20 @@ export class FlowProducer extends EventEmitter {
 
         const jobsTrees = await this.addNodes(multi, flows);
 
-        await multi.exec();
+        const results = (await multi.exec()) as
+          | [null | Error, string | number][]
+          | null;
+        for (let index = 0; index < jobsTrees.length; ++index) {
+          const result = results?.[index];
+          if (!result) {
+            continue;
+          }
+
+          const [err, jobId] = result;
+          if (!err && typeof jobId === 'string') {
+            jobsTrees[index].job.id = jobId;
+          }
+        }
 
         return jobsTrees;
       },
@@ -304,7 +331,7 @@ export class FlowProducer extends EventEmitter {
    * a parent and a child job at the same time depending on where it is located
    * in the tree hierarchy.
    *
-   * @param multi - ioredis ChainableCommander
+   * @param multi - IRedisTransaction
    * @param node - the node representing a job to be added to some queue
    * @param parent - parent data sent to children to create the "links" to their parent
    * @returns
@@ -320,7 +347,7 @@ export class FlowProducer extends EventEmitter {
     const queueOpts = queuesOpts && queuesOpts[node.queueName];
 
     const jobsOpts = queueOpts?.defaultJobOptions ?? {};
-    const jobId = node.opts?.jobId || v4();
+    const jobId = node.opts?.jobId || randomUUID();
 
     return trace<Promise<JobNode>>(
       this.telemetry,
@@ -328,7 +355,7 @@ export class FlowProducer extends EventEmitter {
       node.queueName,
       'addNode',
       node.queueName,
-      async (span, srcPropagationMedatada) => {
+      async (span, srcPropagationMetadata) => {
         span?.setAttributes({
           [TelemetryAttributes.JobName]: node.name,
           [TelemetryAttributes.JobId]: jobId,
@@ -336,11 +363,11 @@ export class FlowProducer extends EventEmitter {
         const opts = node.opts;
         let telemetry = opts?.telemetry;
 
-        if (srcPropagationMedatada && opts) {
+        if (srcPropagationMetadata && opts) {
           const omitContext = opts.telemetry?.omitContext;
           const telemetryMetadata =
             opts.telemetry?.metadata ||
-            (!omitContext && srcPropagationMedatada);
+            (!omitContext && srcPropagationMetadata);
 
           if (telemetryMetadata || omitContext) {
             telemetry = {
@@ -371,14 +398,10 @@ export class FlowProducer extends EventEmitter {
           const queueKeysParent = new QueueKeys(
             node.prefix || this.opts.prefix,
           );
-          const waitChildrenKey = queueKeysParent.toKey(
-            node.queueName,
-            'waiting-children',
-          );
 
-          await job.addJob(<Redis>(multi as unknown), {
+          await job.addJob(multi, {
             parentDependenciesKey: parent?.parentDependenciesKey,
-            waitChildrenKey,
+            addToWaitingChildren: true,
             parentKey,
           });
 
@@ -402,7 +425,7 @@ export class FlowProducer extends EventEmitter {
 
           return { job, children };
         } else {
-          await job.addJob(<Redis>(multi as unknown), {
+          await job.addJob(multi, {
             parentDependenciesKey: parent?.parentDependenciesKey,
             parentKey,
           });
@@ -419,12 +442,12 @@ export class FlowProducer extends EventEmitter {
    * a parent and a child job at the same time depending on where it is located
    * in the tree hierarchy.
    *
-   * @param multi - ioredis ChainableCommander
+   * @param multi - IRedisTransaction
    * @param nodes - the nodes representing jobs to be added to some queue
    * @returns
    */
   protected addNodes(
-    multi: ChainableCommander,
+    multi: IRedisTransaction,
     nodes: FlowJob[],
   ): Promise<JobNode[]> {
     return Promise.all(
@@ -531,9 +554,10 @@ export class FlowProducer extends EventEmitter {
    * Helper factory method that creates a queue-like object
    * required to create jobs in any queue.
    *
-   * @param node -
-   * @param queueKeys -
-   * @returns
+   * @param node - The flow node containing the queue name and other job options.
+   * @param queueKeys - The queue keys helper used to resolve key names.
+   * @param prefix - The Redis key prefix used for the queue.
+   * @returns A queue-like object with the client, keys, and options needed to create jobs.
    */
   private queueFromNode(
     node: Omit<NodeOpts, 'id' | 'depth' | 'maxChildren'>,
@@ -553,8 +577,33 @@ export class FlowProducer extends EventEmitter {
       emit: this.emit.bind(this) as any,
       on: this.on.bind(this) as any,
       redisVersion: this.connection.redisVersion,
+      databaseType: this.connection.databaseType,
       trace: async (): Promise<any> => {},
     };
+  }
+
+  /**
+   * Translates numeric addJob Lua error codes returned by root flow exec.
+   *
+   * @param code - Numeric error code returned from Redis.
+   * @param parentKey - Parent key for contextual error messages.
+   */
+  private toFlowError(code: number, parentKey?: string): Error {
+    let error: Error;
+    switch (code) {
+      case ErrorCode.ParentJobNotExist:
+        error = new Error(`Missing key for parent job ${parentKey}. addJob`);
+        break;
+      case ErrorCode.ParentJobCannotBeReplaced:
+        error = new Error(
+          `The parent job ${parentKey} cannot be replaced. addJob`,
+        );
+        break;
+      default:
+        error = new Error(`Unknown code ${code} error for addJob`);
+    }
+    (error as any).code = code;
+    return error;
   }
 
   /**

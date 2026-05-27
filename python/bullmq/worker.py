@@ -1,5 +1,10 @@
 from typing import Callable
 from uuid import uuid4
+from redis.exceptions import (
+    BusyLoadingError,
+    ConnectionError as RedisConnectionError,
+    TimeoutError as RedisTimeoutError,
+)
 from bullmq.custom_errors import UnrecoverableError, WaitingChildrenError
 from bullmq.scripts import Scripts
 from bullmq.redis_connection import RedisConnection
@@ -10,6 +15,8 @@ from bullmq.types import WorkerOptions
 from bullmq.utils import extract_result
 
 import asyncio
+import errno
+import re
 import traceback
 import time
 import math
@@ -19,6 +26,45 @@ maximum_block_timeout = 10
 # Obviously we can still process much faster than 1 job per millisecond but delays and
 # rate limits will never work with more accuracy than 1ms.
 minimum_block_timeout = 0.001
+
+# Short delay (in seconds) used to space out retries after a transient error
+# in the main worker loop. Mirrors the DELAY_TIME_1 constant used by the
+# Node.js implementation for the same purpose.
+short_retry_delay = 0.1
+
+# Errnos that indicate a transient/retryable network failure. Used by
+# Worker.isConnectionError to classify bare OSErrors raised before the
+# redis client has a chance to wrap them.
+TRANSIENT_ERRNOS = {
+    getattr(errno, name)
+    for name in ("ECONNREFUSED", "ECONNRESET", "ENETUNREACH",
+                 "EHOSTUNREACH", "EPIPE")
+    if hasattr(errno, name)
+}
+
+# asyncio aggregates per-host connect attempts into a single OSError
+# whose message looks like "Multiple exceptions: [Errno 61] Connect call
+# failed ('127.0.0.1', 6379)". In that case error.errno is None, so we
+# extract the embedded errno from the message instead.
+_ERRNO_PATTERN = re.compile(r"\[Errno (\d+)\]")
+
+# Mnemonics / human-readable fragments that the OS, asyncio, or hiredis
+# emit for the same transient failures we treat as connection errors via
+# TRANSIENT_ERRNOS. Mirrors Node's `errorMessage.includes(...)` check —
+# some Python OSError instances carry only the mnemonic string and have
+# neither error.errno nor a "[Errno N]" embedded in the message.
+_TRANSIENT_MESSAGE_FRAGMENTS = (
+    "ECONNREFUSED",
+    "ECONNRESET",
+    "ENETUNREACH",
+    "EHOSTUNREACH",
+    "EPIPE",
+    "Connection refused",
+    "Connection reset",
+    "Network is unreachable",
+    "No route to host",
+    "Broken pipe",
+)
 
 
 class Worker(EventEmitter):
@@ -32,12 +78,20 @@ class Worker(EventEmitter):
             "lockDuration": 30000,
             "maxStalledCount": 1,
             "stalledInterval": 30000,
+            "runRetryDelay": 15000,
         }
         final_opts.update(opts or {})
         self.opts = final_opts
         redis_opts = opts.get("connection", {})
-        self.redisConnection = RedisConnection(redis_opts)
-        self.blockingRedisConnection = RedisConnection(redis_opts)
+        skip_version_check = opts.get("skipVersionCheck", False)
+        self.redisConnection = RedisConnection(
+            redis_opts,
+            skipVersionCheck=skip_version_check,
+        )
+        self.blockingRedisConnection = RedisConnection(
+            redis_opts,
+            skipVersionCheck=skip_version_check,
+        )
         self.client = self.redisConnection.conn
         self.bclient = self.blockingRedisConnection.conn
         self.prefix = opts.get("prefix", "bull")
@@ -46,6 +100,7 @@ class Worker(EventEmitter):
         self.forceClosing = False
         self.closed = False
         self.running = False
+        self.paused = False
         self.processing = set()
         self.jobs = set()
         self.id = uuid4().hex
@@ -54,6 +109,9 @@ class Worker(EventEmitter):
         self.limitUntil = 0
         self.drained = False
         self.qualifiedName = self.scripts.queue_keys.getQueueQualifiedName(name)
+        self.workerName = opts.get("name")
+        self.clientName = self.qualifiedName + (f":w:{self.workerName}" if self.workerName else "")
+        self._client_name_set = False
 
         if processor:
             if opts.get("autorun", True):
@@ -62,6 +120,8 @@ class Worker(EventEmitter):
     async def run(self):
         if self.running:
             raise Exception("Worker is already running")
+
+        await self._ensure_client_names()
 
         self.timer = Timer(
             (self.opts.get("lockDuration") / 2) / 1000, self.extendLocks, self.emit)
@@ -76,7 +136,20 @@ class Worker(EventEmitter):
             while not self.waiting and len(self.processing) < self.opts.get("concurrency") and not self.closing:
                 token_postfix+=1
                 token = f'{self.id}:{token_postfix}'
-                waiting_job = asyncio.ensure_future(self.getNextJob(token))
+                
+                # Use retryIfFailed to wrap getNextJob call, similar to TypeScript worker
+                async def get_next_job_wrapped():
+                    return await self.getNextJob(token)
+                
+                waiting_job = asyncio.ensure_future(
+                    self.retryIfFailed(
+                        get_next_job_wrapped,
+                        {
+                            "delay_in_ms": self.opts.get("runRetryDelay"),
+                            "only_emit_error": True,
+                        }
+                    )
+                )
                 self.processing.add(waiting_job)
 
             try:
@@ -107,6 +180,8 @@ class Worker(EventEmitter):
         @param token: worker token to be assigned to retrieved job
         @returns a Job or undefined if no job was available in the queue.
         """
+        await self._ensure_client_names()
+        job_instance = None
         if not self.waiting and self.drained:
             self.waiting = self.waitForJob()
 
@@ -116,11 +191,13 @@ class Worker(EventEmitter):
 
                 if self.blockUntil <= 0 or self.blockUntil <= timestamp:
                     job_instance = await self.moveToActive(token)
-                    return job_instance
             finally:
                 self.waiting = None
         else:
             job_instance = await self.moveToActive(token)
+
+        if job_instance:
+            self.emit("active", job_instance, "waiting")
             return job_instance
 
     async def moveToActive(self, token: str):
@@ -135,8 +212,8 @@ class Worker(EventEmitter):
 
         return self.nextJobFromJobData(job_data, id, limit_until, delay_until, token)
 
-    def nextJobFromJobData(self, job_data = None, job_id: str = None, limit_until: int = 0,
-        delay_until: int = 0, token: str = None):
+    def nextJobFromJobData(self, job_data: dict | None = None, job_id: str | None = None, limit_until: int = 0,
+        delay_until: int = 0, token: str | None = None) -> Job | None:
         self.limitUntil = max(limit_until, 0) or 0
 
         if not job_data:
@@ -153,11 +230,31 @@ class Worker(EventEmitter):
             job_instance.token = token
             return job_instance
 
-    async def waitForJob(self):
+    async def waitForJob(self) -> int:
         block_timeout = self.getBlockTimeout(self.blockUntil)
         block_timeout = block_timeout if self.blockingRedisConnection.capabilities.get("canDoubleTimeout", False) else math.ceil(block_timeout)
 
-        result = await self.bclient.bzpopmin(self.scripts.keys["marker"], block_timeout)
+        try:
+            result = await self.bclient.bzpopmin(self.scripts.keys["marker"], block_timeout)
+        except (asyncio.CancelledError, KeyboardInterrupt, SystemExit):
+            # Cooperative cancellation must propagate immediately;
+            # adding a sleep here would defeat the cancel signal.
+            raise
+        except Exception as err:
+            # Short-sleep before re-raising connection errors so the outer
+            # retryIfFailed loop cannot spin at full CPU while Redis is
+            # unavailable. Programmer errors and other non-connection
+            # exceptions propagate immediately so real bugs surface fast
+            # instead of being throttled to one-per-100ms. The error
+            # itself is emitted exactly once by retryIfFailed when it
+            # propagates up the run() call chain.
+            if (
+                self.isConnectionError(err)
+                and not self.closing
+                and not self.closed
+            ):
+                await asyncio.sleep(short_retry_delay)
+            raise
         if result:
             [_key, member, score] = result
 
@@ -167,7 +264,15 @@ class Worker(EventEmitter):
                 return 0
         return 0
 
-    def getBlockTimeout(self, block_until: int):
+    async def _ensure_client_names(self):
+        if self._client_name_set:
+            return
+
+        await self.redisConnection.set_client_name(self.clientName)
+        await self.blockingRedisConnection.set_client_name(self.clientName)
+        self._client_name_set = True
+
+    def getBlockTimeout(self, block_until: int) -> float:
         if block_until:
             block_timeout = None
             block_delay = block_until - int(time.time() * 1000)
@@ -185,20 +290,24 @@ class Worker(EventEmitter):
     @property
     def minimumBlockTimeout(self):
         return minimum_block_timeout if self.blockingRedisConnection.capabilities.get("canBlockFor1Ms", True) else 0.002
-        
 
     async def processJob(self, job: Job, token: str):
         try:
+            # Set worker-level remove options on job if not already set
+            if "removeOnComplete" not in job.opts and "removeOnComplete" in self.opts:
+                job.opts["removeOnComplete"] = self.opts["removeOnComplete"]
+            if "removeOnFail" not in job.opts and "removeOnFail" in self.opts:
+                job.opts["removeOnFail"] = self.opts["removeOnFail"]
+
+            self.jobs.add((job, token))
+            
             if job.deferredFailure:
                 await job.moveToFailed(UnrecoverableError(job.deferredFailure), token)
                 self.emit("failed", job, UnrecoverableError(job.deferredFailure))
                 return
 
-            self.jobs.add((job, token))
             result = await self.processor(job, token)
             if not self.forceClosing:
-                # Currently we do not support pre-fetching jobs as in NodeJS version.
-                # nextJob = await self.scripts.moveToCompleted(job, result, job.opts.get("removeOnComplete", False), token, fetchNext=not self.closing)
                 await self.scripts.moveToCompleted(job, result, job.opts.get("removeOnComplete", False), token, fetchNext=False)
                 job.returnvalue = result
                 job.attemptsMade = job.attemptsMade + 1
@@ -214,7 +323,104 @@ class Worker(EventEmitter):
             except Exception as err:
                 self.emit("error", err, job)
         finally:
-            self.jobs.remove((job, token))
+            self.jobs.discard((job, token))
+
+    async def retryIfFailed(self, fn, opts=None):
+        """
+        Retry a coroutine function if it fails, with delay and max retries.
+        :param fn: Coroutine function to execute.
+        :param opts: Dictionary with options:
+            - delay_in_ms: Delay between retries in milliseconds.
+            - max_retries: Maximum number of retries.
+            - only_emit_error: If True, only emit error and do not raise.
+        """
+        if opts is None:
+            opts = {}
+        delay_in_ms = opts.get("delay_in_ms", 15000)
+        max_retries = opts.get("max_retries", float('inf'))
+        only_emit_error = opts.get("only_emit_error", False)
+
+        retry = 0
+        while retry < max_retries:
+            try:
+                return await fn()
+            except Exception as err:
+                # Check if this is a connection error that should be retried
+                is_connection_error = self.isConnectionError(err)
+
+                if not is_connection_error:
+                    # Swallow error if locally not paused or not closing since we did not force a disconnection
+                    if not (self.paused or self.closing):
+                        self.emit("error", err)
+
+                    if only_emit_error:
+                        # Without a short backoff a non-connection error
+                        # that keeps happening (e.g. a misconfigured script
+                        # or a transient Redis error type we don't classify
+                        # as a connection error yet) would cause the outer
+                        # worker loop to re-enter retryIfFailed immediately
+                        # and busy-loop the CPU. Sleep briefly here so the
+                        # retry rate stays bounded. See issue #3103.
+                        if not self.closing and not self.closed:
+                            await asyncio.sleep(short_retry_delay)
+                        return None
+                    else:
+                        raise err
+                else:
+                    # For connection errors, wait and retry
+                    if delay_in_ms and not self.closing and not self.closed:
+                        await asyncio.sleep(delay_in_ms / 1000.0)
+
+                    retry += 1
+                    if retry >= max_retries:
+                        # If we've reached max retries, raise the last error
+                        raise err
+
+        return None
+
+    def isConnectionError(self, error: Exception) -> bool:
+        """
+        Check if an error is a connection-related error that should trigger a
+        retry with backoff rather than being surfaced to the user.
+
+        This mirrors the Node.js worker's `isNotConnectionError` check. We
+        deliberately classify a broad range of transient failures as
+        connection errors so that losing the Redis server does not cause the
+        worker to busy-loop (see issue #3103). In particular, Redis client
+        libraries can surface a dropped connection as `ConnectionError`,
+        `TimeoutError`, `BusyLoadingError`, or even a bare `OSError` /
+        `asyncio.TimeoutError` depending on where the failure occurs.
+        """
+        if isinstance(
+            error,
+            (
+                RedisConnectionError,
+                RedisTimeoutError,
+                BusyLoadingError,
+                ConnectionRefusedError,
+                ConnectionResetError,
+                asyncio.TimeoutError,
+            ),
+        ):
+            return True
+
+        # DNS or socket failures raised before the redis client has a
+        # chance to wrap them surface as a plain OSError. Match either
+        # error.errno, any [Errno N] embedded in the message string, or
+        # a known mnemonic / human-readable fragment (some failure paths
+        # emit only "ECONNREFUSED" / "Connection refused" with no errno).
+        if isinstance(error, OSError):
+            if error.errno in TRANSIENT_ERRNOS:
+                return True
+            message = str(error)
+            if any(
+                int(n) in TRANSIENT_ERRNOS
+                for n in _ERRNO_PATTERN.findall(message)
+            ):
+                return True
+            return any(fragment in message for fragment in _TRANSIENT_MESSAGE_FRAGMENTS)
+
+        return False
 
     async def extendLocks(self):
         # Renew all the locks for the jobs that are still active
@@ -255,8 +461,34 @@ class Worker(EventEmitter):
         if not force and len(self.processing) > 0:
             await asyncio.wait(self.processing, return_when=asyncio.ALL_COMPLETED)
 
-        await self.blockingRedisConnection.close()
-        await self.redisConnection.close()
+        for conn in (self.blockingRedisConnection, self.redisConnection):
+            try:
+                await conn.close()
+            except Exception as err:
+                self.emit('error', err)
+
+        self.closed = True
+        self.emit('closed')
+
+    async def pause(self, do_not_wait_active: bool = False):
+        """
+        Pauses the worker, preventing it from processing new jobs.
+
+        This method waits for current jobs to finalize before returning.
+        """
+        if not self.paused:
+            self.paused = True
+            if not do_not_wait_active and len(self.processing) > 0:
+                await asyncio.wait(self.processing, return_when=asyncio.ALL_COMPLETED)
+        self.emit('paused')
+
+    def resume(self):
+        """
+        Resumes processing of this worker (if paused).
+        """
+        if self.paused:
+            self.paused = False
+            self.emit('resumed')
 
     def cancelProcessing(self):
         for job in self.processing:
@@ -265,6 +497,9 @@ class Worker(EventEmitter):
 
 
 async def getCompleted(task_set: set, emit_callback) -> tuple[list[Job], set]:
+    if not task_set:
+        await asyncio.sleep(0)
+        return [], set()
     job_set, pending = await asyncio.wait(task_set, return_when=asyncio.FIRST_COMPLETED)
     jobs = [extract_result(job_task, emit_callback) for job_task in job_set]
     # we filter `None` out to remove:

@@ -1,9 +1,9 @@
-import { v4 } from 'uuid';
 import {
   BaseJobOptions,
   BulkJobOptions,
   IoredisListener,
   JobSchedulerJson,
+  MinimalQueue,
   QueueOptions,
   RepeatableJob,
   RepeatOptions,
@@ -12,7 +12,6 @@ import {
   FinishedStatus,
   JobsOptions,
   JobSchedulerTemplateOptions,
-  MinimalQueue,
   JobProgress,
 } from '../types';
 import { Job } from './job';
@@ -22,6 +21,7 @@ import { RedisConnection } from './redis-connection';
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { JobScheduler } from './job-scheduler';
 import { version } from '../version';
+import { randomUUID } from '../utils';
 
 export interface ObliterateOpts {
   /**
@@ -36,8 +36,9 @@ export interface ObliterateOpts {
   count?: number;
 }
 
-export interface QueueListener<JobBase extends Job = Job>
-  extends IoredisListener {
+export interface QueueListener<
+  JobBase extends Job = Job,
+> extends IoredisListener {
   /**
    * Listen to 'cleaned' event.
    *
@@ -64,14 +65,14 @@ export interface QueueListener<JobBase extends Job = Job>
    *
    * This event is triggered when the job updates its progress.
    */
-  progress: (job: JobBase, progress: number | object) => void;
+  progress: (jobId: string, progress: JobProgress) => void;
 
   /**
    * Listen to 'removed' event.
    *
    * This event is triggered when a job is removed.
    */
-  removed: (job: JobBase) => void;
+  removed: (jobId: string) => void;
 
   /**
    * Listen to 'resumed' event.
@@ -88,36 +89,30 @@ export interface QueueListener<JobBase extends Job = Job>
   waiting: (job: JobBase) => void;
 }
 
+/**
+ * IsAny<T> A type helper to determine if a given type `T` is `any`.
+ * This works by using `any` type with the intersection
+ * operator (`&`). If `T` is `any`, then `1 & T` resolves to `any`, and since `0`
+ * is assignable to `any`, the conditional type returns `true`.
+ */
+type IsAny<T> = 0 extends 1 & T ? true : false;
 // Helper for JobBase type
-type JobBase<T, ResultType, NameType extends string> = T extends Job<
-  any,
-  any,
-  any
->
-  ? T
-  : Job<T, ResultType, NameType>;
+type JobBase<T, ResultType, NameType extends string> =
+  IsAny<T> extends true
+    ? Job<T, ResultType, NameType>
+    : T extends Job<any, any, any>
+      ? T
+      : Job<T, ResultType, NameType>;
 
 // Helper types to extract DataType, ResultType, and NameType
-type ExtractDataType<DataTypeOrJob, Default> = DataTypeOrJob extends Job<
-  infer D,
-  any,
-  any
->
-  ? D
-  : Default;
+type ExtractDataType<DataTypeOrJob, Default> =
+  DataTypeOrJob extends Job<infer D, any, any> ? D : Default;
 
-type ExtractResultType<DataTypeOrJob, Default> = DataTypeOrJob extends Job<
-  any,
-  infer R,
-  any
->
-  ? R
-  : Default;
+type ExtractResultType<DataTypeOrJob, Default> =
+  DataTypeOrJob extends Job<any, infer R, any> ? R : Default;
 
-type ExtractNameType<
-  DataTypeOrJob,
-  Default extends string,
-> = DataTypeOrJob extends Job<any, any, infer N> ? N : Default;
+type ExtractNameType<DataTypeOrJob, Default extends string> =
+  DataTypeOrJob extends Job<any, any, infer N> ? N : Default;
 
 /**
  * Queue
@@ -153,9 +148,9 @@ export class Queue<
   ResultType = ExtractResultType<DataTypeOrJob, DefaultResultType>,
   NameType extends string = ExtractNameType<DataTypeOrJob, DefaultNameType>,
 > extends QueueGetters<JobBase<DataTypeOrJob, ResultType, NameType>> {
-  token = v4();
+  token = randomUUID();
   jobsOpts: BaseJobOptions;
-  opts: QueueOptions;
+  declare opts: QueueOptions;
 
   protected libName = 'bullmq';
 
@@ -180,7 +175,7 @@ export class Queue<
     this.waitUntilReady()
       .then(client => {
         if (!this.closing && !opts?.skipMetasUpdate) {
-          return client.hmset(this.keys.meta, this.metaValues);
+          return client.hset(this.keys.meta, this.metaValues);
         }
       })
       .catch(err => {
@@ -253,7 +248,7 @@ export class Queue<
           ...this.opts,
           connection: await this.client,
         });
-        this._repeat.on('error', e => this.emit.bind(this, e));
+        this._repeat.on('error', this.emit.bind(this, 'error'));
       }
       resolve(this._repeat);
     });
@@ -266,23 +261,10 @@ export class Queue<
           ...this.opts,
           connection: await this.client,
         });
-        this._jobScheduler.on('error', e => this.emit.bind(this, e));
+        this._jobScheduler.on('error', this.emit.bind(this, 'error'));
       }
       resolve(this._jobScheduler);
     });
-  }
-
-  /**
-   * Get global concurrency value.
-   * Returns null in case no value is set.
-   */
-  async getGlobalConcurrency(): Promise<number | null> {
-    const client = await this.client;
-    const concurrency = await client.hget(this.keys.meta, 'concurrency');
-    if (concurrency) {
-      return Number(concurrency);
-    }
-    return null;
   }
 
   /**
@@ -294,7 +276,17 @@ export class Queue<
    */
   async setGlobalConcurrency(concurrency: number) {
     const client = await this.client;
-    return client.hset(this.keys.meta, 'concurrency', concurrency);
+    return client.hset(this.keys.meta, { concurrency });
+  }
+
+  /**
+   * Enable and set rate limit.
+   * @param max - Max number of jobs to process in the time period specified in `duration`
+   * @param duration - Time in milliseconds. During this time, a maximum of `max` jobs will be processed.
+   */
+  async setGlobalRateLimit(max: number, duration: number) {
+    const client = await this.client;
+    return client.hset(this.keys.meta, { max, duration });
   }
 
   /**
@@ -303,6 +295,14 @@ export class Queue<
   async removeGlobalConcurrency() {
     const client = await this.client;
     return client.hdel(this.keys.meta, 'concurrency');
+  }
+
+  /**
+   * Remove global rate limit values.
+   */
+  async removeGlobalRateLimit() {
+    const client = await this.client;
+    return client.hdel(this.keys.meta, 'max', 'duration');
   }
 
   /**
@@ -321,10 +321,10 @@ export class Queue<
       SpanKind.PRODUCER,
       'add',
       `${this.name}.${name}`,
-      async (span, srcPropagationMedatada) => {
-        if (srcPropagationMedatada && !opts?.telemetry?.omitContext) {
+      async (span, srcPropagationMetadata) => {
+        if (srcPropagationMetadata && !opts?.telemetry?.omitContext) {
           const telemetry = {
-            metadata: srcPropagationMedatada,
+            metadata: srcPropagationMetadata,
           };
           opts = { ...opts, telemetry };
         }
@@ -375,15 +375,17 @@ export class Queue<
         throw new Error("JobId cannot be '0' or start with 0:");
       }
 
+      const mergedOpts = {
+        ...this.jobsOpts,
+        ...opts,
+        jobId,
+      };
+
       const job = await this.Job.create<DataType, ResultType, NameType>(
         this as MinimalQueue,
         name,
         data,
-        {
-          ...this.jobsOpts,
-          ...opts,
-          jobId,
-        },
+        mergedOpts,
       );
       this.emit('waiting', job as JobBase<DataType, ResultType, NameType>);
 
@@ -405,7 +407,7 @@ export class Queue<
       SpanKind.PRODUCER,
       'addBulk',
       this.name,
-      async (span, srcPropagationMedatada) => {
+      async (span, srcPropagationMetadata) => {
         if (span) {
           span.setAttributes({
             [TelemetryAttributes.BulkNames]: jobs.map(job => job.name),
@@ -417,11 +419,11 @@ export class Queue<
           this as MinimalQueue,
           jobs.map(job => {
             let telemetry = job.opts?.telemetry;
-            if (srcPropagationMedatada) {
+            if (srcPropagationMetadata) {
               const omitContext = job.opts?.telemetry?.omitContext;
               const telemetryMetadata =
                 job.opts?.telemetry?.metadata ||
-                (!omitContext && srcPropagationMedatada);
+                (!omitContext && srcPropagationMetadata);
 
               if (telemetryMetadata || omitContext) {
                 telemetry = {
@@ -431,15 +433,17 @@ export class Queue<
               }
             }
 
+            const mergedOpts = {
+              ...this.jobsOpts,
+              ...job.opts,
+              jobId: job.opts?.jobId,
+              telemetry,
+            };
+
             return {
               name: job.name,
               data: job.data,
-              opts: {
-                ...this.jobsOpts,
-                ...job.opts,
-                jobId: job.opts?.jobId,
-                telemetry,
-              },
+              opts: mergedOpts,
             };
           }),
         );
@@ -541,12 +545,9 @@ export class Queue<
         });
 
         await this.client.then(client =>
-          client.set(
-            this.keys.limiter,
-            Number.MAX_SAFE_INTEGER,
-            'PX',
-            expireTimeMs,
-          ),
+          client.set(this.keys.limiter, Number.MAX_SAFE_INTEGER, {
+            PX: expireTimeMs,
+          }),
         );
       },
     );
@@ -605,7 +606,9 @@ export class Queue<
    *
    * @param id - identifier of scheduler.
    */
-  async getJobScheduler(id: string): Promise<JobSchedulerJson<DataType>> {
+  async getJobScheduler(
+    id: string,
+  ): Promise<JobSchedulerJson<DataType> | undefined> {
     return (await this.jobScheduler).getScheduler<DataType>(id);
   }
 
@@ -797,7 +800,13 @@ export class Queue<
           }),
         });
 
-        return await this.scripts.remove(jobId, removeChildren);
+        const code = await this.scripts.remove(jobId, removeChildren);
+
+        if (code === 1) {
+          this.emit('removed', jobId);
+        }
+
+        return code;
       },
     );
   }
@@ -820,6 +829,8 @@ export class Queue<
         });
 
         await this.scripts.updateProgress(jobId, progress);
+
+        this.emit('progress', jobId, progress);
       },
     );
   }
@@ -930,7 +941,7 @@ export class Queue<
 
   /**
    * Completely destroys the queue and all of its contents irreversibly.
-   * This method will the *pause* the queue and requires that there are no
+   * This method will *pause* the queue and requires that there are no
    * active jobs. It is possible to bypass this requirement, i.e. not
    * having active jobs using the "force" option.
    *
@@ -1022,7 +1033,7 @@ export class Queue<
   /**
    * Trim the event stream to an approximately maxLength.
    *
-   * @param maxLength -
+   * @param maxLength - The approximate maximum length, or target length, of the event stream.
    */
   async trimEvents(maxLength: number): Promise<number> {
     return this.trace<number>(
@@ -1035,7 +1046,9 @@ export class Queue<
         });
 
         const client = await this.client;
-        return await client.xtrim(this.keys.events, 'MAXLEN', '~', maxLength);
+        return await client.xtrim(this.keys.events, 'MAXLEN', maxLength, {
+          approximate: true,
+        });
       },
     );
   }
@@ -1046,5 +1059,117 @@ export class Queue<
   async removeDeprecatedPriorityKey(): Promise<number> {
     const client = await this.client;
     return client.del(this.toKey('priority'));
+  }
+
+  /**
+   * Removes orphaned job keys that exist in Redis but are not referenced
+   * in any queue state set.
+   *
+   * Orphaned keys can occur in rare cases when the removal-by-max-age logic
+   * removes sorted-set entries without fully cleaning up the corresponding
+   * job hash data (a regression introduced in v5.66.6 via #3694).
+   * Under normal operation this method is
+   * **not needed** — it is provided only as a one-time migration helper for
+   * users who were affected by that specific bug and want to reclaim the
+   * leaked memory.
+   *
+   * The method uses a Lua script so that every check-and-delete cycle is
+   * atomic (per SCAN iteration). State keys are derived dynamically from
+   * the queue's key map and their Redis TYPE is checked at runtime, so newly
+   * introduced states are picked up automatically.
+   *
+   * @param count - Approximate number of keys to SCAN per iteration (default 1000).
+   * @param limit - Maximum number of orphaned jobs to remove (0 = unlimited).
+   *   When set, the method returns as soon as the limit is reached.
+   *   Users with a very large number of orphans can call this method
+   *   in a loop: `while (await queue.removeOrphanedJobs(1000, 10000)) {}`
+   * @returns The total number of orphaned jobs that were removed.
+   */
+  async removeOrphanedJobs(count = 1000, limit = 0): Promise<number> {
+    const client = await this.client;
+
+    // Derive infrastructure suffixes dynamically from the queue key map
+    // so any future keys are automatically excluded without code changes.
+    const knownSuffixes = new Set(Object.keys(this.keys));
+
+    // State key suffixes (excluding '') — passed to the Lua script which
+    // uses TYPE to decide whether a key is a list / zset / set and picks
+    // the right membership command automatically.
+    const stateKeySuffixes = Object.keys(this.keys).filter(s => s !== '');
+
+    // Known job sub-key suffixes (cleaned up during deletion).
+    const jobSubKeySuffixes = [
+      'logs',
+      'dependencies',
+      'processed',
+      'failed',
+      'unsuccessful',
+      'lock',
+    ];
+
+    const basePrefix = this.qualifiedName + ':';
+    const scanPattern = basePrefix + '*';
+    let totalRemoved = 0;
+
+    let cursor = '0';
+    do {
+      const [nextCursor, keys] = await client.scan(cursor, {
+        MATCH: scanPattern,
+        COUNT: count,
+      });
+      cursor = nextCursor;
+
+      // Extract unique potential job IDs from this batch.
+      const candidateJobIds = new Set<string>();
+      for (const key of keys) {
+        const suffix = key.slice(basePrefix.length);
+
+        // Skip infrastructure keys (derived from this.keys).
+        if (knownSuffixes.has(suffix)) {
+          continue;
+        }
+
+        // Skip sub-keys of infrastructure prefixes (e.g. repeat:xxx, de:xxx).
+        const colonIdx = suffix.indexOf(':');
+        if (colonIdx !== -1) {
+          const prefixPart = suffix.slice(0, colonIdx);
+          if (knownSuffixes.has(prefixPart)) {
+            continue;
+          }
+        }
+
+        // Extract the job ID portion (before first colon, or the whole suffix).
+        const jobId = colonIdx === -1 ? suffix : suffix.slice(0, colonIdx);
+
+        // For sub-keys, only consider known job sub-key suffixes.
+        if (colonIdx !== -1) {
+          const subKey = suffix.slice(colonIdx + 1);
+          if (!jobSubKeySuffixes.includes(subKey)) {
+            continue;
+          }
+        }
+
+        candidateJobIds.add(jobId);
+      }
+
+      if (candidateJobIds.size === 0) {
+        continue;
+      }
+
+      // Run the Lua script atomically for this batch of candidates.
+      const result = await this.scripts.removeOrphanedJobs(
+        [...candidateJobIds],
+        stateKeySuffixes,
+        jobSubKeySuffixes,
+      );
+
+      totalRemoved += result || 0;
+
+      if (limit > 0 && totalRemoved >= limit) {
+        break;
+      }
+    } while (cursor !== '0');
+
+    return totalRemoved;
   }
 }

@@ -1,5 +1,5 @@
 --[[
-  Move job from active to a finished status (completed o failed)
+  Move job from active to a finished status (completed or failed)
   A job can only be moved to completed if it was active.
   The job must be locked before it can be moved to a finished status,
   and the lock must be released in this script.
@@ -61,19 +61,15 @@ local rcall = redis.call
 
 --- Includes
 --- @include "includes/collectMetrics"
---- @include "includes/getNextDelayedTimestamp"
---- @include "includes/getRateLimitTTL"
---- @include "includes/getTargetQueueList"
---- @include "includes/moveJobFromPrioritizedToActive"
+--- @include "includes/fetchNextJob"
 --- @include "includes/moveChildFromDependenciesIfNeeded"
---- @include "includes/prepareJobForProcessing"
---- @include "includes/promoteDelayedJobs"
 --- @include "includes/removeDeduplicationKeyIfNeededOnFinalization"
 --- @include "includes/removeJobKeys"
 --- @include "includes/removeJobsByMaxAge"
 --- @include "includes/removeJobsByMaxCount"
 --- @include "includes/removeLock"
 --- @include "includes/removeParentDependencyKey"
+--- @include "includes/requeueDeduplicatedJob"
 --- @include "includes/trimEvents"
 --- @include "includes/updateParentDepsIfNeeded"
 --- @include "includes/updateJobFields"
@@ -107,6 +103,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
     local maxMetricsSize = opts['maxMetricsSize']
     local maxCount = opts['keepJobs']['count']
     local maxAge = opts['keepJobs']['age']
+    local maxLimit = opts['keepJobs']['limit'] or 1000
 
     local jobAttributes = rcall("HMGET", jobIdKey, "parentKey", "parent", "deid")
     local parentKey = jobAttributes[1] or ""
@@ -130,12 +127,19 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
 
     local eventStreamKey = KEYS[4]
     local metaKey = KEYS[9]
-    -- Trim events before emiting them to avoid trimming events emitted in this script
+    -- Trim events before emitting them to avoid trimming events emitted in this script
     trimEvents(metaKey, eventStreamKey)
 
     local prefix = ARGV[7]
 
     removeDeduplicationKeyIfNeededOnFinalization(prefix, jobAttributes[3], jobId)
+
+    -- Check if there is requeue data for this dedup ID (keepLastIfActive mode)
+    if jobAttributes[3] then
+      requeueDeduplicatedJob(prefix, jobAttributes[3], eventStreamKey,
+          metaKey, KEYS[2], KEYS[1], KEYS[8], KEYS[14], KEYS[3], KEYS[10],
+          KEYS[7], timestamp)
+    end
 
     -- If job has a parent we need to
     -- 1) remove this job id from parents dependencies
@@ -175,7 +179,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
 
         -- Remove old jobs?
         if maxAge ~= nil then
-            removeJobsByMaxAge(timestamp, maxAge, targetSet, prefix)
+            removeJobsByMaxAge(timestamp, maxAge, targetSet, prefix, maxLimit)
         end
 
         if maxCount ~= nil and maxCount > 0 then
@@ -208,59 +212,11 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
     -- Try to get next job to avoid an extra roundtrip if the queue is not closing,
     -- and not rate limited.
     if (ARGV[6] == "1") then
-
-        local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[2], KEYS[1], KEYS[8])
-
-        local markerKey = KEYS[14]
-        -- Check if there are delayed jobs that can be promoted
-        promoteDelayedJobs(KEYS[7], markerKey, target, KEYS[3], eventStreamKey, prefix, timestamp, KEYS[10],
-            isPausedOrMaxed)
-
-        local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
-        -- Check if we are rate limited first.
-        local expireTime = getRateLimitTTL(maxJobs, KEYS[6])
-
-        if expireTime > 0 then
-            return {0, 0, expireTime, 0}
-        end
-
-        -- paused or maxed queue
-        if isPausedOrMaxed then
-            return {0, 0, 0, 0}
-        end
-
-        jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
-
-        if jobId then
-            -- Markers in waitlist DEPRECATED in v5: Remove in v6.
-            if string.sub(jobId, 1, 2) == "0:" then
-                rcall("LREM", KEYS[2], 1, jobId)
-
-                -- If jobId is special ID 0:delay (delay greater than 0), then there is no job to process
-                -- but if ID is 0:0, then there is at least 1 prioritized job to process
-                if jobId == "0:0" then
-                    jobId = moveJobFromPrioritizedToActive(KEYS[3], KEYS[2], KEYS[10])
-                    return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId, timestamp, maxJobs,
-                        markerKey, opts)
-                end
-            else
-                return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId, timestamp, maxJobs, markerKey,
-                    opts)
-            end
-        else
-            jobId = moveJobFromPrioritizedToActive(KEYS[3], KEYS[2], KEYS[10])
-            if jobId then
-                return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId, timestamp, maxJobs, markerKey,
-                    opts)
-            end
-        end
-
-        -- Return the timestamp for the next delayed job if any.
-        local nextTimestamp = getNextDelayedTimestamp(KEYS[7])
-        if nextTimestamp ~= nil then
-            -- The result is guaranteed to be positive, since the
-            -- ZRANGEBYSCORE command would have return a job otherwise.
-            return {0, 0, 0, nextTimestamp}
+        local result = fetchNextJob(KEYS[1], KEYS[2], KEYS[3], eventStreamKey,
+            KEYS[6], KEYS[7], KEYS[8], metaKey, KEYS[10], KEYS[14], prefix,
+            timestamp, opts)
+        if result then
+            return result
         end
     end
 

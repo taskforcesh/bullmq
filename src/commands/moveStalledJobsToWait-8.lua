@@ -24,7 +24,6 @@ local rcall = redis.call
 -- Includes
 --- @include "includes/addJobInTargetList"
 --- @include "includes/batches"
---- @include "includes/getTargetQueueList"
 --- @include "includes/moveJobToWait"
 --- @include "includes/trimEvents"
 
@@ -47,7 +46,7 @@ end
 
 rcall("SET", stalledCheckKey, timestamp, "PX", maxCheckTime)
 
--- Trim events before emiting them to avoid trimming events emitted in this script
+-- Trim events before emitting them to avoid trimming events emitted in this script
 trimEvents(metaKey, eventStreamKey)
 
 -- Move all stalled jobs to wait
@@ -73,10 +72,23 @@ if (#stalling > 0) then
                 if (removed > 0) then
                     -- If this job has been stalled too many times, such as if it crashes the worker, then fail it.
                     local stalledCount = rcall("HINCRBY", jobKey, "stc", 1)
-                    if stalledCount > maxStalledJobCount then
+                    
+                    -- Check if this is a repeatable job by looking at job options
+                    local jobOpts = rcall("HGET", jobKey, "opts")
+                    local isRepeatableJob = false
+                    if jobOpts then
+                        local opts = cjson.decode(jobOpts)
+                        if opts and opts["repeat"] then
+                            isRepeatableJob = true
+                        end
+                    end
+                    
+                    -- Only fail job if it exceeds stall limit AND is not a repeatable job
+                    if stalledCount > maxStalledJobCount and not isRepeatableJob then
                         local failedReason = "job stalled more than allowable limit"
                         rcall("HSET", jobKey, "defa", failedReason)
                     end
+                    
                     moveJobToWait(metaKey, activeKey, waitKey, pausedKey, markerKey, eventStreamKey, jobId,
                         "RPUSH")
 

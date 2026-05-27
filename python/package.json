@@ -1,0 +1,79 @@
+{
+  "name": "bullmq-python",
+  "description": "Queue for messages and jobs based on Redis for python",
+  "author": "Taskforce.sh Inc.",
+  "license": "MIT",
+  "keywords": [
+    "bullmq",
+    "python"
+  ],
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "semantic-release": "semantic-release",
+    "semantic-release:debug": "semantic-release --no-ci --dry-run --debug"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "21.0.1",
+    "@commitlint/config-conventional": "21.0.1",
+    "@semantic-release/changelog": "6.0.3",
+    "@semantic-release/commit-analyzer": "13.0.1",
+    "@semantic-release/exec": "7.1.0",
+    "@semantic-release/git": "10.0.1",
+    "@semantic-release/github": "12.0.8",
+    "@semantic-release/release-notes-generator": "14.1.1",
+    "semantic-release": "25.0.3",
+    "semantic-release-pypi": "5.3.0"
+  },
+  "commitlint": {
+    "extends": [
+      "@commitlint/config-conventional"
+    ]
+  },
+  "release": {
+    "tagFormat": "vpy${version}",
+    "plugins": [
+      [
+        "@semantic-release/commit-analyzer",
+        {
+          "releaseRules": [
+            {
+              "message": "!(*\\(python\\)*|*\\[python\\]*)",
+              "release": false
+            }
+          ]
+        }
+      ],
+      [
+        "@semantic-release/release-notes-generator",
+        {
+          "preset": "angular",
+          "presetConfig": {
+            "ignoreCommits": "^(?![^]*\\(python\\))(?![^]*\\[python\\]).*$"
+          }
+        }
+      ],
+      [
+        "@semantic-release/changelog",
+        {
+          "changelogFile": "../docs/gitbook/python/changelog.md"
+        }
+      ],
+      [
+        "@semantic-release/exec",
+        {
+          "prepareCmd": "sed -i 's/__version__ = \".*\"/__version__ = \"${nextRelease.version}\"/' bullmq/__init__.py"
+        }
+      ],
+      "semantic-release-pypi",
+      "@semantic-release/github"
+    ]
+  },
+  "packageManager": "yarn@1.22.22",
+  "resolutions": {
+    "ajv": "8.18.0",
+    "picomatch": ">=2.3.2",
+    "smol-toml": ">=1.6.1"
+  }
+}

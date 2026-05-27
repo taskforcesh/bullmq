@@ -39,7 +39,7 @@ import { QueueEvents } from 'bullmq';
 
 const queueEvents = new QueueEvents('Paint');
 
-queueEvents.on('completed', ({ jobId: string }) => {
+queueEvents.on('completed', ({ jobId }) => {
   // Called every time a job is completed in any worker.
 });
 

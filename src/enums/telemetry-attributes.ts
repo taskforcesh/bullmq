@@ -18,6 +18,7 @@ export enum TelemetryAttributes {
   JobType = 'bullmq.job.type',
   QueueOptions = 'bullmq.queue.options',
   QueueEventMaxLength = 'bullmq.queue.event.max.length',
+  QueueJobsState = 'bullmq.queue.jobs.state',
   WorkerOptions = 'bullmq.worker.options',
   WorkerName = 'bullmq.worker.name',
   WorkerId = 'bullmq.worker.id',
@@ -27,12 +28,31 @@ export enum TelemetryAttributes {
   WorkerStalledJobs = 'bullmq.worker.stalled.jobs',
   WorkerFailedJobs = 'bullmq.worker.failed.jobs',
   WorkerJobsToExtendLocks = 'bullmq.worker.jobs.to.extend.locks',
+  /**
+   * @deprecated Use JobAttemptFinishedTimestamp instead. Will be removed in a future version.
+   */
   JobFinishedTimestamp = 'bullmq.job.finished.timestamp',
+  JobAttemptFinishedTimestamp = 'bullmq.job.attempt_finished_timestamp',
   JobProcessedTimestamp = 'bullmq.job.processed.timestamp',
   JobResult = 'bullmq.job.result',
   JobFailedReason = 'bullmq.job.failed.reason',
   FlowName = 'bullmq.flow.name',
   JobSchedulerId = 'bullmq.job.scheduler.id',
+  JobStatus = 'bullmq.job.status', // TODO: rename it to 'bullmq.job.state' for consistency
+}
+
+/**
+ * Standard metric names for BullMQ telemetry
+ */
+export enum MetricNames {
+  QueueJobsCount = 'bullmq.queue.jobs',
+  JobsCompleted = 'bullmq.jobs.completed',
+  JobsFailed = 'bullmq.jobs.failed',
+  JobsDelayed = 'bullmq.jobs.delayed',
+  JobsRetried = 'bullmq.jobs.retried',
+  JobsWaiting = 'bullmq.jobs.waiting',
+  JobsWaitingChildren = 'bullmq.jobs.waiting_children',
+  JobDuration = 'bullmq.job.duration',
 }
 
 export enum SpanKind {
