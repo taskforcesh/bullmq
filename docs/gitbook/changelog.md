@@ -1,3 +1,24 @@
+## [5.77.5](https://github.com/taskforcesh/bullmq/compare/v5.77.4...v5.77.5) (2026-05-27)
+
+
+### Bug Fixes
+
+* **connection:** handle cluster reconnection with timeouts ([#4186](https://github.com/taskforcesh/bullmq/issues/4186)) ([411690e](https://github.com/taskforcesh/bullmq/commit/411690e9070ba0dda59a86628fc8b56ad9ebea04))
+
+## [5.77.4](https://github.com/taskforcesh/bullmq/compare/v5.77.3...v5.77.4) (2026-05-26)
+
+
+### Bug Fixes
+
+* **deduplication:** preserve custom jobId when requeuing keepLastIfActive proto-jobs ([#4190](https://github.com/taskforcesh/bullmq/issues/4190)) fixes [#4030](https://github.com/taskforcesh/bullmq/issues/4030) ([6e4972e](https://github.com/taskforcesh/bullmq/commit/6e4972e8fd721035d680ca291049134c3876f8ba))
+
+## [5.77.3](https://github.com/taskforcesh/bullmq/compare/v5.77.2...v5.77.3) (2026-05-25)
+
+
+### Performance Improvements
+
+* **bun-redis:** remove per-command serialization to enable implicit pipelining ([#4188](https://github.com/taskforcesh/bullmq/issues/4188)) ([685b074](https://github.com/taskforcesh/bullmq/commit/685b0744cfeb273778420835010ec1b16b23e22a))
+
 ## [5.77.2](https://github.com/taskforcesh/bullmq/compare/v5.77.1...v5.77.2) (2026-05-24)
 
 
