@@ -34,6 +34,14 @@ const clusterWrappedBzpopmin = Symbol('bullmqClusterWrappedBzpopmin');
 const clusterPatchRefCount = Symbol('bullmqClusterPatchRefCount');
 const clusterClosingRefCount = Symbol('bullmqClusterClosingRefCount');
 
+// Hard cap on a single cluster reconnect attempt. Without this, a hung
+// `client.connect()` (e.g. ioredis Cluster cannot recover and slot refresh
+// keeps retrying internally) leaves `clusterReconnectPromise` pinned forever
+// and every subsequent bzpopmin call awaits the same dead promise, deadlocking
+// the worker. 30s is comfortably above the default ioredis slotsRefreshTimeout
+// while bounded enough that wedged workers recover within one or two ticks.
+const DEFAULT_CLUSTER_RECONNECT_TIMEOUT_MS = 30_000;
+
 interface RedisCapabilities {
   canDoubleTimeout: boolean;
   canBlockFor1Ms: boolean;
@@ -117,6 +125,7 @@ export class RedisConnection extends EventEmitter {
       blocking?: boolean;
       skipVersionCheck?: boolean;
       skipWaitingForReady?: boolean;
+      clusterReconnectTimeoutMs?: number;
     },
   ) {
     super();
@@ -127,6 +136,7 @@ export class RedisConnection extends EventEmitter {
       blocking: true,
       skipVersionCheck: false,
       skipWaitingForReady: false,
+      clusterReconnectTimeoutMs: DEFAULT_CLUSTER_RECONNECT_TIMEOUT_MS,
       ...extraOptions,
     };
 
@@ -385,6 +395,10 @@ export class RedisConnection extends EventEmitter {
       return;
     }
 
+    const reconnectTimeoutMs =
+      this.extraOptions.clusterReconnectTimeoutMs ??
+      DEFAULT_CLUSTER_RECONNECT_TIMEOUT_MS;
+
     blockingClient[clusterPatchRefCount] =
       (blockingClient[clusterPatchRefCount] || 0) + 1;
     this.patchedBlockingClusterClient = blockingClient;
@@ -395,7 +409,10 @@ export class RedisConnection extends EventEmitter {
 
     const bzpopmin = blockingClient.bzpopmin;
     const wrappedBzpopmin = async (...args: any[]) => {
-      await RedisConnection.reconnectClusterIfNeeded(blockingClient);
+      await RedisConnection.reconnectClusterIfNeeded(
+        blockingClient,
+        reconnectTimeoutMs,
+      );
 
       try {
         return await bzpopmin.apply(blockingClient, args);
@@ -408,7 +425,10 @@ export class RedisConnection extends EventEmitter {
           )
         ) {
           try {
-            await RedisConnection.reconnectCluster(blockingClient);
+            await RedisConnection.reconnectCluster(
+              blockingClient,
+              reconnectTimeoutMs,
+            );
           } catch {
             // Preserve the original command failure if best-effort recovery fails.
           }
@@ -493,12 +513,13 @@ export class RedisConnection extends EventEmitter {
 
   private static async reconnectClusterIfNeeded(
     client: BlockingClusterClient,
+    timeoutMs: number,
   ): Promise<void> {
     if (
       !RedisConnection.isReconnectingDisabled(client) &&
       RedisConnection.isClusterWithEmptyNodes(client)
     ) {
-      await RedisConnection.reconnectCluster(client);
+      await RedisConnection.reconnectCluster(client, timeoutMs);
     }
   }
 
@@ -524,21 +545,57 @@ export class RedisConnection extends EventEmitter {
 
   private static async reconnectCluster(
     client: BlockingClusterClient,
+    timeoutMs: number,
   ): Promise<void> {
     if (RedisConnection.isReconnectingDisabled(client)) {
       return;
     }
 
     if (!client[clusterReconnectPromise]) {
-      client[clusterReconnectPromise] = (async () => {
-        client.disconnect(false);
-        await client.connect();
-      })().finally(() => {
-        client[clusterReconnectPromise] = null;
-      });
+      client[clusterReconnectPromise] =
+        RedisConnection.connectClusterWithTimeout(client, timeoutMs).finally(
+          () => {
+            client[clusterReconnectPromise] = null;
+          },
+        );
     }
 
     await client[clusterReconnectPromise];
+  }
+
+  // Disconnects and reconnects a cluster client, racing connect() against a
+  // hard cap so a hung reconnect cannot pin `clusterReconnectPromise`
+  // indefinitely. On timeout, the underlying connect() is left running
+  // (ioredis Cluster handles its own retry/state); we simply stop awaiting it.
+  // The next bzpopmin call's `reconnectClusterIfNeeded` check will trigger a
+  // fresh reconnect if the pool is still empty.
+  private static async connectClusterWithTimeout(
+    client: BlockingClusterClient,
+    timeoutMs: number,
+  ): Promise<void> {
+    client.disconnect(false);
+
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        client.connect(),
+        new Promise<never>((_, reject) => {
+          timeoutHandle = setTimeout(() => {
+            reject(
+              new ConnectionClosedError(
+                `BullMQ: cluster reconnect timed out after ${timeoutMs}ms`,
+              ),
+            );
+          }, timeoutMs);
+          // Don't keep the event loop alive solely for this timer.
+          timeoutHandle.unref?.();
+        }),
+      ]);
+    } finally {
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
+    }
   }
 
   async disconnect(wait = true): Promise<void> {
