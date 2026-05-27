@@ -67,10 +67,10 @@ export interface NodeRedisRawTransaction {
 export interface NodeRedisRawClient {
   isReady: boolean;
   isOpen: boolean;
-  options?: Record<string, any>;
+  options?: Record<string, unknown>;
 
   on(event: string, listener: (...args: any[]) => void): this;
-  connect(): Promise<any>;
+  connect(): Promise<unknown>;
   close?(): Promise<void>;
   destroy(): void | Promise<void>;
   quit(): Promise<unknown>;
