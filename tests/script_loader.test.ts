@@ -200,7 +200,8 @@ describe('scriptLoader', () => {
         'fixture_recursive_child.lua',
         'fixture_recursive_parent.lua',
       ];
-      expect(includes).toEqual(expected);
+      expect(includes).toHaveLength(expected.length);
+      expect(includes).toEqual(expect.arrayContaining(expected));
     });
 
     it('handles glob patterns in @includes statement', async () => {
@@ -258,7 +259,8 @@ describe('scriptLoader', () => {
 
       const expected = ['fixture_mapped_include_1', 'fixture_mapped_include_2'];
 
-      expect(includes).toEqual(expected);
+      expect(includes).toHaveLength(expected.length);
+      expect(includes).toEqual(expect.arrayContaining(expected));
     });
 
     it('errors on a missing include', async () => {

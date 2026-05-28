@@ -1,3 +1,10 @@
+## [5.77.6](https://github.com/taskforcesh/bullmq/compare/v5.77.5...v5.77.6) (2026-05-27)
+
+
+### Bug Fixes
+
+* **types:** change NodeRedisRawClient to be node-redis compliant ([#4195](https://github.com/taskforcesh/bullmq/issues/4195)) ([81709e4](https://github.com/taskforcesh/bullmq/commit/81709e4abe71f4e7c05c748938ec004a50c1fd4b))
+
 ## [5.77.5](https://github.com/taskforcesh/bullmq/compare/v5.77.4...v5.77.5) (2026-05-27)
 
 
