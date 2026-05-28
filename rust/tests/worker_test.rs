@@ -1,4 +1,5 @@
 //! Worker tests — processing, events, concurrency, remove-on-complete, return values.
+#![allow(clippy::collapsible_match, clippy::collapsible_if)]
 
 mod common;
 
@@ -5190,7 +5191,7 @@ async fn test_pause_waits_for_concurrent_processing() {
     let finish_count_clone = finish_count.clone();
     let active_count = Arc::new(std::sync::atomic::AtomicU32::new(0));
     let active_count_clone = active_count.clone();
-    let (tx, mut rx) = mpsc::channel::<()>(16);
+    let (tx, _rx) = mpsc::channel::<()>(16);
 
     let processor: ProcessorFn = Arc::new(move |_job: Job, _token: CancellationToken| {
         let finish_count = finish_count_clone.clone();
@@ -7488,7 +7489,7 @@ async fn test_retry_with_reset_attempts_made() {
 
     // Check that attempts_made was reset: first call had attempts_made from first processing,
     // second call should have attempts_made=0 because we reset it
-    let first = rx.recv().await.unwrap();
+    let _first = rx.recv().await.unwrap();
     let second = rx.recv().await.unwrap();
     // first processing increments to 1 inside moveToFinished, but we see pre-increment value
     // second processing after reset should see 0
@@ -7968,11 +7969,12 @@ async fn test_update_progress_as_string() {
         loop {
             let ev = worker.next_event().await;
             match ev {
-                Some(WorkerEvent::Progress { progress, .. }) => {
-                    if let JobProgress::Object(serde_json::Value::String(s)) = progress {
-                        assert_eq!(s, "progress as string");
-                        break;
-                    }
+                Some(WorkerEvent::Progress {
+                    progress: JobProgress::Object(serde_json::Value::String(s)),
+                    ..
+                }) => {
+                    assert_eq!(s, "progress as string");
+                    break;
                 }
                 Some(WorkerEvent::Closed) | None => break,
                 _ => {}
@@ -8025,11 +8027,12 @@ async fn test_update_progress_as_boolean() {
         loop {
             let ev = worker.next_event().await;
             match ev {
-                Some(WorkerEvent::Progress { progress, .. }) => {
-                    if let JobProgress::Object(serde_json::Value::Bool(b)) = progress {
-                        assert!(b);
-                        break;
-                    }
+                Some(WorkerEvent::Progress {
+                    progress: JobProgress::Object(serde_json::Value::Bool(b)),
+                    ..
+                }) => {
+                    assert!(b);
+                    break;
                 }
                 Some(WorkerEvent::Closed) | None => break,
                 _ => {}
