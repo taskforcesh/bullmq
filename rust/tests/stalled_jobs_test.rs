@@ -80,7 +80,9 @@ async fn test_stalled_jobs_moved_to_wait() {
     let mut count = 0;
     tokio::time::timeout(Duration::from_secs(10), async {
         while count < 4 {
-            rx.recv().await.expect("channel closed before all stalled jobs were reprocessed");
+            rx.recv()
+                .await
+                .expect("channel closed before all stalled jobs were reprocessed");
             count += 1;
         }
     })
