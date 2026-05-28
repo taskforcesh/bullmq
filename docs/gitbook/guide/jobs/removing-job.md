@@ -40,7 +40,7 @@ let queue = Queue::new("paint", QueueOptions::default()).await?;
 
 let job = queue.add("wall", serde_json::json!({"color": 1}), None).await?;
 
-queue.remove(&job.id()).await?;
+queue.remove(job.id()).await?;
 ```
 
 {% endtab %}

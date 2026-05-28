@@ -50,7 +50,7 @@ pub mod redis_connection;
 pub mod scripts;
 /// Shared types: job state, progress, backoff strategies.
 pub mod types;
-/// Worker implementation for processing jobs..
+/// Worker implementation for processing jobs...
 pub mod worker;
 
 pub use error::Error;

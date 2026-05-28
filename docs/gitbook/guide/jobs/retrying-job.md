@@ -83,8 +83,11 @@ let queue = Queue::new("my-queue", QueueOptions::default()).await?;
 // Get a failed job by ID
 let mut job = queue.get_job("job-id").await?.unwrap();
 
-// Retry a failed job
-job.retry(None).await?;
+// Retry a failed job (default state is "failed")
+job.retry("failed", None).await?;
+
+// Retry a completed job
+job.retry("completed", None).await?;
 ```
 
 {% endtab %}

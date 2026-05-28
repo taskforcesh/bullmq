@@ -50,8 +50,8 @@ async fn main() -> bullmq::Result<()> {
 
 ## Requirements
 
-- Rust 1.75+ (async traits)
-- Redis 5.0+ (6.2+ recommended)
+- Rust 1.85+
+- Redis 6.2+
 - Tokio runtime
 
 ## Running Tests

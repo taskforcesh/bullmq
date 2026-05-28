@@ -44,9 +44,9 @@ use bullmq::{Queue, QueueOptions};
 
 let queue = Queue::new("Paint", QueueOptions::default()).await?;
 
-let waiting = queue.get_waiting_count().await?;
-let completed = queue.get_completed_count().await?;
-let failed = queue.get_failed_count().await?;
+let counts = queue.get_job_counts().await?;
+// counts.waiting, counts.completed, counts.failed, counts.active, etc.
+println!("waiting: {}, completed: {}, failed: {}", counts.waiting, counts.completed, counts.failed);
 ```
 
 {% endtab %}
@@ -92,10 +92,9 @@ completed = await myQueue.getJobs(['completed'], 0, 100, True)
 {% tab title="Rust" %}
 
 ```rust
-use bullmq::types::JobState;
-
-let completed = queue.get_jobs(&[JobState::Completed], Some(0), Some(100), true).await?;
-// returns the oldest 100 jobs
+// get_jobs is not yet available in the Rust API.
+// Use get_job(id) to fetch individual jobs by ID:
+let job = queue.get_job("some-job-id").await?;
 ```
 
 {% endtab %}

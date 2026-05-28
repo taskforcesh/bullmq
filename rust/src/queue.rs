@@ -104,7 +104,10 @@ impl Queue {
 
         let mut job_objects: Vec<Job> = jobs
             .into_iter()
-            .map(|(name, data, opts)| Job::new(&name, data, opts))
+            .map(|(name, data, opts)| {
+                let merged = self.merge_job_options(opts);
+                Job::new(&name, data, merged)
+            })
             .collect();
 
         // Run all add_job calls concurrently since the connection is multiplexed
@@ -124,7 +127,14 @@ impl Queue {
                     "addStandardJob"
                 };
 
-                let script = self.conn.scripts().get(script_name).unwrap().clone();
+                let script = self
+                    .conn
+                    .scripts()
+                    .get(script_name)
+                    .ok_or_else(|| {
+                        Error::InvalidConfig(format!("script '{}' not found", script_name))
+                    })
+                    .cloned();
                 let keys = self.add_job_keys(script_name);
                 let argv1 = self.pack_add_args(job, &custom_job_id, timestamp);
                 let argv2 = serde_json::to_string(job.data()).unwrap_or_else(|_| "{}".into());
@@ -132,6 +142,7 @@ impl Queue {
                 let mut conn = self.conn.conn();
 
                 async move {
+                    let script = script?;
                     let argv2_bytes = argv2.into_bytes();
                     let args: Vec<&[u8]> = vec![&argv1, &argv2_bytes, &argv3];
                     let result = script.execute(&mut conn, &keys, &args).await?;
@@ -142,9 +153,11 @@ impl Queue {
 
         let results = futures::future::join_all(futures).await;
 
+        let ctx = self.make_script_context();
         for (job, result) in job_objects.iter_mut().zip(results.into_iter()) {
             let id = result?;
             job.set_id(id);
+            job.set_context(ctx.clone());
         }
 
         Ok(job_objects)
@@ -542,7 +555,11 @@ impl Queue {
 
     /// Get a job by its ID.
     pub async fn get_job(&self, job_id: &str) -> Result<Option<Job>, Error> {
-        Job::from_id(&self.conn, &self.keys, job_id).await
+        let job = Job::from_id(&self.conn, &self.keys, job_id).await?;
+        Ok(job.map(|mut j| {
+            j.set_context(self.make_script_context());
+            j
+        }))
     }
 
     /// Get the counts of jobs in each state.

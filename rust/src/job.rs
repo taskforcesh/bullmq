@@ -906,7 +906,7 @@ impl Job {
         fields.push(("timestamp".to_string(), self.timestamp.to_string()));
         fields.push(("delay".to_string(), self.delay().to_string()));
         fields.push(("priority".to_string(), self.priority().to_string()));
-        fields.push(("attemptsMade".to_string(), self.attempts_made.to_string()));
+        fields.push(("atm".to_string(), self.attempts_made.to_string()));
         fields.push(("ats".to_string(), self.attempts_started.to_string()));
         fields.push(("stc".to_string(), self.stalled_counter.to_string()));
 

@@ -21,9 +21,9 @@ bullmq = "0.1"
 
 BullMQ for Rust requires:
 
-- Rust 1.70+
+- Rust 1.85+
 - Tokio runtime
-- Redis 7.0+
+- Redis 6.2+
 
 ## Get Started
 
