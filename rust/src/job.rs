@@ -821,7 +821,7 @@ impl Job {
             .unwrap()
             .as_millis() as u64;
 
-        let delay = if timestamp > now { timestamp - now } else { 0 };
+        let delay = timestamp.saturating_sub(now);
 
         let job_key = ctx.keys.job_key(&self.id);
         let marker = ctx.keys.marker();

@@ -207,6 +207,7 @@ struct LoopContext {
 }
 
 impl LoopContext {
+    #[allow(clippy::too_many_arguments)]
     fn new(
         conn: RedisConnection,
         keys: QueueKeys,
@@ -885,6 +886,7 @@ impl Worker {
     }
 
     /// Handle a failed job — retry or move to permanent failure.
+    #[allow(clippy::too_many_arguments)]
     async fn handle_job_failed(
         ctx: &LoopContext,
         job_id: &str,
@@ -923,6 +925,7 @@ impl Worker {
     }
 
     /// Attempt to retry a failed job (with or without backoff).
+    #[allow(clippy::too_many_arguments)]
     async fn handle_retry(
         ctx: &LoopContext,
         job_id: &str,
@@ -1081,6 +1084,7 @@ impl Worker {
     }
 
     /// Fast version of move_to_completed/failed using pre-computed base keys.
+    #[allow(clippy::too_many_arguments)]
     async fn move_to_finished_fast(
         conn: &RedisConnection,
         base_keys: &[String],
