@@ -182,9 +182,9 @@ export interface NodeRedisRawClient {
 }
 
 export function createNodeRedisClient(
-  client: NodeRedisRawClient | any,
+  client: NodeRedisRawClient,
 ): IRedisClient {
-  return new NodeRedisAdapter(client as NodeRedisRawClient);
+  return new NodeRedisAdapter(client);
 }
 
 /**
