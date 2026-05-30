@@ -194,6 +194,11 @@ impl Job {
         self.processed_by.as_deref()
     }
 
+    /// The lock token for this job (set by the worker).
+    pub fn token(&self) -> Option<&str> {
+        self.ctx.as_ref().map(|ctx| ctx.token.as_str())
+    }
+
     /// The delay before this job becomes available.
     pub fn delay(&self) -> u64 {
         self.delay

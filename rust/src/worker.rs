@@ -58,10 +58,15 @@ impl CancellationToken {
 
     /// Wait until cancellation is requested.
     pub async fn cancelled(&self) {
+        let notified = self.notify.notified();
+        tokio::pin!(notified);
+        notified.as_mut().enable();
+
         if self.is_cancelled() {
             return;
         }
-        self.notify.notified().await;
+
+        notified.await;
     }
 }
 
@@ -1600,14 +1605,20 @@ impl Worker {
             loop {
                 ticker.tick().await;
 
-                let jobs = active_jobs.read().await;
+                let snapshot: Vec<(String, String)> = {
+                    let jobs = active_jobs.read().await;
 
-                // Only stop when closing AND no active jobs remain
-                if closing.load(Ordering::Relaxed) && jobs.is_empty() {
-                    break;
-                }
+                    // Only stop when closing AND no active jobs remain
+                    if closing.load(Ordering::Relaxed) && jobs.is_empty() {
+                        break;
+                    }
 
-                if jobs.is_empty() {
+                    jobs.iter()
+                        .map(|job| (job.job_id.clone(), job.token.clone()))
+                        .collect()
+                };
+
+                if snapshot.is_empty() {
                     continue;
                 }
 
@@ -1617,14 +1628,14 @@ impl Worker {
                     None => continue,
                 };
 
-                for active_job in jobs.iter() {
-                    let job_key = keys.job_key(&active_job.job_id);
+                for (job_id, token) in snapshot {
+                    let job_key = keys.job_key(&job_id);
                     let lock_key = format!("{}:lock", job_key);
                     let script_keys = vec![lock_key, keys.stalled()];
 
-                    let token_bytes = active_job.token.as_bytes();
+                    let token_bytes = token.as_bytes();
                     let dur_bytes = lock_duration.to_string().into_bytes();
-                    let job_id_bytes = active_job.job_id.as_bytes();
+                    let job_id_bytes = job_id.as_bytes();
                     let args: Vec<&[u8]> = vec![token_bytes, &dur_bytes, job_id_bytes];
 
                     let mut redis_conn = conn.conn();
@@ -1634,7 +1645,7 @@ impl Worker {
                         .map(|_| ())
                         .map_err(|e| {
                             warn!(
-                                job_id = %active_job.job_id,
+                                job_id = %job_id,
                                 error = %e,
                                 "lock extension failed"
                             );

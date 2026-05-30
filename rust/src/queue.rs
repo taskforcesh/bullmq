@@ -211,8 +211,6 @@ impl Queue {
         Ok(())
     }
 
-    /// Merge per-job options with queue default job options.
-    /// Per-job options take precedence over defaults.
     /// Create a ScriptContext for jobs returned by queue methods.
     fn make_script_context(&self) -> ScriptContext {
         let (progress_tx, _) = tokio::sync::broadcast::channel(1);
@@ -225,6 +223,8 @@ impl Queue {
         }
     }
 
+    /// Merge per-job options with queue default job options.
+    /// Per-job options take precedence over defaults.
     fn merge_job_options(&self, opts: Option<JobOptions>) -> Option<JobOptions> {
         let defaults = &self.default_job_options;
         let is_default = defaults.attempts.is_none()
