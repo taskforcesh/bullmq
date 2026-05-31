@@ -74,7 +74,7 @@ export interface NodeRedisRawClient {
   close?(): Promise<void>;
   destroy(): void | Promise<void>;
   quit(): Promise<unknown>;
-  duplicate(): any;
+  duplicate(): NodeRedisRawClient;
 
   scriptLoad(lua: string): Promise<unknown>;
   evalSha(
