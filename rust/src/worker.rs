@@ -167,6 +167,8 @@ pub struct Worker {
     desired_concurrency: Arc<AtomicUsize>,
     /// Dynamic concurrency: gate for workers waiting for a slot.
     concurrency_gate: Arc<Notify>,
+    /// Wake idle loops when the worker is closing.
+    close_notify: Arc<Notify>,
     /// Dynamic concurrency: count of workers currently in the fetch-process phase.
     active_fetchers: Arc<AtomicUsize>,
 }
@@ -194,6 +196,7 @@ struct LoopContext {
     event_tx: mpsc::UnboundedSender<WorkerEvent>,
     desired_concurrency: Arc<AtomicUsize>,
     concurrency_gate: Arc<Notify>,
+    close_notify: Arc<Notify>,
     active_fetchers: Arc<AtomicUsize>,
 
     // Pre-computed keys (avoid re-generating on every call)
@@ -226,6 +229,7 @@ impl LoopContext {
         event_tx: mpsc::UnboundedSender<WorkerEvent>,
         desired_concurrency: Arc<AtomicUsize>,
         concurrency_gate: Arc<Notify>,
+        close_notify: Arc<Notify>,
         active_fetchers: Arc<AtomicUsize>,
     ) -> Self {
         let move_to_active_keys = vec![
@@ -272,6 +276,7 @@ impl LoopContext {
             event_tx,
             desired_concurrency,
             concurrency_gate,
+            close_notify,
             active_fetchers,
             move_to_active_keys,
             move_to_finished_base_keys,
@@ -457,6 +462,7 @@ impl Worker {
             progress_tx,
             desired_concurrency: Arc::new(AtomicUsize::new(opts.concurrency)),
             concurrency_gate: Arc::new(Notify::new()),
+            close_notify: Arc::new(Notify::new()),
             active_fetchers: Arc::new(AtomicUsize::new(0)),
         };
 
@@ -571,6 +577,7 @@ impl Worker {
         self.running.store(false, Ordering::Release);
         // Wake any workers waiting at the concurrency gate so they can exit
         self.concurrency_gate.notify_waiters();
+        self.close_notify.notify_waiters();
 
         // Wait for active jobs to drain
         let deadline = tokio::time::Instant::now() + Duration::from_millis(timeout_ms);
@@ -661,6 +668,7 @@ impl Worker {
             self.event_tx.clone(),
             self.desired_concurrency.clone(),
             self.concurrency_gate.clone(),
+            self.close_notify.clone(),
             self.active_fetchers.clone(),
         ));
 
@@ -736,7 +744,7 @@ impl Worker {
                     let _ = ctx.event_tx.send(WorkerEvent::Drained);
                     tokio::select! {
                         _ = job_available.notified() => {}
-                        _ = tokio::time::sleep(Duration::from_millis(100)) => {}
+                        _ = ctx.close_notify.notified() => {}
                     }
                     continue;
                 }
