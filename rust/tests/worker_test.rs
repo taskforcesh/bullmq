@@ -9796,7 +9796,10 @@ async fn test_manual_move_to_completed() {
         .unwrap();
 
     assert!(job.is_completed().await.unwrap());
-    assert_eq!(job.returnvalue(), "my return value");
+    assert_eq!(job.returnvalue(), "\"my return value\"");
+
+    let fetched = queue.get_job(job.id()).await.unwrap().unwrap();
+    assert_eq!(fetched.returnvalue(), "\"my return value\"");
 
     let counts = queue.get_job_counts().await.unwrap();
     assert_eq!(counts.completed, 1);

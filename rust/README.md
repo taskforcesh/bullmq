@@ -58,6 +58,7 @@ async fn main() -> bullmq::Result<()> {
 
 ```bash
 # Ensure Redis is running on localhost:6379
+yarn generate:raw:scripts
 cargo test
 
 # Or specify a custom Redis URL

@@ -479,8 +479,9 @@ impl Worker {
 
     /// Dynamically change the worker's concurrency.
     ///
-    /// If increased, additional worker tasks will be spawned.
-    /// If decreased, excess workers will finish their current job then stop.
+    /// Increasing the value lets more of the existing worker loops run in parallel.
+    /// Decreasing it makes excess loops finish their current job before idling.
+    /// This does not spawn more loops than were created when the worker started.
     pub fn set_concurrency(&self, concurrency: usize) {
         if concurrency == 0 {
             return;
@@ -733,7 +734,10 @@ impl Worker {
                 Ok(None) => {
                     Self::release_concurrency_slot(&ctx);
                     let _ = ctx.event_tx.send(WorkerEvent::Drained);
-                    job_available.notified().await;
+                    tokio::select! {
+                        _ = job_available.notified() => {}
+                        _ = tokio::time::sleep(Duration::from_millis(100)) => {}
+                    }
                     continue;
                 }
                 Err(e) => {
