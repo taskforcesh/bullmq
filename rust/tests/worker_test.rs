@@ -9791,9 +9791,7 @@ async fn test_manual_move_to_completed() {
 
     assert!(job.is_active().await.unwrap());
 
-    job.move_to_completed("my return value", token)
-        .await
-        .unwrap();
+    job.move_to_completed("my return value").await.unwrap();
 
     assert!(job.is_completed().await.unwrap());
     assert_eq!(job.returnvalue(), "my return value");
@@ -9839,9 +9837,7 @@ async fn test_manual_move_to_failed() {
 
     assert!(job.is_active().await.unwrap());
 
-    job.move_to_failed("something went wrong", token)
-        .await
-        .unwrap();
+    job.move_to_failed("something went wrong").await.unwrap();
 
     assert!(job.is_failed().await.unwrap());
 

@@ -1,9 +1,5 @@
 # Changelog
 
-All notable changes to the BullMQ Rust SDK will be documented here.
-
-Releases follow [Semantic Versioning](https://semver.org/) and are tagged as `vrsX.Y.Z`.
-
 ## [Unreleased]
 
 ### Added

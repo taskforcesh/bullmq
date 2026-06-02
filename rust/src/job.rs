@@ -194,6 +194,11 @@ impl Job {
         self.processed_by.as_deref()
     }
 
+    /// The lock token for this job (set by the worker).
+    pub fn token(&self) -> Option<&str> {
+        self.ctx.as_ref().map(|ctx| ctx.token.as_str())
+    }
+
     /// The delay before this job becomes available.
     pub fn delay(&self) -> u64 {
         self.delay
@@ -736,11 +741,17 @@ impl Job {
             &marker,      // KEYS[14]
         ];
 
-        let (field_name, field_value): (&[u8], &[u8]) = if target == "completed" {
-            (b"returnvalue", value.as_bytes())
+        let serialized_return_value = if target == "completed" {
+            Some(serde_json::to_string(value)?)
         } else {
-            (b"failedReason", value.as_bytes())
+            None
         };
+        let (field_name, field_value): (&[u8], &[u8]) =
+            if let Some(value) = serialized_return_value.as_deref() {
+                (b"returnvalue", value.as_bytes())
+            } else {
+                (b"failedReason", value.as_bytes())
+            };
 
         // Pack opts
         use rmp::encode::{write_bool, write_map_len, write_sint, write_str, write_uint};
@@ -756,7 +767,7 @@ impl Job {
         write_str(&mut opts_buf, "lockDuration").unwrap();
         write_uint(&mut opts_buf, ctx.lock_duration).unwrap();
         write_str(&mut opts_buf, "attempts").unwrap();
-        write_uint(&mut opts_buf, self.attempts_made as u64 + 1).unwrap();
+        write_uint(&mut opts_buf, self.opts.attempts.unwrap_or(0) as u64).unwrap();
         write_str(&mut opts_buf, "maxMetricsSize").unwrap();
         write_str(&mut opts_buf, "").unwrap();
         for key in ["fpof", "cpof", "idof", "rdof"] {
@@ -787,8 +798,8 @@ impl Job {
             redis::Value::Int(code) if code < 0 => Err(Error::from_script_code(code)),
             _ => {
                 self.attempts_made += 1;
-                if target == "completed" {
-                    self.returnvalue = value.to_string();
+                if let Some(value) = serialized_return_value {
+                    self.returnvalue = value;
                 }
                 Ok(())
             }

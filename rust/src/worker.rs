@@ -173,6 +173,18 @@ struct ActiveJob {
     cancel_token: CancellationToken,
 }
 
+/// Result from a moveToActive attempt.
+enum FetchResult {
+    /// A job is ready for processing.
+    Job(Box<Job>),
+    /// No job ready, but there's a delayed job at this timestamp (ms).
+    NextTimestamp(u64),
+    /// Queue is completely empty (no waiting or delayed jobs).
+    Empty,
+    /// Rate limited — the value is the TTL in ms until the limit expires.
+    RateLimited(u64),
+}
+
 /// Shared context for all worker loops within a single Worker instance.
 ///
 /// Pre-computes keys and holds all shared state needed by the processing loops,
@@ -295,6 +307,9 @@ fn pack_move_to_active_opts(token: &str, opts: &WorkerOptions) -> Vec<u8> {
     if opts.name.is_some() {
         len += 1;
     }
+    if opts.limiter.is_some() {
+        len += 1;
+    }
 
     let mut buf = Vec::with_capacity(96);
     write_map_len(&mut buf, len).unwrap();
@@ -306,6 +321,16 @@ fn pack_move_to_active_opts(token: &str, opts: &WorkerOptions) -> Vec<u8> {
     if let Some(name) = opts.name.as_deref() {
         write_str(&mut buf, "name").unwrap();
         write_str(&mut buf, name).unwrap();
+    }
+
+    if let Some(ref limiter) = opts.limiter {
+        write_str(&mut buf, "limiter").unwrap();
+        // Encode limiter as a sub-map {max, duration}
+        write_map_len(&mut buf, 2).unwrap();
+        write_str(&mut buf, "max").unwrap();
+        write_uint(&mut buf, limiter.max).unwrap();
+        write_str(&mut buf, "duration").unwrap();
+        write_uint(&mut buf, limiter.duration).unwrap();
     }
 
     buf
@@ -715,17 +740,48 @@ impl Worker {
             let token = ctx.next_token();
 
             // Try to fetch a job (non-blocking — script only)
-            let job = match Self::try_fetch_job_fast(
+            let fetch_result = Self::try_fetch_job_fast(
                 &ctx.conn,
                 &ctx.move_to_active_keys,
                 &ctx.prefix_bytes,
                 &token,
                 &ctx.opts,
             )
-            .await
-            {
-                Ok(Some(job)) => job,
-                Ok(None) => {
+            .await;
+
+            match fetch_result {
+                Ok(FetchResult::Job(job)) => {
+                    Self::process_fetched_job(&ctx, *job, &token).await;
+                    Self::release_concurrency_slot(&ctx);
+                }
+                Ok(FetchResult::NextTimestamp(next_ts)) => {
+                    // No job ready, but there's a delayed job coming
+                    Self::release_concurrency_slot(&ctx);
+                    let now = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_millis() as u64;
+                    if next_ts > now {
+                        let delay_ms = next_ts - now;
+                        // Wait for either the delay or a notification
+                        tokio::select! {
+                            _ = tokio::time::sleep(Duration::from_millis(delay_ms)) => {}
+                            _ = job_available.notified() => {}
+                        }
+                    }
+                    continue;
+                }
+                Ok(FetchResult::RateLimited(ttl_ms)) => {
+                    // Rate limited — wait for the TTL to expire (capped by maximumRateLimitDelay)
+                    Self::release_concurrency_slot(&ctx);
+                    let delay = ttl_ms.min(ctx.opts.maximum_rate_limit_delay);
+                    tokio::select! {
+                        _ = tokio::time::sleep(Duration::from_millis(delay)) => {}
+                        _ = job_available.notified() => {}
+                    }
+                    continue;
+                }
+                Ok(FetchResult::Empty) => {
                     Self::release_concurrency_slot(&ctx);
                     let _ = ctx.event_tx.send(WorkerEvent::Drained);
                     job_available.notified().await;
@@ -738,11 +794,6 @@ impl Worker {
                     continue;
                 }
             };
-
-            Self::process_fetched_job(&ctx, job, &token).await;
-
-            // Release concurrency slot
-            Self::release_concurrency_slot(&ctx);
         }
     }
 
@@ -787,6 +838,8 @@ impl Worker {
         let job_attempts_made = job.attempts_made();
         let job_opts = job.opts().clone();
         let job_data = job.data().clone();
+        let repeat_job_key = job.repeat_job_key().map(|s| s.to_string());
+        let job_name = job.name().to_string();
 
         // Attach script context so job can call update_progress, etc.
         job.set_context(crate::job::ScriptContext {
@@ -825,6 +878,31 @@ impl Worker {
                     &job_opts,
                 )
                 .await;
+
+                // Schedule the next iteration if this is a repeatable job
+                if let Some(ref scheduler_id) = repeat_job_key {
+                    if let Err(e) = Self::update_job_scheduler(
+                        ctx,
+                        scheduler_id,
+                        &job_id,
+                        &job_name,
+                        &job_data,
+                        &job_opts,
+                    )
+                    .await
+                    {
+                        error!(
+                            job_id = %job_id,
+                            scheduler_id = %scheduler_id,
+                            error = %e,
+                            "failed to schedule next iteration"
+                        );
+                        let _ = ctx.event_tx.send(WorkerEvent::Error(format!(
+                            "Failed to add repeatable job for next iteration: {}",
+                            e
+                        )));
+                    }
+                }
             }
             Err(e) => {
                 Self::handle_job_failed(
@@ -838,6 +916,31 @@ impl Worker {
                     &job_data,
                 )
                 .await;
+
+                // Schedule the next iteration even when job fails
+                if let Some(ref scheduler_id) = repeat_job_key {
+                    if let Err(e) = Self::update_job_scheduler(
+                        ctx,
+                        scheduler_id,
+                        &job_id,
+                        &job_name,
+                        &job_data,
+                        &job_opts,
+                    )
+                    .await
+                    {
+                        error!(
+                            job_id = %job_id,
+                            scheduler_id = %scheduler_id,
+                            error = %e,
+                            "failed to schedule next iteration after job failure"
+                        );
+                        let _ = ctx.event_tx.send(WorkerEvent::Error(format!(
+                            "Failed to add repeatable job for next iteration: {}",
+                            e
+                        )));
+                    }
+                }
             }
         }
 
@@ -883,6 +986,267 @@ impl Worker {
                 result: return_value.clone(),
             });
         }
+    }
+
+    /// Schedule the next iteration of a repeatable job by calling the
+    /// `updateJobScheduler` Lua script. This is the critical path that
+    /// keeps job schedulers running — must never silently swallow errors.
+    async fn update_job_scheduler(
+        ctx: &LoopContext,
+        scheduler_id: &str,
+        job_id: &str,
+        _job_name: &str,
+        job_data: &serde_json::Value,
+        job_opts: &JobOptions,
+    ) -> Result<(), Error> {
+        use crate::job_scheduler::next_cron_millis;
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+
+        // Check limit: if we have repeat options with a limit, enforce it
+        if let Some(ref repeat) = job_opts.repeat {
+            if let Some(limit) = repeat.limit {
+                let next_count = repeat.count.map(|c| c + 1).unwrap_or(1);
+                if next_count > limit {
+                    return Ok(()); // Limit reached, don't schedule next
+                }
+            }
+
+            // Check end date
+            if let Some(end_date) = repeat.end_date {
+                if now > end_date {
+                    return Ok(()); // Past end date, don't schedule next
+                }
+            }
+        }
+
+        // Compute nextMillis for cron patterns (for `every`, the Lua script handles it)
+        let next_millis: u64 = if let Some(ref repeat) = job_opts.repeat {
+            if let Some(ref pattern) = repeat.pattern {
+                // Use prevMillis as reference if available, otherwise now
+                let reference = job_opts.prev_millis.unwrap_or(now);
+                let reference = if reference < now { now } else { reference };
+
+                match next_cron_millis(pattern, reference, repeat.tz.as_deref(), repeat.start_date)
+                {
+                    Ok(Some(ms)) => {
+                        if ms < now {
+                            now
+                        } else {
+                            ms
+                        }
+                    }
+                    Ok(None) => return Ok(()), // No next occurrence
+                    Err(e) => {
+                        return Err(Error::InvalidConfig(format!(
+                            "cron computation failed for scheduler '{}': {}",
+                            scheduler_id, e
+                        )));
+                    }
+                }
+            } else {
+                // For `every`-based schedulers, pass 0; the Lua script recomputes
+                0
+            }
+        } else {
+            // No repeat options on the job — the Lua script reads from the scheduler hash
+            0
+        };
+
+        // Build the msgpacked opts for the Lua script
+        let opts_packed = Self::pack_update_scheduler_opts(job_opts);
+
+        // Template data
+        let template_data = serde_json::to_string(job_data).unwrap_or_else(|_| "{}".to_string());
+
+        let script = ctx
+            .conn
+            .scripts()
+            .get("updateJobScheduler")
+            .ok_or_else(|| Error::InvalidConfig("updateJobScheduler script not found".to_string()))?
+            .clone();
+
+        // Build keys (12 keys)
+        let repeat_key = ctx.keys.repeat();
+        let delayed_key = ctx.keys.delayed();
+        let wait_key = ctx.keys.wait();
+        let paused_key = ctx.keys.paused();
+        let meta_key = ctx.keys.meta();
+        let prioritized_key = ctx.keys.prioritized();
+        let marker_key = ctx.keys.marker();
+        let id_key = ctx.keys.id();
+        let events_key = ctx.keys.events();
+        let pc_key = ctx.keys.pc();
+        let producer_key = ctx.keys.job_key(job_id);
+        let active_key = ctx.keys.active();
+
+        let script_keys: Vec<&str> = vec![
+            &repeat_key,
+            &delayed_key,
+            &wait_key,
+            &paused_key,
+            &meta_key,
+            &prioritized_key,
+            &marker_key,
+            &id_key,
+            &events_key,
+            &pc_key,
+            &producer_key,
+            &active_key,
+        ];
+
+        // Build args (7 args)
+        let next_millis_str = next_millis.to_string();
+        let now_str = now.to_string();
+        let prefix = ctx.keys.key_prefix();
+
+        let args: Vec<&[u8]> = vec![
+            next_millis_str.as_bytes(), // ARGV[1] nextMillis
+            scheduler_id.as_bytes(),    // ARGV[2] jobSchedulerId
+            template_data.as_bytes(),   // ARGV[3] template data (JSON)
+            &opts_packed,               // ARGV[4] msgpacked opts
+            now_str.as_bytes(),         // ARGV[5] timestamp
+            prefix.as_bytes(),          // ARGV[6] prefix key
+            job_id.as_bytes(),          // ARGV[7] producerId
+        ];
+
+        let mut redis_conn = ctx.conn.conn();
+        let _result = script.execute(&mut redis_conn, &script_keys, &args).await?;
+
+        // Script returns the next job ID on success, or nil if scheduler
+        // was removed/doesn't exist. Both are valid outcomes.
+        Ok(())
+    }
+
+    /// Pack job options into msgpack format for the updateJobScheduler script.
+    fn pack_update_scheduler_opts(job_opts: &JobOptions) -> Vec<u8> {
+        use rmp::encode::*;
+
+        let mut entries: Vec<(&str, Vec<u8>)> = Vec::new();
+
+        // repeat sub-map — include ALL fields so they propagate to the next job
+        if let Some(ref repeat) = job_opts.repeat {
+            let mut repeat_entries: Vec<(&str, Vec<u8>)> = Vec::new();
+
+            if let Some(every) = repeat.every {
+                let mut b = Vec::new();
+                write_uint(&mut b, every).unwrap();
+                repeat_entries.push(("every", b));
+            }
+
+            if let Some(ref pattern) = repeat.pattern {
+                let mut b = Vec::new();
+                write_str(&mut b, pattern).unwrap();
+                repeat_entries.push(("pattern", b));
+            }
+
+            if let Some(offset) = repeat.offset {
+                let mut b = Vec::new();
+                write_uint(&mut b, offset).unwrap();
+                repeat_entries.push(("offset", b));
+            }
+
+            // Increment count for the next iteration
+            let next_count = repeat.count.map(|c| c + 1).unwrap_or(1);
+            {
+                let mut b = Vec::new();
+                write_uint(&mut b, next_count).unwrap();
+                repeat_entries.push(("count", b));
+            }
+
+            if let Some(limit) = repeat.limit {
+                let mut b = Vec::new();
+                write_uint(&mut b, limit).unwrap();
+                repeat_entries.push(("limit", b));
+            }
+
+            if let Some(ref tz) = repeat.tz {
+                let mut b = Vec::new();
+                write_str(&mut b, tz).unwrap();
+                repeat_entries.push(("tz", b));
+            }
+
+            if let Some(start_date) = repeat.start_date {
+                let mut b = Vec::new();
+                write_uint(&mut b, start_date).unwrap();
+                repeat_entries.push(("startDate", b));
+            }
+
+            if let Some(end_date) = repeat.end_date {
+                let mut b = Vec::new();
+                write_uint(&mut b, end_date).unwrap();
+                repeat_entries.push(("endDate", b));
+            }
+
+            let mut repeat_buf = Vec::new();
+            write_map_len(&mut repeat_buf, repeat_entries.len() as u32).unwrap();
+            for (key, val) in &repeat_entries {
+                write_str(&mut repeat_buf, key).unwrap();
+                repeat_buf.extend_from_slice(val);
+            }
+
+            entries.push(("repeat", repeat_buf));
+        } else {
+            // Empty repeat map - script may still need it
+            let mut repeat_buf = Vec::new();
+            write_map_len(&mut repeat_buf, 0).unwrap();
+            entries.push(("repeat", repeat_buf));
+        }
+
+        // repeatJobKey
+        if let Some(ref rjk) = job_opts.repeat_job_key {
+            let mut b = Vec::new();
+            write_str(&mut b, rjk).unwrap();
+            entries.push(("repeatJobKey", b));
+        }
+
+        // attempts
+        if let Some(attempts) = job_opts.attempts {
+            let mut b = Vec::new();
+            write_uint(&mut b, attempts as u64).unwrap();
+            entries.push(("attempts", b));
+        }
+
+        // backoff
+        if let Some(ref backoff) = job_opts.backoff {
+            let b = crate::queue::Queue::encode_backoff(backoff);
+            entries.push(("backoff", b));
+        }
+
+        // removeOnComplete
+        if let Some(ref roc) = job_opts.remove_on_complete {
+            let b = crate::queue::Queue::encode_remove_on_finish(roc);
+            entries.push(("removeOnComplete", b));
+        }
+
+        // removeOnFail
+        if let Some(ref rof) = job_opts.remove_on_fail {
+            let b = crate::queue::Queue::encode_remove_on_finish(rof);
+            entries.push(("removeOnFail", b));
+        }
+
+        // priority
+        if let Some(priority) = job_opts.priority {
+            if priority > 0 {
+                let mut b = Vec::new();
+                write_uint(&mut b, priority as u64).unwrap();
+                entries.push(("priority", b));
+            }
+        }
+
+        // Encode as msgpack map
+        let mut buf = Vec::with_capacity(128);
+        write_map_len(&mut buf, entries.len() as u32).unwrap();
+        for (key, val) in &entries {
+            write_str(&mut buf, key).unwrap();
+            buf.extend_from_slice(val);
+        }
+
+        buf
     }
 
     /// Handle a failed job — retry or move to permanent failure.
@@ -1061,7 +1425,7 @@ impl Worker {
         prefix_bytes: &[u8],
         token: &str,
         opts: &WorkerOptions,
-    ) -> Result<Option<Job>, Error> {
+    ) -> Result<FetchResult, Error> {
         let script = conn
             .scripts()
             .get("moveToActive")
@@ -1411,7 +1775,10 @@ impl Worker {
                         let mut redis_conn = conn.conn();
                         let retry_result =
                             script.execute(&mut redis_conn, &script_keys, &args).await?;
-                        Self::parse_move_to_active_result(&retry_result)
+                        match Self::parse_move_to_active_result(&retry_result)? {
+                            FetchResult::Job(job) => Ok(Some(*job)),
+                            _ => Ok(None),
+                        }
                     } else {
                         Ok(None)
                     }
@@ -1419,18 +1786,21 @@ impl Worker {
                     Ok(None)
                 }
             }
-            _ => Self::parse_move_to_active_result(&result),
+            _ => match Self::parse_move_to_active_result(&result)? {
+                FetchResult::Job(job) => Ok(Some(*job)),
+                _ => Ok(None),
+            },
         }
     }
 
     /// Parse the result of moveToActive script into a Job.
-    fn parse_move_to_active_result(result: &redis::Value) -> Result<Option<Job>, Error> {
+    fn parse_move_to_active_result(result: &redis::Value) -> Result<FetchResult, Error> {
         match result {
-            redis::Value::Nil => Ok(None),
+            redis::Value::Nil => Ok(FetchResult::Empty),
             redis::Value::Array(arr) if arr.len() >= 2 => {
                 // The result is [HGETALL_data, job_id, expireTime, nextTimestamp]
                 // arr[0] = array of field/value pairs from HGETALL
-                // arr[1] = job ID
+                // arr[1] = job ID (or "0" if no job)
                 if let (
                     Some(redis::Value::Array(fields)),
                     Some(redis::Value::BulkString(id_bytes)),
@@ -1438,7 +1808,18 @@ impl Worker {
                 {
                     let job_id = String::from_utf8_lossy(id_bytes).to_string();
                     if job_id == "0" || fields.is_empty() {
-                        return Ok(None);
+                        // No job available — check for rate limiting (3rd element)
+                        let rate_limit_ttl = Self::extract_element_as_u64(arr, 2);
+                        if rate_limit_ttl > 0 {
+                            return Ok(FetchResult::RateLimited(rate_limit_ttl));
+                        }
+                        // Check for next delayed timestamp (4th element)
+                        let next_ts = Self::extract_element_as_u64(arr, 3);
+                        return if next_ts > 0 {
+                            Ok(FetchResult::NextTimestamp(next_ts))
+                        } else {
+                            Ok(FetchResult::Empty)
+                        };
                     }
 
                     // Parse the HGETALL array directly into a HashMap
@@ -1456,16 +1837,46 @@ impl Worker {
                     }
 
                     if map.is_empty() {
-                        return Ok(None);
+                        return Ok(FetchResult::Empty);
                     }
 
-                    Ok(Some(Job::from_redis_hash(&job_id, &map)?))
+                    Ok(FetchResult::Job(Box::new(Job::from_redis_hash(
+                        &job_id, &map,
+                    )?)))
                 } else {
-                    Ok(None)
+                    // Check for rate limiting (3rd element)
+                    let rate_limit_ttl = Self::extract_element_as_u64(arr, 2);
+                    if rate_limit_ttl > 0 {
+                        return Ok(FetchResult::RateLimited(rate_limit_ttl));
+                    }
+                    // Check for nextTimestamp
+                    let next_ts = Self::extract_element_as_u64(arr, 3);
+                    if next_ts > 0 {
+                        Ok(FetchResult::NextTimestamp(next_ts))
+                    } else {
+                        Ok(FetchResult::Empty)
+                    }
                 }
             }
             redis::Value::Int(code) if *code < 0 => Err(Error::from_script_code(*code)),
-            _ => Ok(None),
+            _ => Ok(FetchResult::Empty),
+        }
+    }
+
+    /// Extract the next delayed timestamp from a moveToActive result array.
+    /// The script returns [data, jobId, expireTime, nextTimestamp].
+    /// Extract a u64 value from an array element at the given index.
+    fn extract_element_as_u64(arr: &[redis::Value], index: usize) -> u64 {
+        if arr.len() > index {
+            match &arr[index] {
+                redis::Value::Int(v) if *v > 0 => *v as u64,
+                redis::Value::BulkString(bs) => {
+                    String::from_utf8_lossy(bs).parse::<u64>().unwrap_or(0)
+                }
+                _ => 0,
+            }
+        } else {
+            0
         }
     }
 

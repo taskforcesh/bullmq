@@ -129,7 +129,34 @@ impl std::fmt::Debug for WorkerOptions {
 impl WorkerOptions {
     /// Effective lock renewal time.
     pub fn effective_lock_renew_time(&self) -> u64 {
-        self.lock_renew_time.unwrap_or(self.lock_duration / 2)
+        self.lock_renew_time
+            .unwrap_or(self.lock_duration / 2)
+            .max(1)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::WorkerOptions;
+
+    #[test]
+    fn effective_lock_renew_time_never_returns_zero() {
+        let opts = WorkerOptions {
+            lock_duration: 0,
+            ..Default::default()
+        };
+
+        assert_eq!(opts.effective_lock_renew_time(), 1);
+    }
+
+    #[test]
+    fn explicit_lock_renew_time_is_clamped_to_one() {
+        let opts = WorkerOptions {
+            lock_renew_time: Some(0),
+            ..Default::default()
+        };
+
+        assert_eq!(opts.effective_lock_renew_time(), 1);
     }
 }
 
