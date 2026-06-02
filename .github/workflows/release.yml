@@ -106,7 +106,9 @@ jobs:
         with:
           python-version: '3.14.3'
           cache: 'pip'
-      - run: yarn copy:lua:python
+      - name: Copy Lua scripts for Python
+        if: ${{ contains(env.commitmsg, '[python]') || contains(env.commitmsg, '(python)') }}
+        run: yarn copy:lua:python
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
@@ -379,9 +381,13 @@ jobs:
           else
             echo "No changes detected after semantic-release"
           fi
+
       # Rust Release
-      - name: Install Rust toolchain
+      - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+      - name: Copy Lua scripts for Rust
+        if: ${{ contains(env.commitmsg, '[rust]') || contains(env.commitmsg, '(rust)') }}
+        run: yarn copy:lua:rust
       - name: Cache Cargo registry
         uses: actions/cache@v4
         with:
