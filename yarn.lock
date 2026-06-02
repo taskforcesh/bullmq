@@ -74,23 +74,23 @@
   resolved "https://registry.npmjs.org/@colors/colors/-/colors-1.5.0.tgz"
   integrity sha512-ooWCrlZP11i8GImSjTHYHLkvFDP48nS4+204nGb1RiX/WXYHmJA2III9/e2DWVabCESdW7hBAEzHRqUn9OUVvQ==
 
-"@commitlint/cli@21.0.1":
-  version "21.0.1"
-  resolved "https://registry.npmjs.org/@commitlint/cli/-/cli-21.0.1.tgz"
-  integrity sha512-8vq10krmbJwBkvzXKhbs4o4JQEVscd3pqOlWuDUaDBwbeL694/P33UC29tZQFTAgPU9fVJ2+f2m3zw16yKWxHg==
+"@commitlint/cli@21.0.2":
+  version "21.0.2"
+  resolved "https://registry.yarnpkg.com/@commitlint/cli/-/cli-21.0.2.tgz#34f006f2ffa77ade13a6bfe97296290f99aaddeb"
+  integrity sha512-YMmfLbqBg+ZRvvmPhc+cilSQFrh/AgzVgCT1U/OifmUZEwPbvCtA8rN//YNaF9d5eoZphxVMGYtmwA2QgQORgg==
   dependencies:
     "@commitlint/format" "^21.0.1"
-    "@commitlint/lint" "^21.0.1"
-    "@commitlint/load" "^21.0.1"
-    "@commitlint/read" "^21.0.1"
+    "@commitlint/lint" "^21.0.2"
+    "@commitlint/load" "^21.0.2"
+    "@commitlint/read" "^21.0.2"
     "@commitlint/types" "^21.0.1"
     tinyexec "^1.0.0"
     yargs "^18.0.0"
 
-"@commitlint/config-conventional@21.0.1":
-  version "21.0.1"
-  resolved "https://registry.npmjs.org/@commitlint/config-conventional/-/config-conventional-21.0.1.tgz"
-  integrity sha512-gRorrkfWOh/+V5X8GYWWbQvrzPczopGMS4CCNrQdHkK4xWElv82BDvIsDhJZWTlI7TazOlYea6VATufCsFs+sw==
+"@commitlint/config-conventional@21.0.2":
+  version "21.0.2"
+  resolved "https://registry.yarnpkg.com/@commitlint/config-conventional/-/config-conventional-21.0.2.tgz#10858dd7f499edd6336a748247d005b81efd5b54"
+  integrity sha512-P/ZRhryQmkj0Z0dY9FOoRwe3xkwJyyAdtXwt01NT2kuZttcG2CNYp1q5Ci3u+nDT2jcbJRw2kt13Czl1qKNPfg==
   dependencies:
     "@commitlint/types" "^21.0.1"
     conventional-changelog-conventionalcommits "^9.2.0"
@@ -124,28 +124,28 @@
     "@commitlint/types" "^21.0.1"
     picocolors "^1.1.1"
 
-"@commitlint/is-ignored@^21.0.1":
-  version "21.0.1"
-  resolved "https://registry.npmjs.org/@commitlint/is-ignored/-/is-ignored-21.0.1.tgz"
-  integrity sha512-iNDP8SFdw8JEkM0CHZ2XFnhTN4Zg5jKUY2d8kBOSFrI2aA+3YJI7fcqVpfgbpJ9xtxFVYpi+DBATU5AvhoTq8g==
+"@commitlint/is-ignored@^21.0.2":
+  version "21.0.2"
+  resolved "https://registry.yarnpkg.com/@commitlint/is-ignored/-/is-ignored-21.0.2.tgz#ae3c37a5388e7b59b642de5782ec67b0a7c62b66"
+  integrity sha512-H5z4t8PC9tUsmZ/o+EptM3Nq8sTFtskAShdcqxCoyzklW5eaVT5xbrDAET2uypzir9Vsj4ZZmBtyKjYe2XqgeQ==
   dependencies:
     "@commitlint/types" "^21.0.1"
     semver "^7.6.0"
 
-"@commitlint/lint@^21.0.1":
-  version "21.0.1"
-  resolved "https://registry.npmjs.org/@commitlint/lint/-/lint-21.0.1.tgz"
-  integrity sha512-gF+iYtUw1gBG3HUH9z3VxwUjGg2R2G5j+nmvPs8aIeYkiB7TtneBu3wO85I0bUl93bYNsvsCNI9Nte2fmDUMww==
+"@commitlint/lint@^21.0.2":
+  version "21.0.2"
+  resolved "https://registry.yarnpkg.com/@commitlint/lint/-/lint-21.0.2.tgz#59d61922edc16fa4ea1280990d7b1c4b10def278"
+  integrity sha512-PnUmLYGeGLfW8oVatR9KpNxSHYAnJOEWlMZzfdeFOUq6WUrFx1fGQaWCWJqMoIll/xPM+GdfJV+tKHZVHhl0Fg==
   dependencies:
-    "@commitlint/is-ignored" "^21.0.1"
-    "@commitlint/parse" "^21.0.1"
-    "@commitlint/rules" "^21.0.1"
+    "@commitlint/is-ignored" "^21.0.2"
+    "@commitlint/parse" "^21.0.2"
+    "@commitlint/rules" "^21.0.2"
     "@commitlint/types" "^21.0.1"
 
-"@commitlint/load@^21.0.1":
-  version "21.0.1"
-  resolved "https://registry.npmjs.org/@commitlint/load/-/load-21.0.1.tgz"
-  integrity sha512-Btg1q1mKmiihN4W3x0EsPDrJMOQfMa9NIqlzlJyXAfxvsOGdGXOW5p3R3RcSxDCaY7JabY9flIl+Om1af3PSrw==
+"@commitlint/load@^21.0.2":
+  version "21.0.2"
+  resolved "https://registry.yarnpkg.com/@commitlint/load/-/load-21.0.2.tgz#8db08c9f2544ce34843acd8a944f0bb8e86edffc"
+  integrity sha512-lwUE70hN0/qE/ZRROhbaX65ly/FF12DrqfReLCESo37M0OQCFAf2jRS+2tSCSORq+bm4Kdju7qNDj46uc1QzTA==
   dependencies:
     "@commitlint/config-validator" "^21.0.1"
     "@commitlint/execute-rule" "^21.0.1"
@@ -157,26 +157,26 @@
     is-plain-obj "^4.1.0"
     picocolors "^1.1.1"
 
-"@commitlint/message@^21.0.1":
-  version "21.0.1"
-  resolved "https://registry.npmjs.org/@commitlint/message/-/message-21.0.1.tgz"
-  integrity sha512-R3dVQeJQ0B6yqrZEjkUHD4r7UJYLV9Lvk2xs3PTOmtWk2G3mI6Xgc+YdRxL1PwcDfBiUjv2SkIkW4AUc976w1w==
+"@commitlint/message@^21.0.2":
+  version "21.0.2"
+  resolved "https://registry.yarnpkg.com/@commitlint/message/-/message-21.0.2.tgz#0c13ce16fa68829c9f05a9d917c411c83311c7be"
+  integrity sha512-5n4aqHGD/FNnom/D5L8i7cYtV+xjuXcBL832C3w9VglEsZzIsoHpJsvxzJ7cgiOsOdc/2jU4t5+7qMHh7GBX3g==
 
-"@commitlint/parse@^21.0.1":
-  version "21.0.1"
-  resolved "https://registry.npmjs.org/@commitlint/parse/-/parse-21.0.1.tgz"
-  integrity sha512-oh/nCSOqdoeQNA1tO8aAmxkq5EBo8/NzcFQRvv66AWc9HpED28sL2iSicCKU6hPintWuscL6BJEWi77Wq1LPMQ==
+"@commitlint/parse@^21.0.2":
+  version "21.0.2"
+  resolved "https://registry.yarnpkg.com/@commitlint/parse/-/parse-21.0.2.tgz#3a41779440265847b96f452be04f7fec4c1d84cf"
+  integrity sha512-QVZJhGHTm+oiuWyEKOCTQ0ZM3mfJ0eGWFeHuj7WzSKEth+UukcCHac9GD8pgdFlg/qGkFWOtyaNd1T8REgagaw==
   dependencies:
     "@commitlint/types" "^21.0.1"
     conventional-changelog-angular "^8.2.0"
     conventional-commits-parser "^6.3.0"
 
-"@commitlint/read@^21.0.1":
-  version "21.0.1"
-  resolved "https://registry.npmjs.org/@commitlint/read/-/read-21.0.1.tgz"
-  integrity sha512-pMEu4lbpC8W0ZgKJj2U6WaobXIZWdFlULpIEewYhkPXx+WZcnoO53YrVPc7QErQuNolq2Me8dP58Wu7YAVXVOA==
+"@commitlint/read@^21.0.2":
+  version "21.0.2"
+  resolved "https://registry.yarnpkg.com/@commitlint/read/-/read-21.0.2.tgz#9f96814c00d073dd782b22ad4858dfab9e515bf5"
+  integrity sha512-BtsrnLVycSSKf4Q0gMch4giCj5NNlmcbhc8ra5vONgGtP2IjRDo33bEFtr5Pm+2N+5fXGWb2MksWPrspPfdhdw==
   dependencies:
-    "@commitlint/top-level" "^21.0.1"
+    "@commitlint/top-level" "^21.0.2"
     "@commitlint/types" "^21.0.1"
     git-raw-commits "^5.0.0"
     tinyexec "^1.0.0"
@@ -192,13 +192,13 @@
     global-directory "^5.0.0"
     resolve-from "^5.0.0"
 
-"@commitlint/rules@^21.0.1":
-  version "21.0.1"
-  resolved "https://registry.npmjs.org/@commitlint/rules/-/rules-21.0.1.tgz"
-  integrity sha512-VMooYpz4nJg7xlaUso6CCOWEz8D/ChkvsvZUMARcoJ1ZpfKPyFCGrHNha2tbsETNAb6ErgiRuCr2DvghrvPDYQ==
+"@commitlint/rules@^21.0.2":
+  version "21.0.2"
+  resolved "https://registry.yarnpkg.com/@commitlint/rules/-/rules-21.0.2.tgz#a831b0ac614409ca41e9f87775feb5637d5766bb"
+  integrity sha512-k6tQ69Td7t2qUSIbik8D3TL1q3ZJpkEbV+yLogDzCRAdOxJm4ndhtBNREsLA1/puRfWvzS9eioF2w43WT+hHgQ==
   dependencies:
     "@commitlint/ensure" "^21.0.1"
-    "@commitlint/message" "^21.0.1"
+    "@commitlint/message" "^21.0.2"
     "@commitlint/to-lines" "^21.0.1"
     "@commitlint/types" "^21.0.1"
 
@@ -207,10 +207,10 @@
   resolved "https://registry.npmjs.org/@commitlint/to-lines/-/to-lines-21.0.1.tgz"
   integrity sha512-bd1BFII7p1EQZre9Kaj+kKaMFP3cFCdt21K7DItVux9XP5WjLgJ0/Uy1pJJh9aPwVJ6SKg62PxqlZaHI8hQAXw==
 
-"@commitlint/top-level@^21.0.1":
-  version "21.0.1"
-  resolved "https://registry.npmjs.org/@commitlint/top-level/-/top-level-21.0.1.tgz"
-  integrity sha512-4esUYqzY7K0FCgcJ/1xWEZekV7Ch4yZT1+xjEb7KzqbJ05XEkxHVsTfC8ADKNNtlCE2pj98KEbPGZWw9WwEnVw==
+"@commitlint/top-level@^21.0.2":
+  version "21.0.2"
+  resolved "https://registry.yarnpkg.com/@commitlint/top-level/-/top-level-21.0.2.tgz#037da21955e4ae39db2e74a885ddc79aaf9f267b"
+  integrity sha512-s9KKM+e+mXgFeIh4n7KmOGAVT3mkJ3Fp1bBYHIK5pjeUwlEMzp/tZfb5u0Poa680AsQTXMEMRxZi1vQ9m2X5ug==
   dependencies:
     escalade "^3.2.0"
 
@@ -794,32 +794,32 @@
     "@pnpm/network.ca-file" "^1.0.1"
     config-chain "^1.1.11"
 
-"@redis/bloom@5.7.0":
-  version "5.7.0"
-  resolved "https://registry.npmjs.org/@redis/bloom/-/bloom-5.7.0.tgz"
-  integrity sha512-KtBHDH2Aw1BxYDQd87PJsdEmZcpMbD4oPzdBwB4IvSRmMovukO2NNGi5vpCHhCoicS83zu7cjX1fw79uFBZFJA==
+"@redis/bloom@5.12.1":
+  version "5.12.1"
+  resolved "https://registry.yarnpkg.com/@redis/bloom/-/bloom-5.12.1.tgz#047dbfce93cfa7e5879fb58ad1b2afe87ebb2dc4"
+  integrity sha512-PUUfv+ms7jgPSBVoo/DN4AkPHj4D5TZSd6SbJX7egzBplkYUcKmHRE8RKia7UtZ8bSQbLguLvxVO+asKtQfZWA==
 
-"@redis/client@5.7.0":
-  version "5.7.0"
-  resolved "https://registry.npmjs.org/@redis/client/-/client-5.7.0.tgz"
-  integrity sha512-YV3Knspdj9k6H6s4v8QRcj1WBxHt40vtPmszLKGwRUOUpUOLWSlI9oCUjprMDcQNzgSCXGXYdL/Aj6nT2+Ub0w==
+"@redis/client@5.12.1":
+  version "5.12.1"
+  resolved "https://registry.yarnpkg.com/@redis/client/-/client-5.12.1.tgz#a35a2bac546c727d7915d2d91b63a77111e51ebd"
+  integrity sha512-7aPGWeqA3uFm43o19umzdl16CEjK/JQGtSXVPevplTaOU3VJA/rseBC1QvYUz9lLDIMBimc4SW/zrW4S89BaCA==
   dependencies:
     cluster-key-slot "1.1.2"
 
-"@redis/json@5.7.0":
-  version "5.7.0"
-  resolved "https://registry.npmjs.org/@redis/json/-/json-5.7.0.tgz"
-  integrity sha512-VP3wtse1PSB/UjZAV1lWyDrWrrZcwi/cjb3L0lIarcIJ+EbHliB2QPml0Bvjz8F8F0eDJRtChJVXFc+jhGxCtA==
+"@redis/json@5.12.1":
+  version "5.12.1"
+  resolved "https://registry.yarnpkg.com/@redis/json/-/json-5.12.1.tgz#52aff987abe4d41ec9644857fb00f16c7a97fdb7"
+  integrity sha512-eOze75esLve4vfqDel7aMX08CNaiLLQS2fV8mpRN9NxPe1rVR4vQyYiW/OgtGUysF6QOr9ANhfxABKNOJfXdKg==
 
-"@redis/search@5.7.0":
-  version "5.7.0"
-  resolved "https://registry.npmjs.org/@redis/search/-/search-5.7.0.tgz"
-  integrity sha512-dDZIq8pZJnT+kZ9xRlLLi2Rvkd792z9eh31QRIwPr5wXjAXeaQ+Nf65em6dLpsxZ60MmhwDwLrBPJpYVjKPBPQ==
+"@redis/search@5.12.1":
+  version "5.12.1"
+  resolved "https://registry.yarnpkg.com/@redis/search/-/search-5.12.1.tgz#b7a738be918c8a7af91e39c5bd2023f30f392981"
+  integrity sha512-ItlxbxC9cKI6IU1TLWoczwJCRb6TdmkEpWv05UrPawqaAnWGRu3rcIqsc5vN483T2fSociuyV1UkWIL5I4//2w==
 
-"@redis/time-series@5.7.0":
-  version "5.7.0"
-  resolved "https://registry.npmjs.org/@redis/time-series/-/time-series-5.7.0.tgz"
-  integrity sha512-AJTF9sz3y1MJAukgQW4Jw8zt8qGOE3+1d87pufOP35zsFBlHipGscpctoXiNMebfy0114y/FjSprr65LjbJQSQ==
+"@redis/time-series@5.12.1":
+  version "5.12.1"
+  resolved "https://registry.yarnpkg.com/@redis/time-series/-/time-series-5.12.1.tgz#15b6deaaf3716bc2633311c0ed18201c9299392d"
+  integrity sha512-c6JL6E3EcZJuNqKFz+KM+l9l5mpcQiKvTwgA3blt5glWJ8hjDk0yeHN3beE/MpqYIQ8UEX44ItQzgkE/gCBELQ==
 
 "@rolldown/binding-android-arm64@1.0.0":
   version "1.0.0"
@@ -1511,13 +1511,13 @@
     "@typescript-eslint/types" "8.60.0"
     eslint-visitor-keys "^5.0.0"
 
-"@vitest/coverage-v8@4.1.6":
-  version "4.1.6"
-  resolved "https://registry.npmjs.org/@vitest/coverage-v8/-/coverage-v8-4.1.6.tgz"
-  integrity sha512-36l628fQ/9a/8ihy97eOtEnvWQEdqULQOJtcaxtoNq0G1w3Mxd4szSahOaMM9/NGyZ+hyKcMtIW/WIxq0XQViQ==
+"@vitest/coverage-v8@4.1.8":
+  version "4.1.8"
+  resolved "https://registry.yarnpkg.com/@vitest/coverage-v8/-/coverage-v8-4.1.8.tgz#6a5dd34552840a0ace0396d0e94c7459beb80d14"
+  integrity sha512-lt3kovsyHwYe00wq4D1ti0Z974fWj4NLp6siqiyEufUpyFwK9Yhi7rBhac9JL5aA0zoMrJqc4vYPZRUnI7l7nw==
   dependencies:
     "@bcoe/v8-coverage" "^1.0.2"
-    "@vitest/utils" "4.1.6"
+    "@vitest/utils" "4.1.8"
     ast-v8-to-istanbul "^1.0.0"
     istanbul-lib-coverage "^3.2.2"
     istanbul-lib-report "^3.0.1"
@@ -1527,63 +1527,63 @@
     std-env "^4.0.0-rc.1"
     tinyrainbow "^3.1.0"
 
-"@vitest/expect@4.1.6":
-  version "4.1.6"
-  resolved "https://registry.npmjs.org/@vitest/expect/-/expect-4.1.6.tgz"
-  integrity sha512-7EHDquPthALSV0jhhjgEW8FXaviMx7rSqu8W6oqCoAuOhKov814P99QDV1pxMA3QPv21YudvJngIhjrNI4opLg==
+"@vitest/expect@4.1.8":
+  version "4.1.8"
+  resolved "https://registry.yarnpkg.com/@vitest/expect/-/expect-4.1.8.tgz#45154f1f8559f55c5281eb0dcb1ac37b581a87d8"
+  integrity sha512-h3nDO677RDLEGlBxyQ5CW8RlMThSKSRLUePLOx09gNIWRL40edgA1GCZSZgf1W55MFAG6/Sw14KeaAnqv0NKdQ==
   dependencies:
     "@standard-schema/spec" "^1.1.0"
     "@types/chai" "^5.2.2"
-    "@vitest/spy" "4.1.6"
-    "@vitest/utils" "4.1.6"
+    "@vitest/spy" "4.1.8"
+    "@vitest/utils" "4.1.8"
     chai "^6.2.2"
     tinyrainbow "^3.1.0"
 
-"@vitest/mocker@4.1.6":
-  version "4.1.6"
-  resolved "https://registry.npmjs.org/@vitest/mocker/-/mocker-4.1.6.tgz"
-  integrity sha512-MCFc63czMjEInOlcY2cpQCvCN+KgbAn+60xu9cMgP4sKaLC5JNAKw7JH8QdAnoAC88hW1IiSNZ+GgVXlN1UcMQ==
+"@vitest/mocker@4.1.8":
+  version "4.1.8"
+  resolved "https://registry.yarnpkg.com/@vitest/mocker/-/mocker-4.1.8.tgz#d006bfc5894a1af51e74deddef2535d6bd436b16"
+  integrity sha512-LEiN/xe4OSIbKe9HQIp5OC24agGD9J5CnmMgsLohVVoOPWL9a2sBoR6VBx43jQZb7Kr1l4RCuyCJzcAa0+dojw==
   dependencies:
-    "@vitest/spy" "4.1.6"
+    "@vitest/spy" "4.1.8"
     estree-walker "^3.0.3"
     magic-string "^0.30.21"
 
-"@vitest/pretty-format@4.1.6":
-  version "4.1.6"
-  resolved "https://registry.npmjs.org/@vitest/pretty-format/-/pretty-format-4.1.6.tgz"
-  integrity sha512-h5SxD/IzNhZYnrSZRsUZQIC+vD0GY8cUvq0iwsmkFKixRCKLLWqCXa/FIQ4S1R+sI+PGoojkHsdNrbZiM9Qpgw==
+"@vitest/pretty-format@4.1.8":
+  version "4.1.8"
+  resolved "https://registry.yarnpkg.com/@vitest/pretty-format/-/pretty-format-4.1.8.tgz#d9d2e248b900d7ad9556c4374fcdf1871c615193"
+  integrity sha512-9GasEBxpZ1VYIpqHf/0+YGg121uSNwCKOJqIrTwWP/TB7DmFCiaBpNl3aPZzoLWfWkuqhbH8vJIVobZkvdo2cA==
   dependencies:
     tinyrainbow "^3.1.0"
 
-"@vitest/runner@4.1.6":
-  version "4.1.6"
-  resolved "https://registry.npmjs.org/@vitest/runner/-/runner-4.1.6.tgz"
-  integrity sha512-nOPCmn2+yD0ZNmKdsXGv/UxMMWbMuKeD6GyYncNwdkYDxpQvrPSKYj2rWuDjC2Y4b6w6hjip5dBKFzEUuZe3vA==
+"@vitest/runner@4.1.8":
+  version "4.1.8"
+  resolved "https://registry.yarnpkg.com/@vitest/runner/-/runner-4.1.8.tgz#4631808f3996359b74ccc3ca262990e14c295d50"
+  integrity sha512-EmVxeBAfMJvycdjd6Hm+RbFBbA9fKvo0Kx37hNpBYoYeavH3RNsBXWDooR1mgD52dCrxIIuP7UotpfiwOikvcg==
   dependencies:
-    "@vitest/utils" "4.1.6"
+    "@vitest/utils" "4.1.8"
     pathe "^2.0.3"
 
-"@vitest/snapshot@4.1.6":
-  version "4.1.6"
-  resolved "https://registry.npmjs.org/@vitest/snapshot/-/snapshot-4.1.6.tgz"
-  integrity sha512-YhsdE6xAVfTDmzjxL2ZDUvjj+ZsgyOKe+TdQzqkD72wIOmHka8NuGQ6NpTNZv9D2Z63fbwWKJPeVpEw4EQgYxw==
+"@vitest/snapshot@4.1.8":
+  version "4.1.8"
+  resolved "https://registry.yarnpkg.com/@vitest/snapshot/-/snapshot-4.1.8.tgz#37470135d64ea11bb2a839b1c6b7f5de7018f6ee"
+  integrity sha512-acfZboRmAIf05DEKcBQy33VXojFJjtUdLyo7oOmV9kebb2xdU01UknNiPuPZoJZQyO7DF0gZdTGTpeAzET9QPQ==
   dependencies:
-    "@vitest/pretty-format" "4.1.6"
-    "@vitest/utils" "4.1.6"
+    "@vitest/pretty-format" "4.1.8"
+    "@vitest/utils" "4.1.8"
     magic-string "^0.30.21"
     pathe "^2.0.3"
 
-"@vitest/spy@4.1.6":
-  version "4.1.6"
-  resolved "https://registry.npmjs.org/@vitest/spy/-/spy-4.1.6.tgz"
-  integrity sha512-JFKxMx6udhwKh/Ldo270e17QX710vgunMkuPAvXjHSvC6oqLWAHhVhjg/I71q0u0CBSErIODV1Kjv0FQNSWjdg==
+"@vitest/spy@4.1.8":
+  version "4.1.8"
+  resolved "https://registry.yarnpkg.com/@vitest/spy/-/spy-4.1.8.tgz#3abfe9301d25c39f808dcaa9f10fec0dd370e564"
+  integrity sha512-6EevtBp6OZOPF7bmz36HrGMeP3txgVSrgebWxHOafDXGkhIzfXK14f8KF6MuFfgXXUeHxmpD3BQxkV00/3s5mA==
 
-"@vitest/utils@4.1.6":
-  version "4.1.6"
-  resolved "https://registry.npmjs.org/@vitest/utils/-/utils-4.1.6.tgz"
-  integrity sha512-FxIY+U81R3LGKCxaHHFRQ5+g6/iRgGLmeHWdp2Amj4ljQRrEIWHmZyDfDYBRZlpyqA7qKxtS9DD1dhk8RnRIVQ==
+"@vitest/utils@4.1.8":
+  version "4.1.8"
+  resolved "https://registry.yarnpkg.com/@vitest/utils/-/utils-4.1.8.tgz#099ea5255cec08735410cf707edaba2c158c5ad9"
+  integrity sha512-uOJamYALNhfJ6iolExyQM40yIQwDqYnkKtQ5VCiSe17E33H0aQ/u+1GlRuz4LZBk6Mm3sg90G9hEbmEt37C1Zg==
   dependencies:
-    "@vitest/pretty-format" "4.1.6"
+    "@vitest/pretty-format" "4.1.8"
     convert-source-map "^2.0.0"
     tinyrainbow "^3.1.0"
 
@@ -4969,16 +4969,16 @@ redis-parser@^3.0.0:
   dependencies:
     redis-errors "^1.0.0"
 
-redis@5.7.0:
-  version "5.7.0"
-  resolved "https://registry.npmjs.org/redis/-/redis-5.7.0.tgz"
-  integrity sha512-ZRbiWYBUYdDTopodRjCVwwCLThrkciPW3bOrkdMCW3nYEelBwUGN6SovmACDsiLUB7mnU3mXnaI5f0W7bDcwng==
+redis@5.12.1:
+  version "5.12.1"
+  resolved "https://registry.yarnpkg.com/redis/-/redis-5.12.1.tgz#f95297e01eca8b87a109601a2418647e05f16bee"
+  integrity sha512-LDsoVvb/CpoV9EN3FXvgvSHNJWuCIzl9MiO3ppOevuGLpSGJhwfQjpEwfFJcQvNSddHADDdZaWx0HnmMxRXG7g==
   dependencies:
-    "@redis/bloom" "5.7.0"
-    "@redis/client" "5.7.0"
-    "@redis/json" "5.7.0"
-    "@redis/search" "5.7.0"
-    "@redis/time-series" "5.7.0"
+    "@redis/bloom" "5.12.1"
+    "@redis/client" "5.12.1"
+    "@redis/json" "5.12.1"
+    "@redis/search" "5.12.1"
+    "@redis/time-series" "5.12.1"
 
 registry-auth-token@^5.0.0:
   version "5.1.1"
@@ -5885,18 +5885,18 @@ validate-npm-package-name@^7.0.0, validate-npm-package-name@^7.0.2:
   optionalDependencies:
     fsevents "~2.3.3"
 
-vitest@4.1.6:
-  version "4.1.6"
-  resolved "https://registry.npmjs.org/vitest/-/vitest-4.1.6.tgz"
-  integrity sha512-6lvjbS3p9b4CrdCmguzbh2/4uoXhGE2q71R4OX5sqF9R1bo9Xd6fGrMAfvp5wnCzlBnFVdCOp6onuTQVbo8iUQ==
+vitest@4.1.8:
+  version "4.1.8"
+  resolved "https://registry.yarnpkg.com/vitest/-/vitest-4.1.8.tgz#9fed17277bf7350497e54338898a7afd46dfd509"
+  integrity sha512-flY6ScbCIt9HThs+C5HS7jvGOB560DJtk/Z15IQROTA6zEy49Nh8T/dofWTQL+n3vswqn87sbJNiuqw1SDp5Ig==
   dependencies:
-    "@vitest/expect" "4.1.6"
-    "@vitest/mocker" "4.1.6"
-    "@vitest/pretty-format" "4.1.6"
-    "@vitest/runner" "4.1.6"
-    "@vitest/snapshot" "4.1.6"
-    "@vitest/spy" "4.1.6"
-    "@vitest/utils" "4.1.6"
+    "@vitest/expect" "4.1.8"
+    "@vitest/mocker" "4.1.8"
+    "@vitest/pretty-format" "4.1.8"
+    "@vitest/runner" "4.1.8"
+    "@vitest/snapshot" "4.1.8"
+    "@vitest/spy" "4.1.8"
+    "@vitest/utils" "4.1.8"
     es-module-lexer "^2.0.0"
     expect-type "^1.3.0"
     magic-string "^0.30.21"
