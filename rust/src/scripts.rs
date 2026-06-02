@@ -107,7 +107,8 @@ impl ScriptRegistry {
 
     /// Returns the embedded compiled Lua scripts as (name, num_keys, content) tuples.
     ///
-    /// These are the fully resolved scripts from `commands/` (all includes expanded).
+    /// These are the fully resolved scripts from `rust/src/commands/` (all includes expanded).
+    /// (Generated via `yarn generate:raw:scripts && yarn copy:lua:rust` before building.)
     fn embedded_scripts() -> Vec<(&'static str, usize, &'static str)> {
         vec![
             (
