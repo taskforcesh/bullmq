@@ -51,6 +51,7 @@ jobs:
         run: |
           yarn install --frozen-lockfile --non-interactive
           yarn generate:raw:scripts
+          yarn copy:lua:rust
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
