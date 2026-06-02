@@ -1,0 +1,36 @@
+[package]
+name = "bullmq"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+authors = ["Taskforce.sh Inc."]
+description = "A powerful, fast, and robust job queue for Rust backed by Redis"
+license = "MIT"
+repository = "https://github.com/taskforcesh/bullmq"
+homepage = "https://bullmq.io"
+documentation = "https://docs.rs/bullmq"
+readme = "README.md"
+keywords = ["queue", "job", "redis", "worker", "background"]
+categories = ["asynchronous", "database"]
+exclude = ["tests/", "examples/benchmark.rs", "target/"]
+
+[dependencies]
+redis = { version = "0.27", features = ["tokio-comp", "connection-manager", "script"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+uuid = { version = "1", features = ["v4"] }
+sha1 = "0.10"
+tracing = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+rmp = "0.8"
+rmp-serde = "1"
+async-trait = "0.1"
+tokio-stream = "0.1"
+futures = "0.3"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+rand = "0.8"

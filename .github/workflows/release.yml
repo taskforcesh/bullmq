@@ -379,3 +379,86 @@ jobs:
           else
             echo "No changes detected after semantic-release"
           fi
+      # Rust Release
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-release-
+      - name: Install dependencies Rust
+        if: ${{ contains(env.commitmsg, '[rust]') || contains(env.commitmsg, '(rust)') }}
+        working-directory: rust
+        run: yarn install --frozen-lockfile --non-interactive
+      - name: Release Rust
+        id: semantic_release_rust
+        if: ${{ contains(env.commitmsg, '[rust]') || contains(env.commitmsg, '(rust)') }}
+        working-directory: rust
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: npx semantic-release
+      - name: Create PR with Rust release changes
+        if: ${{ success() && steps.semantic_release_rust.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: rust
+        run: |
+          # Check if there are any changes to commit
+          if [[ -n $(git status --porcelain) ]]; then
+            # Get the version from Cargo.toml
+            VERSION=$(grep -m 1 '^version' Cargo.toml | cut -d'"' -f2)
+            BRANCH_NAME="release/vrs${VERSION}"
+            
+            echo "Creating PR for release version: vrs${VERSION}"
+            
+            # Create and switch to new branch
+            git checkout -b $BRANCH_NAME
+            
+            # Configure git
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            
+            # Add and commit changes
+            git add Cargo.toml || true
+            git add Cargo.lock || true
+            git add CHANGELOG.md || true
+            
+            # Check if there are actually changes to commit after adding
+            if [[ -n $(git diff --cached --name-only) ]]; then
+              git commit -m "chore(release): vrs${VERSION}"
+              
+              # Push the branch
+              git push origin $BRANCH_NAME
+              
+              # Create PR using GitHub CLI
+              gh pr create \
+                --title "chore(release): vrs${VERSION}" \
+                --body "Automated release PR for version vrs${VERSION}
+
+              This PR contains:
+              - Updated rust/Cargo.toml version
+              - Updated rust/Cargo.lock
+              - Updated rust/CHANGELOG.md
+
+              Please review and merge to complete the release process." \
+                --head $BRANCH_NAME \
+                --base master
+              
+              echo "Created PR for release vrs${VERSION}"
+              git checkout origin/master
+            else
+              echo "No changes to commit after staging files"
+              git checkout origin/master
+              git branch -D $BRANCH_NAME
+            fi
+          else
+            echo "No changes detected after semantic-release"
+          fi

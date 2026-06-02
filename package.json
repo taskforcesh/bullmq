@@ -159,6 +159,10 @@
             {
               "message": "*\\[php\\]*",
               "release": false
+            },
+            {
+              "message": "*\\[rust\\]*",
+              "release": false
             }
           ]
         }
@@ -168,7 +172,7 @@
         {
           "preset": "angular",
           "presetConfig": {
-            "ignoreCommits": "(\\[python\\]|\\[elixir\\]|\\[php\\])"
+            "ignoreCommits": "(\\[python\\]|\\[elixir\\]|\\[php\\]|\\[rust\\])"
           }
         }
       ],
