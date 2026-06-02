@@ -164,11 +164,7 @@ impl ScriptRegistry {
                 8,
                 include_str!("./commands/moveJobsToWait-8.lua"),
             ),
-            (
-                "extendLock",
-                2,
-                include_str!("./commands/extendLock-2.lua"),
-            ),
+            ("extendLock", 2, include_str!("./commands/extendLock-2.lua")),
             (
                 "extendLocks",
                 1,
@@ -179,36 +175,16 @@ impl ScriptRegistry {
                 1,
                 include_str!("./commands/releaseLock-1.lua"),
             ),
-            (
-                "getCounts",
-                1,
-                include_str!("./commands/getCounts-1.lua"),
-            ),
-            (
-                "getState",
-                8,
-                include_str!("./commands/getState-8.lua"),
-            ),
-            (
-                "getStateV2",
-                8,
-                include_str!("./commands/getStateV2-8.lua"),
-            ),
-            (
-                "getRanges",
-                1,
-                include_str!("./commands/getRanges-1.lua"),
-            ),
+            ("getCounts", 1, include_str!("./commands/getCounts-1.lua")),
+            ("getState", 8, include_str!("./commands/getState-8.lua")),
+            ("getStateV2", 8, include_str!("./commands/getStateV2-8.lua")),
+            ("getRanges", 1, include_str!("./commands/getRanges-1.lua")),
             (
                 "getRateLimitTtl",
                 2,
                 include_str!("./commands/getRateLimitTtl-2.lua"),
             ),
-            (
-                "isFinished",
-                3,
-                include_str!("./commands/isFinished-3.lua"),
-            ),
+            ("isFinished", 3, include_str!("./commands/isFinished-3.lua")),
             (
                 "isJobInList",
                 1,
@@ -217,16 +193,8 @@ impl ScriptRegistry {
             ("isMaxed", 2, include_str!("./commands/isMaxed-2.lua")),
             ("pause", 7, include_str!("./commands/pause-7.lua")),
             ("drain", 5, include_str!("./commands/drain-5.lua")),
-            (
-                "obliterate",
-                2,
-                include_str!("./commands/obliterate-2.lua"),
-            ),
-            (
-                "removeJob",
-                2,
-                include_str!("./commands/removeJob-2.lua"),
-            ),
+            ("obliterate", 2, include_str!("./commands/obliterate-2.lua")),
+            ("removeJob", 2, include_str!("./commands/removeJob-2.lua")),
             (
                 "removeJobScheduler",
                 3,
@@ -237,11 +205,7 @@ impl ScriptRegistry {
                 3,
                 include_str!("./commands/cleanJobsInSet-3.lua"),
             ),
-            (
-                "updateData",
-                1,
-                include_str!("./commands/updateData-1.lua"),
-            ),
+            ("updateData", 1, include_str!("./commands/updateData-1.lua")),
             (
                 "updateProgress",
                 3,
@@ -252,11 +216,7 @@ impl ScriptRegistry {
                 1,
                 include_str!("./commands/saveStacktrace-1.lua"),
             ),
-            (
-                "retryJob",
-                11,
-                include_str!("./commands/retryJob-11.lua"),
-            ),
+            ("retryJob", 11, include_str!("./commands/retryJob-11.lua")),
             ("promote", 9, include_str!("./commands/promote-9.lua")),
             (
                 "changeDelay",
@@ -288,11 +248,7 @@ impl ScriptRegistry {
                 1,
                 include_str!("./commands/removeDeduplicationKey-1.lua"),
             ),
-            (
-                "paginate",
-                1,
-                include_str!("./commands/paginate-1.lua"),
-            ),
+            ("paginate", 1, include_str!("./commands/paginate-1.lua")),
             (
                 "getCountsPerPriority",
                 4,
@@ -303,11 +259,7 @@ impl ScriptRegistry {
                 4,
                 include_str!("./commands/getDependencyCounts-4.lua"),
             ),
-            (
-                "getMetrics",
-                2,
-                include_str!("./commands/getMetrics-2.lua"),
-            ),
+            ("getMetrics", 2, include_str!("./commands/getMetrics-2.lua")),
             (
                 "reprocessJob",
                 8,
