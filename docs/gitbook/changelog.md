@@ -3,7 +3,7 @@
 
 ### Features
 
-* **rust:** initial implementation of rust support ([#4200](https://github.com/taskforcesh/bullmq/issues/4200)) ([38798cc](https://github.com/taskforcesh/bullmq/commit/38798cc212e450f6369da3714c20eeced5a523a9))
+* Nothing changed, triggered by a rust version release
 
 ## [5.77.7](https://github.com/taskforcesh/bullmq/compare/v5.77.6...v5.77.7) (2026-06-01)
 
