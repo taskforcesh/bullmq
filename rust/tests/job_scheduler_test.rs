@@ -2603,12 +2603,11 @@ async fn test_cannot_directly_remove_scheduler_job() {
     // Try to remove the job directly — should fail or return false
     let result = queue.remove(job.id()).await;
     // The script should reject removal of jobs belonging to a scheduler
-    match result {
-        Ok(removed) => assert!(
+    if let Ok(removed) = result {
+        assert!(
             !removed,
             "Should not be able to remove a job belonging to a scheduler"
-        ),
-        Err(_) => {} // Error is also acceptable
+        );
     }
 
     // Job should still exist
