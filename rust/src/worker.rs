@@ -58,10 +58,15 @@ impl CancellationToken {
 
     /// Wait until cancellation is requested.
     pub async fn cancelled(&self) {
+        let notified = self.notify.notified();
+        tokio::pin!(notified);
+        notified.as_mut().enable();
+
         if self.is_cancelled() {
             return;
         }
-        self.notify.notified().await;
+
+        notified.await;
     }
 }
 
@@ -762,7 +767,8 @@ impl Worker {
                         .unwrap()
                         .as_millis() as u64;
                     if next_ts > now {
-                        let delay_ms = next_ts - now;
+                        // Cap the sleep to periodically re-check `closing`.
+                        let delay_ms = (next_ts - now).min(5_000);
                         // Wait for either the delay or a notification
                         tokio::select! {
                             _ = tokio::time::sleep(Duration::from_millis(delay_ms)) => {}
@@ -784,7 +790,11 @@ impl Worker {
                 Ok(FetchResult::Empty) => {
                     Self::release_concurrency_slot(&ctx);
                     let _ = ctx.event_tx.send(WorkerEvent::Drained);
-                    job_available.notified().await;
+                    // Use select to allow periodic re-check of `closing` flag
+                    tokio::select! {
+                        _ = job_available.notified() => {}
+                        _ = tokio::time::sleep(Duration::from_millis(5_000)) => {}
+                    }
                     continue;
                 }
                 Err(e) => {

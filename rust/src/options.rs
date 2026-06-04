@@ -172,7 +172,9 @@ impl std::fmt::Debug for WorkerOptions {
 impl WorkerOptions {
     /// Effective lock renewal time.
     pub fn effective_lock_renew_time(&self) -> u64 {
-        self.lock_renew_time.unwrap_or(self.lock_duration / 2)
+        self.lock_renew_time
+            .unwrap_or(self.lock_duration / 2)
+            .max(1)
     }
 }
 

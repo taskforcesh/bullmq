@@ -675,11 +675,7 @@ impl Job {
     }
 
     /// Internal: move job to completed or failed.
-    async fn move_to_finished(
-        &mut self,
-        target: &str,
-        value: &str,
-    ) -> Result<(), Error> {
+    async fn move_to_finished(&mut self, target: &str, value: &str) -> Result<(), Error> {
         let ctx = self
             .ctx
             .as_ref()
@@ -741,10 +737,12 @@ impl Job {
             &marker,      // KEYS[14]
         ];
 
-        let (field_name, field_value): (&[u8], &[u8]) = if target == "completed" {
-            (b"returnvalue", value.as_bytes())
+        let (field_name, field_value): (&[u8], Vec<u8>) = if target == "completed" {
+            // JSON-encode returnvalue to match worker behavior and cross-language compat
+            let json_value = serde_json::to_string(value).unwrap_or_default();
+            (b"returnvalue", json_value.into_bytes())
         } else {
-            (b"failedReason", value.as_bytes())
+            (b"failedReason", value.as_bytes().to_vec())
         };
 
         // Pack opts
@@ -761,7 +759,7 @@ impl Job {
         write_str(&mut opts_buf, "lockDuration").unwrap();
         write_uint(&mut opts_buf, ctx.lock_duration).unwrap();
         write_str(&mut opts_buf, "attempts").unwrap();
-        write_uint(&mut opts_buf, self.attempts_made as u64 + 1).unwrap();
+        write_uint(&mut opts_buf, self.opts.attempts.unwrap_or(0) as u64).unwrap();
         write_str(&mut opts_buf, "maxMetricsSize").unwrap();
         write_str(&mut opts_buf, "").unwrap();
         for key in ["fpof", "cpof", "idof", "rdof"] {
@@ -777,7 +775,7 @@ impl Job {
             job_id_bytes,
             &now_bytes,
             field_name,
-            field_value,
+            &field_value,
             target.as_bytes(),
             b"0",
             prefix.as_bytes(),
@@ -793,7 +791,8 @@ impl Job {
             _ => {
                 self.attempts_made += 1;
                 if target == "completed" {
-                    self.returnvalue = value.to_string();
+                    // Store the JSON-encoded string to match what's persisted in Redis
+                    self.returnvalue = serde_json::to_string(value).unwrap_or_default();
                 }
                 Ok(())
             }

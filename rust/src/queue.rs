@@ -461,9 +461,7 @@ impl Queue {
         b
     }
 
-    pub(crate) fn encode_deduplication(
-        dedup: &crate::options::DeduplicationOptions,
-    ) -> Vec<u8> {
+    pub(crate) fn encode_deduplication(dedup: &crate::options::DeduplicationOptions) -> Vec<u8> {
         use rmp::encode::*;
         let mut b = Vec::new();
 

@@ -1499,7 +1499,10 @@ async fn test_upsert_validates_immediately_and_start_date_exclusive() {
         .upsert_job_scheduler("bad-combo", repeat_opts, None, None, None)
         .await;
 
-    assert!(result.is_err(), "immediately + startDate should be rejected");
+    assert!(
+        result.is_err(),
+        "immediately + startDate should be rejected"
+    );
     cleanup_queue(&queue).await;
 }
 
@@ -1555,7 +1558,11 @@ async fn test_scheduler_with_concurrent_workers() {
 
     let total = counter.load(std::sync::atomic::Ordering::SeqCst);
     // Should have processed exactly 6 (the limit)
-    assert_eq!(total, 6, "Expected 6 iterations with limit=6, got {}", total);
+    assert_eq!(
+        total, 6,
+        "Expected 6 iterations with limit=6, got {}",
+        total
+    );
 
     for w in workers {
         w.close(5000).await.unwrap();
@@ -1870,7 +1877,10 @@ async fn test_scheduler_cron_5_field_pattern() {
 
     assert!(job.is_some());
     let job = job.unwrap();
-    assert_eq!(queue.get_job_state(job.id()).await.unwrap(), JobState::Delayed);
+    assert_eq!(
+        queue.get_job_state(job.id()).await.unwrap(),
+        JobState::Delayed
+    );
 
     cleanup_queue(&queue).await;
 }
@@ -2207,7 +2217,11 @@ async fn test_scheduler_limit_with_slow_processing() {
     tokio::time::sleep(Duration::from_secs(3)).await;
 
     let total = counter.load(std::sync::atomic::Ordering::SeqCst);
-    assert_eq!(total, 3, "Should process exactly 3 with limit=3, got {}", total);
+    assert_eq!(
+        total, 3,
+        "Should process exactly 3 with limit=3, got {}",
+        total
+    );
 
     worker.close(5000).await.unwrap();
     cleanup_queue(&queue).await;
@@ -2285,17 +2299,11 @@ async fn test_scheduler_many_independent_schedulers() {
     assert_eq!(count, 20);
 
     // Remove one in the middle
-    queue
-        .remove_job_scheduler("independent-010")
-        .await
-        .unwrap();
+    queue.remove_job_scheduler("independent-010").await.unwrap();
     assert_eq!(queue.get_job_schedulers_count().await.unwrap(), 19);
 
     // Remove first
-    queue
-        .remove_job_scheduler("independent-000")
-        .await
-        .unwrap();
+    queue.remove_job_scheduler("independent-000").await.unwrap();
     assert_eq!(queue.get_job_schedulers_count().await.unwrap(), 18);
 
     cleanup_queue(&queue).await;
@@ -2918,7 +2926,7 @@ async fn test_job_retry_on_failed_scheduler_job_no_duplicate() {
 
     // Get the failed job and retry it using Job::retry()
     // First get the job ID from the failed set
-    let mut conn = redis::Client::open("redis://127.0.0.1:6379")
+    let mut conn = redis::Client::open(conn_opts.url.as_str())
         .unwrap()
         .get_multiplexed_async_connection()
         .await
@@ -3302,11 +3310,7 @@ async fn test_upsert_updates_delayed_job_timestamp() {
         .await
         .unwrap();
 
-    let sched1 = queue
-        .get_job_scheduler("ts-update")
-        .await
-        .unwrap()
-        .unwrap();
+    let sched1 = queue.get_job_scheduler("ts-update").await.unwrap().unwrap();
     let next1 = sched1.next.unwrap();
 
     // Now upsert with a "every minute" cron — should have an earlier next
@@ -3319,11 +3323,7 @@ async fn test_upsert_updates_delayed_job_timestamp() {
         .await
         .unwrap();
 
-    let sched2 = queue
-        .get_job_scheduler("ts-update")
-        .await
-        .unwrap()
-        .unwrap();
+    let sched2 = queue.get_job_scheduler("ts-update").await.unwrap().unwrap();
     let next2 = sched2.next.unwrap();
 
     // Every-minute next should be earlier than hourly next
@@ -3539,7 +3539,10 @@ async fn test_scheduler_processes_jobs_by_priority() {
         .unwrap();
 
     // High priority should be processed first
-    assert_eq!(first, "high", "Higher priority job should be processed first");
+    assert_eq!(
+        first, "high",
+        "Higher priority job should be processed first"
+    );
     assert_eq!(second, "low");
 
     worker.close(5000).await.unwrap();
