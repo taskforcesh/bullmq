@@ -12,3 +12,9 @@
 - Dynamic concurrency control
 - CancellationToken for cooperative job cancellation
 - Full compatibility with Node.js/Python BullMQ queues (same Lua scripts)
+- Queue: rate_limit, set_global_rate_limit, remove_global_rate_limit
+- Queue: set_global_concurrency, remove_global_concurrency
+- Queue: upsert_job_scheduler, get_job_scheduler(s), remove_job_scheduler
+- Job deduplication support and remove_deduplication_key
+- Worker handling for RateLimited/NextTimestamp fetch results
+- Cron scheduler support via croner and chrono-tz

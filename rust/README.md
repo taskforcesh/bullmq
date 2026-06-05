@@ -59,6 +59,7 @@ async fn main() -> bullmq::Result<()> {
 ```bash
 # Ensure Redis is running on localhost:6379
 yarn generate:raw:scripts
+yarn copy:lua:rust
 cargo test
 
 # Or specify a custom Redis URL
@@ -79,7 +80,7 @@ src/
 ├── job.rs              # Job struct and Redis serialization
 ├── queue.rs            # Queue operations
 └── worker.rs           # Worker processing loop
-scripts/                # Lua scripts (shared with Node.js/Elixir)
+src/commands/           # Generated Lua scripts embedded with include_str!
 tests/
 └── integration_test.rs # Full integration test suite
 ```
