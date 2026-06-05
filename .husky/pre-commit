@@ -1,1 +1,9 @@
 yarn pretty:quick && yarn eslint:fix && yarn lint:staged && yarn circular:references
+
+# Format Rust code if any rust files are staged
+if git diff --cached --name-only | grep -q '^rust/'; then
+  if command -v cargo >/dev/null 2>&1; then
+    (cd rust && cargo fmt)
+    git diff --name-only rust/ | xargs -I{} git add {}
+  fi
+fi
