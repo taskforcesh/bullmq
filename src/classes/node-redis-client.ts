@@ -67,7 +67,7 @@ export interface NodeRedisRawTransaction {
 export interface NodeRedisRawClient {
   isReady: boolean;
   isOpen: boolean;
-  options?: Record<string, any>;
+  options?: Record<string, unknown>;
 
   on(event: string, listener: (...args: any[]) => void): this;
   connect(): Promise<unknown>;
@@ -182,7 +182,7 @@ export interface NodeRedisRawClient {
 }
 
 export function createNodeRedisClient(
-  client: NodeRedisRawClient | any,
+  client: unknown,
 ): IRedisClient {
   return new NodeRedisAdapter(client as NodeRedisRawClient);
 }
