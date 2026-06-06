@@ -80,11 +80,11 @@ export interface NodeRedisRawClient {
   evalSha(
     sha: string,
     options: { keys: string[]; arguments: NodeRedisCommandArgument[] },
-  ): Promise<any>;
+  ): Promise<unknown>;
   eval(
     lua: string,
     options: { keys: string[]; arguments: NodeRedisCommandArgument[] },
-  ): Promise<any>;
+  ): Promise<unknown>;
 
   multi(): NodeRedisRawTransaction;
 
