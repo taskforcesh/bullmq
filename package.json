@@ -33,6 +33,7 @@
     "copy:lua:python": "cpx \"./rawScripts/*.lua\" ./python/bullmq/commands",
     "copy:lua:elixir": "cpx \"./rawScripts/*.lua\" ./elixir/priv/scripts",
     "copy:lua:php": "cpx \"./rawScripts/*.lua\" ./php/src/commands",
+    "copy:lua:rust": "cpx \"./rawScripts/*.lua\" ./rust/src/commands",
     "copy:main:type": "cpx \"./dist/esm/classes/main.d.ts\" ./dist/cjs/classes && cpx \"./dist/esm/classes/main-worker.d.ts\" ./dist/cjs/classes",
     "coverage": "vitest run --no-file-parallelism --coverage --config vitest.coverage.config.ts",
     "docs": "typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts",
