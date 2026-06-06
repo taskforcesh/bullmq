@@ -504,8 +504,8 @@ impl Worker {
 
     /// Dynamically change the worker's concurrency.
     ///
-    /// If increased, additional worker tasks will be spawned.
-    /// If decreased, excess workers will finish their current job then stop.
+    /// Updates the target number of concurrent fetchers for running worker loops.
+    /// Existing loops are woken to re-check the concurrency gate.
     pub fn set_concurrency(&self, concurrency: usize) {
         if concurrency == 0 {
             return;
