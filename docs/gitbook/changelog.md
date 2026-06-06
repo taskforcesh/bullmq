@@ -1,5 +1,5 @@
 # [5.78.0](https://github.com/taskforcesh/bullmq/compare/v5.77.7...v5.78.0) (2026-06-02)
- 
+
 
 ### Features
 
