@@ -2965,11 +2965,11 @@ async fn test_job_retry_on_failed_scheduler_job_no_duplicate() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Scheduler with stalled job recovery
+// Scheduler repeats reliably with stall recovery configured
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[tokio::test]
-async fn test_scheduler_stalled_job_continues_repeating() {
+async fn test_scheduler_repeats_with_stall_recovery_configured() {
     use std::sync::atomic::{AtomicU32, Ordering};
 
     let name = test_queue_name();
