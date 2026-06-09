@@ -29,6 +29,8 @@ rmp-serde = "1"
 async-trait = "0.1"
 tokio-stream = "0.1"
 futures = "0.3"
+croner = "3.0.1"
+chrono-tz = "0.10.4"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }

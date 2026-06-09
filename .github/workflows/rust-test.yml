@@ -3,16 +3,8 @@ name: Rust Tests
 on:
   push:
     branches: [master]
-    paths:
-      - 'rust/**'
-      - 'src/commands/**'
-      - '.github/workflows/rust-test.yml'
   pull_request:
     branches: [master]
-    paths:
-      - 'rust/**'
-      - 'src/commands/**'
-      - '.github/workflows/rust-test.yml'
 
 concurrency:
   group: rust-test-${{ github.ref }}
@@ -22,7 +14,24 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.filter.outputs.rust }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            rust:
+              - 'rust/**'
+              - 'src/commands/**'
+              - '.github/workflows/rust-test.yml'
+
   test:
+    needs: changes
+    if: needs.changes.outputs.should_run == 'true'
     name: Rust Tests
     runs-on: ubuntu-latest
 
@@ -51,6 +60,7 @@ jobs:
         run: |
           yarn install --frozen-lockfile --non-interactive
           yarn generate:raw:scripts
+          yarn copy:lua:rust
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
