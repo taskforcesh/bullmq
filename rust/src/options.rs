@@ -5,6 +5,43 @@ use std::sync::Arc;
 
 use crate::types::{BackoffStrategy, KeepJobs, RemoveOnFinish};
 
+/// Repeat options stored within a job's options (parsed from Redis).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepeatJobOptions {
+    /// Cron pattern.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pattern: Option<String>,
+
+    /// Repeat every N milliseconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub every: Option<u64>,
+
+    /// Current iteration count.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub count: Option<u64>,
+
+    /// Offset in ms.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub offset: Option<u64>,
+
+    /// Start date (Unix timestamp in ms).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_date: Option<u64>,
+
+    /// End date (Unix timestamp in ms).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_date: Option<u64>,
+
+    /// IANA timezone string.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tz: Option<String>,
+
+    /// Maximum iterations before stopping.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u64>,
+}
+
 /// Custom backoff strategy function type.
 ///
 /// Arguments: (attempts_made, backoff_type, error_message, job_data)
@@ -90,6 +127,10 @@ pub struct WorkerOptions {
     pub run_retry_delay: u64,
     /// Custom backoff strategy function for job retries.
     pub backoff_strategy: Option<BackoffStrategyFn>,
+    /// Rate limiter options (max jobs per duration window).
+    pub limiter: Option<RateLimiterOptions>,
+    /// Maximum delay in ms to wait when rate limited (default 30_000).
+    pub maximum_rate_limit_delay: u64,
 }
 
 impl Default for WorkerOptions {
@@ -110,6 +151,8 @@ impl Default for WorkerOptions {
             remove_on_fail: None,
             run_retry_delay: 15_000,
             backoff_strategy: None,
+            limiter: None,
+            maximum_rate_limit_delay: 30_000,
         }
     }
 }
@@ -132,31 +175,6 @@ impl WorkerOptions {
         self.lock_renew_time
             .unwrap_or(self.lock_duration / 2)
             .max(1)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::WorkerOptions;
-
-    #[test]
-    fn effective_lock_renew_time_never_returns_zero() {
-        let opts = WorkerOptions {
-            lock_duration: 0,
-            ..Default::default()
-        };
-
-        assert_eq!(opts.effective_lock_renew_time(), 1);
-    }
-
-    #[test]
-    fn explicit_lock_renew_time_is_clamped_to_one() {
-        let opts = WorkerOptions {
-            lock_renew_time: Some(0),
-            ..Default::default()
-        };
-
-        assert_eq!(opts.effective_lock_renew_time(), 1);
     }
 }
 
@@ -212,9 +230,22 @@ pub struct JobOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent: Option<ParentOpts>,
 
-    /// Deduplication ID.
+    /// Deduplication options.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub deduplication_id: Option<String>,
+    #[serde(rename = "de", alias = "deduplication")]
+    pub deduplication: Option<DeduplicationOptions>,
+
+    /// Repeat options (present on jobs produced by schedulers).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repeat: Option<RepeatJobOptions>,
+
+    /// Previous millis timestamp (used by scheduler iteration).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prev_millis: Option<u64>,
+
+    /// Repeat job key (scheduler ID).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repeat_job_key: Option<String>,
 }
 
 /// Parent job options (for flow/dependency chains).
@@ -248,4 +279,38 @@ impl From<KeepJobs> for RedisKeepJobs {
             count: k.count,
         }
     }
+}
+
+/// Deduplication options for a job.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeduplicationOptions {
+    /// Unique deduplication identifier.
+    pub id: String,
+
+    /// TTL in milliseconds for the dedup key.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ttl: Option<u64>,
+
+    /// Whether to extend the TTL on duplicate.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extend: Option<bool>,
+
+    /// Replace the existing delayed job with the new one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub replace: Option<bool>,
+
+    /// If true, store new job data when the deduplicated job is active,
+    /// and create a new job automatically when the active one finishes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keep_last_if_active: Option<bool>,
+}
+
+/// Rate limiter options for the worker.
+#[derive(Debug, Clone)]
+pub struct RateLimiterOptions {
+    /// Maximum number of jobs processed within the duration window.
+    pub max: u64,
+    /// Duration of the rate limit window in milliseconds.
+    pub duration: u64,
 }

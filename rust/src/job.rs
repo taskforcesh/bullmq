@@ -88,6 +88,9 @@ pub struct Job {
     /// Current delay value (may be updated by backoff retries).
     #[serde(default)]
     delay: u64,
+    /// Repeat job key (scheduler ID, stored as `rjk` in Redis).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    repeat_job_key: Option<String>,
     /// Script execution context (set by the worker, not serialized).
     #[serde(skip)]
     ctx: Option<ScriptContext>,
@@ -123,6 +126,7 @@ impl Job {
             processed_by: None,
             stalled_counter: 0,
             delay: opts.delay.unwrap_or(0),
+            repeat_job_key: None,
             ctx: None,
         }
     }
@@ -157,6 +161,11 @@ impl Job {
     /// Number of attempts made so far.
     pub fn attempts_made(&self) -> u32 {
         self.attempts_made
+    }
+
+    /// The scheduler ID that produced this job (if any).
+    pub fn repeat_job_key(&self) -> Option<&str> {
+        self.repeat_job_key.as_deref()
     }
 
     /// Timestamp when the job was created.
@@ -657,29 +666,21 @@ impl Job {
     /// Move the job to completed state (manual processing).
     ///
     /// Used when processing jobs manually via `worker.get_next_job()`.
-    pub async fn move_to_completed(
-        &mut self,
-        return_value: &str,
-        token: &str,
-    ) -> Result<(), Error> {
-        self.move_to_finished("completed", return_value, token)
-            .await
+    /// The lock token is taken from the job's script context.
+    pub async fn move_to_completed(&mut self, return_value: &str) -> Result<(), Error> {
+        self.move_to_finished("completed", return_value).await
     }
 
     /// Move the job to failed state (manual processing).
     ///
     /// Used when processing jobs manually via `worker.get_next_job()`.
-    pub async fn move_to_failed(&mut self, error: &str, token: &str) -> Result<(), Error> {
-        self.move_to_finished("failed", error, token).await
+    /// The lock token is taken from the job's script context.
+    pub async fn move_to_failed(&mut self, error: &str) -> Result<(), Error> {
+        self.move_to_finished("failed", error).await
     }
 
     /// Internal: move job to completed or failed.
-    async fn move_to_finished(
-        &mut self,
-        target: &str,
-        value: &str,
-        token: &str,
-    ) -> Result<(), Error> {
+    async fn move_to_finished(&mut self, target: &str, value: &str) -> Result<(), Error> {
         let ctx = self
             .ctx
             .as_ref()
@@ -741,24 +742,20 @@ impl Job {
             &marker,      // KEYS[14]
         ];
 
-        let serialized_return_value = if target == "completed" {
-            Some(serde_json::to_string(value)?)
+        let (field_name, field_value): (&[u8], Vec<u8>) = if target == "completed" {
+            // JSON-encode returnvalue to match worker behavior and cross-language compat
+            let json_value = serde_json::to_string(value).unwrap_or_default();
+            (b"returnvalue", json_value.into_bytes())
         } else {
-            None
+            (b"failedReason", value.as_bytes().to_vec())
         };
-        let (field_name, field_value): (&[u8], &[u8]) =
-            if let Some(value) = serialized_return_value.as_deref() {
-                (b"returnvalue", value.as_bytes())
-            } else {
-                (b"failedReason", value.as_bytes())
-            };
 
         // Pack opts
         use rmp::encode::{write_bool, write_map_len, write_sint, write_str, write_uint};
         let mut opts_buf: Vec<u8> = Vec::with_capacity(128);
         write_map_len(&mut opts_buf, 9).unwrap();
         write_str(&mut opts_buf, "token").unwrap();
-        write_str(&mut opts_buf, token).unwrap();
+        write_str(&mut opts_buf, &ctx.token).unwrap();
         write_str(&mut opts_buf, "keepJobs").unwrap();
         // Keep all jobs (count=-1 means don't remove)
         write_map_len(&mut opts_buf, 1).unwrap();
@@ -783,7 +780,7 @@ impl Job {
             job_id_bytes,
             &now_bytes,
             field_name,
-            field_value,
+            &field_value,
             target.as_bytes(),
             b"0",
             prefix.as_bytes(),
@@ -798,8 +795,9 @@ impl Job {
             redis::Value::Int(code) if code < 0 => Err(Error::from_script_code(code)),
             _ => {
                 self.attempts_made += 1;
-                if let Some(value) = serialized_return_value {
-                    self.returnvalue = value;
+                if target == "completed" {
+                    // Store the JSON-encoded string to match what's persisted in Redis
+                    self.returnvalue = serde_json::to_string(value).unwrap_or_default();
                 }
                 Ok(())
             }
@@ -935,8 +933,8 @@ impl Job {
             fields.push(("parentKey".to_string(), parent_key.clone()));
         }
 
-        if let Some(ref dedup_id) = self.opts.deduplication_id {
-            fields.push(("deid".to_string(), dedup_id.clone()));
+        if let Some(ref dedup) = self.opts.deduplication {
+            fields.push(("deid".to_string(), dedup.id.clone()));
         }
 
         fields
@@ -978,6 +976,7 @@ impl Job {
             .get("delay")
             .and_then(|d| d.parse().ok())
             .unwrap_or_else(|| opts.delay.unwrap_or(0));
+        let repeat_job_key = fields.get("rjk").cloned();
 
         Ok(Self {
             id: id.to_string(),
@@ -998,6 +997,7 @@ impl Job {
             processed_by,
             stalled_counter,
             delay,
+            repeat_job_key,
             ctx: None,
         })
     }

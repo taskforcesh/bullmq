@@ -38,6 +38,8 @@
 pub mod error;
 /// Job representation and lifecycle management.
 pub mod job;
+/// Job Scheduler — repeatable/cron-based job scheduling.
+pub mod job_scheduler;
 /// Redis key generation for queue data structures.
 pub mod keys;
 /// Configuration options for queues, workers, and jobs.
@@ -56,7 +58,10 @@ pub mod worker;
 pub use error::Error;
 pub use job::Job;
 pub use keys::QueueKeys;
-pub use options::{BackoffStrategyFn, JobOptions, QueueOptions, WorkerOptions};
+pub use options::{
+    BackoffStrategyFn, DeduplicationOptions, JobOptions, QueueOptions, RateLimiterOptions,
+    WorkerOptions,
+};
 pub use queue::Queue;
 pub use types::{JobProgress, JobState, RetryOptions};
 pub use worker::Worker;
