@@ -12,7 +12,12 @@ documentation = "https://docs.rs/bullmq"
 readme = "README.md"
 keywords = ["queue", "job", "redis", "worker", "background"]
 categories = ["asynchronous", "database"]
-exclude = ["tests/", "examples/benchmark.rs", "target/"]
+include = [
+  "src/**/*.rs",
+  "src/commands/*.lua",
+  "README.md",
+  "Cargo.toml",
+]
 
 [dependencies]
 redis = { version = "0.27", features = ["tokio-comp", "connection-manager", "script"] }
