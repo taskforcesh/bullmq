@@ -83,8 +83,6 @@ impl ScriptRegistry {
         let mut scripts = HashMap::new();
 
         // Load the compiled Lua scripts from `rust/src/commands/` (includes already resolved).
-        // The `commands/*.lua` files are generated from the repo root via:
-        //   yarn generate:raw:scripts && yarn copy:lua:rust
         for (name, num_keys, content) in Self::embedded_scripts() {
             let script = LuaScript::new(name, num_keys, content);
             scripts.insert(name.to_string(), script);
@@ -108,7 +106,6 @@ impl ScriptRegistry {
     /// Returns the embedded compiled Lua scripts as (name, num_keys, content) tuples.
     ///
     /// These are the fully resolved scripts from `rust/src/commands/` (all includes expanded).
-    /// (Generated via `yarn generate:raw:scripts && yarn copy:lua:rust` before building.)
     fn embedded_scripts() -> Vec<(&'static str, usize, &'static str)> {
         vec![
             (

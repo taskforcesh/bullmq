@@ -3,16 +3,8 @@ name: Elixir Tests
 on:
   push:
     branches: [master]
-    paths:
-      - 'elixir/**'
-      - 'src/commands/**'
-      - '.github/workflows/elixir-test.yml'
   pull_request:
     branches: [master, next]
-    paths:
-      - 'elixir/**'
-      - 'src/commands/**'
-      - '.github/workflows/elixir-test.yml'
 
 concurrency:
   group: elixir-test-${{ github.ref }}
@@ -22,7 +14,24 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.filter.outputs.elixir }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            elixir:
+              - 'elixir/**'
+              - 'src/commands/**'
+              - '.github/workflows/elixir-test.yml'
+
   test:
+    needs: changes
+    if: needs.changes.outputs.should_run == 'true'
     runs-on: ubuntu-latest
 
     name: testing elixir@${{ matrix.elixir-version }}, otp@${{ matrix.otp-version }}, redis@${{ matrix.redis-version }}
