@@ -20,6 +20,7 @@ fn connection_opts() -> RedisConnectionOptions {
     RedisConnectionOptions {
         url: std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".into()),
         max_connections: 8,
+        ..Default::default()
     }
 }
 

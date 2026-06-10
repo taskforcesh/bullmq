@@ -52,7 +52,11 @@ pub enum Error {
     MsgPack(String),
 
     /// Job processing failed with an unrecoverable error (skips retries).
-    #[error("unrecoverable error: {0}")]
+    ///
+    /// The Display is just the raw message (no prefix), matching the behaviour
+    /// of Node.js `UnrecoverableError`, so it can be stored verbatim as a job's
+    /// `failedReason`.
+    #[error("{0}")]
     Unrecoverable(String),
 
     /// Job processing failed with a retryable error.
@@ -68,6 +72,22 @@ pub enum Error {
     /// Throw this after moving the job to waiting-children state.
     #[error("waiting-children")]
     WaitingChildren,
+
+    /// The job does not exist in Redis.
+    #[error("job {0} does not exist")]
+    JobNotExist(String),
+
+    /// The job's lock does not exist or was lost.
+    #[error("job {0} lock does not exist")]
+    JobLockNotExist(String),
+
+    /// The job is not in the expected state.
+    #[error("job {0} is not in state {1}")]
+    JobNotInState(String, String),
+
+    /// The job has failed children (cannot move to waiting-children).
+    #[error("job {0} has failed children")]
+    JobHasFailedChildren(String),
 }
 
 /// BullMQ protocol error codes returned by Lua scripts.

@@ -103,6 +103,24 @@ impl ScriptRegistry {
         self.scripts.keys().map(|s| s.as_str()).collect()
     }
 
+    /// Pre-load all scripts into Redis using SCRIPT LOAD.
+    ///
+    /// This ensures EVALSHA calls will succeed (e.g., inside pipelines/MULTI
+    /// where NOSCRIPT fallback is not possible).
+    pub async fn load_all(
+        &self,
+        conn: &mut MultiplexedConnection,
+    ) -> Result<(), crate::error::Error> {
+        for script in self.scripts.values() {
+            redis::cmd("SCRIPT")
+                .arg("LOAD")
+                .arg(script.content.as_str())
+                .query_async::<String>(conn)
+                .await?;
+        }
+        Ok(())
+    }
+
     /// Returns the embedded compiled Lua scripts as (name, num_keys, content) tuples.
     ///
     /// These are the fully resolved scripts from `rust/src/commands/` (all includes expanded).

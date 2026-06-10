@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::broadcast;
 
@@ -7,7 +9,9 @@ use crate::error::Error;
 use crate::keys::QueueKeys;
 use crate::options::JobOptions;
 use crate::redis_connection::RedisConnection;
-use crate::types::{JobProgress, JobState, ParentKeys, RetryOptions};
+use crate::types::{
+    DependenciesCount, DependenciesResult, JobProgress, JobState, ParentKeys, RetryOptions,
+};
 
 /// Internal event sent from Job to Worker when progress is updated.
 #[derive(Debug, Clone)]
@@ -91,6 +95,17 @@ pub struct Job {
     /// Repeat job key (scheduler ID, stored as `rjk` in Redis).
     #[serde(skip_serializing_if = "Option::is_none")]
     repeat_job_key: Option<String>,
+    /// Deferred failure reason (set by fpof, stored as `defa` in Redis).
+    /// When set, the worker should fail the job immediately without processing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    deferred_failure: Option<String>,
+    /// Queue name (not stored in Redis, set from context).
+    #[serde(skip)]
+    queue_name: Option<String>,
+    /// Marks the job to not be retried if it fails, even if `attempts` is set.
+    /// Shared so a `discard()` call inside a processor is observed by the worker.
+    #[serde(skip)]
+    discarded: Arc<AtomicBool>,
     /// Script execution context (set by the worker, not serialized).
     #[serde(skip)]
     ctx: Option<ScriptContext>,
@@ -127,6 +142,9 @@ impl Job {
             stalled_counter: 0,
             delay: opts.delay.unwrap_or(0),
             repeat_job_key: None,
+            deferred_failure: None,
+            queue_name: None,
+            discarded: Arc::new(AtomicBool::new(false)),
             ctx: None,
         }
     }
@@ -168,6 +186,12 @@ impl Job {
         self.repeat_job_key.as_deref()
     }
 
+    /// Deferred failure reason (set when a child fails with failParentOnFailure).
+    /// When set, the worker will fail this job without processing.
+    pub fn deferred_failure(&self) -> Option<&str> {
+        self.deferred_failure.as_deref()
+    }
+
     /// Timestamp when the job was created.
     pub fn timestamp(&self) -> u64 {
         self.timestamp
@@ -198,6 +222,11 @@ impl Job {
         self.parent.as_ref()
     }
 
+    /// The parent key (fully qualified Redis key to parent job).
+    pub fn parent_key(&self) -> Option<&String> {
+        self.parent_key.as_ref()
+    }
+
     /// The worker name that processed this job.
     pub fn processed_by(&self) -> Option<&str> {
         self.processed_by.as_deref()
@@ -218,10 +247,57 @@ impl Job {
         self.opts.priority.unwrap_or(0)
     }
 
+    /// The queue name this job belongs to.
+    pub fn queue_name(&self) -> Option<&str> {
+        self.queue_name.as_deref()
+    }
+
+    /// The queue qualified name (`prefix:queueName`).
+    /// Only available when the job has a script context (i.e. inside a worker processor).
+    pub fn queue_qualified_name(&self) -> Option<String> {
+        self.ctx.as_ref().map(|ctx| ctx.keys.base())
+    }
+
+    /// Marks the job to not be retried if it fails, even if `attempts` is set.
+    ///
+    /// This mirrors Node.js `Job.discard()`. It is **deprecated** — prefer
+    /// returning [`Error::Unrecoverable`](crate::Error::Unrecoverable) from the
+    /// processor, which has the same effect. When called inside a processor and
+    /// the job subsequently fails, the worker will not retry it.
+    pub fn discard(&self) {
+        self.discarded.store(true, Ordering::SeqCst);
+    }
+
+    /// Whether [`Job::discard`] has been called on this job.
+    pub fn is_discarded(&self) -> bool {
+        self.discarded.load(Ordering::SeqCst)
+    }
+
+    /// Shared handle to the discard flag, used by the worker to observe a
+    /// `discard()` call made inside the processor.
+    pub(crate) fn discarded_handle(&self) -> Arc<AtomicBool> {
+        self.discarded.clone()
+    }
+
     // ── Setters (for internal use) ───────────────────────────────────────
 
     pub(crate) fn set_id(&mut self, id: String) {
         self.id = id;
+    }
+
+    /// Set the queue name (for jobs loaded outside the worker context).
+    pub(crate) fn set_queue_name(&mut self, name: String) {
+        self.queue_name = Some(name);
+    }
+
+    /// Set the parent job info.
+    pub(crate) fn set_parent(&mut self, parent: ParentKeys) {
+        self.parent = Some(parent);
+    }
+
+    /// Set the parent key (fully qualified Redis key).
+    pub(crate) fn set_parent_key(&mut self, key: String) {
+        self.parent_key = Some(key);
     }
 
     /// Attach a script execution context (set by the worker before processing).
@@ -229,7 +305,318 @@ impl Job {
         self.ctx = Some(ctx);
     }
 
+    // ── Flow/dependency methods ──────────────────────────────────────────
+
+    /// Get the return values of all completed children.
+    ///
+    /// Returns a map of `{queue_prefix:queue_name:job_id => return_value}`.
+    /// The values are JSON-parsed from the stored results.
+    pub async fn get_children_values(&self) -> Result<HashMap<String, serde_json::Value>, Error> {
+        let ctx = self
+            .ctx
+            .as_ref()
+            .ok_or_else(|| Error::InvalidConfig("Job has no script context".to_string()))?;
+
+        let processed_key = format!("{}:processed", ctx.keys.job_key(&self.id));
+        let mut conn = ctx.conn.conn();
+
+        let result: HashMap<String, String> = redis::cmd("HGETALL")
+            .arg(&processed_key)
+            .query_async(&mut conn)
+            .await?;
+
+        let mut parsed = HashMap::new();
+        for (key, value) in result {
+            let parsed_value: serde_json::Value =
+                serde_json::from_str(&value).unwrap_or(serde_json::Value::String(value));
+            parsed.insert(key, parsed_value);
+        }
+        Ok(parsed)
+    }
+
+    /// Get the failure values of children that failed with `ignoreDependencyOnFailure`.
+    ///
+    /// Returns a map of `{queue_prefix:queue_name:job_id => failure_reason}`.
+    pub async fn get_failed_children_values(&self) -> Result<HashMap<String, String>, Error> {
+        let ctx = self
+            .ctx
+            .as_ref()
+            .ok_or_else(|| Error::InvalidConfig("Job has no script context".to_string()))?;
+
+        let failed_key = format!("{}:failed", ctx.keys.job_key(&self.id));
+        let mut conn = ctx.conn.conn();
+
+        let result: HashMap<String, String> = redis::cmd("HGETALL")
+            .arg(&failed_key)
+            .query_async(&mut conn)
+            .await?;
+
+        Ok(result)
+    }
+
+    /// Retrieve the failures of child jobs that were ignored via
+    /// `ignoreDependencyOnFailure`.
+    ///
+    /// Returns a map of `{queue_prefix:queue_name:job_id => failure_reason}`.
+    /// This is the preferred name; [`Job::get_failed_children_values`] is a
+    /// deprecated alias kept for backwards compatibility.
+    pub async fn get_ignored_children_failures(&self) -> Result<HashMap<String, String>, Error> {
+        self.get_failed_children_values().await
+    }
+
+    /// Get the count of dependencies by type.
+    ///
+    /// Returns counts of processed, unprocessed, failed, and ignored children.
+    pub async fn get_dependencies_count(&self) -> Result<DependenciesCount, Error> {
+        let ctx = self
+            .ctx
+            .as_ref()
+            .ok_or_else(|| Error::InvalidConfig("Job has no script context".to_string()))?;
+
+        let job_key = ctx.keys.job_key(&self.id);
+        let processed_key = format!("{}:processed", job_key);
+        let deps_key = format!("{}:dependencies", job_key);
+        let failed_key = format!("{}:failed", job_key);
+        let unsuccessful_key = format!("{}:unsuccessful", job_key);
+
+        let mut conn = ctx.conn.conn();
+        let mut pipe = redis::pipe();
+        pipe.cmd("HLEN").arg(&processed_key);
+        pipe.cmd("SCARD").arg(&deps_key);
+        pipe.cmd("HLEN").arg(&failed_key);
+        pipe.cmd("ZCARD").arg(&unsuccessful_key);
+
+        let (processed, unprocessed, ignored, failed): (u64, u64, u64, u64) =
+            pipe.query_async(&mut conn).await?;
+
+        Ok(DependenciesCount {
+            processed,
+            unprocessed,
+            ignored,
+            failed,
+        })
+    }
+
+    /// Get a paginated view of this parent job's dependencies.
+    ///
+    /// `processed_cursor` / `unprocessed_cursor` are HSCAN/SSCAN cursors (start at 0).
+    /// `count` is a hint for how many entries to return per scan.
+    ///
+    /// Returns processed children (key -> return value), unprocessed child keys,
+    /// and the next cursors (0 indicates the iteration is complete).
+    pub async fn get_dependencies(
+        &self,
+        processed_cursor: u64,
+        unprocessed_cursor: u64,
+        count: u64,
+    ) -> Result<DependenciesResult, Error> {
+        let ctx = self
+            .ctx
+            .as_ref()
+            .ok_or_else(|| Error::InvalidConfig("Job has no script context".to_string()))?;
+
+        let job_key = ctx.keys.job_key(&self.id);
+        let processed_key = format!("{}:processed", job_key);
+        let deps_key = format!("{}:dependencies", job_key);
+
+        let mut conn = ctx.conn.conn();
+
+        // Scan processed (hash: child key -> return value)
+        let (next_processed_cursor, processed_flat): (u64, Vec<String>) = redis::cmd("HSCAN")
+            .arg(&processed_key)
+            .arg(processed_cursor)
+            .arg("COUNT")
+            .arg(count)
+            .query_async(&mut conn)
+            .await?;
+
+        let mut processed = std::collections::HashMap::new();
+        let mut iter = processed_flat.into_iter();
+        while let (Some(k), Some(v)) = (iter.next(), iter.next()) {
+            let parsed: serde_json::Value =
+                serde_json::from_str(&v).unwrap_or(serde_json::Value::String(v));
+            processed.insert(k, parsed);
+        }
+
+        // Scan unprocessed (set of child keys)
+        let (next_unprocessed_cursor, unprocessed): (u64, Vec<String>) = redis::cmd("SSCAN")
+            .arg(&deps_key)
+            .arg(unprocessed_cursor)
+            .arg("COUNT")
+            .arg(count)
+            .query_async(&mut conn)
+            .await?;
+
+        Ok(DependenciesResult {
+            processed,
+            next_processed_cursor,
+            unprocessed,
+            next_unprocessed_cursor,
+        })
+    }
+
+    /// Get the unprocessed dependencies (children still pending).
+    ///
+    /// Returns a set of child job keys that haven't completed yet.
+    pub async fn get_unprocessed_dependencies(&self) -> Result<Vec<String>, Error> {
+        let ctx = self
+            .ctx
+            .as_ref()
+            .ok_or_else(|| Error::InvalidConfig("Job has no script context".to_string()))?;
+
+        let deps_key = format!("{}:dependencies", ctx.keys.job_key(&self.id));
+        let mut conn = ctx.conn.conn();
+
+        let result: Vec<String> = redis::cmd("SMEMBERS")
+            .arg(&deps_key)
+            .query_async(&mut conn)
+            .await?;
+
+        Ok(result)
+    }
+
     // ── Script-backed methods ────────────────────────────────────────────
+
+    /// Remove this child's dependency from its parent.
+    ///
+    /// After calling this, the child job will no longer block the parent.
+    /// If this was the last pending dependency, the parent will move to wait.
+    /// Returns `true` if the dependency was successfully broken.
+    pub async fn remove_child_dependency(&mut self) -> Result<bool, Error> {
+        let ctx = self
+            .ctx
+            .as_ref()
+            .ok_or_else(|| Error::InvalidConfig("Job has no script context".to_string()))?;
+
+        let parent_key = self
+            .parent_key
+            .as_ref()
+            .ok_or_else(|| Error::InvalidConfig("Job has no parent key".to_string()))?
+            .clone();
+
+        let script = ctx
+            .conn
+            .scripts()
+            .get("removeChildDependency")
+            .ok_or_else(|| {
+                Error::InvalidConfig("removeChildDependency script not found".to_string())
+            })?
+            .clone();
+
+        let prefix_key = ctx.keys.key_prefix().to_string();
+        let job_key = ctx.keys.job_key(&self.id);
+
+        let keys = vec![prefix_key];
+        let args: Vec<&[u8]> = vec![job_key.as_bytes(), parent_key.as_bytes()];
+
+        let mut conn = ctx.conn.conn();
+        let result = script.execute(&mut conn, &keys, &args).await?;
+
+        match result {
+            redis::Value::Int(0) => {
+                // Successfully removed - clear parent info
+                self.parent = None;
+                self.parent_key = None;
+                Ok(true)
+            }
+            redis::Value::Int(1) => Ok(false),
+            redis::Value::Int(-1) => Err(Error::InvalidConfig(format!(
+                "Missing key for job {}. removeChildDependency",
+                self.id
+            ))),
+            redis::Value::Int(-5) => Err(Error::InvalidConfig(format!(
+                "Missing key for parent job {}. removeChildDependency",
+                parent_key
+            ))),
+            _ => Ok(false),
+        }
+    }
+
+    /// Move job from active to waiting-children state.
+    ///
+    /// This is used by step-based processors that need to wait for dynamically
+    /// added child jobs before continuing. The processor should return
+    /// `Err(Error::WaitingChildren)` after calling this.
+    ///
+    /// `child_key` optionally specifies which child to wait for (format: `prefix:queueName:childId`).
+    /// If None, waits for any pending dependencies.
+    ///
+    /// Returns:
+    /// - `Ok(true)` if moved to waiting-children
+    /// - `Ok(false)` if there are no pending dependencies
+    /// - `Err(...)` if job is missing, lock missing, or job has failed children
+    pub async fn move_to_waiting_children(
+        &self,
+        child_key: Option<&str>,
+    ) -> Result<bool, Error> {
+        let ctx = self
+            .ctx
+            .as_ref()
+            .ok_or_else(|| Error::InvalidConfig("Job has no script context".to_string()))?;
+
+        let script = ctx
+            .conn
+            .scripts()
+            .get("moveToWaitingChildren")
+            .ok_or_else(|| {
+                Error::InvalidConfig("moveToWaitingChildren script not found".to_string())
+            })?
+            .clone();
+
+        let keys = vec![
+            ctx.keys.active(),
+            ctx.keys.waiting_children(),
+            ctx.keys.job_key(&self.id),
+            format!("{}:dependencies", ctx.keys.job_key(&self.id)),
+            format!("{}:unsuccessful", ctx.keys.job_key(&self.id)),
+            ctx.keys.stalled(),
+            ctx.keys.events(),
+        ];
+
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis()
+            .to_string();
+
+        let child_key_str = child_key.unwrap_or("");
+        let prefix_key = ctx.keys.key_prefix();
+        let args: Vec<&[u8]> = vec![
+            ctx.token.as_bytes(),
+            child_key_str.as_bytes(),
+            timestamp.as_bytes(),
+            self.id.as_bytes(),
+            prefix_key.as_bytes(),
+        ];
+
+        let mut conn = ctx.conn.conn();
+        let result = script.execute(&mut conn, &keys, &args).await?;
+
+        match result {
+            redis::Value::Int(0) => Ok(true),
+            redis::Value::Int(1) => Ok(false),
+            redis::Value::Int(-1) => Err(Error::JobNotExist(self.id.clone())),
+            redis::Value::Int(-2) => Err(Error::JobLockNotExist(self.id.clone())),
+            redis::Value::Int(-3) => Err(Error::JobNotInState(
+                self.id.clone(),
+                "active".to_string(),
+            )),
+            // -9: the job has at least one failed child (with failParentOnFailure).
+            // Mirror Node.js `finishedErrors`: this is an unrecoverable error so the
+            // job is not retried, and it carries the descriptive message.
+            redis::Value::Int(-9) => Err(Error::Unrecoverable(format!(
+                "Cannot complete job {} because it has at least one failed child. moveToWaitingChildren",
+                self.id
+            ))),
+            redis::Value::Int(code) => Err(Error::InvalidConfig(format!(
+                "moveToWaitingChildren returned unexpected code: {}",
+                code
+            ))),
+            _ => Err(Error::InvalidConfig(
+                "moveToWaitingChildren returned unexpected value".to_string(),
+            )),
+        }
+    }
 
     /// Update job progress in Redis.
     ///
@@ -345,6 +732,39 @@ impl Job {
             redis::Value::Int(count) => Ok(count as u64),
             _ => Ok(0),
         }
+    }
+
+    /// Clear this job's logs.
+    ///
+    /// When `keep_logs` is `Some(n)`, the most recent `n` log entries are kept;
+    /// otherwise all logs are removed.
+    pub async fn clear_logs(&self, keep_logs: Option<u32>) -> Result<(), Error> {
+        let ctx = self
+            .ctx
+            .as_ref()
+            .ok_or_else(|| Error::InvalidConfig("Job has no script context".to_string()))?;
+
+        let logs_key = format!("{}:logs", ctx.keys.job_key(&self.id));
+        let mut conn = ctx.conn.conn();
+
+        match keep_logs {
+            Some(n) if n > 0 => {
+                let start = -(n as i64);
+                redis::cmd("LTRIM")
+                    .arg(&logs_key)
+                    .arg(start)
+                    .arg(-1)
+                    .query_async::<()>(&mut conn)
+                    .await?;
+            }
+            _ => {
+                redis::cmd("DEL")
+                    .arg(&logs_key)
+                    .query_async::<()>(&mut conn)
+                    .await?;
+            }
+        }
+        Ok(())
     }
 
     /// Retry a completed or failed job by moving it back to the wait queue.
@@ -495,6 +915,11 @@ impl Job {
     /// Check if the job is delayed.
     pub async fn is_delayed(&self) -> Result<bool, Error> {
         Ok(self.get_state().await? == JobState::Delayed)
+    }
+
+    /// Check if the job is waiting for its children to complete.
+    pub async fn is_waiting_children(&self) -> Result<bool, Error> {
+        Ok(self.get_state().await? == JobState::WaitingChildren)
     }
 
     /// Extend the lock on this job.
@@ -977,6 +1402,7 @@ impl Job {
             .and_then(|d| d.parse().ok())
             .unwrap_or_else(|| opts.delay.unwrap_or(0));
         let repeat_job_key = fields.get("rjk").cloned();
+        let deferred_failure = fields.get("defa").cloned();
 
         Ok(Self {
             id: id.to_string(),
@@ -998,6 +1424,9 @@ impl Job {
             stalled_counter,
             delay,
             repeat_job_key,
+            deferred_failure,
+            queue_name: None,
+            discarded: Arc::new(AtomicBool::new(false)),
             ctx: None,
         })
     }

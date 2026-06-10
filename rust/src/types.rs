@@ -180,6 +180,28 @@ pub struct JobCounts {
     pub paused: u64,
 }
 
+/// Metadata for a queue's time-series metrics.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct MetricsMeta {
+    /// Total number of jobs counted since metrics collection began.
+    pub count: u64,
+    /// Timestamp (ms) of the previous recorded data point.
+    pub prev_ts: u64,
+    /// Cumulative count at the previous data point.
+    pub prev_count: u64,
+}
+
+/// Time-series metrics for a queue (completed or failed jobs per minute).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Metrics {
+    /// Metrics metadata.
+    pub meta: MetricsMeta,
+    /// Per-minute data points (newest first), each the number of jobs in that minute.
+    pub data: Vec<u64>,
+    /// Total number of data points available.
+    pub count: u64,
+}
+
 /// Information about a parent job relationship.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParentKeys {
@@ -187,6 +209,32 @@ pub struct ParentKeys {
     pub queue_key: String,
     /// The parent job's ID.
     pub id: String,
+}
+
+/// Counts of dependencies by type for a parent job.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DependenciesCount {
+    /// Number of children that completed successfully.
+    pub processed: u64,
+    /// Number of children still pending (in dependencies set).
+    pub unprocessed: u64,
+    /// Number of children that failed with ignoreDependencyOnFailure.
+    pub ignored: u64,
+    /// Number of children that failed (in unsuccessful zset).
+    pub failed: u64,
+}
+
+/// Paginated result of a parent job's dependencies.
+#[derive(Debug, Clone, Default)]
+pub struct DependenciesResult {
+    /// Map of processed child job key -> return value (JSON).
+    pub processed: std::collections::HashMap<String, serde_json::Value>,
+    /// Cursor for the next page of processed children (0 = no more).
+    pub next_processed_cursor: u64,
+    /// Set of unprocessed (pending) child job keys.
+    pub unprocessed: Vec<String>,
+    /// Cursor for the next page of unprocessed children (0 = no more).
+    pub next_unprocessed_cursor: u64,
 }
 
 /// Remove-on-complete/fail policy.

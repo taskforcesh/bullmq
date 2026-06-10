@@ -56,9 +56,26 @@ pub type BackoffStrategyFn = Arc<
 #[derive(Debug, Clone)]
 pub struct RedisConnectionOptions {
     /// Redis connection URL (e.g., `redis://127.0.0.1:6379`).
+    ///
+    /// Used when [`host`](Self::host) is not set. For TLS, use a `rediss://`
+    /// URL (requires the crate to be built with TLS support, which is enabled
+    /// by default).
     pub url: String,
     /// Maximum number of connections in the pool.
     pub max_connections: usize,
+    /// Redis host. When set, the connection URL is built from the typed fields
+    /// below instead of [`url`](Self::url).
+    pub host: Option<String>,
+    /// Redis port (defaults to `6379` when [`host`](Self::host) is set).
+    pub port: Option<u16>,
+    /// Username for ACL authentication.
+    pub username: Option<String>,
+    /// Password for authentication.
+    pub password: Option<String>,
+    /// Database index to select.
+    pub db: Option<u8>,
+    /// Whether to connect over TLS (uses the `rediss://` scheme).
+    pub tls: bool,
 }
 
 impl Default for RedisConnectionOptions {
@@ -66,7 +83,37 @@ impl Default for RedisConnectionOptions {
         Self {
             url: "redis://127.0.0.1:6379".to_string(),
             max_connections: 4,
+            host: None,
+            port: None,
+            username: None,
+            password: None,
+            db: None,
+            tls: false,
         }
+    }
+}
+
+impl RedisConnectionOptions {
+    /// Build the effective connection URL.
+    ///
+    /// When [`host`](Self::host) is set, a URL is constructed from the typed
+    /// fields (`scheme://[user][:pass]@host:port[/db]`); otherwise
+    /// [`url`](Self::url) is returned as-is.
+    pub fn effective_url(&self) -> String {
+        let Some(host) = &self.host else {
+            return self.url.clone();
+        };
+
+        let scheme = if self.tls { "rediss" } else { "redis" };
+        let auth = match (&self.username, &self.password) {
+            (Some(u), Some(p)) => format!("{}:{}@", u, p),
+            (None, Some(p)) => format!(":{}@", p),
+            (Some(u), None) => format!("{}@", u),
+            (None, None) => String::new(),
+        };
+        let port = self.port.unwrap_or(6379);
+        let db = self.db.map(|d| format!("/{}", d)).unwrap_or_default();
+        format!("{}://{}{}:{}{}", scheme, auth, host, port, db)
     }
 }
 
@@ -131,6 +178,26 @@ pub struct WorkerOptions {
     pub limiter: Option<RateLimiterOptions>,
     /// Maximum delay in ms to wait when rate limited (default 30_000).
     pub maximum_rate_limit_delay: u64,
+    /// Time-series metrics collection. When set, the worker records
+    /// completed/failed counts per minute, readable via `Queue::get_metrics`.
+    pub metrics: Option<MetricsOptions>,
+}
+
+/// Configuration for time-series metrics collection.
+#[derive(Debug, Clone)]
+pub struct MetricsOptions {
+    /// Maximum number of per-minute data points to keep (older points are
+    /// trimmed). One data point covers one minute, so 2 weeks ≈ `2 * 7 * 24 * 60`.
+    pub max_data_points: usize,
+}
+
+impl Default for MetricsOptions {
+    fn default() -> Self {
+        // Two weeks of minute-resolution data points.
+        Self {
+            max_data_points: 2 * 7 * 24 * 60,
+        }
+    }
 }
 
 impl Default for WorkerOptions {
@@ -153,6 +220,7 @@ impl Default for WorkerOptions {
             backoff_strategy: None,
             limiter: None,
             maximum_rate_limit_delay: 30_000,
+            metrics: None,
         }
     }
 }
@@ -246,6 +314,22 @@ pub struct JobOptions {
     /// Repeat job key (scheduler ID).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repeat_job_key: Option<String>,
+
+    /// If true, the parent job will fail when this child fails.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fail_parent_on_failure: Option<bool>,
+
+    /// If true, the dependency on this child is ignored when it fails.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ignore_dependency_on_failure: Option<bool>,
+
+    /// If true, the dependency on this child is removed when it fails.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remove_dependency_on_failure: Option<bool>,
+
+    /// If true, the parent continues processing even if this child fails.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub continue_parent_on_failure: Option<bool>,
 }
 
 /// Parent job options (for flow/dependency chains).
