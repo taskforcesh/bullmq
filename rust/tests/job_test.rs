@@ -27,7 +27,10 @@ async fn test_clear_logs() {
     .await
     .unwrap();
 
-    let job = queue.add("test", serde_json::json!({"foo": "bar"}), None).await.unwrap();
+    let job = queue
+        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .await
+        .unwrap();
 
     job.log("some log text 1").await.unwrap();
     job.log("some log text 2").await.unwrap();
@@ -59,7 +62,10 @@ async fn test_clear_logs_keep_latest() {
     .await
     .unwrap();
 
-    let job = queue.add("test", serde_json::json!({"foo": "bar"}), None).await.unwrap();
+    let job = queue
+        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .await
+        .unwrap();
 
     job.log("some log text 1").await.unwrap();
     job.log("some log text 2").await.unwrap();

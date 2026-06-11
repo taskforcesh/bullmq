@@ -76,6 +76,60 @@ async fn test_add_job_with_custom_id() {
 }
 
 #[tokio::test]
+async fn test_add_job_with_parent_queue_name() {
+    let parent_name = test_queue_name();
+    let child_name = test_queue_name();
+
+    let opts = QueueOptions {
+        connection: test_connection(),
+        ..Default::default()
+    };
+
+    let parent_queue = Queue::new(&parent_name, opts.clone()).await.unwrap();
+    let child_queue = Queue::new(&child_name, opts).await.unwrap();
+
+    let parent = parent_queue
+        .add(
+            "parent",
+            serde_json::json!({}),
+            Some(JobOptions {
+                job_id: Some("parent-id".to_string()),
+                ..Default::default()
+            }),
+        )
+        .await
+        .unwrap();
+
+    let child = child_queue
+        .add(
+            "child",
+            serde_json::json!({}),
+            Some(JobOptions {
+                parent: Some(bullmq::ParentOpts {
+                    // ParentOpts.queue is a queue name, not a qualified key.
+                    queue: parent_name.clone(),
+                    id: parent.id().to_string(),
+                    wait_children: None,
+                }),
+                ..Default::default()
+            }),
+        )
+        .await
+        .unwrap();
+
+    assert!(!child.id().is_empty());
+
+    let deps = parent_queue
+        .get_dependencies_count(parent.id())
+        .await
+        .unwrap();
+    assert_eq!(deps.unprocessed, 1);
+
+    cleanup_queue(&child_queue).await;
+    cleanup_queue(&parent_queue).await;
+}
+
+#[tokio::test]
 async fn test_add_bulk_jobs() {
     let name = test_queue_name();
     let opts = QueueOptions {
@@ -704,8 +758,14 @@ async fn test_get_waiting_jobs() {
     .await
     .unwrap();
 
-    queue.add("test", serde_json::json!({"foo": "bar"}), None).await.unwrap();
-    queue.add("test", serde_json::json!({"baz": "qux"}), None).await.unwrap();
+    queue
+        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .await
+        .unwrap();
+    queue
+        .add("test", serde_json::json!({"baz": "qux"}), None)
+        .await
+        .unwrap();
 
     let jobs = queue.get_waiting(0, -1).await.unwrap();
     assert_eq!(jobs.len(), 2);
@@ -729,10 +789,22 @@ async fn test_get_waiting_jobs_full_range() {
     .await
     .unwrap();
 
-    queue.add("test", serde_json::json!({"foo": "bar"}), None).await.unwrap();
-    queue.add("test", serde_json::json!({"baz": "qux"}), None).await.unwrap();
-    queue.add("test", serde_json::json!({"bar": "qux"}), None).await.unwrap();
-    queue.add("test", serde_json::json!({"baz": "xuq"}), None).await.unwrap();
+    queue
+        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .await
+        .unwrap();
+    queue
+        .add("test", serde_json::json!({"baz": "qux"}), None)
+        .await
+        .unwrap();
+    queue
+        .add("test", serde_json::json!({"bar": "qux"}), None)
+        .await
+        .unwrap();
+    queue
+        .add("test", serde_json::json!({"baz": "xuq"}), None)
+        .await
+        .unwrap();
 
     let all_jobs = queue.get_waiting(0, -1).await.unwrap();
     assert_eq!(all_jobs.len(), 4);
@@ -759,8 +831,14 @@ async fn test_get_paused_jobs_via_waiting() {
     .unwrap();
 
     queue.pause().await.unwrap();
-    queue.add("test", serde_json::json!({"foo": "bar"}), None).await.unwrap();
-    queue.add("test", serde_json::json!({"baz": "qux"}), None).await.unwrap();
+    queue
+        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .await
+        .unwrap();
+    queue
+        .add("test", serde_json::json!({"baz": "qux"}), None)
+        .await
+        .unwrap();
 
     let jobs = queue.get_waiting(0, -1).await.unwrap();
     assert_eq!(jobs.len(), 2);
@@ -783,7 +861,10 @@ async fn test_get_jobs_by_type_waiting() {
     .unwrap();
 
     for i in 0..5 {
-        queue.add("test", serde_json::json!({"idx": i}), None).await.unwrap();
+        queue
+            .add("test", serde_json::json!({"idx": i}), None)
+            .await
+            .unwrap();
     }
 
     let jobs = queue.get_jobs(&["waiting"], 0, -1, true).await.unwrap();
@@ -894,7 +975,10 @@ async fn test_count_considering_prioritized() {
             .await
             .unwrap();
     }
-    queue.add("test", serde_json::json!({}), None).await.unwrap();
+    queue
+        .add("test", serde_json::json!({}), None)
+        .await
+        .unwrap();
 
     let count = queue.count().await.unwrap();
     assert_eq!(count, 9);
@@ -992,7 +1076,10 @@ async fn test_get_job_counts_by_types() {
     .unwrap();
 
     for _ in 0..3 {
-        queue.add("test", serde_json::json!({}), None).await.unwrap();
+        queue
+            .add("test", serde_json::json!({}), None)
+            .await
+            .unwrap();
     }
     queue
         .add(
@@ -1042,7 +1129,10 @@ async fn test_get_completed_and_failed_jobs() {
     .unwrap();
 
     // One job that completes, one that fails.
-    queue.add("ok", serde_json::json!({"ok": true}), None).await.unwrap();
+    queue
+        .add("ok", serde_json::json!({"ok": true}), None)
+        .await
+        .unwrap();
     queue
         .add(
             "fail",
@@ -1100,7 +1190,10 @@ async fn test_get_completed_and_failed_jobs() {
     assert_eq!(failed[0].name(), "fail");
 
     // getJobs with multiple types returns the union.
-    let both = queue.get_jobs(&["completed", "failed"], 0, -1, false).await.unwrap();
+    let both = queue
+        .get_jobs(&["completed", "failed"], 0, -1, false)
+        .await
+        .unwrap();
     assert_eq!(both.len(), 2);
 
     worker.close(5000).await.unwrap();

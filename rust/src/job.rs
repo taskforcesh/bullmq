@@ -545,10 +545,7 @@ impl Job {
     /// - `Ok(true)` if moved to waiting-children
     /// - `Ok(false)` if there are no pending dependencies
     /// - `Err(...)` if job is missing, lock missing, or job has failed children
-    pub async fn move_to_waiting_children(
-        &self,
-        child_key: Option<&str>,
-    ) -> Result<bool, Error> {
+    pub async fn move_to_waiting_children(&self, child_key: Option<&str>) -> Result<bool, Error> {
         let ctx = self
             .ctx
             .as_ref()

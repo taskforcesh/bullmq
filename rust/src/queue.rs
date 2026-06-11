@@ -320,11 +320,12 @@ impl Queue {
 
         // [5] parentKey, [6] parent deps key, [7] parent
         if let Some(ref parent) = job.opts().parent {
-            let parent_key = format!("{}:{}", parent.queue, parent.id);
+            let parent_queue_key = self.resolve_parent_queue_key(&parent.queue);
+            let parent_key = format!("{}:{}", parent_queue_key, parent.id);
             let parent_deps_key = format!("{}:dependencies", parent_key);
             let parent_data = serde_json::json!({
                 "id": parent.id,
-                "queueKey": parent.queue,
+                "queueKey": parent_queue_key,
             });
             write_str(&mut buf, &parent_key).unwrap();
             write_str(&mut buf, &parent_deps_key).unwrap();
@@ -346,6 +347,21 @@ impl Queue {
         }
 
         buf
+    }
+
+    /// Convert a parent queue identifier into a qualified queue key.
+    ///
+    /// `ParentOpts.queue` is documented as a queue name, so we prefix it with
+    /// this queue's configured prefix. For backward compatibility, values that
+    /// already start with the current prefix (e.g. `bull:parent`) are accepted
+    /// as pre-qualified queue keys.
+    fn resolve_parent_queue_key(&self, queue: &str) -> String {
+        let qualified_prefix = format!("{}:", self.keys.prefix());
+        if queue.starts_with(&qualified_prefix) {
+            queue.to_string()
+        } else {
+            format!("{}:{}", self.keys.prefix(), queue)
+        }
     }
 
     /// Pack ARGV[3]: msgpack map of job options using the raw script keys.
@@ -745,7 +761,9 @@ impl Queue {
         // reverses `lrange` results when `asc` is set.
         let extract_id = |v: redis::Value| -> Option<String> {
             match v {
-                redis::Value::BulkString(bytes) => Some(String::from_utf8_lossy(&bytes).to_string()),
+                redis::Value::BulkString(bytes) => {
+                    Some(String::from_utf8_lossy(&bytes).to_string())
+                }
                 redis::Value::SimpleString(s) => Some(s),
                 _ => None,
             }
@@ -761,7 +779,9 @@ impl Queue {
                     Some("wait") | Some("paused") | Some("active")
                 );
                 let mut ids: Vec<String> = match group {
-                    redis::Value::Array(items) => items.into_iter().filter_map(extract_id).collect(),
+                    redis::Value::Array(items) => {
+                        items.into_iter().filter_map(extract_id).collect()
+                    }
                     other => extract_id(other).into_iter().collect(),
                 };
                 if asc && is_list {
@@ -792,9 +812,13 @@ impl Queue {
         let type_refs: Vec<&str> = sanitized.iter().map(|s| s.as_str()).collect();
         let ids = self.get_ranges(&type_refs, start, end, asc).await?;
 
+        // Fetch jobs concurrently over the multiplexed Redis connection.
+        let fetches = ids.iter().map(|id| self.get_job(id));
+        let results = futures::future::join_all(fetches).await;
+
         let mut jobs = Vec::with_capacity(ids.len());
-        for id in ids {
-            if let Some(job) = self.get_job(&id).await? {
+        for result in results {
+            if let Some(job) = result? {
                 jobs.push(job);
             }
         }
@@ -1097,10 +1121,7 @@ impl Queue {
     }
 
     /// Get counts of dependencies for a parent job.
-    pub async fn get_dependencies_count(
-        &self,
-        job_id: &str,
-    ) -> Result<DependenciesCount, Error> {
+    pub async fn get_dependencies_count(&self, job_id: &str) -> Result<DependenciesCount, Error> {
         let job_key = self.keys.job_key(job_id);
         let processed_key = format!("{}:processed", job_key);
         let deps_key = format!("{}:dependencies", job_key);
@@ -1126,10 +1147,7 @@ impl Queue {
     }
 
     /// Get unprocessed dependencies (children still pending).
-    pub async fn get_unprocessed_dependencies(
-        &self,
-        job_id: &str,
-    ) -> Result<Vec<String>, Error> {
+    pub async fn get_unprocessed_dependencies(&self, job_id: &str) -> Result<Vec<String>, Error> {
         let deps_key = format!("{}:dependencies", self.keys.job_key(job_id));
         let mut conn = self.conn.conn();
 
@@ -1257,7 +1275,10 @@ impl Queue {
             ))),
             redis::Value::Int(-8) => Err(Error::Script {
                 code: -8,
-                message: format!("Job {} belongs to a job scheduler and cannot be removed directly", job_id),
+                message: format!(
+                    "Job {} belongs to a job scheduler and cannot be removed directly",
+                    job_id
+                ),
             }),
             _ => Ok(false),
         }
@@ -1273,9 +1294,7 @@ impl Queue {
             .scripts()
             .get("removeUnprocessedChildren")
             .ok_or_else(|| {
-                Error::InvalidConfig(
-                    "removeUnprocessedChildren script not found".to_string(),
-                )
+                Error::InvalidConfig("removeUnprocessedChildren script not found".to_string())
             })?
             .clone();
 
@@ -1605,7 +1624,9 @@ impl Queue {
             .clone();
 
         let keys = vec![self.keys.limiter(), self.keys.meta()];
-        let max_jobs_str = max_jobs.map(|m| m.to_string()).unwrap_or_else(|| "0".to_string());
+        let max_jobs_str = max_jobs
+            .map(|m| m.to_string())
+            .unwrap_or_else(|| "0".to_string());
         let args: Vec<&[u8]> = vec![max_jobs_str.as_bytes()];
 
         let mut conn = self.conn.conn();
@@ -1643,8 +1664,14 @@ impl Queue {
             .query_async(&mut conn)
             .await?;
 
-        let max = values.first().and_then(|v| v.as_ref()).and_then(|v| v.parse::<u64>().ok());
-        let duration = values.get(1).and_then(|v| v.as_ref()).and_then(|v| v.parse::<u64>().ok());
+        let max = values
+            .first()
+            .and_then(|v| v.as_ref())
+            .and_then(|v| v.parse::<u64>().ok());
+        let duration = values
+            .get(1)
+            .and_then(|v| v.as_ref())
+            .and_then(|v| v.parse::<u64>().ok());
 
         match (max, duration) {
             (Some(m), Some(d)) => Ok(Some((m, d))),

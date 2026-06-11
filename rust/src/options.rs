@@ -105,15 +105,63 @@ impl RedisConnectionOptions {
         };
 
         let scheme = if self.tls { "rediss" } else { "redis" };
+        let encoded_username = self
+            .username
+            .as_deref()
+            .map(Self::encode_userinfo_component);
+        let encoded_password = self
+            .password
+            .as_deref()
+            .map(Self::encode_userinfo_component);
         let auth = match (&self.username, &self.password) {
-            (Some(u), Some(p)) => format!("{}:{}@", u, p),
-            (None, Some(p)) => format!(":{}@", p),
-            (Some(u), None) => format!("{}@", u),
+            (Some(_), Some(_)) => format!(
+                "{}:{}@",
+                encoded_username.as_deref().unwrap_or(""),
+                encoded_password.as_deref().unwrap_or("")
+            ),
+            (None, Some(_)) => format!(":{}@", encoded_password.as_deref().unwrap_or("")),
+            (Some(_), None) => format!("{}@", encoded_username.as_deref().unwrap_or("")),
             (None, None) => String::new(),
         };
         let port = self.port.unwrap_or(6379);
         let db = self.db.map(|d| format!("/{}", d)).unwrap_or_default();
+        let host = Self::normalize_host_for_url(host);
         format!("{}://{}{}:{}{}", scheme, auth, host, port, db)
+    }
+
+    fn normalize_host_for_url(host: &str) -> String {
+        // Bracket IPv6 host literals so host:port parsing is unambiguous.
+        if host.contains(':') && !(host.starts_with('[') && host.ends_with(']')) {
+            format!("[{}]", host)
+        } else {
+            host.to_string()
+        }
+    }
+
+    fn encode_userinfo_component(input: &str) -> String {
+        let mut out = String::with_capacity(input.len());
+        for b in input.bytes() {
+            if Self::is_unreserved_userinfo_byte(b) {
+                out.push(b as char);
+            } else {
+                out.push('%');
+                out.push(Self::hex_upper((b >> 4) & 0x0F));
+                out.push(Self::hex_upper(b & 0x0F));
+            }
+        }
+        out
+    }
+
+    fn is_unreserved_userinfo_byte(b: u8) -> bool {
+        b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~')
+    }
+
+    fn hex_upper(nibble: u8) -> char {
+        match nibble {
+            0..=9 => (b'0' + nibble) as char,
+            10..=15 => (b'A' + (nibble - 10)) as char,
+            _ => unreachable!("hex nibble out of range"),
+        }
     }
 }
 

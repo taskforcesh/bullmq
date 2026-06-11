@@ -977,8 +977,7 @@ impl Worker {
             Err(e) => {
                 // If the processor called `job.discard()`, treat the failure as
                 // unrecoverable so the job is not retried (mirrors Node.js).
-                let e = if discarded.load(Ordering::SeqCst)
-                    && !matches!(e, Error::Unrecoverable(_))
+                let e = if discarded.load(Ordering::SeqCst) && !matches!(e, Error::Unrecoverable(_))
                 {
                     Error::Unrecoverable(e.to_string())
                 } else {

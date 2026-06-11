@@ -220,13 +220,14 @@ async fn should_process_parent_when_children_is_an_empty_array() {
 
     // With empty children, parent should be processable immediately
     assert!(!tree.job.id().is_empty());
-    assert!(
-        tree.children.is_none() || tree.children.as_ref().unwrap().is_empty()
-    );
+    assert!(tree.children.is_none() || tree.children.as_ref().unwrap().is_empty());
 
     // Wait for parent to be processed
     let result = timeout(Duration::from_secs(5), barrier.wait()).await;
-    assert!(result.is_ok(), "parent should be processed with empty children");
+    assert!(
+        result.is_ok(),
+        "parent should be processed with empty children"
+    );
 
     worker.close(5000).await.unwrap();
     flow.close().await;
@@ -311,7 +312,10 @@ async fn should_process_a_chain_of_jobs() {
         Arc::new(move |job: Job, _token: CancellationToken| {
             let order = order_gc.clone();
             Box::pin(async move {
-                order.lock().unwrap().push(format!("grandchild:{}", job.name()));
+                order
+                    .lock()
+                    .unwrap()
+                    .push(format!("grandchild:{}", job.name()));
                 Ok(serde_json::json!({"from": "grandchild"}))
             })
         }),
@@ -620,10 +624,7 @@ async fn should_fail_parent_when_child_with_fail_parent_on_failure_fails() {
     tokio::time::sleep(Duration::from_millis(2000)).await;
 
     // Parent should have moved to failed state
-    let parent_state = parent_queue
-        .get_job_state(tree.job.id())
-        .await
-        .unwrap();
+    let parent_state = parent_queue.get_job_state(tree.job.id()).await.unwrap();
     assert_eq!(parent_state, bullmq::JobState::Failed);
 
     child_worker.close(5000).await.unwrap();
@@ -934,14 +935,8 @@ async fn should_add_bulk_flows() {
     assert_eq!(trees[1].children.as_ref().unwrap().len(), 1);
 
     // Both parents should be in waiting-children state
-    let state1 = parent_queue
-        .get_job_state(trees[0].job.id())
-        .await
-        .unwrap();
-    let state2 = parent_queue
-        .get_job_state(trees[1].job.id())
-        .await
-        .unwrap();
+    let state1 = parent_queue.get_job_state(trees[0].job.id()).await.unwrap();
+    let state2 = parent_queue.get_job_state(trees[1].job.id()).await.unwrap();
     assert_eq!(state1, bullmq::JobState::WaitingChildren);
     assert_eq!(state2, bullmq::JobState::WaitingChildren);
 
@@ -1518,7 +1513,10 @@ async fn should_process_children_before_parent_with_children_values() {
             Box::pin(async move {
                 let children_values = job.get_children_values().await.unwrap();
                 // Should have 3 processed children
-                parent_values_ok.store(children_values.len() == 3, std::sync::atomic::Ordering::SeqCst);
+                parent_values_ok.store(
+                    children_values.len() == 3,
+                    std::sync::atomic::Ordering::SeqCst,
+                );
                 barrier.wait().await;
                 Ok(serde_json::Value::Null)
             })
@@ -1706,7 +1704,8 @@ async fn should_move_parent_to_wait_with_ignored_children_failures() {
             Box::pin(async move {
                 let deps_count = job.get_dependencies_count().await.unwrap();
                 // All 3 children fail with ignoreDependencyOnFailure
-                ignored_count_ok.store(deps_count.ignored == 3, std::sync::atomic::Ordering::SeqCst);
+                ignored_count_ok
+                    .store(deps_count.ignored == 3, std::sync::atomic::Ordering::SeqCst);
                 barrier.wait().await;
                 Ok(serde_json::Value::Null)
             })
@@ -1861,7 +1860,10 @@ async fn should_allow_parent_opts_on_the_root_job() {
             let parent_ok = parent_ok_clone.clone();
             Box::pin(async move {
                 let children_values = job.get_children_values().await.unwrap();
-                parent_ok.store(children_values.len() == 2, std::sync::atomic::Ordering::SeqCst);
+                parent_ok.store(
+                    children_values.len() == 2,
+                    std::sync::atomic::Ordering::SeqCst,
+                );
                 barrier.wait().await;
                 Ok(serde_json::Value::Null)
             })
@@ -1917,10 +1919,7 @@ async fn should_allow_parent_opts_on_the_root_job() {
         "{}:{}:{}",
         prefix, grandparent_queue_name, grandparent_job_id
     );
-    assert_eq!(
-        tree.job.parent_key().unwrap(),
-        &expected_parent_key
-    );
+    assert_eq!(tree.job.parent_key().unwrap(), &expected_parent_key);
 
     // Verify parent state
     let parent_state = parent_queue.get_job_state(tree.job.id()).await.unwrap();
@@ -2124,9 +2123,11 @@ async fn should_not_process_parent_until_queue_is_unpaused() {
     // Parent should be in waiting or paused list (queue is paused, so jobs land in paused list)
     let counts = parent_queue.get_job_counts().await.unwrap();
     assert_eq!(
-        counts.waiting + counts.paused, 1,
+        counts.waiting + counts.paused,
+        1,
         "parent should be in waiting or paused state, got waiting={}, paused={}",
-        counts.waiting, counts.paused
+        counts.waiting,
+        counts.paused
     );
 
     // Resume parent queue
@@ -2196,11 +2197,17 @@ async fn should_get_unprocessed_dependencies() {
         .unwrap();
 
     // Before any processing, all 3 children should be unprocessed
-    let deps_count = parent_queue.get_dependencies_count(tree.job.id()).await.unwrap();
+    let deps_count = parent_queue
+        .get_dependencies_count(tree.job.id())
+        .await
+        .unwrap();
     assert_eq!(deps_count.unprocessed, 3);
     assert_eq!(deps_count.processed, 0);
 
-    let unprocessed = parent_queue.get_unprocessed_dependencies(tree.job.id()).await.unwrap();
+    let unprocessed = parent_queue
+        .get_unprocessed_dependencies(tree.job.id())
+        .await
+        .unwrap();
     assert_eq!(unprocessed.len(), 3);
 
     // Now process children
@@ -2244,7 +2251,10 @@ async fn should_get_unprocessed_dependencies() {
     assert!(result.is_ok(), "timed out");
 
     // After all processing, all should be processed
-    let deps_count = parent_queue.get_dependencies_count(tree.job.id()).await.unwrap();
+    let deps_count = parent_queue
+        .get_dependencies_count(tree.job.id())
+        .await
+        .unwrap();
     assert_eq!(deps_count.unprocessed, 0);
     assert_eq!(deps_count.processed, 3);
 
@@ -2296,7 +2306,10 @@ async fn should_move_children_to_delayed() {
             let parent_got_values = parent_got_values_clone.clone();
             Box::pin(async move {
                 let children_values = job.get_children_values().await.unwrap();
-                parent_got_values.store(children_values.len() == 1, std::sync::atomic::Ordering::SeqCst);
+                parent_got_values.store(
+                    children_values.len() == 1,
+                    std::sync::atomic::Ordering::SeqCst,
+                );
                 barrier.wait().await;
                 Ok(serde_json::Value::Null)
             })
@@ -2412,13 +2425,21 @@ async fn should_start_processing_parent_after_child_fails_with_continue() {
             Box::pin(async move {
                 let failed_children = job.get_failed_children_values().await.unwrap();
                 let child_key = format!("{}:{}", child_qualified_name, child_id);
-                let has_failed_child = failed_children.get(&child_key).map(|v| v == "failed").unwrap_or(false);
+                let has_failed_child = failed_children
+                    .get(&child_key)
+                    .map(|v| v == "failed")
+                    .unwrap_or(false);
 
                 let deps_count = job.get_dependencies_count().await.unwrap();
                 // continueParentOnFailure puts failure in "ignored" (same as ignoreDependencyOnFailure)
-                let counts_ok = deps_count.processed == 0 && deps_count.unprocessed == 0 && deps_count.ignored == 1;
+                let counts_ok = deps_count.processed == 0
+                    && deps_count.unprocessed == 0
+                    && deps_count.ignored == 1;
 
-                parent_check_ok.store(has_failed_child && counts_ok, std::sync::atomic::Ordering::SeqCst);
+                parent_check_ok.store(
+                    has_failed_child && counts_ok,
+                    std::sync::atomic::Ordering::SeqCst,
+                );
                 barrier.wait().await;
                 Ok(serde_json::Value::Null)
             })
@@ -2499,7 +2520,10 @@ async fn should_use_custom_prefix_to_add_jobs() {
             let parent_ok = parent_ok_clone.clone();
             Box::pin(async move {
                 let children_values = job.get_children_values().await.unwrap();
-                parent_ok.store(children_values.len() == 1, std::sync::atomic::Ordering::SeqCst);
+                parent_ok.store(
+                    children_values.len() == 1,
+                    std::sync::atomic::Ordering::SeqCst,
+                );
                 barrier.wait().await;
                 Ok(serde_json::Value::Null)
             })
@@ -2689,7 +2713,8 @@ async fn should_move_parent_to_failed_in_deep_chain_with_fpof() {
     // The grandchild with fpof fails, which should fail the child (also fpof), which should fail the parent
     let parent_state = parent_queue.get_job_state(tree.job.id()).await.unwrap();
     assert_eq!(
-        parent_state, bullmq::JobState::Failed,
+        parent_state,
+        bullmq::JobState::Failed,
         "parent should be failed due to fpof cascade"
     );
 
@@ -2697,7 +2722,8 @@ async fn should_move_parent_to_failed_in_deep_chain_with_fpof() {
     let child_with_gc = tree.children.as_ref().unwrap()[1].job.id();
     let child_state = child_queue.get_job_state(child_with_gc).await.unwrap();
     assert_eq!(
-        child_state, bullmq::JobState::Failed,
+        child_state,
+        bullmq::JobState::Failed,
         "child with fpof should be failed"
     );
 
@@ -2796,7 +2822,10 @@ async fn should_process_parent_after_child_fails_with_unprocessed_siblings() {
             Box::pin(async move {
                 let failed_children = job.get_failed_children_values().await.unwrap();
                 let child_key = format!("{}:{}", child_qualified_name, child_to_fail_id);
-                let has_correct_failure = failed_children.get(&child_key).map(|v| v == "failed").unwrap_or(false);
+                let has_correct_failure = failed_children
+                    .get(&child_key)
+                    .map(|v| v == "failed")
+                    .unwrap_or(false);
                 parent_check_ok.store(has_correct_failure, std::sync::atomic::Ordering::SeqCst);
                 barrier.wait().await;
                 Ok(serde_json::Value::Null)
@@ -3008,7 +3037,10 @@ async fn should_move_parent_to_delayed_after_child_fails_with_cpof() {
                 let failed = job.get_failed_children_values().await.unwrap();
                 let child_key = format!("{}:{}", child_qualified_name, child_id);
                 parent_ok.store(
-                    failed.get(&child_key).map(|v| v == "failed").unwrap_or(false),
+                    failed
+                        .get(&child_key)
+                        .map(|v| v == "failed")
+                        .unwrap_or(false),
                     std::sync::atomic::Ordering::SeqCst,
                 );
                 barrier.wait().await;
@@ -3091,7 +3123,10 @@ async fn should_move_parent_to_prioritized_after_child_fails_with_cpof() {
 
     // Parent should be prioritized (not waiting or delayed)
     let counts = parent_queue.get_job_counts().await.unwrap();
-    assert_eq!(counts.prioritized, 1, "parent should be in prioritized state");
+    assert_eq!(
+        counts.prioritized, 1,
+        "parent should be in prioritized state"
+    );
     assert_eq!(counts.delayed, 0);
     assert_eq!(counts.waiting, 0);
 
@@ -3115,7 +3150,10 @@ async fn should_move_parent_to_prioritized_after_child_fails_with_cpof() {
                 let failed = job.get_failed_children_values().await.unwrap();
                 let child_key = format!("{}:{}", child_qualified_name, child_id);
                 parent_ok.store(
-                    failed.get(&child_key).map(|v| v == "failed").unwrap_or(false),
+                    failed
+                        .get(&child_key)
+                        .map(|v| v == "failed")
+                        .unwrap_or(false),
                     std::sync::atomic::Ordering::SeqCst,
                 );
                 barrier.wait().await;
@@ -3183,7 +3221,10 @@ async fn should_move_parent_to_delayed_after_children_complete() {
             let parent_ok = parent_ok_clone.clone();
             Box::pin(async move {
                 let children_values = job.get_children_values().await.unwrap();
-                parent_ok.store(children_values.len() == 1, std::sync::atomic::Ordering::SeqCst);
+                parent_ok.store(
+                    children_values.len() == 1,
+                    std::sync::atomic::Ordering::SeqCst,
+                );
                 barrier.wait().await;
                 Ok(serde_json::Value::Null)
             })
@@ -3450,7 +3491,10 @@ async fn should_ignore_parent_when_multiple_cpof_children_fail() {
                 let failed_children = job.get_failed_children_values().await.unwrap();
                 let child_key = format!("{}:{}", child_qualified_name, child_to_fail_1);
                 // At least the first failing child should be tracked
-                let has_failed = failed_children.get(&child_key).map(|v| v == "failed").unwrap_or(false);
+                let has_failed = failed_children
+                    .get(&child_key)
+                    .map(|v| v == "failed")
+                    .unwrap_or(false);
                 parent_check_ok.store(has_failed, std::sync::atomic::Ordering::SeqCst);
                 barrier.wait().await;
                 Ok(serde_json::Value::Null)
@@ -3604,11 +3648,19 @@ async fn should_move_grandparent_to_wait_with_rdof_and_fpof_cascade() {
     // Child should be failed (grandchild with fpof failed)
     let child_id = tree.children.as_ref().unwrap()[0].job.id();
     let child_state = child_queue.get_job_state(child_id).await.unwrap();
-    assert_eq!(child_state, bullmq::JobState::Failed, "child should be failed due to fpof");
+    assert_eq!(
+        child_state,
+        bullmq::JobState::Failed,
+        "child should be failed due to fpof"
+    );
 
     // Parent (grandparent) should be waiting (rdof removes dependency on failure)
     let parent_state = parent_queue.get_job_state(tree.job.id()).await.unwrap();
-    assert_eq!(parent_state, bullmq::JobState::Waiting, "parent should move to waiting due to rdof");
+    assert_eq!(
+        parent_state,
+        bullmq::JobState::Waiting,
+        "parent should move to waiting due to rdof"
+    );
 
     grandchild_worker.close(5000).await.unwrap();
     child_worker.close(5000).await.unwrap();
@@ -3716,14 +3768,25 @@ async fn should_move_grandparent_to_wait_with_idof_and_fpof_cascade() {
     // Child should be failed (grandchild with fpof failed)
     let child_id = tree.children.as_ref().unwrap()[0].job.id();
     let child_state = child_queue.get_job_state(child_id).await.unwrap();
-    assert_eq!(child_state, bullmq::JobState::Failed, "child should be failed due to fpof");
+    assert_eq!(
+        child_state,
+        bullmq::JobState::Failed,
+        "child should be failed due to fpof"
+    );
 
     // Parent should be waiting (idof ignores the dependency failure)
     let parent_state = parent_queue.get_job_state(tree.job.id()).await.unwrap();
-    assert_eq!(parent_state, bullmq::JobState::Waiting, "parent should move to waiting due to idof");
+    assert_eq!(
+        parent_state,
+        bullmq::JobState::Waiting,
+        "parent should move to waiting due to idof"
+    );
 
     // Verify ignored children failures are tracked on parent
-    let ignored = parent_queue.get_failed_children_values(tree.job.id()).await.unwrap();
+    let ignored = parent_queue
+        .get_failed_children_values(tree.job.id())
+        .await
+        .unwrap();
     assert_eq!(ignored.len(), 1, "should have 1 ignored failure");
 
     grandchild_worker.close(5000).await.unwrap();
@@ -3765,7 +3828,10 @@ async fn should_move_parent_to_wait_when_last_child_removes_dependency() {
     let child_id = child.job.id();
     let parent_key = child.job.parent_key().unwrap().clone();
 
-    let broken = queue.remove_child_dependency(child_id, &parent_key).await.unwrap();
+    let broken = queue
+        .remove_child_dependency(child_id, &parent_key)
+        .await
+        .unwrap();
     assert!(broken, "dependency should be broken");
 
     let parent_state = queue.get_job_state(tree.job.id()).await.unwrap();
@@ -3786,8 +3852,10 @@ async fn should_move_parent_to_wait_when_last_child_removes_dependency() {
                 if job.name() == "parent" {
                     let count = job.get_dependencies_count().await.unwrap();
                     deps_ok.store(
-                        count.processed == 0 && count.unprocessed == 0
-                            && count.ignored == 0 && count.failed == 0,
+                        count.processed == 0
+                            && count.unprocessed == 0
+                            && count.ignored == 0
+                            && count.failed == 0,
                         std::sync::atomic::Ordering::SeqCst,
                     );
                     barrier.wait().await;
@@ -3854,7 +3922,10 @@ async fn should_keep_parent_waiting_when_removing_one_of_many_dependencies() {
     let child0_id = child0.job.id();
     let parent_key = child0.job.parent_key().unwrap().clone();
 
-    let broken = queue.remove_child_dependency(child0_id, &parent_key).await.unwrap();
+    let broken = queue
+        .remove_child_dependency(child0_id, &parent_key)
+        .await
+        .unwrap();
     assert!(broken, "dependency should be broken");
 
     let parent_state = queue.get_job_state(tree.job.id()).await.unwrap();
@@ -4298,7 +4369,11 @@ async fn should_return_same_deduplicated_id_for_concurrent_add_calls() {
         ids.insert(tree.job.id().to_string());
     }
 
-    assert_eq!(ids.len(), 1, "all concurrent adds should return same dedup id");
+    assert_eq!(
+        ids.len(),
+        1,
+        "all concurrent adds should return same dedup id"
+    );
 
     flow.close().await;
     cleanup_queue(&queue).await;
@@ -4373,7 +4448,9 @@ async fn should_wait_children_as_one_step_of_parent_job() {
 
                         // Move to step 1 and wait for children
                         let mut job = job;
-                        job.update_data(serde_json::json!({"step": 1})).await.unwrap();
+                        job.update_data(serde_json::json!({"step": 1}))
+                            .await
+                            .unwrap();
                         let moved = job.move_to_waiting_children(None).await.unwrap();
                         assert!(moved, "should move to waiting-children");
                         Err(bullmq::Error::WaitingChildren)
@@ -4405,10 +4482,7 @@ async fn should_wait_children_as_one_step_of_parent_job() {
 
     let result = timeout(Duration::from_secs(15), barrier.wait()).await;
     assert!(result.is_ok(), "timed out waiting for parent to complete");
-    assert_eq!(
-        *return_value.lock().await,
-        Some("finished".to_string())
-    );
+    assert_eq!(*return_value.lock().await, Some("finished".to_string()));
 
     parent_worker.close(5000).await.unwrap();
     child_worker.close(5000).await.unwrap();
@@ -4434,9 +4508,7 @@ async fn should_fail_parent_when_child_with_fpof_failed_before_move_to_waiting_c
     let child_worker = Worker::new(
         &child_queue_name,
         Arc::new(|_job: Job, _token: CancellationToken| {
-            Box::pin(async move {
-                Err(bullmq::Error::ProcessingError("child failed".to_string()))
-            })
+            Box::pin(async move { Err(bullmq::Error::ProcessingError("child failed".to_string())) })
         }),
         WorkerOptions {
             connection: test_connection(),
@@ -4488,7 +4560,9 @@ async fn should_fail_parent_when_child_with_fpof_failed_before_move_to_waiting_c
                         .unwrap();
 
                         let mut job = job;
-                        job.update_data(serde_json::json!({"step": 1})).await.unwrap();
+                        job.update_data(serde_json::json!({"step": 1}))
+                            .await
+                            .unwrap();
                         // Wait a bit for child to fail
                         tokio::time::sleep(Duration::from_millis(500)).await;
                         // Try to move to waiting children - should fail with -9
@@ -4639,7 +4713,9 @@ async fn should_wait_children_as_one_step_with_grandchildren() {
                         .unwrap();
 
                         let mut job = job;
-                        job.update_data(serde_json::json!({"step": 1})).await.unwrap();
+                        job.update_data(serde_json::json!({"step": 1}))
+                            .await
+                            .unwrap();
                         let moved = job.move_to_waiting_children(None).await.unwrap();
                         assert!(moved);
                         Err(bullmq::Error::WaitingChildren)
@@ -4745,7 +4821,10 @@ async fn should_error_when_job_already_has_parent() {
         )
         .await;
 
-    assert!(result.is_err(), "should error when job already has a parent");
+    assert!(
+        result.is_err(),
+        "should error when job already has a parent"
+    );
 
     flow.close().await;
     cleanup_queue(&queue).await;
@@ -4814,7 +4893,10 @@ async fn should_get_a_flow_tree() {
 
     assert!(!children[0].job.id().is_empty());
     assert_eq!(children[0].job.data().get("foo").unwrap(), "bar");
-    assert_eq!(children[0].job.queue_name(), Some(child_queue_name.as_str()));
+    assert_eq!(
+        children[0].job.queue_name(),
+        Some(child_queue_name.as_str())
+    );
     assert!(children[0].children.is_some());
     let grandchildren = children[0].children.as_ref().unwrap();
     assert_eq!(grandchildren.len(), 1);
@@ -4918,7 +5000,10 @@ async fn should_get_part_of_flow_tree() {
     for child in children {
         if let Some(grandchildren) = &child.children {
             for gc in grandchildren {
-                assert!(gc.children.is_none(), "depth limit should prevent deeper traversal");
+                assert!(
+                    gc.children.is_none(),
+                    "depth limit should prevent deeper traversal"
+                );
             }
         }
     }
@@ -5058,12 +5143,18 @@ async fn should_remove_child_and_move_parent_to_wait() {
     let great_grandchild = &grandchild.children.as_ref().unwrap()[0];
 
     // Remove deepest child - grandchild should move to waiting
-    let gc_state = child_queue.get_job_state(grandchild.job.id()).await.unwrap();
+    let gc_state = child_queue
+        .get_job_state(grandchild.job.id())
+        .await
+        .unwrap();
     assert_eq!(gc_state, bullmq::JobState::WaitingChildren);
 
     child_queue.remove(great_grandchild.job.id()).await.unwrap();
 
-    let gc_state = child_queue.get_job_state(grandchild.job.id()).await.unwrap();
+    let gc_state = child_queue
+        .get_job_state(grandchild.job.id())
+        .await
+        .unwrap();
     assert_eq!(gc_state, bullmq::JobState::Waiting);
 
     // Remove grandchild - child should move to waiting
@@ -5136,7 +5227,10 @@ async fn should_only_move_parent_to_wait_when_all_children_removed() {
     // Remove first child - parent should still be waiting-children
     child_queue.remove(children[0].job.id()).await.unwrap();
 
-    let child0_state = child_queue.get_job_state(children[0].job.id()).await.unwrap();
+    let child0_state = child_queue
+        .get_job_state(children[0].job.id())
+        .await
+        .unwrap();
     assert_eq!(child0_state, bullmq::JobState::Unknown);
     let parent_state = parent_queue.get_job_state(tree.job.id()).await.unwrap();
     assert_eq!(parent_state, bullmq::JobState::WaitingChildren);
@@ -5144,7 +5238,10 @@ async fn should_only_move_parent_to_wait_when_all_children_removed() {
     // Remove second child - parent should now move to waiting
     child_queue.remove(children[1].job.id()).await.unwrap();
 
-    let child1_state = child_queue.get_job_state(children[1].job.id()).await.unwrap();
+    let child1_state = child_queue
+        .get_job_state(children[1].job.id())
+        .await
+        .unwrap();
     assert_eq!(child1_state, bullmq::JobState::Unknown);
     let parent_state = parent_queue.get_job_state(tree.job.id()).await.unwrap();
     assert_eq!(parent_state, bullmq::JobState::Waiting);
@@ -5219,9 +5316,15 @@ async fn should_not_remove_children_when_remove_without_children() {
     assert!(child1_job.is_some(), "child1 should still exist");
 
     // Verify state - children remain in their respective states
-    let child0_state = child_queue.get_job_state(children[0].job.id()).await.unwrap();
+    let child0_state = child_queue
+        .get_job_state(children[0].job.id())
+        .await
+        .unwrap();
     assert_eq!(child0_state, bullmq::JobState::Waiting);
-    let child1_state = child_queue.get_job_state(children[1].job.id()).await.unwrap();
+    let child1_state = child_queue
+        .get_job_state(children[1].job.id())
+        .await
+        .unwrap();
     assert_eq!(child1_state, bullmq::JobState::WaitingChildren);
 
     // Parent state should be unknown (removed)
@@ -5297,9 +5400,15 @@ async fn should_remove_unprocessed_children() {
 
     // All children except the one with sub-children should be in waiting
     let children = tree.children.as_ref().unwrap();
-    let child0_state = child_queue.get_job_state(children[0].job.id()).await.unwrap();
+    let child0_state = child_queue
+        .get_job_state(children[0].job.id())
+        .await
+        .unwrap();
     assert_eq!(child0_state, bullmq::JobState::Waiting);
-    let child3_state = child_queue.get_job_state(children[3].job.id()).await.unwrap();
+    let child3_state = child_queue
+        .get_job_state(children[3].job.id())
+        .await
+        .unwrap();
     assert_eq!(child3_state, bullmq::JobState::WaitingChildren);
 
     // Remove unprocessed children of parent
@@ -5311,7 +5420,11 @@ async fn should_remove_unprocessed_children() {
     // All children should now be removed
     for child in children.iter() {
         let child_job = child_queue.get_job(child.job.id()).await.unwrap();
-        assert!(child_job.is_none(), "child {} should be removed", child.job.id());
+        assert!(
+            child_job.is_none(),
+            "child {} should be removed",
+            child.job.id()
+        );
     }
 
     // Grandchild should also be removed
@@ -5435,7 +5548,10 @@ async fn should_not_remove_completed_children_with_remove_unprocessed() {
     tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
 
     let counts = child_queue.get_job_counts().await.unwrap();
-    assert_eq!(counts.completed, num_children, "all children should be completed");
+    assert_eq!(
+        counts.completed, num_children,
+        "all children should be completed"
+    );
 
     // Try to remove unprocessed children - should not remove any since all are completed
     parent_queue
@@ -5444,7 +5560,10 @@ async fn should_not_remove_completed_children_with_remove_unprocessed() {
         .unwrap();
 
     let counts_after = child_queue.get_job_counts().await.unwrap();
-    assert_eq!(counts_after.completed, num_children, "all children should still be completed");
+    assert_eq!(
+        counts_after.completed, num_children,
+        "all children should still be completed"
+    );
 
     flow.close().await;
     let _ = child_worker.close(1000).await;
@@ -5545,7 +5664,11 @@ async fn should_remove_all_children_after_processing() {
     let children = tree.children.as_ref().unwrap();
     for child in children.iter() {
         let child_job = child_queue.get_job(child.job.id()).await.unwrap();
-        assert!(child_job.is_none(), "child {} should be removed", child.job.id());
+        assert!(
+            child_job.is_none(),
+            "child {} should be removed",
+            child.job.id()
+        );
     }
 
     // Grandchild too
@@ -5665,14 +5788,21 @@ async fn should_remove_children_but_not_grandparent() {
     let children = parent_node[0].children.as_ref().unwrap();
     for child in children.iter() {
         let child_job = child_queue.get_job(child.job.id()).await.unwrap();
-        assert!(child_job.is_none(), "child {} should be removed", child.job.id());
+        assert!(
+            child_job.is_none(),
+            "child {} should be removed",
+            child.job.id()
+        );
     }
 
     let counts = child_queue.get_job_counts().await.unwrap();
     assert_eq!(counts.completed, 0);
 
     // Grandparent should still exist and be in waiting state (since its child was removed)
-    let grandparent_state = grandparent_queue.get_job_state(tree.job.id()).await.unwrap();
+    let grandparent_state = grandparent_queue
+        .get_job_state(tree.job.id())
+        .await
+        .unwrap();
     assert_eq!(grandparent_state, bullmq::JobState::Waiting);
 
     flow.close().await;
@@ -5758,9 +5888,15 @@ async fn should_not_remove_locked_job_in_tree() {
     assert_eq!(parent_state, bullmq::JobState::WaitingChildren);
 
     let children = tree.children.as_ref().unwrap();
-    let child0_state = child_queue.get_job_state(children[0].job.id()).await.unwrap();
+    let child0_state = child_queue
+        .get_job_state(children[0].job.id())
+        .await
+        .unwrap();
     // One should be active (locked)
-    let child1_state = child_queue.get_job_state(children[1].job.id()).await.unwrap();
+    let child1_state = child_queue
+        .get_job_state(children[1].job.id())
+        .await
+        .unwrap();
     assert!(
         child0_state == bullmq::JobState::Active || child1_state == bullmq::JobState::Active,
         "at least one child should be active"
@@ -6247,7 +6383,10 @@ async fn should_get_a_flow_tree_using_default_prefix() {
 
     assert!(!children[0].job.id().is_empty());
     assert_eq!(children[0].job.data().get("foo").unwrap(), "bar");
-    assert_eq!(children[0].job.queue_name(), Some(child_queue_name.as_str()));
+    assert_eq!(
+        children[0].job.queue_name(),
+        Some(child_queue_name.as_str())
+    );
     assert!(children[0].children.is_some());
 
     let grandchildren = children[0].children.as_ref().unwrap();
@@ -6384,7 +6523,10 @@ async fn should_remove_processed_data_when_parent_remove_on_complete() {
         }
     })
     .await;
-    assert!(removed.is_ok(), "timed out waiting for parent to be removed");
+    assert!(
+        removed.is_ok(),
+        "timed out waiting for parent to be removed"
+    );
 
     // Processed dependencies should now be empty (job + its processed hash removed)
     let deps_after = parent_job.get_dependencies(0, 0, 100).await.unwrap();
@@ -6733,7 +6875,7 @@ async fn should_not_restore_parent_reference_after_remove_child_dependency() {
 // Node.js: "when priority option is provided > should process children before the parent prioritizing jobs per queueName"
 #[tokio::test]
 async fn should_process_children_before_parent_prioritizing_per_queue_name() {
-    use std::sync::atomic::{AtomicU32, AtomicBool, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
     let prefix = "bf-test";
     let parent_queue_name = test_queue_name();
@@ -6861,7 +7003,10 @@ async fn should_process_children_before_parent_prioritizing_per_queue_name() {
     })
     .await;
     assert!(gc_done.is_ok(), "grandchildren did not all process");
-    assert!(gc_order_ok.load(Ordering::SeqCst), "grandchildren not processed in priority order");
+    assert!(
+        gc_order_ok.load(Ordering::SeqCst),
+        "grandchildren not processed in priority order"
+    );
 
     // Then process children.
     child_worker.run().await.unwrap();
@@ -6875,7 +7020,10 @@ async fn should_process_children_before_parent_prioritizing_per_queue_name() {
     })
     .await;
     assert!(c_done.is_ok(), "children did not all process");
-    assert!(c_order_ok.load(Ordering::SeqCst), "children not processed in priority order");
+    assert!(
+        c_order_ok.load(Ordering::SeqCst),
+        "children not processed in priority order"
+    );
 
     // Parent should now have all 3 dependencies processed.
     let waited = timeout(Duration::from_secs(10), async {
@@ -7176,7 +7324,9 @@ async fn should_fail_parent_with_pending_dependencies_error() {
                         })
                         .await
                         .unwrap();
-                        job.update_data(serde_json::json!({"step": 1})).await.unwrap();
+                        job.update_data(serde_json::json!({"step": 1}))
+                            .await
+                            .unwrap();
                         // Return Ok: triggers moveToFinished which should fail with
                         // pending dependencies (the child is still pending).
                         Ok(serde_json::Value::Null)
@@ -7267,7 +7417,9 @@ async fn should_fail_parent_with_pending_dependencies_error_fpof_child() {
                         })
                         .await
                         .unwrap();
-                        job.update_data(serde_json::json!({"step": 1})).await.unwrap();
+                        job.update_data(serde_json::json!({"step": 1}))
+                            .await
+                            .unwrap();
                         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                         Ok(serde_json::Value::Null)
                     }
@@ -7436,7 +7588,10 @@ async fn should_process_children_before_parent_with_default_job_options() {
     })
     .await;
     assert!(removed.is_ok(), "parent was not removed after completion");
-    assert!(deps_ok.load(Ordering::SeqCst), "parent did not see 3 processed deps");
+    assert!(
+        deps_ok.load(Ordering::SeqCst),
+        "parent did not see 3 processed deps"
+    );
 
     let counts = parent_queue.get_job_counts().await.unwrap();
     assert_eq!(counts.completed, 0);
@@ -7530,7 +7685,9 @@ async fn should_fail_parent_and_grandparent_when_moving_to_waiting_children() {
                 })
                 .await
                 .unwrap();
-                job.update_data(serde_json::json!({"step": 1})).await.unwrap();
+                job.update_data(serde_json::json!({"step": 1}))
+                    .await
+                    .unwrap();
                 wait_then_move(job).await
             })
         }),
@@ -7572,7 +7729,9 @@ async fn should_fail_parent_and_grandparent_when_moving_to_waiting_children() {
                 })
                 .await
                 .unwrap();
-                job.update_data(serde_json::json!({"step": 1})).await.unwrap();
+                job.update_data(serde_json::json!({"step": 1}))
+                    .await
+                    .unwrap();
                 wait_then_move(job).await
             })
         }),
@@ -7710,7 +7869,9 @@ async fn should_fail_parent_with_last_error() {
                 })
                 .await
                 .unwrap();
-                job.update_data(serde_json::json!({"step": 1})).await.unwrap();
+                job.update_data(serde_json::json!({"step": 1}))
+                    .await
+                    .unwrap();
                 // Throw our own error before ever moving to waiting-children.
                 Err(bullmq::Error::ProcessingError("fail".to_string()))
             })
@@ -7855,7 +8016,9 @@ async fn should_move_parent_to_failed_when_child_fails_parent_delayed() {
                         .unwrap();
                     *child_id_slot.lock().await = Some(child_tree.job.id().to_string());
 
-                    job.update_data(serde_json::json!({"step": 1})).await.unwrap();
+                    job.update_data(serde_json::json!({"step": 1}))
+                        .await
+                        .unwrap();
                     // Move ourselves to delayed (in the near future).
                     let now = std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
@@ -8031,7 +8194,9 @@ async fn should_move_parent_to_failed_when_child_fails_parent_prioritized() {
                         .unwrap();
                     *child_id_slot.lock().await = Some(child_tree.job.id().to_string());
 
-                    job.update_data(serde_json::json!({"step": 1})).await.unwrap();
+                    job.update_data(serde_json::json!({"step": 1}))
+                        .await
+                        .unwrap();
                     // Rate-limit ourselves: moves the job back to prioritized.
                     rl_queue.rate_limit(2000).await.unwrap();
                     Err(bullmq::Error::RateLimited { delay_ms: 2000 })
@@ -8076,7 +8241,10 @@ async fn should_move_parent_to_failed_when_child_fails_parent_prioritized() {
         }
     })
     .await;
-    assert!(failed.is_ok(), "root did not move to failed while prioritized");
+    assert!(
+        failed.is_ok(),
+        "root did not move to failed while prioritized"
+    );
 
     let child_id = child_id_slot.lock().await.clone().unwrap();
     let expected = format!(
@@ -8141,10 +8309,12 @@ async fn should_keep_children_results_in_parent_with_remove_on_complete_age() {
     let flow = test_flow_producer(prefix).await;
 
     let age_opts = || JobOptions {
-        remove_on_complete: Some(bullmq::types::RemoveOnFinish::Options(bullmq::types::KeepJobs {
-            age: Some(1),
-            count: None,
-        })),
+        remove_on_complete: Some(bullmq::types::RemoveOnFinish::Options(
+            bullmq::types::KeepJobs {
+                age: Some(1),
+                count: None,
+            },
+        )),
         ..Default::default()
     };
 
@@ -8190,7 +8360,11 @@ async fn should_keep_children_results_in_parent_with_remove_on_complete_age() {
     assert!(captured.is_ok(), "parent was not processed");
 
     let processed = processed_slot.lock().await.clone().unwrap();
-    assert_eq!(processed.len(), 2, "parent should have 2 processed children");
+    assert_eq!(
+        processed.len(),
+        2,
+        "parent should have 2 processed children"
+    );
 
     // The processed value for each child should equal its name.
     let children = tree.children.as_ref().unwrap();
@@ -8349,11 +8523,7 @@ async fn should_process_children_respecting_priority_with_queues_options() {
                 data: serde_json::json!({}),
                 opts: None,
                 prefix: None,
-                children: Some(vec![
-                    make_child(1, 2),
-                    make_child(2, 3),
-                    make_child(0, 1),
-                ]),
+                children: Some(vec![make_child(1, 2), make_child(2, 3), make_child(0, 1)]),
             },
             &flow_opts,
         )
@@ -8376,7 +8546,10 @@ async fn should_process_children_respecting_priority_with_queues_options() {
     })
     .await;
     assert!(gc_done.is_ok(), "children did not all become prioritized");
-    assert!(gc_count.load(Ordering::SeqCst) >= 3, "grandchildren did not all process");
+    assert!(
+        gc_count.load(Ordering::SeqCst) >= 3,
+        "grandchildren did not all process"
+    );
 
     // Now run the children worker; they should process in priority order.
     child_worker.run().await.unwrap();
@@ -8392,8 +8565,14 @@ async fn should_process_children_respecting_priority_with_queues_options() {
     })
     .await;
     assert!(removed.is_ok(), "parent was not removed after completion");
-    assert!(order_ok.load(Ordering::SeqCst), "children not processed in priority order");
-    assert!(deps_ok.load(Ordering::SeqCst), "parent did not see 3 processed deps");
+    assert!(
+        order_ok.load(Ordering::SeqCst),
+        "children not processed in priority order"
+    );
+    assert!(
+        deps_ok.load(Ordering::SeqCst),
+        "parent did not see 3 processed deps"
+    );
 
     let counts = parent_queue.get_job_counts().await.unwrap();
     assert_eq!(counts.completed, 0);
@@ -8546,8 +8725,7 @@ async fn should_remove_parent_when_child_moved_to_failed_remove_on_fail() {
     // Grandparent (root) should be moved to failed.
     let failed = timeout(Duration::from_secs(15), async {
         loop {
-            if parent_queue.get_job_state(tree.job.id()).await.unwrap()
-                == bullmq::JobState::Failed
+            if parent_queue.get_job_state(tree.job.id()).await.unwrap() == bullmq::JobState::Failed
             {
                 break;
             }
@@ -8915,8 +9093,7 @@ async fn should_remove_all_children_when_removing_parent_with_unsuccessful_child
     // Wait for the parent to fail (cascaded from the unsuccessful children).
     let failed = timeout(Duration::from_secs(15), async {
         loop {
-            if parent_queue.get_job_state(tree.job.id()).await.unwrap()
-                == bullmq::JobState::Failed
+            if parent_queue.get_job_state(tree.job.id()).await.unwrap() == bullmq::JobState::Failed
             {
                 break;
             }
@@ -8924,7 +9101,10 @@ async fn should_remove_all_children_when_removing_parent_with_unsuccessful_child
         }
     })
     .await;
-    assert!(failed.is_ok(), "parent did not fail from unsuccessful children");
+    assert!(
+        failed.is_ok(),
+        "parent did not fail from unsuccessful children"
+    );
 
     // Remove the parent (with children).
     parent_queue.remove(tree.job.id()).await.unwrap();
@@ -8940,7 +9120,11 @@ async fn should_remove_all_children_when_removing_parent_with_unsuccessful_child
         );
     }
     let grandchild = children[1].children.as_ref().unwrap();
-    assert!(child_queue.get_job(grandchild[0].job.id()).await.unwrap().is_none());
+    assert!(child_queue
+        .get_job(grandchild[0].job.id())
+        .await
+        .unwrap()
+        .is_none());
 
     let counts = child_queue.get_job_counts().await.unwrap();
     assert_eq!(counts.failed, 0);
@@ -9060,7 +9244,10 @@ async fn should_get_ignored_children_failures_via_job() {
     let parent_id = tree.job.id().to_string();
     let ready = timeout(Duration::from_secs(10), async {
         loop {
-            let deps = parent_queue.get_dependencies_count(&parent_id).await.unwrap();
+            let deps = parent_queue
+                .get_dependencies_count(&parent_id)
+                .await
+                .unwrap();
             if deps.ignored >= 2 {
                 break;
             }

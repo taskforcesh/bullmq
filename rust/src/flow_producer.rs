@@ -155,19 +155,15 @@ impl FlowProducer {
         pipe.atomic();
 
         // If the root flow has opts.parent, construct a ParentContext
-        let parent_ctx = flow
-            .opts
-            .as_ref()
-            .and_then(|o| o.parent.as_ref())
-            .map(|p| {
-                let parent_queue_key = p.queue.clone();
-                let parent_deps_key = format!("{}:{}:dependencies", parent_queue_key, p.id);
-                ParentContext {
-                    parent_id: p.id.clone(),
-                    parent_queue_key,
-                    parent_deps_key,
-                }
-            });
+        let parent_ctx = flow.opts.as_ref().and_then(|o| o.parent.as_ref()).map(|p| {
+            let parent_queue_key = p.queue.clone();
+            let parent_deps_key = format!("{}:{}:dependencies", parent_queue_key, p.id);
+            ParentContext {
+                parent_id: p.id.clone(),
+                parent_queue_key,
+                parent_deps_key,
+            }
+        });
 
         let mut job_node = self.add_node(&mut pipe, &flow, parent_ctx.as_ref())?;
 
@@ -209,20 +205,15 @@ impl FlowProducer {
         let mut cmd_count = 0usize;
 
         for flow in &flows {
-            let parent_ctx = flow
-                .opts
-                .as_ref()
-                .and_then(|o| o.parent.as_ref())
-                .map(|p| {
-                    let parent_queue_key = p.queue.clone();
-                    let parent_deps_key =
-                        format!("{}:{}:dependencies", parent_queue_key, p.id);
-                    ParentContext {
-                        parent_id: p.id.clone(),
-                        parent_queue_key,
-                        parent_deps_key,
-                    }
-                });
+            let parent_ctx = flow.opts.as_ref().and_then(|o| o.parent.as_ref()).map(|p| {
+                let parent_queue_key = p.queue.clone();
+                let parent_deps_key = format!("{}:{}:dependencies", parent_queue_key, p.id);
+                ParentContext {
+                    parent_id: p.id.clone(),
+                    parent_queue_key,
+                    parent_deps_key,
+                }
+            });
             root_indices.push(cmd_count);
             let node = self.add_node(&mut pipe, flow, parent_ctx.as_ref())?;
             cmd_count += Self::count_nodes(&node);
@@ -400,13 +391,7 @@ impl FlowProducer {
         if let Some(children) = &node.children {
             if !children.is_empty() {
                 // This is a parent node — add via addParentJob script
-                self.add_parent_job_to_pipe(
-                    pipe,
-                    &keys,
-                    &job,
-                    &job_id,
-                    parent,
-                )?;
+                self.add_parent_job_to_pipe(pipe, &keys, &job, &job_id, parent)?;
 
                 // Build parent context for children
                 let parent_queue_key = format!("{}:{}", prefix, node.queue_name);
@@ -512,9 +497,7 @@ impl FlowProducer {
             .conn
             .scripts()
             .get(script_name)
-            .ok_or_else(|| {
-                Error::InvalidConfig(format!("script '{}' not found", script_name))
-            })?
+            .ok_or_else(|| Error::InvalidConfig(format!("script '{}' not found", script_name)))?
             .clone();
 
         let script_keys = self.leaf_job_keys(keys, script_name);
@@ -733,9 +716,7 @@ impl FlowProducer {
     /// Extract a job ID from a Redis value.
     fn extract_job_id(value: &redis::Value) -> Option<String> {
         match value {
-            redis::Value::BulkString(bytes) => {
-                Some(String::from_utf8_lossy(bytes).to_string())
-            }
+            redis::Value::BulkString(bytes) => Some(String::from_utf8_lossy(bytes).to_string()),
             redis::Value::SimpleString(s) => Some(s.clone()),
             redis::Value::Int(n) if *n >= 0 => Some(n.to_string()),
             _ => None,
@@ -759,10 +740,7 @@ impl FlowProducer {
                         .unwrap_or_default();
                     return Err(Error::Script {
                         code: *code,
-                        message: format!(
-                            "Missing key for parent job {}. addJob",
-                            parent_key
-                        ),
+                        message: format!("Missing key for parent job {}. addJob", parent_key),
                     });
                 }
                 return Err(Error::from_script_code(*code));

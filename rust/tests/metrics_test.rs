@@ -26,7 +26,10 @@ async fn test_gather_metrics_for_completed_jobs() {
 
     let num_jobs = 5u64;
     for i in 0..num_jobs {
-        queue.add("test", serde_json::json!({"index": i}), None).await.unwrap();
+        queue
+            .add("test", serde_json::json!({"index": i}), None)
+            .await
+            .unwrap();
     }
 
     let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {
@@ -86,7 +89,10 @@ async fn test_no_metrics_when_disabled() {
     .unwrap();
 
     for i in 0..3 {
-        queue.add("test", serde_json::json!({"index": i}), None).await.unwrap();
+        queue
+            .add("test", serde_json::json!({"index": i}), None)
+            .await
+            .unwrap();
     }
 
     let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {

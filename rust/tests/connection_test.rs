@@ -5,6 +5,7 @@ mod common;
 use bullmq::options::RedisConnectionOptions;
 use bullmq::{Queue, QueueOptions};
 use common::{cleanup_queue, test_queue_name};
+use redis::{ConnectionAddr, IntoConnectionInfo};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // effective_url() — typed connection options build the right URL
@@ -47,7 +48,24 @@ fn test_effective_url_with_auth() {
         password: Some("secret".to_string()),
         ..Default::default()
     };
-    assert_eq!(opts.effective_url(), "redis://alice:secret@redis.local:6379");
+    assert_eq!(
+        opts.effective_url(),
+        "redis://alice:secret@redis.local:6379"
+    );
+}
+
+#[test]
+fn test_effective_url_with_auth_percent_encoding() {
+    let opts = RedisConnectionOptions {
+        host: Some("redis.local".to_string()),
+        username: Some("alice@example.com".to_string()),
+        password: Some("p@ss:w/rd".to_string()),
+        ..Default::default()
+    };
+    assert_eq!(
+        opts.effective_url(),
+        "redis://alice%40example.com:p%40ss%3Aw%2Frd@redis.local:6379"
+    );
 }
 
 #[test]
@@ -71,18 +89,52 @@ fn test_effective_url_tls_scheme() {
     assert_eq!(opts.effective_url(), "rediss://secure.redis:6380");
 }
 
+#[test]
+fn test_effective_url_ipv6_host_bracketing() {
+    let opts = RedisConnectionOptions {
+        host: Some("2001:db8::1".to_string()),
+        port: Some(6380),
+        ..Default::default()
+    };
+    assert_eq!(opts.effective_url(), "redis://[2001:db8::1]:6380");
+}
+
+#[test]
+fn test_effective_url_keeps_bracketed_ipv6_host() {
+    let opts = RedisConnectionOptions {
+        host: Some("[2001:db8::1]".to_string()),
+        ..Default::default()
+    };
+    assert_eq!(opts.effective_url(), "redis://[2001:db8::1]:6379");
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // End-to-end: connect using typed host/port options
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[tokio::test]
 async fn test_connect_via_typed_options() {
-    // Parse host/port from REDIS_URL (defaults to localhost:6379).
+    // Parse REDIS_URL using redis-rs itself so common forms work:
+    // rediss://, credentials, db paths, and IPv6 literals.
     let url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
-    let hostport = url.trim_start_matches("redis://");
-    let mut parts = hostport.split(':');
-    let host = parts.next().unwrap_or("127.0.0.1").to_string();
-    let port: u16 = parts.next().and_then(|p| p.parse().ok()).unwrap_or(6379);
+    let conn_info = url
+        .as_str()
+        .into_connection_info()
+        .expect("REDIS_URL must be a valid redis:// or rediss:// URL");
+
+    let (host, port, tls) = match conn_info.addr {
+        ConnectionAddr::Tcp(host, port) => (host, port, false),
+        ConnectionAddr::TcpTls { host, port, .. } => (host, port, true),
+        ConnectionAddr::Unix(_) => {
+            panic!(
+                "test_connect_via_typed_options only supports TCP/TLS REDIS_URL, not unix sockets"
+            )
+        }
+    };
+
+    let db = u8::try_from(conn_info.redis.db).ok();
+    let username = conn_info.redis.username;
+    let password = conn_info.redis.password;
 
     let name = test_queue_name();
     let queue = Queue::new(
@@ -91,6 +143,10 @@ async fn test_connect_via_typed_options() {
             connection: RedisConnectionOptions {
                 host: Some(host),
                 port: Some(port),
+                username,
+                password,
+                db,
+                tls,
                 ..Default::default()
             },
             ..Default::default()
@@ -100,7 +156,10 @@ async fn test_connect_via_typed_options() {
     .expect("connect via typed options failed");
 
     // Sanity: add a job and read it back.
-    let job = queue.add("typed", serde_json::json!({"ok": true}), None).await.unwrap();
+    let job = queue
+        .add("typed", serde_json::json!({"ok": true}), None)
+        .await
+        .unwrap();
     assert!(!job.id().is_empty());
     let fetched = queue.get_job(job.id()).await.unwrap();
     assert!(fetched.is_some());
