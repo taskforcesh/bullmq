@@ -12,7 +12,12 @@ documentation = "https://docs.rs/bullmq-rust"
 readme = "README.md"
 keywords = ["queue", "job", "redis", "worker", "background"]
 categories = ["asynchronous", "database"]
-exclude = ["tests/", "examples/benchmark.rs", "target/"]
+include = [
+  "src/**/*.rs",
+  "src/commands/*.lua",
+  "README.md",
+  "Cargo.toml",
+]
 
 # The published crate is `bullmq-rust` (the `bullmq` name on crates.io is taken
 # by an unrelated, abandoned crate). The library itself is still imported as
