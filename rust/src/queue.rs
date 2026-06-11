@@ -3,7 +3,7 @@ use tracing::{debug, instrument};
 
 use crate::error::Error;
 use crate::job::{Job, ScriptContext};
-use crate::keys::QueueKeys;
+use crate::keys::{validate_queue_name, QueueKeys};
 use crate::options::{JobOptions, QueueOptions};
 use crate::redis_connection::RedisConnection;
 use crate::types::{DependenciesCount, JobCounts, JobState};
@@ -26,6 +26,7 @@ pub struct Queue {
 impl Queue {
     /// Create a new Queue connected to Redis.
     pub async fn new(name: &str, opts: QueueOptions) -> Result<Self, Error> {
+        validate_queue_name(name)?;
         let conn = RedisConnection::new(&opts.connection).await?;
         let keys = QueueKeys::new(name, Some(&opts.prefix));
 
@@ -47,6 +48,7 @@ impl Queue {
         conn: RedisConnection,
         opts: QueueOptions,
     ) -> Result<Self, Error> {
+        validate_queue_name(name)?;
         let keys = QueueKeys::new(name, Some(&opts.prefix));
 
         let queue = Self {
@@ -323,13 +325,44 @@ impl Queue {
             let parent_queue_key = self.resolve_parent_queue_key(&parent.queue);
             let parent_key = format!("{}:{}", parent_queue_key, parent.id);
             let parent_deps_key = format!("{}:dependencies", parent_key);
-            let parent_data = serde_json::json!({
-                "id": parent.id,
-                "queueKey": parent_queue_key,
-            });
+            let opts = job.opts();
+            let mut parent_map_len = 2u32;
+            if opts.fail_parent_on_failure == Some(true) {
+                parent_map_len += 1;
+            }
+            if opts.ignore_dependency_on_failure == Some(true) {
+                parent_map_len += 1;
+            }
+            if opts.remove_dependency_on_failure == Some(true) {
+                parent_map_len += 1;
+            }
+            if opts.continue_parent_on_failure == Some(true) {
+                parent_map_len += 1;
+            }
+
             write_str(&mut buf, &parent_key).unwrap();
             write_str(&mut buf, &parent_deps_key).unwrap();
-            write_str(&mut buf, &parent_data.to_string()).unwrap();
+            write_map_len(&mut buf, parent_map_len).unwrap();
+            write_str(&mut buf, "id").unwrap();
+            write_str(&mut buf, &parent.id).unwrap();
+            write_str(&mut buf, "queueKey").unwrap();
+            write_str(&mut buf, &parent_queue_key).unwrap();
+            if opts.fail_parent_on_failure == Some(true) {
+                write_str(&mut buf, "fpof").unwrap();
+                write_bool(&mut buf, true).unwrap();
+            }
+            if opts.ignore_dependency_on_failure == Some(true) {
+                write_str(&mut buf, "idof").unwrap();
+                write_bool(&mut buf, true).unwrap();
+            }
+            if opts.remove_dependency_on_failure == Some(true) {
+                write_str(&mut buf, "rdof").unwrap();
+                write_bool(&mut buf, true).unwrap();
+            }
+            if opts.continue_parent_on_failure == Some(true) {
+                write_str(&mut buf, "cpof").unwrap();
+                write_bool(&mut buf, true).unwrap();
+            }
         } else {
             write_nil(&mut buf).unwrap();
             write_nil(&mut buf).unwrap();

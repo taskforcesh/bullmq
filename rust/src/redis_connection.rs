@@ -100,9 +100,7 @@ fn redact_url_for_logs(url: &str) -> String {
         return url.to_string();
     };
 
-    let authority_end = rest
-        .find(|c| c == '/' || c == '?' || c == '#')
-        .unwrap_or(rest.len());
+    let authority_end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
     let authority = &rest[..authority_end];
 
     let Some(at_pos) = authority.rfind('@') else {

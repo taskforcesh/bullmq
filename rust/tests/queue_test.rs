@@ -29,6 +29,25 @@ async fn test_queue_creation() {
 }
 
 #[tokio::test]
+async fn test_queue_name_cannot_contain_colon() {
+    let opts = QueueOptions {
+        connection: test_connection(),
+        ..Default::default()
+    };
+
+    let result = Queue::new("invalid:queue", opts).await;
+    assert!(result.is_err());
+    match result {
+        Err(err) => assert!(
+            err.to_string().contains("Queue name cannot contain :"),
+            "got: {}",
+            err
+        ),
+        Ok(_) => panic!("expected error"),
+    }
+}
+
+#[tokio::test]
 async fn test_add_job() {
     let name = test_queue_name();
     let opts = QueueOptions {
@@ -111,6 +130,10 @@ async fn test_add_job_with_parent_queue_name() {
                     id: parent.id().to_string(),
                     wait_children: None,
                 }),
+                fail_parent_on_failure: Some(true),
+                ignore_dependency_on_failure: Some(true),
+                remove_dependency_on_failure: Some(true),
+                continue_parent_on_failure: Some(true),
                 ..Default::default()
             }),
         )
@@ -118,6 +141,21 @@ async fn test_add_job_with_parent_queue_name() {
         .unwrap();
 
     assert!(!child.id().is_empty());
+
+    let mut cmd = redis::cmd("HGET");
+    cmd.arg(child_queue.keys().job_key(child.id()))
+        .arg("parent");
+    let stored_parent: String = child_queue.connection().cmd(&mut cmd).await.unwrap();
+    let stored_parent: serde_json::Value = serde_json::from_str(&stored_parent).unwrap();
+    assert_eq!(stored_parent["id"], parent.id());
+    assert_eq!(
+        stored_parent["queueKey"],
+        format!("{}:{}", child_queue.keys().prefix(), parent_name)
+    );
+    assert_eq!(stored_parent["fpof"], true);
+    assert_eq!(stored_parent["idof"], true);
+    assert_eq!(stored_parent["rdof"], true);
+    assert_eq!(stored_parent["cpof"], true);
 
     let deps = parent_queue
         .get_dependencies_count(parent.id())

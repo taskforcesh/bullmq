@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::error::Error;
 use crate::job::Job;
-use crate::keys::QueueKeys;
+use crate::keys::{validate_queue_name, QueueKeys};
 use crate::options::{JobOptions, WorkerOptions};
 use crate::redis_connection::{BlockingRedisConnection, RedisConnection};
 use crate::types::RemoveOnFinish;
@@ -473,6 +473,8 @@ impl Worker {
         processor: ProcessorFn,
         opts: WorkerOptions,
     ) -> Result<Self, Error> {
+        validate_queue_name(queue_name)?;
+
         // Validate options
         if opts.concurrency == 0 {
             return Err(Error::InvalidConfig(

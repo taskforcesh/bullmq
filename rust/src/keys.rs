@@ -3,7 +3,24 @@
 //! All keys follow the pattern: `{prefix}:{queue_name}:{key_type}`.
 //! The default prefix is "bull" for compatibility with Node.js BullMQ.
 
+use crate::error::Error;
+
 const DEFAULT_PREFIX: &str = "bull";
+
+/// Validate a queue name using the same separator restriction as BullMQ Node.js.
+pub(crate) fn validate_queue_name(name: &str) -> Result<(), Error> {
+    if name.is_empty() {
+        return Err(Error::InvalidConfig(
+            "Queue name must be provided".to_string(),
+        ));
+    }
+    if name.contains(':') {
+        return Err(Error::InvalidConfig(
+            "Queue name cannot contain :".to_string(),
+        ));
+    }
+    Ok(())
+}
 
 /// Holds the prefix and queue name needed to generate all Redis keys.
 #[derive(Debug, Clone)]

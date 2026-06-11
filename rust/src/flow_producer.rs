@@ -8,8 +8,8 @@ use tracing::{debug, instrument};
 use uuid::Uuid;
 
 use crate::error::Error;
-use crate::job::Job;
-use crate::keys::QueueKeys;
+use crate::job::{Job, ScriptContext};
+use crate::keys::{validate_queue_name, QueueKeys};
 use crate::options::JobOptions;
 use crate::queue::Queue;
 use crate::redis_connection::RedisConnection;
@@ -72,21 +72,12 @@ pub struct FlowOpts {
 }
 
 /// Options for the FlowProducer.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct FlowProducerOptions {
     /// Redis connection configuration.
     pub connection: crate::options::RedisConnectionOptions,
     /// Key prefix (default: "bull").
     pub prefix: Option<String>,
-}
-
-impl Default for FlowProducerOptions {
-    fn default() -> Self {
-        Self {
-            connection: crate::options::RedisConnectionOptions::default(),
-            prefix: None,
-        }
-    }
 }
 
 /// Atomically adds trees of dependent jobs (flows) to queues.
@@ -146,6 +137,7 @@ impl FlowProducer {
         opts: &FlowOpts,
     ) -> Result<JobNode, Error> {
         apply_queue_defaults(&mut flow, opts);
+        validate_flow_queue_names(&flow)?;
 
         // Ensure scripts are loaded (needed for EVALSHA in pipeline)
         let mut conn = self.conn.conn();
@@ -190,6 +182,10 @@ impl FlowProducer {
     pub async fn add_bulk(&self, flows: Vec<FlowJob>) -> Result<Vec<JobNode>, Error> {
         if flows.is_empty() {
             return Ok(Vec::new());
+        }
+
+        for flow in &flows {
+            validate_flow_queue_names(flow)?;
         }
 
         // Ensure scripts are loaded (needed for EVALSHA in pipeline)
@@ -240,6 +236,7 @@ impl FlowProducer {
     ///
     /// Reconstructs the parent-child tree by loading jobs and their dependencies.
     pub async fn get_flow(&self, opts: GetFlowOpts) -> Result<JobNode, Error> {
+        validate_queue_name(&opts.queue_name)?;
         let prefix = opts.prefix.as_deref().unwrap_or(&self.prefix);
         let depth = opts.depth.unwrap_or(10);
         let max_children = opts.max_children.unwrap_or(20);
@@ -276,6 +273,7 @@ impl FlowProducer {
 
             let mut job = Job::from_redis_hash(job_id, &hash)?;
             job.set_queue_name(queue_name.to_string());
+            job.set_context(self.make_script_context(prefix, queue_name));
 
             if depth == 0 {
                 return Ok(JobNode {
@@ -327,18 +325,14 @@ impl FlowProducer {
 
             let mut child_nodes = Vec::with_capacity(all_children.len());
             for child_key in all_children {
-                // Child key format: prefix:queueName:childId
-                let parts: Vec<&str> = child_key.splitn(3, ':').collect();
-                if parts.len() == 3 {
-                    let child_prefix = parts[0];
-                    let child_queue = parts[1];
-                    let child_id = parts[2];
-                    match self
+                if let Some((child_prefix, child_queue, child_id)) =
+                    Self::parse_child_key(child_key)
+                {
+                    if let Ok(node) = self
                         .get_node(child_prefix, child_queue, child_id, depth - 1, max_children)
                         .await
                     {
-                        Ok(node) => child_nodes.push(node),
-                        Err(_) => {} // Skip missing children
+                        child_nodes.push(node);
                     }
                 }
             }
@@ -444,7 +438,7 @@ impl FlowProducer {
             .clone();
 
         // KEYS[1..6]: meta, id, delayed, waiting-children, completed, events
-        let script_keys = vec![
+        let script_keys = [
             keys.meta(),
             keys.id(),
             keys.delayed(),
@@ -751,6 +745,16 @@ impl FlowProducer {
         Ok(())
     }
 
+    /// Parse a child job key as `prefix:queueName:jobId`.
+    fn parse_child_key(child_key: &str) -> Option<(&str, &str, &str)> {
+        let (prefix_and_queue, job_id) = child_key.rsplit_once(':')?;
+        let (prefix, queue_name) = prefix_and_queue.split_once(':')?;
+        if prefix.is_empty() || queue_name.is_empty() || job_id.is_empty() {
+            return None;
+        }
+        Some((prefix, queue_name, job_id))
+    }
+
     /// Count total nodes in a JobNode tree (1 command per node).
     fn count_nodes(node: &JobNode) -> usize {
         let mut count = 1;
@@ -773,6 +777,18 @@ impl FlowProducer {
             queue.to_string()
         } else {
             format!("{}:{}", prefix, queue)
+        }
+    }
+
+    /// Create a ScriptContext for jobs reconstructed by get_flow.
+    fn make_script_context(&self, prefix: &str, queue_name: &str) -> ScriptContext {
+        let (progress_tx, _) = tokio::sync::broadcast::channel(1);
+        ScriptContext {
+            conn: self.conn.clone(),
+            keys: QueueKeys::new(queue_name, Some(prefix)),
+            progress_tx,
+            token: String::new(),
+            lock_duration: 0,
         }
     }
 
@@ -806,6 +822,16 @@ fn apply_queue_defaults(flow: &mut FlowJob, opts: &FlowOpts) {
             apply_queue_defaults(child, opts);
         }
     }
+}
+
+fn validate_flow_queue_names(flow: &FlowJob) -> Result<(), Error> {
+    validate_queue_name(&flow.queue_name)?;
+    if let Some(children) = flow.children.as_ref() {
+        for child in children {
+            validate_flow_queue_names(child)?;
+        }
+    }
+    Ok(())
 }
 
 /// Overlay `over` onto `base`: any field set in `over` replaces the value in
@@ -842,4 +868,24 @@ fn merge_job_options(base: &mut JobOptions, over: JobOptions) {
         remove_dependency_on_failure,
         continue_parent_on_failure,
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FlowProducer;
+
+    #[test]
+    fn parse_child_key_preserves_queue_name_segments() {
+        assert_eq!(
+            FlowProducer::parse_child_key("bull:a:b:job-1"),
+            Some(("bull", "a:b", "job-1"))
+        );
+    }
+
+    #[test]
+    fn parse_child_key_rejects_incomplete_keys() {
+        assert_eq!(FlowProducer::parse_child_key("bull:queue"), None);
+        assert_eq!(FlowProducer::parse_child_key("bull::job-1"), None);
+        assert_eq!(FlowProducer::parse_child_key("bull:queue:"), None);
+    }
 }

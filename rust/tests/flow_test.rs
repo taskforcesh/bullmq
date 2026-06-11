@@ -55,7 +55,7 @@ async fn should_process_children_before_the_parent() {
     let parent_saw_children_done = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let parent_saw_children_done_clone = parent_saw_children_done.clone();
 
-    let values = vec![
+    let values = [
         serde_json::json!({"idx": 0, "foo": "bar"}),
         serde_json::json!({"idx": 1, "foo": "baz"}),
         serde_json::json!({"idx": 2, "foo": "qux"}),
@@ -411,11 +411,13 @@ async fn should_process_a_chain_of_jobs() {
     assert!(result.is_ok(), "timed out waiting for chain to process");
 
     // Verify processing order: grandchild -> child -> parent
-    let order = processing_order.lock().unwrap();
-    assert_eq!(order.len(), 3);
-    assert!(order[0].starts_with("grandchild:"));
-    assert!(order[1].starts_with("child:"));
-    assert!(order[2].starts_with("parent:"));
+    {
+        let order = processing_order.lock().unwrap();
+        assert_eq!(order.len(), 3);
+        assert!(order[0].starts_with("grandchild:"));
+        assert!(order[1].starts_with("child:"));
+        assert!(order[2].starts_with("parent:"));
+    }
 
     grandchild_worker.close(5000).await.unwrap();
     child_worker.close(5000).await.unwrap();
@@ -1173,10 +1175,12 @@ async fn should_process_children_with_priority() {
     assert!(result.is_ok(), "timed out waiting for priority flow");
 
     // Verify high priority child was processed first
-    let order = processing_order.lock().unwrap();
-    assert_eq!(order.len(), 2);
-    assert_eq!(order[0], "high");
-    assert_eq!(order[1], "low");
+    {
+        let order = processing_order.lock().unwrap();
+        assert_eq!(order.len(), 2);
+        assert_eq!(order[0], "high");
+        assert_eq!(order[1], "low");
+    }
 
     child_worker.close(5000).await.unwrap();
     parent_worker.close(5000).await.unwrap();
@@ -4887,10 +4891,18 @@ async fn should_get_a_flow_tree() {
         .unwrap();
 
     // Verify tree structure
+    assert_eq!(
+        tree.job.get_state().await.unwrap(),
+        bullmq::JobState::WaitingChildren
+    );
     assert!(tree.children.is_some());
     let children = tree.children.as_ref().unwrap();
     assert_eq!(children.len(), 1);
 
+    assert_eq!(
+        children[0].job.get_state().await.unwrap(),
+        bullmq::JobState::WaitingChildren
+    );
     assert!(!children[0].job.id().is_empty());
     assert_eq!(children[0].job.data().get("foo").unwrap(), "bar");
     assert_eq!(
@@ -5011,6 +5023,74 @@ async fn should_get_part_of_flow_tree() {
     flow.close().await;
     cleanup_queue(&parent_queue).await;
     cleanup_queue(&child_queue).await;
+}
+
+#[tokio::test]
+async fn should_reject_colon_in_flow_queue_names() {
+    let prefix = "bf-test";
+    let flow = test_flow_producer(prefix).await;
+
+    let result = flow
+        .add(FlowJob {
+            name: "root-job".to_string(),
+            queue_name: "invalid:root".to_string(),
+            data: serde_json::json!({}),
+            opts: None,
+            prefix: None,
+            children: None,
+        })
+        .await;
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert!(
+        err.to_string().contains("Queue name cannot contain :"),
+        "got: {}",
+        err
+    );
+
+    let result = flow
+        .add(FlowJob {
+            name: "root-job".to_string(),
+            queue_name: test_queue_name(),
+            data: serde_json::json!({}),
+            opts: None,
+            prefix: None,
+            children: Some(vec![FlowJob {
+                name: "child-job".to_string(),
+                queue_name: "invalid:child".to_string(),
+                data: serde_json::json!({}),
+                opts: None,
+                prefix: None,
+                children: None,
+            }]),
+        })
+        .await;
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert!(
+        err.to_string().contains("Queue name cannot contain :"),
+        "got: {}",
+        err
+    );
+
+    let result = flow
+        .get_flow(bullmq::GetFlowOpts {
+            id: "1".to_string(),
+            queue_name: "invalid:root".to_string(),
+            prefix: Some(prefix.to_string()),
+            depth: None,
+            max_children: None,
+        })
+        .await;
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert!(
+        err.to_string().contains("Queue name cannot contain :"),
+        "got: {}",
+        err
+    );
+
+    flow.close().await;
 }
 
 // ─── Remove tests ──────────────────────────────────────────────────────────────

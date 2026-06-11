@@ -3311,6 +3311,29 @@ async fn test_concurrency_cannot_be_zero() {
 }
 
 #[tokio::test]
+async fn test_queue_name_cannot_contain_colon() {
+    let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {
+        Box::pin(async move { Ok(serde_json::json!(null)) })
+    });
+
+    let worker_opts = WorkerOptions {
+        connection: test_connection(),
+        ..Default::default()
+    };
+
+    let result = Worker::new("invalid:queue", processor, worker_opts).await;
+    assert!(result.is_err());
+    match result {
+        Err(err) => assert!(
+            err.to_string().contains("Queue name cannot contain :"),
+            "got: {}",
+            err
+        ),
+        Ok(_) => panic!("expected error"),
+    }
+}
+
+#[tokio::test]
 async fn test_stalled_interval_cannot_be_zero() {
     let name = test_queue_name();
     let conn_opts = test_connection();
