@@ -1886,7 +1886,7 @@ async fn should_allow_parent_opts_on_the_root_job() {
             opts: Some(JobOptions {
                 parent: Some(bullmq::options::ParentOpts {
                     id: grandparent_job_id.clone(),
-                    queue: format!("{}:{}", prefix, grandparent_queue_name),
+                    queue: grandparent_queue_name.clone(),
                     wait_children: None,
                 }),
                 ..Default::default()
@@ -8930,7 +8930,6 @@ async fn should_allow_parent_opts_on_the_root_job_add_bulk() {
     .unwrap();
 
     let flow = test_flow_producer(prefix).await;
-    let grandparent_queue_key = format!("{}:{}", prefix, grandparent_queue_name);
     let trees = flow
         .add_bulk(vec![FlowJob {
             name: "parent-job".to_string(),
@@ -8939,7 +8938,7 @@ async fn should_allow_parent_opts_on_the_root_job_add_bulk() {
             opts: Some(JobOptions {
                 parent: Some(bullmq::ParentOpts {
                     id: grandparent_id.clone(),
-                    queue: grandparent_queue_key.clone(),
+                    queue: grandparent_queue_name.clone(),
                     wait_children: None,
                 }),
                 ..Default::default()
@@ -8968,11 +8967,12 @@ async fn should_allow_parent_opts_on_the_root_job_add_bulk() {
         .unwrap();
 
     let tree = &trees[0];
+    let expected_grandparent_queue_key = format!("{}:{}", prefix, grandparent_queue_name);
 
     // The root job's parentKey should point at the grandparent.
     assert_eq!(
         tree.job.parent_key().map(|s| s.as_str()),
-        Some(format!("{}:{}", grandparent_queue_key, grandparent_id).as_str())
+        Some(format!("{}:{}", expected_grandparent_queue_key, grandparent_id).as_str())
     );
 
     let parent_state = parent_queue.get_job_state(tree.job.id()).await.unwrap();

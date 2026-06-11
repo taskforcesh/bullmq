@@ -1530,8 +1530,12 @@ impl Worker {
         let args: Vec<&[u8]> = vec![job_id.as_bytes(), token.as_bytes(), job_key.as_bytes()];
 
         let mut conn = ctx.conn.conn();
-        let _: redis::Value = script.execute(&mut conn, &script_keys, &args).await?;
-        Ok(())
+        let result: redis::Value = script.execute(&mut conn, &script_keys, &args).await?;
+
+        match result {
+            redis::Value::Int(code) if code < 0 => Err(Error::from_script_code(code)),
+            _ => Ok(()),
+        }
     }
 
     /// Blocking watcher loop — uses BZPOPMIN to detect new/delayed jobs.

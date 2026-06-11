@@ -39,7 +39,8 @@ impl RedisConnection {
             scripts,
         });
 
-        debug!(url = %url, "redis connection established");
+        let redacted_url = redact_url_for_logs(&url);
+        debug!(url = %redacted_url, "redis connection established");
 
         Ok(Self { inner })
     }
@@ -90,6 +91,29 @@ impl RedisConnection {
     }
 }
 
+/// Redact credential material from a Redis URL before logging.
+///
+/// `redis://user:pass@host:port/db` becomes `redis://***@host:port/db`.
+/// URLs without userinfo are returned unchanged.
+fn redact_url_for_logs(url: &str) -> String {
+    let Some((scheme, rest)) = url.split_once("://") else {
+        return url.to_string();
+    };
+
+    let authority_end = rest
+        .find(|c| c == '/' || c == '?' || c == '#')
+        .unwrap_or(rest.len());
+    let authority = &rest[..authority_end];
+
+    let Some(at_pos) = authority.rfind('@') else {
+        return url.to_string();
+    };
+
+    let host_part = &authority[at_pos + 1..];
+    let suffix = &rest[authority_end..];
+    format!("{}://***@{}{}", scheme, host_part, suffix)
+}
+
 /// A blocking Redis connection used by workers to wait for jobs.
 ///
 /// Uses a separate connection so that blocking calls (BZPOPMIN)
@@ -132,5 +156,28 @@ impl BlockingRedisConnection {
             .query_async(&mut *conn)
             .await?;
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::redact_url_for_logs;
+
+    #[test]
+    fn redacts_username_password() {
+        let input = "redis://user:pass@localhost:6379/0";
+        assert_eq!(redact_url_for_logs(input), "redis://***@localhost:6379/0");
+    }
+
+    #[test]
+    fn redacts_password_only_and_keeps_ipv6_host() {
+        let input = "rediss://:p%40ss@[::1]:6380/2";
+        assert_eq!(redact_url_for_logs(input), "rediss://***@[::1]:6380/2");
+    }
+
+    #[test]
+    fn keeps_url_without_userinfo() {
+        let input = "redis://localhost:6379/0";
+        assert_eq!(redact_url_for_logs(input), input);
     }
 }

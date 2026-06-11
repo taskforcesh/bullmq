@@ -155,8 +155,9 @@ impl FlowProducer {
         pipe.atomic();
 
         // If the root flow has opts.parent, construct a ParentContext
+        let root_prefix = flow.prefix.as_deref().unwrap_or(&self.prefix);
         let parent_ctx = flow.opts.as_ref().and_then(|o| o.parent.as_ref()).map(|p| {
-            let parent_queue_key = p.queue.clone();
+            let parent_queue_key = Self::resolve_parent_queue_key(root_prefix, &p.queue);
             let parent_deps_key = format!("{}:{}:dependencies", parent_queue_key, p.id);
             ParentContext {
                 parent_id: p.id.clone(),
@@ -205,8 +206,9 @@ impl FlowProducer {
         let mut cmd_count = 0usize;
 
         for flow in &flows {
+            let root_prefix = flow.prefix.as_deref().unwrap_or(&self.prefix);
             let parent_ctx = flow.opts.as_ref().and_then(|o| o.parent.as_ref()).map(|p| {
-                let parent_queue_key = p.queue.clone();
+                let parent_queue_key = Self::resolve_parent_queue_key(root_prefix, &p.queue);
                 let parent_deps_key = format!("{}:{}:dependencies", parent_queue_key, p.id);
                 ParentContext {
                     parent_id: p.id.clone(),
@@ -758,6 +760,20 @@ impl FlowProducer {
             }
         }
         count
+    }
+
+    /// Convert a parent queue identifier into a qualified queue key.
+    ///
+    /// `ParentOpts.queue` is documented as a queue name, so we prefix it with
+    /// the current flow prefix. For backward compatibility, values that already
+    /// use the current prefix (e.g. `bull:parent`) are accepted as-is.
+    fn resolve_parent_queue_key(prefix: &str, queue: &str) -> String {
+        let qualified_prefix = format!("{}:", prefix);
+        if queue.starts_with(&qualified_prefix) {
+            queue.to_string()
+        } else {
+            format!("{}:{}", prefix, queue)
+        }
     }
 
     /// Close the flow producer connection.

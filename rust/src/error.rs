@@ -94,16 +94,32 @@ pub enum Error {
 pub mod error_code {
     /// Job not found.
     pub const JOB_NOT_EXIST: i64 = -1;
-    /// Job lock mismatch.
-    pub const JOB_LOCK_MISMATCH: i64 = -2;
+    /// Job lock does not exist (missing lock).
+    pub const JOB_LOCK_NOT_EXIST: i64 = -2;
     /// Job not in expected state.
     pub const JOB_NOT_IN_STATE: i64 = -3;
     /// Job pending dependencies.
     pub const JOB_PENDING_DEPENDENCIES: i64 = -4;
-    /// Job lock not found.
-    pub const JOB_LOCK_NOT_EXIST: i64 = -5;
-    /// Job max attempts reached.
-    pub const JOB_MAX_ATTEMPTS: i64 = -6;
+    /// Parent job not found.
+    pub const PARENT_JOB_NOT_EXIST: i64 = -5;
+    /// Job lock mismatch (lock not owned).
+    pub const JOB_LOCK_MISMATCH: i64 = -6;
+    /// Parent job cannot be replaced.
+    pub const PARENT_JOB_CANNOT_BE_REPLACED: i64 = -7;
+    /// Job belongs to a job scheduler.
+    pub const JOB_BELONGS_TO_JOB_SCHEDULER: i64 = -8;
+    /// Job has failed children.
+    pub const JOB_HAS_FAILED_CHILDREN: i64 = -9;
+    /// Scheduler job id collision.
+    pub const SCHEDULER_JOB_ID_COLLISION: i64 = -10;
+    /// Scheduler job slots are busy.
+    pub const SCHEDULER_JOB_SLOTS_BUSY: i64 = -11;
+
+    // Legacy aliases kept for backwards compatibility with older Rust constants.
+    /// Legacy alias for parent job not found.
+    pub const JOB_LOCK_NOT_EXIST_OLD: i64 = PARENT_JOB_NOT_EXIST;
+    /// Legacy alias name used in early Rust parity work.
+    pub const JOB_MAX_ATTEMPTS: i64 = JOB_LOCK_MISMATCH;
 }
 
 impl Error {
@@ -111,16 +127,50 @@ impl Error {
     pub fn from_script_code(code: i64) -> Self {
         let message = match code {
             error_code::JOB_NOT_EXIST => "Job does not exist",
-            error_code::JOB_LOCK_MISMATCH => "Job lock mismatch",
+            error_code::JOB_LOCK_NOT_EXIST => "Job lock does not exist",
             error_code::JOB_NOT_IN_STATE => "Job is not in the expected state",
             error_code::JOB_PENDING_DEPENDENCIES => "Job has pending dependencies",
-            error_code::JOB_LOCK_NOT_EXIST => "Job lock does not exist",
-            error_code::JOB_MAX_ATTEMPTS => "Job has reached max attempts",
+            error_code::PARENT_JOB_NOT_EXIST => "Parent job does not exist",
+            error_code::JOB_LOCK_MISMATCH => "Job lock mismatch",
+            error_code::PARENT_JOB_CANNOT_BE_REPLACED => "Parent job cannot be replaced",
+            error_code::JOB_BELONGS_TO_JOB_SCHEDULER => "Job belongs to a job scheduler",
+            error_code::JOB_HAS_FAILED_CHILDREN => "Job has failed children",
+            error_code::SCHEDULER_JOB_ID_COLLISION => "Scheduler job id collision",
+            error_code::SCHEDULER_JOB_SLOTS_BUSY => "Scheduler job slots are busy",
             _ => "Unknown script error",
         };
         Error::Script {
             code,
             message: message.to_string(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{error_code, Error};
+
+    #[test]
+    fn maps_missing_lock_code() {
+        let err = Error::from_script_code(error_code::JOB_LOCK_NOT_EXIST);
+        match err {
+            Error::Script { code, message } => {
+                assert_eq!(code, -2);
+                assert_eq!(message, "Job lock does not exist");
+            }
+            _ => panic!("expected Error::Script"),
+        }
+    }
+
+    #[test]
+    fn maps_lock_mismatch_code() {
+        let err = Error::from_script_code(error_code::JOB_LOCK_MISMATCH);
+        match err {
+            Error::Script { code, message } => {
+                assert_eq!(code, -6);
+                assert_eq!(message, "Job lock mismatch");
+            }
+            _ => panic!("expected Error::Script"),
         }
     }
 }
