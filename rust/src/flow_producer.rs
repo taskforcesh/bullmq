@@ -291,28 +291,20 @@ impl FlowProducer {
                 });
             }
 
-            // Collect child keys from dependencies (unprocessed) and processed
+            // Collect child keys from dependencies (unprocessed SET) and the
+            // processed/failed HASHes. Use the paginate script (SSCAN/HSCAN with
+            // COUNT) instead of SMEMBERS/HKEYS so we never load the entire
+            // collections into memory for large flows; each category is bounded
+            // to `max_children`.
             let deps_key = format!("{}:dependencies", job_key);
             let processed_key = format!("{}:processed", job_key);
             let failed_key = format!("{}:failed", job_key);
 
-            // Get unprocessed dependencies (SET)
-            let unprocessed: Vec<String> = redis::cmd("SMEMBERS")
-                .arg(&deps_key)
-                .query_async(&mut conn)
+            let unprocessed = self.paginate_child_keys(&deps_key, max_children).await?;
+            let processed = self
+                .paginate_child_keys(&processed_key, max_children)
                 .await?;
-
-            // Get processed children (HASH keys)
-            let processed: Vec<String> = redis::cmd("HKEYS")
-                .arg(&processed_key)
-                .query_async(&mut conn)
-                .await?;
-
-            // Get failed children (HASH keys)
-            let failed: Vec<String> = redis::cmd("HKEYS")
-                .arg(&failed_key)
-                .query_async(&mut conn)
-                .await?;
+            let failed = self.paginate_child_keys(&failed_key, max_children).await?;
 
             let all_children: Vec<&str> = unprocessed
                 .iter()
@@ -352,6 +344,116 @@ impl FlowProducer {
                 },
             })
         })
+    }
+
+    /// Collect up to `limit` member keys from a set or hash without loading the
+    /// entire collection into memory.
+    ///
+    /// Uses the `paginate` Lua script, which scans the collection with
+    /// `SSCAN`/`HSCAN` (`COUNT`) and stops early once the requested page is
+    /// filled, keeping `get_flow` bounded for very large dependency sets/hashes.
+    async fn paginate_child_keys(&self, key: &str, limit: usize) -> Result<Vec<String>, Error> {
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
+
+        let script = self
+            .conn
+            .scripts()
+            .get("paginate")
+            .ok_or_else(|| Error::InvalidConfig("paginate script not found".to_string()))?
+            .clone();
+
+        let mut conn = self.conn.conn();
+        let mut cursor = "0".to_string();
+        let mut offset: i64 = 0;
+        let mut collected: Vec<String> = Vec::with_capacity(limit);
+        let end = (limit - 1).to_string();
+        // Bound the work per round-trip; the loop continues while the cursor is
+        // non-zero and the page is not yet full.
+        let max_iterations = "5".to_string();
+
+        loop {
+            let start = collected.len().to_string();
+            let args = [
+                start,
+                end.clone(),
+                cursor.clone(),
+                offset.to_string(),
+                max_iterations.clone(),
+            ];
+            let result = script.execute(&mut conn, &[key], &args).await?;
+
+            let (next_cursor, next_offset, items) = Self::parse_paginate_result(&result)?;
+            cursor = next_cursor;
+            offset = next_offset;
+            collected.extend(items);
+
+            if cursor == "0" || collected.len() >= limit {
+                break;
+            }
+        }
+
+        collected.truncate(limit);
+        Ok(collected)
+    }
+
+    /// Parse the `paginate` reply `[cursor, offset, items, numItems, jobs]` into
+    /// `(cursor, offset, item_keys)`. For hashes each item is a `[field, value]`
+    /// pair; only the field (child key) is kept.
+    fn parse_paginate_result(value: &redis::Value) -> Result<(String, i64, Vec<String>), Error> {
+        let arr = match value {
+            redis::Value::Array(a) => a,
+            _ => {
+                return Err(Error::MsgPack(
+                    "unexpected paginate reply: not an array".to_string(),
+                ))
+            }
+        };
+
+        let cursor = arr
+            .first()
+            .and_then(Self::value_to_string)
+            .unwrap_or_else(|| "0".to_string());
+        let offset = arr.get(1).and_then(Self::value_as_i64).unwrap_or(0);
+
+        let mut keys = Vec::new();
+        if let Some(redis::Value::Array(items)) = arr.get(2) {
+            for item in items {
+                if let Some(k) = Self::paginate_item_key(item) {
+                    keys.push(k);
+                }
+            }
+        }
+
+        Ok((cursor, offset, keys))
+    }
+
+    /// Extract the key from a paginate item: a bare member (set) or the field of
+    /// a `[field, value]` pair (hash).
+    fn paginate_item_key(item: &redis::Value) -> Option<String> {
+        match item {
+            redis::Value::Array(pair) => pair.first().and_then(Self::value_to_string),
+            other => Self::value_to_string(other),
+        }
+    }
+
+    fn value_to_string(value: &redis::Value) -> Option<String> {
+        match value {
+            redis::Value::BulkString(b) => Some(String::from_utf8_lossy(b).to_string()),
+            redis::Value::SimpleString(s) => Some(s.clone()),
+            redis::Value::Int(n) => Some(n.to_string()),
+            _ => None,
+        }
+    }
+
+    fn value_as_i64(value: &redis::Value) -> Option<i64> {
+        match value {
+            redis::Value::Int(n) => Some(*n),
+            redis::Value::BulkString(b) => String::from_utf8_lossy(b).parse().ok(),
+            redis::Value::SimpleString(s) => s.parse().ok(),
+            _ => None,
+        }
     }
 
     /// Recursively add a node (job) to the pipeline.
@@ -946,5 +1048,41 @@ mod tests {
         assert_eq!(FlowProducer::parse_child_key("bull:queue"), None);
         assert_eq!(FlowProducer::parse_child_key("bull::job-1"), None);
         assert_eq!(FlowProducer::parse_child_key("bull:queue:"), None);
+    }
+
+    #[test]
+    fn parse_paginate_result_handles_set_members() {
+        let value = redis::Value::Array(vec![
+            redis::Value::BulkString(b"0".to_vec()),
+            redis::Value::Int(2),
+            redis::Value::Array(vec![
+                redis::Value::BulkString(b"bull:q:1".to_vec()),
+                redis::Value::BulkString(b"bull:q:2".to_vec()),
+            ]),
+            redis::Value::Int(2),
+            redis::Value::Array(vec![]),
+        ]);
+        let (cursor, offset, keys) = FlowProducer::parse_paginate_result(&value).unwrap();
+        assert_eq!(cursor, "0");
+        assert_eq!(offset, 2);
+        assert_eq!(keys, vec!["bull:q:1".to_string(), "bull:q:2".to_string()]);
+    }
+
+    #[test]
+    fn parse_paginate_result_handles_hash_fields() {
+        let value = redis::Value::Array(vec![
+            redis::Value::Int(5),
+            redis::Value::Int(1),
+            redis::Value::Array(vec![redis::Value::Array(vec![
+                redis::Value::BulkString(b"bull:q:child".to_vec()),
+                redis::Value::BulkString(b"{\"result\":1}".to_vec()),
+            ])]),
+            redis::Value::Int(1),
+            redis::Value::Array(vec![]),
+        ]);
+        let (cursor, offset, keys) = FlowProducer::parse_paginate_result(&value).unwrap();
+        assert_eq!(cursor, "5");
+        assert_eq!(offset, 1);
+        assert_eq!(keys, vec!["bull:q:child".to_string()]);
     }
 }
