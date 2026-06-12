@@ -203,7 +203,6 @@
   "resolutions": {
     "brace-expansion": ">=1.1.13",
     "picomatch": ">=2.3.2",
-    "shell-quote": ">=1.8.4",
     "yaml": ">=2.8.3"
   }
 }

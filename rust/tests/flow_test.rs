@@ -6361,9 +6361,11 @@ async fn should_update_parent_deps_when_retrying_completed_child() {
     cleanup_queue(&child_queue).await;
 }
 
-// Node.js: "should not corrupt id mapping for successful jobs when some addBulk commands fail"
+// add_bulk surfaces partial failures as an error (idiomatic Rust: a negative
+// status code anywhere in the bulk is reported rather than silently returning
+// a partially added result).
 #[tokio::test]
-async fn should_not_corrupt_id_mapping_when_some_add_bulk_commands_fail() {
+async fn should_return_error_when_some_add_bulk_commands_fail() {
     let prefix = "bf-test";
     let queue_name = test_queue_name();
     let queue = test_queue_with_prefix(&queue_name, prefix).await;
@@ -6371,7 +6373,7 @@ async fn should_not_corrupt_id_mapping_when_some_add_bulk_commands_fail() {
     let flow = test_flow_producer(prefix).await;
     let queue_key = format!("{}:{}", prefix, queue_name);
 
-    let trees = flow
+    let result = flow
         .add_bulk(vec![
             FlowJob {
                 name: "valid-root".to_string(),
@@ -6404,17 +6406,18 @@ async fn should_not_corrupt_id_mapping_when_some_add_bulk_commands_fail() {
                 children: None,
             },
         ])
-        .await
-        .unwrap();
+        .await;
 
-    let valid_tree = &trees[0];
-    let invalid_tree = &trees[1];
-
-    let valid_job = queue.get_job(valid_tree.job.id()).await.unwrap();
-    assert!(valid_job.is_some(), "valid job should be added");
-
-    let invalid_job = queue.get_job(invalid_tree.job.id()).await.unwrap();
-    assert!(invalid_job.is_none(), "invalid job should not be added");
+    assert!(
+        result.is_err(),
+        "add_bulk should error when any node fails to add"
+    );
+    let err_msg = result.unwrap_err().to_string();
+    assert!(
+        err_msg.contains("Missing key for parent job"),
+        "error should mention the missing parent key, got: {}",
+        err_msg
+    );
 
     flow.close().await;
     cleanup_queue(&queue).await;

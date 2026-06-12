@@ -121,6 +121,11 @@ impl FlowProducer {
     /// Children are added to their respective queues and the parent is placed
     /// in `waiting-children` state. When all children complete, the parent
     /// moves to `wait` and becomes processable.
+    ///
+    /// The returned [`JobNode`] tree has the job ID assigned by Redis on every
+    /// node (including deduplicated nodes). If any job in the tree fails to be
+    /// added (e.g. a referenced parent key is missing), this returns an error
+    /// rather than a partially populated tree.
     #[instrument(skip(self, flow), fields(root_name = %flow.name, root_queue = %flow.queue_name))]
     pub async fn add(&self, flow: FlowJob) -> Result<JobNode, Error> {
         self.add_with_opts(flow, &FlowOpts::default()).await
@@ -131,6 +136,10 @@ impl FlowProducer {
     /// For every job whose `queue_name` is present in `opts.queues_options`,
     /// the corresponding `default_job_options` are merged in. Options set
     /// explicitly on a job always take precedence over the defaults.
+    ///
+    /// Every node in the returned tree has its Redis-assigned job ID set
+    /// (including deduplicated nodes). A negative status code from any job in
+    /// the tree (e.g. `-5` for a missing parent key) is returned as an error.
     pub async fn add_with_opts(
         &self,
         mut flow: FlowJob,
@@ -163,21 +172,25 @@ impl FlowProducer {
         // Execute the atomic pipeline
         let results: Vec<redis::Value> = pipe.query_async(&mut conn).await?;
 
-        // The first result is the root job's script result.
-        // When deduplication occurs, the Lua script returns the existing job's ID.
-        // A negative code indicates an error (e.g. missing parent key).
-        if let Some(first) = results.first() {
-            Self::check_add_result(first, parent_ctx.as_ref())?;
-            if let Some(id) = Self::extract_job_id(first) {
-                job_node.job.set_id(id.clone());
-                debug!(job_id = %id, "flow added");
-            }
-        }
+        // Validate every script result and propagate IDs to every node — not
+        // just the root. A negative code anywhere in the tree (e.g. -5 for a
+        // missing parent key) must surface as an error instead of silently
+        // leaving the flow partially added, and deduplicated non-root nodes
+        // must reflect the ID returned by the Lua script.
+        let mut results_iter = results.iter();
+        Self::apply_pipeline_results(&mut job_node, &mut results_iter)?;
+        debug!(job_id = %job_node.job.id(), "flow added");
 
         Ok(job_node)
     }
 
     /// Atomically add multiple flows.
+    ///
+    /// Each flow's returned [`JobNode`] tree has Redis-assigned job IDs set on
+    /// every node (including deduplicated nodes). The bulk add is validated as
+    /// a whole: if any job in any flow fails to be added (e.g. a missing parent
+    /// key yields a negative status code), this returns an error instead of a
+    /// partially populated result.
     #[instrument(skip(self, flows), fields(count = flows.len()))]
     pub async fn add_bulk(&self, flows: Vec<FlowJob>) -> Result<Vec<JobNode>, Error> {
         if flows.is_empty() {
@@ -196,10 +209,6 @@ impl FlowProducer {
         pipe.atomic();
 
         let mut job_nodes = Vec::with_capacity(flows.len());
-        // Track which result index corresponds to each flow's root command.
-        // Each add_node call adds the root command first, so we use a counter.
-        let mut root_indices = Vec::with_capacity(flows.len());
-        let mut cmd_count = 0usize;
 
         for flow in &flows {
             let root_prefix = flow.prefix.as_deref().unwrap_or(&self.prefix);
@@ -212,21 +221,21 @@ impl FlowProducer {
                     parent_deps_key,
                 }
             });
-            root_indices.push(cmd_count);
             let node = self.add_node(&mut pipe, flow, parent_ctx.as_ref())?;
-            cmd_count += Self::count_nodes(&node);
             job_nodes.push(node);
         }
 
         let results: Vec<redis::Value> = pipe.query_async(&mut conn).await?;
 
-        // Update root job IDs from pipeline results (handles dedup)
-        for (i, root_idx) in root_indices.iter().enumerate() {
-            if let Some(result) = results.get(*root_idx) {
-                if let Some(id) = Self::extract_job_id(result) {
-                    job_nodes[i].job.set_id(id);
-                }
-            }
+        // Validate every script result and propagate IDs to every node across
+        // all trees. Commands were queued tree-by-tree, each in pre-order, so a
+        // single sequential walk lines up with the flattened results. A negative
+        // code anywhere (e.g. -5 for a missing parent key) surfaces as an error
+        // instead of silently returning a partially added bulk, and deduplicated
+        // non-root nodes reflect the ID returned by the Lua script.
+        let mut results_iter = results.iter();
+        for node in &mut job_nodes {
+            Self::apply_pipeline_results(node, &mut results_iter)?;
         }
 
         Ok(job_nodes)
@@ -716,24 +725,46 @@ impl FlowProducer {
         }
     }
 
+    /// Walk the freshly added job tree in the same pre-order the pipeline
+    /// commands were queued (each node's command precedes its children's),
+    /// validating every script result and updating each node's job ID.
+    ///
+    /// This ensures a negative status code anywhere in the tree surfaces as an
+    /// error and that deduplicated non-root nodes reflect the ID returned by
+    /// the Lua script.
+    fn apply_pipeline_results(
+        node: &mut JobNode,
+        results: &mut std::slice::Iter<'_, redis::Value>,
+    ) -> Result<(), Error> {
+        if let Some(result) = results.next() {
+            Self::check_add_result(result, node.job.parent_key().map(|s| s.as_str()))?;
+            if let Some(id) = Self::extract_job_id(result) {
+                node.job.set_id(id);
+            }
+        }
+        if let Some(children) = node.children.as_mut() {
+            for child in children {
+                Self::apply_pipeline_results(child, results)?;
+            }
+        }
+        Ok(())
+    }
+
     /// Check the result of an add command for error codes.
     ///
     /// The addJob Lua script returns `-5` when a referenced parent key is
     /// missing. In that case the job is NOT added, so we surface an error
     /// instead of silently dropping the job.
-    fn check_add_result(
-        value: &redis::Value,
-        parent_ctx: Option<&ParentContext>,
-    ) -> Result<(), Error> {
+    fn check_add_result(value: &redis::Value, parent_key: Option<&str>) -> Result<(), Error> {
         if let redis::Value::Int(code) = value {
             if *code < 0 {
                 if *code == -5 {
-                    let parent_key = parent_ctx
-                        .map(|p| format!("{}:{}", p.parent_queue_key, p.parent_id))
-                        .unwrap_or_default();
                     return Err(Error::Script {
                         code: *code,
-                        message: format!("Missing key for parent job {}. addJob", parent_key),
+                        message: format!(
+                            "Missing key for parent job {}. addJob",
+                            parent_key.unwrap_or_default()
+                        ),
                     });
                 }
                 return Err(Error::from_script_code(*code));
@@ -750,17 +781,6 @@ impl FlowProducer {
             return None;
         }
         Some((prefix, queue_name, job_id))
-    }
-
-    /// Count total nodes in a JobNode tree (1 command per node).
-    fn count_nodes(node: &JobNode) -> usize {
-        let mut count = 1;
-        if let Some(children) = &node.children {
-            for child in children {
-                count += Self::count_nodes(child);
-            }
-        }
-        count
     }
 
     /// Convert a parent queue identifier into a qualified queue key.
@@ -869,7 +889,49 @@ fn merge_job_options(base: &mut JobOptions, over: JobOptions) {
 
 #[cfg(test)]
 mod tests {
-    use super::FlowProducer;
+    use super::{FlowProducer, JobNode};
+    use crate::job::Job;
+
+    fn leaf(name: &str) -> JobNode {
+        JobNode {
+            job: Job::new(name, serde_json::json!({}), None),
+            children: None,
+        }
+    }
+
+    #[test]
+    fn apply_pipeline_results_updates_all_node_ids() {
+        let mut root = JobNode {
+            job: Job::new("root", serde_json::json!({}), None),
+            children: Some(vec![leaf("child-a"), leaf("child-b")]),
+        };
+        let results = [
+            redis::Value::BulkString(b"root-id".to_vec()),
+            redis::Value::BulkString(b"child-a-id".to_vec()),
+            redis::Value::BulkString(b"child-b-id".to_vec()),
+        ];
+        let mut iter = results.iter();
+        FlowProducer::apply_pipeline_results(&mut root, &mut iter).unwrap();
+        assert_eq!(root.job.id(), "root-id");
+        let children = root.children.as_ref().unwrap();
+        assert_eq!(children[0].job.id(), "child-a-id");
+        assert_eq!(children[1].job.id(), "child-b-id");
+    }
+
+    #[test]
+    fn apply_pipeline_results_errors_on_negative_child_code() {
+        let mut root = JobNode {
+            job: Job::new("root", serde_json::json!({}), None),
+            children: Some(vec![leaf("child")]),
+        };
+        let results = [
+            redis::Value::BulkString(b"root-id".to_vec()),
+            redis::Value::Int(-3),
+        ];
+        let mut iter = results.iter();
+        let result = FlowProducer::apply_pipeline_results(&mut root, &mut iter);
+        assert!(result.is_err(), "negative child code should propagate");
+    }
 
     #[test]
     fn parse_child_key_preserves_job_id_segments() {
