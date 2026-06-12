@@ -291,22 +291,19 @@ impl FlowProducer {
             let unprocessed: Vec<String> = redis::cmd("SMEMBERS")
                 .arg(&deps_key)
                 .query_async(&mut conn)
-                .await
-                .unwrap_or_default();
+                .await?;
 
             // Get processed children (HASH keys)
             let processed: Vec<String> = redis::cmd("HKEYS")
                 .arg(&processed_key)
                 .query_async(&mut conn)
-                .await
-                .unwrap_or_default();
+                .await?;
 
             // Get failed children (HASH keys)
             let failed: Vec<String> = redis::cmd("HKEYS")
                 .arg(&failed_key)
                 .query_async(&mut conn)
-                .await
-                .unwrap_or_default();
+                .await?;
 
             let all_children: Vec<&str> = unprocessed
                 .iter()
@@ -747,8 +744,8 @@ impl FlowProducer {
 
     /// Parse a child job key as `prefix:queueName:jobId`.
     fn parse_child_key(child_key: &str) -> Option<(&str, &str, &str)> {
-        let (prefix_and_queue, job_id) = child_key.rsplit_once(':')?;
-        let (prefix, queue_name) = prefix_and_queue.split_once(':')?;
+        let (prefix, queue_and_job_id) = child_key.split_once(':')?;
+        let (queue_name, job_id) = queue_and_job_id.split_once(':')?;
         if prefix.is_empty() || queue_name.is_empty() || job_id.is_empty() {
             return None;
         }
@@ -875,10 +872,10 @@ mod tests {
     use super::FlowProducer;
 
     #[test]
-    fn parse_child_key_preserves_queue_name_segments() {
+    fn parse_child_key_preserves_job_id_segments() {
         assert_eq!(
-            FlowProducer::parse_child_key("bull:a:b:job-1"),
-            Some(("bull", "a:b", "job-1"))
+            FlowProducer::parse_child_key("bull:queue:job:1"),
+            Some(("bull", "queue", "job:1"))
         );
     }
 

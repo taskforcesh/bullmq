@@ -190,6 +190,16 @@ enum FetchResult {
     RateLimited(u64),
 }
 
+fn should_convert_discarded_error(error: &Error) -> bool {
+    !matches!(
+        error,
+        Error::Unrecoverable(_)
+            | Error::Delayed
+            | Error::WaitingChildren
+            | Error::RateLimited { .. }
+    )
+}
+
 /// Shared context for all worker loops within a single Worker instance.
 ///
 /// Pre-computes keys and holds all shared state needed by the processing loops,
@@ -979,8 +989,7 @@ impl Worker {
             Err(e) => {
                 // If the processor called `job.discard()`, treat the failure as
                 // unrecoverable so the job is not retried (mirrors Node.js).
-                let e = if discarded.load(Ordering::SeqCst) && !matches!(e, Error::Unrecoverable(_))
-                {
+                let e = if discarded.load(Ordering::SeqCst) && should_convert_discarded_error(&e) {
                     Error::Unrecoverable(e.to_string())
                 } else {
                     e
@@ -2217,5 +2226,33 @@ impl Worker {
 impl Drop for Worker {
     fn drop(&mut self) {
         self.closing.store(true, Ordering::Release);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_convert_discarded_error;
+    use crate::error::Error;
+
+    #[test]
+    fn discard_preserves_worker_control_flow_errors() {
+        assert!(!should_convert_discarded_error(&Error::Delayed));
+        assert!(!should_convert_discarded_error(&Error::WaitingChildren));
+        assert!(!should_convert_discarded_error(&Error::RateLimited {
+            delay_ms: 100,
+        }));
+    }
+
+    #[test]
+    fn discard_converts_real_failures_to_unrecoverable() {
+        assert!(should_convert_discarded_error(&Error::ProcessingError(
+            "boom".to_string()
+        )));
+        assert!(should_convert_discarded_error(&Error::Redis(
+            redis::RedisError::from((redis::ErrorKind::IoError, "boom"))
+        )));
+        assert!(!should_convert_discarded_error(&Error::Unrecoverable(
+            "fatal".to_string()
+        )));
     }
 }
