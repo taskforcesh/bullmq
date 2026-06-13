@@ -139,14 +139,14 @@ impl Queue {
                     })
                     .cloned();
                 let keys = self.add_job_keys(script_name);
-                let argv1 = self.pack_add_args(job, &custom_job_id, timestamp);
+                let packed_args = self.pack_add_args(job, &custom_job_id, timestamp);
                 let argv2 = serde_json::to_string(job.data()).unwrap_or_else(|_| "{}".into());
                 let argv3 = self.pack_job_opts(job);
                 let mut conn = self.conn.conn();
 
                 async move {
                     let script = script?;
-                    let argv1 = argv1?;
+                    let argv1 = packed_args?;
                     let argv2_bytes = argv2.into_bytes();
                     let args: Vec<&[u8]> = vec![&argv1, &argv2_bytes, &argv3];
                     let result = script.execute(&mut conn, &keys, &args).await?;
