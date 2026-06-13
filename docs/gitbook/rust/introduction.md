@@ -9,15 +9,19 @@ description: BullMQ is available as a native Rust crate with full async/await su
 Add BullMQ to your project via Cargo:
 
 ```bash
-cargo add bullmq
+cargo add bullmq-rust
 ```
 
 Or add it to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-bullmq = "0.1"
+bullmq-rust = "0.1"
 ```
+
+> The crate is published as `bullmq-rust` (the `bullmq` name on crates.io is
+> taken by an unrelated, abandoned crate), but it is imported in code as
+> `bullmq` — e.g. `use bullmq::{Queue, Worker};`.
 
 BullMQ for Rust requires:
 

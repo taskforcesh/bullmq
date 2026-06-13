@@ -151,8 +151,8 @@ impl ScriptRegistry {
             ),
             (
                 "moveStalledJobsToWait",
-                8,
-                include_str!("commands/moveStalledJobsToWait-8.lua"),
+                9,
+                include_str!("commands/moveStalledJobsToWait-9.lua"),
             ),
             (
                 "moveJobFromActiveToWait",
