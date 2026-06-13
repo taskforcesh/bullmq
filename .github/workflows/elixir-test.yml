@@ -62,7 +62,7 @@ jobs:
           redis-version: ${{ matrix.redis-version }}
 
       - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
-      - run: yarn build
+      - run: yarn generate:raw:scripts
       - run: yarn copy:lua:elixir
 
       - name: Set up Elixir
