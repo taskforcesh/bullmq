@@ -199,7 +199,6 @@ describe('repeat', () => {
     );
 
     expect(job.repeatJobKey).toBeDefined();
-    console.log(job.repeatJobKey);
     clock.tick(every + 1);
 
     worker.run();
