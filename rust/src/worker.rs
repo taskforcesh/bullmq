@@ -1978,6 +1978,7 @@ impl Worker {
             keys.paused(),
             keys.marker(),
             keys.events(),
+            keys.repeat(),
         ];
 
         let max_str = max_stalled_count.to_string().into_bytes();
