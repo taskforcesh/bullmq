@@ -73,10 +73,6 @@ pub enum Error {
     #[error("waiting-children")]
     WaitingChildren,
 
-    /// The job does not exist in Redis.
-    #[error("job {0} does not exist")]
-    JobNotExist(String),
-
     /// The job's lock does not exist or was lost.
     #[error("job {0} lock does not exist")]
     JobLockNotExist(String),

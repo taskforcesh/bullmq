@@ -746,8 +746,10 @@ impl Queue {
     /// `start`/`end` are zero-based inclusive indices (`-1` = last). When `asc`
     /// is true, jobs are returned in ascending (oldest-first) order.
     ///
-    /// Results from all requested states are concatenated and de-duplicated
-    /// while preserving order.
+    /// The requested types are sanitized via [`Queue::sanitize_job_types`]: an
+    /// empty slice expands to all states, `waiting` also queries `paused`, and
+    /// duplicate types are removed. Results from all requested states are
+    /// concatenated and de-duplicated while preserving order.
     pub async fn get_ranges(
         &self,
         types: &[&str],
@@ -768,14 +770,18 @@ impl Queue {
         let start_s = start.to_string();
         let end_s = end.to_string();
         let asc_s = if asc { "1" } else { "0" };
-        // The script aliases "waiting" -> "wait".
-        let transformed: Vec<String> = types
+        // Apply the same sanitization as `get_jobs`: de-duplicate the requested
+        // types and, when `waiting` is requested, also include `paused` (where
+        // otherwise-waiting jobs are parked while the queue is paused). Then
+        // alias "waiting" -> "wait" for the Lua script.
+        let sanitized = Self::sanitize_job_types(types);
+        let transformed: Vec<String> = sanitized
             .iter()
             .map(|t| {
-                if *t == "waiting" {
+                if t == "waiting" {
                     "wait".to_string()
                 } else {
-                    (*t).to_string()
+                    t.clone()
                 }
             })
             .collect();
@@ -841,9 +847,9 @@ impl Queue {
         end: i64,
         asc: bool,
     ) -> Result<Vec<Job>, Error> {
-        let sanitized = Self::sanitize_job_types(types);
-        let type_refs: Vec<&str> = sanitized.iter().map(|s| s.as_str()).collect();
-        let ids = self.get_ranges(&type_refs, start, end, asc).await?;
+        // `get_ranges` sanitizes the requested types (expanding `waiting` to
+        // also include `paused` and de-duplicating), so pass them through.
+        let ids = self.get_ranges(types, start, end, asc).await?;
 
         // Fetch jobs concurrently over the multiplexed Redis connection.
         let fetches = ids.iter().map(|id| self.get_job(id));
@@ -1069,6 +1075,17 @@ impl Queue {
         start: i64,
         end: i64,
     ) -> Result<crate::types::Metrics, Error> {
+        // Node.js restricts the metric type to `completed`/`failed` at the type
+        // level; in Rust we validate at runtime so an invalid name returns an
+        // error instead of silently reading non-existent keys and returning
+        // empty metrics.
+        if metric_type != "completed" && metric_type != "failed" {
+            return Err(Error::InvalidConfig(format!(
+                "metric type must be \"completed\" or \"failed\", got \"{}\"",
+                metric_type
+            )));
+        }
+
         let script = self
             .conn
             .scripts()

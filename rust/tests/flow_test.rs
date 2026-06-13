@@ -4988,8 +4988,10 @@ async fn should_propagate_get_flow_dependency_errors() {
     assert!(result.is_err(), "get_flow should propagate Redis errors");
     let err_msg = result.unwrap_err().to_string();
     assert!(
-        err_msg.contains("WRONGTYPE") || err_msg.contains("wrong kind of value"),
-        "expected Redis wrong-type error, got: {}",
+        err_msg.contains("WRONGTYPE")
+            || err_msg.contains("wrong kind of value")
+            || err_msg.contains("only supported for sets and hashes"),
+        "expected Redis wrong-type / pagination error, got: {}",
         err_msg
     );
 

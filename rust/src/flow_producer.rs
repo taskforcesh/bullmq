@@ -172,13 +172,13 @@ impl FlowProducer {
         // Execute the atomic pipeline
         let results: Vec<redis::Value> = pipe.query_async(&mut conn).await?;
 
-        // Validate every script result and propagate IDs to every node — not
-        // just the root. A negative code anywhere in the tree (e.g. -5 for a
-        // missing parent key) must surface as an error instead of silently
-        // leaving the flow partially added, and deduplicated non-root nodes
-        // must reflect the ID returned by the Lua script.
+        // Validate the root result and propagate IDs to every node — not just
+        // the root. A negative code on the root (e.g. -5 for a missing parent
+        // key) must surface as an error instead of silently leaving the flow
+        // partially added, and deduplicated non-root nodes reflect the ID
+        // returned by the Lua script.
         let mut results_iter = results.iter();
-        Self::apply_pipeline_results(&mut job_node, &mut results_iter)?;
+        Self::apply_pipeline_results(&mut job_node, &mut results_iter, true)?;
         debug!(job_id = %job_node.job.id(), "flow added");
 
         Ok(job_node)
@@ -227,15 +227,16 @@ impl FlowProducer {
 
         let results: Vec<redis::Value> = pipe.query_async(&mut conn).await?;
 
-        // Validate every script result and propagate IDs to every node across
-        // all trees. Commands were queued tree-by-tree, each in pre-order, so a
-        // single sequential walk lines up with the flattened results. A negative
-        // code anywhere (e.g. -5 for a missing parent key) surfaces as an error
-        // instead of silently returning a partially added bulk, and deduplicated
-        // non-root nodes reflect the ID returned by the Lua script.
+        // Validate each tree's root result and propagate IDs to every node
+        // across all trees. Commands were queued tree-by-tree, each in
+        // pre-order, so a single sequential walk lines up with the flattened
+        // results. A negative code on any root (e.g. -5 for a missing parent
+        // key) surfaces as an error instead of silently returning a partially
+        // added bulk, and deduplicated non-root nodes reflect the ID returned
+        // by the Lua script.
         let mut results_iter = results.iter();
         for node in &mut job_nodes {
-            Self::apply_pipeline_results(node, &mut results_iter)?;
+            Self::apply_pipeline_results(node, &mut results_iter, true)?;
         }
 
         Ok(job_nodes)
@@ -829,24 +830,35 @@ impl FlowProducer {
 
     /// Walk the freshly added job tree in the same pre-order the pipeline
     /// commands were queued (each node's command precedes its children's),
-    /// validating every script result and updating each node's job ID.
+    /// validating the root's script result and updating each node's job ID.
     ///
-    /// This ensures a negative status code anywhere in the tree surfaces as an
-    /// error and that deduplicated non-root nodes reflect the ID returned by
-    /// the Lua script.
+    /// Only the root of a tree (`is_root`) is validated strictly: a negative
+    /// code there is a genuine failure (e.g. a missing external parent key).
+    /// For non-root nodes, a `-5` ("missing parent key") is benign — it occurs
+    /// when an internal parent was deduplicated and its new key was never
+    /// created, so those children are intentionally not added. Any other
+    /// negative code on a child still surfaces as an error. IDs are propagated
+    /// to every node, so deduplicated nodes reflect the ID returned by Lua.
     fn apply_pipeline_results(
         node: &mut JobNode,
         results: &mut std::slice::Iter<'_, redis::Value>,
+        is_root: bool,
     ) -> Result<(), Error> {
         if let Some(result) = results.next() {
-            Self::check_add_result(result, node.job.parent_key().map(|s| s.as_str()))?;
+            if is_root {
+                Self::check_add_result(result, node.job.parent_key().map(|s| s.as_str()))?;
+            } else if let redis::Value::Int(code) = result {
+                if *code < 0 && *code != crate::error::error_code::PARENT_JOB_NOT_EXIST {
+                    return Err(Error::from_script_code(*code));
+                }
+            }
             if let Some(id) = Self::extract_job_id(result) {
                 node.job.set_id(id);
             }
         }
         if let Some(children) = node.children.as_mut() {
             for child in children {
-                Self::apply_pipeline_results(child, results)?;
+                Self::apply_pipeline_results(child, results, false)?;
             }
         }
         Ok(())
@@ -1013,7 +1025,7 @@ mod tests {
             redis::Value::BulkString(b"child-b-id".to_vec()),
         ];
         let mut iter = results.iter();
-        FlowProducer::apply_pipeline_results(&mut root, &mut iter).unwrap();
+        FlowProducer::apply_pipeline_results(&mut root, &mut iter, true).unwrap();
         assert_eq!(root.job.id(), "root-id");
         let children = root.children.as_ref().unwrap();
         assert_eq!(children[0].job.id(), "child-a-id");
@@ -1031,8 +1043,37 @@ mod tests {
             redis::Value::Int(-3),
         ];
         let mut iter = results.iter();
-        let result = FlowProducer::apply_pipeline_results(&mut root, &mut iter);
+        let result = FlowProducer::apply_pipeline_results(&mut root, &mut iter, true);
         assert!(result.is_err(), "negative child code should propagate");
+    }
+
+    #[test]
+    fn apply_pipeline_results_tolerates_deduplicated_child() {
+        // A child whose internal parent was deduplicated returns -5 (its new
+        // parent key was never created); that must not fail the whole flow.
+        let mut root = JobNode {
+            job: Job::new("root", serde_json::json!({}), None),
+            children: Some(vec![leaf("child")]),
+        };
+        let results = [
+            redis::Value::BulkString(b"existing-root-id".to_vec()),
+            redis::Value::Int(-5),
+        ];
+        let mut iter = results.iter();
+        FlowProducer::apply_pipeline_results(&mut root, &mut iter, true).unwrap();
+        assert_eq!(root.job.id(), "existing-root-id");
+    }
+
+    #[test]
+    fn apply_pipeline_results_errors_on_negative_root_code() {
+        let mut root = JobNode {
+            job: Job::new("root", serde_json::json!({}), None),
+            children: None,
+        };
+        let results = [redis::Value::Int(-5)];
+        let mut iter = results.iter();
+        let result = FlowProducer::apply_pipeline_results(&mut root, &mut iter, true);
+        assert!(result.is_err(), "negative root code should propagate");
     }
 
     #[test]

@@ -915,6 +915,41 @@ async fn test_get_jobs_by_type_waiting() {
     cleanup_queue(&queue).await;
 }
 
+// get_ranges sanitizes types: querying `waiting` must also include `paused`
+// jobs (where waiting jobs are parked while the queue is paused).
+#[tokio::test]
+async fn test_get_ranges_waiting_includes_paused() {
+    let name = test_queue_name();
+    let queue = Queue::new(
+        &name,
+        QueueOptions {
+            connection: test_connection(),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    for i in 0..3 {
+        queue
+            .add("test", serde_json::json!({"idx": i}), None)
+            .await
+            .unwrap();
+    }
+
+    // Pausing moves waiting jobs into the paused list.
+    queue.pause().await.unwrap();
+
+    let ids = queue.get_ranges(&["waiting"], 0, -1, true).await.unwrap();
+    assert_eq!(
+        ids.len(),
+        3,
+        "waiting query should include paused jobs after pause"
+    );
+
+    cleanup_queue(&queue).await;
+}
+
 // getPrioritized
 #[tokio::test]
 async fn test_get_prioritized_jobs() {

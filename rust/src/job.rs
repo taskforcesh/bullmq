@@ -592,7 +592,7 @@ impl Job {
         match result {
             redis::Value::Int(0) => Ok(true),
             redis::Value::Int(1) => Ok(false),
-            redis::Value::Int(-1) => Err(Error::JobNotExist(self.id.clone())),
+            redis::Value::Int(-1) => Err(Error::JobNotFound(self.id.clone())),
             redis::Value::Int(-2) => Err(Error::JobLockNotExist(self.id.clone())),
             redis::Value::Int(-3) => Err(Error::JobNotInState(
                 self.id.clone(),
