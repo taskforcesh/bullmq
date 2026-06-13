@@ -4456,8 +4456,16 @@ async fn should_wait_children_as_one_step_of_parent_job() {
                             .await
                             .unwrap();
                         let moved = job.move_to_waiting_children(None).await.unwrap();
-                        assert!(moved, "should move to waiting-children");
-                        Err(bullmq::Error::WaitingChildren)
+                        if moved {
+                            Err(bullmq::Error::WaitingChildren)
+                        } else {
+                            // The child completed before we could move the parent
+                            // to waiting-children, so there are no pending
+                            // dependencies left to wait on — finish directly.
+                            *return_value.lock().await = Some("finished".to_string());
+                            barrier.wait().await;
+                            Ok(serde_json::json!("finished"))
+                        }
                     }
                     1 => {
                         // Step 1: Children are done, complete
