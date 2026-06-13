@@ -1,3 +1,10 @@
+## [5.78.1](https://github.com/taskforcesh/bullmq/compare/v5.78.0...v5.78.1) (2026-06-13)
+
+
+### Bug Fixes
+
+* **scheduler:** fail stalled jobs if scheduler does not longer exist (elixir) (rust) ([#4222](https://github.com/taskforcesh/bullmq/issues/4222)) ([d1fcda5](https://github.com/taskforcesh/bullmq/commit/d1fcda5f9c4f53b56846a73421d6eb9a32603aa4))
+
 # [5.78.0](https://github.com/taskforcesh/bullmq/compare/v5.77.7...v5.78.0) (2026-06-02)
 
 
