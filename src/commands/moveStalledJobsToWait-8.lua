@@ -74,11 +74,10 @@ if (#stalling > 0) then
                     local stalledCount = rcall("HINCRBY", jobKey, "stc", 1)
                     
                     -- Check if this is a repeatable job by looking at job options
-                    local jobOpts = rcall("HGET", jobKey, "opts")
+                    local schedulerKey = rcall("HGET", jobKey, "rjk")
                     local isRepeatableJob = false
-                    if jobOpts then
-                        local opts = cjson.decode(jobOpts)
-                        if opts and opts["repeat"] then
+                    if schedulerKey then
+                        if rcall("EXISTS", schedulerKey) == 1 then
                             isRepeatableJob = true
                         end
                     end

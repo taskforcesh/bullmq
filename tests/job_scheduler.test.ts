@@ -2666,6 +2666,129 @@ describe('Job Scheduler', () => {
       expect(delayedCount3).toBe(1);
       delayStub.restore();
     });
+
+    describe('when the scheduler has been removed', () => {
+      it('should fail a stalled scheduler job after maxStalledCount', async () => {
+        const date = new Date('2017-02-07 9:24:00');
+        clock.setSystemTime(date);
+
+        const schedulerJobId = 'test-scheduler';
+        const repeatOpts = { every: 2000 };
+
+        const repeatableJob = await queue.upsertJobScheduler(
+          schedulerJobId,
+          repeatOpts,
+        );
+        expect(repeatableJob).toBeTruthy();
+
+        const waitingCount = await queue.getWaitingCount();
+        expect(waitingCount).toBe(1);
+
+        let resolveCompleting: () => void;
+        const completingJob = new Promise<void>(resolve => {
+          resolveCompleting = resolve;
+        });
+
+        let worker: Worker;
+        const processing = new Promise<void>(resolve => {
+          worker = new Worker(
+            queueName,
+            async () => {
+              resolve();
+              return completingJob;
+            },
+            {
+              connection,
+              prefix,
+              skipLockRenewal: true,
+              skipStalledCheck: true,
+              maxStalledCount: 0,
+            },
+          );
+        });
+        const delayStub = sinon
+          .stub(worker!, 'delay')
+          .callsFake(async () => {});
+
+        await processing;
+
+        // Force remove the lock so the job appears stalled
+        const client = await queue.client;
+        const lockKey = `${prefix}:${queueName}:${repeatableJob!.id}:lock`;
+        await client.del(lockKey);
+
+        // Remove the scheduler — the job's rjk no longer points to an existing scheduler
+        await queue.removeJobScheduler(schedulerJobId);
+
+        const stalledCheckerKey = `${prefix}:${queueName}:stalled-check`;
+        await client.del(stalledCheckerKey);
+
+        const scripts = (<any>worker!).scripts;
+
+        // First call: marks the active job as stalled
+        await scripts.moveStalledJobsToWait();
+
+        await client.del(stalledCheckerKey);
+
+        // Second call: stalledCount = 1 which exceeds maxStalledCount = 0, and since
+        // the scheduler no longer exists the job is NOT treated as repeatable.
+        // The Lua script sets deferredFailure on the job and moves it back to wait.
+        await scripts.moveStalledJobsToWait();
+
+        const waitingJobs = await queue.getWaiting();
+        expect(waitingJobs.length).toBe(1);
+
+        // Verify deferredFailure has been stamped onto the job
+        const stalledJob = await queue.getJob(repeatableJob!.id!);
+        expect(stalledJob!.deferredFailure).toBe(
+          'job stalled more than allowable limit',
+        );
+
+        resolveCompleting!();
+        await worker!.close();
+
+        // A new worker should pick the job up and immediately fail it
+        // because deferredFailure is set (UnrecoverableError path in worker.ts)
+        const failedPromise = new Promise<void>((resolve, reject) => {
+          worker = new Worker(
+            queueName,
+            async () => {
+              reject(
+                new Error(
+                  'processor should not be called for a deferred-failed job',
+                ),
+              );
+            },
+            {
+              connection,
+              prefix,
+              skipLockRenewal: true,
+              skipStalledCheck: true,
+              maxStalledCount: 0,
+            },
+          );
+          worker.on('failed', (_job, err) => {
+            try {
+              expect(err.message).toBe('job stalled more than allowable limit');
+              resolve();
+            } catch (assertionError) {
+              reject(assertionError);
+            }
+          });
+        });
+
+        await failedPromise;
+        await worker!.close();
+
+        const failedJobs = await queue.getFailed();
+        expect(failedJobs.length).toBe(1);
+        expect(failedJobs[0].failedReason).toBe(
+          'job stalled more than allowable limit',
+        );
+
+        delayStub.restore();
+      });
+    });
   });
 
   describe('when every option is provided', () => {
