@@ -679,7 +679,7 @@ class Scripts:
 
     def moveStalledJobsToWait(self, maxStalledCount: int, stalledInterval: int):
         keys = self.getKeys(['stalled', 'wait', 'active',
-                            'stalled-check', 'meta', 'paused', 'marker', 'events'])
+                            'stalled-check', 'meta', 'paused', 'marker', 'events', 'repeat'])
         args = [maxStalledCount, self.keys[''], round(
             time.time() * 1000), stalledInterval]
         return self.commands["moveStalledJobsToWait"](keys, args)

@@ -163,7 +163,7 @@ describe('repeat', () => {
     });
   });
 
-  it('it should stop repeating after endDate', async () => {
+  it('should stop repeating after endDate', async () => {
     const every = 100;
     const date = new Date('2017-02-07 9:24:00');
     clock.setSystemTime(date);
@@ -199,7 +199,7 @@ describe('repeat', () => {
     );
 
     expect(job.repeatJobKey).toBeDefined();
-
+    console.log(job.repeatJobKey);
     clock.tick(every + 1);
 
     worker.run();
