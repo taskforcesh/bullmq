@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::error::Error;
 use crate::job::{Job, ScriptContext};
-use crate::keys::{validate_queue_name, QueueKeys};
+use crate::keys::{resolve_parent_queue_key, validate_queue_name, QueueKeys};
 use crate::options::JobOptions;
 use crate::queue::Queue;
 use crate::redis_connection::RedisConnection;
@@ -148,24 +148,25 @@ impl FlowProducer {
         apply_queue_defaults(&mut flow, opts);
         validate_flow_queue_names(&flow)?;
 
-        // Ensure scripts are loaded (needed for EVALSHA in pipeline)
         let mut conn = self.conn.conn();
-        self.conn.scripts().load_all(&mut conn).await?;
 
         let mut pipe = redis::pipe();
         pipe.atomic();
 
         // If the root flow has opts.parent, construct a ParentContext
         let root_prefix = flow.prefix.as_deref().unwrap_or(&self.prefix);
-        let parent_ctx = flow.opts.as_ref().and_then(|o| o.parent.as_ref()).map(|p| {
-            let parent_queue_key = Self::resolve_parent_queue_key(root_prefix, &p.queue);
-            let parent_deps_key = format!("{}:{}:dependencies", parent_queue_key, p.id);
-            ParentContext {
-                parent_id: p.id.clone(),
-                parent_queue_key,
-                parent_deps_key,
+        let parent_ctx = match flow.opts.as_ref().and_then(|o| o.parent.as_ref()) {
+            Some(p) => {
+                let parent_queue_key = resolve_parent_queue_key(root_prefix, &p.queue)?;
+                let parent_deps_key = format!("{}:{}:dependencies", parent_queue_key, p.id);
+                Some(ParentContext {
+                    parent_id: p.id.clone(),
+                    parent_queue_key,
+                    parent_deps_key,
+                })
             }
-        });
+            None => None,
+        };
 
         let mut job_node = self.add_node(&mut pipe, &flow, parent_ctx.as_ref())?;
 
@@ -201,9 +202,7 @@ impl FlowProducer {
             validate_flow_queue_names(flow)?;
         }
 
-        // Ensure scripts are loaded (needed for EVALSHA in pipeline)
         let mut conn = self.conn.conn();
-        self.conn.scripts().load_all(&mut conn).await?;
 
         let mut pipe = redis::pipe();
         pipe.atomic();
@@ -212,15 +211,18 @@ impl FlowProducer {
 
         for flow in &flows {
             let root_prefix = flow.prefix.as_deref().unwrap_or(&self.prefix);
-            let parent_ctx = flow.opts.as_ref().and_then(|o| o.parent.as_ref()).map(|p| {
-                let parent_queue_key = Self::resolve_parent_queue_key(root_prefix, &p.queue);
-                let parent_deps_key = format!("{}:{}:dependencies", parent_queue_key, p.id);
-                ParentContext {
-                    parent_id: p.id.clone(),
-                    parent_queue_key,
-                    parent_deps_key,
+            let parent_ctx = match flow.opts.as_ref().and_then(|o| o.parent.as_ref()) {
+                Some(p) => {
+                    let parent_queue_key = resolve_parent_queue_key(root_prefix, &p.queue)?;
+                    let parent_deps_key = format!("{}:{}:dependencies", parent_queue_key, p.id);
+                    Some(ParentContext {
+                        parent_id: p.id.clone(),
+                        parent_queue_key,
+                        parent_deps_key,
+                    })
                 }
-            });
+                None => None,
+            };
             let node = self.add_node(&mut pipe, flow, parent_ctx.as_ref())?;
             job_nodes.push(node);
         }
@@ -895,20 +897,6 @@ impl FlowProducer {
             return None;
         }
         Some((prefix, queue_name, job_id))
-    }
-
-    /// Convert a parent queue identifier into a qualified queue key.
-    ///
-    /// `ParentOpts.queue` is documented as a queue name, so we prefix it with
-    /// the current flow prefix. For backward compatibility, values that already
-    /// use the current prefix (e.g. `bull:parent`) are accepted as-is.
-    fn resolve_parent_queue_key(prefix: &str, queue: &str) -> String {
-        let qualified_prefix = format!("{}:", prefix);
-        if queue.starts_with(&qualified_prefix) {
-            queue.to_string()
-        } else {
-            format!("{}:{}", prefix, queue)
-        }
     }
 
     /// Create a ScriptContext for jobs reconstructed by get_flow.

@@ -3,7 +3,7 @@ use tracing::{debug, instrument};
 
 use crate::error::Error;
 use crate::job::{Job, ScriptContext};
-use crate::keys::{validate_queue_name, QueueKeys};
+use crate::keys::{resolve_parent_queue_key, validate_queue_name, QueueKeys};
 use crate::options::{JobOptions, QueueOptions};
 use crate::redis_connection::RedisConnection;
 use crate::types::{DependenciesCount, JobCounts, JobState};
@@ -146,6 +146,7 @@ impl Queue {
 
                 async move {
                     let script = script?;
+                    let argv1 = argv1?;
                     let argv2_bytes = argv2.into_bytes();
                     let args: Vec<&[u8]> = vec![&argv1, &argv2_bytes, &argv3];
                     let result = script.execute(&mut conn, &keys, &args).await?;
@@ -193,7 +194,7 @@ impl Queue {
         let keys = self.add_job_keys(script_name);
 
         // Build ARGV[1]: msgpack array of metadata
-        let argv1 = self.pack_add_args(job, custom_job_id, timestamp);
+        let argv1 = self.pack_add_args(job, custom_job_id, timestamp)?;
 
         // Build ARGV[2]: JSON stringified job data
         let argv2 = serde_json::to_string(job.data()).unwrap_or_else(|_| "{}".to_string());
@@ -305,7 +306,7 @@ impl Queue {
     /// Pack ARGV[1]: msgpack array matching the Lua script contract.
     ///
     /// Positions: [key_prefix, job_id, name, timestamp, parentKey, parentDepsKey, parent, repeatJobKey, deduplicationKey]
-    fn pack_add_args(&self, job: &Job, job_id: &str, timestamp: u64) -> Vec<u8> {
+    fn pack_add_args(&self, job: &Job, job_id: &str, timestamp: u64) -> Result<Vec<u8>, Error> {
         use rmp::encode::*;
 
         let mut buf = Vec::with_capacity(128);
@@ -322,7 +323,7 @@ impl Queue {
 
         // [5] parentKey, [6] parent deps key, [7] parent
         if let Some(ref parent) = job.opts().parent {
-            let parent_queue_key = self.resolve_parent_queue_key(&parent.queue);
+            let parent_queue_key = resolve_parent_queue_key(self.keys.prefix(), &parent.queue)?;
             let parent_key = format!("{}:{}", parent_queue_key, parent.id);
             let parent_deps_key = format!("{}:dependencies", parent_key);
             let opts = job.opts();
@@ -379,22 +380,7 @@ impl Queue {
             write_nil(&mut buf).unwrap();
         }
 
-        buf
-    }
-
-    /// Convert a parent queue identifier into a qualified queue key.
-    ///
-    /// `ParentOpts.queue` is documented as a queue name, so we prefix it with
-    /// this queue's configured prefix. For backward compatibility, values that
-    /// already start with the current prefix (e.g. `bull:parent`) are accepted
-    /// as pre-qualified queue keys.
-    fn resolve_parent_queue_key(&self, queue: &str) -> String {
-        let qualified_prefix = format!("{}:", self.keys.prefix());
-        if queue.starts_with(&qualified_prefix) {
-            queue.to_string()
-        } else {
-            format!("{}:{}", self.keys.prefix(), queue)
-        }
+        Ok(buf)
     }
 
     /// Pack ARGV[3]: msgpack map of job options using the raw script keys.

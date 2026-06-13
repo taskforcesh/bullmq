@@ -212,7 +212,7 @@ pub struct ParentKeys {
 }
 
 /// Counts of dependencies by type for a parent job.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DependenciesCount {
     /// Number of children that completed successfully.
     pub processed: u64,
@@ -225,7 +225,7 @@ pub struct DependenciesCount {
 }
 
 /// Paginated result of a parent job's dependencies.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct DependenciesResult {
     /// Map of processed child job key -> return value (JSON).
     pub processed: std::collections::HashMap<String, serde_json::Value>,

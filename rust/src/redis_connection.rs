@@ -29,9 +29,9 @@ impl RedisConnection {
     pub async fn new(opts: &RedisConnectionOptions) -> Result<Self, Error> {
         let url = opts.effective_url();
         let client = Client::open(url.as_str())?;
-        let conn = client.get_multiplexed_async_connection().await?;
-
         let scripts = ScriptRegistry::new();
+        let mut conn = client.get_multiplexed_async_connection().await?;
+        scripts.load_all(&mut conn).await?;
 
         let inner = Arc::new(Inner {
             client,

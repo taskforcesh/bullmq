@@ -260,10 +260,10 @@ impl Job {
 
     /// Marks the job to not be retried if it fails, even if `attempts` is set.
     ///
-    /// This mirrors Node.js `Job.discard()`. It is **deprecated** — prefer
-    /// returning [`Error::Unrecoverable`] from the processor, which has the same
-    /// effect. When called inside a processor and the job subsequently fails,
-    /// the worker will not retry it.
+    /// This mirrors Node.js `Job.discard()`. For new code, returning
+    /// [`Error::Unrecoverable`] from the processor has the same effect. When
+    /// called inside a processor and the job subsequently fails, the worker
+    /// will not retry it.
     pub fn discard(&self) {
         self.discarded.store(true, Ordering::SeqCst);
     }

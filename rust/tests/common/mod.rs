@@ -1,7 +1,6 @@
 //! Shared helpers for integration tests.
 //!
 //! These tests require a running Redis instance at `redis://127.0.0.1:6379`.
-#![allow(dead_code)]
 
 use bullmq::options::RedisConnectionOptions;
 use bullmq::Queue;
@@ -16,6 +15,7 @@ pub fn test_queue_name() -> String {
 }
 
 /// Default test connection options.
+#[allow(dead_code)]
 pub fn test_connection() -> RedisConnectionOptions {
     RedisConnectionOptions {
         url: std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string()),
