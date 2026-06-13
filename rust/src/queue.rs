@@ -1318,18 +1318,24 @@ impl Queue {
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         match result {
+            // 1 = removed, 0 = job (or a dependency) is locked. Mirroring
+            // Node.js, a locked job is a normal "not removed" outcome rather
+            // than an error.
             redis::Value::Int(1) => Ok(true),
-            redis::Value::Int(0) => Err(Error::JobLocked(format!(
-                "Job {} could not be removed because it is locked by another worker",
-                job_id
-            ))),
-            redis::Value::Int(-8) => Err(Error::Script {
-                code: -8,
-                message: format!(
-                    "Job {} belongs to a job scheduler and cannot be removed directly",
-                    job_id
-                ),
-            }),
+            redis::Value::Int(0) => Ok(false),
+            redis::Value::Int(code) if code < 0 => {
+                if code == crate::error::error_code::JOB_BELONGS_TO_JOB_SCHEDULER {
+                    Err(Error::Script {
+                        code,
+                        message: format!(
+                            "Job {} belongs to a job scheduler and cannot be removed directly. removeJob",
+                            job_id
+                        ),
+                    })
+                } else {
+                    Err(Error::from_script_code(code))
+                }
+            }
             _ => Ok(false),
         }
     }

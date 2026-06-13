@@ -6037,9 +6037,10 @@ async fn should_not_remove_locked_job_in_tree() {
     rx.recv().await.unwrap();
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
-    // Try to remove parent - should fail because child is locked
-    let result = parent_queue.remove(tree.job.id()).await;
-    assert!(result.is_err(), "remove should fail when child is locked");
+    // Try to remove parent - returns Ok(false) because a child is locked
+    // (a locked job/dependency is a normal "not removed" outcome, not an error).
+    let removed = parent_queue.remove(tree.job.id()).await.unwrap();
+    assert!(!removed, "remove should return false when child is locked");
 
     // All jobs should still exist
     let parent_state = parent_queue.get_job_state(tree.job.id()).await.unwrap();

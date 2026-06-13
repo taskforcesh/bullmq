@@ -110,12 +110,6 @@ pub mod error_code {
     pub const SCHEDULER_JOB_ID_COLLISION: i64 = -10;
     /// Scheduler job slots are busy.
     pub const SCHEDULER_JOB_SLOTS_BUSY: i64 = -11;
-
-    // Legacy aliases kept for backwards compatibility with older Rust constants.
-    /// Legacy alias for parent job not found.
-    pub const JOB_LOCK_NOT_EXIST_OLD: i64 = PARENT_JOB_NOT_EXIST;
-    /// Legacy alias name used in early Rust parity work.
-    pub const JOB_MAX_ATTEMPTS: i64 = JOB_LOCK_MISMATCH;
 }
 
 impl Error {
