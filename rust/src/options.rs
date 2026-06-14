@@ -53,7 +53,7 @@ pub type BackoffStrategyFn = Arc<
 >;
 
 /// Options for connecting to Redis.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct RedisConnectionOptions {
     /// Redis connection URL (e.g., `redis://127.0.0.1:6379`).
     ///
@@ -76,6 +76,23 @@ pub struct RedisConnectionOptions {
     pub db: Option<u8>,
     /// Whether to connect over TLS (uses the `rediss://` scheme).
     pub tls: bool,
+}
+
+pub(crate) fn redact_url_userinfo(url: &str) -> String {
+    let Some((scheme, rest)) = url.split_once("://") else {
+        return url.to_string();
+    };
+
+    let authority_end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+    let authority = &rest[..authority_end];
+
+    let Some(at_pos) = authority.rfind('@') else {
+        return url.to_string();
+    };
+
+    let host_part = &authority[at_pos + 1..];
+    let suffix = &rest[authority_end..];
+    format!("{}://***@{}{}", scheme, host_part, suffix)
 }
 
 impl Default for RedisConnectionOptions {
@@ -162,6 +179,25 @@ impl RedisConnectionOptions {
             10..=15 => (b'A' + (nibble - 10)) as char,
             _ => unreachable!("hex nibble out of range"),
         }
+    }
+}
+
+impl std::fmt::Debug for RedisConnectionOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let redacted_url = redact_url_userinfo(&self.url);
+        let redacted_username = self.username.as_ref().map(|_| "***");
+        let redacted_password = self.password.as_ref().map(|_| "***");
+
+        f.debug_struct("RedisConnectionOptions")
+            .field("url", &redacted_url)
+            .field("max_connections", &self.max_connections)
+            .field("host", &self.host)
+            .field("port", &self.port)
+            .field("username", &redacted_username)
+            .field("password", &redacted_password)
+            .field("db", &self.db)
+            .field("tls", &self.tls)
+            .finish()
     }
 }
 

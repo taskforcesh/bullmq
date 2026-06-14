@@ -108,6 +108,35 @@ fn test_effective_url_keeps_bracketed_ipv6_host() {
     assert_eq!(opts.effective_url(), "redis://[2001:db8::1]:6379");
 }
 
+#[test]
+fn test_debug_redacts_url_credentials() {
+    let opts = RedisConnectionOptions {
+        url: "redis://alice:secret@redis.local:6379/3".to_string(),
+        ..Default::default()
+    };
+
+    let debug = format!("{opts:?}");
+    assert!(debug.contains("redis://***@redis.local:6379/3"));
+    assert!(!debug.contains("alice"));
+    assert!(!debug.contains("secret"));
+}
+
+#[test]
+fn test_debug_redacts_typed_credentials() {
+    let opts = RedisConnectionOptions {
+        host: Some("redis.local".to_string()),
+        username: Some("alice".to_string()),
+        password: Some("secret".to_string()),
+        ..Default::default()
+    };
+
+    let debug = format!("{opts:?}");
+    assert!(debug.contains("username: Some(\"***\")"));
+    assert!(debug.contains("password: Some(\"***\")"));
+    assert!(!debug.contains("alice"));
+    assert!(!debug.contains("secret"));
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // End-to-end: connect using typed host/port options
 // ═══════════════════════════════════════════════════════════════════════════
