@@ -5008,6 +5008,138 @@ async fn should_propagate_get_flow_dependency_errors() {
     cleanup_queue(&child_queue).await;
 }
 
+#[tokio::test]
+async fn should_ignore_missing_child_jobs_when_loading_flow() {
+    let prefix = "bf-test";
+    let parent_queue_name = test_queue_name();
+    let child_queue_name = test_queue_name();
+    let parent_queue = test_queue_with_prefix(&parent_queue_name, prefix).await;
+    let child_queue = test_queue_with_prefix(&child_queue_name, prefix).await;
+
+    let flow = test_flow_producer(prefix).await;
+    let original_tree = flow
+        .add(FlowJob {
+            name: "root-job".to_string(),
+            queue_name: parent_queue_name.clone(),
+            data: serde_json::json!({}),
+            opts: None,
+            prefix: None,
+            children: Some(vec![FlowJob {
+                name: "child-job".to_string(),
+                queue_name: child_queue_name.clone(),
+                data: serde_json::json!({}),
+                opts: None,
+                prefix: None,
+                children: None,
+            }]),
+        })
+        .await
+        .unwrap();
+
+    let child_id = original_tree.children.as_ref().unwrap()[0]
+        .job
+        .id()
+        .to_string();
+    let mut conn = child_queue.connection().conn();
+    redis::cmd("DEL")
+        .arg(child_queue.keys().job_key(&child_id))
+        .query_async::<()>(&mut conn)
+        .await
+        .unwrap();
+
+    let result = flow
+        .get_flow(bullmq::GetFlowOpts {
+            id: original_tree.job.id().to_string(),
+            queue_name: parent_queue_name.clone(),
+            prefix: Some(prefix.to_string()),
+            depth: None,
+            max_children: None,
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(result.job.id(), original_tree.job.id());
+    assert!(result.children.is_none());
+
+    flow.close().await;
+    cleanup_queue(&parent_queue).await;
+    cleanup_queue(&child_queue).await;
+}
+
+#[tokio::test]
+async fn should_propagate_child_loading_errors_when_loading_flow() {
+    let prefix = "bf-test";
+    let parent_queue_name = test_queue_name();
+    let child_queue_name = test_queue_name();
+    let parent_queue = test_queue_with_prefix(&parent_queue_name, prefix).await;
+    let child_queue = test_queue_with_prefix(&child_queue_name, prefix).await;
+
+    let flow = test_flow_producer(prefix).await;
+    let original_tree = flow
+        .add(FlowJob {
+            name: "root-job".to_string(),
+            queue_name: parent_queue_name.clone(),
+            data: serde_json::json!({}),
+            opts: None,
+            prefix: None,
+            children: Some(vec![FlowJob {
+                name: "child-job".to_string(),
+                queue_name: child_queue_name.clone(),
+                data: serde_json::json!({}),
+                opts: None,
+                prefix: None,
+                children: None,
+            }]),
+        })
+        .await
+        .unwrap();
+
+    let child_id = original_tree.children.as_ref().unwrap()[0]
+        .job
+        .id()
+        .to_string();
+    let child_deps_key = format!("{}:dependencies", child_queue.keys().job_key(&child_id));
+    let mut conn = child_queue.connection().conn();
+    redis::cmd("DEL")
+        .arg(&child_deps_key)
+        .query_async::<()>(&mut conn)
+        .await
+        .unwrap();
+    redis::cmd("SET")
+        .arg(&child_deps_key)
+        .arg("not-a-set")
+        .query_async::<()>(&mut conn)
+        .await
+        .unwrap();
+
+    let result = flow
+        .get_flow(bullmq::GetFlowOpts {
+            id: original_tree.job.id().to_string(),
+            queue_name: parent_queue_name.clone(),
+            prefix: Some(prefix.to_string()),
+            depth: None,
+            max_children: None,
+        })
+        .await;
+
+    assert!(
+        result.is_err(),
+        "get_flow should propagate child-loading errors"
+    );
+    let err_msg = result.unwrap_err().to_string();
+    assert!(
+        err_msg.contains("WRONGTYPE")
+            || err_msg.contains("wrong kind of value")
+            || err_msg.contains("only supported for sets and hashes"),
+        "expected Redis wrong-type / pagination error, got: {}",
+        err_msg
+    );
+
+    flow.close().await;
+    cleanup_queue(&parent_queue).await;
+    cleanup_queue(&child_queue).await;
+}
+
 // Node.js: "should get part of flow tree"
 #[tokio::test]
 async fn should_get_part_of_flow_tree() {

@@ -329,11 +329,13 @@ impl FlowProducer {
                 if let Some((child_prefix, child_queue, child_id)) =
                     Self::parse_child_key(child_key)
                 {
-                    if let Ok(node) = self
+                    match self
                         .get_node(child_prefix, child_queue, child_id, depth - 1, max_children)
                         .await
                     {
-                        child_nodes.push(node);
+                        Ok(node) => child_nodes.push(node),
+                        Err(Error::JobNotFound(_)) => {}
+                        Err(err) => return Err(err),
                     }
                 }
             }
