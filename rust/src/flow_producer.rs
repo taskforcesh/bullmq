@@ -92,9 +92,14 @@ pub struct FlowProducer {
 
 impl FlowProducer {
     /// Create a new FlowProducer.
-    pub async fn new(opts: FlowProducerOptions) -> Result<Self, Error> {
+pub async fn new(opts: FlowProducerOptions) -> Result<Self, Error> {
         let conn = RedisConnection::new(&opts.connection).await?;
         let prefix = opts.prefix.unwrap_or_else(|| "bull".to_string());
+        if prefix.is_empty() || prefix.contains(':') {
+            return Err(Error::InvalidConfig(
+                "Prefix must be non-empty and cannot contain :".to_string(),
+            ));
+        }
         Ok(Self { conn, prefix })
     }
 
