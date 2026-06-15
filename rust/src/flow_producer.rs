@@ -484,7 +484,7 @@ impl FlowProducer {
         // Create the Job struct
         let mut job = Job::new(&node.name, node.data.clone(), Some(opts.clone()));
         job.set_id(job_id.clone());
-
+        job.set_context(self.make_script_context(prefix, &node.queue_name));
         // Set parent info on the job
         if let Some(parent_ctx) = parent {
             job.set_parent(ParentKeys {
