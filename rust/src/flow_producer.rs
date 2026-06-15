@@ -92,7 +92,7 @@ pub struct FlowProducer {
 
 impl FlowProducer {
     /// Create a new FlowProducer.
-pub async fn new(opts: FlowProducerOptions) -> Result<Self, Error> {
+    pub async fn new(opts: FlowProducerOptions) -> Result<Self, Error> {
         let conn = RedisConnection::new(&opts.connection).await?;
         let prefix = opts.prefix.unwrap_or_else(|| "bull".to_string());
         if prefix.is_empty() || prefix.contains(':') {
@@ -266,7 +266,7 @@ pub async fn new(opts: FlowProducerOptions) -> Result<Self, Error> {
     /// Retrieve an existing flow tree from Redis.
     ///
     /// Reconstructs the parent-child tree by loading jobs and their dependencies.
-pub async fn get_flow(&self, opts: GetFlowOpts) -> Result<JobNode, Error> {
+    pub async fn get_flow(&self, opts: GetFlowOpts) -> Result<JobNode, Error> {
         validate_queue_name(&opts.queue_name)?;
         let prefix = opts.prefix.as_deref().unwrap_or(&self.prefix);
         if prefix.is_empty() || prefix.contains(':') {
