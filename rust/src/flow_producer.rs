@@ -244,6 +244,20 @@ impl FlowProducer {
         Ok(job_nodes)
     }
 
+    /// Atomically add multiple flows, applying per-queue default job options.
+    ///
+    /// This mirrors [`FlowProducer::add_with_opts`], but for bulk adds.
+    pub async fn add_bulk_with_opts(
+        &self,
+        mut flows: Vec<FlowJob>,
+        opts: &FlowOpts,
+    ) -> Result<Vec<JobNode>, Error> {
+        for flow in &mut flows {
+            apply_queue_defaults(flow, opts);
+        }
+        self.add_bulk(flows).await
+    }
+
     /// Retrieve an existing flow tree from Redis.
     ///
     /// Reconstructs the parent-child tree by loading jobs and their dependencies.
