@@ -1012,6 +1012,11 @@ mod tests {
             job: Job::new("root", serde_json::json!({}), None),
             children: Some(vec![leaf("child-a"), leaf("child-b")]),
         };
+        {
+            let children = root.children.as_mut().unwrap();
+            children[0].job.set_id("mem-child-a".to_string());
+            children[1].job.set_id("mem-child-b".to_string());
+        }
         let results = [
             redis::Value::BulkString(b"root-id".to_vec()),
             redis::Value::BulkString(b"child-a-id".to_vec()),
@@ -1021,8 +1026,8 @@ mod tests {
         FlowProducer::apply_pipeline_results(&mut root, &mut iter, true).unwrap();
         assert_eq!(root.job.id(), "root-id");
         let children = root.children.as_ref().unwrap();
-        assert_eq!(children[0].job.id(), "");
-        assert_eq!(children[1].job.id(), "");
+        assert_eq!(children[0].job.id(), "mem-child-a");
+        assert_eq!(children[1].job.id(), "mem-child-b");
     }
 
     #[test]
@@ -1048,6 +1053,9 @@ mod tests {
             job: Job::new("root", serde_json::json!({}), None),
             children: Some(vec![leaf("child")]),
         };
+        root.children.as_mut().unwrap()[0]
+            .job
+            .set_id("mem-child".to_string());
         let results = [
             redis::Value::BulkString(b"existing-root-id".to_vec()),
             redis::Value::Int(-5),
@@ -1055,7 +1063,7 @@ mod tests {
         let mut iter = results.iter();
         FlowProducer::apply_pipeline_results(&mut root, &mut iter, true).unwrap();
         assert_eq!(root.job.id(), "existing-root-id");
-        assert_eq!(root.children.as_ref().unwrap()[0].job.id(), "");
+        assert_eq!(root.children.as_ref().unwrap()[0].job.id(), "mem-child");
     }
 
     #[test]
