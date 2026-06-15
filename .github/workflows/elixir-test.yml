@@ -34,7 +34,7 @@ jobs:
     if: needs.changes.outputs.should_run == 'true'
     runs-on: ubuntu-latest
 
-    name: testing elixir@${{ matrix.elixir-version }}, otp@${{ matrix.otp-version }}, redis@${{ matrix.redis-version }}
+    name: testing elixir@1.17, otp@27.x, redis@7-alpine
 
     strategy:
       matrix:
