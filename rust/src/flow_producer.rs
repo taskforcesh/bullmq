@@ -266,9 +266,14 @@ pub async fn new(opts: FlowProducerOptions) -> Result<Self, Error> {
     /// Retrieve an existing flow tree from Redis.
     ///
     /// Reconstructs the parent-child tree by loading jobs and their dependencies.
-    pub async fn get_flow(&self, opts: GetFlowOpts) -> Result<JobNode, Error> {
+pub async fn get_flow(&self, opts: GetFlowOpts) -> Result<JobNode, Error> {
         validate_queue_name(&opts.queue_name)?;
         let prefix = opts.prefix.as_deref().unwrap_or(&self.prefix);
+        if prefix.is_empty() || prefix.contains(':') {
+            return Err(Error::InvalidConfig(
+                "Prefix must be non-empty and cannot contain :".to_string(),
+            ));
+        }
         let depth = opts.depth.unwrap_or(10);
         let max_children = opts.max_children.unwrap_or(20);
 
