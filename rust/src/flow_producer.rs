@@ -122,10 +122,12 @@ impl FlowProducer {
     /// in `waiting-children` state. When all children complete, the parent
     /// moves to `wait` and becomes processable.
     ///
-    /// The returned [`JobNode`] tree has the job ID assigned by Redis on every
-    /// node (including deduplicated nodes). If any job in the tree fails to be
-    /// added (e.g. a referenced parent key is missing), this returns an error
-    /// rather than a partially populated tree.
+    /// The returned [`JobNode`] keeps the same tree shape as requested. The
+    /// root node ID is updated from Redis when available. Child nodes preserve
+    /// their in-memory IDs if Redis does not return a child ID (for example,
+    /// when an internal parent is deduplicated and descendants are skipped).
+    /// If the root job fails to be added (e.g. a referenced external parent key
+    /// is missing), this returns an error.
     #[instrument(skip(self, flow), fields(root_name = %flow.name, root_queue = %flow.queue_name))]
     pub async fn add(&self, flow: FlowJob) -> Result<JobNode, Error> {
         self.add_with_opts(flow, &FlowOpts::default()).await
@@ -137,9 +139,11 @@ impl FlowProducer {
     /// the corresponding `default_job_options` are merged in. Options set
     /// explicitly on a job always take precedence over the defaults.
     ///
-    /// Every node in the returned tree has its Redis-assigned job ID set
-    /// (including deduplicated nodes). A negative status code from any job in
-    /// the tree (e.g. `-5` for a missing parent key) is returned as an error.
+    /// The returned tree keeps the requested topology and updates the root job
+    /// ID from Redis when available. Child nodes may keep their in-memory IDs
+    /// in deduplication scenarios where Redis skips descendant creation.
+    /// Negative root status codes (e.g. `-5` for a missing parent key) are
+    /// returned as errors.
     pub async fn add_with_opts(
         &self,
         mut flow: FlowJob,
@@ -173,11 +177,9 @@ impl FlowProducer {
         // Execute the atomic pipeline
         let results: Vec<redis::Value> = pipe.query_async(&mut conn).await?;
 
-        // Validate the root result and propagate IDs to every node — not just
-        // the root. A negative code on the root (e.g. -5 for a missing parent
-        // key) must surface as an error instead of silently leaving the flow
-        // partially added, and deduplicated non-root nodes reflect the ID
-        // returned by the Lua script.
+        // Validate the root result and apply root ID updates. Child results are
+        // still consumed for validation, but child IDs intentionally keep the
+        // in-memory values to mirror Node.js FlowProducer semantics.
         let mut results_iter = results.iter();
         Self::apply_pipeline_results(&mut job_node, &mut results_iter, true)?;
         debug!(job_id = %job_node.job.id(), "flow added");
@@ -187,11 +189,12 @@ impl FlowProducer {
 
     /// Atomically add multiple flows.
     ///
-    /// Each flow's returned [`JobNode`] tree has Redis-assigned job IDs set on
-    /// every node (including deduplicated nodes). The bulk add is validated as
-    /// a whole: if any job in any flow fails to be added (e.g. a missing parent
-    /// key yields a negative status code), this returns an error instead of a
-    /// partially populated result.
+    /// Each returned [`JobNode`] keeps the requested topology and updates root
+    /// IDs from Redis when available. Child IDs keep in-memory values in
+    /// deduplication scenarios where Redis skips descendant creation.
+    /// The bulk add is validated as a whole: if any root job in any flow fails
+    /// to be added (e.g. a missing parent key yields a negative status code),
+    /// this returns an error instead of a partially populated result.
     #[instrument(skip(self, flows), fields(count = flows.len()))]
     pub async fn add_bulk(&self, flows: Vec<FlowJob>) -> Result<Vec<JobNode>, Error> {
         if flows.is_empty() {
@@ -229,13 +232,10 @@ impl FlowProducer {
 
         let results: Vec<redis::Value> = pipe.query_async(&mut conn).await?;
 
-        // Validate each tree's root result and propagate IDs to every node
-        // across all trees. Commands were queued tree-by-tree, each in
-        // pre-order, so a single sequential walk lines up with the flattened
-        // results. A negative code on any root (e.g. -5 for a missing parent
-        // key) surfaces as an error instead of silently returning a partially
-        // added bulk, and deduplicated non-root nodes reflect the ID returned
-        // by the Lua script.
+        // Validate each tree's root result and apply root ID updates across all
+        // trees. Commands were queued tree-by-tree, each in pre-order, so a
+        // single sequential walk lines up with the flattened results while
+        // keeping child ID behavior aligned with Node.js semantics.
         let mut results_iter = results.iter();
         for node in &mut job_nodes {
             Self::apply_pipeline_results(node, &mut results_iter, true)?;
@@ -834,15 +834,16 @@ impl FlowProducer {
 
     /// Walk the freshly added job tree in the same pre-order the pipeline
     /// commands were queued (each node's command precedes its children's),
-    /// validating the root's script result and updating each node's job ID.
+    /// validating the root's script result while keeping child ID behavior
+    /// aligned with Node.js FlowProducer.
     ///
     /// Only the root of a tree (`is_root`) is validated strictly: a negative
     /// code there is a genuine failure (e.g. a missing external parent key).
     /// For non-root nodes, a `-5` ("missing parent key") is benign — it occurs
     /// when an internal parent was deduplicated and its new key was never
     /// created, so those children are intentionally not added. Any other
-    /// negative code on a child still surfaces as an error. IDs are propagated
-    /// to every node, so deduplicated nodes reflect the ID returned by Lua.
+    /// negative code on a child still surfaces as an error. Child nodes keep
+    /// their in-memory IDs; their IDs are not rewritten from child results.
     fn apply_pipeline_results(
         node: &mut JobNode,
         results: &mut std::slice::Iter<'_, redis::Value>,
@@ -856,8 +857,10 @@ impl FlowProducer {
                     return Err(Error::from_script_code(*code));
                 }
             }
-            if let Some(id) = Self::extract_job_id(result) {
-                node.job.set_id(id);
+            if is_root {
+                if let Some(id) = Self::extract_job_id(result) {
+                    node.job.set_id(id);
+                }
             }
         }
         if let Some(children) = node.children.as_mut() {
@@ -1004,7 +1007,7 @@ mod tests {
     }
 
     #[test]
-    fn apply_pipeline_results_updates_all_node_ids() {
+    fn apply_pipeline_results_updates_only_root_id() {
         let mut root = JobNode {
             job: Job::new("root", serde_json::json!({}), None),
             children: Some(vec![leaf("child-a"), leaf("child-b")]),
@@ -1018,8 +1021,8 @@ mod tests {
         FlowProducer::apply_pipeline_results(&mut root, &mut iter, true).unwrap();
         assert_eq!(root.job.id(), "root-id");
         let children = root.children.as_ref().unwrap();
-        assert_eq!(children[0].job.id(), "child-a-id");
-        assert_eq!(children[1].job.id(), "child-b-id");
+        assert_eq!(children[0].job.id(), "");
+        assert_eq!(children[1].job.id(), "");
     }
 
     #[test]
@@ -1052,6 +1055,7 @@ mod tests {
         let mut iter = results.iter();
         FlowProducer::apply_pipeline_results(&mut root, &mut iter, true).unwrap();
         assert_eq!(root.job.id(), "existing-root-id");
+        assert_eq!(root.children.as_ref().unwrap()[0].job.id(), "");
     }
 
     #[test]
