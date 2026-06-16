@@ -974,6 +974,13 @@ fn apply_queue_defaults(flow: &mut FlowJob, opts: &FlowOpts) {
 
 fn validate_flow_queue_names(flow: &FlowJob) -> Result<(), Error> {
     validate_queue_name(&flow.queue_name)?;
+    if let Some(prefix) = flow.prefix.as_deref() {
+        if prefix.is_empty() || prefix.contains(':') {
+            return Err(Error::InvalidConfig(
+                "Prefix must be non-empty and cannot contain :".to_string(),
+            ));
+        }
+    }
     if let Some(children) = flow.children.as_ref() {
         for child in children {
             validate_flow_queue_names(child)?;
