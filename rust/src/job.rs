@@ -302,6 +302,7 @@ impl Job {
 
     /// Attach a script execution context (set by the worker before processing).
     pub(crate) fn set_context(&mut self, ctx: ScriptContext) {
+        self.queue_name = Some(ctx.keys.name().to_string());
         self.ctx = Some(ctx);
     }
 
