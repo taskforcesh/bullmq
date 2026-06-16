@@ -104,11 +104,14 @@ impl FlowProducer {
     }
 
     /// Create a FlowProducer with an existing Redis connection.
-    pub fn with_connection(conn: RedisConnection, prefix: Option<String>) -> Self {
-        Self {
-            conn,
-            prefix: prefix.unwrap_or_else(|| "bull".to_string()),
+    pub fn with_connection(conn: RedisConnection, prefix: Option<String>) -> Result<Self, Error> {
+        let prefix = prefix.unwrap_or_else(|| "bull".to_string());
+        if prefix.is_empty() || prefix.contains(':') {
+            return Err(Error::InvalidConfig(
+                "Prefix must be non-empty and cannot contain :".to_string(),
+            ));
         }
+        Ok(Self { conn, prefix })
     }
 
     /// The prefix used for keys.
