@@ -103,7 +103,7 @@
     "@typescript-eslint/eslint-plugin": "8.60.0",
     "@typescript-eslint/parser": "8.60.0",
     "@vitest/coverage-v8": "4.1.8",
-    "coveralls-next": "6.0.1",
+    "coveralls-next": "6.0.2",
     "cpx2": "8.0.2",
     "eslint": "9.39.4",
     "eslint-config-prettier": "8.10.2",
@@ -202,7 +202,6 @@
   "packageManager": "yarn@1.22.22",
   "resolutions": {
     "brace-expansion": ">=1.1.13",
-    "js-yaml": "4.2.0",
     "picomatch": ">=2.3.2",
     "yaml": ">=2.8.3"
   }
