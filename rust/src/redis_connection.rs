@@ -5,7 +5,7 @@ use tokio::sync::Mutex;
 use tracing::debug;
 
 use crate::error::Error;
-use crate::options::RedisConnectionOptions;
+use crate::options::{redact_url_userinfo, RedisConnectionOptions};
 use crate::scripts::ScriptRegistry;
 
 /// A managed Redis connection that handles reconnection and script loading.
@@ -27,10 +27,11 @@ struct Inner {
 impl RedisConnection {
     /// Create a new connection from options.
     pub async fn new(opts: &RedisConnectionOptions) -> Result<Self, Error> {
-        let client = Client::open(opts.url.as_str())?;
-        let conn = client.get_multiplexed_async_connection().await?;
-
+        let url = opts.effective_url();
+        let client = Client::open(url.as_str())?;
         let scripts = ScriptRegistry::new();
+        let mut conn = client.get_multiplexed_async_connection().await?;
+        scripts.load_all(&mut conn).await?;
 
         let inner = Arc::new(Inner {
             client,
@@ -38,7 +39,8 @@ impl RedisConnection {
             scripts,
         });
 
-        debug!(url = %opts.url, "redis connection established");
+        let redacted_url = redact_url_userinfo(&url);
+        debug!(url = %redacted_url, "redis connection established");
 
         Ok(Self { inner })
     }
@@ -131,5 +133,28 @@ impl BlockingRedisConnection {
             .query_async(&mut *conn)
             .await?;
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::options::redact_url_userinfo;
+
+    #[test]
+    fn redacts_username_password() {
+        let input = "redis://user:pass@localhost:6379/0";
+        assert_eq!(redact_url_userinfo(input), "redis://***@localhost:6379/0");
+    }
+
+    #[test]
+    fn redacts_password_only_and_keeps_ipv6_host() {
+        let input = "rediss://:p%40ss@[::1]:6380/2";
+        assert_eq!(redact_url_userinfo(input), "rediss://***@[::1]:6380/2");
+    }
+
+    #[test]
+    fn keeps_url_without_userinfo() {
+        let input = "redis://localhost:6379/0";
+        assert_eq!(redact_url_userinfo(input), input);
     }
 }

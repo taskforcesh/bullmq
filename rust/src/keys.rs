@@ -3,7 +3,41 @@
 //! All keys follow the pattern: `{prefix}:{queue_name}:{key_type}`.
 //! The default prefix is "bull" for compatibility with Node.js BullMQ.
 
+use crate::error::Error;
+
 const DEFAULT_PREFIX: &str = "bull";
+
+/// Validate a queue name using the same separator restriction as BullMQ Node.js.
+pub(crate) fn validate_queue_name(name: &str) -> Result<(), Error> {
+    if name.is_empty() {
+        return Err(Error::InvalidConfig(
+            "Queue name must be provided".to_string(),
+        ));
+    }
+    if name.contains(':') {
+        return Err(Error::InvalidConfig(
+            "Queue name cannot contain :".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+/// Resolve `ParentOpts.queue` into a qualified queue key.
+///
+/// Accepts either an unqualified queue name (`queue`) or a pre-qualified key
+/// using the current prefix (`prefix:queue`). The queue-name portion is always
+/// validated so malformed values like `foo:bar` are rejected unless they are a
+/// valid `{prefix}:{queueName}` pair for the current prefix.
+pub(crate) fn resolve_parent_queue_key(prefix: &str, queue: &str) -> Result<String, Error> {
+    let qualified_prefix = format!("{prefix}:");
+    if let Some(queue_name) = queue.strip_prefix(&qualified_prefix) {
+        validate_queue_name(queue_name)?;
+        return Ok(queue.to_string());
+    }
+
+    validate_queue_name(queue)?;
+    Ok(format!("{prefix}:{queue}"))
+}
 
 /// Holds the prefix and queue name needed to generate all Redis keys.
 #[derive(Debug, Clone)]
@@ -186,5 +220,30 @@ mod tests {
     fn test_job_key() {
         let keys = QueueKeys::new("q", None);
         assert_eq!(keys.job_key("123"), "bull:q:123");
+    }
+
+    #[test]
+    fn resolves_unqualified_parent_queue_names() {
+        assert_eq!(
+            resolve_parent_queue_key("bull", "parent-queue").unwrap(),
+            "bull:parent-queue"
+        );
+    }
+
+    #[test]
+    fn accepts_prequalified_parent_queue_keys_for_current_prefix() {
+        assert_eq!(
+            resolve_parent_queue_key("bull", "bull:parent-queue").unwrap(),
+            "bull:parent-queue"
+        );
+    }
+
+    #[test]
+    fn rejects_parent_queue_names_with_extra_colons() {
+        let err = resolve_parent_queue_key("bull", "parent:queue").unwrap_err();
+        assert!(matches!(err, Error::InvalidConfig(_)));
+
+        let err = resolve_parent_queue_key("bull", "bull:parent:queue").unwrap_err();
+        assert!(matches!(err, Error::InvalidConfig(_)));
     }
 }

@@ -31,7 +31,6 @@ jobs:
 
   test:
     needs: changes
-    if: needs.changes.outputs.should_run == 'true'
     runs-on: ubuntu-latest
 
     name: testing elixir@${{ matrix.elixir-version }}, otp@${{ matrix.otp-version }}, redis@${{ matrix.redis-version }}
@@ -44,31 +43,43 @@ jobs:
         redis-version: [7-alpine]
 
     steps:
+      - name: Skip when Elixir files are unchanged
+        if: needs.changes.outputs.should_run != 'true'
+        run: echo "No Elixir-related changes detected; skipping Elixir test steps."
+
       - name: Checkout repository
+        if: needs.changes.outputs.should_run == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Use Node.js ${{ matrix.node-version }}
+        if: needs.changes.outputs.should_run == 'true'
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'yarn'
 
       - name: Start Redis
+        if: needs.changes.outputs.should_run == 'true'
         uses: supercharge/redis-github-action@bc274cb7238cd63a45029db04ee48c07a72609fd # 1.8.1
         with:
           redis-version: ${{ matrix.redis-version }}
 
-      - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
-      - run: yarn generate:raw:scripts
-      - run: yarn copy:lua:elixir
+      - if: needs.changes.outputs.should_run == 'true'
+        run: yarn install --ignore-engines --frozen-lockfile --non-interactive
+      - if: needs.changes.outputs.should_run == 'true'
+        run: yarn generate:raw:scripts
+      - if: needs.changes.outputs.should_run == 'true'
+        run: yarn copy:lua:elixir
 
       - name: Set up Elixir
+        if: needs.changes.outputs.should_run == 'true'
         uses: erlef/setup-beam@v1
         with:
           elixir-version: ${{ matrix.elixir-version }}
           otp-version: ${{ matrix.otp-version }}
 
       - name: Restore dependencies cache
+        if: needs.changes.outputs.should_run == 'true'
         uses: actions/cache@v5
         with:
           path: elixir/deps
@@ -77,6 +88,7 @@ jobs:
             ${{ runner.os }}-mix-deps-${{ matrix.elixir-version }}-${{ matrix.otp-version }}-
 
       - name: Install Elixir dependencies
+        if: needs.changes.outputs.should_run == 'true'
         working-directory: elixir
         run: |
           mix local.hex --force
@@ -84,13 +96,16 @@ jobs:
           mix deps.get
 
       - name: Compile
+        if: needs.changes.outputs.should_run == 'true'
         working-directory: elixir
         run: mix compile --warnings-as-errors
 
       - name: Run tests
+        if: needs.changes.outputs.should_run == 'true'
         working-directory: elixir
         run: mix test --include integration
 
       - name: Check formatting
+        if: needs.changes.outputs.should_run == 'true'
         working-directory: elixir
         run: mix format --check-formatted

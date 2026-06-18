@@ -6,11 +6,27 @@ Fully compatible with Node.js and Elixir BullMQ queues (same Lua scripts and Red
 
 ## Features
 
-- **Queue** — Add jobs with delay, priority, deduplication, and custom IDs.
-- **Worker** — Process jobs with configurable concurrency, stalled job detection, lock renewal, and cancellation support.
-- **Job** — First-class job lifecycle: progress tracking, retries, backoff, parent/child relationships.
-- **FFI-ready** — Clean trait-based API designed for straightforward bindings to Go, C#, Python, etc.
+- **Queue** — Add jobs with delay, priority, deduplication, and custom IDs; rich
+  getters (`get_jobs`, `get_waiting`, `count`, `get_counts_per_priority`, …),
+  global concurrency/rate-limit, and time-series metrics (`get_metrics`).
+- **Worker** — Process jobs with configurable concurrency, stalled job detection,
+  lock renewal, rate limiting, cancellation, and optional metrics collection.
+- **Job** — First-class job lifecycle: progress tracking, retries, backoff,
+  logs (`log`/`clear_logs`), `discard`, and parent/child relationships.
+- **FlowProducer** — Atomically add trees of dependent jobs, with `get_flow` and
+  per-queue default options.
+- **JobScheduler** — Cron/interval repeatable jobs (managed via the `Queue` API).
+- **Connections** — URL or typed options (host/port/username/password/db) with
+  TLS (`rediss://`) support.
+- **FFI-ready** — Clean trait-based API designed for straightforward bindings to
+  Go, C#, Python, etc.
 - **Zero-copy Lua scripts** — Scripts are embedded at compile time via `include_str!`.
+
+> See [FEATURE_PARITY.md](./FEATURE_PARITY.md) for a detailed comparison with the
+> Node.js implementation, including the **"Next PR — Implementation Plan"** that
+> scopes the remaining work. Notable not-yet-implemented features: `QueueEvents`
+> (cross-process events), `Job.wait_until_finished`, `get_workers`, Redis
+> Cluster/Sentinel, and telemetry.
 
 ## Quick Start
 
@@ -72,17 +88,19 @@ REDIS_URL=redis://myhost:6379 cargo test
 src/
 ├── lib.rs              # Public API re-exports
 ├── error.rs            # Error types and BullMQ protocol codes
-├── types.rs            # Shared types (JobState, JobProgress, etc.)
+├── types.rs            # Shared types (JobState, JobProgress, Metrics, etc.)
 ├── keys.rs             # Redis key generation
-├── options.rs          # Configuration options
-├── redis_connection.rs # Redis connection management
+├── options.rs          # Configuration options (Queue/Worker/Job/Connection)
+├── redis_connection.rs # Redis connection management (URL or typed options, TLS)
 ├── scripts.rs          # Lua script registry (compile-time embedded)
 ├── job.rs              # Job struct and Redis serialization
-├── queue.rs            # Queue operations
+├── queue.rs            # Queue operations, getters, metrics, schedulers
+├── flow_producer.rs    # Parent/child job trees (flows)
+├── job_scheduler.rs    # Cron/interval scheduling helpers
 └── worker.rs           # Worker processing loop
 src/commands/           # Generated Lua scripts embedded with include_str!
-tests/
-└── integration_test.rs # Full integration test suite
+tests/                  # Integration test suites (queue, worker, job, flow,
+                        # metrics, connection, rate limit, schedulers, …)
 ```
 
 ## Design Principles

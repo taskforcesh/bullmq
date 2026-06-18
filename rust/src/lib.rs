@@ -36,6 +36,8 @@
 
 /// Error types for BullMQ operations.
 pub mod error;
+/// FlowProducer — atomically add trees of dependent jobs (flows).
+pub mod flow_producer;
 /// Job representation and lifecycle management.
 pub mod job;
 /// Job Scheduler — repeatable/cron-based job scheduling.
@@ -56,14 +58,20 @@ pub mod types;
 pub mod worker;
 
 pub use error::Error;
+pub use flow_producer::{
+    FlowJob, FlowOpts, FlowProducer, FlowProducerOptions, FlowQueueOptions, GetFlowOpts, JobNode,
+};
 pub use job::Job;
 pub use keys::QueueKeys;
 pub use options::{
-    BackoffStrategyFn, DeduplicationOptions, JobOptions, QueueOptions, RateLimiterOptions,
-    WorkerOptions,
+    BackoffStrategyFn, DeduplicationOptions, JobOptions, MetricsOptions, ParentOpts, QueueOptions,
+    RateLimiterOptions, WorkerOptions,
 };
 pub use queue::Queue;
-pub use types::{JobProgress, JobState, RetryOptions};
+pub use types::{
+    DependenciesCount, DependenciesResult, JobProgress, JobState, Metrics, MetricsMeta,
+    RetryOptions,
+};
 pub use worker::Worker;
 
 /// Result type alias for BullMQ operations.

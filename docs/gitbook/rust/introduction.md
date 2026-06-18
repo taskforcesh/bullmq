@@ -190,6 +190,24 @@ let worker = Worker::new("my-queue", processor, WorkerOptions {
 }).await?;
 ```
 
+Instead of a URL you can use typed connection fields. When `host` is set, the
+URL is built from these fields (use `tls: true` for a `rediss://` TLS
+connection):
+
+```rust
+use bullmq::options::RedisConnectionOptions;
+
+let conn = RedisConnectionOptions {
+    host: Some("redis.example.com".to_string()),
+    port: Some(6380),
+    username: Some("user".to_string()),
+    password: Some("password".to_string()),
+    db: Some(0),
+    tls: true,
+    ..Default::default()
+};
+```
+
 ## Key Differences from Node.js
 
 | Aspect         | Node.js                            | Rust                                                   |

@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::error::Error;
 use crate::job::Job;
-use crate::keys::QueueKeys;
+use crate::keys::{validate_queue_name, QueueKeys};
 use crate::options::{JobOptions, WorkerOptions};
 use crate::redis_connection::{BlockingRedisConnection, RedisConnection};
 use crate::types::RemoveOnFinish;
@@ -190,6 +190,16 @@ enum FetchResult {
     RateLimited(u64),
 }
 
+fn should_convert_discarded_error(error: &Error) -> bool {
+    !matches!(
+        error,
+        Error::Unrecoverable(_)
+            | Error::Delayed
+            | Error::WaitingChildren
+            | Error::RateLimited { .. }
+    )
+}
+
 /// Shared context for all worker loops within a single Worker instance.
 ///
 /// Pre-computes keys and holds all shared state needed by the processing loops,
@@ -341,6 +351,35 @@ fn pack_move_to_active_opts(token: &str, opts: &WorkerOptions) -> Vec<u8> {
     buf
 }
 
+/// Map a negative status code returned by `moveToFinished` / `moveToCompleted`
+/// to a descriptive error, mirroring Node.js `Scripts.finishedErrors`.
+///
+/// `command` is the name of the Lua command (e.g. "moveToFinished") and `state`
+/// is the previous job state (used for the not-in-state / lock-mismatch cases).
+fn finished_error(code: i64, job_id: &str, command: &str, state: &str) -> Error {
+    match code {
+        -1 => Error::ProcessingError(format!("Missing key for job {}. {}", job_id, command)),
+        -2 => Error::ProcessingError(format!("Missing lock for job {}. {}", job_id, command)),
+        -3 => Error::ProcessingError(format!(
+            "Job {} is not in the {} state. {}",
+            job_id, state, command
+        )),
+        -4 => Error::ProcessingError(format!(
+            "Job {} has pending dependencies. {}",
+            job_id, command
+        )),
+        -6 => Error::ProcessingError(format!(
+            "Lock mismatch for job {}. Cmd {} from {}",
+            job_id, command, state
+        )),
+        -9 => Error::Unrecoverable(format!(
+            "Cannot complete job {} because it has at least one failed child. {}",
+            job_id, command
+        )),
+        _ => Error::from_script_code(code),
+    }
+}
+
 fn pack_move_to_finished_opts(
     token: &str,
     opts: &WorkerOptions,
@@ -383,7 +422,12 @@ fn pack_move_to_finished_opts(
     write_uint(&mut buf, attempts as u64).unwrap();
 
     write_str(&mut buf, "maxMetricsSize").unwrap();
-    write_str(&mut buf, "").unwrap();
+    // When metrics are enabled, this is the max number of data points to keep.
+    // An empty string disables metrics collection in the Lua script.
+    match opts.metrics.as_ref() {
+        Some(m) => write_str(&mut buf, &m.max_data_points.to_string()).unwrap(),
+        None => write_str(&mut buf, "").unwrap(),
+    }
 
     for key in ["fpof", "cpof", "idof", "rdof"] {
         write_str(&mut buf, key).unwrap();
@@ -439,6 +483,8 @@ impl Worker {
         processor: ProcessorFn,
         opts: WorkerOptions,
     ) -> Result<Self, Error> {
+        validate_queue_name(queue_name)?;
+
         // Validate options
         if opts.concurrency == 0 {
             return Err(Error::InvalidConfig(
@@ -874,7 +920,31 @@ impl Worker {
             job_id: job_id.clone(),
         });
 
+        // Check for deferred failure (fpof: parent failed because child failed)
+        if let Some(deferred_reason) = job.deferred_failure() {
+            let err = Error::Unrecoverable(deferred_reason.to_string());
+            Self::handle_job_failed(
+                ctx,
+                &job_id,
+                token,
+                err,
+                job_attempts,
+                job_attempts_made,
+                &job_opts,
+                &job_data,
+            )
+            .await;
+            // Remove from active jobs before returning early, otherwise close()
+            // would wait for this job to drain until its timeout elapses.
+            {
+                let mut jobs = ctx.active_jobs.write().await;
+                jobs.retain(|j| j.job_id != job_id);
+            }
+            return;
+        }
+
         // Run the processor
+        let discarded = job.discarded_handle();
         let result = (ctx.processor.clone())(job, cancel_token).await;
 
         match result {
@@ -885,7 +955,9 @@ impl Worker {
                     token,
                     &return_value,
                     job_attempts,
+                    job_attempts_made,
                     &job_opts,
+                    &job_data,
                 )
                 .await;
 
@@ -915,6 +987,13 @@ impl Worker {
                 }
             }
             Err(e) => {
+                // If the processor called `job.discard()`, treat the failure as
+                // unrecoverable so the job is not retried (mirrors Node.js).
+                let e = if discarded.load(Ordering::SeqCst) && should_convert_discarded_error(&e) {
+                    Error::Unrecoverable(e.to_string())
+                } else {
+                    e
+                };
                 Self::handle_job_failed(
                     ctx,
                     &job_id,
@@ -962,13 +1041,16 @@ impl Worker {
     }
 
     /// Handle a successfully completed job.
+    #[allow(clippy::too_many_arguments)]
     async fn handle_job_completed(
         ctx: &LoopContext,
         job_id: &str,
         token: &str,
         return_value: &serde_json::Value,
         job_attempts: u32,
+        job_attempts_made: u32,
         job_opts: &JobOptions,
+        job_data: &serde_json::Value,
     ) {
         if let Err(e) = Self::move_to_finished_fast(
             &ctx.conn,
@@ -988,6 +1070,26 @@ impl Worker {
         )
         .await
         {
+            // A negative status code from moveToFinished means the job could not be
+            // completed (e.g. it still has pending or failed children). Mirror the
+            // Node.js behaviour: turn the script code into a descriptive error and
+            // move the job to the failed state.
+            if let Error::Script { code, .. } = e {
+                let mapped = finished_error(code, job_id, "moveToFinished", "active");
+                Self::handle_job_failed(
+                    ctx,
+                    job_id,
+                    token,
+                    mapped,
+                    job_attempts,
+                    job_attempts_made,
+                    job_opts,
+                    job_data,
+                )
+                .await;
+                return;
+            }
+
             error!(job_id = %job_id, error = %e, "failed to move job to completed");
             let _ = ctx.event_tx.send(WorkerEvent::Error(e.to_string()));
         } else {
@@ -1276,6 +1378,17 @@ impl Worker {
             return;
         }
 
+        // RateLimited: the processor called `queue.rate_limit(..)` and signalled a
+        // rate-limit. Move the job back from active to wait/prioritized instead of
+        // failing it. When it is re-fetched it will respect the rate-limit TTL.
+        if matches!(error, Error::RateLimited { .. }) {
+            if let Err(e) = Self::move_job_from_active_to_wait(ctx, job_id, token).await {
+                error!(job_id = %job_id, error = %e, "failed to move rate-limited job back to wait");
+                let _ = ctx.event_tx.send(WorkerEvent::Error(e.to_string()));
+            }
+            return;
+        }
+
         let is_unrecoverable = matches!(error, Error::Unrecoverable(_));
         let should_retry =
             !is_unrecoverable && job_attempts > 0 && (job_attempts_made + 1) < job_attempts;
@@ -1392,6 +1505,48 @@ impl Worker {
             job_id: job_id.to_string(),
             error: error.to_string(),
         });
+    }
+
+    /// Move a job from the active list back to wait (or prioritized, if it has a
+    /// priority). Used when a processor signals a rate-limit via
+    /// [`Error::RateLimited`].
+    async fn move_job_from_active_to_wait(
+        ctx: &LoopContext,
+        job_id: &str,
+        token: &str,
+    ) -> Result<(), Error> {
+        let script = ctx
+            .conn
+            .scripts()
+            .get("moveJobFromActiveToWait")
+            .ok_or_else(|| {
+                Error::InvalidConfig("moveJobFromActiveToWait script not found".to_string())
+            })?
+            .clone();
+
+        let keys = &ctx.keys;
+        let job_key = keys.job_key(job_id);
+        let script_keys: Vec<String> = vec![
+            keys.active(),
+            keys.wait(),
+            keys.stalled(),
+            keys.paused(),
+            keys.meta(),
+            keys.limiter(),
+            keys.prioritized(),
+            keys.marker(),
+            keys.events(),
+        ];
+
+        let args: Vec<&[u8]> = vec![job_id.as_bytes(), token.as_bytes(), job_key.as_bytes()];
+
+        let mut conn = ctx.conn.conn();
+        let result: redis::Value = script.execute(&mut conn, &script_keys, &args).await?;
+
+        match result {
+            redis::Value::Int(code) if code < 0 => Err(Error::from_script_code(code)),
+            _ => Ok(()),
+        }
     }
 
     /// Blocking watcher loop — uses BZPOPMIN to detect new/delayed jobs.
@@ -2072,5 +2227,33 @@ impl Worker {
 impl Drop for Worker {
     fn drop(&mut self) {
         self.closing.store(true, Ordering::Release);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_convert_discarded_error;
+    use crate::error::Error;
+
+    #[test]
+    fn discard_preserves_worker_control_flow_errors() {
+        assert!(!should_convert_discarded_error(&Error::Delayed));
+        assert!(!should_convert_discarded_error(&Error::WaitingChildren));
+        assert!(!should_convert_discarded_error(&Error::RateLimited {
+            delay_ms: 100,
+        }));
+    }
+
+    #[test]
+    fn discard_converts_real_failures_to_unrecoverable() {
+        assert!(should_convert_discarded_error(&Error::ProcessingError(
+            "boom".to_string()
+        )));
+        assert!(should_convert_discarded_error(&Error::Redis(
+            redis::RedisError::from((redis::ErrorKind::IoError, "boom"))
+        )));
+        assert!(!should_convert_discarded_error(&Error::Unrecoverable(
+            "fatal".to_string()
+        )));
     }
 }
