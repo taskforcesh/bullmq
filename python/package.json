@@ -39,7 +39,7 @@
         {
           "releaseRules": [
             {
-              "message": "!(*\\(python\\)*|*\\[python\\]*)",
+              "message": "!({*,**/*}\\(python\\)*|{*,**/*}\\[python\\]*)",
               "release": false
             }
           ]
