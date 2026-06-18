@@ -150,19 +150,19 @@
         {
           "releaseRules": [
             {
-              "message": "*\\[python\\]*",
+              "message": "**/*\\[python\\]*",
               "release": false
             },
             {
-              "message": "*\\[elixir\\]*",
+              "message": "**/*\\[elixir\\]*",
               "release": false
             },
             {
-              "message": "*\\[php\\]*",
+              "message": "**/*\\[php\\]*",
               "release": false
             },
             {
-              "message": "*\\[rust\\]*",
+              "message": "**/*\\[rust\\]*",
               "release": false
             }
           ]

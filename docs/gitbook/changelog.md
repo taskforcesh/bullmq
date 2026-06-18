@@ -1,5 +1,10 @@
 # [5.79.0](https://github.com/taskforcesh/bullmq/compare/v5.78.1...v5.79.0) (2026-06-18)
 
+
+### Features
+
+* Nothing changed, triggered by a rust version release
+
 ## [5.78.1](https://github.com/taskforcesh/bullmq/compare/v5.78.0...v5.78.1) (2026-06-13)
 
 
