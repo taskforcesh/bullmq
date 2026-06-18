@@ -24,7 +24,7 @@
         {
           "releaseRules": [
             {
-              "message": "!(*\\(rust\\)*|*\\[rust\\]*)",
+              "message": "!({*,**/*}\\(rust\\)*|{*,**/*}\\[rust\\]*)",
               "release": false
             }
           ]

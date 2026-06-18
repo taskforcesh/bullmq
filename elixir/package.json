@@ -35,7 +35,7 @@
         {
           "releaseRules": [
             {
-              "message": "!(*\\(elixir\\)*|*\\[elixir\\]*)",
+              "message": "!({*,**/*}\\(elixir\\)*|{*,**/*}\\[elixir\\]*)",
               "release": false
             }
           ]

@@ -35,7 +35,7 @@
         {
           "releaseRules": [
             {
-              "message": "!(*\\(php\\)*|*\\[php\\]*)",
+              "message": "!({*,**/*}\\(php\\)*|{*,**/*}\\[php\\]*)",
               "release": false
             }
           ]
