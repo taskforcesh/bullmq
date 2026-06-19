@@ -181,6 +181,12 @@ impl Job {
         self.attempts_made
     }
 
+    /// Number of times the job has *started* processing (the `attemptsStarted`
+    /// counter). Incremented each time a worker picks up the job.
+    pub fn attempts_started(&self) -> u32 {
+        self.attempts_started
+    }
+
     /// The scheduler ID that produced this job (if any).
     pub fn repeat_job_key(&self) -> Option<&str> {
         self.repeat_job_key.as_deref()
@@ -1317,6 +1323,65 @@ impl Job {
         match result {
             redis::Value::Int(code) if code < 0 => Err(Error::from_script_code(code)),
             _ => Ok(()),
+        }
+    }
+
+    /// Move this job from the active state back to wait (or prioritized).
+    ///
+    /// Mirrors Node.js `Job.moveToWait`. Requires the job to have a script
+    /// context (i.e. obtained from a `Queue`/`Worker`). Returns the rate-limiter
+    /// PTTL in milliseconds (`0` when no rate limit is active).
+    ///
+    /// `token` defaults to the job's current lock token when `None`, which is
+    /// the common case inside a worker processor.
+    pub async fn move_to_wait(&self, token: Option<&str>) -> Result<u64, Error> {
+        let ctx = self
+            .ctx
+            .as_ref()
+            .ok_or_else(|| Error::InvalidConfig("Job has no script context".to_string()))?;
+
+        let script = ctx
+            .conn
+            .scripts()
+            .get("moveJobFromActiveToWait")
+            .ok_or_else(|| {
+                Error::InvalidConfig("moveJobFromActiveToWait script not found".to_string())
+            })?
+            .clone();
+
+        let active = ctx.keys.active();
+        let wait = ctx.keys.wait();
+        let stalled = ctx.keys.stalled();
+        let paused = ctx.keys.paused();
+        let meta = ctx.keys.meta();
+        let limiter = ctx.keys.limiter();
+        let prioritized = ctx.keys.prioritized();
+        let marker = ctx.keys.marker();
+        let events = ctx.keys.events();
+        let job_key = ctx.keys.job_key(&self.id);
+
+        let script_keys: Vec<&str> = vec![
+            &active,      // KEYS[1]
+            &wait,        // KEYS[2]
+            &stalled,     // KEYS[3]
+            &paused,      // KEYS[4]
+            &meta,        // KEYS[5]
+            &limiter,     // KEYS[6]
+            &prioritized, // KEYS[7]
+            &marker,      // KEYS[8]
+            &events,      // KEYS[9]
+        ];
+
+        let token = token.unwrap_or(&ctx.token);
+        let args: Vec<&[u8]> = vec![self.id.as_bytes(), token.as_bytes(), job_key.as_bytes()];
+
+        let mut conn = ctx.conn.conn();
+        let result = script.execute(&mut conn, &script_keys, &args).await?;
+
+        match result {
+            redis::Value::Int(code) if code < 0 => Err(Error::from_script_code(code)),
+            redis::Value::Int(pttl) => Ok(pttl.max(0) as u64),
+            _ => Ok(0),
         }
     }
 

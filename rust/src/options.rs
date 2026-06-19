@@ -262,6 +262,18 @@ pub struct WorkerOptions {
     pub limiter: Option<RateLimiterOptions>,
     /// Maximum delay in ms to wait when rate limited (default 30_000).
     pub maximum_rate_limit_delay: u64,
+    /// Maximum number of times a job may *start* processing (regardless of
+    /// completion/failure) before it is moved to `failed` with an
+    /// unrecoverable error. Each pickup increments the job's `attemptsStarted`
+    /// counter. `None` disables the check. Mirrors Node.js `maxStartedAttempts`.
+    pub max_started_attempts: Option<u32>,
+    /// Skip the stalled-job check for this worker. Other workers may still
+    /// perform stalled checks. Mirrors Node.js `skipStalledCheck`.
+    pub skip_stalled_check: bool,
+    /// Skip lock renewal for this worker. When `true`, locks expire after
+    /// `lock_duration` and the job is moved back to wait (if the stalled check
+    /// is not also disabled). Mirrors Node.js `skipLockRenewal`.
+    pub skip_lock_renewal: bool,
     /// Time-series metrics collection. When set, the worker records
     /// completed/failed counts per minute, readable via `Queue::get_metrics`.
     pub metrics: Option<MetricsOptions>,
@@ -305,6 +317,9 @@ impl Default for WorkerOptions {
             limiter: None,
             maximum_rate_limit_delay: 30_000,
             metrics: None,
+            max_started_attempts: None,
+            skip_stalled_check: false,
+            skip_lock_renewal: false,
         }
     }
 }
@@ -414,6 +429,12 @@ pub struct JobOptions {
     /// If true, the parent continues processing even if this child fails.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub continue_parent_on_failure: Option<bool>,
+
+    /// Reject the job if its serialized (JSON) data exceeds this many UTF-8
+    /// bytes. Enforced client-side when the job is added. Mirrors Node.js
+    /// `sizeLimit`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size_limit: Option<usize>,
 }
 
 /// Parent job options (for flow/dependency chains).
@@ -438,6 +459,9 @@ pub struct RedisKeepJobs {
     /// Maximum count of jobs to keep.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub count: Option<usize>,
+    /// Maximum quantity of jobs to remove per eviction pass.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<usize>,
 }
 
 impl From<KeepJobs> for RedisKeepJobs {
@@ -445,6 +469,7 @@ impl From<KeepJobs> for RedisKeepJobs {
         Self {
             age: k.age,
             count: k.count,
+            limit: k.limit,
         }
     }
 }
