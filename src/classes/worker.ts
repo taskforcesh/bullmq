@@ -52,13 +52,17 @@ export interface WorkerListener<
   DataType = any,
   ResultType = any,
   NameType extends string = string,
+  ProgressType extends JobProgress = JobProgress,
 > extends IoredisListener {
   /**
    * Listen to 'active' event.
    *
    * This event is triggered when a job enters the 'active' state.
    */
-  active: (job: Job<DataType, ResultType, NameType>, prev: string) => void;
+  active: (
+    job: Job<DataType, ResultType, NameType, ProgressType>,
+    prev: string,
+  ) => void;
 
   /**
    * Listen to 'closed' event.
@@ -80,7 +84,7 @@ export interface WorkerListener<
    * This event is triggered when a job has successfully completed.
    */
   completed: (
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<DataType, ResultType, NameType, ProgressType>,
     result: ResultType,
     prev: string,
   ) => void;
@@ -109,7 +113,7 @@ export interface WorkerListener<
    * reaches the stalled limit and it is deleted by the removeOnFail option.
    */
   failed: (
-    job: Job<DataType, ResultType, NameType> | undefined,
+    job: Job<DataType, ResultType, NameType, ProgressType> | undefined,
     error: Error,
     prev: string,
   ) => void;
@@ -130,8 +134,8 @@ export interface WorkerListener<
    * world.
    */
   progress: (
-    job: Job<DataType, ResultType, NameType>,
-    progress: JobProgress,
+    job: Job<DataType, ResultType, NameType, ProgressType>,
+    progress: ProgressType,
   ) => void;
 
   /**
@@ -182,6 +186,7 @@ export class Worker<
   DataType = any,
   ResultType = any,
   NameType extends string = string,
+  ProgressType extends JobProgress = JobProgress,
 > extends QueueBase {
   declare readonly opts: WorkerOptions;
   readonly id: string;
@@ -204,7 +209,7 @@ export class Worker<
   protected _jobScheduler: JobScheduler;
 
   protected paused: boolean;
-  protected processFn: Processor<DataType, ResultType, NameType>;
+  protected processFn: Processor<DataType, ResultType, NameType, ProgressType>;
   protected running = false;
   protected mainLoopRunning: Promise<void> | null = null;
 
@@ -214,7 +219,11 @@ export class Worker<
 
   constructor(
     name: string,
-    processor?: string | URL | null | Processor<DataType, ResultType, NameType>,
+    processor?:
+      | string
+      | URL
+      | null
+      | Processor<DataType, ResultType, NameType, ProgressType>,
     opts?: WorkerOptions,
     Connection?: typeof RedisConnection,
   ) {
@@ -377,7 +386,11 @@ export class Worker<
    * @param processor - The processor file path, URL, or function to be sandboxed
    */
   protected createSandbox(
-    processor: string | URL | null | Processor<DataType, ResultType, NameType>,
+    processor:
+      | string
+      | URL
+      | null
+      | Processor<DataType, ResultType, NameType, ProgressType>,
   ) {
     this.processFn = sandbox<DataType, ResultType, NameType>(
       processor,
@@ -397,39 +410,69 @@ export class Worker<
     return this.scripts.extendLocks(jobIds, tokens, duration);
   }
 
-  emit<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
+  emit<
+    U extends keyof WorkerListener<
+      DataType,
+      ResultType,
+      NameType,
+      ProgressType
+    >,
+  >(
     event: U,
-    ...args: Parameters<WorkerListener<DataType, ResultType, NameType>[U]>
+    ...args: Parameters<
+      WorkerListener<DataType, ResultType, NameType, ProgressType>[U]
+    >
   ): boolean {
     return super.emit(event, ...args);
   }
 
-  off<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
+  off<
+    U extends keyof WorkerListener<
+      DataType,
+      ResultType,
+      NameType,
+      ProgressType
+    >,
+  >(
     eventName: U,
-    listener: WorkerListener<DataType, ResultType, NameType>[U],
+    listener: WorkerListener<DataType, ResultType, NameType, ProgressType>[U],
   ): this {
     super.off(eventName, listener);
     return this;
   }
 
-  on<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
+  on<
+    U extends keyof WorkerListener<
+      DataType,
+      ResultType,
+      NameType,
+      ProgressType
+    >,
+  >(
     event: U,
-    listener: WorkerListener<DataType, ResultType, NameType>[U],
+    listener: WorkerListener<DataType, ResultType, NameType, ProgressType>[U],
   ): this {
     super.on(event, listener);
     return this;
   }
 
-  once<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
+  once<
+    U extends keyof WorkerListener<
+      DataType,
+      ResultType,
+      NameType,
+      ProgressType
+    >,
+  >(
     event: U,
-    listener: WorkerListener<DataType, ResultType, NameType>[U],
+    listener: WorkerListener<DataType, ResultType, NameType, ProgressType>[U],
   ): this {
     super.once(event, listener);
     return this;
   }
 
   protected callProcessJob(
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<DataType, ResultType, NameType, ProgressType>,
     token: string,
     signal?: AbortSignal,
   ): Promise<ResultType> {
@@ -439,11 +482,12 @@ export class Worker<
   protected createJob(
     data: JobJsonRaw,
     jobId: string,
-  ): Job<DataType, ResultType, NameType> {
+  ): Job<DataType, ResultType, NameType, ProgressType> {
     return this.Job.fromJSON(this as MinimalQueue, data, jobId) as Job<
       DataType,
       ResultType,
-      NameType
+      NameType,
+      ProgressType
     >;
   }
 
@@ -580,7 +624,8 @@ export class Worker<
     const asyncFifoQueue = new AsyncFifoQueue<void | Job<
       DataType,
       ResultType,
-      NameType
+      NameType,
+      ProgressType
     >>();
 
     let tokenPostfix = 0;
@@ -602,7 +647,8 @@ export class Worker<
         const fetchedJob = this.retryIfFailed<void | Job<
           DataType,
           ResultType,
-          NameType
+          NameType,
+          ProgressType
         >>(() => this._getNextJob(client, bclient, token, { block: true }), {
           delayInMs: this.opts.runRetryDelay,
           onlyEmitError: true,
@@ -632,7 +678,7 @@ export class Worker<
 
       // Since there can be undefined jobs in the queue (when a job fails or queue is empty)
       // we iterate until we find a job.
-      let job: Job<DataType, ResultType, NameType> | void;
+      let job: Job<DataType, ResultType, NameType, ProgressType> | void;
       do {
         job = await asyncFifoQueue.fetch();
       } while (!job && asyncFifoQueue.numQueued() > 0);
@@ -641,7 +687,7 @@ export class Worker<
         const token = job.token;
         asyncFifoQueue.add(
           this.processJob(
-            <Job<DataType, ResultType, NameType>>job,
+            <Job<DataType, ResultType, NameType, ProgressType>>job,
             token,
             () => asyncFifoQueue.numTotal() <= this._concurrency,
           ),
@@ -665,7 +711,9 @@ export class Worker<
       { block },
     );
 
-    return this.trace<Job<DataType, ResultType, NameType> | undefined>(
+    return this.trace<
+      Job<DataType, ResultType, NameType, ProgressType> | undefined
+    >(
       SpanKind.INTERNAL,
       'getNextJob',
       this.name,
@@ -689,7 +737,7 @@ export class Worker<
     bclient: RedisClient,
     token: string,
     { block = true }: GetNextJobOptions = {},
-  ): Promise<Job<DataType, ResultType, NameType> | undefined> {
+  ): Promise<Job<DataType, ResultType, NameType, ProgressType> | undefined> {
     if (this.paused) {
       return;
     }
@@ -698,7 +746,7 @@ export class Worker<
       return;
     }
 
-    let job: Job<DataType, ResultType, NameType> | undefined;
+    let job: Job<DataType, ResultType, NameType, ProgressType> | undefined;
     if (this.drained && block && !this.limitUntil && !this.waiting) {
       this.waiting = this.waitForJob(bclient, this.blockUntil);
       try {
@@ -765,7 +813,7 @@ will never work with more accuracy than 1ms. */
     client: RedisClient,
     token: string,
     name?: string,
-  ): Promise<Job<DataType, ResultType, NameType>> {
+  ): Promise<Job<DataType, ResultType, NameType, ProgressType>> {
     const [jobData, id, rateLimitDelay, delayUntil] =
       await this.scripts.moveToActive(client, token, name);
     this.updateDelays(rateLimitDelay, delayUntil);
@@ -889,7 +937,7 @@ will never work with more accuracy than 1ms. */
     jobData?: JobJsonRaw,
     jobId?: string,
     token?: string,
-  ): Promise<Job<DataType, ResultType, NameType>> {
+  ): Promise<Job<DataType, ResultType, NameType, ProgressType>> {
     if (!jobData) {
       if (!this.drained) {
         this.emit('drained');
@@ -961,13 +1009,13 @@ will never work with more accuracy than 1ms. */
   }
 
   async processJob(
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<DataType, ResultType, NameType, ProgressType>,
     token: string,
     fetchNextCallback = () => true,
-  ): Promise<void | Job<DataType, ResultType, NameType>> {
+  ): Promise<void | Job<DataType, ResultType, NameType, ProgressType>> {
     const srcPropagationMetadata = job.opts?.telemetry?.metadata;
 
-    return this.trace<void | Job<DataType, ResultType, NameType>>(
+    return this.trace<void | Job<DataType, ResultType, NameType, ProgressType>>(
       SpanKind.CONSUMER,
       'process',
       this.name,
@@ -993,7 +1041,8 @@ will never work with more accuracy than 1ms. */
             const failed = await this.retryIfFailed<void | Job<
               DataType,
               ResultType,
-              NameType
+              NameType,
+              ProgressType
             >>(
               () => {
                 this.lockManager.untrackJob(job.id);
@@ -1020,7 +1069,8 @@ will never work with more accuracy than 1ms. */
           return await this.retryIfFailed<void | Job<
             DataType,
             ResultType,
-            NameType
+            NameType,
+            ProgressType
           >>(
             () => {
               this.lockManager.untrackJob(job.id);
@@ -1038,7 +1088,8 @@ will never work with more accuracy than 1ms. */
           const failed = await this.retryIfFailed<void | Job<
             DataType,
             ResultType,
-            NameType
+            NameType,
+            ProgressType
           >>(
             () => {
               this.lockManager.untrackJob(job.id);
@@ -1070,7 +1121,7 @@ will never work with more accuracy than 1ms. */
   }
 
   private getUnrecoverableErrorMessage(
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<DataType, ResultType, NameType, ProgressType>,
   ) {
     if (job.deferredFailure) {
       return job.deferredFailure;
@@ -1085,7 +1136,7 @@ will never work with more accuracy than 1ms. */
 
   protected async handleCompleted(
     result: ResultType,
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<DataType, ResultType, NameType, ProgressType>,
     token: string,
     fetchNextCallback = () => true,
     span?: Span,
@@ -1117,7 +1168,7 @@ will never work with more accuracy than 1ms. */
 
   protected async handleFailed(
     err: Error,
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<DataType, ResultType, NameType, ProgressType>,
     token: string,
     fetchNextCallback = () => true,
     span?: Span,
@@ -1451,7 +1502,7 @@ will never work with more accuracy than 1ms. */
   }
 
   private moveLimitedBackToWait(
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<DataType, ResultType, NameType, ProgressType>,
     token: string,
   ) {
     return job.moveToWait(token);
