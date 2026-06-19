@@ -194,6 +194,47 @@ impl QueueKeys {
     pub fn name(&self) -> &str {
         &self.name
     }
+
+    /// The Redis client connection name used by workers/queue-events.
+    ///
+    /// Matches the Node.js format `{prefix}:{base64(queueName)}{suffix}` so that
+    /// `Queue::get_workers` can discover clients across implementations.
+    #[inline]
+    pub fn client_name(&self, suffix: &str) -> String {
+        format!("{}:{}{}", self.prefix, base64_standard(&self.name), suffix)
+    }
+}
+
+/// Encode bytes as standard (RFC 4648) base64 with padding.
+///
+/// Mirrors Node.js `Buffer.from(s).toString('base64')`, which BullMQ uses to
+/// build Redis client connection names.
+fn base64_standard(input: &str) -> String {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let bytes = input.as_bytes();
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+
+    for chunk in bytes.chunks(3) {
+        let b0 = chunk[0] as u32;
+        let b1 = *chunk.get(1).unwrap_or(&0) as u32;
+        let b2 = *chunk.get(2).unwrap_or(&0) as u32;
+        let triple = (b0 << 16) | (b1 << 8) | b2;
+
+        out.push(ALPHABET[((triple >> 18) & 0x3F) as usize] as char);
+        out.push(ALPHABET[((triple >> 12) & 0x3F) as usize] as char);
+        if chunk.len() > 1 {
+            out.push(ALPHABET[((triple >> 6) & 0x3F) as usize] as char);
+        } else {
+            out.push('=');
+        }
+        if chunk.len() > 2 {
+            out.push(ALPHABET[(triple & 0x3F) as usize] as char);
+        } else {
+            out.push('=');
+        }
+    }
+
+    out
 }
 
 #[cfg(test)]
@@ -214,6 +255,24 @@ mod tests {
         let keys = QueueKeys::new("my-queue", Some("myapp"));
         assert_eq!(keys.base(), "myapp:my-queue");
         assert_eq!(keys.delayed(), "myapp:my-queue:delayed");
+    }
+
+    #[test]
+    fn test_base64_standard_matches_node() {
+        // Equivalent to Node `Buffer.from(s).toString('base64')`.
+        assert_eq!(base64_standard("test"), "dGVzdA==");
+        assert_eq!(base64_standard("my-queue"), "bXktcXVldWU=");
+        assert_eq!(base64_standard("f"), "Zg==");
+        assert_eq!(base64_standard("fo"), "Zm8=");
+        assert_eq!(base64_standard("foo"), "Zm9v");
+        assert_eq!(base64_standard(""), "");
+    }
+
+    #[test]
+    fn test_client_name() {
+        let keys = QueueKeys::new("test", Some("bull"));
+        assert_eq!(keys.client_name(""), "bull:dGVzdA==");
+        assert_eq!(keys.client_name(":w:worker-1"), "bull:dGVzdA==:w:worker-1");
     }
 
     #[test]

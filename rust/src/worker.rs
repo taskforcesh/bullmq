@@ -462,7 +462,9 @@ fn write_keep_jobs(buf: &mut Vec<u8>, policy: Option<&RemoveOnFinish>) {
             write_uint(buf, *count as u64).unwrap();
         }
         Some(RemoveOnFinish::Options(keep_jobs)) => {
-            let len = keep_jobs.age.is_some() as u32 + keep_jobs.count.is_some() as u32;
+            let len = keep_jobs.age.is_some() as u32
+                + keep_jobs.count.is_some() as u32
+                + keep_jobs.limit.is_some() as u32;
             write_map_len(buf, len).unwrap();
             if let Some(age) = keep_jobs.age {
                 write_str(buf, "age").unwrap();
@@ -471,6 +473,10 @@ fn write_keep_jobs(buf: &mut Vec<u8>, policy: Option<&RemoveOnFinish>) {
             if let Some(count) = keep_jobs.count {
                 write_str(buf, "count").unwrap();
                 write_uint(buf, count as u64).unwrap();
+            }
+            if let Some(limit) = keep_jobs.limit {
+                write_str(buf, "limit").unwrap();
+                write_uint(buf, limit as u64).unwrap();
             }
         }
     }
@@ -505,6 +511,19 @@ impl Worker {
         let conn = RedisConnection::new(&opts.connection).await?;
         let blocking_conn = BlockingRedisConnection::new(conn.client()).await?;
         let keys = QueueKeys::new(queue_name, Some(&opts.prefix));
+
+        // Register the blocking connection's client name so that
+        // `Queue::get_workers` can discover this worker via `CLIENT LIST`.
+        // Best-effort: some managed Redis providers reject `CLIENT SETNAME`.
+        let client_name_suffix = opts
+            .name
+            .as_deref()
+            .map(|n| format!(":w:{n}"))
+            .unwrap_or_default();
+        let _ = blocking_conn
+            .set_name(&keys.client_name(&client_name_suffix))
+            .await;
+
         let id = Uuid::new_v4().to_string();
         let (event_tx, event_rx) = mpsc::unbounded_channel();
         let (progress_tx, _) = broadcast::channel(128);
@@ -595,8 +614,12 @@ impl Worker {
         let _ = self.event_tx.send(WorkerEvent::Ready);
 
         self.start_progress_forwarder().await;
-        self.start_stalled_check().await;
-        self.start_lock_renewal().await;
+        if !self.opts.skip_stalled_check {
+            self.start_stalled_check().await;
+        }
+        if !self.opts.skip_lock_renewal {
+            self.start_lock_renewal().await;
+        }
         self.start_main_loop().await;
 
         Ok(())
@@ -920,9 +943,21 @@ impl Worker {
             job_id: job_id.clone(),
         });
 
-        // Check for deferred failure (fpof: parent failed because child failed)
-        if let Some(deferred_reason) = job.deferred_failure() {
-            let err = Error::Unrecoverable(deferred_reason.to_string());
+        // Determine if the job must fail before processing, mirroring Node.js
+        // `getUnrecoverableErrorMessage`: a deferred failure (parent failed via
+        // failParentOnFailure) takes precedence, otherwise the job is rejected
+        // when it has started more times than `max_started_attempts` allows.
+        let unrecoverable_reason = job.deferred_failure().map(|s| s.to_string()).or_else(|| {
+            match ctx.opts.max_started_attempts {
+                Some(max) if max < job.attempts_started() => {
+                    Some("job started more than allowable limit".to_string())
+                }
+                _ => None,
+            }
+        });
+
+        if let Some(reason) = unrecoverable_reason {
+            let err = Error::Unrecoverable(reason);
             Self::handle_job_failed(
                 ctx,
                 &job_id,
