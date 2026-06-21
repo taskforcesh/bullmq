@@ -469,7 +469,9 @@ impl QueueEvents {
             .await
             .as_ref()
             .cloned()
-            .ok_or_else(|| Error::InvalidConfig("QueueEvents is closed".to_string()))?;
+            .ok_or_else(|| {
+                Error::InvalidConfig("Cannot run QueueEvents after close()".to_string())
+            })?;
 
         let handle = tokio::spawn(async move {
             Self::consume(conn, key, opts, closing, tx).await;

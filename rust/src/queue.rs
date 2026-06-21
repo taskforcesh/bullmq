@@ -132,15 +132,20 @@ impl Queue {
             })
             .collect();
 
-        for job in &job_objects {
-            let argv2 = serde_json::to_string(job.data()).unwrap_or_else(|_| "{}".into());
-            Self::validate_job_size(job, &argv2)?;
-        }
+        let serialized_job_data: Vec<String> = job_objects
+            .iter()
+            .map(|job| {
+                let argv2 = serde_json::to_string(job.data()).unwrap_or_else(|_| "{}".into());
+                Self::validate_job_size(job, &argv2)?;
+                Ok(argv2)
+            })
+            .collect::<Result<_, Error>>()?;
 
         // Run all add_job calls concurrently since the connection is multiplexed
         let futures: Vec<_> = job_objects
             .iter()
-            .map(|job| {
+            .zip(serialized_job_data)
+            .map(|(job, argv2)| {
                 let delay = job.delay();
                 let priority = job.priority();
                 let timestamp = job.timestamp();
@@ -164,7 +169,6 @@ impl Queue {
                     .cloned();
                 let keys = self.add_job_keys(script_name);
                 let packed_args = self.pack_add_args(job, &custom_job_id, timestamp);
-                let argv2 = serde_json::to_string(job.data()).unwrap_or_else(|_| "{}".into());
                 let argv3 = self.pack_job_opts(job);
                 let mut conn = self.conn.conn();
 
