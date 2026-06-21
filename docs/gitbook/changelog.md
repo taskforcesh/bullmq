@@ -1,3 +1,10 @@
+## [5.79.1](https://github.com/taskforcesh/bullmq/compare/v5.79.0...v5.79.1) (2026-06-21)
+
+
+### Bug Fixes
+
+* **node-redis:** accept plain createClient result without cast ([#4201](https://github.com/taskforcesh/bullmq/issues/4201)) ([#4209](https://github.com/taskforcesh/bullmq/issues/4209)) ([1aefd5b](https://github.com/taskforcesh/bullmq/commit/1aefd5b80618a8a9080b98ca9e6e89463a98b713))
+
 # [5.79.0](https://github.com/taskforcesh/bullmq/compare/v5.78.1...v5.79.0) (2026-06-18)
 
 
