@@ -154,6 +154,7 @@ async fn test_size_limit_enforced_in_add_bulk() {
     assert!(err
         .to_string()
         .contains("The size of job big exceeds the limit 12 bytes"));
+    assert_eq!(queue.get_waiting_count().await.unwrap(), 0);
 
     cleanup_queue(&queue).await;
 }

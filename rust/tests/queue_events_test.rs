@@ -139,6 +139,29 @@ async fn test_run_throws_when_already_running() {
 }
 
 #[tokio::test]
+async fn test_close_makes_next_event_return_none() {
+    let name = test_queue_name();
+    let events = QueueEvents::new(
+        &name,
+        QueueEventsOptions {
+            connection: test_connection(),
+            autorun: true,
+            blocking_timeout: 1000,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    events.close().await;
+
+    let next = tokio::time::timeout(Duration::from_secs(1), events.next_event())
+        .await
+        .expect("next_event should not hang after close");
+    assert!(next.is_none(), "closed listener should yield None");
+}
+
+#[tokio::test]
 async fn test_autorun_false_then_run() {
     let name = test_queue_name();
     let queue = Queue::new(

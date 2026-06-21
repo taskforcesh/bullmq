@@ -195,7 +195,7 @@ impl QueueKeys {
         &self.name
     }
 
-    /// The Redis client connection name used by workers/queue-events.
+    /// The Redis client connection name format used by workers.
     ///
     /// Matches the Node.js format `{prefix}:{base64(queueName)}{suffix}` so that
     /// `Queue::get_workers` can discover clients across implementations.
