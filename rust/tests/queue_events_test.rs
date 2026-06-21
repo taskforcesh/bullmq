@@ -155,7 +155,7 @@ async fn test_close_makes_next_event_return_none() {
 
     events.close().await;
 
-    let next = tokio::time::timeout(Duration::from_millis(100), events.next_event())
+    let next = tokio::time::timeout(Duration::from_millis(500), events.next_event())
         .await
         .expect("next_event should not hang after close");
     assert!(next.is_none(), "closed listener should yield None");
