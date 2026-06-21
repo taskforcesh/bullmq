@@ -135,7 +135,7 @@ impl Queue {
         let serialized_job_data: Vec<String> = job_objects
             .iter()
             .map(|job| {
-                let argv2 = serde_json::to_string(job.data()).unwrap_or_else(|_| "{}".into());
+                let argv2 = serde_json::to_string(job.data())?;
                 Self::validate_job_size(job, &argv2)?;
                 Ok(argv2)
             })
@@ -225,7 +225,7 @@ impl Queue {
         let argv1 = self.pack_add_args(job, custom_job_id, timestamp)?;
 
         // Build ARGV[2]: JSON stringified job data
-        let argv2 = serde_json::to_string(job.data()).unwrap_or_else(|_| "{}".to_string());
+        let argv2 = serde_json::to_string(job.data())?;
 
         // Enforce sizeLimit client-side (matches Node.js `validateOptions`):
         // reject jobs whose serialized data exceeds the configured byte limit.
@@ -1125,7 +1125,10 @@ impl Queue {
         cmd.arg("LIST");
         let list: String = match self.conn.cmd(&mut cmd).await {
             Ok(list) => list,
-            Err(_) => return Ok(Vec::new()),
+            Err(err) => {
+                debug!(error = %err, "CLIENT LIST unavailable; returning empty worker list");
+                return Ok(Vec::new());
+            }
         };
 
         let unnamed = self.keys.client_name("");
