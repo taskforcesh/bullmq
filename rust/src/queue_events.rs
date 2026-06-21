@@ -367,7 +367,7 @@ pub struct QueueEvents {
     opts: QueueEventsOptions,
     closing: Arc<AtomicBool>,
     running: Arc<AtomicBool>,
-    event_tx: mpsc::UnboundedSender<QueueEventEntry>,
+    event_tx: Arc<Mutex<Option<mpsc::UnboundedSender<QueueEventEntry>>>>,
     event_rx: Arc<Mutex<mpsc::UnboundedReceiver<QueueEventEntry>>>,
     task: Arc<Mutex<Option<JoinHandle<()>>>>,
 }
@@ -421,7 +421,7 @@ impl QueueEvents {
             opts,
             closing: Arc::new(AtomicBool::new(false)),
             running: Arc::new(AtomicBool::new(false)),
-            event_tx,
+            event_tx: Arc::new(Mutex::new(Some(event_tx))),
             event_rx: Arc::new(Mutex::new(event_rx)),
             task: Arc::new(Mutex::new(None)),
         };
@@ -463,7 +463,13 @@ impl QueueEvents {
         let key = self.keys.events();
         let opts = self.opts.clone();
         let closing = self.closing.clone();
-        let tx = self.event_tx.clone();
+        let tx = self
+            .event_tx
+            .lock()
+            .await
+            .as_ref()
+            .cloned()
+            .ok_or_else(|| Error::InvalidConfig("QueueEvents is closed".to_string()))?;
 
         let handle = tokio::spawn(async move {
             Self::consume(conn, key, opts, closing, tx).await;
@@ -563,6 +569,7 @@ impl QueueEvents {
         if let Some(handle) = self.task.lock().await.take() {
             handle.abort();
         }
+        self.event_tx.lock().await.take();
         self.running.store(false, Ordering::SeqCst);
     }
 }

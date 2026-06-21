@@ -145,10 +145,10 @@ async fn test_update_job_progress_nonexistent_errors() {
         .update_job_progress("does-not-exist", JobProgress::Number(1.0))
         .await
         .unwrap_err();
-    assert!(
-        err.to_string().contains("updateProgress failed"),
-        "unexpected error: {err}"
-    );
+    match err {
+        bullmq::Error::Script { code, .. } => assert_eq!(code, -1),
+        other => panic!("unexpected error: {other}"),
+    }
 
     cleanup_queue(&queue).await;
 }

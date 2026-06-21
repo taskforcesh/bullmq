@@ -29,6 +29,20 @@ pub struct Queue {
 }
 
 impl Queue {
+    fn validate_job_size(job: &Job, argv2: &str) -> Result<(), Error> {
+        if let Some(size_limit) = job.opts().size_limit {
+            if argv2.len() > size_limit {
+                return Err(Error::InvalidConfig(format!(
+                    "The size of job {} exceeds the limit {} bytes",
+                    job.name(),
+                    size_limit
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
     /// Create a new Queue connected to Redis.
     pub async fn new(name: &str, opts: QueueOptions) -> Result<Self, Error> {
         validate_queue_name(name)?;
@@ -118,6 +132,11 @@ impl Queue {
             })
             .collect();
 
+        for job in &job_objects {
+            let argv2 = serde_json::to_string(job.data()).unwrap_or_else(|_| "{}".into());
+            Self::validate_job_size(job, &argv2)?;
+        }
+
         // Run all add_job calls concurrently since the connection is multiplexed
         let futures: Vec<_> = job_objects
             .iter()
@@ -149,20 +168,7 @@ impl Queue {
                 let argv3 = self.pack_job_opts(job);
                 let mut conn = self.conn.conn();
 
-                // Enforce sizeLimit client-side (matches Node.js `validateOptions`).
-                let size_check = match job.opts().size_limit {
-                    Some(limit) if argv2.len() > limit => Some(Error::InvalidConfig(format!(
-                        "The size of job {} exceeds the limit {} bytes",
-                        job.name(),
-                        limit
-                    ))),
-                    _ => None,
-                };
-
                 async move {
-                    if let Some(err) = size_check {
-                        return Err(err);
-                    }
                     let script = script?;
                     let argv1 = packed_args?;
                     let argv2_bytes = argv2.into_bytes();
@@ -219,15 +225,7 @@ impl Queue {
 
         // Enforce sizeLimit client-side (matches Node.js `validateOptions`):
         // reject jobs whose serialized data exceeds the configured byte limit.
-        if let Some(size_limit) = job.opts().size_limit {
-            if argv2.len() > size_limit {
-                return Err(Error::InvalidConfig(format!(
-                    "The size of job {} exceeds the limit {} bytes",
-                    job.name(),
-                    size_limit
-                )));
-            }
-        }
+        Self::validate_job_size(job, &argv2)?;
 
         // Build ARGV[3]: msgpack map of options
         let argv3 = self.pack_job_opts(job);
@@ -1121,7 +1119,10 @@ impl Queue {
     pub async fn get_workers(&self) -> Result<Vec<HashMap<String, String>>, Error> {
         let mut cmd = redis::cmd("CLIENT");
         cmd.arg("LIST");
-        let list: String = self.conn.cmd(&mut cmd).await?;
+        let list: String = match self.conn.cmd(&mut cmd).await {
+            Ok(list) => list,
+            Err(_) => return Ok(Vec::new()),
+        };
 
         let unnamed = self.keys.client_name("");
         let named_prefix = self.keys.client_name(":w:");
@@ -2097,10 +2098,7 @@ impl Queue {
         let result: redis::Value = script.execute(&mut conn, &keys, &args).await?;
 
         match result {
-            redis::Value::Int(code) if code < 0 => Err(Error::InvalidConfig(format!(
-                "updateProgress failed with code {} (job {} not found?)",
-                code, job_id
-            ))),
+            redis::Value::Int(code) if code < 0 => Err(Error::from_script_code(code)),
             _ => Ok(()),
         }
     }
