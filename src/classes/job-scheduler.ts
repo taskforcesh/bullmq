@@ -175,6 +175,7 @@ export class JobScheduler extends QueueBase {
 
             span?.setAttributes({
               [TelemetryAttributes.JobSchedulerId]: jobSchedulerId,
+              [TelemetryAttributes.JobSchedulerId_]: jobSchedulerId,
               [TelemetryAttributes.JobId]: job.id,
             });
 
@@ -201,6 +202,7 @@ export class JobScheduler extends QueueBase {
 
               span?.setAttributes({
                 [TelemetryAttributes.JobSchedulerId]: jobSchedulerId,
+                [TelemetryAttributes.JobSchedulerId_]: jobSchedulerId,
                 [TelemetryAttributes.JobId]: job.id,
               });
 
