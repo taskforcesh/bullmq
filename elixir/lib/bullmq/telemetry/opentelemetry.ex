@@ -1,4 +1,12 @@
 defmodule BullMQ.Telemetry.OpenTelemetry do
+  @compile {:no_warn_undefined, [
+    :opentelemetry,
+    :otel_ctx,
+    :otel_span,
+    :otel_tracer,
+    :otel_propagator_text_map
+  ]}
+
   @moduledoc """
   OpenTelemetry adapter for BullMQ distributed tracing.
 
