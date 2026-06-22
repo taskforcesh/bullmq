@@ -75,8 +75,8 @@ BullMQ automatically records the following metrics:
 
 ### Gauges
 
-| Metric Name         | Description                          | Unit   |
-| ------------------- | ------------------------------------ | ------ |
+| Metric Name         | Description                          | Unit     |
+| ------------------- | ------------------------------------ | -------- |
 | `bullmq.queue.jobs` | Number of jobs in the queue by state | `{jobs}` |
 
 Gauges are recorded when calling `recordJobCountsMetric()`. The `bullmq.queue.jobs` gauge includes a `bullmq.queue.jobs.state` attribute indicating which job state was counted (e.g., `waiting`, `active`, `completed`, `failed`, `delayed`, `prioritized`, `paused`, `waiting-children`).
@@ -93,10 +93,11 @@ Different metrics include different attributes for filtering and grouping:
 
 ### Job Metric Attributes (counters and histograms only)
 
-| Attribute           | Description                                                                        |
-| ------------------- | ---------------------------------------------------------------------------------- |
-| `bullmq.job.name`   | Name of the job                                                                    |
-| `bullmq.job.status` | Status of the job (completed, failed, delayed, retried, waiting, waiting-children) |
+| Attribute           | Description                                                                                                                              |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `bullmq.job.name`   | Name of the job                                                                                                                          |
+| `bullmq.job.status` | Status of the job (completed, failed, delayed, retried, waiting, waiting-children) (deprecated, will be removed in next breaking change) |
+| `bullmq.job.state`  | State of the job (completed, failed, delayed, retried, waiting, waiting-children)                                                        |
 
 ### Gauge Attributes (`bullmq.queue.jobs` only)
 
