@@ -21,7 +21,7 @@ classifiers=[
 keywords = ["python", "bullmq", "queues"]
 dependencies = [
     "redis ==6.4.0",
-    "msgpack ==1.1.2",
+    "msgpack ==1.2.1",
     "semver ==3.0.4"
 ]
 
