@@ -87,6 +87,8 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
   /**
     Returns the number of jobs waiting to be processed. This includes jobs that are
     "waiting" or "delayed" or "prioritized" or "waiting-children".
+
+    @remarks Jobs stored in a group are not counted here.
   */
   async count(): Promise<number> {
     const count = await this.getJobCountByTypes(
@@ -177,6 +179,8 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
    * Queue#getJobCountByTypes('completed') =\> completed count
    * Queue#getJobCountByTypes('completed', 'failed') =\> completed + failed count
    * Queue#getJobCountByTypes('completed', 'waiting', 'failed') =\> completed + waiting + failed count
+   *
+   * @remarks Jobs stored in a group are not counted here.
    */
   async getJobCountByTypes(...types: JobType[]): Promise<number> {
     const result = await this.getJobCounts(...types);
@@ -185,6 +189,9 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
 
   /**
    * Returns the job counts for each type specified or every list/set in the queue by default.
+   *
+   * @remarks Jobs stored in a group are not counted here.
+   *
    * @param types - the types of jobs to count. If not specified, it will return the counts for all types.
    * @returns An object, key (type) and value (count)
    */
@@ -206,6 +213,9 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
   /**
    * Records job counts as gauge metrics for telemetry purposes.
    * Each job state count is recorded with the queue name and state as attributes.
+   *
+   * @remarks Jobs stored in a group are not counted here.
+   *
    * @param types - the types of jobs to count. If not specified, it will return the counts for all types.
    * @returns An object, key (type) and value (count)
    */
@@ -281,6 +291,8 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
   }
 
   /**
+   * @remarks Jobs stored in a group are not counted here.
+   *
    * @returns Returns the number of jobs in completed status.
    */
   getCompletedCount(): Promise<number> {
@@ -289,6 +301,8 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
 
   /**
    * Returns the number of jobs in failed status.
+   *
+   * @remarks Jobs stored in a group are not counted here.
    */
   getFailedCount(): Promise<number> {
     return this.getJobCountByTypes('failed');
@@ -296,6 +310,8 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
 
   /**
    * Returns the number of jobs in delayed status.
+   *
+   * @remarks Jobs stored in a group are not counted here.
    */
   getDelayedCount(): Promise<number> {
     return this.getJobCountByTypes('delayed');
@@ -303,6 +319,8 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
 
   /**
    * Returns the number of jobs in active status.
+   *
+   * @remarks Jobs stored in a group are not counted here.
    */
   getActiveCount(): Promise<number> {
     return this.getJobCountByTypes('active');
@@ -310,6 +328,8 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
 
   /**
    * Returns the number of jobs in prioritized status.
+   *
+   * @remarks Jobs stored in a group are not counted here.
    */
   getPrioritizedCount(): Promise<number> {
     return this.getJobCountByTypes('prioritized');
@@ -334,6 +354,8 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
 
   /**
    * Returns the number of jobs in waiting or paused statuses.
+   *
+   * @remarks Jobs stored in a group are not counted here.
    */
   getWaitingCount(): Promise<number> {
     return this.getJobCountByTypes('waiting');
@@ -341,6 +363,8 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
 
   /**
    * Returns the number of jobs in waiting-children status.
+   *
+   * @remarks Jobs stored in a group are not counted here.
    */
   getWaitingChildrenCount(): Promise<number> {
     return this.getJobCountByTypes('waiting-children');
@@ -348,6 +372,9 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
 
   /**
    * Returns the jobs that are in the "waiting" status.
+   *
+   * @remarks Jobs stored in a group are not returned here.
+   *
    * @param start - zero based index from where to start returning jobs.
    * @param end - zero based index where to stop returning jobs.
    */
@@ -358,6 +385,9 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
   /**
    * Returns the jobs that are in the "waiting-children" status.
    * I.E. parent jobs that have at least one child that has not completed yet.
+   *
+   * @remarks Jobs stored in a group are not returned here.
+   *
    * @param start - zero based index from where to start returning jobs.
    * @param end - zero based index where to stop returning jobs.
    */
@@ -367,6 +397,9 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
 
   /**
    * Returns the jobs that are in the "active" status.
+   *
+   * @remarks Jobs stored in a group are not returned here.
+   *
    * @param start - zero based index from where to start returning jobs.
    * @param end - zero based index where to stop returning jobs.
    */
@@ -376,6 +409,9 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
 
   /**
    * Returns the jobs that are in the "delayed" status.
+   *
+   * @remarks Jobs stored in a group are not returned here.
+   *
    * @param start - zero based index from where to start returning jobs.
    * @param end - zero based index where to stop returning jobs.
    */
@@ -385,6 +421,9 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
 
   /**
    * Returns the jobs that are in the "prioritized" status.
+   *
+   * @remarks Jobs stored in a group are not returned here.
+   *
    * @param start - zero based index from where to start returning jobs.
    * @param end - zero based index where to stop returning jobs.
    */
@@ -394,6 +433,9 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
 
   /**
    * Returns the jobs that are in the "completed" status.
+   *
+   * @remarks Jobs stored in a group are not returned here.
+   *
    * @param start - zero based index from where to start returning jobs.
    * @param end - zero based index where to stop returning jobs.
    */
@@ -403,6 +445,9 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
 
   /**
    * Returns the jobs that are in the "failed" status.
+   *
+   * @remarks Jobs stored in a group are not returned here.
+   *
    * @param start - zero based index from where to start returning jobs.
    * @param end - zero based index where to stop returning jobs.
    */
@@ -492,6 +537,9 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
 
   /**
    * Returns the jobs that are on the given statuses (note that JobType is synonym for job status)
+   *
+   * @remarks Jobs stored in a group are not returned here.
+   *
    * @param types - the statuses of the jobs to return.
    * @param start - zero based index from where to start returning jobs.
    * @param end - zero based index where to stop returning jobs.
