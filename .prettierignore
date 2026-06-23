@@ -1,5 +1,4 @@
 # Auto-generated changelogs (managed by semantic-release)
-docs/gitbook/changelog.md
-docs/gitbook/python/changelog.md
-docs/gitbook/elixir/changelog.md
-docs/gitbook/php/changelog.md
+CHANGELOG.md
+**/CHANGELOG.md
+**/changelog.md
