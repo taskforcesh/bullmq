@@ -315,7 +315,14 @@ export class FlowProducer extends EventEmitter {
           }
 
           const [err, jobId] = result;
-          if (!err && typeof jobId === 'string') {
+          // Surface a failed pipeline command instead of silently returning a
+          // job node that was never persisted (for example when Redis is
+          // READONLY during a failover, see GH #3851). This mirrors the error
+          // handling already performed by add().
+          if (err) {
+            throw err;
+          }
+          if (typeof jobId === 'string') {
             jobsTrees[index].job.id = jobId;
           }
         }
