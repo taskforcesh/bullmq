@@ -317,6 +317,44 @@ describe('workers', () => {
     await worker.close();
   });
 
+  it('process a job that updates progress with a typed progress generic', async () => {
+    type CustomProgress = { percent: number; message: string };
+    const expected: CustomProgress = { percent: 42, message: 'halfway' };
+
+    const job = await queue.add('test', { foo: 'bar' });
+    expect(job.id).toBeTruthy();
+    expect(job.data.foo).toEqual('bar');
+
+    // The 4th generic parameter makes progress type-safe end-to-end: the
+    // processor's `job.updateProgress` only accepts CustomProgress, and the
+    // `progress` event handler receives it typed as CustomProgress.
+    const worker = new Worker<{ foo: string }, void, string, CustomProgress>(
+      queueName,
+      async job => {
+        expect(job.data.foo).toBe('bar');
+        await job.updateProgress(expected);
+      },
+      { connection, prefix },
+    );
+
+    const processing = new Promise<void>((resolve, reject) => {
+      worker.on('progress', (_job, progress) => {
+        try {
+          expect(progress).toEqual(expected);
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+
+    await worker.waitUntilReady();
+
+    await processing;
+
+    await worker.close();
+  });
+
   it('processes jobs that were added before the worker started', async () => {
     const jobs = [
       queue.add('test', { bar: 'baz' }),
