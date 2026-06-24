@@ -466,7 +466,7 @@ export class Queue<
    * @returns The next job to be scheduled (would normally be in delayed state).
    */
   async upsertJobScheduler(
-    jobSchedulerId: NameType,
+    jobSchedulerId: string,
     repeatOpts: Omit<RepeatOptions, 'key'>,
     jobTemplate?: {
       name?: NameType;
