@@ -235,20 +235,19 @@ const getFreePort = async () => {
   });
 };
 
-const convertExecArgv = async (execArgv: string[]): Promise<string[]> => {
-  const standard: string[] = [];
-  const convertedArgs: string[] = [];
+export const convertExecArgv = async (
+  execArgv: string[],
+): Promise<string[]> => {
+  const resultArgs: string[] = [];
 
-  for (let i = 0; i < execArgv.length; i++) {
-    const arg = execArgv[i];
-    if (arg.indexOf('--inspect') === -1) {
-      standard.push(arg);
-    } else {
-      const argName = arg.split('=')[0];
+  for (const arg of execArgv) {
+    const argName = arg.split('=')[0];
+
+    if (argName === '--inspect' || argName === '--inspect-brk') {
       const port = await getFreePort();
-      convertedArgs.push(`${argName}=${port}`);
+      resultArgs.push(`${argName}=${port}`);
     }
   }
 
-  return standard.concat(convertedArgs);
+  return resultArgs;
 };
