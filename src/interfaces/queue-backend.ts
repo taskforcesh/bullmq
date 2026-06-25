@@ -29,18 +29,20 @@ import {
  * ("move job to active", "extend lock", "promote job", …) **independently of
  * the underlying datastore**.
  *
- * Today the only implementation is the Redis adapter ({@link Scripts}), which
+ * Today the only implementation is the Redis adapter ({@link RedisQueueBackend}), which
  * fulfils every operation using Lua scripts and a small number of plain Redis
  * commands. A future implementation (e.g. PostgreSQL) could fulfil the very
  * same operations using SQL functions/procedures, `LISTEN`/`NOTIFY`, etc.,
  * without requiring any change to `Queue`, `Worker` or `Job`.
  *
- * The method names and signatures intentionally mirror the existing `Scripts`
- * class so that the Redis adapter is a near drop-in implementation. Operations
- * that used to be performed via direct datastore commands scattered across the
- * three classes (queue metadata, job getters, the blocking "wait for next job"
- * primitive, …) have been promoted into this interface so that the three
- * classes never need to talk to the datastore directly.
+ * The method names and signatures intentionally mirror the existing
+ * `RedisQueueBackend` class so that the Redis adapter is a near
+ * drop-in implementation.
+ * Operations that used to be performed via direct datastore
+ * commands scattered across the three classes (queue metadata, job getters,
+ * the blocking "wait for next job" primitive, …) have been promoted into
+ * this interface so that the three classes never need to talk to the
+ * datastore directly.
  *
  * @remarks
  * Low-level, Redis-specific helpers (Lua KEYS/ARGV builders, error-code
@@ -728,8 +730,13 @@ export interface IQueueBackend {
  * the queue classes so they depend only on the abstraction, never on a concrete
  * datastore/connection. The default factory is the Redis one
  * (`createRedisBackend`).
+ *
+ * The factory is generic over the concrete backend type `B` it produces, so a
+ * caller (or class) parameterized on `B` keeps the concrete typing end-to-end
+ * (e.g. `getBackend()` returning the concrete adapter instead of the bare
+ * interface).
  */
-export type BackendFactory = (
+export type BackendFactory<B extends IQueueBackend = IQueueBackend> = (
   name: string,
   opts: QueueBaseOptions,
   options?: {
@@ -738,4 +745,4 @@ export type BackendFactory = (
     /** Provision a dedicated blocking connection (workers). */
     withBlockingConnection?: boolean;
   },
-) => IQueueBackend;
+) => B;

@@ -10,13 +10,13 @@ import {
   ParentKeyOpts,
   ParentOptions,
   QueueBaseOptions,
-  RedisClient,
   Tracer,
   ContextManager,
 } from '../interfaces';
 import { getParentKey, randomUUID, trace } from '../utils';
 import { createRedisBackend } from '../utils/create-backend';
 import { Job } from './job';
+import { RedisQueueBackend } from './redis-queue-backend';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { ErrorCode, SpanKind, TelemetryAttributes } from '../enums';
 
@@ -100,13 +100,15 @@ export interface FlowProducerListener extends IoredisListener {
  * will be processed, being able to access the children's result data.
  * All Jobs can be in different queues, either children or parents,
  */
-export class FlowProducer extends EventEmitter {
+export class FlowProducer<
+  B extends IQueueBackend = RedisQueueBackend,
+> extends EventEmitter {
   toKey: (name: string, type: string) => string;
   keys: KeysMap;
   closing: Promise<void> | undefined;
   queueKeys: QueueKeys;
 
-  protected backend: IQueueBackend;
+  protected backend: B;
   protected telemetry: {
     tracer: Tracer | undefined;
     contextManager: ContextManager | undefined;
@@ -114,7 +116,7 @@ export class FlowProducer extends EventEmitter {
 
   constructor(
     public opts: QueueBaseOptions = { connection: {} },
-    backendFactory: BackendFactory = createRedisBackend,
+    backendFactory: BackendFactory<B> = createRedisBackend as unknown as BackendFactory<B>,
   ) {
     super();
 
@@ -188,9 +190,11 @@ export class FlowProducer extends EventEmitter {
    *
    * The backend owns its connection and exposes every datastore-agnostic
    * operation through {@link IQueueBackend}. Datastore-specific escape hatches
-   * (e.g. the raw Redis client) live on the concrete backend implementation.
+   * (e.g. the raw Redis client) live on the concrete backend implementation,
+   * and are exposed here when the flow producer is parameterized on that
+   * concrete backend type (the default is the Redis backend).
    */
-  getBackend(): IQueueBackend {
+  getBackend(): B {
     return this.backend;
   }
 
