@@ -711,13 +711,13 @@ describe('connection', () => {
         },
       };
 
-      const queue = new QueueBase(queueName, opts);
+      const queue = new Queue(queueName, opts);
       const client = await getRedisClient(queue);
       await client.config('SET', 'maxmemory-policy', 'volatile-lru');
 
-      const queue2 = new QueueBase(`${queueName}2`, opts);
+      const queue2 = new Queue(`${queueName}2`, opts);
 
-      await expect(queue2.client).to.be.eventually.rejectedWith(
+      await expect(getRedisClient(queue2)).to.be.eventually.rejectedWith(
         'Eviction policy is volatile-lru. It should be "noeviction"',
       );
       await client.config('SET', 'maxmemory-policy', 'noeviction');

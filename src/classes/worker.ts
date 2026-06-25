@@ -7,6 +7,7 @@ import {
   BackendFactory,
   GetNextJobOptions,
   IoredisListener,
+  IQueueBackend,
   JobJson,
   LockManagerWorkerContext,
   MinimalQueue,
@@ -22,6 +23,7 @@ import {
   randomUUID,
 } from '../utils';
 import { QueueBase } from './queue-base';
+import { RedisQueueBackend } from './redis-queue-backend';
 import { ChildPool } from './child-pool';
 import { Job } from './job';
 import sandbox from './sandbox';
@@ -178,7 +180,8 @@ export class Worker<
   DataType = any,
   ResultType = any,
   NameType extends string = string,
-> extends QueueBase {
+  B extends IQueueBackend = RedisQueueBackend,
+> extends QueueBase<B> {
   declare readonly opts: WorkerOptions;
   readonly id: string;
 
@@ -210,7 +213,7 @@ export class Worker<
     name: string,
     processor?: string | URL | null | Processor<DataType, ResultType, NameType>,
     opts?: WorkerOptions,
-    backendFactory?: BackendFactory,
+    backendFactory?: BackendFactory<B>,
   ) {
     super(
       name,

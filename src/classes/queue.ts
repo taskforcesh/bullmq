@@ -3,6 +3,7 @@ import {
   BaseJobOptions,
   BulkJobOptions,
   IoredisListener,
+  IQueueBackend,
   JobSchedulerJson,
   MinimalQueue,
   QueueOptions,
@@ -16,6 +17,7 @@ import {
 } from '../types';
 import { Job } from './job';
 import { QueueGetters } from './queue-getters';
+import { RedisQueueBackend } from './redis-queue-backend';
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { JobScheduler } from './job-scheduler';
 import { version } from '../version';
@@ -145,7 +147,8 @@ export class Queue<
   DataType = ExtractDataType<DataTypeOrJob, DataTypeOrJob>,
   ResultType = ExtractResultType<DataTypeOrJob, DefaultResultType>,
   NameType extends string = ExtractNameType<DataTypeOrJob, DefaultNameType>,
-> extends QueueGetters<JobBase<DataTypeOrJob, ResultType, NameType>> {
+  B extends IQueueBackend = RedisQueueBackend,
+> extends QueueGetters<JobBase<DataTypeOrJob, ResultType, NameType>, B> {
   token = randomUUID();
   jobsOpts: BaseJobOptions;
   declare opts: QueueOptions;
@@ -157,7 +160,7 @@ export class Queue<
   constructor(
     name: string,
     opts?: QueueOptions,
-    backendFactory?: BackendFactory,
+    backendFactory?: BackendFactory<B>,
   ) {
     super(
       name,

@@ -44,7 +44,7 @@ const createBlockingConnection = (
  * Other datastores can provide their own {@link BackendFactory} and inject it
  * into the queue classes.
  */
-export const createRedisBackend: BackendFactory = (
+export const createRedisBackend: BackendFactory<RedisQueueBackend> = (
   name,
   opts,
   { blocking = false, withBlockingConnection = false } = {},

@@ -18,15 +18,18 @@ import { SpanKind } from '../enums';
  * This class is normally not used directly, but extended by the other classes.
  *
  */
-export class QueueBase extends EventEmitter implements MinimalQueue {
+export class QueueBase<B extends IQueueBackend = IQueueBackend>
+  extends EventEmitter
+  implements MinimalQueue
+{
   toKey: (type: string) => string;
   keys: KeysMap;
   closing: Promise<void> | undefined;
 
   protected closed = false;
   protected hasBlockingConnection = false;
-  backend: IQueueBackend;
-  protected readonly backendFactory: BackendFactory;
+  backend: B;
+  protected readonly backendFactory: BackendFactory<B>;
   public readonly qualifiedName: string;
 
   /**
@@ -40,7 +43,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
   constructor(
     public readonly name: string,
     public opts: QueueBaseOptions = { connection: {} },
-    backendFactory: BackendFactory = createRedisBackend,
+    backendFactory: BackendFactory<B> = createRedisBackend as unknown as BackendFactory<B>,
     hasBlockingConnection = false,
   ) {
     super();
@@ -86,9 +89,11 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
    *
    * The backend owns its connection(s) and exposes every datastore-agnostic
    * operation through {@link IQueueBackend}. Datastore-specific escape hatches
-   * (e.g. the raw Redis client) live on the concrete backend implementation.
+   * (e.g. the raw Redis client) live on the concrete backend implementation,
+   * and are exposed here when the class is parameterized on that concrete
+   * backend type (the default for the built-in, Redis-backed classes).
    */
-  getBackend(): IQueueBackend {
+  getBackend(): B {
     return this.backend;
   }
 
