@@ -559,6 +559,19 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       await worker.waitUntilReady();
 
+      // Register the active listener before adding jobs so we never miss an
+      // 'active' event (the worker can move jobs to active while the bulk add
+      // is still in flight).
+      let activeCount = 0;
+      const allActive = new Promise<void>(resolve => {
+        worker.on('active', () => {
+          activeCount++;
+          if (activeCount === concurrency) {
+            resolve();
+          }
+        });
+      });
+
       // Add many jobs
       const jobs = await Promise.all(
         Array.from({ length: concurrency }, (_, i) =>
@@ -567,15 +580,7 @@ describe('Job Cancellation - Advanced Scenarios', () => {
       );
 
       // Wait for all to be active
-      let activeCount = 0;
-      await new Promise<void>(resolve => {
-        worker.on('active', () => {
-          activeCount++;
-          if (activeCount === concurrency) {
-            resolve();
-          }
-        });
-      });
+      await allActive;
 
       // Cancel half of them rapidly
       const jobsToCancel = jobs.slice(0, 5);

@@ -1,3 +1,4 @@
+import { getRedisClient } from './utils/get-redis-client';
 import {
   describe,
   beforeEach,
@@ -43,14 +44,14 @@ describe('scripts', () => {
     const testSet = 'test-set';
 
     beforeEach(async () => {
-      const client = await queue.client;
+      const client = await getRedisClient(queue);
       await client.del(testSet);
     });
 
     it('should paginate a small set same size as set', async () => {
-      const scripts = queue['scripts'];
+      const scripts = queue['backend'];
 
-      const client = await queue.client;
+      const client = await getRedisClient(queue);
       await client.sadd(
         testSet,
         'a',
@@ -89,11 +90,11 @@ describe('scripts', () => {
     });
 
     it('should paginate a small set different size as set', async () => {
-      const scripts = queue['scripts'];
+      const scripts = queue['backend'];
 
       const members = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
 
-      const client = await queue.client;
+      const client = await getRedisClient(queue);
       await client.sadd(testSet, ...members);
 
       const page = await scripts.paginate(testSet, { start: 3, end: 7 });
@@ -104,9 +105,9 @@ describe('scripts', () => {
     });
 
     it('should paginate a large set in pages of given size', async () => {
-      const scripts = queue['scripts'];
+      const scripts = queue['backend'];
 
-      const client = await queue.client;
+      const client = await getRedisClient(queue);
 
       const pageSize = 13;
       const numPages = 1;
@@ -141,14 +142,14 @@ describe('scripts', () => {
     const testHash = 'test-hash';
 
     beforeEach(async () => {
-      const client = await queue.client;
+      const client = await getRedisClient(queue);
       await client.del(testHash);
     });
 
     it('should paginate a small hash same size as hash', async () => {
-      const scripts = queue['scripts'];
+      const scripts = queue['backend'];
 
-      const client = await queue.client;
+      const client = await getRedisClient(queue);
       await client.hset(testHash, {
         a: JSON.stringify('a'),
         b: JSON.stringify('b'),
@@ -176,9 +177,9 @@ describe('scripts', () => {
     });
 
     it('should paginate a small hash different size as hash', async () => {
-      const scripts = queue['scripts'];
+      const scripts = queue['backend'];
 
-      const client = await queue.client;
+      const client = await getRedisClient(queue);
       await client.hset(testHash, {
         a: JSON.stringify('a'),
         b: JSON.stringify('b'),
@@ -209,9 +210,9 @@ describe('scripts', () => {
     });
 
     it('should paginate a large hash in pages of given size', async () => {
-      const scripts = queue['scripts'];
+      const scripts = queue['backend'];
 
-      const client = await queue.client;
+      const client = await getRedisClient(queue);
 
       const pageSize = 13;
       const numPages = 137;

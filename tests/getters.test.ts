@@ -1,5 +1,6 @@
 'use strict';
 
+import { getBlockingRedisClient } from './utils/get-redis-client';
 import { after } from 'lodash';
 import {
   describe,
@@ -238,7 +239,8 @@ describe('Jobs getters', () => {
             resolve();
           });
         });
-        const client = await worker.waitUntilReady();
+        await worker.waitUntilReady();
+        const client = await getBlockingRedisClient(worker);
 
         const workers = await queue.getWorkers();
         expect(workers).toHaveLength(1);

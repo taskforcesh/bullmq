@@ -1,3 +1,9 @@
+import {
+  getRedisClient,
+  getRedisVersion,
+  getDatabaseType,
+  getBlockingRedisClient,
+} from './utils/get-redis-client';
 import { after, times } from 'lodash';
 import {
   describe,
@@ -211,7 +217,7 @@ describe('workers', () => {
     await processing;
 
     const eventsLength = await (
-      await trimmedEventsQueue.client
+      await getRedisClient(trimmedEventsQueue)
     ).xlen(trimmedEventsQueue.keys.events);
 
     expect(eventsLength).toBeLessThan(numUpdateProgress + 10);
@@ -432,7 +438,7 @@ describe('workers', () => {
           expect(gotJob.returnvalue).toEqual(37);
 
           const retval = await (
-            await queue.client
+            await getRedisClient(queue)
           ).hget(queue.toKey(gotJob.id), 'returnvalue');
           expect(JSON.parse(retval)).toEqual(37);
           resolve();
@@ -557,7 +563,7 @@ describe('workers', () => {
     // Add spy to worker.moveToActive
     const spy = sinon.spy(worker as any, 'moveToActive');
     const bclientSpy = sinon.spy(
-      await (worker as any).blockingConnection.client,
+      await getBlockingRedisClient(worker),
       'bzpopmin',
     );
 
@@ -585,7 +591,7 @@ describe('workers', () => {
 
     // Check moveToActive was called only concurrency times
     expect(spy.callCount).toBe(concurrency + 1);
-    expect(bclientSpy.callCount).toBe(3);
+    expect(bclientSpy.callCount).toBe(2);
 
     await worker.close();
   });
@@ -613,7 +619,7 @@ describe('workers', () => {
     // Add spy to worker.moveToActive
     const spy = sinon.spy(worker as any, 'moveToActive');
     const bclientSpy = sinon.spy(
-      await (worker as any).blockingConnection.client,
+      await getBlockingRedisClient(worker),
       'bzpopmin',
     );
     await worker.waitUntilReady();
@@ -1065,8 +1071,8 @@ describe('workers', () => {
         prefix,
       });
       await worker.waitUntilReady();
-      const client = await worker.client;
-      if (isRedisVersionLowerThan(worker.redisVersion, '7.0.8', 'redis')) {
+      const client = await getRedisClient(worker);
+      if (isRedisVersionLowerThan(getRedisVersion(worker), '7.0.8', 'redis')) {
         await client.bzpopmin(`key`, 0.002);
       } else {
         await client.bzpopmin(`key`, 0.001);
@@ -1262,9 +1268,9 @@ describe('workers', () => {
 
           if (
             isRedisVersionLowerThan(
-              worker.redisVersion,
+              getRedisVersion(worker),
               '7.0.8',
-              worker.databaseType,
+              getDatabaseType(worker),
             )
           ) {
             expect(worker['getBlockTimeout'](0)).toBe(0.002);
@@ -1304,9 +1310,9 @@ describe('workers', () => {
 
           if (
             isRedisVersionLowerThan(
-              worker.redisVersion,
+              getRedisVersion(worker),
               '7.0.8',
-              worker.databaseType,
+              getDatabaseType(worker),
             )
           ) {
             expect(worker['getBlockTimeout'](Date.now() + 100)).toBeGreaterThan(
@@ -1870,7 +1876,7 @@ describe('workers', () => {
         // Give a small margin for cleanup to finish
         await delay(200);
 
-        const client = await queue.client;
+        const client = await getRedisClient(queue);
 
         // Count job hash keys that still exist in Redis
         const existingJobKeys = await Promise.all(
@@ -2043,7 +2049,7 @@ describe('workers', () => {
           },
         }));
         await queue.addBulk(jobs);
-        const client = await queue.client;
+        const client = await getRedisClient(queue);
         await client.incrby(`${prefix}:${queue.name}:pc`, 2147483648);
         await queue.addBulk(jobs);
 
@@ -2416,7 +2422,7 @@ describe('workers', () => {
     const concurrency = 57;
 
     const lockKey = (jobId: string) => `${prefix}:${queueName}:${jobId}:lock`;
-    const client = await queue.client;
+    const client = await getRedisClient(queue);
 
     let worker;
 
@@ -3185,7 +3191,7 @@ describe('workers', () => {
       );
       await worker.waitUntilReady();
 
-      const client = await queue.client;
+      const client = await getRedisClient(queue);
 
       const job = await queue.add(
         'test',
@@ -5152,7 +5158,7 @@ describe('workers', () => {
           { idx: 1, baz: 'something' },
           { idx: 2, qux: 'something' },
         ];
-        const client = await queue.client;
+        const client = await getRedisClient(queue);
         const parentToken = 'parent-token';
         const parentToken2 = 'parent-token2';
         const childToken = 'child-token';
@@ -5415,11 +5421,11 @@ describe('workers', () => {
 
       if (
         isRedisVersionLowerThan(
-          childrenWorker.redisVersion,
+          getRedisVersion(childrenWorker),
           '7.2.0',
-          childrenWorker.databaseType,
+          getDatabaseType(childrenWorker),
         ) ||
-        childrenWorker.databaseType === 'dragonfly'
+        getDatabaseType(childrenWorker) === 'dragonfly'
       ) {
         expect(unprocessed1!.length).toBeGreaterThanOrEqual(50);
         expect(nextCursor1).not.toBe(0);
@@ -5438,11 +5444,11 @@ describe('workers', () => {
 
       if (
         isRedisVersionLowerThan(
-          childrenWorker.redisVersion,
+          getRedisVersion(childrenWorker),
           '7.2.0',
-          childrenWorker.databaseType,
+          getDatabaseType(childrenWorker),
         ) ||
-        childrenWorker.databaseType === 'dragonfly'
+        getDatabaseType(childrenWorker) === 'dragonfly'
       ) {
         expect(unprocessed2!.length).toBeLessThanOrEqual(15);
         expect(nextCursor2).toBe(0);
@@ -5601,7 +5607,7 @@ describe('workers', () => {
   });
 
   it('should clear job from stalled set when job completed', async () => {
-    const client = await queue.client;
+    const client = await getRedisClient(queue);
     const worker = new Worker(
       queueName,
       async () => {

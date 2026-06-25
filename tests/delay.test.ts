@@ -1,3 +1,4 @@
+import { getRedisClient } from './utils/get-redis-client';
 import { after } from 'lodash';
 import {
   describe,
@@ -165,7 +166,7 @@ describe('Delayed jobs', () => {
 
       await delayed;
 
-      const client = await queue.client;
+      const client = await getRedisClient(queue);
       await client.del(queue.toKey('marker'));
 
       worker.run();

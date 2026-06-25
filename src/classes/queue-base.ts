@@ -1,25 +1,17 @@
 import { EventEmitter } from 'events';
 import {
+  BackendFactory,
+  IQueueBackend,
   MinimalQueue,
   QueueBaseOptions,
-  RedisClient,
   Span,
 } from '../interfaces';
 
-import {
-  delay,
-  DELAY_TIME_5,
-  isNotConnectionError,
-  isRedisInstance,
-  trace,
-} from '../utils';
-import { createScripts } from '../utils/create-scripts';
-import { RedisConnection } from './redis-connection';
+import { delay, DELAY_TIME_5, isNotConnectionError, trace } from '../utils';
+import { createRedisBackend } from '../utils/create-backend';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
-import { Scripts } from './scripts';
 import { SpanKind } from '../enums';
-import { DatabaseType } from '../types/database-type';
 
 /**
  * Base class for all classes that need to interact with queues.
@@ -33,25 +25,27 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
 
   protected closed = false;
   protected hasBlockingConnection = false;
-  protected scripts: Scripts;
-  protected connection: RedisConnection;
+  backend: IQueueBackend;
+  protected readonly backendFactory: BackendFactory;
   public readonly qualifiedName: string;
 
   /**
    *
    * @param name - The name of the queue.
    * @param opts - Options for the queue.
-   * @param Connection - An optional "Connection" class used to instantiate a Connection. This is useful for
-   * testing with mockups and/or extending the Connection class and passing an alternate implementation.
+   * @param backendFactory - Factory used to build the {@link IQueueBackend}.
+   * Defaults to the Redis backend; inject a different factory to use another
+   * datastore or a test mock.
    */
   constructor(
     public readonly name: string,
     public opts: QueueBaseOptions = { connection: {} },
-    Connection: typeof RedisConnection = RedisConnection,
+    backendFactory: BackendFactory = createRedisBackend,
     hasBlockingConnection = false,
   ) {
     super();
 
+    this.backendFactory = backendFactory;
     this.hasBlockingConnection = hasBlockingConnection;
     this.opts = {
       prefix: 'bull',
@@ -66,50 +60,42 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
       throw new Error('Queue name cannot contain :');
     }
 
-    this.connection = new Connection(opts.connection, {
-      shared: isRedisInstance(opts.connection),
-      blocking: hasBlockingConnection,
-      skipVersionCheck: opts.skipVersionCheck,
-      skipWaitingForReady: opts.skipWaitingForReady,
-    });
-
-    this.connection.on('error', (error: Error) => this.emit('error', error));
-    this.connection.on('close', () => {
-      if (!this.closing) {
-        this.emit('ioredis:close');
-      }
-    });
-
     const queueKeys = new QueueKeys(opts.prefix);
     this.qualifiedName = queueKeys.getQueueQualifiedName(name);
     this.keys = queueKeys.getKeys(name);
     this.toKey = (type: string) => queueKeys.toKey(name, type);
-    this.createScripts();
+    this.createBackend();
+
+    this.backend.on('error', (error: Error) => this.emit('error', error));
+    this.backend.on('close', () => {
+      if (!this.closing) {
+        this.emit('ioredis:close');
+      }
+    });
   }
 
   /**
-   * Returns a promise that resolves to a redis client. Normally used only by subclasses.
+   * Resolves once the underlying backend (and its connection) is ready.
    */
-  get client(): Promise<RedisClient> {
-    return this.connection.client;
-  }
-
-  protected createScripts() {
-    this.scripts = createScripts(this);
+  waitUntilReady(): Promise<void> {
+    return this.backend.waitUntilReady();
   }
 
   /**
-   * Returns the version of the Redis instance the client is connected to,
+   * Returns the datastore backend that powers this instance.
+   *
+   * The backend owns its connection(s) and exposes every datastore-agnostic
+   * operation through {@link IQueueBackend}. Datastore-specific escape hatches
+   * (e.g. the raw Redis client) live on the concrete backend implementation.
    */
-  get redisVersion(): string {
-    return this.connection.redisVersion;
+  getBackend(): IQueueBackend {
+    return this.backend;
   }
 
-  /**
-   * Returns the database type of the Redis instance the client is connected to,
-   */
-  get databaseType(): DatabaseType {
-    return this.connection.databaseType;
+  protected createBackend(): void {
+    this.backend = this.backendFactory(this.name, this.opts, {
+      blocking: this.hasBlockingConnection,
+    });
   }
 
   /**
@@ -140,10 +126,6 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     }
   }
 
-  waitUntilReady(): Promise<RedisClient> {
-    return this.client;
-  }
-
   protected base64Name(): string {
     return Buffer.from(this.name).toString('base64');
   }
@@ -159,7 +141,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
    */
   async close(): Promise<void> {
     if (!this.closing) {
-      this.closing = this.connection.close();
+      this.closing = this.backend.close();
     }
     await this.closing;
     this.closed = true;
@@ -170,7 +152,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
    * Force disconnects a connection.
    */
   disconnect(): Promise<void> {
-    return this.connection.disconnect();
+    return this.backend.disconnect();
   }
 
   protected async checkConnectionError<T>(
