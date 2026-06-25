@@ -140,13 +140,14 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
    * many queues that a flow may span over a single connection. The sibling
    * does not own the connection, so its `close`/`disconnect` are no-ops.
    */
-  forQueue(queueName: string): IQueueBackend {
-    const queueKeys = new QueueKeys(this.queue.opts.prefix);
+  forQueue(queueName: string, prefix?: string): IQueueBackend {
+    const resolvedPrefix = prefix ?? this.queue.opts.prefix;
+    const queueKeys = new QueueKeys(resolvedPrefix);
     return new RedisQueueBackend(
       this.connection,
       queueKeys.getKeys(queueName),
       (type: string) => queueKeys.toKey(queueName, type),
-      this.queue.opts,
+      { ...this.queue.opts, prefix: resolvedPrefix },
       this.blockingConnection,
       false,
     );

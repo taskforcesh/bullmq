@@ -600,7 +600,7 @@ export class FlowProducer extends EventEmitter {
       opts: { prefix, connection: {} },
       qualifiedName: queueKeys.getQueueQualifiedName(node.queueName),
       closing: this.closing,
-      backend: this.backend.forQueue(node.queueName),
+      backend: this.backend.forQueue(node.queueName, prefix),
       waitUntilReady: async (): Promise<void> => {
         await this.backend.waitUntilReady();
       },

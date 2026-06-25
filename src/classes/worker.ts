@@ -330,7 +330,11 @@ export class Worker<
       }
     }
 
-    this.backend.on('ready', () => setTimeout(() => this.emit('ready'), 0));
+    // The backend may forward a 'ready' event for each of its underlying
+    // connections (the main and, when present, the dedicated blocking one).
+    // Use `once` so the Worker emits 'ready' a single time, preserving the
+    // previous single-emission semantics.
+    this.backend.once('ready', () => setTimeout(() => this.emit('ready'), 0));
   }
 
   /**
