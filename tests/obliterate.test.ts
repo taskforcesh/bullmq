@@ -1,3 +1,4 @@
+import { getRedisClient } from './utils/get-redis-client';
 import { after } from 'lodash';
 import {
   describe,
@@ -48,7 +49,7 @@ describe('Obliterate', () => {
 
     await queue.obliterate();
 
-    const client = await queue.client;
+    const client = await getRedisClient(queue);
     const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
     expect(keys.length).toEqual(0);
@@ -62,7 +63,7 @@ describe('Obliterate', () => {
 
     await queue.obliterate();
 
-    const client = await queue.client;
+    const client = await getRedisClient(queue);
     const keys = await client.keys(`${prefix}:${queue.name}:*`);
     expect(keys.length).toEqual(0);
   });
@@ -92,7 +93,7 @@ describe('Obliterate', () => {
     await job.waitUntilFinished(queueEvents);
 
     await queue.obliterate();
-    const client = await queue.client;
+    const client = await getRedisClient(queue);
     const keys = await client.keys(`${prefix}:${queue.name}:*`);
     expect(keys.length).toEqual(0);
 
@@ -123,7 +124,7 @@ describe('Obliterate', () => {
 
           await queue.obliterate();
 
-          const client = await queue.client;
+          const client = await getRedisClient(queue);
           const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
           expect(keys.length).toEqual(0);
@@ -181,7 +182,7 @@ describe('Obliterate', () => {
           await completing;
           await queue.obliterate();
 
-          const client = await queue.client;
+          const client = await getRedisClient(queue);
           const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
           expect(keys.length).toEqual(0);
@@ -221,7 +222,7 @@ describe('Obliterate', () => {
 
           await queue.obliterate();
 
-          const client = await queue.client;
+          const client = await getRedisClient(queue);
           const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
           expect(keys.length).toEqual(3);
@@ -263,7 +264,7 @@ describe('Obliterate', () => {
 
           await queue.obliterate();
 
-          const client = await queue.client;
+          const client = await getRedisClient(queue);
           const keys = await client.keys(`${prefix}:${queueName}:*`);
 
           expect(keys.length).toEqual(0);
@@ -312,7 +313,7 @@ describe('Obliterate', () => {
 
           await queue.obliterate();
 
-          const client = await queue.client;
+          const client = await getRedisClient(queue);
           const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
           expect(keys.length).toEqual(0);
@@ -361,7 +362,7 @@ describe('Obliterate', () => {
     await expect(queue.obliterate()).rejects.toThrow(
       'Cannot obliterate queue with active jobs',
     );
-    const client = await queue.client;
+    const client = await getRedisClient(queue);
     const keys = await client.keys(`${prefix}:${queue.name}:*`);
     expect(keys.length).not.toEqual(0);
 
@@ -393,31 +394,23 @@ describe('Obliterate', () => {
 
     await job.waitUntilFinished(queueEvents);
     await queue.obliterate({ force: true });
-    const client = await queue.client;
+    const client = await getRedisClient(queue);
     const keys = await client.keys(`${prefix}:${queue.name}:*`);
     expect(keys.length).toEqual(0);
 
     await worker.close();
   });
 
-  it('should remove repeatable jobs', async () => {
+  it('should remove job schedulers', async () => {
     await queue.waitUntilReady();
 
-    await queue.add(
-      'test',
-      { foo: 'bar' },
-      {
-        repeat: {
-          every: 1000,
-        },
-      },
-    );
+    await queue.upsertJobScheduler('test-scheduler', { every: 1000 });
 
-    const repeatableJobs = await queue.getRepeatableJobs();
-    expect(repeatableJobs).toHaveLength(1);
+    const jobSchedulers = await queue.getJobSchedulers();
+    expect(jobSchedulers).toHaveLength(1);
 
     await queue.obliterate();
-    const client = await queue.client;
+    const client = await getRedisClient(queue);
     const keys = await client.keys(`${prefix}:${queue.name}:*`);
     expect(keys.length).toEqual(0);
   });
@@ -493,7 +486,7 @@ describe('Obliterate', () => {
     await Promise.all(arr3);
 
     await queue.obliterate();
-    const client = await queue.client;
+    const client = await getRedisClient(queue);
     const keys = await client.keys(`${prefix}:${queue.name}*`);
     expect(keys.length).toEqual(0);
   });

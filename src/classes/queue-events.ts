@@ -1,18 +1,12 @@
 import { JobProgress } from '../types';
 import {
+  BackendFactory,
   IoredisListener,
   QueueEventsOptions,
-  RedisClient,
   StreamReadRaw,
 } from '../interfaces';
-import {
-  array2obj,
-  clientCommandMessageReg,
-  isRedisInstance,
-  QUEUE_EVENT_SUFFIX,
-} from '../utils';
+import { array2obj, isRedisInstance, QUEUE_EVENT_SUFFIX } from '../utils';
 import { QueueBase } from './queue-base';
-import { RedisConnection } from './redis-connection';
 import { createIORedisClient, isIRedisClient } from './ioredis-client';
 
 export interface QueueEventsListener extends IoredisListener {
@@ -284,7 +278,7 @@ export class QueueEvents extends QueueBase {
     { connection, autorun = true, ...opts }: QueueEventsOptions = {
       connection: {},
     },
-    Connection?: typeof RedisConnection,
+    backendFactory?: BackendFactory,
   ) {
     super(
       name,
@@ -297,7 +291,7 @@ export class QueueEvents extends QueueBase {
             ).duplicate()
           : connection,
       },
-      Connection,
+      backendFactory,
       true,
     );
 
@@ -352,21 +346,11 @@ export class QueueEvents extends QueueBase {
     if (!this.running) {
       try {
         this.running = true;
-        const client = await this.client;
 
         // TODO: Planned for deprecation as it really has no use case
-        try {
-          await client.clientSetName(this.clientName(QUEUE_EVENT_SUFFIX));
-        } catch (err) {
-          if (
-            !clientCommandMessageReg.test((<Error>err).message) &&
-            !this.closing
-          ) {
-            throw err;
-          }
-        }
+        await this.backend.setName(this.clientName(QUEUE_EVENT_SUFFIX));
 
-        await this.consumeEvents(client);
+        await this.consumeEvents();
       } catch (error) {
         this.running = false;
         throw error;
@@ -376,17 +360,16 @@ export class QueueEvents extends QueueBase {
     }
   }
 
-  private async consumeEvents(client: RedisClient): Promise<void> {
+  private async consumeEvents(): Promise<void> {
     const opts: QueueEventsOptions = this.opts;
 
-    const key = this.keys.events;
     let id = opts.lastEventId || '$';
 
     while (!this.closing) {
       this.blocking = true;
       // Cast to actual return type, see: https://github.com/DefinitelyTyped/DefinitelyTyped/issues/44301
       const data: StreamReadRaw = await this.checkConnectionError(() =>
-        client.xread([{ key, id }], { BLOCK: opts.blockingTimeout! }),
+        this.backend.readEvents(id, opts.blockingTimeout!),
       );
       this.blocking = false;
       if (data) {
@@ -433,11 +416,10 @@ export class QueueEvents extends QueueBase {
     if (!this.closing) {
       this.closing = (async () => {
         try {
-          // As the connection has been wrongly marked as "shared" by QueueBase,
-          // we need to forcibly close it here. We should fix QueueBase to avoid this in the future.
-          const client = await this.client;
-          client.disconnect();
-          await this.connection.close(this.blocking);
+          // Force a disconnect first to interrupt the blocking XREAD, then
+          // close the underlying connection.
+          await this.backend.disconnect();
+          await this.backend.close();
         } finally {
           this.closed = true;
         }

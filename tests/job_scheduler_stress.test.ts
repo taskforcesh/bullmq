@@ -9,7 +9,7 @@ import {
   expect,
 } from 'vitest';
 
-import { Job, Queue, QueueEvents, Repeat, Worker } from '../src/classes';
+import { Job, Queue, QueueEvents, Worker } from '../src/classes';
 import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
 import { IRedisClient } from '../src/interfaces';
@@ -21,7 +21,6 @@ const ONE_HOUR = 60 * ONE_MINUTE;
 describe('Job Scheduler Stress', () => {
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   // TODO: Move timeout to test options: { timeout: 10000 }
-  let repeat: Repeat;
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
@@ -34,7 +33,6 @@ describe('Job Scheduler Stress', () => {
   beforeEach(async () => {
     queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
-    repeat = new Repeat(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queue.waitUntilReady();
     await queueEvents.waitUntilReady();
@@ -43,7 +41,6 @@ describe('Job Scheduler Stress', () => {
   afterEach(async () => {
     try {
       await queue.close();
-      await repeat.close();
       await queueEvents.close();
       await removeAllQueueData(createTestConnection(), queueName);
     } catch (error) {

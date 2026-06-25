@@ -6,4 +6,4 @@ export * from './utils';
 
 // to prevent circular references
 export * from './types/processor';
-export * from './utils/create-scripts';
+export * from './utils/create-backend';

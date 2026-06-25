@@ -1,3 +1,4 @@
+import { getRedisClient } from './utils/get-redis-client';
 import {
   describe,
   beforeEach,
@@ -214,7 +215,7 @@ describe('queues', () => {
       const countAfterEmpty = await queue.count();
       expect(countAfterEmpty).toEqual(0);
 
-      const client = await queue.client;
+      const client = await getRedisClient(queue);
       const keys = await client.keys(`${prefix}:${queue.name}:*`);
       expect(keys.length).toEqual(5);
 
@@ -248,7 +249,7 @@ describe('queues', () => {
 
             await queue.drain();
 
-            const client = await queue.client;
+            const client = await getRedisClient(queue);
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
             expect(keys.length).toEqual(4);
@@ -282,7 +283,7 @@ describe('queues', () => {
 
             await queue.drain();
 
-            const client = await queue.client;
+            const client = await getRedisClient(queue);
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
             expect(keys.length).toEqual(4);
@@ -328,7 +329,7 @@ describe('queues', () => {
 
             await queue.drain();
 
-            const client = await queue.client;
+            const client = await getRedisClient(queue);
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
             expect(keys.length).toEqual(6);
@@ -371,7 +372,7 @@ describe('queues', () => {
 
             await queue.drain();
 
-            const client = await queue.client;
+            const client = await getRedisClient(queue);
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
             expect(keys.length).toEqual(4);
@@ -420,7 +421,7 @@ describe('queues', () => {
 
             await queue.drain();
 
-            const client = await queue.client;
+            const client = await getRedisClient(queue);
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
             expect(keys.length).toEqual(4);
@@ -524,7 +525,7 @@ describe('queues', () => {
 
   describe('.removeDeprecatedPriorityKey', () => {
     it('removes old priority key', async () => {
-      const client = await queue.client;
+      const client = await getRedisClient(queue);
       await client.zadd(`${prefix}:${queue.name}:priority`, 1, 'a');
       await client.zadd(`${prefix}:${queue.name}:priority`, 2, 'b');
 

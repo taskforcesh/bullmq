@@ -1,4 +1,5 @@
 import { BaseJobOptions } from '../interfaces/base-job-options';
+import { RepeatOptions } from '../interfaces/repeat-options';
 import { DeduplicationOptions } from './deduplication-options';
 
 /**
@@ -59,52 +60,14 @@ export type CompressableJobOptions = {
 export type JobsOptions = BaseJobOptions & CompressableJobOptions;
 
 /**
- * These fields are the ones stored in Redis with smaller keys for compactness.
+ * Internal job options for jobs produced by a `JobScheduler`. In addition to
+ * the public {@link JobsOptions}, scheduler-produced jobs carry the repeat
+ * settings the scheduler needs in order to schedule the next iteration. The
+ * legacy-only `key` and `jobId` repeat fields are intentionally excluded.
+ *
+ * This type is internal: `repeat` is no longer a valid option for `Queue.add`;
+ * use `Queue.upsertJobScheduler` to schedule repeating jobs.
  */
-export type RedisJobOptions = BaseJobOptions & {
-  /**
-   * Debounce identifier.
-   */
-  deid?: string;
-
-  /**
-   * If true, moves parent to failed.
-   */
-  fpof?: boolean;
-
-  /**
-   * If true, starts processing parent job as soon as any
-   * of its children fail.
-   */
-  cpof?: boolean;
-
-  /**
-   * If true, moves the jobId from its parent dependencies to failed dependencies when it fails after all attempts.
-   */
-  idof?: boolean;
-
-  /**
-   * Maximum amount of log entries that will be preserved
-   */
-  kl?: number;
-
-  /**
-   * If true, removes the job from its parent dependencies when it fails after all attempts.
-   */
-  rdof?: boolean;
-
-  /**
-   * TelemetryMetadata, provide for context propagation.
-   */
-  tm?: string;
-
-  /**
-   * Omit Context Propagation
-   */
-  omc?: boolean;
-
-  /**
-   * Deduplication options.
-   */
-  de?: DeduplicationOptions;
-};
+export interface JobSchedulerJobOptions extends JobsOptions {
+  repeat?: Omit<RepeatOptions, 'key' | 'jobId'>;
+}

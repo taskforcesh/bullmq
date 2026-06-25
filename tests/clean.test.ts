@@ -1,3 +1,4 @@
+import { getRedisClient } from './utils/get-redis-client';
 import { after } from 'lodash';
 import {
   describe,
@@ -354,7 +355,7 @@ describe('Cleaner', () => {
 
           await queue.clean(0, 0, 'wait');
 
-          const client = await queue.client;
+          const client = await getRedisClient(queue);
           const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
           expect(keys.length).toEqual(4);
@@ -405,7 +406,7 @@ describe('Cleaner', () => {
             await delay(100);
             await queue.clean(0, 0, 'completed');
 
-            const client = await queue.client;
+            const client = await getRedisClient(queue);
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
             // Expected keys: meta, id, stalled-check and events
@@ -458,7 +459,7 @@ describe('Cleaner', () => {
             await failing;
             await queue.clean(0, 0, 'completed');
 
-            const client = await queue.client;
+            const client = await getRedisClient(queue);
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
             const suffixes = keys.map(key => key.split(':')[2]);
@@ -531,7 +532,7 @@ describe('Cleaner', () => {
           await completing;
           await queue.clean(0, 0, 'failed');
 
-          const client = await queue.client;
+          const client = await getRedisClient(queue);
           // only checks if there are keys under job key prefix
           // this way we make sure that all of them were removed
           const keys = await client.keys(
@@ -580,7 +581,7 @@ describe('Cleaner', () => {
 
           await queue.clean(0, 0, 'wait');
 
-          const client = await queue.client;
+          const client = await getRedisClient(queue);
           const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
           expect(keys.length).toEqual(6);
@@ -722,7 +723,7 @@ describe('Cleaner', () => {
 
           await queue.clean(0, 0, 'wait');
 
-          const client = await queue.client;
+          const client = await getRedisClient(queue);
           const keys = await client.keys(`${prefix}:${queueName}:*`);
 
           expect(keys.length).toEqual(4);
@@ -784,7 +785,7 @@ describe('Cleaner', () => {
 
           await queue.clean(0, 0, 'prioritized');
 
-          const client = await queue.client;
+          const client = await getRedisClient(queue);
           const keys = await client.keys(`${prefix}:${queueName}:*`);
 
           expect(keys.length).toEqual(5);
@@ -908,7 +909,7 @@ describe('Cleaner', () => {
     });
 
     it('should remove orphaned job hashes with no sub-keys', async () => {
-      const client = await queue.client;
+      const client = await getRedisClient(queue);
       const baseKey = `${prefix}:${queue.name}`;
 
       const orphanedIds = ['9990', '9991', '9992'];
@@ -925,7 +926,7 @@ describe('Cleaner', () => {
     });
 
     it('should remove all sub-keys of orphaned jobs', async () => {
-      const client = await queue.client;
+      const client = await getRedisClient(queue);
       const baseKey = `${prefix}:${queue.name}`;
 
       // Create orphaned job with every possible sub-key
@@ -1078,7 +1079,7 @@ describe('Cleaner', () => {
     });
 
     it('should distinguish orphaned jobs from legitimate jobs across all states', async () => {
-      const client = await queue.client;
+      const client = await getRedisClient(queue);
       const baseKey = `${prefix}:${queue.name}`;
 
       // Add jobs in wait state
@@ -1119,7 +1120,7 @@ describe('Cleaner', () => {
     });
 
     it('should not remove infrastructure keys', async () => {
-      const client = await queue.client;
+      const client = await getRedisClient(queue);
       const baseKey = `${prefix}:${queue.name}`;
 
       // Add a job so infrastructure keys exist
@@ -1136,7 +1137,7 @@ describe('Cleaner', () => {
     });
 
     it('should not confuse repeat sub-keys with orphaned jobs', async () => {
-      const client = await queue.client;
+      const client = await getRedisClient(queue);
       const baseKey = `${prefix}:${queue.name}`;
 
       // Simulate repeat sub-keys (e.g., repeat:abc123)
@@ -1159,7 +1160,7 @@ describe('Cleaner', () => {
     });
 
     it('should handle jobs with custom string IDs', async () => {
-      const client = await queue.client;
+      const client = await getRedisClient(queue);
       const baseKey = `${prefix}:${queue.name}`;
 
       // Add a real job with a custom ID
@@ -1186,7 +1187,7 @@ describe('Cleaner', () => {
     });
 
     it('should detect orphans found only via sub-keys', async () => {
-      const client = await queue.client;
+      const client = await getRedisClient(queue);
       const baseKey = `${prefix}:${queue.name}`;
 
       // Create orphaned sub-keys without a main hash
@@ -1203,7 +1204,7 @@ describe('Cleaner', () => {
     });
 
     it('should handle a large number of orphaned jobs across SCAN iterations', async () => {
-      const client = await queue.client;
+      const client = await getRedisClient(queue);
       const baseKey = `${prefix}:${queue.name}`;
 
       // Create enough orphans to require multiple SCAN iterations

@@ -1,3 +1,4 @@
+import { getRedisClient } from './utils/get-redis-client';
 import {
   describe,
   beforeEach,
@@ -553,7 +554,7 @@ describe('events', () => {
         prefix,
       });
 
-      const client = await trimmedQueue.client;
+      const client = await getRedisClient(trimmedQueue);
 
       for (let i = 0; i < numRemovals; i++) {
         await trimmedQueue.remove(i.toString());
@@ -591,7 +592,7 @@ describe('events', () => {
       await trimmedQueue.waitUntilReady();
       await worker.waitUntilReady();
 
-      const client = await trimmedQueue.client;
+      const client = await getRedisClient(trimmedQueue);
 
       const waitCompletedEvent = new Promise<void>(resolve => {
         queueEvents.on(
@@ -653,7 +654,7 @@ describe('events', () => {
       await trimmedQueue.waitUntilReady();
       await worker.waitUntilReady();
 
-      const client = await trimmedQueue.client;
+      const client = await getRedisClient(trimmedQueue);
 
       const waitCompletedEvent = new Promise<void>(resolve => {
         queueEvents.on(
@@ -708,7 +709,7 @@ describe('events', () => {
         await trimmedQueue.waitUntilReady();
         await worker.waitUntilReady();
 
-        const client = await trimmedQueue.client;
+        const client = await getRedisClient(trimmedQueue);
 
         const waitDelayedEvent = new Promise<void>(resolve => {
           queueEvents.on(
@@ -767,7 +768,7 @@ describe('events', () => {
         await trimmedQueue.waitUntilReady();
         await worker.waitUntilReady();
 
-        const client = await trimmedQueue.client;
+        const client = await getRedisClient(trimmedQueue);
 
         const waitCompletedEvent = new Promise<void>((resolve, reject) => {
           queueEvents.on('waiting', async ({ jobId, prev }) => {
@@ -819,7 +820,7 @@ describe('events', () => {
           },
         });
 
-        const client = await trimmedQueue.client;
+        const client = await getRedisClient(trimmedQueue);
 
         const jobs = Array.from(Array(numRemovals).keys()).map(() => ({
           name: 'test',
@@ -851,7 +852,7 @@ describe('events', () => {
     await trimmedQueue.add('test', {});
     await trimmedQueue.add('test', {});
 
-    const client = await trimmedQueue.client;
+    const client = await getRedisClient(trimmedQueue);
 
     let eventsLength = await client.xlen(trimmedQueue.keys.events);
 
