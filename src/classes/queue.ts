@@ -340,7 +340,7 @@ export class Queue<
     const jobId = opts?.jobId;
 
     if (jobId == '0' || jobId?.startsWith('0:')) {
-      throw new Error("JobId cannot be '0' or start with 0:");
+      throw new Error("JobId cannot be '0' or start with '0:'");
     }
 
     const mergedOpts = {

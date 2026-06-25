@@ -247,7 +247,7 @@ describe('Telemetry', () => {
         expect(recordExceptionSpy.calledOnce).toBe(true);
         const recordedError = recordExceptionSpy.firstCall.args[0];
         expect(recordedError.message).toBe(
-          "JobId cannot be '0' or start with 0:",
+          "JobId cannot be '0' or start with '0:'",
         );
       } finally {
         recordExceptionSpy.restore();

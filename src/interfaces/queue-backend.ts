@@ -126,8 +126,13 @@ export interface IQueueBackend {
    * returned backend has an independent identity (its operations target the
    * given queue) but does not own the connection, so closing it is a no-op on
    * the shared connection.
+   *
+   * @param queueName - The queue the sibling backend should operate on.
+   * @param prefix - Optional key prefix for the target queue. Flows may span
+   * queues under different prefixes, so when omitted the backend's own prefix
+   * is used.
    */
-  forQueue(queueName: string): IQueueBackend;
+  forQueue(queueName: string, prefix?: string): IQueueBackend;
 
   // ============================================================
   // Adding jobs
