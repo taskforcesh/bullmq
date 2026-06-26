@@ -234,9 +234,11 @@ export class Queue<
   /**
    * Get library version.
    *
-   * @returns the content of the meta.library field.
+   * @returns the content of the `meta.version` field, or `null` when the meta
+   * hash has not been populated yet (e.g. when `skipMetasUpdate` is enabled and
+   * no other instance has written it).
    */
-  async getVersion(): Promise<string> {
+  async getVersion(): Promise<string | null> {
     return await this.backend.getQueueMetaField('version');
   }
 
