@@ -333,11 +333,17 @@ export class Worker<
       }
     }
 
-    // The backend may forward a 'ready' event for each of its underlying
-    // connections (the main and, when present, the dedicated blocking one).
-    // Use `once` so the Worker emits 'ready' a single time, preserving the
-    // previous single-emission semantics.
-    this.backend.once('ready', () => setTimeout(() => this.emit('ready'), 0));
+    // The Worker is only "ready" once its dedicated blocking connection (used
+    // by the blocking `waitForJob` primitive) is ready. The backend forwards a
+    // 'ready' event from *either* of its connections, so we cannot rely on that
+    // event to gate on blocking readiness. Instead emit a single 'ready' once
+    // `backend.waitUntilReady()` resolves, which only happens after both the
+    // main and the blocking connections are ready. Connection failures are
+    // surfaced via the 'error' event wired up in QueueBase.
+    this.backend
+      .waitUntilReady()
+      .then(() => setTimeout(() => this.emit('ready'), 0))
+      .catch(() => {});
   }
 
   /**
