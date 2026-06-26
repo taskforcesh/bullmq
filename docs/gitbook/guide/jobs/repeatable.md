@@ -1,7 +1,9 @@
 # Repeatable
 
 {% hint style="danger" %}
-Note: from BullMQ version 5.16.0 and onwards, we have deprecated these APIs in favor of ["Job Schedulers"](../job-schedulers/), which provide a more cohesive and more robust API for handling repeatable jobs.
+Note: these APIs were deprecated from BullMQ version 5.16.0 onwards and have been **removed** in v6 in favor of ["Job Schedulers"](../job-schedulers/), which provide a more cohesive and more robust API for handling repeatable jobs.
+
+The `repeat` option on `Queue.add`/`Queue.addBulk`, the `Repeat` class, and the `getRepeatableJobs`, `removeRepeatable` and `removeRepeatableByKey` methods are no longer available. The examples on this page are kept for historical reference only — use [Job Schedulers](../job-schedulers/) (`upsertJobScheduler`, `getJobSchedulers`, `removeJobScheduler`) instead.
 {% endhint %}
 
 There is a special type of _meta_ job called **repeatable**. These jobs are special in the sense that even though you only add one job to the queue, they will keep repeating according to a predefined schedule.
