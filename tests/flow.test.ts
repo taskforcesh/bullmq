@@ -6162,14 +6162,11 @@ describe('flows', () => {
             prefix,
           },
         );
-        await childrenWorker.waitUntilReady();
-
         const failing = new Promise<void>(resolve => {
-          childrenWorker.on('failed', () => {
-            resolve();
-          });
+          childrenWorker.once('failed', () => resolve());
         });
 
+        await childrenWorker.waitUntilReady();
         await failing;
         await childrenWorker.close();
 
