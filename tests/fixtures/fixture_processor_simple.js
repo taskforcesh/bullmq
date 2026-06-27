@@ -3,6 +3,6 @@
  */
 'use strict';
 
-module.exports = function (job) {
+module.exports = function(job) {
   return Promise.resolve({ processed: true, data: job.data });
 };

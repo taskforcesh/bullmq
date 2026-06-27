@@ -28,4 +28,4 @@ await originalTree.children[0].job.removeChildDependency();
 As soon as a **child** calls this method, it will verify if it has an existing parent, if not, it'll throw an error.
 {% endhint %}
 
-Failed or completed children using this option won't generate any removal as they won't be part of unprocessed list:
+Failed or completed children using this option won't generate any removal as they won't be part of unprocessed list.

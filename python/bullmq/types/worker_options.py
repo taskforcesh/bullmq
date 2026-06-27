@@ -1,9 +1,13 @@
 
-from typing import TypedDict, Any
+from typing import TypedDict, Any, Union
 import redis.asyncio as redis
 
 
 class WorkerOptions(TypedDict, total=False):
+    name: str
+    """
+    Optional worker name used to set the Redis client name.
+    """
     autorun: bool
     """
     Condition to start processor at instance creation
@@ -51,7 +55,22 @@ class WorkerOptions(TypedDict, total=False):
     Prefix for all queue keys.
     """
 
-    connection: dict[str, Any] | redis.Redis | str
+    connection: Union[dict[str, Any], redis.Redis, str]
     """
     Options for connecting to a Redis instance.
+    """
+
+    skipVersionCheck: bool
+    """
+    Avoid version validation to be greater or equal than v5.0.0.
+
+    @default False
+    """
+
+    skipWaitingForReady: bool
+    """
+    Skip waiting for connection ready.
+
+    @deprecated This option has no effect and will be removed in a future release.
+    @default False
     """

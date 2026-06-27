@@ -2,7 +2,7 @@
 
 When jobs are added to a queue, they will be in different statuses during their lifetime. BullMQ provides methods to retrieve information and jobs from the different statuses.
 
-![Lifecycle of a job](<../../.gitbook/assets/architecture (1).png>)
+<figure><img src="../../.gitbook/assets/simple-architecture.png" alt="Diagram of the lifecycle of a BullMQ job in the queue"><figcaption><p>Lifecycle of a job</p></figcaption></figure>
 
 #### Job Counts
 
@@ -36,9 +36,24 @@ counts = await myQueue.getJobCounts('wait', 'completed', 'failed')
 ```
 
 {% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Queue, QueueOptions};
+
+let queue = Queue::new("Paint", QueueOptions::default()).await?;
+
+let counts = queue.get_job_counts().await?;
+// counts.waiting, counts.completed, counts.failed, counts.active, etc.
+println!("waiting: {}, completed: {}, failed: {}", counts.waiting, counts.completed, counts.failed);
+```
+
+{% endtab %}
 {% endtabs %}
 
 The available status are:
+
 - _completed_,
 - _failed_,
 - _delayed_,
@@ -73,9 +88,19 @@ completed = await myQueue.getJobs(['completed'], 0, 100, True)
 ```
 
 {% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+// get_jobs is not yet available in the Rust API.
+// Use get_job(id) to fetch individual jobs by ID:
+let job = queue.get_job("some-job-id").await?;
+```
+
+{% endtab %}
 {% endtabs %}
 
 ## Read more:
 
-* 💡 [Get Job Counts API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getJobCounts)
-* 💡 [Get Jobs API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getJobs)
+- 💡 [Get Job Counts API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getjobcounts)
+- 💡 [Get Jobs API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getjobs)

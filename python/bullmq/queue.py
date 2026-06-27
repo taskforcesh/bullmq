@@ -1,8 +1,9 @@
 import asyncio
+from typing import Union
 from bullmq.event_emitter import EventEmitter
 from bullmq.redis_connection import RedisConnection
 from bullmq.types import QueueBaseOptions, RetryJobsOptions, JobOptions, PromoteJobsOptions
-from bullmq.utils import extract_result
+from bullmq.utils import extract_result, is_redis_cluster, get_cluster_nodes, get_node_client
 from bullmq.scripts import Scripts
 from bullmq.job import Job
 
@@ -18,7 +19,10 @@ class Queue(EventEmitter):
         """
         self.name = name
         redisOpts = opts.get("connection", {})
-        self.redisConnection = RedisConnection(redisOpts)
+        self.redisConnection = RedisConnection(
+            redisOpts,
+            skipVersionCheck=opts.get("skipVersionCheck", False)
+        )
         self.client = self.redisConnection.conn
         self.opts = opts
         self.jobsOpts = opts.get("defaultJobOptions", {})
@@ -39,21 +43,21 @@ class Queue(EventEmitter):
         @param data: Arbitrary data to append to the job.
         @param opts: Job options that affects how the job is going to be processed.
         """
-        job = Job(self, name, data, opts)
+        merged_opts = {**self.jobsOpts, **(opts or {})}
+
+        job = Job(self, name, data, merged_opts)
         job_id = await self.scripts.addJob(job)
         job.id = job_id
         return job
 
-    async def addBulk(self, jobs: list[dict[str, dict | str]]):
+    async def addBulk(self, jobs: list[dict[str, Union[dict, str]]]):
         """
         Adds an array of jobs to the queue. This method may be faster than adding
         one job at a time in a sequence
         """
         jobs_data = []
         for job in jobs:
-            opts = {}
-            opts.update(self.jobsOpts)
-            opts.update(job.get("opts", {}))
+            opts = {**self.jobsOpts, **(job.get("opts") or {})}
 
             jobs_data.append({
                 "name": job.get("name"),
@@ -117,6 +121,87 @@ class Queue(EventEmitter):
         """
         return self.client.pttl(self.keys["limiter"])
 
+    async def get_workers(self):
+        """
+        Get the worker list related to the queue. i.e. all the known
+        workers that are available to process jobs for this queue.
+        Note: Some Redis providers do not support CLIENT LIST.
+        """
+        client_name_prefix = self.qualifiedName
+
+        def matcher(name: str):
+            return name == client_name_prefix or name.startswith(f"{client_name_prefix}:w:")
+
+        return await self._base_get_clients(matcher)
+
+    async def get_workers_count(self):
+        workers = await self.get_workers()
+        return len(workers)
+
+    async def _base_get_clients(self, matcher):
+        client = self.client
+        try:
+            if is_redis_cluster(client):
+                nodes = get_cluster_nodes(client)
+                clients_per_node = []
+                for node in nodes:
+                    node_client = get_node_client(node)
+                    client_list = await self._get_client_list(node_client)
+                    clients_per_node.append(self._parse_client_list(client_list, matcher))
+
+                if not clients_per_node:
+                    return []
+
+                return max(clients_per_node, key=len)
+
+            client_list = await self._get_client_list(client)
+            return self._parse_client_list(client_list, matcher)
+        except Exception as err:
+            message = str(err)
+            if "unknown command" in message and "CLIENT" in message:
+                return [{"name": "CLIENT LIST not supported"}]
+            raise
+
+    async def _get_client_list(self, client):
+        if hasattr(client, "client_list"):
+            return await client.client_list()
+        return await client.execute_command("CLIENT", "LIST")
+
+    def _parse_client_list(self, client_list, matcher):
+        if isinstance(client_list, bytes):
+            client_list = client_list.decode()
+
+        clients = []
+        if isinstance(client_list, list):
+            clients = client_list
+        elif isinstance(client_list, str):
+            lines = client_list.splitlines()
+            for line in lines:
+                if not line:
+                    continue
+                client = {}
+                for key_value in line.split(" "):
+                    if "=" not in key_value:
+                        continue
+                    key, value = key_value.split("=", 1)
+                    client[key] = value
+                clients.append(client)
+
+        result = []
+        for client in clients:
+            name = ""
+            if isinstance(client, dict):
+                name = client.get("name") or ""
+                if isinstance(name, bytes):
+                    name = name.decode()
+            if matcher(name):
+                client_copy = dict(client)
+                client_copy["rawname"] = name
+                client_copy["name"] = self.name
+                result.append(client_copy)
+
+        return result
+
     async def getJobLogs(self, job_id:str, start = 0, end = -1, asc = True):
         """
         Returns the logs for a given Job.
@@ -159,6 +244,15 @@ class Queue(EventEmitter):
             cursor = await self.scripts.obliterate(1000, force)
             if cursor is None or cursor == 0 or cursor == "0":
                 break
+
+    async def drain(self, delayed: bool = False):
+        """
+        Drains the queue, removes all jobs that are waiting
+        or delayed, but not active, completed or failed.
+        
+        @param delayed: Pass True if it should also clean the delayed jobs.
+        """
+        await self.scripts.drain(delayed)
 
     async def retryJobs(self, opts: RetryJobsOptions = {}):
         """
@@ -260,6 +354,9 @@ class Queue(EventEmitter):
     def getFailedCount(self):
         return self.getJobCountByTypes('failed')
 
+    def getWaitingCount(self):
+        return self.getJobCountByTypes('waiting')
+
     def getActive(self, start=0, end=-1):
         return self.getJobs(['active'], start, end, True)
 
@@ -270,7 +367,7 @@ class Queue(EventEmitter):
         return self.getJobs(['delayed'], start, end, True)
 
     def getFailed(self, start = 0, end=-1):
-        return self.getJobs(['completed'], start, end, False)
+        return self.getJobs(['failed'], start, end, False)
 
     def getPrioritized(self, start = 0, end=-1):
         return self.getJobs(['prioritized'], start, end, True)
@@ -329,11 +426,11 @@ class Queue(EventEmitter):
             'waiting-children'
         ]
 
-    def close(self):
+    async def close(self):
         """
         Close the queue instance.
         """
-        return self.redisConnection.close()
+        return await self.redisConnection.close()
 
     def remove(self, job_id: str, opts: dict = {}):
         return self.scripts.remove(job_id, opts.get("removeChildren", True))

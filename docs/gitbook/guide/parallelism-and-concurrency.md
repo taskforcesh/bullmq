@@ -16,7 +16,7 @@ In the context of computer science, concurrency refers to the ability of differe
 
 One of the features that makes NodeJS very efficient at dispatching requests in an HTTP server is the fact that it has one single loop and is capable of running a huge amount of microtasks concurrently by exploiting the async nature of IO calls. So for example, if a call is performed to a database for querying some data, that call will not block the entire NodeJS, instead it will go and execute some other piece of code and then at the end of the current event loop, check if any of the async calls have completed so that they can continue running in the next iteration.
 
-This gives the effect of parallel execution, however, it is not the case, and the only reason it is efficient is that the code is IO heavy thus we can better utilize the CPU time by executing code instead of just being idle waiting for and asynchronous call to finish.
+This gives the effect of parallel execution, however, it is not the case, and the only reason it is efficient is that the code is IO heavy thus we can better utilize the CPU time by executing code instead of just being idle waiting for an asynchronous call to finish.
 
 #### BullMQ concurrency
 

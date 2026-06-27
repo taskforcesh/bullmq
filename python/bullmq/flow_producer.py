@@ -1,3 +1,4 @@
+from typing import Union
 from bullmq.redis_connection import RedisConnection
 from bullmq.types import QueueBaseOptions
 from bullmq.scripts import Scripts
@@ -11,7 +12,7 @@ class MinimalQueue:
     Instantiate a MinimalQueue object
     """
 
-    def __init__(self, name: str, queue_keys, redisConnection, opts: QueueBaseOptions = {}):
+    def __init__(self, name: str, queue_keys, redisConnection, scripts, opts: QueueBaseOptions = {}):
         """
         Initialize a connection
         """
@@ -19,9 +20,10 @@ class MinimalQueue:
         self.redisConnection = redisConnection
         self.client = self.redisConnection.conn
         self.opts = opts
-        self.prefix = opts.get("prefix", "bull"),
+        self.prefix = opts.get("prefix", "bull")
         self.keys = queue_keys.getKeys(name)
         self.qualifiedName = queue_keys.getQueueQualifiedName(name)
+        self.scripts = scripts
 
 
 class FlowProducer:
@@ -30,11 +32,14 @@ class FlowProducer:
     """
 
     #TODO: pass only queueOpts, no need 2 parameters in next breaking change
-    def __init__(self, redisOpts: dict | str = {}, opts: QueueBaseOptions = {}):
+    def __init__(self, redisOpts: Union[dict, str] = {}, opts: QueueBaseOptions = {}):
         """
         Initialize a connection
         """
-        self.redisConnection = RedisConnection(redisOpts)
+        self.redisConnection = RedisConnection(
+            redisOpts,
+            skipVersionCheck=opts.get("skipVersionCheck", False)
+        )
         self.client = self.redisConnection.conn
         self.opts: dict = opts
         self.prefix = opts.get("prefix", "bull")
@@ -42,7 +47,7 @@ class FlowProducer:
             self.prefix, "__default__", self.redisConnection)
 
     def queueFromNode(self, node:dict, queue_keys, prefix: str):
-        return MinimalQueue(node.get("queueName"),queue_keys,self.redisConnection, {"prefix": prefix})
+        return MinimalQueue(node.get("queueName"), queue_keys, self.redisConnection, self.scripts, {"prefix": prefix})
 
     async def addChildren(self, nodes, parent, queues_opts, pipe):
         children = []
@@ -91,7 +96,6 @@ class FlowProducer:
 
             await self.scripts.addParentJob(
                 job,
-                wait_children_key,
                 pipe
             )
 
@@ -135,8 +139,8 @@ class FlowProducer:
 
         return result
 
-    def close(self):
+    async def close(self):
         """
         Close the flow instance.
         """
-        return self.redisConnection.close()
+        return await self.redisConnection.close()

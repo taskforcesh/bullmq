@@ -39,7 +39,7 @@ import { QueueEvents } from 'bullmq';
 
 const queueEvents = new QueueEvents('Paint');
 
-queueEvents.on('completed', ({ jobId: string }) => {
+queueEvents.on('completed', ({ jobId }) => {
   // Called every time a job is completed in any worker.
 });
 
@@ -82,6 +82,18 @@ from bullmq import Queue
 queue = Queue('paint')
 
 await queue.trimEvents(10) # leaves 10 events
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Queue, QueueOptions};
+
+let queue = Queue::new("paint", QueueOptions::default()).await?;
+
+queue.trim_events(10).await?; // leaves 10 events
 ```
 
 {% endtab %}

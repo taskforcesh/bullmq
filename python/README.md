@@ -13,6 +13,7 @@ have been ported so far:
 
   - [x] Regular jobs.
   - [x] Delayed jobs.
+  - [x] Job deduplication.
   - [ ] Job priority.
   - [ ] Repeatable.
 
@@ -31,14 +32,53 @@ pip install bullmq
 
 ## Usage
 
+### Basic Example
+
 ```python
 from bullmq import Queue
 
 queue = Queue('my-queue')
 
 job = await queue.add('my-job', {'foo': 'bar'})
-
 ```
+
+### Job Deduplication
+
+Prevent duplicate jobs from being added to the queue:
+
+```python
+from bullmq import Queue
+
+queue = Queue('my-queue')
+
+# Simple mode - deduplicates until job completes or fails
+job = await queue.add('paint', {'color': 'white'}, {
+    'deduplication': {
+        'id': 'custom-dedup-id'
+    }
+})
+
+# Throttle mode - deduplicates for a specific time window (in milliseconds)
+job = await queue.add('paint', {'color': 'white'}, {
+    'deduplication': {
+        'id': 'custom-dedup-id',
+        'ttl': 5000  # 5 seconds
+    }
+})
+
+# Debounce mode - replaces pending job with latest data
+job = await queue.add('paint', {'color': 'white'}, {
+    'deduplication': {
+        'id': 'custom-dedup-id',
+        'ttl': 5000,
+        'extend': True,  # Extend TTL on each duplicate attempt
+        'replace': True  # Replace job data with latest
+    },
+    'delay': 5000  # Must be delayed for replace to work
+})
+```
+
+
 
 ## Documentation
 

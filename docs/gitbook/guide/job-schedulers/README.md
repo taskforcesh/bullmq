@@ -54,4 +54,4 @@ Since jobs produced by the Job Scheduler will get a special job ID in order to g
 
 ## Read more:
 
-- 💡 [Upsert Job Scheduler API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#upsertJobScheduler)
+- 💡 [Upsert Job Scheduler API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#upsertjobscheduler)

@@ -1,0 +1,30 @@
+# Dependencies
+/vendor/
+
+# Composer
+composer.lock
+
+# IDE
+/.idea/
+/.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+/coverage/
+.phpunit.result.cache
+.phpunit.cache/
+
+# Build artifacts
+*.phar
+
+# Lua scripts (copied from rawScripts during build)
+/src/commands/
+
+# PHPStan
+phpstan.neon.local

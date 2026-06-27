@@ -1,9 +1,11 @@
-from typing import TypedDict
-from bullmq.types import BackoffOptions, KeepJobs
+from typing import TypedDict, Union
+from bullmq.types.backoff_options import BackoffOptions
+from bullmq.types.keep_jobs import KeepJobs
+from bullmq.types.deduplication_options import DeduplicationOptions
 
 
 class JobOptions(TypedDict, total=False):
-    backoff: int | BackoffOptions
+    backoff: Union[int, BackoffOptions]
     """
     Backoff setting for automatic retries if the job fails.
     """
@@ -41,7 +43,7 @@ class JobOptions(TypedDict, total=False):
     @defaultValue 0
     """
 
-    removeOnComplete: bool | int | KeepJobs
+    removeOnComplete: Union[bool, int, KeepJobs]
     """
     If true, removes the job when it successfully completes
     When given a number, it specifies the maximum amount of
@@ -50,7 +52,7 @@ class JobOptions(TypedDict, total=False):
     Default behavior is to keep the job in the completed set.
     """
 
-    removeOnFail: bool | int | KeepJobs
+    removeOnFail: Union[bool, int, KeepJobs]
     """
     If true, removes the job when it fails after all attempts.
     When given a number, it specifies the maximum amount of
@@ -62,4 +64,32 @@ class JobOptions(TypedDict, total=False):
     stackTraceLimit: int
     """
     Limits the amount of stack trace lines that will be recorded in the stacktrace.
+    """
+
+    deduplication: DeduplicationOptions
+    """
+    Deduplication options to prevent duplicate jobs from being added to the queue.
+    
+    This can be used to implement throttling, debouncing, or simple deduplication
+    where jobs with the same deduplication ID are ignored.
+    """
+
+    failParentOnFailure: bool
+    """
+    If true, moves parent to failed when this child job fails after all attempts.
+    """
+
+    continueParentOnFailure: bool
+    """
+    If true, starts processing parent job as soon as this child job fails.
+    """
+
+    ignoreDependencyOnFailure: bool
+    """
+    If true, moves the jobId from its parent dependencies to failed dependencies when it fails after all attempts.
+    """
+
+    removeDependencyOnFailure: bool
+    """
+    If true, removes the job from its parent dependencies when it fails after all attempts.
     """

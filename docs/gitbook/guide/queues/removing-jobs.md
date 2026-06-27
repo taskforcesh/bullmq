@@ -4,6 +4,9 @@ Currently we have 3 available methods in queue class:
 
 Removes all jobs that are waiting or delayed, but not active, waiting-children, completed or failed.
 
+{% tabs %}
+{% tab title="TypeScript" %}
+
 ```typescript
 import { Queue } from 'bullmq';
 
@@ -11,6 +14,115 @@ const queue = new Queue('paint');
 
 await queue.drain();
 ```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+import asyncio
+from bullmq import Queue
+
+async def main():
+    queue = Queue('paint')
+
+    await queue.drain()
+    await queue.close()
+
+asyncio.run(main())
+```
+
+{% endtab %}
+
+{% tab title="Elixir" %}
+
+```elixir
+alias BullMQ.Queue
+
+:ok = Queue.drain("paint", connection: :redis)
+```
+
+{% endtab %}
+
+{% tab title="PHP" %}
+
+```php
+<?php
+use BullMQ\Queue;
+
+$queue = new Queue('paint');
+
+$queue->drain();
+
+$queue->close();
+?>
+```
+
+{% endtab %}
+{% endtabs %}
+
+You can also drain delayed jobs by setting the delayed parameter:
+
+{% tabs %}
+{% tab title="TypeScript" %}
+
+```typescript
+import { Queue } from 'bullmq';
+
+const queue = new Queue('paint');
+
+// Also drain delayed jobs
+await queue.drain(true);
+```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+import asyncio
+from bullmq import Queue
+
+async def main():
+    queue = Queue('paint')
+
+    # Also drain delayed jobs
+    await queue.drain(delayed=True)
+    await queue.close()
+
+asyncio.run(main())
+```
+
+{% endtab %}
+
+{% tab title="Elixir" %}
+
+```elixir
+alias BullMQ.Queue
+
+# Also drain delayed jobs
+:ok = Queue.drain("paint", delayed: true, connection: :redis)
+```
+
+{% endtab %}
+
+{% tab title="PHP" %}
+
+```php
+<?php
+use BullMQ\Queue;
+
+$queue = new Queue('paint');
+
+// Also drain delayed jobs
+$queue->drain(true);
+
+$queue->close();
+?>
+```
+
+{% endtab %}
+{% endtabs %}
 
 {% hint style="warning" %}
 Parent jobs that belong to the queue being drained will be kept in **waiting-children** status if they have pending children, but if they do not have any pending children they will just be removed.
@@ -41,6 +153,9 @@ const deletedJobIds = await queue.clean(
 
 Completely obliterates a queue and all of its contents.
 
+{% tabs %}
+{% tab title="TypeScript" %}
+
 ```typescript
 import { Queue } from 'bullmq';
 
@@ -48,6 +163,115 @@ const queue = new Queue('paint');
 
 await queue.obliterate();
 ```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+import asyncio
+from bullmq import Queue
+
+async def main():
+    queue = Queue('paint')
+
+    await queue.obliterate()
+    await queue.close()
+
+asyncio.run(main())
+```
+
+{% endtab %}
+
+{% tab title="Elixir" %}
+
+```elixir
+alias BullMQ.Queue
+
+:ok = Queue.obliterate("paint", connection: :redis)
+```
+
+{% endtab %}
+
+{% tab title="PHP" %}
+
+```php
+<?php
+use BullMQ\Queue;
+
+$queue = new Queue('paint');
+
+$queue->obliterate();
+
+$queue->close();
+?>
+```
+
+{% endtab %}
+{% endtabs %}
+
+For more advanced scenarios where you need to force obliteration even with active jobs:
+
+{% tabs %}
+{% tab title="TypeScript" %}
+
+```typescript
+import { Queue } from 'bullmq';
+
+const queue = new Queue('paint');
+
+// Force obliteration even with active jobs
+await queue.obliterate({ force: true });
+```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+import asyncio
+from bullmq import Queue
+
+async def main():
+    queue = Queue('paint')
+
+    # Force obliteration even with active jobs
+    await queue.obliterate(force=True)
+    await queue.close()
+
+asyncio.run(main())
+```
+
+{% endtab %}
+
+{% tab title="Elixir" %}
+
+```elixir
+alias BullMQ.Queue
+
+# Force obliteration even with active jobs
+:ok = Queue.obliterate("paint", force: true, connection: :redis)
+```
+
+{% endtab %}
+
+{% tab title="PHP" %}
+
+```php
+<?php
+use BullMQ\Queue;
+
+$queue = new Queue('paint');
+
+// Force obliteration even with active jobs
+$queue->obliterate(['force' => true]);
+
+$queue->close();
+?>
+```
+
+{% endtab %}
+{% endtabs %}
 
 {% hint style="warning" %}
 Parent jobs in queues different from the one being obliterated will either stay in **waiting-children** if they

@@ -39,4 +39,4 @@ This call can only succeed or fail, and all or none of the jobs will be added.
 
 ## Read more:
 
-- 💡 [Add Bulk API Reference](https://api.docs.bullmq.io/classes/v5.FlowProducer.html#addBulk)
+- 💡 [Add Bulk API Reference](https://api.docs.bullmq.io/classes/v5.FlowProducer.html#addbulk)

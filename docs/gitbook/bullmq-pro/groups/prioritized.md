@@ -35,6 +35,6 @@ const counts = await queue.getCountsPerPriorityForGroup('groupId', [1, 0]);
 
 ## Read more:
 
-* 💡 [Add Job API Reference](https://api.bullmq.pro/classes/v7.Queue.html#add)
-* 💡 [Get Counts per Priority for Group API Reference](https://api.bullmq.pro/classes/v7.Queue.html#getCountsPerPriorityForGroup)
+* 💡 [Add Job API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#add)
+* 💡 [Get Counts per Priority for Group API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#getcountsperpriorityforgroup)
 

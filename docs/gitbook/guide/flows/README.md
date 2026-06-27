@@ -11,14 +11,20 @@ Flows are added to a queue using the `FlowProducer` class.
 In order to create "flows" you must use the [`FlowProducer`](https://api.docs.bullmq.io/classes/v5.FlowProducer.html) class. The [_**`add`**_](https://api.docs.bullmq.io/classes/v5.FlowProducer.html#add) method accepts an object with the following interface:
 
 ```typescript
-interface FlowJob {
+interface FlowJobBase<T> {
   name: string;
   queueName: string;
   data?: any;
   prefix?: string;
-  opts?: Omit<JobsOptions, 'parent' | 'repeat'>;
-  children?: FlowJob[];
+  opts?: Omit<T, 'debounce' | 'deduplication' | 'repeat'>;
+  children?: FlowChildJob[];
 }
+
+type FlowChildJob = FlowJobBase<
+  Omit<JobsOptions, 'debounce' | 'deduplication' | 'parent' | 'repeat'>
+>;
+
+type FlowJob = FlowJobBase<JobsOptions>;
 ```
 
 So we can add a flow like this one:
@@ -346,6 +352,6 @@ await queue.remove(job.id);
 - 📋 [Divide large jobs using flows](https://blog.taskforce.sh/splitting-heavy-jobs-using-bullmq-flows/)
 - 💡 [FlowProducer API Reference](https://api.docs.bullmq.io/classes/v5.FlowProducer.html)
 - 💡 [Job API Reference](https://api.docs.bullmq.io/classes/v5.Job.html)
-- 💡 [Get Children Values API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#getChildrenValues)
-- 💡 [Get Dependencies API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#getDependencies)
-- 💡 [Get Dependencies Count API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#getDependenciesCount)
+- 💡 [Get Children Values API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#getchildrenvalues)
+- 💡 [Get Dependencies API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#getdependencies)
+- 💡 [Get Dependencies Count API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#getdependenciescount)

@@ -1,0 +1,44 @@
+from typing import TypedDict
+
+
+class DeduplicationOptions(TypedDict, total=False):
+    """
+    Deduplication options.
+    """
+
+    id: str
+    """
+    Identifier for deduplication.
+    
+    Required field that uniquely identifies the deduplication key.
+    """
+
+    ttl: int
+    """
+    Time-to-live in milliseconds for the deduplication key.
+    
+    If not provided, the deduplication will last until the job is completed or failed.
+    """
+
+    extend: bool
+    """
+    If true, extend the TTL on each duplicate job attempt.
+    
+    When a duplicate job is detected, the TTL will be reset to the original value.
+    """
+
+    replace: bool
+    """
+    If true, replace the job data when a duplicate is added (while delayed).
+    
+    This is useful in debounce mode where you want to keep only the latest job data.
+    """
+
+    keepLastIfActive: bool
+    """
+    If true, when a duplicate job is detected and the existing job is currently
+    active (being processed), a new job will be added to the queue once the
+    active job finishes. This ensures at most 2 jobs exist: one active and one
+    waiting. If multiple jobs are added while one is active, only the latest
+    data is kept for the next job.
+    """

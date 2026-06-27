@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import List, Any, TYPE_CHECKING
-from bullmq.scripts import Scripts
+from bullmq.custom_errors import UnrecoverableError
 from bullmq.backoffs import Backoffs
 if TYPE_CHECKING:
     from bullmq.queue import Queue
@@ -16,7 +16,9 @@ optsDecodeMap = {
     'fpof': 'failParentOnFailure',
     'cpof': 'continueParentOnFailure',
     'idof': 'ignoreDependencyOnFailure',
+    'rdof': 'removeDependencyOnFailure',
     'kl': 'keepLogs',
+    'de': 'deduplication',
 }
 
 optsEncodeMap = {v: k for k, v in optsDecodeMap.items()}
@@ -59,8 +61,38 @@ class Job:
         parent = opts.get("parent")
         self.parentKey = get_parent_key(parent)
         self.parent = {"id": parent.get("id"), "queueKey": parent.get("queue")} if parent else None
+
+        # Validate mutually exclusive parent-related options
+        exclusive_options = [
+            'removeDependencyOnFailure',
+            'failParentOnFailure',
+            'continueParentOnFailure',
+            'ignoreDependencyOnFailure',
+        ]
+        enabled_exclusive_options = [opt for opt in exclusive_options if opts.get(opt)]
+
+        if len(enabled_exclusive_options) > 1:
+            options_list = ', '.join(enabled_exclusive_options)
+            raise ValueError(f"The following options cannot be used together: {options_list}")
+
+        # Add parent-related options to the parent object if they exist
+        if self.parent:
+            if opts.get("failParentOnFailure"):
+                self.parent["fpof"] = True
+            if opts.get("removeDependencyOnFailure"):
+                self.parent["rdof"] = True
+            if opts.get("ignoreDependencyOnFailure"):
+                self.parent["idof"] = True
+            if opts.get("continueParentOnFailure"):
+                self.parent["cpof"] = True
+
         self.stacktrace: List[str] = []
-        self.scripts = Scripts(queue.prefix, queue.name, queue.redisConnection)
+
+        # Extract deduplication ID from options
+        deduplication = opts.get("deduplication")
+        self.deduplication_id = deduplication.get("id") if deduplication and isinstance(deduplication, dict) else None
+        # Reuse the queue's Scripts instance instead of creating a new one
+        self.scripts = queue.scripts
         self.queueQualifiedName = queue.qualifiedName
 
     def updateData(self, data):
@@ -71,12 +103,34 @@ class Job:
         await self.scripts.promote(self.id)
         self.delay = 0
 
-    def retry(self, state: str = "failed"):
+    async def retry(self, state: str = "failed", opts: dict = {}):
+        """
+        Attempts to retry the job. Only a job that has failed or completed can be retried.
+
+        Args:
+            state: The state of the job to retry ('failed' or 'completed')
+            opts: Options for retrying the job
+                - resetAttemptsMade: boolean - Resets attemptsMade counter to 0
+                - resetAttemptsStarted: boolean - Resets attemptsStarted counter to 0
+        
+        Returns:
+            A coroutine that resolves when the job has been successfully moved to the wait queue.
+        
+        Raises:
+            Exception: If the job does not exist, is locked, or is not in the expected state.
+        """            
+        await self.scripts.reprocessJob(self, state, opts)
+
         self.failedReason = None
         self.finishedOn = None
         self.processedOn = None
         self.returnvalue = None
-        return self.scripts.reprocessJob(self, state)
+        
+        if opts.get("resetAttemptsMade"):
+            self.attemptsMade = 0
+        
+        if opts.get("resetAttemptsStarted"):
+            self.attemptsStarted = 0
 
     def getState(self):
         return self.scripts.getState(self.id)
@@ -132,8 +186,24 @@ class Job:
 
         return score is not None
 
-    def isInList(self, list_name: str):
-        return self.scripts.isJobInList(self.scripts.toKey(list_name), self.id)
+    async def isInList(self, list_name: str) -> bool:
+        return await self.scripts.isJobInList(self.scripts.toKey(list_name), self.id)
+
+    async def moveToCompleted(self, return_value, token:str, fetchNext:bool = False):
+        stringified_return_value = json.dumps(return_value, separators=(',', ':'), allow_nan=False)
+        self.returnvalue = return_value or None
+
+        keys, args = self.scripts.moveToCompletedArgs(
+                    self, stringified_return_value, self.opts.get("removeOnFail", False),
+                    token, fetchNext
+                )
+
+        result = await self.scripts.moveToFinished(
+                    self.id, keys, args)
+        self.finishedOn = args[1]
+        self.attemptsMade = self.attemptsMade + 1
+
+        return result
 
     async def moveToFailed(self, err, token:str, fetchNext:bool = False):
         error_message = str(err)
@@ -142,48 +212,52 @@ class Job:
         move_to_failed = False
         finished_on = 0
         delay = 0
-        command = 'moveToFailed'
 
-        async with self.queue.redisConnection.conn.pipeline(transaction=True) as pipe:
-            await self.saveStacktrace(pipe, error_message)
-            if (self.attemptsMade + 1) < self.opts.get('attempts') and not self.discarded:
-                delay = await Backoffs.calculate(
-                    self.opts.get('backoff'), self.attemptsMade + 1,
-                    err, self, self.queue.opts.get("settings") and self.queue.opts['settings'].get("backoffStrategy")
-                    )
-                if delay == -1:
-                    move_to_failed = True
-                elif delay:
-                    keys, args = self.scripts.moveToDelayedArgs(
-                        self.id,
-                        round(time.time() * 1000),
-                        token,
-                        delay
-                    )
+        self.updateStacktrace()
+        fields_to_update = {
+            'failedReason': self.failedReason,
+            'stacktrace': json.dumps(self.stacktrace, separators=(',', ':'), allow_nan=False)
+        }
 
-                    await self.scripts.commands["moveToDelayed"](keys=keys, args=args, client=pipe)
-                    command = 'delayed'
-                else:
-                    keys, args = self.scripts.retryJobArgs(self.id, self.opts.get("lifo", False), token)
-
-                    await self.scripts.commands["retryJob"](keys=keys, args=args, client=pipe)
-                    command = 'retryJob'
-            else:
-                move_to_failed = True
-
-            if move_to_failed:
-                keys, args = self.scripts.moveToFailedArgs(
-                    self, error_message, self.opts.get("removeOnFail", False),
-                    token, self.opts, fetchNext
+        result = None
+        if (self.attemptsMade + 1) < self.opts.get('attempts') and not self.discarded and not isinstance(err, UnrecoverableError):
+            delay = await Backoffs.calculate(
+                self.opts.get('backoff'), self.attemptsMade + 1,
+                err, self, self.queue.opts.get("settings") and self.queue.opts['settings'].get("backoffStrategy")
                 )
-                await self.scripts.commands["moveToFinished"](keys=keys, args=args, client=pipe)
-                finished_on = args[1]
+            if delay == -1:
+                move_to_failed = True
+            elif delay:
+                result = await self.scripts.moveToDelayed(
+                    self.id,
+                    round(time.time() * 1000),
+                    delay,
+                    token,
+                    {
+                        "fieldsToUpdate": fields_to_update,
+                        "fetchNext": fetchNext,
+                        "workerOpts": self.queue.opts,
+                    }
+                )
+            else:
+                result = await self.scripts.retryJob(
+                    self.id,
+                    self.opts.get("lifo", False),
+                    token,
+                    {
+                        "fieldsToUpdate": fields_to_update
+                    }
+                )
+        else:
+            move_to_failed = True
 
-            results = await pipe.execute()
-            code = results[1]
-
-            if code < 0:
-                raise self.scripts.finishedErrors(code, self.id, command, 'active')
+        if move_to_failed:
+            keys, args = self.scripts.moveToFailedArgs(
+                self, error_message, self.opts.get("removeOnFail", False),
+                token, fetchNext, fields_to_update
+            )
+            result = await self.scripts.moveToFinished(self.id, keys, args)
+            finished_on = args[1]
 
         if finished_on and type(finished_on) == int:
             self.finishedOn = finished_on
@@ -193,32 +267,31 @@ class Job:
 
         self.attemptsMade = self.attemptsMade + 1
 
-    def log(self, logRow: str):
-        return Job.addJobLog(self.queue, self.id, logRow, self.opts.get("keepLogs", 0))
+        return result
 
-    async def saveStacktrace(self, pipe, err:str):
+    async def log(self, logRow: str) -> int:
+        return await Job.addJobLog(self.queue, self.id, logRow, self.opts.get("keepLogs", 0))
+
+    def updateStacktrace(self):
         stacktrace = traceback.format_exc()
         stackTraceLimit = self.opts.get("stackTraceLimit")
 
         if stacktrace:
             self.stacktrace.append(stacktrace)
-            if self.opts.get("stackTraceLimit"):
+            if self.opts.get("stackTraceLimit") == 0:
+                self.stacktrace = []
+            elif self.opts.get("stackTraceLimit"):
                 self.stacktrace = self.stacktrace[-(stackTraceLimit-1):stackTraceLimit]
 
-        keys, args = self.scripts.saveStacktraceArgs(
-            self.id, json.dumps(self.stacktrace, separators=(',', ':'), allow_nan=False), err)
+    async def moveToWaitingChildren(self, token, opts:dict) -> bool | None:
+        return await self.scripts.moveToWaitingChildren(self.id, token, opts)
 
-        await self.scripts.commands["saveStacktrace"](keys=keys, args=args, client=pipe)
-
-    def moveToWaitingChildren(self, token, opts:dict):
-        return self.scripts.moveToWaitingChildren(self.id, token, opts)
-
-    async def getChildrenValues(self):
+    async def getChildrenValues(self) -> dict[str, Any]:
         results = await self.queue.client.hgetall(f"{self.queue.prefix}:{self.queue.name}:{self.id}:processed")
         return parse_json_string_values(results)
 
     @staticmethod
-    def fromJSON(queue: Queue, rawData: dict, jobId: str | None = None):
+    def fromJSON(queue: Queue, rawData: dict, jobId: str | None = None) -> Job:
         """
         Instantiates a Job from a JobJsonRaw object (coming from a deserialized JSON object)
 
@@ -273,14 +346,14 @@ class Job:
         return job
 
     @staticmethod
-    async def fromId(queue: Queue, jobId: str):
+    async def fromId(queue: Queue, jobId: str) -> Job | None:
         key = f"{queue.prefix}:{queue.name}:{jobId}"
         raw_data = await queue.client.hgetall(key)
         if len(raw_data):
             return Job.fromJSON(queue, raw_data, jobId)
 
     @staticmethod
-    async def addJobLog(queue: Queue, jobId: str, logRow: str, keepLogs: int = 0):
+    async def addJobLog(queue: Queue, jobId: str, logRow: str, keepLogs: int = 0) -> int:
         logs_key = f"{queue.prefix}:{queue.name}:{jobId}:logs"
         multi = await queue.client.pipeline()
 

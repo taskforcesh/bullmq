@@ -26,5 +26,5 @@ const concurrency = await queue.getGroupConcurrency(groupId);
 
 ## Read more:
 
-- 💡 [Set Group Concurrency API Reference](https://api.bullmq.pro/classes/v7.Queue.html#setGroupConcurrency)
-- 💡 [Get Group Concurrency API Reference](https://api.bullmq.pro/classes/v7.Queue.html#getGroupConcurrency)
+- 💡 [Set Group Concurrency API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#setgroupconcurrency)
+- 💡 [Get Group Concurrency API Reference](https://api.bullmq.pro/classes/v7.QueuePro.html#getgroupconcurrency)
