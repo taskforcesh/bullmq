@@ -97,8 +97,10 @@ export interface RepeatBaseOptions extends QueueBaseOptions {
 /**
  * Options for QueueEvents
  */
-export interface QueueEventsOptions
-  extends Omit<QueueBaseOptions, 'telemetry'> {
+export interface QueueEventsOptions extends Omit<
+  QueueBaseOptions,
+  'telemetry'
+> {
   /**
    * Condition to start listening to events at instance creation.
    */

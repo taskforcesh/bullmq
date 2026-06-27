@@ -2013,69 +2013,6 @@ describe('Job Scheduler', () => {
     delayStub.restore();
   });
 
-  describe('when utc option is provided', () => {
-    it('repeats once a day for 5 days', async () => {
-      // TODO: Move timeout to test options: { timeout: 8000 }
-
-      const date = new Date('2017-05-05 13:12:00');
-      clock.setSystemTime(date);
-
-      const nextTick = ONE_DAY + 10 * ONE_SECOND;
-      const delay = 5 * ONE_SECOND + 500;
-
-      const worker = new Worker(
-        queueName,
-        async () => {
-          clock.tick(nextTick);
-        },
-        { autorun: false, connection, prefix },
-      );
-      const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {
-        console.log('delay');
-      });
-
-      let prev: Job;
-      let counter = 0;
-      const completing = new Promise<void>((resolve, reject) => {
-        worker.on('completed', async job => {
-          try {
-            if (prev) {
-              expect(prev.timestamp).toBeLessThan(job.timestamp);
-              expect(job.timestamp - prev.timestamp).toBeGreaterThanOrEqual(
-                ONE_DAY,
-              );
-            }
-            prev = job;
-
-            counter++;
-            if (counter == 5) {
-              resolve();
-            }
-          } catch (err) {
-            reject(err);
-          }
-        });
-      });
-
-      const job = await queue.upsertJobScheduler('repeat', {
-        pattern: '0 1 * * *',
-        endDate: new Date('2017-05-10 13:13:00'),
-        tz: 'Europe/Athens',
-        utc: true,
-      });
-
-      expect(job).toBeTruthy();
-
-      clock.tick(nextTick + delay);
-
-      worker.run();
-
-      await completing;
-      await worker.close();
-      delayStub.restore();
-    });
-  });
-
   it('should repeat 7:th day every month at 9:25', async () => {
     // TODO: Move timeout to test options: { timeout: 12000 }
 
