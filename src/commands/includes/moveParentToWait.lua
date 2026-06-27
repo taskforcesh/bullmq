@@ -19,9 +19,6 @@ local function moveParentToWait(parentQueueKey, parentKey, parentId, timestamp)
     local priority = tonumber(jobAttributes[1]) or 0
     local delay = tonumber(jobAttributes[2]) or 0
 
-    -- ignore dependencies if any left
-    rcall("HSET", parentKey, "igdp", 1)
-
     if delay > 0 then
         local delayedTimestamp = tonumber(timestamp) + delay
         local score = delayedTimestamp * 0x1000

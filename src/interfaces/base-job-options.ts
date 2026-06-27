@@ -1,6 +1,6 @@
 import { BackoffOptions } from './backoff-options';
-import { KeepJobs } from './keep-jobs';
-import { RepeatOptions } from './repeat-options';
+import { KeepJobs } from '../types/keep-jobs';
+import { ParentOptions } from './parent-options';
 
 export interface DefaultJobOptions {
   /**
@@ -27,7 +27,7 @@ export interface DefaultJobOptions {
 
   /**
    * The total number of attempts to try the job until it completes.
-   * @defaultValue 0
+   * @defaultValue 1
    */
   attempts?: number;
 
@@ -49,6 +49,11 @@ export interface DefaultJobOptions {
    * jobs to keep, or you can provide an object specifying max
    * age and/or count to keep. It overrides whatever setting is used in the worker.
    * Default behavior is to keep the job in the completed set.
+   *
+   * When using `age` or `count`, the eviction is evaluated on a
+   * best-effort basis every time a job finishes; BullMQ does not run a
+   * background timer, so aged jobs are only removed once another job
+   * completes after their expiration.
    */
   removeOnComplete?: boolean | number | KeepJobs;
 
@@ -58,6 +63,11 @@ export interface DefaultJobOptions {
    * jobs to keep, or you can provide an object specifying max
    * age and/or count to keep. It overrides whatever setting is used in the worker.
    * Default behavior is to keep the job in the failed set.
+   *
+   * When using `age` or `count`, the eviction is evaluated on a
+   * best-effort basis every time a job fails; BullMQ does not run a
+   * background timer, so aged jobs are only removed once another job
+   * fails after their expiration.
    */
   removeOnFail?: boolean | number | KeepJobs;
 
@@ -79,11 +89,6 @@ export interface DefaultJobOptions {
 
 export interface BaseJobOptions extends DefaultJobOptions {
   /**
-   * Repeat this job, for example based on a `cron` schedule.
-   */
-  repeat?: RepeatOptions;
-
-  /**
    * Internal property used by repeatable jobs to save base repeat job key.
    */
   repeatJobKey?: string;
@@ -98,17 +103,9 @@ export interface BaseJobOptions extends DefaultJobOptions {
   jobId?: string;
 
   /**
-   *
+   * Parent options
    */
-  parent?: {
-    id: string;
-
-    /**
-     * It includes the prefix, the namespace separator :, and queue name.
-     * @see {@link https://www.gnu.org/software/gawk/manual/html_node/Qualified-Names.html}
-     */
-    queue: string;
-  };
+  parent?: ParentOptions;
 
   /**
    * Internal property used by repeatable jobs.

@@ -1,18 +1,39 @@
-/*eslint-env node */
 'use strict';
 
 import { QueueBase } from './queue-base';
 import { Job } from './job';
 import { clientCommandMessageReg, QUEUE_EVENT_SUFFIX } from '../utils';
 import { JobState, JobType } from '../types';
-import { JobJsonRaw, Metrics } from '../interfaces';
+import { IQueueBackend, JobJson, Metrics, QueueMeta } from '../interfaces';
+import { IRedisClient } from '../interfaces/redis-client';
+import { MetricNames, TelemetryAttributes } from '../enums';
+
+interface ClusterNodeWithClientCommand extends IRedisClient {
+  client(command: 'LIST'): Promise<string>;
+}
+
+/**
+ * Escape a Prometheus label value per the text exposition format.
+ * https://prometheus.io/docs/instrumenting/exposition_formats/
+ *
+ * Backslashes, double quotes, and newlines must be escaped.
+ */
+function escapePrometheusLabelValue(value: string): string {
+  return String(value)
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n');
+}
 
 /**
  * Provides different getters for different aspects of a queue.
  */
-export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
+export class QueueGetters<
+  JobBase extends Job = Job,
+  B extends IQueueBackend = IQueueBackend,
+> extends QueueBase<B> {
   getJob(jobId: string): Promise<JobBase | undefined> {
-    return this.Job.fromId(this, jobId) as Promise<JobBase>;
+    return this.Job.fromId(this, jobId) as Promise<JobBase | undefined>;
   }
 
   private commandByType(
@@ -85,13 +106,13 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
   /**
    * Returns the time to live for a rate limited key in milliseconds.
    * @param maxJobs - max jobs to be considered in rate limit state. If not passed
-   * it will return the remaining ttl without considering if max jobs is excedeed.
+   * it will return the remaining ttl without considering if max jobs is exceeded.
    * @returns -2 if the key does not exist.
    * -1 if the key exists but has no associated expire.
    * @see {@link https://redis.io/commands/pttl/}
    */
   async getRateLimitTtl(maxJobs?: number): Promise<number> {
-    return this.scripts.getRateLimitTtl(maxJobs);
+    return this.backend.getRateLimitTtl(maxJobs);
   }
 
   /**
@@ -101,9 +122,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
    * @param id - debounce identifier
    */
   async getDebounceJobId(id: string): Promise<string | null> {
-    const client = await this.client;
-
-    return client.get(`${this.keys.de}:${id}`);
+    return this.backend.getDeduplicationJobId(id);
   }
 
   /**
@@ -112,16 +131,46 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
    * @param id - deduplication identifier
    */
   async getDeduplicationJobId(id: string): Promise<string | null> {
-    const client = await this.client;
+    return this.backend.getDeduplicationJobId(id);
+  }
 
-    return client.get(`${this.keys.de}:${id}`);
+  /**
+   * Get global concurrency value.
+   * Returns null in case no value is set.
+   */
+  async getGlobalConcurrency(): Promise<number | null> {
+    const concurrency = await this.backend.getQueueMetaField('concurrency');
+    if (concurrency) {
+      return Number(concurrency);
+    }
+    return null;
+  }
+
+  /**
+   * Get global rate limit values.
+   * Returns null in case no value is set.
+   */
+  async getGlobalRateLimit(): Promise<{
+    max: number;
+    duration: number;
+  } | null> {
+    const [max, duration] = await this.backend.getQueueMetaFields([
+      'max',
+      'duration',
+    ]);
+    if (max && duration) {
+      return {
+        max: Number(max),
+        duration: Number(duration),
+      };
+    }
+    return null;
   }
 
   /**
    * Job counts by type
    *
    * Queue#getJobCountByTypes('completed') =\> completed count
-   * Queue#getJobCountByTypes('completed,failed') =\> completed + failed count
    * Queue#getJobCountByTypes('completed', 'failed') =\> completed + failed count
    * Queue#getJobCountByTypes('completed', 'waiting', 'failed') =\> completed + waiting + failed count
    */
@@ -132,7 +181,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
 
   /**
    * Returns the job counts for each type specified or every list/set in the queue by default.
-   *
+   * @param types - the types of jobs to count. If not specified, it will return the counts for all types.
    * @returns An object, key (type) and value (count)
    */
   async getJobCounts(...types: JobType[]): Promise<{
@@ -140,13 +189,39 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
   }> {
     const currentTypes = this.sanitizeJobTypes(types);
 
-    const responses = await this.scripts.getCounts(currentTypes);
+    const responses = await this.backend.getCounts(currentTypes);
 
     const counts: { [index: string]: number } = {};
     responses.forEach((res, index) => {
       counts[currentTypes[index]] = res || 0;
     });
 
+    return counts;
+  }
+
+  /**
+   * Records job counts as gauge metrics for telemetry purposes.
+   * Each job state count is recorded with the queue name and state as attributes.
+   * @param types - the types of jobs to count. If not specified, it will return the counts for all types.
+   * @returns An object, key (type) and value (count)
+   */
+  async recordJobCountsMetric(...types: JobType[]): Promise<{
+    [index: string]: number;
+  }> {
+    const counts = await this.getJobCounts(...types);
+    const meter = this.opts.telemetry?.meter;
+    if (meter && typeof (meter as any).createGauge === 'function') {
+      const gauge = meter.createGauge(MetricNames.QueueJobsCount, {
+        description: 'Number of jobs in the queue by state',
+        unit: '{jobs}',
+      });
+      for (const [state, jobCount] of Object.entries(counts)) {
+        gauge.record(jobCount, {
+          [TelemetryAttributes.QueueName]: this.name,
+          [TelemetryAttributes.QueueJobsState]: state,
+        });
+      }
+    }
     return counts;
   }
 
@@ -158,11 +233,50 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
    * 'completed', 'failed', 'delayed', 'active', 'waiting', 'waiting-children', 'unknown'.
    */
   getJobState(jobId: string): Promise<JobState | 'unknown'> {
-    return this.scripts.getState(jobId);
+    return this.backend.getState(jobId);
   }
 
   /**
-   * Returns the number of jobs in completed status.
+   * Get global queue configuration.
+   *
+   * @returns Returns the global queue configuration.
+   */
+  async getMeta(): Promise<QueueMeta> {
+    const config = await this.backend.getQueueMeta();
+
+    const {
+      concurrency,
+      max,
+      duration,
+      paused,
+      'opts.maxLenEvents': maxLenEvents,
+      ...rest
+    } = config;
+
+    const parsedConfig: QueueMeta = rest;
+    if (concurrency) {
+      parsedConfig['concurrency'] = Number(concurrency);
+    }
+
+    if (maxLenEvents) {
+      parsedConfig['maxLenEvents'] = Number(maxLenEvents);
+    }
+
+    if (max) {
+      parsedConfig['max'] = Number(max);
+    }
+
+    if (duration) {
+      parsedConfig['duration'] = Number(duration);
+    }
+
+    parsedConfig['paused'] = paused === '1';
+
+    return parsedConfig;
+  }
+
+  /**
+   * @returns Returns the number of jobs in completed status.
    */
   getCompletedCount(): Promise<number> {
     return this.getJobCountByTypes('completed');
@@ -203,7 +317,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
     [index: string]: number;
   }> {
     const uniquePriorities = [...new Set(priorities)];
-    const responses = await this.scripts.getCountsPerPriority(uniquePriorities);
+    const responses = await this.backend.getCountsPerPriority(uniquePriorities);
 
     const counts: { [index: string]: number } = {};
     responses.forEach((res, index) => {
@@ -306,7 +420,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
    * @param opts - Options for the query.
    *
    * @returns an object with the following shape:
-   * `{ items: { id: string, v?: any, err?: string } [], jobs: JobJsonRaw[], total: number}`
+   * `{ items: { id: string, v?: any, err?: string } [], jobs: JobJson[], total: number}`
    */
   async getDependencies(
     parentId: string,
@@ -315,7 +429,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
     end: number,
   ): Promise<{
     items: { id: string; v?: any; err?: string }[];
-    jobs: JobJsonRaw[];
+    jobs: JobJson[];
     total: number;
   }> {
     const key = this.toKey(
@@ -323,7 +437,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
         ? `${parentId}:processed`
         : `${parentId}:dependencies`,
     );
-    const { items, total, jobs } = await this.scripts.paginate(key, {
+    const { items, total, jobs } = await this.backend.paginate(key, {
       start,
       end,
       fetchJobs: true,
@@ -354,7 +468,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
       }
     });
 
-    const responses = await this.scripts.getRanges(types, start, end, asc);
+    const responses = await this.backend.getRanges(types, start, end, asc);
 
     let results: string[] = [];
 
@@ -406,24 +520,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
     end = -1,
     asc = true,
   ): Promise<{ logs: string[]; count: number }> {
-    const client = await this.client;
-    const multi = client.multi();
-
-    const logsKey = this.toKey(jobId + ':logs');
-    if (asc) {
-      multi.lrange(logsKey, start, end);
-    } else {
-      multi.lrange(logsKey, -(end + 1), -(start + 1));
-    }
-    multi.llen(logsKey);
-    const result = (await multi.exec()) as [[Error, [string]], [Error, number]];
-    if (!asc) {
-      result[0][1].reverse();
-    }
-    return {
-      logs: result[0][1],
-      count: result[1][1],
-    };
+    return this.backend.getJobLogs(jobId, start, end, asc);
   }
 
   private async baseGetClients(matcher: (name: string) => boolean): Promise<
@@ -431,11 +528,19 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
       [index: string]: string;
     }[]
   > {
-    const client = await this.client;
     try {
-      const clients = (await client.client('LIST')) as string;
-      const list = this.parseClientList(clients, matcher);
-      return list;
+      const lists = await this.backend.getClientList();
+      if (lists.length > 1) {
+        // Cluster: pick the node with the most matching clients.
+        const clientsPerNode = lists.map(list =>
+          this.parseClientList(list, matcher),
+        );
+        return clientsPerNode.reduce(
+          (prev, current) => (prev.length > current.length ? prev : current),
+          [] as { [index: string]: string }[],
+        );
+      }
+      return this.parseClientList(lists[0] ?? '', matcher);
     } catch (err) {
       if (!clientCommandMessageReg.test((<Error>err).message)) {
         throw err;
@@ -515,35 +620,16 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
     start = 0,
     end = -1,
   ): Promise<Metrics> {
-    const client = await this.client;
-    const metricsKey = this.toKey(`metrics:${type}`);
-    const dataKey = `${metricsKey}:data`;
-
-    const multi = client.multi();
-    multi.hmget(metricsKey, 'count', 'prevTS', 'prevCount');
-    multi.lrange(dataKey, start, end);
-    multi.llen(dataKey);
-
-    const [hmget, range, len] = (await multi.exec()) as [
-      [Error, [string, string, string]],
-      [Error, []],
-      [Error, number],
-    ];
-    const [err, [count, prevTS, prevCount]] = hmget;
-    const [err2, data] = range;
-    const [err3, numPoints] = len;
-    if (err || err2) {
-      throw err || err2 || err3;
-    }
+    const [meta, data, count] = await this.backend.getMetrics(type, start, end);
 
     return {
       meta: {
-        count: parseInt(count || '0', 10),
-        prevTS: parseInt(prevTS || '0', 10),
-        prevCount: parseInt(prevCount || '0', 10),
+        count: parseInt(meta[0] || '0', 10),
+        prevTS: parseInt(meta[1] || '0', 10),
+        prevCount: parseInt(meta[2] || '0', 10),
       },
-      data,
-      count: numPoints,
+      data: data.map(point => +point || 0),
+      count,
     };
   }
 
@@ -590,18 +676,42 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
     );
     metrics.push('# TYPE bullmq_job_count gauge');
 
+    const escapedQueueName = escapePrometheusLabelValue(this.name);
+
     const variables = !globalVariables
       ? ''
       : Object.keys(globalVariables).reduce(
-          (acc, curr) => `${acc}, ${curr}="${globalVariables[curr]}"`,
+          (acc, curr) =>
+            `${acc}, ${curr}="${escapePrometheusLabelValue(
+              globalVariables[curr],
+            )}"`,
           '',
         );
 
     for (const [state, count] of Object.entries(counts)) {
       metrics.push(
-        `bullmq_job_count{queue="${this.name}", state="${state}"${variables}} ${count}`,
+        `bullmq_job_count{queue="${escapedQueueName}", state="${state}"${variables}} ${count}`,
       );
     }
+
+    const [completedMetrics, failedMetrics] = await Promise.all([
+      this.getMetrics('completed'),
+      this.getMetrics('failed'),
+    ]);
+
+    metrics.push(
+      '# HELP bullmq_job_completed_total Total number of completed jobs',
+    );
+    metrics.push('# TYPE bullmq_job_completed_total counter');
+    metrics.push(
+      `bullmq_job_completed_total{queue="${escapedQueueName}"${variables}} ${completedMetrics.meta.count}`,
+    );
+
+    metrics.push('# HELP bullmq_job_failed_total Total number of failed jobs');
+    metrics.push('# TYPE bullmq_job_failed_total counter');
+    metrics.push(
+      `bullmq_job_failed_total{queue="${escapedQueueName}"${variables}} ${failedMetrics.meta.count}`,
+    );
 
     return metrics.join('\n');
   }

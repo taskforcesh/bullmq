@@ -1,5 +1,3 @@
-import { CronExpressionOptions } from 'cron-parser';
-
 /**
  * Settings for repeatable jobs
  *
@@ -52,7 +50,6 @@ export interface RepeatOptions {
 
   /**
    * Offset in milliseconds to affect the next iteration time
-   *
    * */
   offset?: number;
 
@@ -62,15 +59,10 @@ export interface RepeatOptions {
   prevMillis?: number;
 
   /**
-   * Internal property to store de job id
+   * Internal property to store the job id
    * @deprecated not in use anymore
    */
   jobId?: string;
-
-  /**
-   * @deprecated pass Etc/UTC as tz
-   */
-  utc?: boolean;
 
   /**
    * Timezone

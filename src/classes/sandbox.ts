@@ -8,10 +8,15 @@ const sandbox = <T, R, N extends string>(
   processFile: any,
   childPool: ChildPool,
 ) => {
-  return async function process(job: Job<T, R, N>, token?: string): Promise<R> {
+  return async function process(
+    job: Job<T, R, N>,
+    token?: string,
+    signal?: AbortSignal,
+  ): Promise<R> {
     let child: Child;
     let msgHandler: any;
     let exitHandler: any;
+    let abortHandler: (() => void) | undefined;
     try {
       const done: Promise<R> = new Promise((resolve, reject) => {
         const initChild = async () => {
@@ -52,6 +57,22 @@ const sandbox = <T, R, N extends string>(
                       msg.value?.token,
                     );
                     break;
+                  case ParentCommand.MoveToWait:
+                    await job.moveToWait(msg.value?.token);
+                    break;
+                  case ParentCommand.MoveToWaitingChildren:
+                    {
+                      const value = await job.moveToWaitingChildren(
+                        msg.value?.token,
+                        msg.value?.opts,
+                      );
+                      child.send({
+                        requestId: msg.requestId,
+                        cmd: ChildCommand.MoveToWaitingChildrenResponse,
+                        value,
+                      });
+                    }
+                    break;
                   case ParentCommand.Update:
                     await job.updateData(msg.value);
                     break;
@@ -61,6 +82,36 @@ const sandbox = <T, R, N extends string>(
                       child.send({
                         requestId: msg.requestId,
                         cmd: ChildCommand.GetChildrenValuesResponse,
+                        value,
+                      });
+                    }
+                    break;
+                  case ParentCommand.GetIgnoredChildrenFailures:
+                    {
+                      const value = await job.getIgnoredChildrenFailures();
+                      child.send({
+                        requestId: msg.requestId,
+                        cmd: ChildCommand.GetIgnoredChildrenFailuresResponse,
+                        value,
+                      });
+                    }
+                    break;
+                  case ParentCommand.GetDependenciesCount:
+                    {
+                      const value = await job.getDependenciesCount(msg.value);
+                      child.send({
+                        requestId: msg.requestId,
+                        cmd: ChildCommand.GetDependenciesCountResponse,
+                        value,
+                      });
+                    }
+                    break;
+                  case ParentCommand.GetDependencies:
+                    {
+                      const value = await job.getDependencies(msg.value);
+                      child.send({
+                        requestId: msg.requestId,
+                        cmd: ChildCommand.GetDependenciesResponse,
                         value,
                       });
                     }
@@ -78,6 +129,25 @@ const sandbox = <T, R, N extends string>(
               job: job.asJSONSandbox(),
               token,
             });
+
+            if (signal) {
+              abortHandler = () => {
+                try {
+                  child.send({
+                    cmd: ChildCommand.Cancel,
+                    value: signal.reason,
+                  });
+                } catch {
+                  // Child process may have already exited
+                }
+              };
+
+              if (signal.aborted) {
+                abortHandler();
+              } else {
+                signal.addEventListener('abort', abortHandler, { once: true });
+              }
+            }
           } catch (error) {
             reject(error);
           }
@@ -88,6 +158,14 @@ const sandbox = <T, R, N extends string>(
       await done;
       return done;
     } finally {
+      // Note: There is a potential race where the signal is aborted between
+      // `await done` and this cleanup. This is safe because:
+      // 1. abortHandler has a try-catch for child process already exited
+      // 2. The listener is added with `once: true`, so it fires at most once
+      // 3. removeEventListener here is defensive cleanup only
+      if (signal && abortHandler) {
+        signal.removeEventListener('abort', abortHandler);
+      }
       if (child) {
         child.off('message', msgHandler);
         child.off('exit', exitHandler);

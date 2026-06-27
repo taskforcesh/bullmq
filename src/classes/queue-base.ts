@@ -1,18 +1,16 @@
 import { EventEmitter } from 'events';
-import { QueueBaseOptions, RedisClient, Span } from '../interfaces';
-import { MinimalQueue } from '../types';
-
 import {
-  delay,
-  DELAY_TIME_5,
-  isNotConnectionError,
-  isRedisInstance,
-  trace,
-} from '../utils';
-import { RedisConnection } from './redis-connection';
+  BackendFactory,
+  IQueueBackend,
+  MinimalQueue,
+  QueueBaseOptions,
+  Span,
+} from '../interfaces';
+
+import { delay, DELAY_TIME_5, isNotConnectionError, trace } from '../utils';
+import { createRedisBackend } from '../utils/create-backend';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
-import { Scripts } from './scripts';
 import { SpanKind } from '../enums';
 
 /**
@@ -20,32 +18,37 @@ import { SpanKind } from '../enums';
  * This class is normally not used directly, but extended by the other classes.
  *
  */
-export class QueueBase extends EventEmitter implements MinimalQueue {
+export class QueueBase<B extends IQueueBackend = IQueueBackend>
+  extends EventEmitter
+  implements MinimalQueue
+{
   toKey: (type: string) => string;
   keys: KeysMap;
   closing: Promise<void> | undefined;
 
   protected closed = false;
   protected hasBlockingConnection = false;
-  protected scripts: Scripts;
-  protected connection: RedisConnection;
+  backend: B;
+  protected readonly backendFactory: BackendFactory<B>;
   public readonly qualifiedName: string;
 
   /**
    *
    * @param name - The name of the queue.
    * @param opts - Options for the queue.
-   * @param Connection - An optional "Connection" class used to instantiate a Connection. This is useful for
-   * testing with mockups and/or extending the Connection class and passing an alternate implementation.
+   * @param backendFactory - Factory used to build the {@link IQueueBackend}.
+   * Defaults to the Redis backend; inject a different factory to use another
+   * datastore or a test mock.
    */
   constructor(
     public readonly name: string,
     public opts: QueueBaseOptions = { connection: {} },
-    Connection: typeof RedisConnection = RedisConnection,
+    backendFactory: BackendFactory<B> = createRedisBackend as unknown as BackendFactory<B>,
     hasBlockingConnection = false,
   ) {
     super();
 
+    this.backendFactory = backendFactory;
     this.hasBlockingConnection = hasBlockingConnection;
     this.opts = {
       prefix: 'bull',
@@ -60,43 +63,44 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
       throw new Error('Queue name cannot contain :');
     }
 
-    this.connection = new Connection(opts.connection, {
-      shared: isRedisInstance(opts.connection),
-      blocking: hasBlockingConnection,
-      skipVersionCheck: opts.skipVersionCheck,
-      skipWaitingForReady: opts.skipWaitingForReady,
-    });
-
-    this.connection.on('error', (error: Error) => this.emit('error', error));
-    this.connection.on('close', () => {
-      if (!this.closing) {
-        this.emit('ioredis:close');
-      }
-    });
-
     const queueKeys = new QueueKeys(opts.prefix);
     this.qualifiedName = queueKeys.getQueueQualifiedName(name);
     this.keys = queueKeys.getKeys(name);
     this.toKey = (type: string) => queueKeys.toKey(name, type);
-    this.setScripts();
+    this.createBackend();
+
+    this.backend.on('error', (error: Error) => this.emit('error', error));
+    this.backend.on('close', () => {
+      if (!this.closing) {
+        this.emit('ioredis:close');
+      }
+    });
   }
 
   /**
-   * Returns a promise that resolves to a redis client. Normally used only by subclasses.
+   * Resolves once the underlying backend (and its connection) is ready.
    */
-  get client(): Promise<RedisClient> {
-    return this.connection.client;
-  }
-
-  protected setScripts() {
-    this.scripts = new Scripts(this);
+  waitUntilReady(): Promise<void> {
+    return this.backend.waitUntilReady();
   }
 
   /**
-   * Returns the version of the Redis instance the client is connected to,
+   * Returns the datastore backend that powers this instance.
+   *
+   * The backend owns its connection(s) and exposes every datastore-agnostic
+   * operation through {@link IQueueBackend}. Datastore-specific escape hatches
+   * (e.g. the raw Redis client) live on the concrete backend implementation,
+   * and are exposed here when the class is parameterized on that concrete
+   * backend type (the default for the built-in, Redis-backed classes).
    */
-  get redisVersion(): string {
-    return this.connection.redisVersion;
+  getBackend(): B {
+    return this.backend;
+  }
+
+  protected createBackend(): void {
+    this.backend = this.backendFactory(this.name, this.opts, {
+      blocking: this.hasBlockingConnection,
+    });
   }
 
   /**
@@ -110,8 +114,8 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
    * Emits an event. Normally used by subclasses to emit events.
    *
    * @param event - The emitted event.
-   * @param args -
-   * @returns
+   * @param args - The arguments to pass to the event listeners.
+   * @returns True if the event had listeners, false otherwise.
    */
   emit(event: string | symbol, ...args: any[]): boolean {
     try {
@@ -125,10 +129,6 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
         return false;
       }
     }
-  }
-
-  waitUntilReady(): Promise<RedisClient> {
-    return this.client;
   }
 
   protected base64Name(): string {
@@ -146,7 +146,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
    */
   async close(): Promise<void> {
     if (!this.closing) {
-      this.closing = this.connection.close();
+      this.closing = this.backend.close();
     }
     await this.closing;
     this.closed = true;
@@ -157,7 +157,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
    * Force disconnects a connection.
    */
   disconnect(): Promise<void> {
-    return this.connection.disconnect();
+    return this.backend.disconnect();
   }
 
   protected async checkConnectionError<T>(
@@ -186,8 +186,8 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
    * @param operation - operation name (such as add, process, etc)
    * @param destination - destination name (normally the queue name)
    * @param callback - code to wrap with telemetry
-   * @param srcPropagationMedatada -
-   * @returns
+   * @param srcPropagationMetadata - The source propagation metadata for telemetry context.
+   * @returns The result of the callback function.
    */
   trace<T>(
     spanKind: SpanKind,

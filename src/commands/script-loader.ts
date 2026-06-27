@@ -15,6 +15,7 @@ export interface Command {
   name: string;
   options: {
     numberOfKeys: number;
+    includes?: ScriptMetadata[];
     lua: string;
   };
 }
@@ -23,6 +24,8 @@ export interface Command {
  * Script metadata
  */
 export interface ScriptMetadata {
+  dir: string;
+
   /**
    * Name of the script
    */
@@ -46,6 +49,10 @@ export interface ScriptMetadata {
    * Metadata on the scripts that this script includes
    */
   includes: ScriptMetadata[];
+  /**
+   * Identify if this script is an alias to another script (used when loading includes from different directories)
+   */
+  isAlias?: boolean;
 }
 
 export class ScriptLoaderError extends Error {
@@ -91,11 +98,16 @@ export class ScriptLoader {
   private commandCache = new Map<string, Command[]>();
   private rootPath: string;
 
-  constructor() {
+  constructor(extraMappings?: { [key: string]: string }) {
     this.rootPath = getPkgJsonDir();
     this.pathMapper.set('~', this.rootPath);
     this.pathMapper.set('rootDir', this.rootPath);
-    this.pathMapper.set('base', __dirname);
+
+    if (extraMappings) {
+      for (const [key, value] of Object.entries(extraMappings)) {
+        this.pathMapper.set(key, value);
+      }
+    }
   }
 
   /**
@@ -156,17 +168,16 @@ export class ScriptLoader {
    * Recursively collect all scripts included in a file
    * @param file - the parent file
    * @param cache - a cache for file metadata to increase efficiency. Since a file can be included
-   * multiple times, we make sure to load it only once.
+   *   multiple times, we make sure to load it only once.
+   * @param isInclude - determine if this is an include (true) or a top-level script (false)
    * @param stack - internal stack to prevent circular references
    */
   private async resolveDependencies(
     file: ScriptMetadata,
-    cache?: Map<string, ScriptMetadata>,
+    cache: Map<string, ScriptMetadata> = new Map<string, ScriptMetadata>(),
     isInclude = false,
     stack: string[] = [],
   ): Promise<void> {
-    cache = cache ?? new Map<string, ScriptMetadata>();
-
     if (stack.includes(file.path)) {
       throw new ScriptLoaderError(
         `circular reference: "${file.path}"`,
@@ -237,8 +248,7 @@ export class ScriptLoader {
         ? // mapped paths imply absolute reference
           this.resolvePath(ensureExt(reference), stack)
         : // include path is relative to the file being processed
-          path.resolve(path.dirname(file.path), ensureExt(reference));
-
+          path.resolve(file.dir, ensureExt(reference));
       let includePaths: string[];
 
       if (hasFilenamePattern(includeFilename)) {
@@ -297,6 +307,7 @@ export class ScriptLoader {
           // this represents a normalized version of the path to make replacement easy
           token = getPathHash(includePath);
           includeMetadata = {
+            dir: path.dirname(includePath),
             name,
             numberOfKeys,
             path: includePath,
@@ -340,23 +351,27 @@ export class ScriptLoader {
   async parseScript(
     filename: string,
     content: string,
+    dir: string,
     cache?: Map<string, ScriptMetadata>,
+    isLoadingIncludes = false,
   ): Promise<ScriptMetadata> {
     const { name, numberOfKeys } = splitFilename(filename);
-    const meta = cache?.get(name);
+    const filePath = isLoadingIncludes ? filename : name;
+    const meta = cache?.get(filePath);
     if (meta?.content === content) {
       return meta;
     }
     const fileInfo: ScriptMetadata = {
-      path: filename,
-      token: getPathHash(filename),
+      dir,
+      path: filePath,
+      token: getPathHash(filePath),
       content,
       name,
       numberOfKeys,
       includes: [],
     };
 
-    await this.resolveDependencies(fileInfo, cache);
+    await this.resolveDependencies(fileInfo, cache, isLoadingIncludes);
     return fileInfo;
   }
 
@@ -365,11 +380,13 @@ export class ScriptLoader {
    * @param file - the file whose content we want to construct
    * @param processed - a cache to keep track of which includes have already been processed
    */
-  interpolate(file: ScriptMetadata, processed?: Set<string>): string {
-    processed = processed || new Set<string>();
+  interpolate(
+    file: ScriptMetadata,
+    processed: Set<string> = new Set<string>(),
+  ): string {
     let content = file.content;
     file.includes.forEach((child: ScriptMetadata) => {
-      const emitted = processed!.has(child.path);
+      const emitted = processed.has(child.path);
       const fragment = this.interpolate(child, processed);
       const replacement = emitted ? '' : fragment;
 
@@ -390,23 +407,44 @@ export class ScriptLoader {
 
   async loadCommand(
     filename: string,
+    dir: string,
     cache?: Map<string, ScriptMetadata>,
+    isLoadingIncludes = false,
+    fileAlias = '',
   ): Promise<Command> {
     filename = path.resolve(filename);
 
     const { name: scriptName } = splitFilename(filename);
-    let script = cache?.get(scriptName);
+
+    let script = cache?.get(isLoadingIncludes ? filename : scriptName);
     if (!script) {
       const content = (await readFile(filename)).toString();
-      script = await this.parseScript(filename, content, cache);
+      script = await this.parseScript(
+        filename,
+        content,
+        dir,
+        cache,
+        isLoadingIncludes,
+      );
+    }
+
+    if (isLoadingIncludes && fileAlias) {
+      const scriptWithAlias = cache?.get(fileAlias);
+      if (!scriptWithAlias) {
+        cache?.set(fileAlias, script);
+      } else {
+        scriptWithAlias.content = script.content;
+        scriptWithAlias.includes = script.includes;
+        scriptWithAlias.isAlias = true;
+      }
     }
 
     const lua = removeEmptyLines(this.interpolate(script));
-    const { name, numberOfKeys } = script;
+    const { name, numberOfKeys, includes } = script;
 
     return {
       name,
-      options: { numberOfKeys: numberOfKeys!, lua },
+      options: { numberOfKeys: numberOfKeys!, lua, includes },
     };
   }
 
@@ -425,6 +463,8 @@ export class ScriptLoader {
   async loadScripts(
     dir?: string,
     cache?: Map<string, ScriptMetadata>,
+    isLoadingIncludes = false,
+    directoryAlias = '',
   ): Promise<Command[]> {
     dir = path.normalize(dir || __dirname);
 
@@ -452,9 +492,46 @@ export class ScriptLoader {
 
     for (let i = 0; i < luaFiles.length; i++) {
       const file = path.join(dir, luaFiles[i]);
+      const fileAlias = path.join(directoryAlias, luaFiles[i]);
 
-      const command = await this.loadCommand(file, cache);
-      commands.push(command);
+      const command = await this.loadCommand(
+        file,
+        dir,
+        cache,
+        isLoadingIncludes,
+        fileAlias,
+      );
+      if (!isLoadingIncludes) {
+        commands.push(command);
+      }
+    }
+
+    const includeScripts = new Map<string, string[]>();
+    for (const luaScript of cache.values()) {
+      if (luaScript.numberOfKeys === undefined && !luaScript.isAlias) {
+        const paths = new Set<string>([
+          ...(includeScripts.get(luaScript.name) || []),
+          luaScript.path,
+        ]);
+        includeScripts.set(luaScript.name, [...paths]);
+      }
+    }
+
+    for (const [key, paths] of includeScripts) {
+      if (paths?.length > 1 && !isLoadingIncludes) {
+        console.warn(
+          `Warning: Include script name conflict for "${key}". Included from:`,
+          paths,
+        );
+        paths.forEach(currentPath => {
+          console.log('-- parents of ', currentPath);
+          for (const meta of cache!.values()) {
+            if (meta.includes.find(include => include.path === currentPath)) {
+              console.log('   ', meta.path);
+            }
+          }
+        });
+      }
     }
 
     this.commandCache.set(dir, commands);

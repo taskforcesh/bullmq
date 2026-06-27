@@ -15,6 +15,8 @@
     ARGV[2] (job.opts.lifo ? 'R' : 'L') + 'PUSH'
     ARGV[3] propVal - failedReason/returnvalue
     ARGV[4] prev state - failed/completed
+    ARGV[5] reset attemptsMade - "1" or "0"
+    ARGV[6] reset attemptsStarted - "1" or "0"
 
   Output:
      1 means the operation was a success
@@ -28,13 +30,39 @@ local rcall = redis.call;
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/getTargetQueueList"
 
-if rcall("EXISTS", KEYS[1]) == 1 then
+local jobKey = KEYS[1]
+if rcall("EXISTS", jobKey) == 1 then
   local jobId = ARGV[1]
   if (rcall("ZREM", KEYS[3], jobId) == 1) then
-    rcall("HDEL", KEYS[1], "finishedOn", "processedOn", ARGV[3])
+    local attributesToRemove = {}
+
+    if ARGV[5] == "1" then
+      table.insert(attributesToRemove, "atm")
+    end
+
+    if ARGV[6] == "1" then
+      table.insert(attributesToRemove, "ats")
+    end
+
+    rcall("HDEL", jobKey, "finishedOn", "processedOn", ARGV[3], unpack(attributesToRemove))
 
     local target, isPausedOrMaxed = getTargetQueueList(KEYS[5], KEYS[7], KEYS[4], KEYS[6])
     addJobInTargetList(target, KEYS[8], ARGV[2], isPausedOrMaxed, jobId)
+
+    local parentKey = rcall("HGET", jobKey, "parentKey")
+
+    if parentKey and rcall("EXISTS", parentKey) == 1 then
+      if ARGV[4] == "failed" then
+        if rcall("ZREM", parentKey .. ":unsuccessful", jobKey) == 1 or
+          rcall("ZREM", parentKey .. ":failed", jobKey) == 1 then
+          rcall("SADD", parentKey .. ":dependencies", jobKey)
+        end
+      else
+        if rcall("HDEL", parentKey .. ":processed", jobKey) == 1 then
+          rcall("SADD", parentKey .. ":dependencies", jobKey)
+        end
+      end
+    end
 
     local maxEvents = getOrSetMaxEvents(KEYS[5])
     -- Emit waiting event

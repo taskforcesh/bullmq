@@ -1,0 +1,11 @@
+# OSV Scanner Configuration
+# https://google.github.io/osv-scanner/configuration/
+
+# rustls-pemfile is unmaintained (the crate was archived; its PEM parsing was
+# folded into rustls-pki-types). This is an informational advisory with no CVSS
+# score and no fixed version available. It is only pulled in transitively by the
+# `redis` crate's TLS support (rust/Cargo.lock) and there is nothing to upgrade
+# to, so we acknowledge and ignore it.
+[[IgnoredVulns]]
+id = "RUSTSEC-2025-0134"
+reason = "Informational only (unmaintained). Transitive via redis TLS; no fixed version available."

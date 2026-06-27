@@ -1,12 +1,16 @@
-import { JobsOptions, JobJsonSandbox, JobProgress } from '../types';
+import { JobsOptions } from '../types/job-options';
+import { JobProgress } from '../types/job-progress';
+import { JobJsonSandbox } from '../types/job-json-sandbox';
 import { JobJson } from './job-json';
 import { ParentKeys } from './parent';
+import { ParentOptions } from './parent-options';
 
-export type BulkJobOptions = Omit<JobsOptions, 'repeat'>;
+export type BulkJobOptions = JobsOptions;
 
 export interface MoveToDelayedOpts {
   skipAttempt?: boolean;
   fieldsToUpdate?: Record<string, any>;
+  fetchNext?: boolean;
 }
 
 export interface RetryJobOpts {
@@ -14,10 +18,7 @@ export interface RetryJobOpts {
 }
 
 export interface MoveToWaitingChildrenOpts {
-  child?: {
-    id: string;
-    queue: string;
-  };
+  child?: ParentOptions;
 }
 
 export interface DependencyOpts {
@@ -85,7 +86,7 @@ export interface MinimalJob<
    * Stacktrace for the error (for failed jobs).
    * @defaultValue null
    */
-  stacktrace: string[];
+  stacktrace: string[] | null;
   /**
    * An amount of milliseconds to wait until this job can be processed.
    * @defaultValue 0

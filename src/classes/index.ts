@@ -5,10 +5,14 @@ export * from './child-pool';
 export * from './child-processor';
 export * from './errors';
 export * from './flow-producer';
+export * from './ioredis-client';
+export * from './node-redis-client';
+export * from './bun-redis-client';
 export * from './job';
 export * from './job-scheduler';
 // export * from './main'; this file must not be exported
 // export * from './main-worker'; this file must not be exported
+export * from './lock-manager';
 export * from './queue-base';
 export * from './queue-events';
 export * from './queue-events-producer';
@@ -16,7 +20,6 @@ export * from './queue-getters';
 export * from './queue-keys';
 export * from './queue';
 export * from './redis-connection';
-export * from './repeat';
 export * from './sandbox';
-export * from './scripts';
+export * from './redis-queue-backend';
 export * from './worker';

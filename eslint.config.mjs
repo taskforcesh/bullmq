@@ -2,7 +2,6 @@ import { defineConfig, globalIgnores } from 'eslint/config';
 import tsdoc from 'eslint-plugin-tsdoc';
 import promise from 'eslint-plugin-promise';
 import prettier from 'eslint-plugin-prettier';
-import mocha from 'eslint-plugin-mocha';
 import typescriptEslintEslintPlugin from '@typescript-eslint/eslint-plugin';
 import globals from 'globals';
 import tsParser from '@typescript-eslint/parser';
@@ -24,6 +23,9 @@ export default defineConfig([
     '**/.DS_Store',
     '**/node_modules',
     'dist',
+    'elixir',
+    'php/vendor',
+    'rust/target',
     '**/npm-debug.log*',
     '**/yarn-debug.log*',
     '**/yarn-error.log*',
@@ -36,6 +38,7 @@ export default defineConfig([
     '**/*.sln',
     '**/*.sw*',
     '**/temp',
+    '**/changelogs',
     'docs/gitbook/api',
     'docs/gitbook/changelog.md',
     'docs/gitbook/bullmq-pro/changelog.md',
@@ -52,14 +55,12 @@ export default defineConfig([
       tsdoc,
       promise,
       prettier,
-      mocha,
       '@typescript-eslint': typescriptEslintEslintPlugin,
     },
 
     languageOptions: {
       globals: {
         ...globals.node,
-        ...globals.mocha,
         Atomics: 'readonly',
         SharedArrayBuffer: 'readonly',
       },
@@ -68,6 +69,12 @@ export default defineConfig([
     },
 
     rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: ['src/*'],
+        },
+      ],
       '@typescript-eslint/no-empty-interface': [
         'error',
         {
@@ -84,7 +91,6 @@ export default defineConfig([
       '@typescript-eslint/no-unsafe-function-type': 1,
       '@typescript-eslint/no-var-requires': 0,
       '@typescript-eslint/no-this-alias': 0,
-      'mocha/no-exclusive-tests': 'error',
 
       'space-before-function-paren': [
         'error',

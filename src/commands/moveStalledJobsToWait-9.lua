@@ -5,12 +5,12 @@
       KEYS[1] 'stalled' (SET)
       KEYS[2] 'wait',   (LIST)
       KEYS[3] 'active', (LIST)
-      KEYS[4] 'failed', (ZSET)
-      KEYS[5] 'stalled-check', (KEY)
-      KEYS[6] 'meta', (KEY)
-      KEYS[7] 'paused', (LIST)
-      KEYS[8] 'marker'
-      KEYS[9] 'event stream' (STREAM)
+      KEYS[4] 'stalled-check', (KEY)
+      KEYS[5] 'meta', (KEY)
+      KEYS[6] 'paused', (LIST)
+      KEYS[7] 'marker'
+      KEYS[8] 'event stream' (STREAM)
+      KEYS[9] 'repeat' key
 
       ARGV[1]  Max stalled job count
       ARGV[2]  queue.toKey('')
@@ -25,39 +25,35 @@ local rcall = redis.call
 -- Includes
 --- @include "includes/addJobInTargetList"
 --- @include "includes/batches"
---- @include "includes/getTargetQueueList"
---- @include "includes/moveChildFromDependenciesIfNeeded"
---- @include "includes/removeDeduplicationKeyIfNeededOnFinalization"
---- @include "includes/removeJobsOnFail"
+--- @include "includes/moveJobToWait"
 --- @include "includes/trimEvents"
 
 local stalledKey = KEYS[1]
 local waitKey = KEYS[2]
 local activeKey = KEYS[3]
-local failedKey = KEYS[4]
-local stalledCheckKey = KEYS[5]
-local metaKey = KEYS[6]
-local pausedKey = KEYS[7]
-local markerKey = KEYS[8]
-local eventStreamKey = KEYS[9]
+local stalledCheckKey = KEYS[4]
+local metaKey = KEYS[5]
+local pausedKey = KEYS[6]
+local markerKey = KEYS[7]
+local eventStreamKey = KEYS[8]
+local repeatKey = KEYS[9]
 local maxStalledJobCount = tonumber(ARGV[1])
 local queueKeyPrefix = ARGV[2]
 local timestamp = ARGV[3]
 local maxCheckTime = ARGV[4]
 
 if rcall("EXISTS", stalledCheckKey) == 1 then
-    return {{}, {}}
+    return {}
 end
 
 rcall("SET", stalledCheckKey, timestamp, "PX", maxCheckTime)
 
--- Trim events before emiting them to avoid trimming events emitted in this script
+-- Trim events before emitting them to avoid trimming events emitted in this script
 trimEvents(metaKey, eventStreamKey)
 
 -- Move all stalled jobs to wait
 local stalling = rcall('SMEMBERS', stalledKey)
 local stalled = {}
-local failed = {}
 if (#stalling > 0) then
     rcall('DEL', stalledKey)
 
@@ -78,36 +74,37 @@ if (#stalling > 0) then
                 if (removed > 0) then
                     -- If this job has been stalled too many times, such as if it crashes the worker, then fail it.
                     local stalledCount = rcall("HINCRBY", jobKey, "stc", 1)
-                    if (stalledCount > maxStalledJobCount) then
-                        local jobAttributes = rcall("HMGET", jobKey, "opts", "parent", "deid")
-                        local rawOpts = jobAttributes[1]
-                        local rawParentData = jobAttributes[2]
-                        local opts = cjson.decode(rawOpts)
-                        rcall("ZADD", failedKey, timestamp, jobId)
-                        removeDeduplicationKeyIfNeededOnFinalization(queueKeyPrefix, jobAttributes[3], jobId)
+                    
+                    -- Check if this is a repeatable job by looking at job options
+                    local jobSchedulerId = rcall("HGET", jobKey, "rjk")
+                    local isRepeatableJob = false
+                    if jobSchedulerId then
+                        local schedulerKey = repeatKey .. ":" .. jobSchedulerId
 
-                        local failedReason = "job stalled more than allowable limit"
-                        rcall("HMSET", jobKey, "failedReason", failedReason, "finishedOn", timestamp)
-                        rcall("XADD", eventStreamKey, "*", "event", "failed", "jobId", jobId, 'prev', 'active',
-                            'failedReason', failedReason)
-
-                        moveChildFromDependenciesIfNeeded(rawParentData, jobKey, failedReason, timestamp)
-
-                        removeJobsOnFail(queueKeyPrefix, failedKey, jobId, opts, timestamp)
-
-                        table.insert(failed, jobId)
-                    else
-                        local target, isPausedOrMaxed = getTargetQueueList(metaKey, activeKey, waitKey, pausedKey)
-
-                        -- Move the job back to the wait queue, to immediately be picked up by a waiting worker.
-                        addJobInTargetList(target, markerKey, "RPUSH", isPausedOrMaxed, jobId)
-
-                        rcall("XADD", eventStreamKey, "*", "event", "waiting", "jobId", jobId, 'prev', 'active')
-
-                        -- Emit the stalled event
-                        rcall("XADD", eventStreamKey, "*", "event", "stalled", "jobId", jobId)
-                        table.insert(stalled, jobId)
+                        if rcall("EXISTS", schedulerKey) == 1 then
+                            isRepeatableJob = true
+                        else
+                            -- TODO: remove this check in v6, as it is only needed for legacy repeatable jobs
+                            -- that stored the scheduler id in the job key but did not create the scheduler hash key
+                            local prevMillis = rcall("ZSCORE", repeatKey, jobSchedulerId)
+                            if prevMillis then
+                                isRepeatableJob = true
+                            end
+                        end
                     end
+                    
+                    -- Only fail job if it exceeds stall limit AND is not a repeatable job
+                    if stalledCount > maxStalledJobCount and not isRepeatableJob then
+                        local failedReason = "job stalled more than allowable limit"
+                        rcall("HSET", jobKey, "defa", failedReason)
+                    end
+                    
+                    moveJobToWait(metaKey, activeKey, waitKey, pausedKey, markerKey, eventStreamKey, jobId,
+                        "RPUSH")
+
+                    -- Emit the stalled event
+                    rcall("XADD", eventStreamKey, "*", "event", "stalled", "jobId", jobId)
+                    table.insert(stalled, jobId)
                 end
             end
         end
@@ -123,4 +120,4 @@ if (#active > 0) then
     end
 end
 
-return {failed, stalled}
+return stalled

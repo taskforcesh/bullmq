@@ -10,7 +10,7 @@
     KEYS[6]  limiter key
     KEYS[7]  prioritized key
     KEYS[8]  marker key
-    KEYS[9] event key
+    KEYS[9]  event key
 
     ARGV[1] job id
     ARGV[2] lock token
@@ -28,6 +28,10 @@ local rcall = redis.call
 local jobId = ARGV[1]
 local token = ARGV[2]
 local jobKey = ARGV[3]
+
+if rcall("EXISTS", jobKey) == 0 then
+  return -1
+end
 
 local errorCode = removeLock(jobKey, KEYS[3], token, jobId)
 if errorCode < 0 then
@@ -51,7 +55,7 @@ if removed > 0 then
 
   -- Emit waiting event
   rcall("XADD", KEYS[9], "MAXLEN", "~", maxEvents, "*", "event", "waiting",
-    "jobId", jobId)
+    "jobId", jobId, "prev", "active")
 end
 
 local pttl = rcall("PTTL", KEYS[6])

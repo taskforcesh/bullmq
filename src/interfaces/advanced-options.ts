@@ -1,4 +1,5 @@
-import { BackoffStrategy, RepeatStrategy } from '../types';
+import { BackoffStrategy } from '../types/backoff-strategy';
+import { RepeatStrategy } from '../types/repeat-strategy';
 
 export interface AdvancedRepeatOptions {
   /**

@@ -1,27 +1,27 @@
-import { v4 } from 'uuid';
 import {
+  BackendFactory,
   BaseJobOptions,
   BulkJobOptions,
   IoredisListener,
+  IQueueBackend,
   JobSchedulerJson,
+  MinimalQueue,
   QueueOptions,
-  RepeatableJob,
   RepeatOptions,
 } from '../interfaces';
 import {
   FinishedStatus,
   JobsOptions,
   JobSchedulerTemplateOptions,
-  MinimalQueue,
   JobProgress,
 } from '../types';
 import { Job } from './job';
 import { QueueGetters } from './queue-getters';
-import { Repeat } from './repeat';
-import { RedisConnection } from './redis-connection';
+import { RedisQueueBackend } from './redis-queue-backend';
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { JobScheduler } from './job-scheduler';
 import { version } from '../version';
+import { randomUUID } from '../utils';
 
 export interface ObliterateOpts {
   /**
@@ -36,8 +36,9 @@ export interface ObliterateOpts {
   count?: number;
 }
 
-export interface QueueListener<JobBase extends Job = Job>
-  extends IoredisListener {
+export interface QueueListener<
+  JobBase extends Job = Job,
+> extends IoredisListener {
   /**
    * Listen to 'cleaned' event.
    *
@@ -64,14 +65,14 @@ export interface QueueListener<JobBase extends Job = Job>
    *
    * This event is triggered when the job updates its progress.
    */
-  progress: (job: JobBase, progress: number | object) => void;
+  progress: (jobId: string, progress: JobProgress) => void;
 
   /**
    * Listen to 'removed' event.
    *
    * This event is triggered when a job is removed.
    */
-  removed: (job: JobBase) => void;
+  removed: (jobId: string) => void;
 
   /**
    * Listen to 'resumed' event.
@@ -88,36 +89,30 @@ export interface QueueListener<JobBase extends Job = Job>
   waiting: (job: JobBase) => void;
 }
 
+/**
+ * IsAny<T> A type helper to determine if a given type `T` is `any`.
+ * This works by using `any` type with the intersection
+ * operator (`&`). If `T` is `any`, then `1 & T` resolves to `any`, and since `0`
+ * is assignable to `any`, the conditional type returns `true`.
+ */
+type IsAny<T> = 0 extends 1 & T ? true : false;
 // Helper for JobBase type
-type JobBase<T, ResultType, NameType extends string> = T extends Job<
-  any,
-  any,
-  any
->
-  ? T
-  : Job<T, ResultType, NameType>;
+type JobBase<T, ResultType, NameType extends string> =
+  IsAny<T> extends true
+    ? Job<T, ResultType, NameType>
+    : T extends Job<any, any, any>
+      ? T
+      : Job<T, ResultType, NameType>;
 
 // Helper types to extract DataType, ResultType, and NameType
-type ExtractDataType<DataTypeOrJob, Default> = DataTypeOrJob extends Job<
-  infer D,
-  any,
-  any
->
-  ? D
-  : Default;
+type ExtractDataType<DataTypeOrJob, Default> =
+  DataTypeOrJob extends Job<infer D, any, any> ? D : Default;
 
-type ExtractResultType<DataTypeOrJob, Default> = DataTypeOrJob extends Job<
-  any,
-  infer R,
-  any
->
-  ? R
-  : Default;
+type ExtractResultType<DataTypeOrJob, Default> =
+  DataTypeOrJob extends Job<any, infer R, any> ? R : Default;
 
-type ExtractNameType<
-  DataTypeOrJob,
-  Default extends string,
-> = DataTypeOrJob extends Job<any, any, infer N> ? N : Default;
+type ExtractNameType<DataTypeOrJob, Default extends string> =
+  DataTypeOrJob extends Job<any, any, infer N> ? N : Default;
 
 /**
  * Queue
@@ -152,35 +147,35 @@ export class Queue<
   DataType = ExtractDataType<DataTypeOrJob, DataTypeOrJob>,
   ResultType = ExtractResultType<DataTypeOrJob, DefaultResultType>,
   NameType extends string = ExtractNameType<DataTypeOrJob, DefaultNameType>,
-> extends QueueGetters<JobBase<DataTypeOrJob, ResultType, NameType>> {
-  token = v4();
+  B extends IQueueBackend = RedisQueueBackend,
+> extends QueueGetters<JobBase<DataTypeOrJob, ResultType, NameType>, B> {
+  token = randomUUID();
   jobsOpts: BaseJobOptions;
-  opts: QueueOptions;
+  declare opts: QueueOptions;
 
   protected libName = 'bullmq';
 
-  protected _repeat?: Repeat; // To be deprecated in v6 in favor of JobScheduler
   protected _jobScheduler?: JobScheduler;
 
   constructor(
     name: string,
     opts?: QueueOptions,
-    Connection?: typeof RedisConnection,
+    backendFactory?: BackendFactory<B>,
   ) {
     super(
       name,
       {
         ...opts,
       },
-      Connection,
+      backendFactory,
     );
 
     this.jobsOpts = opts?.defaultJobOptions ?? {};
 
     this.waitUntilReady()
-      .then(client => {
+      .then(() => {
         if (!this.closing && !opts?.skipMetasUpdate) {
-          return client.hmset(this.keys.meta, this.metaValues);
+          return this.backend.setQueueMeta(this.metaValues);
         }
       })
       .catch(err => {
@@ -239,50 +234,27 @@ export class Queue<
   /**
    * Get library version.
    *
-   * @returns the content of the meta.library field.
+   * @returns the content of the `meta.version` field, or `null` when the meta
+   * hash has not been populated yet (e.g. when `skipMetasUpdate` is enabled and
+   * no other instance has written it).
    */
-  async getVersion(): Promise<string> {
-    const client = await this.client;
-    return await client.hget(this.keys.meta, 'version');
-  }
-
-  get repeat(): Promise<Repeat> {
-    return new Promise<Repeat>(async resolve => {
-      if (!this._repeat) {
-        this._repeat = new Repeat(this.name, {
-          ...this.opts,
-          connection: await this.client,
-        });
-        this._repeat.on('error', e => this.emit.bind(this, e));
-      }
-      resolve(this._repeat);
-    });
+  async getVersion(): Promise<string | null> {
+    return await this.backend.getQueueMetaField('version');
   }
 
   get jobScheduler(): Promise<JobScheduler> {
     return new Promise<JobScheduler>(async resolve => {
       if (!this._jobScheduler) {
-        this._jobScheduler = new JobScheduler(this.name, {
-          ...this.opts,
-          connection: await this.client,
-        });
-        this._jobScheduler.on('error', e => this.emit.bind(this, e));
+        // Share this queue's backend (same queue name/keys) with the scheduler.
+        this._jobScheduler = new JobScheduler(
+          this.name,
+          this.opts,
+          () => this.backend,
+        );
+        this._jobScheduler.on('error', this.emit.bind(this, 'error'));
       }
       resolve(this._jobScheduler);
     });
-  }
-
-  /**
-   * Get global concurrency value.
-   * Returns null in case no value is set.
-   */
-  async getGlobalConcurrency(): Promise<number | null> {
-    const client = await this.client;
-    const concurrency = await client.hget(this.keys.meta, 'concurrency');
-    if (concurrency) {
-      return Number(concurrency);
-    }
-    return null;
   }
 
   /**
@@ -293,16 +265,30 @@ export class Queue<
    * restriction on the number of concurrent jobs.
    */
   async setGlobalConcurrency(concurrency: number) {
-    const client = await this.client;
-    return client.hset(this.keys.meta, 'concurrency', concurrency);
+    return this.backend.setQueueMeta({ concurrency });
+  }
+
+  /**
+   * Enable and set rate limit.
+   * @param max - Max number of jobs to process in the time period specified in `duration`
+   * @param duration - Time in milliseconds. During this time, a maximum of `max` jobs will be processed.
+   */
+  async setGlobalRateLimit(max: number, duration: number) {
+    return this.backend.setQueueMeta({ max, duration });
   }
 
   /**
    * Remove global concurrency value.
    */
   async removeGlobalConcurrency() {
-    const client = await this.client;
-    return client.hdel(this.keys.meta, 'concurrency');
+    return this.backend.removeQueueMetaFields(['concurrency']);
+  }
+
+  /**
+   * Remove global rate limit values.
+   */
+  async removeGlobalRateLimit() {
+    return this.backend.removeQueueMetaFields(['max', 'duration']);
   }
 
   /**
@@ -321,10 +307,10 @@ export class Queue<
       SpanKind.PRODUCER,
       'add',
       `${this.name}.${name}`,
-      async (span, srcPropagationMedatada) => {
-        if (srcPropagationMedatada && !opts?.telemetry?.omitContext) {
+      async (span, srcPropagationMetadata) => {
+        if (srcPropagationMetadata && !opts?.telemetry?.omitContext) {
           const telemetry = {
-            metadata: srcPropagationMedatada,
+            metadata: srcPropagationMetadata,
           };
           opts = { ...opts, telemetry };
         }
@@ -356,39 +342,27 @@ export class Queue<
     data: DataType,
     opts?: JobsOptions,
   ): Promise<Job<DataType, ResultType, NameType>> {
-    if (opts && opts.repeat) {
-      if (opts.repeat.endDate) {
-        if (+new Date(opts.repeat.endDate) < Date.now()) {
-          throw new Error('End date must be greater than current timestamp');
-        }
-      }
+    const jobId = opts?.jobId;
 
-      return (await this.repeat).updateRepeatableJob<
-        DataType,
-        ResultType,
-        NameType
-      >(name, data, { ...this.jobsOpts, ...opts }, { override: true });
-    } else {
-      const jobId = opts?.jobId;
-
-      if (jobId == '0' || jobId?.startsWith('0:')) {
-        throw new Error("JobId cannot be '0' or start with 0:");
-      }
-
-      const job = await this.Job.create<DataType, ResultType, NameType>(
-        this as MinimalQueue,
-        name,
-        data,
-        {
-          ...this.jobsOpts,
-          ...opts,
-          jobId,
-        },
-      );
-      this.emit('waiting', job as JobBase<DataType, ResultType, NameType>);
-
-      return job;
+    if (jobId == '0' || jobId?.startsWith('0:')) {
+      throw new Error("JobId cannot be '0' or start with '0:'");
     }
+
+    const mergedOpts = {
+      ...this.jobsOpts,
+      ...opts,
+      jobId,
+    };
+
+    const job = await this.Job.create<DataType, ResultType, NameType>(
+      this as MinimalQueue,
+      name,
+      data,
+      mergedOpts,
+    );
+    this.emit('waiting', job as JobBase<DataType, ResultType, NameType>);
+
+    return job;
   }
 
   /**
@@ -405,7 +379,7 @@ export class Queue<
       SpanKind.PRODUCER,
       'addBulk',
       this.name,
-      async (span, srcPropagationMedatada) => {
+      async (span, srcPropagationMetadata) => {
         if (span) {
           span.setAttributes({
             [TelemetryAttributes.BulkNames]: jobs.map(job => job.name),
@@ -417,11 +391,11 @@ export class Queue<
           this as MinimalQueue,
           jobs.map(job => {
             let telemetry = job.opts?.telemetry;
-            if (srcPropagationMedatada) {
+            if (srcPropagationMetadata) {
               const omitContext = job.opts?.telemetry?.omitContext;
               const telemetryMetadata =
                 job.opts?.telemetry?.metadata ||
-                (!omitContext && srcPropagationMedatada);
+                (!omitContext && srcPropagationMetadata);
 
               if (telemetryMetadata || omitContext) {
                 telemetry = {
@@ -431,15 +405,17 @@ export class Queue<
               }
             }
 
+            const mergedOpts = {
+              ...this.jobsOpts,
+              ...job.opts,
+              jobId: job.opts?.jobId,
+              telemetry,
+            };
+
             return {
               name: job.name,
               data: job.data,
-              opts: {
-                ...this.jobsOpts,
-                ...job.opts,
-                jobId: job.opts?.jobId,
-                telemetry,
-              },
+              opts: mergedOpts,
             };
           }),
         );
@@ -503,7 +479,7 @@ export class Queue<
    */
   async pause(): Promise<void> {
     await this.trace<void>(SpanKind.INTERNAL, 'pause', this.name, async () => {
-      await this.scripts.pause(true);
+      await this.backend.pause(true);
 
       this.emit('paused');
     });
@@ -515,12 +491,6 @@ export class Queue<
    */
   async close(): Promise<void> {
     await this.trace<void>(SpanKind.INTERNAL, 'close', this.name, async () => {
-      if (!this.closing) {
-        if (this._repeat) {
-          await this._repeat.close();
-        }
-      }
-
       await super.close();
     });
   }
@@ -540,14 +510,7 @@ export class Queue<
           [TelemetryAttributes.QueueRateLimit]: expireTimeMs,
         });
 
-        await this.client.then(client =>
-          client.set(
-            this.keys.limiter,
-            Number.MAX_SAFE_INTEGER,
-            'PX',
-            expireTimeMs,
-          ),
-        );
+        await this.backend.setRateLimit(expireTimeMs);
       },
     );
   }
@@ -560,7 +523,7 @@ export class Queue<
    */
   async resume(): Promise<void> {
     await this.trace<void>(SpanKind.INTERNAL, 'resume', this.name, async () => {
-      await this.scripts.pause(false);
+      await this.backend.pause(false);
 
       this.emit('resumed');
     });
@@ -570,34 +533,14 @@ export class Queue<
    * Returns true if the queue is currently paused.
    */
   async isPaused(): Promise<boolean> {
-    const client = await this.client;
-    const pausedKeyExists = await client.hexists(this.keys.meta, 'paused');
-    return pausedKeyExists === 1;
+    return this.backend.hasQueueMetaField('paused');
   }
 
   /**
    * Returns true if the queue is currently maxed.
    */
   isMaxed(): Promise<boolean> {
-    return this.scripts.isMaxed();
-  }
-
-  /**
-   * Get all repeatable meta jobs.
-   *
-   * @deprecated This method is deprecated and will be removed in v6. Use getJobSchedulers instead.
-   *
-   * @param start - Offset of first job to return.
-   * @param end - Offset of last job to return.
-   * @param asc - Determine the order in which jobs are returned based on their
-   * next execution time.
-   */
-  async getRepeatableJobs(
-    start?: number,
-    end?: number,
-    asc?: boolean,
-  ): Promise<RepeatableJob[]> {
-    return (await this.repeat).getRepeatableJobs(start, end, asc);
+    return this.backend.isMaxed();
   }
 
   /**
@@ -605,7 +548,9 @@ export class Queue<
    *
    * @param id - identifier of scheduler.
    */
-  async getJobScheduler(id: string): Promise<JobSchedulerJson<DataType>> {
+  async getJobScheduler(
+    id: string,
+  ): Promise<JobSchedulerJson<DataType> | undefined> {
     return (await this.jobScheduler).getScheduler<DataType>(id);
   }
 
@@ -640,44 +585,6 @@ export class Queue<
   }
 
   /**
-   * Removes a repeatable job.
-   *
-   * Note: you need to use the exact same repeatOpts when deleting a repeatable job
-   * than when adding it.
-   *
-   * @deprecated This method is deprecated and will be removed in v6. Use removeJobScheduler instead.
-   *
-   * @see removeRepeatableByKey
-   *
-   * @param name - Job name
-   * @param repeatOpts - Repeat options
-   * @param jobId - Job id to remove. If not provided, all jobs with the same repeatOpts
-   * @returns
-   */
-  async removeRepeatable(
-    name: NameType,
-    repeatOpts: RepeatOptions,
-    jobId?: string,
-  ): Promise<boolean> {
-    return this.trace<boolean>(
-      SpanKind.INTERNAL,
-      'removeRepeatable',
-      `${this.name}.${name}`,
-      async span => {
-        span?.setAttributes({
-          [TelemetryAttributes.JobName]: name,
-          [TelemetryAttributes.JobId]: jobId,
-        });
-
-        const repeat = await this.repeat;
-        const removed = await repeat.removeRepeatable(name, repeatOpts, jobId);
-
-        return !removed;
-      },
-    );
-  }
-
-  /**
    *
    * Removes a job scheduler.
    *
@@ -708,9 +615,7 @@ export class Queue<
           [TelemetryAttributes.JobKey]: id,
         });
 
-        const client = await this.client;
-
-        return await client.del(`${this.keys.de}:${id}`);
+        return await this.backend.deleteDeduplicationKey(id);
       },
     );
   }
@@ -730,8 +635,7 @@ export class Queue<
           [TelemetryAttributes.DeduplicationKey]: id,
         });
 
-        const client = await this.client;
-        return client.del(`${this.keys.de}:${id}`);
+        return this.backend.deleteDeduplicationKey(id);
       },
     );
   }
@@ -740,39 +644,7 @@ export class Queue<
    * Removes rate limit key.
    */
   async removeRateLimitKey(): Promise<number> {
-    const client = await this.client;
-
-    return client.del(this.keys.limiter);
-  }
-
-  /**
-   * Removes a repeatable job by its key. Note that the key is the one used
-   * to store the repeatable job metadata and not one of the job iterations
-   * themselves. You can use "getRepeatableJobs" in order to get the keys.
-   *
-   * @see getRepeatableJobs
-   *
-   * @deprecated This method is deprecated and will be removed in v6. Use removeJobScheduler instead.
-   *
-   * @param repeatJobKey - To the repeatable job.
-   * @returns
-   */
-  async removeRepeatableByKey(key: string): Promise<boolean> {
-    return this.trace<boolean>(
-      SpanKind.INTERNAL,
-      'removeRepeatableByKey',
-      `${this.name}`,
-      async span => {
-        span?.setAttributes({
-          [TelemetryAttributes.JobKey]: key,
-        });
-
-        const repeat = await this.repeat;
-        const removed = await repeat.removeRepeatableByKey(key);
-
-        return !removed;
-      },
-    );
+    return this.backend.removeRateLimitKey();
   }
 
   /**
@@ -797,7 +669,13 @@ export class Queue<
           }),
         });
 
-        return await this.scripts.remove(jobId, removeChildren);
+        const code = await this.backend.remove(jobId, removeChildren);
+
+        if (code === 1) {
+          this.emit('removed', jobId);
+        }
+
+        return code;
       },
     );
   }
@@ -819,7 +697,9 @@ export class Queue<
           [TelemetryAttributes.JobProgress]: JSON.stringify(progress),
         });
 
-        await this.scripts.updateProgress(jobId, progress);
+        await this.backend.updateProgress(jobId, progress);
+
+        this.emit('progress', jobId, progress);
       },
     );
   }
@@ -858,7 +738,7 @@ export class Queue<
           [TelemetryAttributes.QueueDrainDelay]: delayed,
         });
 
-        await this.scripts.drain(delayed);
+        await this.backend.drain(delayed);
       },
     );
   }
@@ -879,6 +759,7 @@ export class Queue<
     type:
       | 'completed'
       | 'wait'
+      | 'waiting'
       | 'active'
       | 'paused'
       | 'prioritized'
@@ -896,14 +777,17 @@ export class Queue<
         let deletedCount = 0;
         const deletedJobsIds: string[] = [];
 
+        // Normalize 'waiting' to 'wait' for consistency with internal Redis keys
+        const normalizedType = type === 'waiting' ? 'wait' : type;
+
         while (deletedCount < maxCount) {
-          const jobsIds = await this.scripts.cleanJobsInSet(
-            type,
+          const jobsIds = await this.backend.cleanJobsInSet(
+            normalizedType,
             timestamp,
             maxCountPerCall,
           );
 
-          this.emit('cleaned', jobsIds, type);
+          this.emit('cleaned', jobsIds, normalizedType);
           deletedCount += jobsIds.length;
           deletedJobsIds.push(...jobsIds);
 
@@ -926,7 +810,7 @@ export class Queue<
 
   /**
    * Completely destroys the queue and all of its contents irreversibly.
-   * This method will the *pause* the queue and requires that there are no
+   * This method will *pause* the queue and requires that there are no
    * active jobs. It is possible to bypass this requirement, i.e. not
    * having active jobs using the "force" option.
    *
@@ -945,7 +829,7 @@ export class Queue<
 
         let cursor = 0;
         do {
-          cursor = await this.scripts.obliterate({
+          cursor = await this.backend.obliterate({
             force: false,
             count: 1000,
             ...opts,
@@ -979,7 +863,7 @@ export class Queue<
 
         let cursor = 0;
         do {
-          cursor = await this.scripts.retryJobs(
+          cursor = await this.backend.retryJobs(
             opts.state,
             opts.count,
             opts.timestamp,
@@ -1009,7 +893,7 @@ export class Queue<
 
         let cursor = 0;
         do {
-          cursor = await this.scripts.promoteJobs(opts.count);
+          cursor = await this.backend.promoteJobs(opts.count);
         } while (cursor);
       },
     );
@@ -1018,7 +902,7 @@ export class Queue<
   /**
    * Trim the event stream to an approximately maxLength.
    *
-   * @param maxLength -
+   * @param maxLength - The approximate maximum length, or target length, of the event stream.
    */
   async trimEvents(maxLength: number): Promise<number> {
     return this.trace<number>(
@@ -1030,8 +914,7 @@ export class Queue<
           [TelemetryAttributes.QueueEventMaxLength]: maxLength,
         });
 
-        const client = await this.client;
-        return await client.xtrim(this.keys.events, 'MAXLEN', '~', maxLength);
+        return await this.backend.trimEvents(maxLength);
       },
     );
   }
@@ -1040,7 +923,33 @@ export class Queue<
    * Delete old priority helper key.
    */
   async removeDeprecatedPriorityKey(): Promise<number> {
-    const client = await this.client;
-    return client.del(this.toKey('priority'));
+    return this.backend.removeDeprecatedPriorityKey();
+  }
+
+  /**
+   * Removes orphaned job keys that are stored in the backend but are not
+   * referenced in any queue state set.
+   *
+   * Orphaned keys can occur in rare cases when the removal-by-max-age logic
+   * removes state entries without fully cleaning up the corresponding job
+   * data (a regression introduced in v5.66.6 via #3694).
+   * Under normal operation this method is
+   * **not needed** — it is provided only as a one-time migration helper for
+   * users who were affected by that specific bug and want to reclaim the
+   * leaked storage.
+   *
+   * How the scan is performed (its atomicity, batching and how the queue's
+   * state keys are discovered) is an implementation detail of the underlying
+   * backend.
+   *
+   * @param count - Approximate number of keys to scan per iteration (default 1000).
+   * @param limit - Maximum number of orphaned jobs to remove (0 = unlimited).
+   *   When set, the method returns as soon as the limit is reached.
+   *   Users with a very large number of orphans can call this method
+   *   in a loop: `while (await queue.removeOrphanedJobs(1000, 10000)) {}`
+   * @returns The total number of orphaned jobs that were removed.
+   */
+  async removeOrphanedJobs(count = 1000, limit = 0): Promise<number> {
+    return this.backend.removeOrphanedJobs(count, limit);
   }
 }

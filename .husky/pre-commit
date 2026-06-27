@@ -1,4 +1,10 @@
-#!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
+yarn pretty:quick && yarn eslint:fix && yarn lint:staged && yarn circular:references
 
-yarn npm-run-all pretty:quick lint:staged
+# Format Rust code if any rust files are staged
+if git diff --cached --name-only | grep -q '^rust/'; then
+  if command -v cargo >/dev/null 2>&1; then
+    STAGED_RUST_FILES="$(git diff --cached --name-only | grep '^rust/')"
+    (cd rust && cargo fmt)
+    echo "$STAGED_RUST_FILES" | while read -r f; do [ -n "$f" ] && git add "$f"; done
+  fi
+fi

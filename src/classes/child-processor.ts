@@ -1,5 +1,11 @@
+import { AbortController } from './abort-controller';
 import { ParentCommand } from '../enums';
-import { SandboxedJob, Receiver } from '../interfaces';
+import {
+  DependenciesOpts,
+  MoveToWaitingChildrenOpts,
+  Receiver,
+  SandboxedJob,
+} from '../interfaces';
 import { JobJsonSandbox, JobProgress } from '../types';
 import { errorToJSON } from '../utils';
 
@@ -23,6 +29,7 @@ export class ChildProcessor {
   public status?: ChildStatus;
   public processor: any;
   public currentJobPromise: Promise<unknown> | undefined;
+  private abortController?: AbortController;
 
   constructor(
     private send: (msg: any) => Promise<void>,
@@ -52,9 +59,13 @@ export class ChildProcessor {
     }
 
     const origProcessor = processor;
-    processor = function (job: SandboxedJob, token?: string) {
+    processor = function (
+      job: SandboxedJob,
+      token?: string,
+      signal?: AbortSignal,
+    ) {
       try {
-        return Promise.resolve(origProcessor(job, token));
+        return Promise.resolve(origProcessor(job, token, signal));
       } catch (err) {
         return Promise.reject(err);
       }
@@ -75,10 +86,15 @@ export class ChildProcessor {
       });
     }
     this.status = ChildStatus.Started;
+    this.abortController = new AbortController();
     this.currentJobPromise = (async () => {
       try {
         const job = this.wrapJob(jobJson, this.send);
-        const result = await this.processor(job, token);
+        const result = await this.processor(
+          job,
+          token,
+          this.abortController.signal,
+        );
         await this.send({
           cmd: ParentCommand.Completed,
           value: typeof result === 'undefined' ? null : result,
@@ -91,8 +107,19 @@ export class ChildProcessor {
       } finally {
         this.status = ChildStatus.Idle;
         this.currentJobPromise = undefined;
+        this.abortController = undefined;
       }
     })();
+  }
+
+  /**
+   * Cancels the currently running job by aborting its signal.
+   * @param reason - Optional reason for the cancellation
+   */
+  public cancel(reason?: string): void {
+    if (this.abortController) {
+      this.abortController.abort(reason);
+    }
   }
 
   public async stop(): Promise<void> {}
@@ -121,6 +148,7 @@ export class ChildProcessor {
   ): SandboxedJob {
     const wrappedJob = {
       ...job,
+      queueQualifiedName: job.queueQualifiedName,
       data: JSON.parse(job.data || '{}'),
       opts: job.opts,
       returnValue: JSON.parse(job.returnvalue || '{}'),
@@ -156,6 +184,38 @@ export class ChildProcessor {
         });
       },
       /*
+       * Proxy `moveToWait` function.
+       */
+      moveToWait: async (token?: string) => {
+        await send({
+          cmd: ParentCommand.MoveToWait,
+          value: { token },
+        });
+      },
+
+      /*
+       * Proxy `moveToWaitingChildren` function.
+       */
+      moveToWaitingChildren: async (
+        token?: string,
+        opts?: MoveToWaitingChildrenOpts,
+      ): Promise<boolean> => {
+        const requestId = Math.random().toString(36).substring(2, 15);
+        await send({
+          requestId,
+          cmd: ParentCommand.MoveToWaitingChildren,
+          value: { token, opts },
+        });
+
+        return waitResponse(
+          requestId,
+          this.receiver,
+          RESPONSE_TIMEOUT,
+          'moveToWaitingChildren',
+        ) as Promise<boolean>;
+      },
+
+      /*
        * Proxy `updateData` function.
        */
       updateData: async (data: any) => {
@@ -169,7 +229,9 @@ export class ChildProcessor {
       /**
        * Proxy `getChildrenValues` function.
        */
-      getChildrenValues: async () => {
+      getChildrenValues: async <CT = any>(): Promise<{
+        [jobKey: string]: CT;
+      }> => {
         const requestId = Math.random().toString(36).substring(2, 15);
         await send({
           requestId,
@@ -181,6 +243,85 @@ export class ChildProcessor {
           this.receiver,
           RESPONSE_TIMEOUT,
           'getChildrenValues',
+        ) as Promise<{ [jobKey: string]: CT }>;
+      },
+
+      /**
+       * Proxy `getIgnoredChildrenFailures` function.
+       *
+       * This method sends a request to retrieve the failures of ignored children
+       * and waits for a response from the parent process.
+       *
+       * @returns - A promise that resolves with the ignored children failures.
+       * The exact structure of the returned data depends on the parent process implementation.
+       */
+      getIgnoredChildrenFailures: async (): Promise<{
+        [jobKey: string]: string;
+      }> => {
+        const requestId = Math.random().toString(36).substring(2, 15);
+        await send({
+          requestId,
+          cmd: ParentCommand.GetIgnoredChildrenFailures,
+        });
+
+        return waitResponse(
+          requestId,
+          this.receiver,
+          RESPONSE_TIMEOUT,
+          'getIgnoredChildrenFailures',
+        ) as Promise<{ [jobKey: string]: string }>;
+      },
+
+      /**
+       * Proxy `getDependenciesCount` function.
+       */
+      getDependenciesCount: async (opts?: {
+        failed?: boolean;
+        ignored?: boolean;
+        processed?: boolean;
+        unprocessed?: boolean;
+      }): Promise<{
+        failed?: number;
+        ignored?: number;
+        processed?: number;
+        unprocessed?: number;
+      }> => {
+        const requestId = Math.random().toString(36).substring(2, 15);
+        await send({
+          requestId,
+          cmd: ParentCommand.GetDependenciesCount,
+          value: opts,
+        });
+
+        return waitResponse(
+          requestId,
+          this.receiver,
+          RESPONSE_TIMEOUT,
+          'getDependenciesCount',
+        ) as Promise<{
+          failed?: number;
+          ignored?: number;
+          processed?: number;
+          unprocessed?: number;
+        }>;
+      },
+
+      /**
+       * Proxy `getDependencies` function.
+       */
+      getDependencies: async (opts?: DependenciesOpts) => {
+        const requestId = Math.random().toString(36).substring(2, 15);
+        await send({
+          requestId,
+          cmd: ParentCommand.GetDependencies,
+          value: opts,
+        });
+
+        return waitResponse(
+          requestId,
+          this.receiver,
+          RESPONSE_TIMEOUT,
+          'getDependencies',
         );
       },
     };

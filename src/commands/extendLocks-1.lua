@@ -2,7 +2,7 @@
   Extend locks for multiple jobs and remove them from the stalled set if successful.
   Return the list of job IDs for which the operation failed.
 
-  KEYS[1] = stalledKey
+  KEYS[1] = stalled key
   
   ARGV[1] = baseKey
   ARGV[2] = tokens
@@ -29,10 +29,14 @@ for i = 1, jobCount, 1 do
     local token = tokens[i]
 
     local currentToken = rcall("GET", lockKey)
-    if currentToken == token then
-        local setResult = rcall("SET", lockKey, token, "PX", lockDuration)
-        if setResult then
-            rcall("SREM", stalledKey, jobId)
+    if currentToken then
+        if currentToken == token then
+            local setResult = rcall("SET", lockKey, token, "PX", lockDuration)
+            if setResult then
+                rcall("SREM", stalledKey, jobId)
+            else
+                table.insert(failedJobs, jobId)
+            end
         else
             table.insert(failedJobs, jobId)
         end

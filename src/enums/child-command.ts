@@ -3,4 +3,9 @@ export enum ChildCommand {
   Start,
   Stop,
   GetChildrenValuesResponse,
+  GetIgnoredChildrenFailuresResponse,
+  GetDependenciesCountResponse,
+  MoveToWaitingChildrenResponse,
+  Cancel,
+  GetDependenciesResponse,
 }
