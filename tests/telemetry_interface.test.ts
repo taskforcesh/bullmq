@@ -233,9 +233,7 @@ describe('Telemetry', () => {
 
     it('should correctly handle errors and record them in telemetry', async () => {
       const opts = {
-        repeat: {
-          endDate: 1,
-        },
+        jobId: '0',
       };
 
       const recordExceptionSpy = sinon.spy(
@@ -249,7 +247,7 @@ describe('Telemetry', () => {
         expect(recordExceptionSpy.calledOnce).toBe(true);
         const recordedError = recordExceptionSpy.firstCall.args[0];
         expect(recordedError.message).toBe(
-          'End date must be greater than current timestamp',
+          "JobId cannot be '0' or start with '0:'",
         );
       } finally {
         recordExceptionSpy.restore();
