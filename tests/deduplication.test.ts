@@ -2174,4 +2174,115 @@ describe('deduplication', () => {
       await worker.close();
     });
   });
+
+  describe('when requeuing deduplicated job with custom jobId (#4030)', () => {
+    it('should preserve the custom jobId on the requeued job', async () => {
+      const testName = 'test';
+      const deduplicationId = 'dedup-custom-id';
+      const customId = 'my-custom-id';
+
+      let resolveFirstProcessing: () => void;
+      const firstProcessingStarted = new Promise<void>(resolve => {
+        resolveFirstProcessing = resolve;
+      });
+
+      const processedData: any[] = [];
+      const worker = new Worker(
+        queueName,
+        async job => {
+          if (processedData.length === 0) {
+            resolveFirstProcessing();
+            await delay(500);
+          }
+          processedData.push(job.id);
+        },
+        { autorun: false, connection, prefix },
+      );
+      await worker.waitUntilReady();
+
+      const allCompleted = new Promise<void>(resolve => {
+        let count = 0;
+        worker.on('completed', () => {
+          count++;
+          if (count === 2) {
+            resolve();
+          }
+        });
+      });
+
+      worker.run();
+
+      await queue.add(testName, { seq: 1 }, {
+        deduplication: { id: deduplicationId, keepLastIfActive: true },
+      });
+
+      await firstProcessingStarted;
+
+      await queue.add(testName, { seq: 2 }, {
+        jobId: customId,
+        deduplication: { id: deduplicationId, keepLastIfActive: true },
+      });
+
+      await allCompleted;
+
+      expect(processedData).toContain(customId);
+      await worker.close();
+    });
+
+    it('should always increment the job ID counter even when custom jobId is used', async () => {
+      const testName = 'test';
+      const deduplicationId = 'dedup-incr-test';
+
+      let resolveFirstProcessing: () => void;
+      const firstProcessingStarted = new Promise<void>(resolve => {
+        resolveFirstProcessing = resolve;
+      });
+
+      const processedData: any[] = [];
+      const worker = new Worker(
+        queueName,
+        async job => {
+          if (processedData.length === 0) {
+            resolveFirstProcessing();
+            await delay(500);
+          }
+          processedData.push(job.id);
+        },
+        { autorun: false, connection, prefix },
+      );
+      await worker.waitUntilReady();
+
+      const allCompleted = new Promise<void>(resolve => {
+        let count = 0;
+        worker.on('completed', () => {
+          count++;
+          if (count === 2) {
+            resolve();
+          }
+        });
+      });
+
+      worker.run();
+
+      await queue.add(testName, { seq: 1 }, {
+        deduplication: { id: deduplicationId, keepLastIfActive: true },
+      });
+
+      await firstProcessingStarted;
+
+      await queue.add(testName, { seq: 2 }, {
+        jobId: 'custom-b',
+        deduplication: { id: deduplicationId, keepLastIfActive: true },
+      });
+
+      await allCompleted;
+
+      const autoIdJob = await queue.add(testName, { seq: 3 });
+      const autoId = Number(autoIdJob.id);
+      expect(autoId).toBeGreaterThanOrEqual(1);
+      expect(autoIdJob.id).not.toBe('custom-b');
+
+      await worker.close();
+    });
+  });
 });
