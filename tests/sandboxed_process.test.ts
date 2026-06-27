@@ -292,6 +292,109 @@ function sandboxProcessTests(
       await worker.close();
     });
 
+    it('should reuse child process by default', async () => {
+      const processFile = __dirname + '/fixtures/fixture_processor.js';
+
+      const worker = new Worker(queueName, processFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads,
+      });
+
+      let completedCount = 0;
+      const pids: number[] = [];
+
+      const childPool = worker['childPool'];
+      const origRetain = childPool.retain.bind(childPool);
+      childPool.retain = async (...args: any[]) => {
+        const child = await origRetain(...args);
+        pids.push(child.pid);
+        return child;
+      };
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async (job: Job) => {
+          try {
+            completedCount++;
+            expect(Object.keys(worker['childPool'].retained)).toHaveLength(0);
+            expect(worker['childPool'].free[processFile]).toHaveLength(1);
+
+            if (completedCount === 2) {
+              resolve();
+            }
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      await Promise.all([
+        queue.add('test', { foo: 'bar' }),
+        queue.add('test', { foo: 'baz' }),
+      ]);
+
+      await completing;
+
+      const [pid1, pid2] = pids;
+      expect(pids).toHaveLength(2);
+      expect(pid1).toEqual(pid2);
+
+      await worker.close();
+    });
+
+    it('should not reuse child process when reuseChildProcess is false', async () => {
+      const processFile = __dirname + '/fixtures/fixture_processor.js';
+
+      const worker = new Worker(queueName, processFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads,
+        reuseChildProcess: false,
+      });
+
+      let completedCount = 0;
+      const pids: number[] = [];
+
+      const childPool = worker['childPool'];
+      const origRetain = childPool.retain.bind(childPool);
+      childPool.retain = async (...args: any[]) => {
+        const child = await origRetain(...args);
+        pids.push(child.pid);
+        return child;
+      };
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async (job: Job) => {
+          try {
+            completedCount++;
+            expect(Object.keys(worker['childPool'].retained)).toHaveLength(0);
+            expect(worker['childPool'].getAllFree()).toHaveLength(0);
+
+            if (completedCount === 2) {
+              resolve();
+            }
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      await Promise.all([
+        queue.add('test', { foo: 'bar' }),
+        queue.add('test', { foo: 'baz' }),
+      ]);
+
+      await completing;
+
+      const [pid1, pid2] = pids;
+      expect(pids).toHaveLength(2);
+      expect(pid1).not.toEqual(pid2);
+
+      await worker.close();
+    });
+
     it('should process and complete when passing a URL', async () => {
       const processFile = __dirname + '/fixtures/fixture_processor.js';
       const processUrl = pathToFileURL(processFile);

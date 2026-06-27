@@ -16,16 +16,16 @@ In order to use a sandboxed processor, define the processor in a separate file:
 import { SandboxedJob } from 'bullmq';
 
 module.exports = async (job: SandboxedJob) => {
-    // Do something with job
+  // Do something with job
 };
 ```
 
 and pass its path to the worker constructor:
 
 ```typescript
-import { Worker } from 'bullmq'
+import { Worker } from 'bullmq';
 
-const processorFile = path.join(__dirname, 'my_procesor.js');
+const processorFile = path.join(__dirname, 'my_processor.js');
 worker = new Worker(queueName, processorFile);
 ```
 
@@ -38,7 +38,7 @@ Processors can be defined using URL instances:
 ```typescript
 import { pathToFileURL } from 'url';
 
-const processorUrl = pathToFileURL(__dirname + '/my_procesor.js');
+const processorUrl = pathToFileURL(__dirname + '/my_processor.js');
 
 worker = new Worker(queueName, processorUrl);
 ```
@@ -54,12 +54,29 @@ The default mechanism for launching sandboxed workers is using Node's spawn proc
 In order to enable worker threads support use the `useWorkerThreads` option when defining an external processor file:
 
 ```typescript
-import { Worker } from 'bullmq'
+import { Worker } from 'bullmq';
 
-const processorFile = path.join(__dirname, 'my_procesor.js');
+const processorFile = path.join(__dirname, 'my_processor.js');
 worker = new Worker(queueName, processorFile, { useWorkerThreads: true });
 ```
 
+### Disabling Child Process Reuse
+
+By default, BullMQ reuses sandboxed child processes (or worker threads) across jobs as it can be slow to spawn a new process for every job.
+
+However, if you have known memory leaks in your processor or its dependencies, you can disable reuse so that each job runs in a fresh process:
+
+```typescript
+import { Worker } from 'bullmq';
+
+const processorFile = path.join(__dirname, 'my_processor.js');
+worker = new Worker(queueName, processorFile, { reuseChildProcess: false });
+```
+
+{% hint style="warning" %}
+When disabled, every job incurs the cost of spawning a new process and loading the processor module. Use this only when memory isolation matters more than throughput.
+{% endhint %}
+
 ## Read more:
 
-* 💡 [Worker API Reference](https://api.docs.bullmq.io/classes/v5.Worker.html)
+- 💡 [Worker API Reference](https://api.docs.bullmq.io/classes/v5.Worker.html)
