@@ -113,7 +113,7 @@
     "fast-glob": "3.3.3",
     "globals": "17.7.0",
     "husky": "9.1.7",
-    "lint-staged": "16.4.0",
+    "lint-staged": "17.0.8",
     "madge": "8.0.0",
     "minimatch": "10.2.5",
     "moment": "2.30.1",
