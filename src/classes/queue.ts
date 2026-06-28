@@ -1,11 +1,12 @@
 import {
+  BackendFactory,
   BaseJobOptions,
   BulkJobOptions,
   IoredisListener,
+  IQueueBackend,
   JobSchedulerJson,
   MinimalQueue,
   QueueOptions,
-  RepeatableJob,
   RepeatOptions,
 } from '../interfaces';
 import {
@@ -16,8 +17,7 @@ import {
 } from '../types';
 import { Job } from './job';
 import { QueueGetters } from './queue-getters';
-import { Repeat } from './repeat';
-import { RedisConnection } from './redis-connection';
+import { RedisQueueBackend } from './redis-queue-backend';
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { JobScheduler } from './job-scheduler';
 import { version } from '../version';
@@ -147,35 +147,35 @@ export class Queue<
   DataType = ExtractDataType<DataTypeOrJob, DataTypeOrJob>,
   ResultType = ExtractResultType<DataTypeOrJob, DefaultResultType>,
   NameType extends string = ExtractNameType<DataTypeOrJob, DefaultNameType>,
-> extends QueueGetters<JobBase<DataTypeOrJob, ResultType, NameType>> {
+  B extends IQueueBackend = RedisQueueBackend,
+> extends QueueGetters<JobBase<DataTypeOrJob, ResultType, NameType>, B> {
   token = randomUUID();
   jobsOpts: BaseJobOptions;
   declare opts: QueueOptions;
 
   protected libName = 'bullmq';
 
-  protected _repeat?: Repeat; // To be deprecated in v6 in favor of JobScheduler
   protected _jobScheduler?: JobScheduler;
 
   constructor(
     name: string,
     opts?: QueueOptions,
-    Connection?: typeof RedisConnection,
+    backendFactory?: BackendFactory<B>,
   ) {
     super(
       name,
       {
         ...opts,
       },
-      Connection,
+      backendFactory,
     );
 
     this.jobsOpts = opts?.defaultJobOptions ?? {};
 
     this.waitUntilReady()
-      .then(client => {
+      .then(() => {
         if (!this.closing && !opts?.skipMetasUpdate) {
-          return client.hset(this.keys.meta, this.metaValues);
+          return this.backend.setQueueMeta(this.metaValues);
         }
       })
       .catch(err => {
@@ -234,33 +234,23 @@ export class Queue<
   /**
    * Get library version.
    *
-   * @returns the content of the meta.library field.
+   * @returns the content of the `meta.version` field, or `null` when the meta
+   * hash has not been populated yet (e.g. when `skipMetasUpdate` is enabled and
+   * no other instance has written it).
    */
-  async getVersion(): Promise<string> {
-    const client = await this.client;
-    return await client.hget(this.keys.meta, 'version');
-  }
-
-  get repeat(): Promise<Repeat> {
-    return new Promise<Repeat>(async resolve => {
-      if (!this._repeat) {
-        this._repeat = new Repeat(this.name, {
-          ...this.opts,
-          connection: await this.client,
-        });
-        this._repeat.on('error', this.emit.bind(this, 'error'));
-      }
-      resolve(this._repeat);
-    });
+  async getVersion(): Promise<string | null> {
+    return await this.backend.getQueueMetaField('version');
   }
 
   get jobScheduler(): Promise<JobScheduler> {
     return new Promise<JobScheduler>(async resolve => {
       if (!this._jobScheduler) {
-        this._jobScheduler = new JobScheduler(this.name, {
-          ...this.opts,
-          connection: await this.client,
-        });
+        // Share this queue's backend (same queue name/keys) with the scheduler.
+        this._jobScheduler = new JobScheduler(
+          this.name,
+          this.opts,
+          () => this.backend,
+        );
         this._jobScheduler.on('error', this.emit.bind(this, 'error'));
       }
       resolve(this._jobScheduler);
@@ -275,8 +265,7 @@ export class Queue<
    * restriction on the number of concurrent jobs.
    */
   async setGlobalConcurrency(concurrency: number) {
-    const client = await this.client;
-    return client.hset(this.keys.meta, { concurrency });
+    return this.backend.setQueueMeta({ concurrency });
   }
 
   /**
@@ -285,24 +274,21 @@ export class Queue<
    * @param duration - Time in milliseconds. During this time, a maximum of `max` jobs will be processed.
    */
   async setGlobalRateLimit(max: number, duration: number) {
-    const client = await this.client;
-    return client.hset(this.keys.meta, { max, duration });
+    return this.backend.setQueueMeta({ max, duration });
   }
 
   /**
    * Remove global concurrency value.
    */
   async removeGlobalConcurrency() {
-    const client = await this.client;
-    return client.hdel(this.keys.meta, 'concurrency');
+    return this.backend.removeQueueMetaFields(['concurrency']);
   }
 
   /**
    * Remove global rate limit values.
    */
   async removeGlobalRateLimit() {
-    const client = await this.client;
-    return client.hdel(this.keys.meta, 'max', 'duration');
+    return this.backend.removeQueueMetaFields(['max', 'duration']);
   }
 
   /**
@@ -356,41 +342,27 @@ export class Queue<
     data: DataType,
     opts?: JobsOptions,
   ): Promise<Job<DataType, ResultType, NameType>> {
-    if (opts && opts.repeat) {
-      if (opts.repeat.endDate) {
-        if (+new Date(opts.repeat.endDate) < Date.now()) {
-          throw new Error('End date must be greater than current timestamp');
-        }
-      }
+    const jobId = opts?.jobId;
 
-      return (await this.repeat).updateRepeatableJob<
-        DataType,
-        ResultType,
-        NameType
-      >(name, data, { ...this.jobsOpts, ...opts }, { override: true });
-    } else {
-      const jobId = opts?.jobId;
-
-      if (jobId == '0' || jobId?.startsWith('0:')) {
-        throw new Error("JobId cannot be '0' or start with 0:");
-      }
-
-      const mergedOpts = {
-        ...this.jobsOpts,
-        ...opts,
-        jobId,
-      };
-
-      const job = await this.Job.create<DataType, ResultType, NameType>(
-        this as MinimalQueue,
-        name,
-        data,
-        mergedOpts,
-      );
-      this.emit('waiting', job as JobBase<DataType, ResultType, NameType>);
-
-      return job;
+    if (jobId == '0' || jobId?.startsWith('0:')) {
+      throw new Error("JobId cannot be '0' or start with '0:'");
     }
+
+    const mergedOpts = {
+      ...this.jobsOpts,
+      ...opts,
+      jobId,
+    };
+
+    const job = await this.Job.create<DataType, ResultType, NameType>(
+      this as MinimalQueue,
+      name,
+      data,
+      mergedOpts,
+    );
+    this.emit('waiting', job as JobBase<DataType, ResultType, NameType>);
+
+    return job;
   }
 
   /**
@@ -507,7 +479,7 @@ export class Queue<
    */
   async pause(): Promise<void> {
     await this.trace<void>(SpanKind.INTERNAL, 'pause', this.name, async () => {
-      await this.scripts.pause(true);
+      await this.backend.pause(true);
 
       this.emit('paused');
     });
@@ -519,12 +491,6 @@ export class Queue<
    */
   async close(): Promise<void> {
     await this.trace<void>(SpanKind.INTERNAL, 'close', this.name, async () => {
-      if (!this.closing) {
-        if (this._repeat) {
-          await this._repeat.close();
-        }
-      }
-
       await super.close();
     });
   }
@@ -544,11 +510,7 @@ export class Queue<
           [TelemetryAttributes.QueueRateLimit]: expireTimeMs,
         });
 
-        await this.client.then(client =>
-          client.set(this.keys.limiter, Number.MAX_SAFE_INTEGER, {
-            PX: expireTimeMs,
-          }),
-        );
+        await this.backend.setRateLimit(expireTimeMs);
       },
     );
   }
@@ -561,7 +523,7 @@ export class Queue<
    */
   async resume(): Promise<void> {
     await this.trace<void>(SpanKind.INTERNAL, 'resume', this.name, async () => {
-      await this.scripts.pause(false);
+      await this.backend.pause(false);
 
       this.emit('resumed');
     });
@@ -571,34 +533,14 @@ export class Queue<
    * Returns true if the queue is currently paused.
    */
   async isPaused(): Promise<boolean> {
-    const client = await this.client;
-    const pausedKeyExists = await client.hexists(this.keys.meta, 'paused');
-    return pausedKeyExists === 1;
+    return this.backend.hasQueueMetaField('paused');
   }
 
   /**
    * Returns true if the queue is currently maxed.
    */
   isMaxed(): Promise<boolean> {
-    return this.scripts.isMaxed();
-  }
-
-  /**
-   * Get all repeatable meta jobs.
-   *
-   * @deprecated This method is deprecated and will be removed in v6. Use getJobSchedulers instead.
-   *
-   * @param start - Offset of first job to return.
-   * @param end - Offset of last job to return.
-   * @param asc - Determine the order in which jobs are returned based on their
-   * next execution time.
-   */
-  async getRepeatableJobs(
-    start?: number,
-    end?: number,
-    asc?: boolean,
-  ): Promise<RepeatableJob[]> {
-    return (await this.repeat).getRepeatableJobs(start, end, asc);
+    return this.backend.isMaxed();
   }
 
   /**
@@ -643,44 +585,6 @@ export class Queue<
   }
 
   /**
-   * Removes a repeatable job.
-   *
-   * Note: you need to use the exact same repeatOpts when deleting a repeatable job
-   * than when adding it.
-   *
-   * @deprecated This method is deprecated and will be removed in v6. Use removeJobScheduler instead.
-   *
-   * @see removeRepeatableByKey
-   *
-   * @param name - Job name
-   * @param repeatOpts - Repeat options
-   * @param jobId - Job id to remove. If not provided, all jobs with the same repeatOpts
-   * @returns
-   */
-  async removeRepeatable(
-    name: NameType,
-    repeatOpts: RepeatOptions,
-    jobId?: string,
-  ): Promise<boolean> {
-    return this.trace<boolean>(
-      SpanKind.INTERNAL,
-      'removeRepeatable',
-      `${this.name}.${name}`,
-      async span => {
-        span?.setAttributes({
-          [TelemetryAttributes.JobName]: name,
-          [TelemetryAttributes.JobId]: jobId,
-        });
-
-        const repeat = await this.repeat;
-        const removed = await repeat.removeRepeatable(name, repeatOpts, jobId);
-
-        return !removed;
-      },
-    );
-  }
-
-  /**
    *
    * Removes a job scheduler.
    *
@@ -711,9 +615,7 @@ export class Queue<
           [TelemetryAttributes.JobKey]: id,
         });
 
-        const client = await this.client;
-
-        return await client.del(`${this.keys.de}:${id}`);
+        return await this.backend.deleteDeduplicationKey(id);
       },
     );
   }
@@ -733,8 +635,7 @@ export class Queue<
           [TelemetryAttributes.DeduplicationKey]: id,
         });
 
-        const client = await this.client;
-        return client.del(`${this.keys.de}:${id}`);
+        return this.backend.deleteDeduplicationKey(id);
       },
     );
   }
@@ -743,39 +644,7 @@ export class Queue<
    * Removes rate limit key.
    */
   async removeRateLimitKey(): Promise<number> {
-    const client = await this.client;
-
-    return client.del(this.keys.limiter);
-  }
-
-  /**
-   * Removes a repeatable job by its key. Note that the key is the one used
-   * to store the repeatable job metadata and not one of the job iterations
-   * themselves. You can use "getRepeatableJobs" in order to get the keys.
-   *
-   * @see getRepeatableJobs
-   *
-   * @deprecated This method is deprecated and will be removed in v6. Use removeJobScheduler instead.
-   *
-   * @param repeatJobKey - To the repeatable job.
-   * @returns
-   */
-  async removeRepeatableByKey(key: string): Promise<boolean> {
-    return this.trace<boolean>(
-      SpanKind.INTERNAL,
-      'removeRepeatableByKey',
-      `${this.name}`,
-      async span => {
-        span?.setAttributes({
-          [TelemetryAttributes.JobKey]: key,
-        });
-
-        const repeat = await this.repeat;
-        const removed = await repeat.removeRepeatableByKey(key);
-
-        return !removed;
-      },
-    );
+    return this.backend.removeRateLimitKey();
   }
 
   /**
@@ -800,7 +669,7 @@ export class Queue<
           }),
         });
 
-        const code = await this.scripts.remove(jobId, removeChildren);
+        const code = await this.backend.remove(jobId, removeChildren);
 
         if (code === 1) {
           this.emit('removed', jobId);
@@ -828,7 +697,7 @@ export class Queue<
           [TelemetryAttributes.JobProgress]: JSON.stringify(progress),
         });
 
-        await this.scripts.updateProgress(jobId, progress);
+        await this.backend.updateProgress(jobId, progress);
 
         this.emit('progress', jobId, progress);
       },
@@ -869,7 +738,7 @@ export class Queue<
           [TelemetryAttributes.QueueDrainDelay]: delayed,
         });
 
-        await this.scripts.drain(delayed);
+        await this.backend.drain(delayed);
       },
     );
   }
@@ -912,7 +781,7 @@ export class Queue<
         const normalizedType = type === 'waiting' ? 'wait' : type;
 
         while (deletedCount < maxCount) {
-          const jobsIds = await this.scripts.cleanJobsInSet(
+          const jobsIds = await this.backend.cleanJobsInSet(
             normalizedType,
             timestamp,
             maxCountPerCall,
@@ -960,7 +829,7 @@ export class Queue<
 
         let cursor = 0;
         do {
-          cursor = await this.scripts.obliterate({
+          cursor = await this.backend.obliterate({
             force: false,
             count: 1000,
             ...opts,
@@ -994,7 +863,7 @@ export class Queue<
 
         let cursor = 0;
         do {
-          cursor = await this.scripts.retryJobs(
+          cursor = await this.backend.retryJobs(
             opts.state,
             opts.count,
             opts.timestamp,
@@ -1024,7 +893,7 @@ export class Queue<
 
         let cursor = 0;
         do {
-          cursor = await this.scripts.promoteJobs(opts.count);
+          cursor = await this.backend.promoteJobs(opts.count);
         } while (cursor);
       },
     );
@@ -1045,10 +914,7 @@ export class Queue<
           [TelemetryAttributes.QueueEventMaxLength]: maxLength,
         });
 
-        const client = await this.client;
-        return await client.xtrim(this.keys.events, 'MAXLEN', maxLength, {
-          approximate: true,
-        });
+        return await this.backend.trimEvents(maxLength);
       },
     );
   }
@@ -1057,28 +923,26 @@ export class Queue<
    * Delete old priority helper key.
    */
   async removeDeprecatedPriorityKey(): Promise<number> {
-    const client = await this.client;
-    return client.del(this.toKey('priority'));
+    return this.backend.removeDeprecatedPriorityKey();
   }
 
   /**
-   * Removes orphaned job keys that exist in Redis but are not referenced
-   * in any queue state set.
+   * Removes orphaned job keys that are stored in the backend but are not
+   * referenced in any queue state set.
    *
    * Orphaned keys can occur in rare cases when the removal-by-max-age logic
-   * removes sorted-set entries without fully cleaning up the corresponding
-   * job hash data (a regression introduced in v5.66.6 via #3694).
+   * removes state entries without fully cleaning up the corresponding job
+   * data (a regression introduced in v5.66.6 via #3694).
    * Under normal operation this method is
    * **not needed** — it is provided only as a one-time migration helper for
    * users who were affected by that specific bug and want to reclaim the
-   * leaked memory.
+   * leaked storage.
    *
-   * The method uses a Lua script so that every check-and-delete cycle is
-   * atomic (per SCAN iteration). State keys are derived dynamically from
-   * the queue's key map and their Redis TYPE is checked at runtime, so newly
-   * introduced states are picked up automatically.
+   * How the scan is performed (its atomicity, batching and how the queue's
+   * state keys are discovered) is an implementation detail of the underlying
+   * backend.
    *
-   * @param count - Approximate number of keys to SCAN per iteration (default 1000).
+   * @param count - Approximate number of keys to scan per iteration (default 1000).
    * @param limit - Maximum number of orphaned jobs to remove (0 = unlimited).
    *   When set, the method returns as soon as the limit is reached.
    *   Users with a very large number of orphans can call this method
@@ -1086,90 +950,6 @@ export class Queue<
    * @returns The total number of orphaned jobs that were removed.
    */
   async removeOrphanedJobs(count = 1000, limit = 0): Promise<number> {
-    const client = await this.client;
-
-    // Derive infrastructure suffixes dynamically from the queue key map
-    // so any future keys are automatically excluded without code changes.
-    const knownSuffixes = new Set(Object.keys(this.keys));
-
-    // State key suffixes (excluding '') — passed to the Lua script which
-    // uses TYPE to decide whether a key is a list / zset / set and picks
-    // the right membership command automatically.
-    const stateKeySuffixes = Object.keys(this.keys).filter(s => s !== '');
-
-    // Known job sub-key suffixes (cleaned up during deletion).
-    const jobSubKeySuffixes = [
-      'logs',
-      'dependencies',
-      'processed',
-      'failed',
-      'unsuccessful',
-      'lock',
-    ];
-
-    const basePrefix = this.qualifiedName + ':';
-    const scanPattern = basePrefix + '*';
-    let totalRemoved = 0;
-
-    let cursor = '0';
-    do {
-      const [nextCursor, keys] = await client.scan(cursor, {
-        MATCH: scanPattern,
-        COUNT: count,
-      });
-      cursor = nextCursor;
-
-      // Extract unique potential job IDs from this batch.
-      const candidateJobIds = new Set<string>();
-      for (const key of keys) {
-        const suffix = key.slice(basePrefix.length);
-
-        // Skip infrastructure keys (derived from this.keys).
-        if (knownSuffixes.has(suffix)) {
-          continue;
-        }
-
-        // Skip sub-keys of infrastructure prefixes (e.g. repeat:xxx, de:xxx).
-        const colonIdx = suffix.indexOf(':');
-        if (colonIdx !== -1) {
-          const prefixPart = suffix.slice(0, colonIdx);
-          if (knownSuffixes.has(prefixPart)) {
-            continue;
-          }
-        }
-
-        // Extract the job ID portion (before first colon, or the whole suffix).
-        const jobId = colonIdx === -1 ? suffix : suffix.slice(0, colonIdx);
-
-        // For sub-keys, only consider known job sub-key suffixes.
-        if (colonIdx !== -1) {
-          const subKey = suffix.slice(colonIdx + 1);
-          if (!jobSubKeySuffixes.includes(subKey)) {
-            continue;
-          }
-        }
-
-        candidateJobIds.add(jobId);
-      }
-
-      if (candidateJobIds.size === 0) {
-        continue;
-      }
-
-      // Run the Lua script atomically for this batch of candidates.
-      const result = await this.scripts.removeOrphanedJobs(
-        [...candidateJobIds],
-        stateKeySuffixes,
-        jobSubKeySuffixes,
-      );
-
-      totalRemoved += result || 0;
-
-      if (limit > 0 && totalRemoved >= limit) {
-        break;
-      }
-    } while (cursor !== '0');
-
-    return totalRemoved;
+    return this.backend.removeOrphanedJobs(count, limit);
   }
 }

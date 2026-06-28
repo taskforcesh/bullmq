@@ -1,3 +1,4 @@
+import { getRedisClient } from './utils/get-redis-client';
 import { FlowProducer, Queue, Worker, QueueEvents } from '../src/classes';
 import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 import { after } from 'lodash';
@@ -390,7 +391,7 @@ describe('stalled jobs', () => {
           await allFailed;
           await globalAllFailed;
 
-          const redisClient = await queue.client;
+          const redisClient = await getRedisClient(queue);
           const keys = await redisClient.keys(`${prefix}:${queueName}:*`);
 
           for (let i = 0; i < jobs.length; i++) {
@@ -933,7 +934,7 @@ describe('stalled jobs', () => {
           await allFailed;
           await globalAllFailed;
 
-          const redisClient = await queue.client;
+          const redisClient = await getRedisClient(queue);
           const keys = await redisClient.keys(`${prefix}:${queueName}:*`);
 
           for (let i = 0; i < jobs.length; i++) {

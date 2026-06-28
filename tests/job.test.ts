@@ -1,5 +1,6 @@
 'use strict';
 
+import { getRedisClient } from './utils/get-redis-client';
 import { after } from 'lodash';
 import {
   describe,
@@ -129,16 +130,6 @@ describe('Job', () => {
         };
         await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
           `Missing key for parent job ${prefix}:${queueName}:${parentId}. addJob`,
-        );
-      });
-    });
-
-    describe('when delay and repeat options are provided', () => {
-      it('throws an error', async () => {
-        const data = { foo: 'bar' };
-        const opts = { repeat: { every: 200 }, delay: 1000 };
-        await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
-          'Delay and repeat options cannot be used together',
         );
       });
     });
@@ -362,7 +353,7 @@ describe('Job', () => {
     });
 
     it('removes processed hash', async () => {
-      const client = await queue.client;
+      const client = await getRedisClient(queue);
       const values = [{ idx: 0, bar: 'something' }];
       const token = 'my-token';
       const token2 = 'my-token2';
@@ -708,7 +699,7 @@ describe('Job', () => {
       const token = 'my-token';
       await Job.create(queue, 'test', { color: 'red' });
       const job = (await worker.getNextJob(token)) as Job;
-      const client = await queue.client;
+      const client = await getRedisClient(queue);
       await client.del(queue.toKey('meta'));
       await job.moveToCompleted('done', '0', false);
       const state = await job.getState();
@@ -744,7 +735,7 @@ describe('Job', () => {
         id: parent.id!,
         queue: `${prefix}:${parentQueueName}`,
       });
-      const client = await queue.client;
+      const client = await getRedisClient(queue);
       const child1 = new Job(queue, 'testJob1', values[0]);
       await child1.addJob(client, {
         parentKey,
@@ -877,7 +868,7 @@ describe('Job', () => {
 
     describe('when job is removed', () => {
       it('should not save stacktrace', async () => {
-        const client = await queue.client;
+        const client = await getRedisClient(queue);
         const worker = new Worker(queueName, null, {
           connection,
           prefix,
@@ -1433,7 +1424,7 @@ describe('Job', () => {
           priority: 10,
         });
 
-        const client = await queue.client;
+        const client = await getRedisClient(queue);
         const count = await client.zcard(`${prefix}:${queueName}:priority`);
         const priority = await client.hget(
           `${prefix}:${queueName}:${job.id}`,
@@ -1527,102 +1518,6 @@ describe('Job', () => {
       await expect(job.promote()).rejects.toThrow(
         `Job ${job.id} is not in the delayed state. promote`,
       );
-    });
-
-    describe('when a repeatable job is promoted', () => {
-      it('add next delayed job after promoted job completion', async () => {
-        const job = await queue.add(
-          'test',
-          { foo: 'bar' },
-          {
-            repeat: {
-              pattern: '0 0 7 * * *',
-            },
-          },
-        );
-        const isDelayed = await job.isDelayed();
-        expect(isDelayed).toBe(true);
-        await job.promote();
-        expect(job.delay).toBe(0);
-
-        const worker = new Worker(queueName, null, { connection, prefix });
-
-        const currentJob1 = (await worker.getNextJob('token')) as Job;
-        expect(currentJob1).toBeDefined();
-
-        await currentJob1.moveToCompleted('succeeded', 'token', true);
-
-        const delayedCount = await queue.getDelayedCount();
-        expect(delayedCount).toBe(1);
-
-        const isDelayedAfterPromote = await job.isDelayed();
-        expect(isDelayedAfterPromote).toBe(false);
-        const isCompleted = await job.isCompleted();
-        expect(isCompleted).toBe(true);
-        await worker.close();
-      });
-
-      describe('when re-adding same repeatable job after previous delayed one is promoted', () => {
-        it('keep one delayed job', async () => {
-          const job = await queue.add(
-            'test',
-            { foo: 'bar' },
-            {
-              repeat: {
-                pattern: '0 0 7 * * *',
-              },
-            },
-          );
-          const isDelayed = await job.isDelayed();
-          expect(isDelayed).toBe(true);
-
-          await queue.add(
-            'test',
-            { foo: 'bar' },
-            {
-              repeat: {
-                pattern: '0 0 7 * * *',
-              },
-            },
-          );
-          const delayedCount = await queue.getDelayedCount();
-          expect(delayedCount).toBe(1);
-
-          await job.promote();
-          expect(job.delay).toBe(0);
-
-          const worker = new Worker(queueName, null, { connection, prefix });
-          const currentJob1 = (await worker.getNextJob('token')) as Job;
-          expect(currentJob1).toBeDefined();
-
-          await currentJob1.moveToCompleted('succeeded', 'token', true);
-          const completedCount = await queue.getCompletedCount();
-          const delayedCountAfterPromote = await queue.getDelayedCount();
-          expect(completedCount).toBe(1);
-          expect(delayedCountAfterPromote).toBe(1);
-
-          const completedCountAfterRestart = await queue.getCompletedCount();
-          const delayedCountAfterRestart = await queue.getDelayedCount();
-          expect(completedCountAfterRestart).toBe(1);
-          expect(delayedCountAfterRestart).toBe(1);
-
-          await queue.add(
-            'test',
-            { foo: 'bar' },
-            {
-              repeat: {
-                pattern: '0 0 7 * * *',
-              },
-            },
-          );
-
-          const completedCountAfterReAddition = await queue.getCompletedCount();
-          const delayedCountAfterReAddition = await queue.getDelayedCount();
-          expect(completedCountAfterReAddition).toBe(1);
-          expect(delayedCountAfterReAddition).toBe(1);
-          await worker.close();
-        });
-      });
     });
 
     describe('when queue is paused', () => {

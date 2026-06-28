@@ -1,3 +1,4 @@
+import { getRedisClient } from './utils/get-redis-client';
 import {
   describe,
   beforeEach,
@@ -4720,7 +4721,7 @@ describe('flows', () => {
       ],
     });
 
-    const client = await flow.client;
+    const client = await getRedisClient(flow);
     const metaTop = await client.hgetall(`${prefix}:${topQueueName}:meta`);
     expect(metaTop).toMatchObject({ 'opts.maxLenEvents': '10000' });
 

@@ -1,7 +1,6 @@
 import { BackoffOptions } from './backoff-options';
 import { KeepJobs } from '../types/keep-jobs';
 import { ParentOptions } from './parent-options';
-import { RepeatOptions } from './repeat-options';
 
 export interface DefaultJobOptions {
   /**
@@ -89,11 +88,6 @@ export interface DefaultJobOptions {
 }
 
 export interface BaseJobOptions extends DefaultJobOptions {
-  /**
-   * Repeat this job, for example based on a `cron` schedule.
-   */
-  repeat?: RepeatOptions;
-
   /**
    * Internal property used by repeatable jobs to save base repeat job key.
    */

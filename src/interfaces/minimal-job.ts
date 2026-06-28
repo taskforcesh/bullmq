@@ -5,7 +5,7 @@ import { JobJson } from './job-json';
 import { ParentKeys } from './parent';
 import { ParentOptions } from './parent-options';
 
-export type BulkJobOptions = Omit<JobsOptions, 'repeat'>;
+export type BulkJobOptions = JobsOptions;
 
 export interface MoveToDelayedOpts {
   skipAttempt?: boolean;
