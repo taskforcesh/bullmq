@@ -2809,7 +2809,7 @@ function rawToJobJson(raw: JobJsonRaw): JobJson {
     parentKey: raw.parentKey,
     parent: raw.parent ? JSON.parse(raw.parent) : undefined,
     processedBy: raw.pb,
-    nextRepeatableJobId: raw.nrjid,
+    nextSchedulerJobId: raw.nrjid,
   };
 }
 

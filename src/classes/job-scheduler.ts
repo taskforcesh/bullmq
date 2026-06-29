@@ -485,3 +485,47 @@ export const getNextMillis = (
     // Ignore error
   }
 };
+
+/**
+ * Computes the next execution time (in ms since epoch) for the given repeat
+ * options, supporting both `.every` (fixed interval) and `.pattern` (cron)
+ * strategies. This is the default repeat strategy used to schedule the next
+ * iteration of a job scheduler.
+ */
+export const getNextMillis = (
+  millis: number,
+  opts: RepeatOptions,
+): number | undefined => {
+  const pattern = opts.pattern;
+  if (pattern && opts.every) {
+    throw new Error(
+      'Both .pattern and .every options are defined for this repeatable job',
+    );
+  }
+
+  if (opts.every) {
+    return (
+      Math.floor(millis / opts.every) * opts.every +
+      (opts.immediately ? 0 : opts.every)
+    );
+  }
+
+  const currentDate =
+    opts.startDate && new Date(opts.startDate) > new Date(millis)
+      ? new Date(opts.startDate)
+      : new Date(millis);
+  const interval = parseExpression(pattern, {
+    ...opts,
+    currentDate,
+  });
+
+  try {
+    if (opts.immediately) {
+      return new Date().getTime();
+    } else {
+      return interval.next().getTime();
+    }
+  } catch (e) {
+    // Ignore error
+  }
+};
