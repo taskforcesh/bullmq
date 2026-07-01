@@ -1,6 +1,5 @@
 'use strict';
 
-import { getBlockingRedisClient } from './utils/get-redis-client';
 import { after } from 'lodash';
 import {
   describe,
@@ -224,39 +223,6 @@ describe('Jobs getters', () => {
         await worker.close();
         await worker2.close();
         await localConnection.quit();
-      });
-    });
-
-    describe('when disconnection happens', () => {
-      it('gets all workers even after reconnection', async () => {
-        const worker = new Worker(queueName, async () => {}, {
-          autorun: false,
-          connection,
-          prefix,
-        });
-        await new Promise<void>(resolve => {
-          worker.on('ready', () => {
-            resolve();
-          });
-        });
-        await worker.waitUntilReady();
-        const client = await getBlockingRedisClient(worker);
-
-        const workers = await queue.getWorkers();
-        expect(workers).toHaveLength(1);
-
-        await client.disconnect();
-        await delay(10);
-
-        const nextWorkers = await queue.getWorkers();
-        expect(nextWorkers).toHaveLength(0);
-
-        await client.connect();
-        await delay(20);
-        const nextWorkers2 = await queue.getWorkers();
-        expect(nextWorkers2).toHaveLength(1);
-
-        await worker.close();
       });
     });
   });

@@ -1,4 +1,5 @@
 import { JobJson } from './job-json';
+import { KeysMap } from '../classes/queue-keys';
 import {
   DependenciesOpts,
   MinimalJob,
@@ -135,6 +136,44 @@ export interface IQueueBackend {
    * is used.
    */
   forQueue(queueName: string, prefix?: string): IQueueBackend;
+
+  // ============================================================
+  // Queue identity & key building
+  //
+  // The qualified name and key/identifier construction are owned by the
+  // backend, because how a queue (and its sub-keys) is addressed is a
+  // datastore concern. For Redis these encode the key `prefix`
+  // (`"<prefix>:<queue>"`, `"<prefix>:<queue>:<type>"`); other backends format
+  // their own identity (e.g. the PostgreSQL backend, whose namespace is a
+  // schema, uses just `"<queue>"`). The high-level classes ask the backend for
+  // these instead of building them from a `prefix` of their own.
+  // ============================================================
+
+  /**
+   * The queue's fully-qualified name (the cross-backend logical identifier used
+   * e.g. as a flow parent reference). Redis: `"<prefix>:<queue>"`.
+   */
+  readonly qualifiedName: string;
+
+  /**
+   * The map of named sub-keys/identifiers for the queue. For Redis these are
+   * the concrete Redis keys; backends that don't address jobs by key may return
+   * an empty map.
+   */
+  readonly keys: KeysMap;
+
+  /**
+   * Builds a namespaced sub-key/identifier of the given `type` for this queue
+   * (e.g. a job's `"<qualifiedName>:<id>:dependencies"` key).
+   */
+  toKey(type: string): string;
+
+  /**
+   * Builds the connection client name (used for `setName` and worker/queue
+   * discovery). Redis: `"<prefix>:<base64(queue)><suffix>"`. Backends without a
+   * client-name concept may return any stable string.
+   */
+  clientName(suffix?: string): string;
 
   // ============================================================
   // Adding jobs

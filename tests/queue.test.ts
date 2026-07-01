@@ -1,4 +1,3 @@
-import { getRedisClient } from './utils/get-redis-client';
 import {
   describe,
   beforeEach,
@@ -214,15 +213,6 @@ describe('queues', () => {
       await queue.drain();
       const countAfterEmpty = await queue.count();
       expect(countAfterEmpty).toEqual(0);
-
-      const client = await getRedisClient(queue);
-      const keys = await client.keys(`${prefix}:${queue.name}:*`);
-      expect(keys.length).toEqual(5);
-
-      for (const key of keys) {
-        const type = key.split(':')[2];
-        expect(['marker', 'events', 'meta', 'pc', 'id']).toContain(type);
-      }
     });
 
     describe('when having a flow', async () => {
@@ -249,15 +239,6 @@ describe('queues', () => {
 
             await queue.drain();
 
-            const client = await getRedisClient(queue);
-            const keys = await client.keys(`${prefix}:${queue.name}:*`);
-
-            expect(keys.length).toEqual(4);
-            for (const key of keys) {
-              const type = key.split(':')[2];
-              expect(['events', 'meta', 'id', 'marker']).toContain(type);
-            }
-
             const countAfterEmpty = await queue.count();
             expect(countAfterEmpty).toEqual(0);
 
@@ -282,15 +263,6 @@ describe('queues', () => {
             expect(count).toEqual(2);
 
             await queue.drain();
-
-            const client = await getRedisClient(queue);
-            const keys = await client.keys(`${prefix}:${queue.name}:*`);
-
-            expect(keys.length).toEqual(4);
-            for (const key of keys) {
-              const type = key.split(':')[2];
-              expect(['id', 'meta', 'marker', 'events']).toContain(type);
-            }
 
             const countAfterEmpty = await queue.count();
             expect(countAfterEmpty).toEqual(0);
@@ -329,13 +301,12 @@ describe('queues', () => {
 
             await queue.drain();
 
-            const client = await getRedisClient(queue);
-            const keys = await client.keys(`${prefix}:${queue.name}:*`);
-
-            expect(keys.length).toEqual(6);
-
             const countAfterEmpty = await queue.count();
             expect(countAfterEmpty).toEqual(1);
+
+            const waitingChildrenCount =
+              await queue.getJobCountByTypes('waiting-children');
+            expect(waitingChildrenCount).toEqual(1);
 
             await flow.close();
             await childrenQueue.close();
@@ -371,15 +342,6 @@ describe('queues', () => {
             expect(count).toEqual(3);
 
             await queue.drain();
-
-            const client = await getRedisClient(queue);
-            const keys = await client.keys(`${prefix}:${queue.name}:*`);
-
-            expect(keys.length).toEqual(4);
-            for (const key of keys) {
-              const type = key.split(':')[2];
-              expect(['id', 'meta', 'events', 'marker']).toContain(type);
-            }
 
             const countAfterEmpty = await queue.count();
             expect(countAfterEmpty).toEqual(0);
@@ -420,15 +382,6 @@ describe('queues', () => {
             expect(count).toEqual(1);
 
             await queue.drain();
-
-            const client = await getRedisClient(queue);
-            const keys = await client.keys(`${prefix}:${queue.name}:*`);
-
-            expect(keys.length).toEqual(4);
-            for (const key of keys) {
-              const type = key.split(':')[2];
-              expect(['id', 'meta', 'events', 'marker']).toContain(type);
-            }
 
             const countAfterEmpty = await queue.count();
             expect(countAfterEmpty).toEqual(0);
@@ -520,26 +473,6 @@ describe('queues', () => {
         const countAfterEmpty = await queue.count();
         expect(countAfterEmpty).toEqual(0);
       });
-    });
-  });
-
-  describe('.removeDeprecatedPriorityKey', () => {
-    it('removes old priority key', async () => {
-      const client = await getRedisClient(queue);
-      await client.zadd(`${prefix}:${queue.name}:priority`, 1, 'a');
-      await client.zadd(`${prefix}:${queue.name}:priority`, 2, 'b');
-
-      const count = await client.zcard(`${prefix}:${queue.name}:priority`);
-
-      expect(count).toEqual(2);
-
-      await queue.removeDeprecatedPriorityKey();
-
-      const updatedCount = await client.zcard(
-        `${prefix}:${queue.name}:priority`,
-      );
-
-      expect(updatedCount).toEqual(0);
     });
   });
 

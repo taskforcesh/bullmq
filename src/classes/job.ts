@@ -961,7 +961,14 @@ export class Job<
    * @returns the prefix that is used.
    */
   get prefix(): string {
-    return this.queue.opts.prefix;
+    // The key `prefix` is a Redis concept; derive it from the qualified name
+    // (`"<prefix>:<queue>"`) rather than from queue options. Backends without a
+    // prefix (where the qualified name is just the queue name) yield `''`.
+    const qualified = this.queueQualifiedName;
+    const name = this.queueName;
+    return qualified.length > name.length + 1
+      ? qualified.slice(0, qualified.length - name.length - 1)
+      : '';
   }
 
   /**

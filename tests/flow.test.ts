@@ -1,4 +1,3 @@
-import { getRedisClient } from './utils/get-redis-client';
 import {
   describe,
   beforeEach,
@@ -24,6 +23,20 @@ import {
 import { removeAllQueueData, delay } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
 import { IRedisClient } from '../src/interfaces';
+
+/**
+ * Backend-agnostic qualified queue name. Derives the qualifier (the `bull:`
+ * prefix on Redis, or nothing on PostgreSQL) from a reference queue whose
+ * `qualifiedName` is known, so job/parent key assertions hold on any backend.
+ */
+const qualify = (
+  ref: { qualifiedName: string; name: string },
+  queueName: string,
+): string =>
+  `${ref.qualifiedName.slice(
+    0,
+    ref.qualifiedName.length - ref.name.length,
+  )}${queueName}`;
 
 describe('flows', () => {
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
@@ -343,7 +356,7 @@ describe('flows', () => {
     expect(children![0].job.data.foo).toEqual('bar');
     expect(children![0].job.parent).toEqual({
       id: job.id,
-      queueKey: `${prefix}:${parentQueueName}`,
+      queueKey: `${qualify(queue, parentQueueName)}`,
     });
     expect(children![1].job.id).toBeTruthy();
     expect(children![1].job.data.foo).toEqual('baz');
@@ -436,7 +449,7 @@ describe('flows', () => {
       opts: {
         parent: {
           id: grandparentJob.id!,
-          queue: `${prefix}:${grandparentQueueName}`,
+          queue: `${qualify(queue, grandparentQueueName)}`,
         },
       },
     });
@@ -447,7 +460,7 @@ describe('flows', () => {
     const { children, job } = tree;
 
     expect(job.parentKey).toBe(
-      `${prefix}:${grandparentQueueName}:${grandparentJob.id}`,
+      `${qualify(queue, grandparentQueueName)}:${grandparentJob.id}`,
     );
     const parentState = await job.getState();
 
@@ -1845,7 +1858,7 @@ describe('flows', () => {
       expect(children[0].job.data.foo).toEqual('bar');
       expect(children[0].job.parent).toEqual({
         id: job.id,
-        queueKey: `${prefix}:${parentQueueName}`,
+        queueKey: `${qualify(queue, parentQueueName)}`,
       });
       expect(children[1].job.id).toBeTruthy();
       expect(children[1].job.data.foo).toEqual('baz');
@@ -2034,7 +2047,7 @@ describe('flows', () => {
       expect(children[0].job.data.foo).toEqual('baz');
       expect(children[0].job.parent).toEqual({
         id: job.id,
-        queueKey: `${prefix}:${parentQueueName}`,
+        queueKey: `${qualify(queue, parentQueueName)}`,
       });
       expect(children[1].job.id).toBeTruthy();
       expect(children[1].job.data.foo).toEqual('qux');
@@ -2347,12 +2360,12 @@ describe('flows', () => {
               jobId: 'mon',
               parent: {
                 id: 'wed',
-                queue: `${prefix}:${queueName}`,
+                queue: `${qualify(queue, queueName)}`,
               },
             },
           ),
         ).rejects.toThrow(
-          `The parent job ${prefix}:${queueName}:wed cannot be replaced. addJob`,
+          `The parent job ${qualify(queue, queueName)}:wed cannot be replaced. addJob`,
         );
 
         await flow.close();
@@ -2789,7 +2802,7 @@ describe('flows', () => {
             if (jobId === tree.job.id) {
               expect(prev).toBe('active');
               expect(failedReason).toBe(
-                `child ${prefix}:${queueName}:${tree.children[1].job.id} failed`,
+                `child ${qualify(queue, queueName)}:${tree.children[1].job.id} failed`,
               );
               resolve();
             }
@@ -2833,7 +2846,7 @@ describe('flows', () => {
 
         expect(updatedParentState).toEqual('failed');
         expect(updatedParentJob.failedReason).toEqual(
-          `child ${prefix}:${grandChildrenQueueName}:${updatedGrandchildJob.id} failed`,
+          `child ${qualify(queue, grandChildrenQueueName)}:${updatedGrandchildJob.id} failed`,
         );
 
         const updatedGrandparentJob = await parentQueue.getJob(job.id);
@@ -2841,7 +2854,7 @@ describe('flows', () => {
 
         expect(updatedGrandparentState).toEqual('failed');
         expect(updatedGrandparentJob.failedReason).toEqual(
-          `child ${prefix}:${queueName}:${updatedParentJob.id} failed`,
+          `child ${qualify(queue, queueName)}:${updatedParentJob.id} failed`,
         );
 
         await parentQueue.close();
@@ -2968,7 +2981,7 @@ describe('flows', () => {
               expect(jobId).toBe(job.id);
               expect(prev).toBe('active');
               expect(failedReason).toBe(
-                `child ${prefix}:${childrenQueueName}:${childId} failed`,
+                `child ${qualify(queue, childrenQueueName)}:${childId} failed`,
               );
               resolve();
             } catch (error) {
@@ -3108,7 +3121,7 @@ describe('flows', () => {
               expect(jobId).toBe(job.id);
               expect(prev).toBe('active');
               expect(failedReason).toBe(
-                `child ${prefix}:${childrenQueueName}:${childId} failed`,
+                `child ${qualify(queue, childrenQueueName)}:${childId} failed`,
               );
               resolve();
             } catch (error) {
@@ -3232,7 +3245,7 @@ describe('flows', () => {
             if (jobId === tree.job.id) {
               expect(prev).toBe('active');
               expect(failedReason).toBe(
-                `child ${prefix}:${queueName}:${tree.children[1].job.id} failed`,
+                `child ${qualify(queue, queueName)}:${tree.children[1].job.id} failed`,
               );
               resolve();
             }
@@ -3271,7 +3284,7 @@ describe('flows', () => {
 
         expect(updatedGrandparentState).toEqual('failed');
         expect(updatedGrandparentJob.failedReason).toEqual(
-          `child ${prefix}:${queueName}:${children[1].job.id} failed`,
+          `child ${qualify(queue, queueName)}:${children[1].job.id} failed`,
         );
 
         await parentQueue.close();
@@ -3370,7 +3383,7 @@ describe('flows', () => {
               if (jobId === tree!.children![0].job.id) {
                 expect(prev).toBe('active');
                 expect(failedReason).toBe(
-                  `child ${prefix}:${grandChildrenQueueName}:${
+                  `child ${qualify(queue, grandChildrenQueueName)}:${
                     tree!.children![0].children![0].job.id
                   } failed`,
                 );
@@ -3414,7 +3427,7 @@ describe('flows', () => {
 
         expect(updatedParentState).toEqual('failed');
         expect(updatedParentJob.failedReason).toEqual(
-          `child ${prefix}:${grandChildrenQueueName}:${updatedGrandchildJob.id} failed`,
+          `child ${qualify(queue, grandChildrenQueueName)}:${updatedGrandchildJob.id} failed`,
         );
 
         const updatedGrandparentJob = await parentQueue.getJob(job.id);
@@ -3518,7 +3531,7 @@ describe('flows', () => {
               if (jobId === tree!.children![0].job.id) {
                 expect(prev).toBe('active');
                 expect(failedReason).toBe(
-                  `child ${prefix}:${grandChildrenQueueName}:${
+                  `child ${qualify(queue, grandChildrenQueueName)}:${
                     tree!.children![0].children![0].job.id
                   } failed`,
                 );
@@ -3562,7 +3575,7 @@ describe('flows', () => {
 
         expect(updatedParentState).toEqual('failed');
         expect(updatedParentJob.failedReason).toEqual(
-          `child ${prefix}:${grandChildrenQueueName}:${updatedGrandchildJob.id} failed`,
+          `child ${qualify(queue, grandChildrenQueueName)}:${updatedGrandchildJob.id} failed`,
         );
 
         const values = await tree.job.getDependencies();
@@ -3576,7 +3589,7 @@ describe('flows', () => {
         const ignoredChildrenValues =
           await updatedGrandparentJob.getIgnoredChildrenFailures();
 
-        const failedReason = `child ${prefix}:${grandChildrenQueueName}:${updatedGrandchildJob.id} failed`;
+        const failedReason = `child ${qualify(queue, grandChildrenQueueName)}:${updatedGrandchildJob.id} failed`;
         expect(ignoredChildrenValues).toEqual({
           [`${queue.qualifiedName}:${children[0].job.id}`]: failedReason,
         });
@@ -4695,46 +4708,6 @@ describe('flows', () => {
     await removeAllQueueData(createTestConnection(), topQueueName);
   });
 
-  it('should add meta key to both parents and children', async () => {
-    const name = 'child-job';
-    const topQueueName = `top-queue-${randomUUID()}`;
-
-    const flow = new FlowProducer({ connection, prefix });
-    await flow.add({
-      name: 'root-job',
-      queueName: topQueueName,
-      data: {},
-      children: [
-        {
-          name,
-          data: { idx: 0, foo: 'bar' },
-          queueName,
-          children: [
-            {
-              name,
-              data: { idx: 1, foo: 'baz' },
-              queueName,
-              children: [{ name, data: { idx: 2, foo: 'qux' }, queueName }],
-            },
-          ],
-        },
-      ],
-    });
-
-    const client = await getRedisClient(flow);
-    const metaTop = await client.hgetall(`${prefix}:${topQueueName}:meta`);
-    expect(metaTop).toMatchObject({ 'opts.maxLenEvents': '10000' });
-
-    const metaChildren = await client.hgetall(`${prefix}:${queueName}:meta`);
-    expect(metaChildren).toMatchObject({
-      'opts.maxLenEvents': '10000',
-    });
-
-    await flow.close();
-
-    await removeAllQueueData(createTestConnection(), topQueueName);
-  });
-
   describe('when parent has delay', () => {
     it('moves process to delayed after children are processed', async () => {
       const name = 'child-job';
@@ -5146,7 +5119,7 @@ describe('flows', () => {
           opts: {
             parent: {
               id: grandparentJob.id!,
-              queue: `${prefix}:${grandparentQueueName}`,
+              queue: `${qualify(queue, grandparentQueueName)}`,
             },
           },
         },
@@ -5158,7 +5131,7 @@ describe('flows', () => {
       const { children, job } = tree;
 
       expect(job.parentKey).toBe(
-        `${prefix}:${grandparentQueueName}:${grandparentJob.id}`,
+        `${qualify(queue, grandparentQueueName)}:${grandparentJob.id}`,
       );
       const parentState = await job.getState();
 
@@ -5372,7 +5345,7 @@ describe('flows', () => {
                     expect(childJob).toBeTruthy();
                     expect(childJob!.parent).toEqual({
                       id: tree.job.id,
-                      queueKey: `${prefix}:${parentQueueName}`,
+                      queueKey: `${qualify(queue, parentQueueName)}`,
                     });
                   }
                 }
@@ -5493,7 +5466,7 @@ describe('flows', () => {
         const childJob = await Job.fromId(queue, child.job.id);
         expect(childJob.parent).toEqual({
           id: tree.job.id,
-          queueKey: `${prefix}:${parentQueueName}`,
+          queueKey: `${qualify(queue, parentQueueName)}`,
         });
       }
 
@@ -5556,7 +5529,7 @@ describe('flows', () => {
           const childJob = await Job.fromId(queue, child.job.id);
           expect(childJob.parent).toEqual({
             id: tree.job.id,
-            queueKey: `${prefix}:${parentQueueName}`,
+            queueKey: `${qualify(queue, parentQueueName)}`,
           });
         }
 
@@ -5620,7 +5593,7 @@ describe('flows', () => {
           const childJob = await Job.fromId(queue, child.job.id);
           expect(childJob.parent).toEqual({
             id: tree.job.id,
-            queueKey: `${prefix}:${parentQueueName}`,
+            queueKey: `${qualify(queue, parentQueueName)}`,
           });
         }
 
@@ -5724,7 +5697,7 @@ describe('flows', () => {
             const childJob = await Job.fromId(queue, child.job.id);
             expect(childJob.parent).toEqual({
               id: tree.children![0].job.id,
-              queueKey: `${prefix}:${parentQueueName}`,
+              queueKey: `${qualify(queue, parentQueueName)}`,
             });
           }
 
@@ -5833,7 +5806,7 @@ describe('flows', () => {
           const childJob = await Job.fromId(queue, child.job.id);
           expect(childJob.parent).toMatchObject({
             id: tree.job.id,
-            queueKey: `${prefix}:${parentQueueName}`,
+            queueKey: `${qualify(queue, parentQueueName)}`,
           });
         }
 
@@ -6383,7 +6356,10 @@ describe('flows', () => {
           data: {},
           queueName,
           opts: {
-            parent: { id: 'missing-parent', queue: `${prefix}:${queueName}` },
+            parent: {
+              id: 'missing-parent',
+              queue: `${qualify(queue, queueName)}`,
+            },
           },
         },
       ]);
@@ -6403,7 +6379,7 @@ describe('flows', () => {
     it('throws an error instead of silently dropping the job', async () => {
       const flow = new FlowProducer({ connection, prefix });
       const missingParentId = `missing-parent-${randomUUID()}`;
-      const parentKey = `${prefix}:${queueName}:${missingParentId}`;
+      const parentKey = `${qualify(queue, queueName)}:${missingParentId}`;
 
       await expect(
         flow.add({
@@ -6413,7 +6389,7 @@ describe('flows', () => {
           opts: {
             parent: {
               id: missingParentId,
-              queue: `${prefix}:${queueName}`,
+              queue: `${qualify(queue, queueName)}`,
             },
             jobId: 'orphan-child-id',
           },

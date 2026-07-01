@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import {
   BackendFactory,
   FlowJob,
+  FlowProducerOptions,
   FlowQueuesOpts,
   FlowOpts,
   IoredisListener,
@@ -14,10 +15,10 @@ import {
   ContextManager,
 } from '../interfaces';
 import { getParentKey, randomUUID, trace } from '../utils';
-import { createRedisBackend } from '../utils/create-backend';
+import { getDefaultBackendFactory } from '../utils/create-backend';
 import { Job } from './job';
 import { RedisQueueBackend } from './redis-queue-backend';
-import { KeysMap, QueueKeys } from './queue-keys';
+import { KeysMap } from './queue-keys';
 import { ErrorCode, SpanKind, TelemetryAttributes } from '../enums';
 
 /**
@@ -106,7 +107,6 @@ export class FlowProducer<
   toKey: (name: string, type: string) => string;
   keys: KeysMap;
   closing: Promise<void> | undefined;
-  queueKeys: QueueKeys;
 
   protected backend: B;
   protected telemetry: {
@@ -115,13 +115,12 @@ export class FlowProducer<
   };
 
   constructor(
-    public opts: QueueBaseOptions = { connection: {} },
-    backendFactory: BackendFactory<B> = createRedisBackend as unknown as BackendFactory<B>,
+    public opts: FlowProducerOptions = { connection: {} },
+    backendFactory: BackendFactory<B> = getDefaultBackendFactory<B>(),
   ) {
     super();
 
     this.opts = {
-      prefix: 'bull',
       ...opts,
     };
 
@@ -135,8 +134,6 @@ export class FlowProducer<
         this.emit('ioredis:close');
       }
     });
-
-    this.queueKeys = new QueueKeys(opts.prefix);
 
     if (opts?.telemetry) {
       this.telemetry = opts.telemetry;
@@ -365,7 +362,7 @@ export class FlowProducer<
     queuesOpts,
   }: AddNodeOpts): Promise<JobNode> {
     const prefix = node.prefix || this.opts.prefix;
-    const queue = this.queueFromNode(node, new QueueKeys(prefix), prefix);
+    const queue = this.queueFromNode(node, prefix);
     const queueOpts = queuesOpts && queuesOpts[node.queueName];
 
     const jobsOpts = queueOpts?.defaultJobOptions ?? {};
@@ -417,9 +414,6 @@ export class FlowProducer<
         if (node.children && node.children.length > 0) {
           // Create the parent job, it will be a job in status "waiting-children".
           const parentId = jobId;
-          const queueKeysParent = new QueueKeys(
-            node.prefix || this.opts.prefix,
-          );
 
           await this.collectFlowEntry(entries, job, {
             parentDependenciesKey: parent?.parentDependenciesKey,
@@ -427,10 +421,9 @@ export class FlowProducer<
             parentKey,
           });
 
-          const parentDependenciesKey = `${queueKeysParent.toKey(
-            node.queueName,
-            parentId,
-          )}:dependencies`;
+          // Queue identity is owned by the backend (the `queue` object above is
+          // bound to this node's queue via the backend's `forQueue`).
+          const parentDependenciesKey = `${queue.toKey(parentId)}:dependencies`;
 
           const children = await this.addChildren({
             entries,
@@ -438,7 +431,7 @@ export class FlowProducer<
             parent: {
               parentOpts: {
                 id: parentId,
-                queue: queueKeysParent.getQueueQualifiedName(node.queueName),
+                queue: queue.qualifiedName,
               },
               parentDependenciesKey,
             },
@@ -506,11 +499,7 @@ export class FlowProducer<
   }
 
   private async getNode(node: NodeOpts): Promise<JobNode> {
-    const queue = this.queueFromNode(
-      node,
-      new QueueKeys(node.prefix),
-      node.prefix,
-    );
+    const queue = this.queueFromNode(node, node.prefix);
 
     const job = await this.Job.fromId(queue, node.id);
 
@@ -588,23 +577,26 @@ export class FlowProducer<
    * required to create jobs in any queue.
    *
    * @param node - The flow node containing the queue name and other job options.
-   * @param queueKeys - The queue keys helper used to resolve key names.
-   * @param prefix - The Redis key prefix used for the queue.
-   * @returns A queue-like object with the client, keys, and options needed to create jobs.
+   * @param prefix - The key prefix for the queue (honored by the Redis backend only).
+   * @returns A queue-like object with the keys, identity and backend needed to create jobs.
    */
   private queueFromNode(
     node: Omit<NodeOpts, 'id' | 'depth' | 'maxChildren'>,
-    queueKeys: QueueKeys,
     prefix: string,
   ) {
+    // Queue identity and key building are owned by the backend (the Redis
+    // backend encodes the key `prefix`; other backends format their own
+    // identity). The flow's own backend is queue-agnostic, so we ask it for a
+    // sibling bound to this node's queue.
+    const backend = this.backend.forQueue(node.queueName, prefix);
     return {
       name: node.queueName,
-      keys: queueKeys.getKeys(node.queueName),
-      toKey: (type: string) => queueKeys.toKey(node.queueName, type),
+      keys: backend.keys,
+      toKey: (type: string) => backend.toKey(type),
       opts: { prefix, connection: {} },
-      qualifiedName: queueKeys.getQueueQualifiedName(node.queueName),
+      qualifiedName: backend.qualifiedName,
       closing: this.closing,
-      backend: this.backend.forQueue(node.queueName, prefix),
+      backend,
       waitUntilReady: async (): Promise<void> => {
         await this.backend.waitUntilReady();
       },
