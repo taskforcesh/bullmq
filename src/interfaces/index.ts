@@ -18,6 +18,7 @@ export * from './parent-options';
 export * from './queue-meta';
 export * from './queue-options';
 export * from './rate-limiter-options';
+export * from './redis-client';
 export * from './redis-options';
 export * from './redis-streams';
 export * from './repeatable-job';

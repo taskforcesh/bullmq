@@ -1,10 +1,10 @@
 import { EventEmitter } from 'events';
-import { Redis, ChainableCommander } from 'ioredis';
 import {
   FlowJob,
   FlowQueuesOpts,
   FlowOpts,
   IoredisListener,
+  IRedisTransaction,
   ParentOptions,
   QueueBaseOptions,
   RedisClient,
@@ -18,7 +18,7 @@ import { RedisConnection } from './redis-connection';
 import { ErrorCode, SpanKind, TelemetryAttributes } from '../enums';
 
 export interface AddNodeOpts {
-  multi: ChainableCommander;
+  multi: IRedisTransaction;
   node: FlowJob;
   parent?: {
     parentOpts: ParentOptions;
@@ -31,7 +31,7 @@ export interface AddNodeOpts {
 }
 
 export interface AddChildrenOpts {
-  multi: ChainableCommander;
+  multi: IRedisTransaction;
   nodes: FlowJob[];
   parent: {
     parentOpts: ParentOptions;
@@ -228,9 +228,6 @@ export class FlowProducer extends EventEmitter {
         const [result] = results || [];
         if (result) {
           const [err, jobId] = result;
-          // Surface failures of the root flow job so that callers do not
-          // silently lose jobs (for example when adding a child node
-          // whose parent does not exist in Redis, see GH #3264).
           if (err) {
             throw err;
           }
@@ -334,7 +331,7 @@ export class FlowProducer extends EventEmitter {
    * a parent and a child job at the same time depending on where it is located
    * in the tree hierarchy.
    *
-   * @param multi - ioredis ChainableCommander
+   * @param multi - IRedisTransaction
    * @param node - the node representing a job to be added to some queue
    * @param parent - parent data sent to children to create the "links" to their parent
    * @returns
@@ -402,7 +399,7 @@ export class FlowProducer extends EventEmitter {
             node.prefix || this.opts.prefix,
           );
 
-          await job.addJob(<Redis>(multi as unknown), {
+          await job.addJob(multi, {
             parentDependenciesKey: parent?.parentDependenciesKey,
             addToWaitingChildren: true,
             parentKey,
@@ -428,7 +425,7 @@ export class FlowProducer extends EventEmitter {
 
           return { job, children };
         } else {
-          await job.addJob(<Redis>(multi as unknown), {
+          await job.addJob(multi, {
             parentDependenciesKey: parent?.parentDependenciesKey,
             parentKey,
           });
@@ -445,12 +442,12 @@ export class FlowProducer extends EventEmitter {
    * a parent and a child job at the same time depending on where it is located
    * in the tree hierarchy.
    *
-   * @param multi - ioredis ChainableCommander
+   * @param multi - IRedisTransaction
    * @param nodes - the nodes representing jobs to be added to some queue
    * @returns
    */
   protected addNodes(
-    multi: ChainableCommander,
+    multi: IRedisTransaction,
     nodes: FlowJob[],
   ): Promise<JobNode[]> {
     return Promise.all(
@@ -557,9 +554,10 @@ export class FlowProducer extends EventEmitter {
    * Helper factory method that creates a queue-like object
    * required to create jobs in any queue.
    *
-   * @param node -
-   * @param queueKeys -
-   * @returns
+   * @param node - The flow node containing the queue name and other job options.
+   * @param queueKeys - The queue keys helper used to resolve key names.
+   * @param prefix - The Redis key prefix used for the queue.
+   * @returns A queue-like object with the client, keys, and options needed to create jobs.
    */
   private queueFromNode(
     node: Omit<NodeOpts, 'id' | 'depth' | 'maxChildren'>,
@@ -585,17 +583,10 @@ export class FlowProducer extends EventEmitter {
   }
 
   /**
-   * Translates a numeric error code returned by the addJob Lua script
-   * into a descriptive Error. Without this translation, a failed
-   * `multi.exec()` result would be silently ignored and the job would
-   * appear to be "dropped" with no feedback to the caller.
+   * Translates numeric addJob Lua error codes returned by root flow exec.
    *
-   * Messages and the attached `code` property are kept aligned with
-   * `Scripts.finishedErrors` so programmatic callers can key off the
-   * same `(err as any).code` across both code paths.
-   *
-   * @param code - the numeric error code returned from Redis.
-   * @param parentKey - the parent key, when available, for the error message.
+   * @param code - Numeric error code returned from Redis.
+   * @param parentKey - Parent key for contextual error messages.
    */
   private toFlowError(code: number, parentKey?: string): Error {
     let error: Error;

@@ -3,6 +3,7 @@ import {
   BackoffOptions,
   BulkJobOptions,
   DependenciesOpts,
+  IRedisTransaction,
   JobJson,
   JobJsonRaw,
   MinimalJob,
@@ -317,7 +318,7 @@ export class Job<
     const pipeline = client.pipeline();
 
     for (const job of jobInstances) {
-      job.addJob(<RedisClient>(pipeline as unknown), {
+      job.addJob(pipeline, {
         parentKey: job.parentKey,
         parentDependenciesKey: job.parentKey
           ? `${job.parentKey}:dependencies`
@@ -409,10 +410,14 @@ export class Job<
 
     if (json.parentKey) {
       job.parentKey = json.parentKey;
+    } else {
+      job.parentKey = undefined;
     }
 
     if (json.parent) {
       job.parent = JSON.parse(json.parent);
+    } else {
+      job.parent = undefined;
     }
 
     if (json.pb) {
@@ -1129,7 +1134,7 @@ export class Job<
     unprocessed?: string[];
   }> {
     const client = await this.queue.client;
-    const multi = client.multi();
+    const multi = client.pipeline();
     if (!opts.processed && !opts.unprocessed && !opts.ignored && !opts.failed) {
       multi.hgetall(this.toKey(`${this.id}:processed`));
       multi.smembers(this.toKey(`${this.id}:dependencies`));
@@ -1164,12 +1169,9 @@ export class Job<
       if (opts.processed) {
         childrenResultOrder.push('processed');
         const processedOpts = Object.assign({ ...defaultOpts }, opts.processed);
-        multi.hscan(
-          this.toKey(`${this.id}:processed`),
-          processedOpts.cursor,
-          'COUNT',
-          processedOpts.count,
-        );
+        multi.hscan(this.toKey(`${this.id}:processed`), processedOpts.cursor, {
+          COUNT: processedOpts.count,
+        });
       }
 
       if (opts.unprocessed) {
@@ -1181,20 +1183,16 @@ export class Job<
         multi.sscan(
           this.toKey(`${this.id}:dependencies`),
           unprocessedOpts.cursor,
-          'COUNT',
-          unprocessedOpts.count,
+          { COUNT: unprocessedOpts.count },
         );
       }
 
       if (opts.ignored) {
         childrenResultOrder.push('ignored');
         const ignoredOpts = Object.assign({ ...defaultOpts }, opts.ignored);
-        multi.hscan(
-          this.toKey(`${this.id}:failed`),
-          ignoredOpts.cursor,
-          'COUNT',
-          ignoredOpts.count,
-        );
+        multi.hscan(this.toKey(`${this.id}:failed`), ignoredOpts.cursor, {
+          COUNT: ignoredOpts.count,
+        });
       }
 
       let failedCursor;
@@ -1511,7 +1509,10 @@ export class Job<
    * @param parentOpts - Options for the parent-child relationship.
    * @returns The job ID
    */
-  addJob(client: RedisClient, parentOpts?: ParentKeyOpts): Promise<string> {
+  addJob(
+    client: RedisClient | IRedisTransaction,
+    parentOpts?: ParentKeyOpts,
+  ): Promise<string> {
     const jobData = this.asJSON();
 
     this.validateOptions(jobData);

@@ -13,19 +13,19 @@ import {
 
 import * as sinon from 'sinon';
 
-import { default as IORedis } from 'ioredis';
 import { FlowProducer, Queue, QueueEvents, Worker } from '../src/classes';
 import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 describe('Jobs getters', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queue: Queue;
   let queueName: string;
 
-  let connection: IORedis;
+  let connection: IRedisClient;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
@@ -35,7 +35,7 @@ describe('Jobs getters', () => {
 
   afterEach(async () => {
     await queue.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async function () {
@@ -181,20 +181,17 @@ describe('Jobs getters', () => {
       await queue2.close();
       await worker.close();
       await worker2.close();
-      await removeAllQueueData(new IORedis(redisHost), queueName2);
+      await removeAllQueueData(createTestConnection(), queueName2);
     });
 
     describe('when sharing connection', () => {
       // Test is very flaky on CI, so we skip it for now.
       it('gets all workers for a given queue', async () => {
-        const ioredisConnection = new IORedis({
-          host: redisHost,
-          maxRetriesPerRequest: null,
-        });
+        const localConnection = createTestConnection();
 
         const worker = new Worker(queueName, async () => {}, {
           autorun: false,
-          connection: ioredisConnection,
+          connection: localConnection,
           prefix,
         });
         await new Promise<void>(async resolve => {
@@ -209,7 +206,7 @@ describe('Jobs getters', () => {
         expect(workers).toHaveLength(1);
 
         const worker2 = new Worker(queueName, async () => {}, {
-          connection: ioredisConnection,
+          connection: localConnection,
           prefix,
         });
         await new Promise<void>(async resolve => {
@@ -225,7 +222,7 @@ describe('Jobs getters', () => {
 
         await worker.close();
         await worker2.close();
-        await ioredisConnection.quit();
+        await localConnection.quit();
       });
     });
 
@@ -277,7 +274,7 @@ describe('Jobs getters', () => {
     await queue.add('test', { baz: 'qux' });
 
     const jobs = await queue.getWaiting();
-    expect(jobs).to.be.a('array');
+    expect(jobs).toBeInstanceOf(Array);
     expect(jobs.length).toBe(2);
     expect(jobs[0].data.foo).toBe('bar');
     expect(jobs[1].data.baz).toBe('qux');
@@ -315,7 +312,7 @@ describe('Jobs getters', () => {
       queue.add('test', { baz: 'qux' }),
     ]);
     const jobs = await queue.getWaiting();
-    expect(jobs).to.be.a('array');
+    expect(jobs).toBeInstanceOf(Array);
     expect(jobs.length).toBe(2);
     expect(jobs[0].data.foo).toBe('bar');
     expect(jobs[1].data.baz).toBe('qux');
@@ -326,7 +323,7 @@ describe('Jobs getters', () => {
     const processing = new Promise<void>(resolve => {
       processor = async () => {
         const jobs = await queue.getActive();
-        expect(jobs).to.be.a('array');
+        expect(jobs).toBeInstanceOf(Array);
         expect(jobs.length).toBe(1);
         expect(jobs[0].data.foo).toBe('bar');
         resolve();
@@ -366,7 +363,7 @@ describe('Jobs getters', () => {
 
         if (counter === 0) {
           const jobs = await queue.getCompleted();
-          expect(jobs).to.be.a('array');
+          expect(jobs).toBeInstanceOf(Array);
 
           // We need a "empty completed" kind of function.
           //expect(jobs.length).toBe(2);
@@ -399,7 +396,7 @@ describe('Jobs getters', () => {
 
         if (counter === 0) {
           const jobs = await queue.getFailed();
-          expect(jobs).to.be.a('array');
+          expect(jobs).toBeInstanceOf(Array);
           expect(jobs).toHaveLength(2);
           await worker.close();
           resolve();
@@ -476,9 +473,9 @@ describe('Jobs getters', () => {
           const jobsWithoutProvidingRange = await queue.getFailed();
           const allJobs = await queue.getFailed(0, -1);
 
-          expect(allJobs).to.be.a('array');
+          expect(allJobs).toBeInstanceOf(Array);
           expect(allJobs).toHaveLength(4);
-          expect(jobsWithoutProvidingRange).to.be.a('array');
+          expect(jobsWithoutProvidingRange).toBeInstanceOf(Array);
           expect(jobsWithoutProvidingRange).toHaveLength(allJobs.length);
           await worker.close();
           resolve();
@@ -933,8 +930,10 @@ describe('Jobs getters', () => {
         -1,
       );
 
-      expect(result.items).toBeInstanceOf(Array).that.has.length(4);
-      expect(result.jobs).toBeInstanceOf(Array).that.has.length(4);
+      expect(result.items).toBeInstanceOf(Array);
+      expect(result.items).toHaveLength(4);
+      expect(result.jobs).toBeInstanceOf(Array);
+      expect(result.jobs).toHaveLength(4);
       expect(result.total).toBe(4);
 
       for (const job of result.jobs) {
@@ -955,7 +954,8 @@ describe('Jobs getters', () => {
         2,
       );
 
-      expect(result2.items).toBeInstanceOf(Array).that.has.length(3);
+      expect(result2.items).toBeInstanceOf(Array);
+      expect(result2.items).toHaveLength(3);
       expect(result2.total).toBe(4);
 
       await flowProducer.close();
@@ -1000,7 +1000,8 @@ describe('Jobs getters', () => {
         -1,
       );
 
-      expect(result.items).toBeInstanceOf(Array).that.has.length(0);
+      expect(result.items).toBeInstanceOf(Array);
+      expect(result.items).toHaveLength(0);
       expect(result.total).toBe(0);
 
       const result2 = await queue.getDependencies(
@@ -1010,8 +1011,10 @@ describe('Jobs getters', () => {
         -1,
       );
 
-      expect(result2.items).toBeInstanceOf(Array).that.has.length(4);
-      expect(result2.jobs).toBeInstanceOf(Array).that.has.length(4);
+      expect(result2.items).toBeInstanceOf(Array);
+      expect(result2.items).toHaveLength(4);
+      expect(result2.jobs).toBeInstanceOf(Array);
+      expect(result2.jobs).toHaveLength(4);
       expect(result2.total).toBe(4);
 
       for (const job of result2.jobs) {
@@ -1208,7 +1211,7 @@ describe('Jobs getters', () => {
         expect(metrics).toContain('env=' + '"' + expectedEscapedEnv + '"');
       } finally {
         await escapingQueue.close();
-        await removeAllQueueData(new IORedis(redisHost), rawName);
+        await removeAllQueueData(createTestConnection(), rawName);
       }
     });
   });

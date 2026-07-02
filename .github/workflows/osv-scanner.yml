@@ -20,6 +20,7 @@ jobs:
   scan-scheduled:
     uses: 'google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.5'
     with:
+      fail-on-vuln: ${{ github.event_name == 'schedule' }}
       scan-args: |-
         --config=osv-scanner.toml
         -r
