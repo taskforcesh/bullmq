@@ -1013,7 +1013,6 @@ export class Scripts {
       // exhaust the requested range or the script returns fewer jobs than
       // the batch can hold (which means this type has no more entries in
       // the requested range).
-      // eslint-disable-next-line no-constant-condition
       while (true) {
         const remaining = isUnbounded
           ? Scripts.MAX_RANGED_JOBS
