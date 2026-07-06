@@ -86,7 +86,7 @@ export interface MinimalJob<
    * Stacktrace for the error (for failed jobs).
    * @defaultValue null
    */
-  stacktrace: string[];
+  stacktrace: string[] | null;
   /**
    * An amount of milliseconds to wait until this job can be processed.
    * @defaultValue 0

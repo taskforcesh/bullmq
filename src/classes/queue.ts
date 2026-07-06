@@ -1,4 +1,3 @@
-import { v4 } from 'uuid';
 import {
   BaseJobOptions,
   BulkJobOptions,
@@ -22,6 +21,7 @@ import { RedisConnection } from './redis-connection';
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { JobScheduler } from './job-scheduler';
 import { version } from '../version';
+import { randomUUID } from '../utils';
 
 export interface ObliterateOpts {
   /**
@@ -148,9 +148,9 @@ export class Queue<
   ResultType = ExtractResultType<DataTypeOrJob, DefaultResultType>,
   NameType extends string = ExtractNameType<DataTypeOrJob, DefaultNameType>,
 > extends QueueGetters<JobBase<DataTypeOrJob, ResultType, NameType>> {
-  token = v4();
+  token = randomUUID();
   jobsOpts: BaseJobOptions;
-  opts: QueueOptions;
+  declare opts: QueueOptions;
 
   protected libName = 'bullmq';
 
@@ -175,7 +175,7 @@ export class Queue<
     this.waitUntilReady()
       .then(client => {
         if (!this.closing && !opts?.skipMetasUpdate) {
-          return client.hmset(this.keys.meta, this.metaValues);
+          return client.hset(this.keys.meta, this.metaValues);
         }
       })
       .catch(err => {
@@ -276,7 +276,7 @@ export class Queue<
    */
   async setGlobalConcurrency(concurrency: number) {
     const client = await this.client;
-    return client.hset(this.keys.meta, 'concurrency', concurrency);
+    return client.hset(this.keys.meta, { concurrency });
   }
 
   /**
@@ -286,7 +286,7 @@ export class Queue<
    */
   async setGlobalRateLimit(max: number, duration: number) {
     const client = await this.client;
-    return client.hset(this.keys.meta, 'max', max, 'duration', duration);
+    return client.hset(this.keys.meta, { max, duration });
   }
 
   /**
@@ -545,12 +545,9 @@ export class Queue<
         });
 
         await this.client.then(client =>
-          client.set(
-            this.keys.limiter,
-            Number.MAX_SAFE_INTEGER,
-            'PX',
-            expireTimeMs,
-          ),
+          client.set(this.keys.limiter, Number.MAX_SAFE_INTEGER, {
+            PX: expireTimeMs,
+          }),
         );
       },
     );
@@ -1036,7 +1033,7 @@ export class Queue<
   /**
    * Trim the event stream to an approximately maxLength.
    *
-   * @param maxLength -
+   * @param maxLength - The approximate maximum length, or target length, of the event stream.
    */
   async trimEvents(maxLength: number): Promise<number> {
     return this.trace<number>(
@@ -1049,7 +1046,9 @@ export class Queue<
         });
 
         const client = await this.client;
-        return await client.xtrim(this.keys.events, 'MAXLEN', '~', maxLength);
+        return await client.xtrim(this.keys.events, 'MAXLEN', maxLength, {
+          approximate: true,
+        });
       },
     );
   }
@@ -1114,13 +1113,10 @@ export class Queue<
 
     let cursor = '0';
     do {
-      const [nextCursor, keys] = await client.scan(
-        cursor,
-        'MATCH',
-        scanPattern,
-        'COUNT',
-        count,
-      );
+      const [nextCursor, keys] = await client.scan(cursor, {
+        MATCH: scanPattern,
+        COUNT: count,
+      });
       cursor = nextCursor;
 
       // Extract unique potential job IDs from this batch.

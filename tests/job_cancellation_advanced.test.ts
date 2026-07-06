@@ -1,4 +1,3 @@
-import { default as IORedis } from 'ioredis';
 import {
   describe,
   beforeEach,
@@ -9,25 +8,25 @@ import {
   expect,
 } from 'vitest';
 
-import { v4 } from 'uuid';
+import { randomUUID } from '../src/utils';
 import { Queue, QueueEvents, Worker, UnrecoverableError } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
 
 describe('Job Cancellation - Advanced Scenarios', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  let connection: IORedis;
+  let connection;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
@@ -36,7 +35,7 @@ describe('Job Cancellation - Advanced Scenarios', () => {
   afterEach(async () => {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async function () {
@@ -478,7 +477,9 @@ describe('Job Cancellation - Advanced Scenarios', () => {
         queueName,
         async (job, token, signal) => {
           startedCount++;
-          if (startedCount === 3) {allStartedResolve();}
+          if (startedCount === 3) {
+            allStartedResolve();
+          }
           for (let i = 0; i < 100; i++) {
             if (signal?.aborted) {
               jobStatuses.set(job.id!, 'cancelled');

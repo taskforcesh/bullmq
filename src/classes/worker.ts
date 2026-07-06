@@ -1,8 +1,6 @@
 import * as fs from 'fs';
 import { URL } from 'url';
-import type { Cluster, Redis } from 'ioredis';
 import * as path from 'path';
-import { v4 } from 'uuid';
 import { AbortController } from './abort-controller';
 
 import {
@@ -22,12 +20,14 @@ import {
   DELAY_TIME_1,
   isNotConnectionError,
   isRedisInstance,
+  randomUUID,
 } from '../utils';
 import { QueueBase } from './queue-base';
 import { Repeat } from './repeat';
 import { ChildPool } from './child-pool';
 import { Job } from './job';
 import { RedisConnection } from './redis-connection';
+import { createIORedisClient, isIRedisClient } from './ioredis-client';
 import sandbox from './sandbox';
 import { AsyncFifoQueue } from './async-fifo-queue';
 import {
@@ -183,7 +183,7 @@ export class Worker<
   ResultType = any,
   NameType extends string = string,
 > extends QueueBase {
-  readonly opts: WorkerOptions;
+  declare readonly opts: WorkerOptions;
   readonly id: string;
 
   private abortDelayController: AbortController | null = null;
@@ -269,7 +269,7 @@ export class Worker<
     this.opts.lockRenewTime =
       this.opts.lockRenewTime || this.opts.lockDuration / 2;
 
-    this.id = v4();
+    this.id = randomUUID();
 
     this.createLockManager();
 
@@ -340,14 +340,10 @@ export class Worker<
       this.clientName() + (this.opts.name ? `:w:${this.opts.name}` : '');
     this.blockingConnection = new RedisConnection(
       isRedisInstance(opts.connection)
-        ? (<Redis>opts.connection).isCluster
-          ? (<Cluster>opts.connection).duplicate(undefined, {
-              redisOptions: {
-                ...((<Cluster>opts.connection).options?.redisOptions || {}),
-                connectionName,
-              },
-            })
-          : (<Redis>opts.connection).duplicate({ connectionName })
+        ? (isIRedisClient(opts.connection)
+            ? opts.connection
+            : createIORedisClient(opts.connection as any)
+          ).duplicate({ connectionName })
         : { ...opts.connection, connectionName },
       {
         shared: false,
@@ -744,12 +740,9 @@ export class Worker<
         });
 
         await this.client.then(client =>
-          client.set(
-            this.keys.limiter,
-            Number.MAX_SAFE_INTEGER,
-            'PX',
-            expireTimeMs,
-          ),
+          client.set(this.keys.limiter, Number.MAX_SAFE_INTEGER, {
+            PX: expireTimeMs,
+          }),
         );
       },
     );
@@ -814,7 +807,7 @@ will never work with more accuracy than 1ms. */
           // function only.
           const result = await bclient.bzpopmin(this.keys.marker, blockTimeout);
           if (result) {
-            const [_key, member, score] = result;
+            const [, member, score] = result;
 
             if (member) {
               const newBlockUntil = parseInt(score);
@@ -910,15 +903,15 @@ will never work with more accuracy than 1ms. */
       try {
         await this.retryIfFailed(
           async () => {
-            // Discriminate job schedulers from legacy repeatable jobs.
-            // Legacy repeatable keys are concatenations that always
-            // contain 5+ colon-separated segments, but a user-provided
-            // jobSchedulerId may also contain 5+ segments and would
-            // otherwise be misclassified, so the next iteration would
-            // never be scheduled and `next` would remain stuck in the
-            // past with `iterationCount: 1` (issue #3499). For keys with
-            // 5+ segments we verify against the scheduler metadata hash
-            // before falling back to the legacy path.
+            // We need to distinguish between new job schedulers and legacy
+            // repeatable jobs. Legacy repeatable keys always contain 5+
+            // colon segments, but a user-provided jobSchedulerId may also
+            // contain 5+ segments, so we cannot rely on the segment count
+            // alone (see issue #3828). When the key has 5+ segments we
+            // probe the per-id scheduler metadata hash (`repeat:<id>` with
+            // the `ic` field) via `JobScheduler.isJobScheduler()` to confirm
+            // it really is a scheduler before falling back to the legacy
+            // repeatable path.
             const hasRepeatJobKey = !!job.repeatJobKey;
             const hasLegacyKeyShape =
               hasRepeatJobKey && job.repeatJobKey.split(':').length >= 5;
@@ -1137,6 +1130,7 @@ will never work with more accuracy than 1ms. */
         return;
       }
 
+      const fetchNext = fetchNextCallback() && !(this.closing || this.paused);
       if (
         err instanceof DelayedError ||
         err.name == 'DelayedError' ||
@@ -1145,15 +1139,15 @@ will never work with more accuracy than 1ms. */
         err instanceof WaitingChildrenError ||
         err.name == 'WaitingChildrenError'
       ) {
+        if (!fetchNext) {
+          return;
+        }
+
         const client = await this.client;
         return this.moveToActive(client, token, this.opts.name);
       }
 
-      const result = await job.moveToFailed(
-        err,
-        token,
-        fetchNextCallback() && !(this.closing || this.paused),
-      );
+      const result = await job.moveToFailed(err, token, fetchNext);
 
       this.emit('failed', job, err, 'active');
 
@@ -1375,18 +1369,15 @@ will never work with more accuracy than 1ms. */
    * @returns
    */
   private async whenCurrentJobsFinished(reconnect = true) {
-    //
-    // Force reconnection of blocking connection to abort blocking redis call immediately.
-    //
-    if (this.waiting) {
-      // If we are not going to reconnect, we will not wait for the disconnection.
-      await this.blockingConnection.disconnect(reconnect);
+    // The blocking connection is dedicated to bzpopmin, so it is safe to
+    // always disconnect it whenever the main loop is running. Waiting for the
+    // actual disconnect ('end' event) is required to avoid a race where the
+    // bzpopmin call is still in flight when the main loop awaits its result.
+    if (this.mainLoopRunning) {
+      await this.blockingConnection.disconnect(true);
+      await this.mainLoopRunning;
     } else {
       reconnect = false;
-    }
-
-    if (this.mainLoopRunning) {
-      await this.mainLoopRunning;
     }
 
     reconnect && (await this.blockingConnection.reconnect());

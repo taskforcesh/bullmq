@@ -123,8 +123,8 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
    * Emits an event. Normally used by subclasses to emit events.
    *
    * @param event - The emitted event.
-   * @param args -
-   * @returns
+   * @param args - The arguments to pass to the event listeners.
+   * @returns True if the event had listeners, false otherwise.
    */
   emit(event: string | symbol, ...args: any[]): boolean {
     try {
@@ -199,8 +199,8 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
    * @param operation - operation name (such as add, process, etc)
    * @param destination - destination name (normally the queue name)
    * @param callback - code to wrap with telemetry
-   * @param srcPropagationMetadata -
-   * @returns
+   * @param srcPropagationMetadata - The source propagation metadata for telemetry context.
+   * @returns The result of the callback function.
    */
   trace<T>(
     spanKind: SpanKind,
