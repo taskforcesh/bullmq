@@ -37,7 +37,9 @@ export class QueueEventsProducer extends QueueBase {
     const client = await this.client;
     const key = this.keys.events;
     const { eventName, ...restArgs } = argsObj;
-    const args: any[] = ['MAXLEN', '~', maxEvents, '*', 'event', eventName];
+    const fields: Record<string, string | number> = {
+      event: eventName,
+    };
 
     // Always JSON-encode payload values so the consumer side can
     // symmetrically JSON-decode them. This guarantees that listeners
@@ -66,10 +68,13 @@ export class QueueEventsProducer extends QueueBase {
             `(got ${typeof value}). Convert it to a serializable value before publishing.`,
         );
       }
-      args.push(field, serialized);
+      fields[field] = serialized;
     }
 
-    await client.xadd(key, ...args);
+    await client.xadd(key, '*', fields, {
+      MAXLEN: maxEvents,
+      approximate: true,
+    });
   }
 
   /**

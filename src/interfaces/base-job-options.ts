@@ -50,6 +50,11 @@ export interface DefaultJobOptions {
    * jobs to keep, or you can provide an object specifying max
    * age and/or count to keep. It overrides whatever setting is used in the worker.
    * Default behavior is to keep the job in the completed set.
+   *
+   * When using `age` or `count`, the eviction is evaluated on a
+   * best-effort basis every time a job finishes; BullMQ does not run a
+   * background timer, so aged jobs are only removed once another job
+   * completes after their expiration.
    */
   removeOnComplete?: boolean | number | KeepJobs;
 
@@ -59,6 +64,11 @@ export interface DefaultJobOptions {
    * jobs to keep, or you can provide an object specifying max
    * age and/or count to keep. It overrides whatever setting is used in the worker.
    * Default behavior is to keep the job in the failed set.
+   *
+   * When using `age` or `count`, the eviction is evaluated on a
+   * best-effort basis every time a job fails; BullMQ does not run a
+   * background timer, so aged jobs are only removed once another job
+   * fails after their expiration.
    */
   removeOnFail?: boolean | number | KeepJobs;
 

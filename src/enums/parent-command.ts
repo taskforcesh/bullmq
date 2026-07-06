@@ -13,4 +13,5 @@ export enum ParentCommand {
   GetIgnoredChildrenFailures,
   GetDependenciesCount,
   MoveToWaitingChildren,
+  GetDependencies,
 }
