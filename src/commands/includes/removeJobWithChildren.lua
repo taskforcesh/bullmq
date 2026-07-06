@@ -28,9 +28,9 @@ local removeJobWithChildren
 
 -- Remove the data associated with a single job. Assumes children (if any)
 -- have already been handled by the caller, and that the caller has already
--- filtered out locked / ignored-failed nodes (`removeJobWithChildren` checks
--- the root, `removeJobChildren` checks every descendant before pushing it
--- into the `discovered` list). The script runs atomically, so lock/failed
+-- filtered out locked / ignored-failed nodes (removeJobWithChildren checks
+-- the root, removeJobChildren checks every descendant before pushing it
+-- into the 'discovered' list). The script runs atomically, so lock/failed
 -- state cannot change mid-execution; re-checking here would only add Redis
 -- calls without changing behavior (#4009 review feedback).
 removeSingleJob = function(prefix, jobId, parentKey, options)
