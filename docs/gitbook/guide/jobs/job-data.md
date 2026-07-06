@@ -30,6 +30,20 @@ job.data # { color: 'red' }
 ```
 
 {% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Queue, QueueOptions};
+
+let queue = Queue::new("paint", QueueOptions::default()).await?;
+
+let job = queue.add("wall", serde_json::json!({"color": "red"}), None).await?;
+
+let data = job.data(); // {"color": "red"}
+```
+
+{% endtab %}
 {% endtabs %}
 
 ## Update data

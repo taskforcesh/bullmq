@@ -1,3 +1,150 @@
+## [5.79.2](https://github.com/taskforcesh/bullmq/compare/v5.79.1...v5.79.2) (2026-06-27)
+
+
+### Bug Fixes
+
+* **flow:** use correct data structure when retrying failed child using ignoreDependencyOnFailure fixes [#4235](https://github.com/taskforcesh/bullmq/issues/4235) ([#4236](https://github.com/taskforcesh/bullmq/issues/4236)) ([6f1b2e3](https://github.com/taskforcesh/bullmq/commit/6f1b2e33b01c9f97dee6ff96bab782a8399c7ae5))
+
+## [5.79.1](https://github.com/taskforcesh/bullmq/compare/v5.79.0...v5.79.1) (2026-06-21)
+
+
+### Bug Fixes
+
+* **node-redis:** accept plain createClient result without cast ([#4201](https://github.com/taskforcesh/bullmq/issues/4201)) ([#4209](https://github.com/taskforcesh/bullmq/issues/4209)) ([1aefd5b](https://github.com/taskforcesh/bullmq/commit/1aefd5b80618a8a9080b98ca9e6e89463a98b713))
+
+# [5.79.0](https://github.com/taskforcesh/bullmq/compare/v5.78.1...v5.79.0) (2026-06-18)
+
+
+### Features
+
+* Nothing changed, triggered by a rust version release
+
+## [5.78.1](https://github.com/taskforcesh/bullmq/compare/v5.78.0...v5.78.1) (2026-06-13)
+
+
+### Bug Fixes
+
+* **scheduler:** fail stalled jobs if scheduler does not longer exist (elixir) (rust) ([#4222](https://github.com/taskforcesh/bullmq/issues/4222)) ([d1fcda5](https://github.com/taskforcesh/bullmq/commit/d1fcda5f9c4f53b56846a73421d6eb9a32603aa4))
+
+# [5.78.0](https://github.com/taskforcesh/bullmq/compare/v5.77.7...v5.78.0) (2026-06-02)
+
+
+### Features
+
+* Nothing changed, triggered by a rust version release
+
+## [5.77.7](https://github.com/taskforcesh/bullmq/compare/v5.77.6...v5.77.7) (2026-06-01)
+
+
+### Bug Fixes
+
+* **deps:** update dependency msgpackr to v2.0.2 [security] ([#4202](https://github.com/taskforcesh/bullmq/issues/4202)) ([fbe04af](https://github.com/taskforcesh/bullmq/commit/fbe04af1b3e9c7c9683229544914a54c5bb1f8d8))
+
+## [5.77.6](https://github.com/taskforcesh/bullmq/compare/v5.77.5...v5.77.6) (2026-05-27)
+
+
+### Bug Fixes
+
+* **types:** change NodeRedisRawClient to be node-redis compliant ([#4195](https://github.com/taskforcesh/bullmq/issues/4195)) ([81709e4](https://github.com/taskforcesh/bullmq/commit/81709e4abe71f4e7c05c748938ec004a50c1fd4b))
+
+## [5.77.5](https://github.com/taskforcesh/bullmq/compare/v5.77.4...v5.77.5) (2026-05-27)
+
+
+### Bug Fixes
+
+* **connection:** handle cluster reconnection with timeouts ([#4186](https://github.com/taskforcesh/bullmq/issues/4186)) ([411690e](https://github.com/taskforcesh/bullmq/commit/411690e9070ba0dda59a86628fc8b56ad9ebea04))
+
+## [5.77.4](https://github.com/taskforcesh/bullmq/compare/v5.77.3...v5.77.4) (2026-05-26)
+
+
+### Bug Fixes
+
+* **deduplication:** preserve custom jobId when requeuing keepLastIfActive proto-jobs ([#4190](https://github.com/taskforcesh/bullmq/issues/4190)) fixes [#4030](https://github.com/taskforcesh/bullmq/issues/4030) ([6e4972e](https://github.com/taskforcesh/bullmq/commit/6e4972e8fd721035d680ca291049134c3876f8ba))
+
+## [5.77.3](https://github.com/taskforcesh/bullmq/compare/v5.77.2...v5.77.3) (2026-05-25)
+
+
+### Performance Improvements
+
+* **bun-redis:** remove per-command serialization to enable implicit pipelining ([#4188](https://github.com/taskforcesh/bullmq/issues/4188)) ([685b074](https://github.com/taskforcesh/bullmq/commit/685b0744cfeb273778420835010ec1b16b23e22a))
+
+## [5.77.2](https://github.com/taskforcesh/bullmq/compare/v5.77.1...v5.77.2) (2026-05-24)
+
+
+### Bug Fixes
+
+* **connection:** use more permissive typing on NodeRedisRawClient options ([#4184](https://github.com/taskforcesh/bullmq/issues/4184)) ([#4187](https://github.com/taskforcesh/bullmq/issues/4187)) ([0feec14](https://github.com/taskforcesh/bullmq/commit/0feec14452865c419961edb9c733f9951b6a663f)), closes [#4170](https://github.com/taskforcesh/bullmq/issues/4170)
+
+## [5.77.1](https://github.com/taskforcesh/bullmq/compare/v5.77.0...v5.77.1) (2026-05-23)
+
+
+### Bug Fixes
+
+* **connections:** make sure we do not mutate ioredis ([#4182](https://github.com/taskforcesh/bullmq/issues/4182)) ([75a66af](https://github.com/taskforcesh/bullmq/commit/75a66af36f7d56c149e070826a20116ea1ef5e7b))
+
+# [5.77.0](https://github.com/taskforcesh/bullmq/compare/v5.76.11...v5.77.0) (2026-05-21)
+
+
+### Features
+
+* refactored client code, adding support for node-redis and bun native redis client ([#4170](https://github.com/taskforcesh/bullmq/issues/4170)) ([963c1b5](https://github.com/taskforcesh/bullmq/commit/963c1b51b3b0da0d014698f101598b9dcdff0bd1))
+
+## [5.76.11](https://github.com/taskforcesh/bullmq/compare/v5.76.10...v5.76.11) (2026-05-21)
+
+
+### Bug Fixes
+
+* **worker:** stop fetching next jobs when closing on manual job movement ([#4178](https://github.com/taskforcesh/bullmq/issues/4178)) fixes [#4163](https://github.com/taskforcesh/bullmq/issues/4163) ([7b9f7e0](https://github.com/taskforcesh/bullmq/commit/7b9f7e0c81427fb9d936a6366c21ef2a96729335))
+
+## [5.76.10](https://github.com/taskforcesh/bullmq/compare/v5.76.9...v5.76.10) (2026-05-17)
+
+
+### Bug Fixes
+
+* **flow:** respect parent attribute deletion from child when calling removeChildDependency ([#4169](https://github.com/taskforcesh/bullmq/issues/4169)) ([6396b4e](https://github.com/taskforcesh/bullmq/commit/6396b4e2a146d733d01d8d9629cc8c8ffb8fac2d))
+
+## [5.76.9](https://github.com/taskforcesh/bullmq/compare/v5.76.8...v5.76.9) (2026-05-16)
+
+
+### Bug Fixes
+
+* **build:** remove source map generation ([#4167](https://github.com/taskforcesh/bullmq/issues/4167)) ([41713ca](https://github.com/taskforcesh/bullmq/commit/41713ca67f9a0d0c45c27bbccb7a79320204c3ac))
+
+## [5.76.8](https://github.com/taskforcesh/bullmq/compare/v5.76.7...v5.76.8) (2026-05-12)
+
+
+### Bug Fixes
+
+* **scheduler:** align first 'every' job to the next offset slot ([#4113](https://github.com/taskforcesh/bullmq/issues/4113)) fixes [#3705](https://github.com/taskforcesh/bullmq/issues/3705) ([1b8f900](https://github.com/taskforcesh/bullmq/commit/1b8f9009bd8a59d3a82839e6732c6e7e87eb01d2))
+
+## [5.76.7](https://github.com/taskforcesh/bullmq/compare/v5.76.6...v5.76.7) (2026-05-11)
+
+
+### Bug Fixes
+
+* **deps:** update dependency semver to v7.8.0 [security] ([#4160](https://github.com/taskforcesh/bullmq/issues/4160)) ([093743a](https://github.com/taskforcesh/bullmq/commit/093743a0d5b24f170280e0bd754ef5c378576846))
+
+## [5.76.6](https://github.com/taskforcesh/bullmq/compare/v5.76.5...v5.76.6) (2026-05-06)
+
+
+### Bug Fixes
+
+* **connection:** reconnect wedged blocking cluster clients ([#4151](https://github.com/taskforcesh/bullmq/issues/4151)) ([e94e8cd](https://github.com/taskforcesh/bullmq/commit/e94e8cdfadbea9508412bcfdc51dabb920d7692c))
+
+## [5.76.5](https://github.com/taskforcesh/bullmq/compare/v5.76.4...v5.76.5) (2026-05-02)
+
+
+### Bug Fixes
+
+* **deps:** update dependency msgpackr to v1.11.12 ([#3939](https://github.com/taskforcesh/bullmq/issues/3939)) ([b47f00b](https://github.com/taskforcesh/bullmq/commit/b47f00b9a2c5766ca92cebc867369f2c467a220d))
+
+## [5.76.4](https://github.com/taskforcesh/bullmq/compare/v5.76.3...v5.76.4) (2026-04-29)
+
+
+### Bug Fixes
+
+* **flow-producer:** surface ParentJobNotExist errors from add() ([#3264](https://github.com/taskforcesh/bullmq/issues/3264)) ([#4058](https://github.com/taskforcesh/bullmq/issues/4058)) ([7ed0eec](https://github.com/taskforcesh/bullmq/commit/7ed0eeca96a3c5168e822831b2f3d938ab37bb91))
+
 ## [5.76.3](https://github.com/taskforcesh/bullmq/compare/v5.76.2...v5.76.3) (2026-04-28)
 
 

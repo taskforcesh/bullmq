@@ -157,6 +157,12 @@
   - [v1](python/changelogs/changelog-v1.md)
   - [v0](python/changelogs/changelog-v0.md)
 
+## Rust
+
+- [Introduction](rust/introduction.md)
+- [API Reference](https://docs.rs/bullmq)
+- [Changelogs](rust/changelog.md)
+
 ## Elixir
 
 - [Introduction](elixir/introduction.md)

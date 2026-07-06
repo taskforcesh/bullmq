@@ -36,7 +36,6 @@ class QueueBaseOptions(TypedDict, total=False):
     """
     Skip waiting for connection ready.
 
-    In some instances if you want the queue to fail fast if the connection is
-    not ready you can set this to True. This could be useful for testing and when
-    adding jobs via HTTP endpoints for example.
+    @deprecated This option has no effect and will be removed in a future release.
+    @default False
     """

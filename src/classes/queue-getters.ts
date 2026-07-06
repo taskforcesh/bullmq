@@ -5,8 +5,12 @@ import { Job } from './job';
 import { clientCommandMessageReg, QUEUE_EVENT_SUFFIX } from '../utils';
 import { JobState, JobType } from '../types';
 import { JobJsonRaw, Metrics, QueueMeta } from '../interfaces';
+import { IRedisClient } from '../interfaces/redis-client';
 import { MetricNames, TelemetryAttributes } from '../enums';
-import type { Cluster } from 'ioredis';
+
+interface ClusterNodeWithClientCommand extends IRedisClient {
+  client(command: 'LIST'): Promise<string>;
+}
 
 /**
  * Escape a Prometheus label value per the text exposition format.
@@ -99,7 +103,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
   /**
    * Returns the time to live for a rate limited key in milliseconds.
    * @param maxJobs - max jobs to be considered in rate limit state. If not passed
-   * it will return the remaining ttl without considering if max jobs is excedeed.
+   * it will return the remaining ttl without considering if max jobs is exceeded.
    * @returns -2 if the key does not exist.
    * -1 if the key exists but has no associated expire.
    * @see {@link https://redis.io/commands/pttl/}
@@ -548,12 +552,15 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
   > {
     const client = await this.client;
     try {
-      if (client.isCluster) {
-        const clusterNodes = (client as Cluster).nodes();
+      if (client.isCluster && typeof client.nodes === 'function') {
+        const clusterNodes = client.nodes();
         const clientsPerNode: { [index: string]: string }[][] = [];
         for (let nodeIndex = 0; nodeIndex < clusterNodes.length; nodeIndex++) {
-          const node = clusterNodes[nodeIndex];
-          const clients = (await node.client('LIST')) as string;
+          const node = clusterNodes[nodeIndex] as ClusterNodeWithClientCommand;
+          const clients =
+            typeof node.clientList === 'function'
+              ? await node.clientList()
+              : await node.client('LIST');
           const list = this.parseClientList(clients, matcher);
           clientsPerNode.push(list);
         }
@@ -565,7 +572,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
         );
         return clientsFromNodeWithMostConnections;
       } else {
-        const clients = (await client.client('LIST')) as string;
+        const clients = await client.clientList();
         const list = this.parseClientList(clients, matcher);
         return list;
       }
