@@ -1,4 +1,3 @@
-import type { Cluster } from 'ioredis';
 import { JobProgress } from '../types';
 import {
   IoredisListener,
@@ -14,6 +13,7 @@ import {
 } from '../utils';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
+import { createIORedisClient, isIRedisClient } from './ioredis-client';
 
 export interface QueueEventsListener extends IoredisListener {
   /**
@@ -292,11 +292,10 @@ export class QueueEvents extends QueueBase {
       {
         ...opts,
         connection: isRedisInstance(connection)
-          ? (<RedisClient>connection).isCluster
-            ? (<Cluster>connection).duplicate(undefined, {
-                redisOptions: (<Cluster>connection).options?.redisOptions,
-              })
-            : (<RedisClient>connection).duplicate()
+          ? (isIRedisClient(connection)
+              ? connection
+              : createIORedisClient(connection as any)
+            ).duplicate()
           : connection,
       },
       Connection,
@@ -358,9 +357,12 @@ export class QueueEvents extends QueueBase {
 
         // TODO: Planned for deprecation as it really has no use case
         try {
-          await client.client('SETNAME', this.clientName(QUEUE_EVENT_SUFFIX));
+          await client.clientSetName(this.clientName(QUEUE_EVENT_SUFFIX));
         } catch (err) {
-          if (!clientCommandMessageReg.test((<Error>err).message)) {
+          if (
+            !clientCommandMessageReg.test((<Error>err).message) &&
+            !this.closing
+          ) {
             throw err;
           }
         }
@@ -385,7 +387,7 @@ export class QueueEvents extends QueueBase {
       this.blocking = true;
       // Cast to actual return type, see: https://github.com/DefinitelyTyped/DefinitelyTyped/issues/44301
       const data: StreamReadRaw = await this.checkConnectionError(() =>
-        client.xread('BLOCK', opts.blockingTimeout!, 'STREAMS', key, id),
+        client.xread([{ key, id }], { BLOCK: opts.blockingTimeout! }),
       );
       this.blocking = false;
       if (data) {

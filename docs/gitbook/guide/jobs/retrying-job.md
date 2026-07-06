@@ -71,6 +71,26 @@ job = %Job{id: "job-id", queue_name: "my-queue", prefix: "bull", connection: con
 ```
 
 {% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Queue, QueueOptions, Job};
+use bullmq::types::RetryOptions;
+
+let queue = Queue::new("my-queue", QueueOptions::default()).await?;
+
+// Get a failed job by ID
+let mut job = queue.get_job("job-id").await?.unwrap();
+
+// Retry a failed job (default state is "failed")
+job.retry("failed", None).await?;
+
+// Retry a completed job
+job.retry("completed", None).await?;
+```
+
+{% endtab %}
 {% endtabs %}
 
 ## Retry Options
@@ -119,9 +139,9 @@ The `attemptsStarted` counter tracks how many times a job has been moved to the 
 
 ```typescript
 // Retry and reset both counters
-await job.retry('failed', { 
+await job.retry('failed', {
   resetAttemptsMade: true,
-  resetAttemptsStarted: true 
+  resetAttemptsStarted: true,
 });
 ```
 
@@ -143,7 +163,7 @@ await job.retry('failed', {
 
 ```elixir
 # Retry and reset both counters
-{:ok, updated_job} = Job.retry(job, :failed, 
+{:ok, updated_job} = Job.retry(job, :failed,
   reset_attempts_made: true,
   reset_attempts_started: true
 )
@@ -173,10 +193,10 @@ If you retry a job without resetting `attemptsMade`, and the job has already exh
 
 The `retry` method can fail in the following cases:
 
-| Error Code | Description |
-|------------|-------------|
-| `-1` | Job does not exist |
-| `-3` | Job was not found in the expected state |
+| Error Code | Description                             |
+| ---------- | --------------------------------------- |
+| `-1`       | Job does not exist                      |
+| `-3`       | Job was not found in the expected state |
 
 {% tabs %}
 {% tab title="TypeScript" %}
@@ -208,13 +228,13 @@ except Exception as error:
 case Job.retry(job, :failed) do
   {:ok, updated_job} ->
     IO.puts("Job retried successfully")
-    
+
   {:error, {:reprocess_failed, -1}} ->
     IO.puts("Job does not exist")
-    
+
   {:error, {:reprocess_failed, -3}} ->
     IO.puts("Job was not in the expected state")
-    
+
   {:error, reason} ->
     IO.puts("Failed to retry: #{inspect(reason)}")
 end
@@ -225,6 +245,7 @@ end
 
 ## Read More
 
-* 💡 [Retry API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#retry)
-- 💡 [Retrying Failing Jobs](../retrying-failing-jobs.md) - Automatic retry configuration with backoff strategies
-- 💡 [Stop Retrying Jobs](../patterns/stop-retrying-jobs.md) - How to prevent further retries
+- 💡 [Retry API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#retry)
+
+* 💡 [Retrying Failing Jobs](../retrying-failing-jobs.md) - Automatic retry configuration with backoff strategies
+* 💡 [Stop Retrying Jobs](../patterns/stop-retrying-jobs.md) - How to prevent further retries
