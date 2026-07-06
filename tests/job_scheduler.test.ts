@@ -4211,12 +4211,23 @@ describe('Job Scheduler', () => {
       });
       await worker.waitUntilReady();
 
+      let done = false;
       const completed = new Promise<void>(resolve => {
-        worker.once('completed', () => resolve());
+        worker.once('completed', () => {
+          done = true;
+          resolve();
+        });
       });
 
-      // Advance time so the first delayed job becomes due.
+      // Advance time so the first delayed job becomes due. The worker
+      // re-arms its delay timer after async Redis round-trips, so keep
+      // ticking in small increments until the job completes; a single
+      // large tick can leave the re-armed timer unfired depending on
+      // adapter/event-loop timing.
       await clock.tickAsync(every + 1);
+      for (let i = 0; i < 120 && !done; i++) {
+        await clock.tickAsync(500);
+      }
 
       await completed;
 
