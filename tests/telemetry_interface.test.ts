@@ -114,13 +114,12 @@ describe('Telemetry', () => {
     }
   }
 
+  type AnyFn = (...args: any[]) => any;
+
   class MockContextManager<Context = any> implements ContextManager<Context> {
     private activeContext: Context = {} as Context;
 
-    with<A extends (...args: any[]) => any>(
-      context: Context,
-      fn: A,
-    ): ReturnType<A> {
+    with<A extends AnyFn>(context: Context, fn: A): ReturnType<A> {
       this.activeContext = context;
       return fn();
     }
