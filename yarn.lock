@@ -3921,10 +3921,10 @@ msgpackr-extract@^3.0.4:
     "@msgpackr-extract/msgpackr-extract-linux-x64" "3.0.4"
     "@msgpackr-extract/msgpackr-extract-win32-x64" "3.0.4"
 
-msgpackr@2.0.2:
-  version "2.0.2"
-  resolved "https://registry.npmjs.org/msgpackr/-/msgpackr-2.0.2.tgz"
-  integrity sha512-c5hYOXFbP79Slh6Dzd2wzk+jnV7mX1UxfMYtilnY1NmalXPqG8DGb5cYCMBrW4AsH3zekBBZd4QrKz9NhtvYLQ==
+msgpackr@2.0.4:
+  version "2.0.4"
+  resolved "https://registry.yarnpkg.com/msgpackr/-/msgpackr-2.0.4.tgz#a7cb0307fe59bf21a69d378b0fa279cdc1a3c49f"
+  integrity sha512-o1C5KRmuRt+apqMr1HuGSqWStZoRBUpEsCsl15uM9VdAF1qHLtvMOU2En747EnTyEl6c4pzPewRMFF31s1CNbA==
   optionalDependencies:
     msgpackr-extract "^3.0.4"
 
@@ -5057,10 +5057,12 @@ semver-regex@^4.0.5:
   resolved "https://registry.npmjs.org/semver-regex/-/semver-regex-4.0.5.tgz"
   integrity sha512-hunMQrEy1T6Jr2uEVjrAIqjwWcQTgOAcIM52C8MY1EZSD3DDNft04XzvYKPqjED65bNVVko0YI38nYeEHCX3yw==
 
-semver@^7.1.1, semver@^7.3.7, semver@^7.7.2, semver@^7.7.4:
-  version "7.7.4"
+semver@7.8.5:
+  version "7.8.5"
+  resolved "https://registry.yarnpkg.com/semver/-/semver-7.8.5.tgz#39b646037dd50c14fb451e7e4cac58ed8b863f69"
+  integrity sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA==
 
-semver@^7.1.2, semver@^7.3.2, semver@^7.3.5, semver@^7.5.2, semver@^7.5.3, semver@^7.6.0, semver@^7.7.3, semver@7.8.1:
+semver@^7.1.1, semver@^7.3.7, semver@^7.7.2, semver@^7.7.4:
   version "7.8.1"
   resolved "https://registry.npmjs.org/semver/-/semver-7.8.1.tgz"
   integrity sha512-rkVq3IXh+4FDGch+KwzX3aV9W3kO54GyEgpvBzSyctDA6Xtd7RJQV1xmXbeQp5v7+VzLOfVqiutSE6GICgPFvg==

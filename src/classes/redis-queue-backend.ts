@@ -60,6 +60,7 @@ import { IRedisTransaction } from '../interfaces';
 import { QueueBaseOptions } from '../interfaces';
 import { version as packageVersion } from '../version';
 import { finishedErrors } from './finished-errors';
+import { UnrecoverableError } from './errors';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { RedisConnection } from './redis-connection';
 export type JobData = [JobJson | number, string?];
@@ -2805,7 +2806,7 @@ function rawToJobJson(raw: JobJsonRaw): JobJson {
     parentKey: raw.parentKey,
     parent: raw.parent ? JSON.parse(raw.parent) : undefined,
     processedBy: raw.pb,
-    nextRepeatableJobId: raw.nrjid,
+    nextSchedulerJobId: raw.nrjid,
   };
 }
 

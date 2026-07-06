@@ -1,3 +1,4 @@
+import { getRedisClient } from './utils/get-redis-client';
 import {
   describe,
   beforeEach,

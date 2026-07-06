@@ -1,5 +1,6 @@
 'use strict';
 
+import { getBlockingRedisClient } from './utils/get-redis-client';
 import { after } from 'lodash';
 import {
   describe,

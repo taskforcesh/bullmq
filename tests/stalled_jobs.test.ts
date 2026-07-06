@@ -1,3 +1,4 @@
+import { getRedisClient } from './utils/get-redis-client';
 import { FlowProducer, Queue, Worker, QueueEvents } from '../src/classes';
 import { delay, randomUUID } from '../src/utils';
 import { after } from 'lodash';

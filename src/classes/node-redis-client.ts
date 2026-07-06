@@ -77,14 +77,14 @@ export interface NodeRedisRawClient {
   duplicate(): NodeRedisRawClient;
 
   scriptLoad(lua: string): Promise<unknown>;
-  evalSha<T = unknown>(
+  evalSha(
     sha: string,
     options: { keys: string[]; arguments: NodeRedisCommandArgument[] },
-  ): Promise<T>;
-  eval<T = unknown>(
+  ): Promise<unknown>;
+  eval(
     lua: string,
     options: { keys: string[]; arguments: NodeRedisCommandArgument[] },
-  ): Promise<T>;
+  ): Promise<unknown>;
 
   multi(): NodeRedisRawTransaction;
 
@@ -181,10 +181,8 @@ export interface NodeRedisRawClient {
   flushAll(): Promise<string>;
 }
 
-export function createNodeRedisClient<TClient extends NodeRedisRawClient>(
-  client: TClient,
-): IRedisClient {
-  return new NodeRedisAdapter(client);
+export function createNodeRedisClient(client: unknown): IRedisClient {
+  return new NodeRedisAdapter(client as NodeRedisRawClient);
 }
 
 /**
