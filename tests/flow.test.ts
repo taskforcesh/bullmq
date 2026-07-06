@@ -20,8 +20,9 @@ import {
   DelayedError,
   RateLimitError,
 } from '../src/classes';
-import { removeAllQueueData, delay } from '../src/utils';
+import { delay } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
 import { IRedisClient } from '../src/interfaces';
 
 /**
@@ -56,7 +57,7 @@ describe('flows', () => {
 
   afterEach(async () => {
     await queue.close();
-    await removeAllQueueData(createTestConnection(), queueName);
+    await cleanupQueue(queueName);
   });
 
   afterAll(async function () {
@@ -371,7 +372,7 @@ describe('flows', () => {
 
     await flow.close();
 
-    await removeAllQueueData(createTestConnection(), parentQueueName);
+    await cleanupQueue(parentQueueName);
   });
 
   it('should allow parent opts on the root job', async () => {
@@ -476,8 +477,8 @@ describe('flows', () => {
     await flow.close();
 
     await grandparentQueue.close();
-    await removeAllQueueData(createTestConnection(), grandparentQueueName);
-    await removeAllQueueData(createTestConnection(), parentQueueName);
+    await cleanupQueue(grandparentQueueName);
+    await cleanupQueue(parentQueueName);
   });
 
   describe('when removeChildDependency is called', () => {
@@ -825,7 +826,7 @@ describe('flows', () => {
       await flow.close();
       await parentQueue.close();
 
-      await removeAllQueueData(createTestConnection(), parentQueueName);
+      await cleanupQueue(parentQueueName);
     }); // TODO: Add { timeout: 8000 } to the it() options
   });
 
@@ -925,7 +926,7 @@ describe('flows', () => {
       await flow.close();
       await parentQueue.close();
 
-      await removeAllQueueData(createTestConnection(), parentQueueName);
+      await cleanupQueue(parentQueueName);
     }); // TODO: Add { timeout: 8000 } to the it() options
   });
 
@@ -1046,8 +1047,8 @@ describe('flows', () => {
       await worker.close();
       await childrenWorker.close();
       await grandchildrenWorker.close();
-      await removeAllQueueData(createTestConnection(), childrenQueueName);
-      await removeAllQueueData(createTestConnection(), grandchildrenQueueName);
+      await cleanupQueue(childrenQueueName);
+      await cleanupQueue(grandchildrenQueueName);
     });
 
     describe('when parent has pending children to be processed when trying to move it to completed', () => {
@@ -1133,7 +1134,7 @@ describe('flows', () => {
         await flow.close();
         await worker.close();
         await queueEvents.close();
-        await removeAllQueueData(createTestConnection(), childrenQueueName);
+        await cleanupQueue(childrenQueueName);
       });
 
       describe('when parent has pending children to be processed when trying to move it to completed', () => {
@@ -1221,7 +1222,7 @@ describe('flows', () => {
           await flow.close();
           await worker.close();
           await queueEvents.close();
-          await removeAllQueueData(createTestConnection(), childrenQueueName);
+          await cleanupQueue(childrenQueueName);
         });
       });
     });
@@ -1874,7 +1875,7 @@ describe('flows', () => {
 
       await flow.close();
 
-      await removeAllQueueData(createTestConnection(), parentQueueName);
+      await cleanupQueue(parentQueueName);
     });
   });
 
@@ -2068,8 +2069,8 @@ describe('flows', () => {
 
       await flow.close();
 
-      await removeAllQueueData(createTestConnection(), parentQueueName);
-      await removeAllQueueData(createTestConnection(), grandchildrenQueueName);
+      await cleanupQueue(parentQueueName);
+      await cleanupQueue(grandchildrenQueueName);
     }); // TODO: Add { timeout: 8000 } to the it() options
   });
 
@@ -2165,7 +2166,7 @@ describe('flows', () => {
 
       await flow.close();
 
-      await removeAllQueueData(createTestConnection(), parentQueueName);
+      await cleanupQueue(parentQueueName);
     });
   });
 
@@ -2537,12 +2538,8 @@ describe('flows', () => {
 
       await flow.close();
       await childrenQueue.close();
-      await removeAllQueueData(
-        createTestConnection(),
-        parentQueueName,
-        customPrefix,
-      );
-      await removeAllQueueData(createTestConnection(), queueName, customPrefix);
+      await cleanupQueue(parentQueueName, customPrefix);
+      await cleanupQueue(queueName, customPrefix);
     });
   });
 
@@ -2703,8 +2700,8 @@ describe('flows', () => {
 
       await flow.close();
 
-      await removeAllQueueData(createTestConnection(), parentQueueName);
-      await removeAllQueueData(createTestConnection(), grandChildrenQueueName);
+      await cleanupQueue(parentQueueName);
+      await cleanupQueue(grandChildrenQueueName);
     }); // TODO: Add { timeout: 8000 } to the it() options
   });
 
@@ -2865,11 +2862,8 @@ describe('flows', () => {
         await flow.close();
         await queueEvents.close();
 
-        await removeAllQueueData(createTestConnection(), parentQueueName);
-        await removeAllQueueData(
-          createTestConnection(),
-          grandChildrenQueueName,
-        );
+        await cleanupQueue(parentQueueName);
+        await cleanupQueue(grandChildrenQueueName);
       });
     });
 
@@ -3005,11 +2999,8 @@ describe('flows', () => {
         await childrenWorker.close();
         await grandchildrenWorker.close();
         await queueEvents.close();
-        await removeAllQueueData(createTestConnection(), childrenQueueName);
-        await removeAllQueueData(
-          createTestConnection(),
-          grandchildrenQueueName,
-        );
+        await cleanupQueue(childrenQueueName);
+        await cleanupQueue(grandchildrenQueueName);
       });
     });
 
@@ -3144,11 +3135,8 @@ describe('flows', () => {
         await childrenWorker.close();
         await grandchildrenWorker.close();
         await queueEvents.close();
-        await removeAllQueueData(createTestConnection(), childrenQueueName);
-        await removeAllQueueData(
-          createTestConnection(),
-          grandchildrenQueueName,
-        );
+        await cleanupQueue(childrenQueueName);
+        await cleanupQueue(grandchildrenQueueName);
       });
     });
 
@@ -3295,11 +3283,8 @@ describe('flows', () => {
         await flow.close();
         await queueEvents.close();
 
-        await removeAllQueueData(createTestConnection(), parentQueueName);
-        await removeAllQueueData(
-          createTestConnection(),
-          grandChildrenQueueName,
-        );
+        await cleanupQueue(parentQueueName);
+        await cleanupQueue(grandChildrenQueueName);
       });
     });
 
@@ -3442,11 +3427,8 @@ describe('flows', () => {
         await flow.close();
         await queueEvents.close();
 
-        await removeAllQueueData(createTestConnection(), parentQueueName);
-        await removeAllQueueData(
-          createTestConnection(),
-          grandChildrenQueueName,
-        );
+        await cleanupQueue(parentQueueName);
+        await cleanupQueue(grandChildrenQueueName);
       }); // TODO: Add { timeout: 8000 } to the it() options
     });
 
@@ -3601,11 +3583,8 @@ describe('flows', () => {
         await flow.close();
         await queueEvents.close();
 
-        await removeAllQueueData(createTestConnection(), parentQueueName);
-        await removeAllQueueData(
-          createTestConnection(),
-          grandChildrenQueueName,
-        );
+        await cleanupQueue(parentQueueName);
+        await cleanupQueue(grandChildrenQueueName);
       }); // TODO: Add { timeout: 8000 } to the it() options
     });
   });
@@ -3678,7 +3657,7 @@ describe('flows', () => {
       await parentWorker.close();
       await childrenWorker.close();
       await flow.close();
-      await removeAllQueueData(createTestConnection(), parentQueueName);
+      await cleanupQueue(parentQueueName);
     });
 
     it('should start processing parent after child fails even with more unprocessed children', async () => {
@@ -3770,7 +3749,7 @@ describe('flows', () => {
       await waitingChildren;
       await childrenWorker.close();
       await flow.close();
-      await removeAllQueueData(createTestConnection(), parentQueueName);
+      await cleanupQueue(parentQueueName);
     });
 
     it('should ignore parent if a child has already failed and another one fails afterwards', async () => {
@@ -3860,7 +3839,7 @@ describe('flows', () => {
       await waitingChildren;
       await childrenWorker.close();
       await flow.close();
-      await removeAllQueueData(createTestConnection(), parentQueueName);
+      await cleanupQueue(parentQueueName);
     });
 
     it('should move the parent to delayed after a child fails', async () => {
@@ -3948,7 +3927,7 @@ describe('flows', () => {
       await childrenWorker.close();
       await parentQueue.close();
       await flow.close();
-      await removeAllQueueData(createTestConnection(), parentQueueName);
+      await cleanupQueue(parentQueueName);
     });
 
     it('should move the parent to prioritized after a child fails', async () => {
@@ -4039,7 +4018,7 @@ describe('flows', () => {
       await childrenWorker.close();
       await parentQueue.close();
       await flow.close();
-      await removeAllQueueData(createTestConnection(), parentQueueName);
+      await cleanupQueue(parentQueueName);
     });
   });
 
@@ -4131,7 +4110,7 @@ describe('flows', () => {
 
     await flow.close();
 
-    await removeAllQueueData(createTestConnection(), parentQueueName);
+    await cleanupQueue(parentQueueName);
   });
 
   it('should get a flow tree', async () => {
@@ -4192,7 +4171,7 @@ describe('flows', () => {
 
     await flow.close();
 
-    await removeAllQueueData(createTestConnection(), topQueueName);
+    await cleanupQueue(topQueueName);
   });
 
   it('should get part of flow tree', async () => {
@@ -4259,7 +4238,7 @@ describe('flows', () => {
 
     await flow.close();
 
-    await removeAllQueueData(createTestConnection(), topQueueName);
+    await cleanupQueue(topQueueName);
   });
 
   describe('when prefix is not provided in getFlow', () => {
@@ -4320,7 +4299,7 @@ describe('flows', () => {
 
       await flow.close();
 
-      await removeAllQueueData(createTestConnection(), topQueueName);
+      await cleanupQueue(topQueueName);
     });
   });
 
@@ -4436,7 +4415,7 @@ describe('flows', () => {
       await flow.close();
       await parentQueue.close();
 
-      await removeAllQueueData(createTestConnection(), parentQueueName);
+      await cleanupQueue(parentQueueName);
     });
   });
 
@@ -4473,7 +4452,7 @@ describe('flows', () => {
 
     await flow.close();
 
-    await removeAllQueueData(createTestConnection(), parentQueueName);
+    await cleanupQueue(parentQueueName);
   });
 
   it('should allow passing custom jobId in options', async () => {
@@ -4574,7 +4553,7 @@ describe('flows', () => {
 
     await flow.close();
 
-    await removeAllQueueData(createTestConnection(), parentQueueName);
+    await cleanupQueue(parentQueueName);
   });
 
   it('should process a chain of jobs', async () => {
@@ -4705,7 +4684,7 @@ describe('flows', () => {
 
     await flow.close();
 
-    await removeAllQueueData(createTestConnection(), topQueueName);
+    await cleanupQueue(topQueueName);
   });
 
   describe('when parent has delay', () => {
@@ -4821,7 +4800,7 @@ describe('flows', () => {
       await queueEvents.close();
       await flow.close();
 
-      await removeAllQueueData(createTestConnection(), topQueueName);
+      await cleanupQueue(topQueueName);
     }); // TODO: Add { timeout: 4500 } to the it() options
   });
 
@@ -4917,7 +4896,7 @@ describe('flows', () => {
       await parentWorker.close();
       await flow.close();
 
-      await removeAllQueueData(createTestConnection(), topQueueName);
+      await cleanupQueue(topQueueName);
     });
   });
 
@@ -4967,7 +4946,7 @@ describe('flows', () => {
 
     await flow.close();
     await parentQueue.close();
-    await removeAllQueueData(createTestConnection(), parentQueueName);
+    await cleanupQueue(parentQueueName);
   });
 
   it('should not process parent until queue is unpaused', async () => {
@@ -5038,7 +5017,7 @@ describe('flows', () => {
 
     await flow.close();
     await parentQueue.close();
-    await removeAllQueueData(createTestConnection(), parentQueueName);
+    await cleanupQueue(parentQueueName);
   });
 
   describe('.addBulk', () => {
@@ -5147,8 +5126,8 @@ describe('flows', () => {
       await flow.close();
 
       await grandparentQueue.close();
-      await removeAllQueueData(createTestConnection(), grandparentQueueName);
-      await removeAllQueueData(createTestConnection(), parentQueueName);
+      await cleanupQueue(grandparentQueueName);
+      await cleanupQueue(parentQueueName);
     });
 
     it('should process jobs', async () => {
@@ -5269,7 +5248,7 @@ describe('flows', () => {
 
       await flow.close();
 
-      await removeAllQueueData(createTestConnection(), rootQueueName);
+      await cleanupQueue(rootQueueName);
     });
   });
 
@@ -5366,7 +5345,7 @@ describe('flows', () => {
       } finally {
         await worker.close();
         await flow.close();
-        await removeAllQueueData(createTestConnection(), parentQueueName);
+        await cleanupQueue(parentQueueName);
       }
     });
 
@@ -5429,7 +5408,7 @@ describe('flows', () => {
       await flow.close();
       await childrenWorker.close();
       await parentWorker.close();
-      await removeAllQueueData(createTestConnection(), parentQueueName);
+      await cleanupQueue(parentQueueName);
     });
   });
 
@@ -5491,7 +5470,7 @@ describe('flows', () => {
 
       await flow.close();
       await parentQueue.close();
-      await removeAllQueueData(createTestConnection(), parentQueueName);
+      await cleanupQueue(parentQueueName);
     });
 
     describe('when removeChildren option is provided as false', () => {
@@ -5554,7 +5533,7 @@ describe('flows', () => {
 
         await flow.close();
         await parentQueue.close();
-        await removeAllQueueData(createTestConnection(), parentQueueName);
+        await cleanupQueue(parentQueueName);
       });
     });
 
@@ -5642,7 +5621,7 @@ describe('flows', () => {
         await childrenWorker.close();
         await parentWorker.close();
         await parentQueue.close();
-        await removeAllQueueData(createTestConnection(), parentQueueName);
+        await cleanupQueue(parentQueueName);
       });
 
       describe('when there is a grand parent', () => {
@@ -5754,11 +5733,8 @@ describe('flows', () => {
           await childrenWorker.close();
           await parentWorker.close();
           await parentQueue.close();
-          await removeAllQueueData(
-            createTestConnection(),
-            grandparentQueueName,
-          );
-          await removeAllQueueData(createTestConnection(), parentQueueName);
+          await cleanupQueue(grandparentQueueName);
+          await cleanupQueue(parentQueueName);
         });
       });
     });
@@ -5868,7 +5844,7 @@ describe('flows', () => {
         await childrenWorker.close();
         await parentWorker.close();
         await parentQueue.close();
-        await removeAllQueueData(createTestConnection(), parentQueueName);
+        await cleanupQueue(parentQueueName);
       });
     });
 
@@ -5905,7 +5881,7 @@ describe('flows', () => {
 
       await flow.close();
       await worker.close();
-      await removeAllQueueData(createTestConnection(), parentQueueName);
+      await cleanupQueue(parentQueueName);
     });
 
     it('should remove from parent dependencies and move parent to wait', async () => {
@@ -5952,7 +5928,7 @@ describe('flows', () => {
 
       await flow.close();
       await parentQueue.close();
-      await removeAllQueueData(createTestConnection(), parentQueueName);
+      await cleanupQueue(parentQueueName);
     });
 
     it(`should only move parent to wait when all children have been removed`, async () => {
@@ -5983,7 +5959,7 @@ describe('flows', () => {
       expect(await tree.job.getState()).toBe('waiting');
 
       await flow.close();
-      await removeAllQueueData(createTestConnection(), parentQueueName);
+      await cleanupQueue(parentQueueName);
     });
   });
 
@@ -6019,15 +5995,21 @@ describe('flows', () => {
             prefix,
           },
         );
-        await parentWorker.waitUntilReady();
-        await childrenWorker.waitUntilReady();
-
+        // Attach the 'failed' listener before the workers become ready. The
+        // child job already exists (added via the flow above), so an autorun
+        // worker can claim and fail it as soon as it is ready — which, on
+        // backends where each worker owns an independent connection, may happen
+        // while we are still awaiting `waitUntilReady`. Registering the listener
+        // first guarantees we observe that first failure.
         const failing = new Promise<void>(resolve => {
           childrenWorker.on('failed', async job => {
             await job?.retry('failed');
             resolve();
           });
         });
+
+        await parentWorker.waitUntilReady();
+        await childrenWorker.waitUntilReady();
 
         await failing;
 
@@ -6043,7 +6025,7 @@ describe('flows', () => {
         await flow.close();
         await childrenWorker.close();
         await parentWorker.close();
-        await removeAllQueueData(createTestConnection(), parentQueueName);
+        await cleanupQueue(parentQueueName);
       });
     });
 
@@ -6104,7 +6086,7 @@ describe('flows', () => {
         await flow.close();
         await childrenWorker.close();
         await parentWorker.close();
-        await removeAllQueueData(createTestConnection(), parentQueueName);
+        await cleanupQueue(parentQueueName);
       });
     });
   });

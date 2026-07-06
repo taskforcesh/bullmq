@@ -1,3 +1,38 @@
+-- BullMQ PostgreSQL backend — schema (types, sequences, tables, indexes).
+--
+-- Consolidated initial schema. All BullMQ objects live in a connection-level
+-- schema (namespace); the operation functions live in 0002_functions.sql.
+
+-- BullMQ PostgreSQL backend — initial schema (schema version 1).
+--
+-- This file is the *portable source of truth* for the schema. It uses only
+-- standard SQL / PL-pgSQL so it can be shared verbatim with the future Elixir
+-- and Python ports (which call the very same tables and functions).
+--
+-- All objects are created inside the backend's configured *schema* (the
+-- connection-level namespace, default `bullmq`). The migration runner has
+-- already created the schema and set `search_path` to it, so the unqualified
+-- names below resolve into that schema. Unlike Redis — where a per-queue key
+-- `prefix` namespaces every key — SQL uses the schema as the single namespace
+-- for the whole connection, so there is no per-row/per-queue prefix.
+--
+-- The migration ledger table (`bullmq_migration`) is bootstrapped by the
+-- migration runner itself, so it is intentionally not created here.
+--
+-- v1 only establishes the foundation that is independent of the job-storage
+-- model: per-queue metadata. Subsequent migrations add the job tables,
+-- indexes and the atomic operation functions.
+
+-- Per-queue metadata. Mirrors the Redis `<prefix>:<queue>:meta` hash: a small
+-- key/value store keyed by (queue, field). Used for the queue version, global
+-- concurrency, global rate limit, paused flag, etc.
+CREATE TABLE IF NOT EXISTS bullmq_meta (
+  queue text NOT NULL,
+  field text NOT NULL,
+  value text,
+  PRIMARY KEY (queue, field)
+);
+
 -- BullMQ PostgreSQL backend — core job schema (schema version 2).
 --
 -- Portable source of truth (standard SQL / PL-pgSQL) shared verbatim with the
@@ -121,6 +156,9 @@ CREATE TABLE bullmq_job (
   parent_id         text,
   parent_key        text,                         -- denormalized "<queue>:<id>" (Redis-compatible "<prefix>:<queue>:<id>")
   pending_deps      integer          NOT NULL DEFAULT 0,
+  -- Two-phase stalled mark/sweep: set on the first stalled pass, reclaimed on
+  -- the next (see bullmq_move_stalled_jobs_to_wait in 0002_functions.sql).
+  stalled_marked    boolean          NOT NULL DEFAULT false,
 
   PRIMARY KEY (queue, id)
 );
@@ -221,15 +259,14 @@ CREATE TABLE bullmq_event (
   PRIMARY KEY (queue, id)
 );
 
--- ──────────────────────────────────────────────────────────────────────────
--- Metrics (per-minute completed/failed counters)
--- ──────────────────────────────────────────────────────────────────────────
 CREATE TABLE bullmq_metrics (
-  queue      text   NOT NULL,
-  kind       text   NOT NULL,  -- 'completed' | 'failed'
-  bucket_min bigint NOT NULL,  -- epoch minute (epoch_ms / 60000)
-  count      bigint NOT NULL DEFAULT 0,
-  PRIMARY KEY (queue, kind, bucket_min)
+  queue      text     NOT NULL,
+  kind       text     NOT NULL,  -- 'completed' | 'failed'
+  count      bigint   NOT NULL DEFAULT 0,  -- cumulative finished jobs
+  prev_ts    bigint,                        -- ts of the last data point
+  prev_count bigint   NOT NULL DEFAULT 0,   -- count at the last data point
+  data       bigint[] NOT NULL DEFAULT '{}',-- per-minute deltas, newest first
+  PRIMARY KEY (queue, kind)
 );
 
 -- ──────────────────────────────────────────────────────────────────────────
@@ -265,6 +302,12 @@ CREATE INDEX bullmq_dedup_expire_idx
 
 -- ──────────────────────────────────────────────────────────────────────────
 -- Job schedulers (repeatable jobs)
+--
+-- A scheduler is a job factory: it stores a template (data/opts) plus a repeat
+-- spec (cron `pattern` or fixed `every` ms) and, on each upsert, produces the
+-- next delayed job `repeat:<schedulerId>:<nextMillis>`. For cron the caller
+-- computes nextMillis (JS cron-parser); for `every` the backend computes it,
+-- honouring `offset_ms` (the phase offset from `start_date`).
 -- ──────────────────────────────────────────────────────────────────────────
 CREATE TABLE bullmq_scheduler (
   queue           text   NOT NULL,
@@ -281,9 +324,23 @@ CREATE TABLE bullmq_scheduler (
   template_data   jsonb,             -- payload template reused for every iteration
   template_opts   jsonb,             -- options template reused for every iteration
   producer_id     text,
+  offset_ms       bigint,            -- 'every' phase offset from start_date
   PRIMARY KEY (queue, scheduler_id)
 );
 
 -- Find schedulers whose next iteration is due, and order schedulers by next run.
 CREATE INDEX bullmq_scheduler_next_idx
   ON bullmq_scheduler (queue, next_run_ms);
+
+-- ── keepLastIfActive proto-next storage ──────────────────────────────────
+-- When a job is deduplicated while its winner is *active* and keepLastIfActive
+-- is set, the new job's payload is stashed here (Redis `dn:<id>` hash) and the
+-- dedup key is persisted (no expiry). When the active winner finishes, the
+-- stashed payload is turned into a real job (the new winner). At most one
+-- proto-next exists per id; a later add while active overwrites it.
+CREATE TABLE bullmq_dedup_next (
+  queue    text  NOT NULL,
+  dedup_id text  NOT NULL,
+  payload  jsonb NOT NULL,  -- { name, data, opts, jobId }
+  PRIMARY KEY (queue, dedup_id)
+);

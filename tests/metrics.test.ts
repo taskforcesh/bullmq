@@ -11,9 +11,10 @@ import {
 import * as sinon from 'sinon';
 
 import { Queue, QueueEvents, Worker } from '../src/classes';
-import { randomUUID, removeAllQueueData } from '../src/utils';
+import { randomUUID } from '../src/utils';
 import { MetricsTime } from '../src/enums';
 import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
 
 const ONE_SECOND = 1000;
 const ONE_MINUTE = 60 * ONE_SECOND;
@@ -51,7 +52,7 @@ describe('metrics', () => {
     clock.restore();
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(createTestConnection(), queueName);
+    await cleanupQueue(queueName);
   });
 
   afterAll(async function () {

@@ -423,6 +423,20 @@ export class PostgresQueueBackend
   }
 
   /**
+   * Parses a PostgreSQL flow child key (`"<queue>:<id>"`) into its components.
+   * There is no keyspace prefix, so `prefix` is always empty. Inverse of
+   * {@link toKey}.
+   */
+  parseNodeKey(key: string): { prefix: string; queueName: string; id: string } {
+    const idx = key.lastIndexOf(':');
+    return {
+      prefix: '',
+      queueName: key.slice(0, idx),
+      id: key.slice(idx + 1),
+    };
+  }
+
+  /**
    * PostgreSQL has no per-connection "client name" used for discovery; returned
    * for interface completeness only (`setName` is a no-op).
    */
@@ -445,7 +459,32 @@ export class PostgresQueueBackend
     params?: readonly unknown[],
   ): Promise<PgQueryResult<R>> {
     await this.connection.waitUntilReady();
-    return this.connection.pool.query<R>(text, params);
+    // The owning connection may be shutting down (or already have ended its
+    // pool). Issuing the query then throws a raw "Cannot use a pool after
+    // calling end on the pool", which — for a fire-and-forget operation raced
+    // in during teardown (e.g. an event handler still scheduling work after
+    // close) — surfaces as an unhandled rejection. Mirror ioredis, whose
+    // offline queue simply never settles a command issued against a closing
+    // connection: return a promise that never resolves so such stragglers
+    // neither crash nor pollute the run. This only triggers once close() has
+    // begun, so no legitimate in-flight operation is affected.
+    if (this.connection.isClosing) {
+      return new Promise<PgQueryResult<R>>(() => undefined);
+    }
+    try {
+      return await this.connection.pool.query<R>(text, params);
+    } catch (err) {
+      // Close the race where the pool is ended between the check above and the
+      // query dispatch.
+      if (
+        this.connection.isClosing &&
+        err instanceof Error &&
+        err.message.includes('after calling end on the pool')
+      ) {
+        return new Promise<PgQueryResult<R>>(() => undefined);
+      }
+      throw err;
+    }
   }
 
   /**
@@ -606,7 +645,15 @@ export class PostgresQueueBackend
       const { rows } = await this.run<{ id: string }>('add_flow', [
         JSON.stringify(payload),
       ]);
-      return rows.map(r => [null, r.id] as [Error | null, string]);
+      // A negative-integer id is an error/skip code (e.g. -5 = missing parent),
+      // mirroring the Redis addFlow `[err, idOrCode]` convention; a real job id
+      // is a positive counter or a custom string.
+      return rows.map(r => {
+        const code = Number(r.id);
+        return Number.isInteger(code) && code < 0
+          ? ([null, code] as [Error | null, number])
+          : ([null, r.id] as [Error | null, string]);
+      });
     } catch (err) {
       // The single-statement function is atomic: on failure nothing was
       // inserted, so report the same error for every entry.
@@ -673,6 +720,20 @@ export class PostgresQueueBackend
       limiterDuration,
     ]);
 
+    return this.buildNextJobResult(rows, limiterMax, now);
+  }
+
+  /**
+   * Shapes a job-claim result (from `move_to_active` or the fused finish+fetch)
+   * into the worker's `[jobData, id, rateLimitDelay, delayUntil]` tuple. When no
+   * job was claimed, a follow-up `next_signal` reports the rate-limit ttl or the
+   * next delayed wake-up so the worker can block until then.
+   */
+  private async buildNextJobResult(
+    rows: JobRow[],
+    limiterMax: number | null,
+    now: number,
+  ): Promise<any[]> {
     if (rows.length > 0) {
       const row = rows[0];
       // [jobData, id, rateLimitDelay, delayUntil]
@@ -704,9 +765,44 @@ export class PostgresQueueBackend
     const keep = normalizeKeep(
       removeOnComplete ?? (this.opts as WorkerOptions).removeOnComplete,
     );
-    let rows: { finished_on: string }[];
+    const opts = this.opts as WorkerOptions;
+
+    // Fast path: fuse the completion and the next-job claim into a single
+    // transaction (one commit), the Redis moveToFinished shape. Processing is
+    // commit/fsync-bound, so collapsing two commits per job into one is the
+    // dominant throughput win.
+    if (fetchNext && !this.closing) {
+      const lockDuration = opts.lockDuration ?? 30000;
+      const limiterMax = opts.limiter?.max ?? null;
+      const limiterDuration = opts.limiter?.duration ?? null;
+      const now = Date.now();
+      let rows: JobRow[] = [];
+      try {
+        ({ rows } = await this.run<JobRow>('move_to_completed_fetch', [
+          this.queueName,
+          job.id,
+          token,
+          JSON.stringify(returnValue ?? null),
+          finishedOn,
+          keep.removeAll,
+          keep.keepAge,
+          keep.keepCount,
+          lockDuration,
+          now,
+          this.workerName ?? null,
+          limiterMax,
+          limiterDuration,
+        ]));
+      } catch (err) {
+        this.mapFinishError(err, job.id, 'moveToFinished');
+      }
+      await this.collectMetrics('completed', finishedOn);
+      const result = await this.buildNextJobResult(rows, limiterMax, now);
+      return { result, finishedOn };
+    }
+
     try {
-      ({ rows } = await this.run<{ finished_on: string }>('move_to_completed', [
+      await this.run('move_to_completed', [
         this.queueName,
         job.id,
         token,
@@ -715,17 +811,14 @@ export class PostgresQueueBackend
         keep.removeAll,
         keep.keepAge,
         keep.keepCount,
-      ]));
+      ]);
     } catch (err) {
       this.mapFinishError(err, job.id, 'moveToFinished');
     }
 
-    const result =
-      fetchNext && !this.closing
-        ? await this.moveToActive(token, this.workerName)
-        : undefined;
+    await this.collectMetrics('completed', finishedOn);
 
-    return { result, finishedOn: Number(rows[0].finished_on) };
+    return { result: undefined, finishedOn };
   }
 
   async moveToFailed<T = any, R = any, N extends string = string>(
@@ -740,9 +833,43 @@ export class PostgresQueueBackend
     const keep = normalizeKeep(
       removeOnFail ?? (this.opts as WorkerOptions).removeOnFail,
     );
-    let rows: { finished_on: string }[];
+    const opts = this.opts as WorkerOptions;
+
+    // Fast path: fuse the failure (or retry re-queue) and the next-job claim
+    // into a single transaction (one commit), the Redis moveToFinished shape.
+    if (fetchNext && !this.closing) {
+      const lockDuration = opts.lockDuration ?? 30000;
+      const limiterMax = opts.limiter?.max ?? null;
+      const limiterDuration = opts.limiter?.duration ?? null;
+      const now = Date.now();
+      let rows: JobRow[] = [];
+      try {
+        ({ rows } = await this.run<JobRow>('move_to_failed_fetch', [
+          this.queueName,
+          job.id,
+          token,
+          failedReason,
+          fieldsToUpdate?.stacktrace ?? null,
+          finishedOn,
+          keep.removeAll,
+          keep.keepAge,
+          keep.keepCount,
+          lockDuration,
+          now,
+          this.workerName ?? null,
+          limiterMax,
+          limiterDuration,
+        ]));
+      } catch (err) {
+        this.mapFinishError(err, job.id, 'moveToFinished');
+      }
+      await this.collectMetrics('failed', finishedOn);
+      const result = await this.buildNextJobResult(rows, limiterMax, now);
+      return { result, finishedOn };
+    }
+
     try {
-      ({ rows } = await this.run<{ finished_on: string }>('move_to_failed', [
+      await this.run('move_to_failed', [
         this.queueName,
         job.id,
         token,
@@ -752,17 +879,14 @@ export class PostgresQueueBackend
         keep.removeAll,
         keep.keepAge,
         keep.keepCount,
-      ]));
+      ]);
     } catch (err) {
       this.mapFinishError(err, job.id, 'moveToFinished');
     }
 
-    const result =
-      fetchNext && !this.closing
-        ? await this.moveToActive(token, this.workerName)
-        : undefined;
+    await this.collectMetrics('failed', finishedOn);
 
-    return { result, finishedOn: Number(rows[0].finished_on) };
+    return { result: undefined, finishedOn };
   }
 
   async moveToDelayed(
@@ -802,10 +926,16 @@ export class PostgresQueueBackend
     token: string,
     _opts?: MoveToWaitingChildrenOpts,
   ): Promise<boolean> {
-    const { rows } = await this.run<{ code: number }>(
-      'move_to_waiting_children',
-      [this.queueName, jobId, token],
-    );
+    let rows: { code: number }[];
+    try {
+      ({ rows } = await this.run<{ code: number }>('move_to_waiting_children', [
+        this.queueName,
+        jobId,
+        token,
+      ]));
+    } catch (err: any) {
+      this.mapFinishError(err, jobId, 'moveToWaitingChildren');
+    }
     const code = rows[0].code;
     if (code < 0) {
       throw finishedErrors({
@@ -981,8 +1111,14 @@ export class PostgresQueueBackend
     return cursor;
   }
 
+  /**
+   * Removes orphaned job hashes (job data present but not referenced by any
+   * state set). This is a Redis keyspace-maintenance concern: on PostgreSQL a
+   * job is a single relational row inserted transactionally with its state, so
+   * orphans cannot exist and there is nothing to remove. Always returns 0.
+   */
   removeOrphanedJobs(_count?: number, _limit?: number): Promise<number> {
-    return notImplemented('removeOrphanedJobs');
+    return Promise.resolve(0);
   }
 
   // ============================================================
@@ -1332,8 +1468,11 @@ export class PostgresQueueBackend
     return returnValue ? [status, value] : status;
   }
 
-  isMaxed(): Promise<boolean> {
-    return notImplemented('isMaxed');
+  async isMaxed(): Promise<boolean> {
+    const { rows } = await this.run<{ maxed: boolean }>('is_maxed', [
+      this.queueName,
+    ]);
+    return rows[0].maxed;
   }
 
   async isJobInList(listKey: string, jobId: string): Promise<boolean> {
@@ -1571,7 +1710,9 @@ export class PostgresQueueBackend
         opts.processed.count,
       );
       const processed: Record<string, any> = {};
-      for (const r of rows) processed[r.child_key] = r.value;
+      for (const r of rows) {
+        processed[r.child_key] = r.value;
+      }
       result.processed = processed;
       result.nextProcessedCursor = next;
     }
@@ -1591,7 +1732,9 @@ export class PostgresQueueBackend
         opts.ignored.count,
       );
       const ignored: Record<string, any> = {};
-      for (const r of rows) ignored[r.child_key] = r.value;
+      for (const r of rows) {
+        ignored[r.child_key] = r.value;
+      }
       result.ignored = ignored;
       result.nextIgnoredCursor = next;
     }
@@ -1615,7 +1758,9 @@ export class PostgresQueueBackend
       [this.queueName, jobId],
     );
     const result: Record<string, string> = {};
-    for (const r of rows) result[r.child_key] = r.value;
+    for (const r of rows) {
+      result[r.child_key] = r.value;
+    }
     return result;
   }
 
@@ -1627,8 +1772,32 @@ export class PostgresQueueBackend
       [this.queueName, jobId],
     );
     const result: Record<string, string> = {};
-    for (const r of rows) result[r.child_key] = r.reason;
+    for (const r of rows) {
+      result[r.child_key] = r.reason;
+    }
     return result;
+  }
+
+  /**
+   * Records one finished job into the per-minute metrics for the given `kind`,
+   * when the worker was created with a `metrics.maxDataPoints`. Mirrors the
+   * `collectMetrics` step of Redis's moveToFinished; kept as a separate query
+   * (metrics are best-effort, so strict atomicity with the finish is not
+   * required).
+   */
+  private async collectMetrics(
+    kind: 'completed' | 'failed',
+    finishedOn: number,
+  ): Promise<void> {
+    const maxDataPoints = (this.opts as WorkerOptions).metrics?.maxDataPoints;
+    if (maxDataPoints) {
+      await this.run('collect_metrics', [
+        this.queueName,
+        kind,
+        maxDataPoints,
+        finishedOn,
+      ]);
+    }
   }
 
   async getMetrics(
@@ -2027,9 +2196,16 @@ export class PostgresQueueBackend
             return;
           }
           const dueIn = next - Date.now();
-          if (dueIn < Math.max(blockTimeout, 0) * 1000) {
+          if (dueIn <= 0) {
+            // The delayed job is already due (its due time passed while this
+            // probe was in flight — e.g. the clock advanced meanwhile). Wake
+            // now instead of arming a 0ms timer: under faked timers a 0ms
+            // timeout never fires unless the clock is advanced again, which
+            // would only happen once a job is processed — a deadlock.
+            finish(null);
+          } else if (dueIn < Math.max(blockTimeout, 0) * 1000) {
             clearTimeout(timer);
-            timer = setTimeout(() => finish(null), Math.max(dueIn, 0));
+            timer = setTimeout(() => finish(null), dueIn);
           }
         })
         .catch(() => {

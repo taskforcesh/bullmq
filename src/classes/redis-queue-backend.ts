@@ -191,6 +191,15 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
   }
 
   /**
+   * Parses a Redis flow child key (`"<prefix>:<queue>:<id>"`) into its
+   * components. Inverse of {@link toKey}.
+   */
+  parseNodeKey(key: string): { prefix: string; queueName: string; id: string } {
+    const [prefix, queueName, id] = key.split(':');
+    return { prefix, queueName, id };
+  }
+
+  /**
    * Builds the Redis client name (`"<prefix>:<base64(queue)><suffix>"`), used
    * for `CLIENT SETNAME` and worker/queue discovery via `CLIENT LIST`.
    */

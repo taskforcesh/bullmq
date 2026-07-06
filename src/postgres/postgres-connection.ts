@@ -12,9 +12,13 @@ import { DEFAULT_SCHEMA, quoteSchemaName, runMigrations } from './migrator';
 
 /**
  * A node-postgres pool config / connection string, optionally carrying the
- * BullMQ-specific `schema` (the connection-level namespace for all queues).
+ * BullMQ-specific `schema` (the connection-level namespace for all queues) and
+ * `skipVersionCheck` (bypass the minimum-server-version assertion).
  */
-export type PostgresPoolConfig = PgPoolConfig & { schema?: string };
+export type PostgresPoolConfig = PgPoolConfig & {
+  schema?: string;
+  skipVersionCheck?: boolean;
+};
 
 /**
  * What the user may pass as the PostgreSQL `connection` option:
@@ -83,6 +87,13 @@ export class PostgresConnection extends EventEmitter {
    */
   private readonly ownsPool: boolean;
 
+  /**
+   * When `true`, the minimum-server-version assertion in {@link runMigrations}
+   * is skipped. Only settable via a config object (a raw `pg.Pool` or a bare
+   * connection string always run the check).
+   */
+  private readonly skipVersionCheck: boolean;
+
   private readyPromise: Promise<void> | undefined;
   private closing: Promise<void> | undefined;
   private listenClient: PgListenClient | undefined;
@@ -119,15 +130,21 @@ export class PostgresConnection extends EventEmitter {
       this.pool = connection;
       this.ownsPool = false;
       this.schema = DEFAULT_SCHEMA;
+      this.skipVersionCheck = false;
       this.pgModule = undefined;
       this.listenClientConfig = undefined;
     } else {
       const pg = loadPgModule();
-      const { schema, ...poolConfig } =
+      const { schema, skipVersionCheck, ...poolConfig } =
         typeof connection === 'string'
-          ? { schema: undefined, connectionString: connection }
+          ? {
+              schema: undefined,
+              skipVersionCheck: undefined,
+              connectionString: connection,
+            }
           : connection;
       this.schema = schema ?? DEFAULT_SCHEMA;
+      this.skipVersionCheck = skipVersionCheck ?? false;
       // Validate early so a bad schema name fails fast (and before any DDL).
       const quotedSchema = quoteSchemaName(this.schema);
       // Pin every pooled connection's search_path to the schema so the `.sql`
@@ -170,7 +187,9 @@ export class PostgresConnection extends EventEmitter {
   private async bootstrap(): Promise<void> {
     const client = await this.pool.connect();
     try {
-      await runMigrations(client, this.schema);
+      await runMigrations(client, this.schema, {
+        skipVersionCheck: this.skipVersionCheck,
+      });
     } finally {
       client.release();
     }

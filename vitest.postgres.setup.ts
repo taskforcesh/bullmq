@@ -6,28 +6,44 @@
  *  - The process-wide default *backend* factory → PostgreSQL, so every
  *    Queue/Worker/QueueEvents/FlowProducer the suite builds is backed by
  *    Postgres regardless of the `connection` option the test passes.
- *  - The test *connection* factory → ioredis, because the shared suite still
- *    creates raw connections for helpers (`createTestConnection`,
- *    `removeAllQueueData`). These are unused by the Postgres backend but the
- *    harness expects them to exist, so a Redis server is also required.
+ *  - The test *connection* factory → a no-op client. The Postgres backend
+ *    factory below ignores whatever `connection` a test passes (it talks to
+ *    Postgres), so the shared suite never issues a Redis command through this
+ *    object. It exists only because the shared (Redis-oriented) suite still
+ *    constructs a `connection` and hands it to every Queue/Worker/QueueEvents,
+ *    and calls `connection.quit()` in teardown. Per-test data cleanup goes
+ *    through the backend (`cleanupQueue` → `obliterate`), not this client, and
+ *    test isolation comes from the per-run schema drop (globalSetup) plus
+ *    unique random queue names — so the Postgres run needs **no Redis server**.
  *
- * Assumes both a PostgreSQL and a Redis server are already running.
+ * Assumes a PostgreSQL server is already running.
  */
-import { default as IORedis } from 'ioredis';
-import { createIORedisClient } from './src/classes/ioredis-client';
 import { setConnectionFactory } from './tests/utils/connection-factory';
 import { setDefaultBackendFactory } from './src/utils/create-backend';
 import { createPostgresBackend } from './src/postgres';
 import { getPostgresUrl } from './tests/postgres/utils/postgres-url';
+import type { IRedisClient } from './src/interfaces';
 
-// Test connection factory (ioredis) — for the suite's raw-connection helpers.
-setConnectionFactory(opts => {
-  const client = new IORedis({
-    host: opts?.host || process.env.REDIS_HOST || 'localhost',
-    port: opts?.port || Number(process.env.REDIS_PORT) || 6379,
-    maxRetriesPerRequest: null,
-  });
-  return createIORedisClient(client);
+// Test connection factory → a no-op client. It implements just enough of the
+// client surface for `isRedisInstance` (connect/disconnect/duplicate) and the
+// `connection.quit()` teardown calls the shared suite makes; every method is
+// inert (the Postgres backend never talks through it).
+setConnectionFactory(() => {
+  const client: Record<string, unknown> = {
+    isCluster: false,
+    status: 'ready',
+    options: {},
+    connect: async () => undefined,
+    disconnect: () => undefined,
+    quit: async () => 'OK',
+    duplicate: () => client,
+    on: () => client,
+    once: () => client,
+    off: () => client,
+    removeListener: () => client,
+    emit: () => false,
+  };
+  return client as unknown as IRedisClient;
 });
 
 // Default backend factory → PostgreSQL.
@@ -40,6 +56,10 @@ setConnectionFactory(opts => {
 // starve workers/queue-events. Production code keeps the default pool size;
 // concurrent multi-producer ordering is intentionally not guaranteed there.
 const url = getPostgresUrl();
+// Marker so the (very few) shared tests whose *child-process fixtures* spawn a
+// raw Redis connection can skip themselves under the Postgres backend. Regular
+// tests never need this — the backend is chosen by the factory above.
+process.env.BULLMQ_TEST_BACKEND = 'postgres';
 setDefaultBackendFactory((name, opts, options) =>
   createPostgresBackend(
     name,

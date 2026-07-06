@@ -5,9 +5,9 @@ import { defineConfig } from 'vitest/config';
  * exact same `tests/**` files the Redis suites use, so feature parity and
  * robustness are measured against the real suite (not bespoke smoke tests).
  *
- * The default backend factory is swapped to PostgreSQL in the setup file; the
- * test connection factory stays ioredis for the suite's raw-connection helpers,
- * so both a PostgreSQL and a Redis server must be running.
+ * The default backend factory is swapped to PostgreSQL in the setup file, and
+ * the test connection factory becomes a no-op client, so this run needs **only
+ * a PostgreSQL server** — no Redis.
  *
  *   POSTGRES_URL=postgres://postgres:postgres@localhost:5432/bullmq_test \
  *     npx vitest run --no-file-parallelism --config vitest.postgres.config.ts
@@ -26,6 +26,11 @@ export default defineConfig({
       'tests/connection.test.ts',
       'tests/ioredis-client.test.ts',
 
+      // Low-level SSCAN/HSCAN pagination of raw Redis sets/hashes built via the
+      // raw client. The `paginate` feature over real BullMQ data (flow
+      // dependencies) is covered by the getters/flow suites on every backend.
+      'tests/scripts.test.ts',
+
       // Adapter-specific smoke tests (self-contained, not factory-based).
       'tests/node-redis.test.ts',
       'tests/adapter-conformance.test.ts',
@@ -35,8 +40,13 @@ export default defineConfig({
       // PostgreSQL backend smoke tests (run via vitest.postgres.smoke.config.ts).
       'tests/postgres/**',
 
-      // Sandboxed processes reconstruct jobs in a child process (Redis-specific
-      // wiring for now).
+      // Sandboxed processors: like the Redis suites (which run these via
+      // `test:ioredis`'s include list), this is a separate, build-dependent
+      // suite — the child-process fixtures `require('dist/cjs/...')` and some
+      // spawn their own raw Redis connections. It passes on Postgres (94/96,
+      // 2 genuinely Redis-coupled child fixtures skipped) but must be run after
+      // `yarn build` with a Redis server available, so it is not part of the
+      // no-Redis main run.
       'tests/sandboxed_process.test.ts',
 
       // Old mocha-era files and debug/scratch files.

@@ -10,8 +10,9 @@ import {
 
 import { randomUUID } from '../src/utils';
 import { Queue, QueueEvents, Worker, UnrecoverableError } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
 
 describe('Job Cancellation - Advanced Scenarios', () => {
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
@@ -35,7 +36,7 @@ describe('Job Cancellation - Advanced Scenarios', () => {
   afterEach(async () => {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(createTestConnection(), queueName);
+    await cleanupQueue(queueName);
   });
 
   afterAll(async function () {

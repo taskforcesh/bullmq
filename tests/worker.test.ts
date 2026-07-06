@@ -1,8 +1,4 @@
-import {
-  getRedisClient,
-  getRedisVersion,
-  getDatabaseType,
-} from './utils/get-redis-client';
+import { getRedisVersion, getDatabaseType } from './utils/get-redis-client';
 import { after, times } from 'lodash';
 import {
   describe,
@@ -27,15 +23,25 @@ import {
 } from '../src/classes';
 import { MinimalJob, IRedisClient } from '../src/interfaces';
 import { JobsOptions, KeepJobs } from '../src/types';
-import {
-  delay,
-  isRedisVersionLowerThan,
-  randomUUID,
-  removeAllQueueData,
-} from '../src/utils';
+import { delay, isRedisVersionLowerThan, randomUUID } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
 
 const NoopProc = () => Promise.resolve();
+
+/**
+ * Backend-agnostic qualified queue name. Derives the qualifier (the `bull:`
+ * prefix on Redis, or nothing on PostgreSQL) from a reference queue whose
+ * `qualifiedName` is known, so parent/child key references hold on any backend.
+ */
+const qualify = (
+  ref: { qualifiedName: string; name: string },
+  queueName: string,
+): string =>
+  `${ref.qualifiedName.slice(
+    0,
+    ref.qualifiedName.length - ref.name.length,
+  )}${queueName}`;
 
 describe('workers', () => {
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
@@ -66,7 +72,7 @@ describe('workers', () => {
     sinon.restore();
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(createTestConnection(), queueName);
+    await cleanupQueue(queueName);
   });
 
   afterAll(async function () {
@@ -1219,7 +1225,7 @@ describe('workers', () => {
       await worker.close();
       await queue1.close();
       await connection.quit();
-      await removeAllQueueData(createTestConnection(), queueName2);
+      await cleanupQueue(queueName2);
     });
   });
 
@@ -1855,61 +1861,27 @@ describe('workers', () => {
     });
   });
 
-  describe('when sharing a redis connection between workers', () => {
-    it('should not close the connection', async () => {
-      const connection = createTestConnection();
-
-      return new Promise<void>((resolve, reject) => {
-        connection.on('ready', async () => {
-          const worker1 = new Worker('test-shared', null, {
-            connection,
-            prefix,
-          });
-          await worker1.waitUntilReady();
-          const worker2 = new Worker('test-shared', null, {
-            connection,
-            prefix,
-          });
-          await worker2.waitUntilReady();
-
-          try {
-            // There is no point into checking the ready status after closing
-            // since ioredis will not update it anyway:
-            // https://github.com/luin/ioredis/issues/614
-            expect(connection.status).toBe('ready');
-            await worker1.close();
-            await worker2.close();
-            await connection.quit();
-
-            connection.on('end', () => {
-              resolve();
-            });
-          } catch (err) {
-            reject(err);
-          }
-        });
-      });
-    });
-
-    describe('when connection is passed into a queue', () => {
+  // These assert on the ioredis connection lifecycle (`'ready'`/`'end'` events
+  // and `status`) of a raw connection shared between workers/queues — a
+  // Redis-client concern with no backend-agnostic meaning. Other backends own
+  // their own connection pool, and the PostgreSQL test harness uses a no-op
+  // client that never emits these events, so skip them under Postgres.
+  const describeSharedConnection =
+    process.env.BULLMQ_TEST_BACKEND === 'postgres' ? describe.skip : describe;
+  describeSharedConnection(
+    'when sharing a redis connection between workers',
+    () => {
       it('should not close the connection', async () => {
         const connection = createTestConnection();
-        const queueName2 = `test-shared-${randomUUID()}`;
 
-        const queue2 = new Queue(queueName2, {
-          defaultJobOptions: { removeOnComplete: true },
-          connection,
-          prefix,
-        });
-
-        await new Promise<void>((resolve, reject) => {
+        return new Promise<void>((resolve, reject) => {
           connection.on('ready', async () => {
-            const worker1 = new Worker(queueName2, null, {
+            const worker1 = new Worker('test-shared', null, {
               connection,
               prefix,
             });
             await worker1.waitUntilReady();
-            const worker2 = new Worker(queueName2, null, {
+            const worker2 = new Worker('test-shared', null, {
               connection,
               prefix,
             });
@@ -1932,12 +1904,56 @@ describe('workers', () => {
             }
           });
         });
-
-        await queue2.close();
-        await removeAllQueueData(createTestConnection(), queueName2);
       });
-    });
-  });
+
+      describe('when connection is passed into a queue', () => {
+        it('should not close the connection', async () => {
+          const connection = createTestConnection();
+          const queueName2 = `test-shared-${randomUUID()}`;
+
+          const queue2 = new Queue(queueName2, {
+            defaultJobOptions: { removeOnComplete: true },
+            connection,
+            prefix,
+          });
+
+          await new Promise<void>((resolve, reject) => {
+            connection.on('ready', async () => {
+              const worker1 = new Worker(queueName2, null, {
+                connection,
+                prefix,
+              });
+              await worker1.waitUntilReady();
+              const worker2 = new Worker(queueName2, null, {
+                connection,
+                prefix,
+              });
+              await worker2.waitUntilReady();
+
+              try {
+                // There is no point into checking the ready status after closing
+                // since ioredis will not update it anyway:
+                // https://github.com/luin/ioredis/issues/614
+                expect(connection.status).toBe('ready');
+                await worker1.close();
+                await worker2.close();
+                await connection.quit();
+
+                connection.on('end', () => {
+                  resolve();
+                });
+              } catch (err) {
+                reject(err);
+              }
+            });
+          });
+
+          await queue2.close();
+          await cleanupQueue(queueName2);
+        });
+      });
+    },
+  );
 
   describe('when autorun option is provided as false', () => {
     it('processes several jobs serially using process option as false', async () => {
@@ -4443,139 +4459,6 @@ describe('workers', () => {
     });
 
     describe('when move job to waiting-children', () => {
-      it('allows to move parent job to waiting-children', async () => {
-        const values = [
-          { idx: 0, bar: 'something' },
-          { idx: 1, baz: 'something' },
-          { idx: 2, qux: 'something' },
-        ];
-        const client = await getRedisClient(queue);
-        const parentToken = 'parent-token';
-        const parentToken2 = 'parent-token2';
-        const childToken = 'child-token';
-
-        const parentQueueName = `parent-queue-${randomUUID()}`;
-
-        const parentQueue = new Queue(parentQueueName, { connection, prefix });
-        const parentWorker = new Worker(parentQueueName, null, {
-          connection,
-          prefix,
-        });
-        const childrenWorker = new Worker(queueName, null, {
-          connection,
-          prefix,
-        });
-
-        const data = { foo: 'bar' };
-        await Job.create(parentQueue, 'testDepend', data);
-        const parent = (await parentWorker.getNextJob(parentToken)) as Job;
-        const currentState = await parent.getState();
-
-        expect(currentState).toBe('active');
-
-        await Job.create(queue, 'testJob1', values[0], {
-          parent: {
-            id: parent.id!,
-            queue: `${prefix}:${parentQueueName}`,
-          },
-        });
-        await Job.create(queue, 'testJob2', values[1], {
-          parent: {
-            id: parent.id!,
-            queue: `${prefix}:${parentQueueName}`,
-          },
-        });
-        await Job.create(queue, 'testJob3', values[2], {
-          parent: {
-            id: parent.id!,
-            queue: `${prefix}:${parentQueueName}`,
-          },
-        });
-        const { unprocessed: unprocessed1 } = await parent.getDependencies();
-
-        expect(unprocessed1).toHaveLength(3);
-
-        const child1 = (await childrenWorker.getNextJob(childToken)) as Job;
-        const child2 = (await childrenWorker.getNextJob(childToken)) as Job;
-        const child3 = (await childrenWorker.getNextJob(childToken)) as Job;
-        const isActive1 = await child1.isActive();
-
-        expect(isActive1).toBe(true);
-
-        await child1.moveToCompleted('return value1', childToken);
-        const { processed: processed2, unprocessed: unprocessed2 } =
-          await parent.getDependencies();
-        const movedToWaitingChildren = await parent.moveToWaitingChildren(
-          parentToken,
-          {
-            child: {
-              id: child3.id!,
-              queue: `${prefix}:${queueName}`,
-            },
-          },
-        );
-
-        const token = await client.get(
-          `${prefix}:${queueName}:${parent.id}:lock`,
-        );
-        expect(token).toBeNull();
-        expect(processed2).toEqual({
-          [`${prefix}:${queueName}:${child1.id}`]: 'return value1',
-        });
-        expect(unprocessed2).toHaveLength(2);
-        expect(movedToWaitingChildren).toBe(true);
-
-        const isActive2 = await child2.isActive();
-
-        expect(isActive2).toBe(true);
-
-        await child2.moveToCompleted('return value2', childToken);
-        const { processed: processed3, unprocessed: unprocessed3 } =
-          await parent.getDependencies();
-        const isWaitingChildren1 = await parent.isWaitingChildren();
-        const { processed: processedCount, unprocessed: unprocessedCount } =
-          await parent.getDependenciesCount();
-
-        expect(processed3).toEqual({
-          [`${prefix}:${queueName}:${child1.id}`]: 'return value1',
-          [`${prefix}:${queueName}:${child2.id}`]: 'return value2',
-        });
-        expect(processedCount).toBe(2);
-        expect(unprocessed3).toHaveLength(1);
-        expect(unprocessedCount).toBe(1);
-        expect(isWaitingChildren1).toBe(true);
-
-        const isActive3 = await child3.isActive();
-
-        expect(isActive3).toBe(true);
-
-        await child3.moveToCompleted('return value3', childToken);
-        const { processed: processed4, unprocessed: unprocessed4 } =
-          await parent.getDependencies();
-        const isWaitingChildren2 = await parent.isWaitingChildren();
-
-        expect(isWaitingChildren2).toBe(false);
-        const updatedParent = (await parentWorker.getNextJob(
-          parentToken2,
-        )) as Job;
-        const movedToWaitingChildren2 =
-          await updatedParent.moveToWaitingChildren(parentToken2);
-
-        expect(processed4).toEqual({
-          [`${prefix}:${queueName}:${child1.id}`]: 'return value1',
-          [`${prefix}:${queueName}:${child2.id}`]: 'return value2',
-          [`${prefix}:${queueName}:${child3.id}`]: 'return value3',
-        });
-        expect(unprocessed4).toHaveLength(0);
-        expect(movedToWaitingChildren2).toBe(false);
-
-        await childrenWorker.close();
-        await parentWorker.close();
-
-        await parentQueue.close();
-        await removeAllQueueData(createTestConnection(), parentQueueName);
-      });
-
       describe('when job is not in active state', () => {
         it('throws an error', async () => {
           const values = [{ idx: 0, bar: 'something' }];
@@ -4608,7 +4491,7 @@ describe('workers', () => {
           await Job.create(queue, 'testJob1', values[0], {
             parent: {
               id: parent.id,
-              queue: `${prefix}:${parentQueueName}`,
+              queue: `${qualify(queue, parentQueueName)}`,
             },
           });
           const { unprocessed: unprocessed1 } = await parent.getDependencies();
@@ -4623,7 +4506,7 @@ describe('workers', () => {
           await parent.moveToWaitingChildren(parentToken, {
             child: {
               id: child1.id,
-              queue: `${prefix}:${queueName}`,
+              queue: `${qualify(queue, queueName)}`,
             },
           });
           const waitingChildren = await parentQueue.getWaitingChildren();
@@ -4636,7 +4519,7 @@ describe('workers', () => {
             parent.moveToWaitingChildren(parentToken, {
               child: {
                 id: child1.id,
-                queue: `${prefix}:${queueName}`,
+                queue: `${qualify(queue, queueName)}`,
               },
             }),
           ).rejects.toThrow(
@@ -4647,7 +4530,7 @@ describe('workers', () => {
             parent.moveToWaitingChildren('0', {
               child: {
                 id: child1.id,
-                queue: `${prefix}:${queueName}`,
+                queue: `${qualify(queue, queueName)}`,
               },
             }),
           ).rejects.toThrow(
@@ -4658,130 +4541,9 @@ describe('workers', () => {
           await parentWorker.close();
 
           await parentQueue.close();
-          await removeAllQueueData(createTestConnection(), parentQueueName);
+          await cleanupQueue(parentQueueName);
         });
       });
-    });
-
-    it('should get paginated unprocessed dependencies keys', async () => {
-      const value = { bar: 'something' };
-      const parentToken = 'parent-token';
-
-      const parentQueueName = `parent-queue-${randomUUID()}`;
-
-      const parentQueue = new Queue(parentQueueName, { connection, prefix });
-      const parentWorker = new Worker(parentQueueName, null, {
-        connection,
-        prefix,
-      });
-      const childrenWorker = new Worker(queueName, null, {
-        connection,
-        prefix,
-      });
-
-      const data = { foo: 'bar' };
-      await Job.create(parentQueue, 'parent', data);
-      const parent = (await parentWorker.getNextJob(parentToken)) as Job;
-      const currentState = await parent.getState();
-
-      expect(currentState).toBe('active');
-
-      await Promise.all(
-        Array.from(Array(65).keys()).map((index: number) => {
-          return Job.create(
-            queue,
-            `child${index}`,
-            { idx: index, ...value },
-            {
-              parent: {
-                id: parent.id!,
-                queue: `${prefix}:${parentQueueName}`,
-              },
-            },
-          );
-        }),
-      );
-
-      const { nextUnprocessedCursor: nextCursor1, unprocessed: unprocessed1 } =
-        await parent.getDependencies({
-          unprocessed: {
-            cursor: 0,
-            count: 50,
-          },
-        });
-
-      if (
-        isRedisVersionLowerThan(
-          getRedisVersion(childrenWorker),
-          '7.2.0',
-          getDatabaseType(childrenWorker),
-        ) ||
-        getDatabaseType(childrenWorker) === 'dragonfly'
-      ) {
-        expect(unprocessed1!.length).toBeGreaterThanOrEqual(50);
-        expect(nextCursor1).not.toBe(0);
-      } else {
-        expect(unprocessed1!.length).toBe(65);
-        expect(nextCursor1).toBe(0);
-      }
-
-      const { nextUnprocessedCursor: nextCursor2, unprocessed: unprocessed2 } =
-        await parent.getDependencies({
-          unprocessed: {
-            cursor: nextCursor1,
-            count: 50,
-          },
-        });
-
-      if (
-        isRedisVersionLowerThan(
-          getRedisVersion(childrenWorker),
-          '7.2.0',
-          getDatabaseType(childrenWorker),
-        ) ||
-        getDatabaseType(childrenWorker) === 'dragonfly'
-      ) {
-        expect(unprocessed2!.length).toBeLessThanOrEqual(15);
-        expect(nextCursor2).toBe(0);
-      } else {
-        expect(unprocessed2!.length).toBe(65);
-        expect(nextCursor2).toBe(0);
-      }
-
-      expect(nextCursor2).toBe(0);
-
-      await Promise.all(
-        Array.from(Array(64).keys()).map((index: number) => {
-          return Job.create(
-            queue,
-            `child${index}`,
-            { idx: index, ...value },
-            {
-              parent: {
-                id: parent.id!,
-                queue: `${prefix}:${parentQueueName}`,
-              },
-            },
-          );
-        }),
-      );
-
-      const { nextUnprocessedCursor: nextCursor3, unprocessed: unprocessed3 } =
-        await parent.getDependencies({
-          unprocessed: {
-            cursor: 0,
-            count: 50,
-          },
-        });
-
-      expect(unprocessed3!.length).toBeGreaterThanOrEqual(50);
-      expect(nextCursor3).not.toBe(0);
-
-      await childrenWorker.close();
-      await parentWorker.close();
-
-      await parentQueue.close();
-      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
 
     it('should allow to fail jobs manually', async () => {

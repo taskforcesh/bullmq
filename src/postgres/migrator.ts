@@ -18,6 +18,80 @@ export const DEFAULT_SCHEMA = 'bullmq';
 export const MIGRATION_ADVISORY_LOCK_KEY = 0x42554c4c; // 1112493644
 
 /**
+ * Lowest PostgreSQL *major* version the backend supports. Below this the schema
+ * and operation functions rely on features (or fixes) that are absent or
+ * unreliable, so we refuse to run rather than fail later in a surprising way.
+ *
+ * Rationale: the operation functions use `INSERT … ON CONFLICT`, transaction
+ * advisory locks, `to_regclass`, multi-array `unnest(…) WITH ORDINALITY`, and
+ * lean on the read-write "expanded array" representation for cheap in-loop
+ * accumulation — all comfortably available here, on a version that is still
+ * within the PostgreSQL support window.
+ */
+export const MINIMUM_POSTGRES_VERSION = 13;
+
+/**
+ * Recommended lowest PostgreSQL *major* version. Between {@link
+ * MINIMUM_POSTGRES_VERSION} and this we still run, but emit a one-time warning
+ * (mirrors the Redis backend's `recommendedMinimumVersion`).
+ */
+export const RECOMMENDED_POSTGRES_VERSION = 14;
+
+/**
+ * Thrown when the connected PostgreSQL server is older than {@link
+ * MINIMUM_POSTGRES_VERSION}. Pass `skipVersionCheck: true` on the connection to
+ * bypass the check (at your own risk).
+ */
+export class UnsupportedPostgresVersionError extends Error {
+  constructor(
+    public readonly serverVersion: string,
+    public readonly minimumVersion: number,
+  ) {
+    super(
+      `BullMQ: the PostgreSQL backend requires server version ` +
+        `${minimumVersion} or newer, but the server reports ${serverVersion}. ` +
+        `Upgrade PostgreSQL, or pass \`skipVersionCheck: true\` on the ` +
+        `connection to bypass this check at your own risk.`,
+    );
+    this.name = 'UnsupportedPostgresVersionError';
+  }
+}
+
+/**
+ * Verifies the connected server meets {@link MINIMUM_POSTGRES_VERSION} (throws
+ * an {@link UnsupportedPostgresVersionError} otherwise) and warns once when it
+ * is below {@link RECOMMENDED_POSTGRES_VERSION}. No-op when `skipVersionCheck`
+ * is set. Uses `server_version_num` (e.g. `160002` for 16.2), whose integer
+ * major component is `num / 10000` for every supported release.
+ */
+export async function assertPostgresVersion(
+  client: PgQueryable,
+  skipVersionCheck = false,
+): Promise<void> {
+  if (skipVersionCheck) {
+    return;
+  }
+  const { rows } = await client.query<{ num: string; ver: string }>(
+    `SELECT current_setting('server_version_num') AS num, ` +
+      `current_setting('server_version') AS ver`,
+  );
+  const major = Math.floor(parseInt(rows[0]?.num ?? '0', 10) / 10000);
+  const reported = rows[0]?.ver ?? 'unknown';
+  if (major < MINIMUM_POSTGRES_VERSION) {
+    throw new UnsupportedPostgresVersionError(
+      reported,
+      MINIMUM_POSTGRES_VERSION,
+    );
+  }
+  if (major < RECOMMENDED_POSTGRES_VERSION) {
+    console.warn(
+      `BullMQ: PostgreSQL ${RECOMMENDED_POSTGRES_VERSION} or newer is ` +
+        `recommended for the PostgreSQL backend (detected ${reported}).`,
+    );
+  }
+}
+
+/**
  * Validates a PostgreSQL schema name and returns it double-quoted for safe
  * interpolation into DDL (schema names cannot be passed as bind parameters).
  *
@@ -107,8 +181,14 @@ export class SchemaVersionMismatchError extends Error {
 export async function runMigrations(
   client: PgQueryable,
   schema: string = DEFAULT_SCHEMA,
+  options: { skipVersionCheck?: boolean } = {},
 ): Promise<number> {
   const quotedSchema = quoteSchemaName(schema);
+
+  // Fail fast on an unsupported server *before* opening the migration
+  // transaction, so an old server surfaces a clear error rather than a cryptic
+  // syntax/feature failure partway through applying DDL.
+  await assertPostgresVersion(client, options.skipVersionCheck);
 
   await client.query('BEGIN');
   try {

@@ -558,7 +558,7 @@ export class FlowProducer<
     maxChildren: number,
   ) {
     const getChild = (key: string) => {
-      const [prefix, queueName, id] = key.split(':');
+      const { prefix, queueName, id } = this.backend.parseNodeKey(key);
 
       return this.getNode({
         id,

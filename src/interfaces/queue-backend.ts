@@ -169,6 +169,14 @@ export interface IQueueBackend {
   toKey(type: string): string;
 
   /**
+   * Parses a flow child/dependency node key (`"<qualifiedName>:<id>"`) back
+   * into the components needed to locate the job: its queue keyspace `prefix`
+   * (empty for backends without a prefix), `queueName` and `id`. Inverse of the
+   * backend's key format; used when walking a flow tree.
+   */
+  parseNodeKey(key: string): { prefix: string; queueName: string; id: string };
+
+  /**
    * Builds the connection client name (used for `setName` and worker/queue
    * discovery). Redis: `"<prefix>:<base64(queue)><suffix>"`. Backends without a
    * client-name concept may return any stable string.

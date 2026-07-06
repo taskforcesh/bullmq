@@ -8,6 +8,10 @@ export { PostgresQueueBackend } from './postgres-queue-backend';
 export {
   runMigrations,
   SchemaVersionMismatchError,
+  UnsupportedPostgresVersionError,
+  assertPostgresVersion,
+  MINIMUM_POSTGRES_VERSION,
+  RECOMMENDED_POSTGRES_VERSION,
   MIGRATION_ADVISORY_LOCK_KEY,
   DEFAULT_SCHEMA,
   quoteSchemaName,

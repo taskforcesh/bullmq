@@ -13,8 +13,9 @@ import * as sinon from 'sinon';
 import { rrulestr } from 'rrule';
 import { Job, Queue, QueueEvents, getNextMillis, Worker } from '../src/classes';
 import { JobsOptions, JobSchedulerJobOptions } from '../src/types';
-import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
 import { IRedisClient } from '../src/interfaces';
 
 const moment = require('moment');
@@ -56,7 +57,7 @@ describe('Job Scheduler', () => {
     try {
       await queue.close();
       await queueEvents.close();
-      await removeAllQueueData(createTestConnection(), queueName);
+      await cleanupQueue(queueName);
     } catch (error) {
       // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
     }
@@ -1105,7 +1106,7 @@ describe('Job Scheduler', () => {
       try {
         await queue2.close();
         await worker.close();
-        await removeAllQueueData(createTestConnection(), queueName2);
+        await cleanupQueue(queueName2);
       } catch (error) {
         // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
       }

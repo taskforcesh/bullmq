@@ -11,9 +11,10 @@ import {
 import { after } from 'lodash';
 import * as sinon from 'sinon';
 import { FlowProducer, Job, Queue, Worker } from '../src/classes';
-import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID } from '../src/utils';
 import { version as currentPackageVersion } from '../src/version';
 import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
 import { IRedisClient } from '../src/interfaces';
 
 describe('queues', () => {
@@ -37,7 +38,7 @@ describe('queues', () => {
   afterEach(async () => {
     sandbox.restore();
     await queue.close();
-    await removeAllQueueData(createTestConnection(), queueName);
+    await cleanupQueue(queueName);
   });
 
   afterAll(async function () {
@@ -103,7 +104,7 @@ describe('queues', () => {
     const version = await queue.getVersion();
     expect(version).toBe(null);
     await queue.close();
-    await removeAllQueueData(createTestConnection(), exQueueName);
+    await cleanupQueue(exQueueName);
   });
 
   describe('.getMeta', () => {
@@ -355,7 +356,7 @@ describe('queues', () => {
             expect(parentWaitCount).toEqual(1);
             await parentQueue.close();
             await flow.close();
-            await removeAllQueueData(createTestConnection(), parentQueueName);
+            await cleanupQueue(parentQueueName);
           });
         });
 
@@ -394,7 +395,7 @@ describe('queues', () => {
             expect(parentWaitCount).toEqual(1);
             await parentQueue.close();
             await flow.close();
-            await removeAllQueueData(createTestConnection(), parentQueueName);
+            await cleanupQueue(parentQueueName);
           });
         });
       });

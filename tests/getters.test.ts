@@ -14,8 +14,9 @@ import {
 import * as sinon from 'sinon';
 
 import { FlowProducer, Queue, QueueEvents, Worker } from '../src/classes';
-import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
 import { IRedisClient } from '../src/interfaces';
 
 describe('Jobs getters', () => {
@@ -35,7 +36,7 @@ describe('Jobs getters', () => {
 
   afterEach(async () => {
     await queue.close();
-    await removeAllQueueData(createTestConnection(), queueName);
+    await cleanupQueue(queueName);
   });
 
   afterAll(async function () {
@@ -181,7 +182,7 @@ describe('Jobs getters', () => {
       await queue2.close();
       await worker.close();
       await worker2.close();
-      await removeAllQueueData(createTestConnection(), queueName2);
+      await cleanupQueue(queueName2);
     });
 
     describe('when sharing connection', () => {
@@ -1179,7 +1180,7 @@ describe('Jobs getters', () => {
         expect(metrics).toContain('env=' + '"' + expectedEscapedEnv + '"');
       } finally {
         await escapingQueue.close();
-        await removeAllQueueData(createTestConnection(), rawName);
+        await cleanupQueue(rawName);
       }
     });
   });

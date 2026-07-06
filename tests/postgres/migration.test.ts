@@ -1,12 +1,16 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { Pool } from 'pg';
 import {
+  assertPostgresVersion,
   DEFAULT_SCHEMA,
   LATEST_SCHEMA_VERSION,
   MIGRATION_ADVISORY_LOCK_KEY,
+  MINIMUM_POSTGRES_VERSION,
   PostgresConnection,
+  RECOMMENDED_POSTGRES_VERSION,
   runMigrations,
   SchemaVersionMismatchError,
+  UnsupportedPostgresVersionError,
 } from '../../src/postgres';
 import { getPostgresUrl } from './utils/postgres-url';
 
@@ -178,5 +182,67 @@ describe('PostgreSQL migrations', () => {
       `SELECT to_regclass('"${schema}".bullmq_scratch_atomic') IS NOT NULL AS exists`,
     );
     expect(rows[0].exists).toBe(false);
+  });
+});
+
+describe('PostgreSQL server-version check', () => {
+  // A minimal PgQueryable stub that reports a fixed server version, so we can
+  // exercise the thresholds without an actual old/new server.
+  const clientReporting = (major: number) => {
+    const num = String(major * 10000 + 1);
+    return {
+      query: async () => ({
+        rows: [{ num, ver: `${major}.0` }],
+      }),
+    } as any;
+  };
+
+  it('accepts a server at or above the minimum version', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      await expect(
+        assertPostgresVersion(clientReporting(MINIMUM_POSTGRES_VERSION)),
+      ).resolves.toBeUndefined();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('throws UnsupportedPostgresVersionError below the minimum version', async () => {
+    await expect(
+      assertPostgresVersion(clientReporting(MINIMUM_POSTGRES_VERSION - 1)),
+    ).rejects.toBeInstanceOf(UnsupportedPostgresVersionError);
+  });
+
+  it('warns (but does not throw) below the recommended version', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      await expect(
+        assertPostgresVersion(
+          clientReporting(RECOMMENDED_POSTGRES_VERSION - 1),
+        ),
+      ).resolves.toBeUndefined();
+      expect(warn).toHaveBeenCalledOnce();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('skips the check entirely when skipVersionCheck is set', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    // A client that would throw if queried proves the check never runs.
+    const throwingClient = {
+      query: async () => {
+        throw new Error('should not be queried when skipVersionCheck is set');
+      },
+    } as any;
+    try {
+      await expect(
+        assertPostgresVersion(throwingClient, true),
+      ).resolves.toBeUndefined();
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

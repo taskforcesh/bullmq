@@ -13,8 +13,9 @@ import {
 
 import { Job, Queue, QueueEvents, Worker } from '../src/classes';
 import { JobsOptions } from '../src/types';
-import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
 import { IRedisClient } from '../src/interfaces';
 
 describe('Job', () => {
@@ -34,7 +35,7 @@ describe('Job', () => {
 
   afterEach(async () => {
     await queue.close();
-    await removeAllQueueData(createTestConnection(), queueName);
+    await cleanupQueue(queueName);
   });
 
   afterAll(async function () {
