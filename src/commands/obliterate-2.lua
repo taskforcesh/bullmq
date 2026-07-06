@@ -6,7 +6,7 @@
 
   The queue needs to be "paused" or it will return an error
   If the queue has currently active jobs then the script by default will return error,
-  however this behaviour can be overrided using the 'force' option.
+  however this behaviour can be overridden using the 'force' option.
   
   Input:
     KEYS[1] meta
@@ -81,8 +81,8 @@ if(maxCount <= 0) then
   return 1
 end
 
-local waitKey = baseKey .. 'paused'
-maxCount = removeListJobs(waitKey, true, baseKey, maxCount)
+local pausedKey = baseKey .. 'paused'
+maxCount = removeListJobs(pausedKey, true, baseKey, maxCount)
 if(maxCount <= 0) then
   return 1
 end

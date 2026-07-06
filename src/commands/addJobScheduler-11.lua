@@ -153,7 +153,7 @@ if rcall("EXISTS", jobKey) == 1 then
     -- that the user may legitimately want to keep around for tracking,
     -- audit or analytics. Silently removing it on a re-upsert would
     -- be surprising (#3994 review feedback). Instead, advance to the
-    -- next slot when an `every` interval is available; if not, return
+    -- next slot when an 'every' interval is available; if not, return
     -- SchedulerJobSlotsBusy so the caller can decide what to do.
     --
     -- A *failed* terminal job represents a prior error that is

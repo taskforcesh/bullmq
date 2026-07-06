@@ -1,3 +1,12 @@
+## [1.3.3](https://github.com/taskforcesh/bullmq/compare/vex1.3.2...vex1.3.3) (2026-06-13)
+
+
+### Bug Fixes
+
+* **connection:** use more permissive typing on NodeRedisRawClient options ([#4184](https://github.com/taskforcesh/bullmq/issues/4184)) ([#4187](https://github.com/taskforcesh/bullmq/issues/4187)) ([0feec14](https://github.com/taskforcesh/bullmq/commit/0feec14452865c419961edb9c733f9951b6a663f)), closes [#4170](https://github.com/taskforcesh/bullmq/issues/4170)
+* **deps:** update dependency msgpackr to v2.0.2 [security] ([#4202](https://github.com/taskforcesh/bullmq/issues/4202)) ([fbe04af](https://github.com/taskforcesh/bullmq/commit/fbe04af1b3e9c7c9683229544914a54c5bb1f8d8))
+* **scheduler:** fail stalled jobs if scheduler does not longer exist (elixir) (rust) ([#4222](https://github.com/taskforcesh/bullmq/issues/4222)) ([d1fcda5](https://github.com/taskforcesh/bullmq/commit/d1fcda5f9c4f53b56846a73421d6eb9a32603aa4))
+
 ## [1.3.2](https://github.com/taskforcesh/bullmq/compare/vex1.3.1...vex1.3.2) (2026-04-10)
 
 

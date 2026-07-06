@@ -1,4 +1,3 @@
-import { default as IORedis } from 'ioredis';
 import {
   describe,
   beforeEach,
@@ -9,25 +8,25 @@ import {
   expect,
 } from 'vitest';
 
-import { v4 } from 'uuid';
 import { Queue, QueueEvents, Worker, UnrecoverableError } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 describe('Job Cancellation', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  let connection: IORedis;
+  let connection: IRedisClient;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
@@ -36,7 +35,7 @@ describe('Job Cancellation', () => {
   afterEach(async () => {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async function () {
