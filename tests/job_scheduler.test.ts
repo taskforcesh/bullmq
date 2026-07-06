@@ -4101,7 +4101,7 @@ describe('Job Scheduler', () => {
     await worker.close();
   });
 
-  it('preserves the prior completed job and advances to the next slot when re-upserting over a completed terminal job', async () => {
+  it('preserves the completed job and advances to the next slot on re-upsert', async () => {
     const date = new Date('2024-01-01 10:00:00');
     clock.setSystemTime(date);
 
