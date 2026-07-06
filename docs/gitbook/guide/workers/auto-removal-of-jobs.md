@@ -68,6 +68,20 @@ end
 ```
 
 {% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Worker, WorkerOptions};
+use bullmq::types::RemoveOnFinish;
+
+let worker = Worker::new("myQueueName", processor, WorkerOptions {
+    remove_on_fail: Some(RemoveOnFinish::Count(0)),
+    ..Default::default()
+}).await?;
+```
+
+{% endtab %}
 {% endtabs %}
 
 {% hint style="warning" %}
@@ -138,6 +152,21 @@ end
   remove_on_complete: %{count: 1000},
   remove_on_fail: %{count: 5000}
 )
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Worker, WorkerOptions};
+use bullmq::types::RemoveOnFinish;
+
+let worker = Worker::new("myQueueName", processor, WorkerOptions {
+    remove_on_complete: Some(RemoveOnFinish::Count(1000)),
+    remove_on_fail: Some(RemoveOnFinish::Count(5000)),
+    ..Default::default()
+}).await?;
 ```
 
 {% endtab %}
@@ -228,6 +257,23 @@ end
     limit: 50        # remove up to 50 jobs per cleanup iteration
   }
 )
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Worker, WorkerOptions};
+use bullmq::types::RemoveOnFinish;
+
+// Note: Rust currently supports count-based removal.
+// Age-based removal uses the KeepJobs struct.
+let worker = Worker::new("myQueueName", processor, WorkerOptions {
+    remove_on_complete: Some(RemoveOnFinish::Count(1000)),
+    remove_on_fail: Some(RemoveOnFinish::Count(5000)),
+    ..Default::default()
+}).await?;
 ```
 
 {% endtab %}

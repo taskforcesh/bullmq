@@ -7,6 +7,7 @@ https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 from asyncio import Future
 import redis.asyncio as redis
 from bullmq import Queue, Worker, Job, WaitingChildrenError
+from bullmq.worker import getCompleted
 from uuid import uuid4
 from enum import Enum
 
@@ -844,6 +845,18 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
 
         # The final count should be less than or equal to initial due to potential cleanup
         self.assertLessEqual(final_count, completed_count + 1)
+
+    async def test_get_completed_handles_empty_task_set(self):
+        # Regression test: getCompleted must not call asyncio.wait() with an
+        # empty set, which raises ValueError. This empty state is reachable
+        # during drain/close transitions when self.processing is empty.
+        def noop_emit(*args, **kwargs):
+            pass
+
+        jobs, pending = await getCompleted(set(), noop_emit)
+
+        self.assertEqual(jobs, [])
+        self.assertEqual(pending, set())
 
 if __name__ == '__main__':
     unittest.main()

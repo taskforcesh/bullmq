@@ -25,6 +25,7 @@ export default defineConfig([
     'dist',
     'elixir',
     'php/vendor',
+    'rust/target',
     '**/npm-debug.log*',
     '**/yarn-debug.log*',
     '**/yarn-error.log*',
