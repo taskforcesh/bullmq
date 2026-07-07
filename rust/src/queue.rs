@@ -2096,7 +2096,7 @@ impl Queue {
         let job_key = self.keys.job_key(job_id);
         let events_key = self.keys.events();
         let meta_key = self.keys.meta();
-        let progress_json = serde_json::to_string(&progress).unwrap_or_default();
+        let progress_json = serialize_progress_for_script(&progress)?;
 
         let keys = vec![job_key, events_key, meta_key];
         let args: Vec<&[u8]> = vec![job_id.as_bytes(), progress_json.as_bytes()];
@@ -2571,6 +2571,14 @@ fn parse_client_list(
     clients
 }
 
+fn serialize_progress_for_script(progress: &crate::types::JobProgress) -> Result<String, Error> {
+    match progress {
+        // Match Node.js behavior: JSON.stringify(NaN/±Infinity) -> "null".
+        crate::types::JobProgress::Number(n) if !n.is_finite() => Ok("null".to_string()),
+        _ => Ok(serde_json::to_string(progress)?),
+    }
+}
+
 #[cfg(test)]
 mod client_list_tests {
     use super::parse_client_list;
@@ -2615,5 +2623,23 @@ mod prometheus_tests {
         assert_eq!(escape_prometheus_label_value("a\\b"), "a\\\\b");
         assert_eq!(escape_prometheus_label_value("a\"b"), "a\\\"b");
         assert_eq!(escape_prometheus_label_value("a\nb"), "a\\nb");
+    }
+}
+
+#[cfg(test)]
+mod progress_serialization_tests {
+    use super::serialize_progress_for_script;
+    use crate::types::JobProgress;
+
+    #[test]
+    fn serializes_non_finite_numbers_as_null() {
+        let serialized = serialize_progress_for_script(&JobProgress::Number(f64::NAN)).unwrap();
+        assert_eq!(serialized, "null");
+    }
+
+    #[test]
+    fn serializes_regular_values_as_json() {
+        let serialized = serialize_progress_for_script(&JobProgress::Number(42.0)).unwrap();
+        assert_eq!(serialized, "42.0");
     }
 }
