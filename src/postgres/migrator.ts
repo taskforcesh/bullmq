@@ -84,10 +84,14 @@ export async function assertPostgresVersion(
     );
   }
   if (major < RECOMMENDED_POSTGRES_VERSION) {
-    console.warn(
-      `BullMQ: PostgreSQL ${RECOMMENDED_POSTGRES_VERSION} or newer is ` +
-        `recommended for the PostgreSQL backend (detected ${reported}).`,
-    );
+    const warned = (assertPostgresVersion as any)._warnedRecommendedVersion;
+    if (!warned) {
+      (assertPostgresVersion as any)._warnedRecommendedVersion = true;
+      console.warn(
+        `BullMQ: PostgreSQL ${RECOMMENDED_POSTGRES_VERSION} or newer is ` +
+          `recommended for the PostgreSQL backend (detected ${reported}).`,
+      );
+    }
   }
 }
 
