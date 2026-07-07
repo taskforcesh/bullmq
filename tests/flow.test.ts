@@ -4714,6 +4714,7 @@ describe('flows', () => {
       const delayed = new Promise<void>((resolve, reject) => {
         queueEvents.on('delayed', async ({ jobId, delay }) => {
           try {
+            expect(typeof delay).toBe('number');
             const milliseconds = delay - Date.now();
             expect(milliseconds).toBeLessThanOrEqual(3000);
             expect(milliseconds).toBeGreaterThan(2000);
@@ -6027,6 +6028,122 @@ describe('flows', () => {
         await childrenWorker.close();
         await parentWorker.close();
         await cleanupQueue(parentQueueName);
+      });
+    });
+
+    describe('when retrying a failed child with ignoreDependencyOnFailure', () => {
+      it('should move the child back to the parent dependencies', async () => {
+        const parentQueueName = `parent-queue-${randomUUID()}`;
+        const name = 'child-job';
+
+        const flow = new FlowProducer({ connection, prefix });
+        const tree = await flow.add({
+          name: 'parent-job',
+          queueName: parentQueueName,
+          data: {},
+          children: [
+            {
+              name,
+              data: { foo: 'bar' },
+              queueName,
+              opts: { ignoreDependencyOnFailure: true, attempts: 1 },
+            },
+          ],
+        });
+
+        const childrenWorker = new Worker(
+          queueName,
+          async () => {
+            throw new Error('error');
+          },
+          {
+            connection,
+            prefix,
+          },
+        );
+        const failing = new Promise<void>(resolve => {
+          childrenWorker.once('failed', () => resolve());
+        });
+
+        await childrenWorker.waitUntilReady();
+        await failing;
+        await childrenWorker.close();
+
+        const childJob = await queue.getJob(tree.children![0].job.id!);
+
+        // This used to throw a WRONGTYPE error because the failed child was
+        // stored in the parent's :failed hash but reprocessJob tried to ZREM it.
+        await childJob!.retry('failed');
+
+        const state = await childJob!.getState();
+        expect(state).toBe('waiting');
+
+        const { ignored, unprocessed } = await tree.job.getDependenciesCount({
+          ignored: true,
+          unprocessed: true,
+        });
+        expect(ignored).toBe(0);
+        expect(unprocessed).toBe(1);
+
+        await flow.close();
+        await removeAllQueueData(createTestConnection(), parentQueueName);
+      });
+    });
+
+    describe('when retrying a failed child with continueParentOnFailure', () => {
+      it('should move the child back to the parent dependencies', async () => {
+        const parentQueueName = `parent-queue-${randomUUID()}`;
+        const name = 'child-job';
+
+        const flow = new FlowProducer({ connection, prefix });
+        const tree = await flow.add({
+          name: 'parent-job',
+          queueName: parentQueueName,
+          data: {},
+          children: [
+            {
+              name,
+              data: { foo: 'bar' },
+              queueName,
+              opts: { continueParentOnFailure: true, attempts: 1 },
+            },
+          ],
+        });
+
+        const childrenWorker = new Worker(
+          queueName,
+          async () => {
+            throw new Error('error');
+          },
+          {
+            connection,
+            prefix,
+          },
+        );
+        const failing = new Promise<void>(resolve => {
+          childrenWorker.once('failed', () => resolve());
+        });
+
+        await childrenWorker.waitUntilReady();
+        await failing;
+        await childrenWorker.close();
+
+        const childJob = await queue.getJob(tree.children![0].job.id!);
+
+        // This used to throw a WRONGTYPE error because the failed child was
+        // stored in the parent's :failed hash but reprocessJob tried to ZREM it.
+        await childJob!.retry('failed');
+
+        const state = await childJob!.getState();
+        expect(state).toBe('waiting');
+
+        const { unprocessed } = await tree.job.getDependenciesCount({
+          unprocessed: true,
+        });
+        expect(unprocessed).toBe(1);
+
+        await flow.close();
+        await removeAllQueueData(createTestConnection(), parentQueueName);
       });
     });
 
