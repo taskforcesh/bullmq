@@ -9,8 +9,8 @@ import { defineConfig } from 'vitest/config';
  * the test connection factory becomes a no-op client, so this run needs **only
  * a PostgreSQL server** — no Redis.
  *
- *   POSTGRES_URL=postgres://postgres:postgres@127.0.0.1:5432/bullmq_test \
- *     npx vitest run --config vitest.postgres.config.ts
+ *   POSTGRES_URL=postgres://127.0.0.1:5432/bullmq_test npx vitest run --config vitest.postgres.config.ts
+ *
  *
  * Test **files** run in parallel (separate worker processes) against the shared
  * schema: the migrator is concurrency-safe (a per-schema advisory lock) and
