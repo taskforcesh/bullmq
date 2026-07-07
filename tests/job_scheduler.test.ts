@@ -1385,13 +1385,24 @@ describe('Job Scheduler', () => {
 
       await completing;
 
+      // Quiesce the worker before sampling the counts. This scheduler runs
+      // jobs back-to-back — each processed job advances the fake clock by the
+      // full interval, so the next iteration is immediately due — so while the
+      // worker keeps running there is a brief window per cycle, between
+      // promoting the due job to active and scheduling the following iteration,
+      // where zero jobs are delayed. Sampling `getDelayedCount()` while the
+      // worker is still running can land in that window (far more likely on
+      // backends with higher per-operation latency), making the assertion
+      // flaky. Closing first settles the state deterministically: because a
+      // scheduler job's next iteration is scheduled the moment it is picked up,
+      // once the worker is idle exactly one future iteration remains delayed.
+      await worker.close();
+
       const waitingCount = await queue.getWaitingCount();
       expect(waitingCount).toBe(0);
 
       const delayedCountAfter = await queue.getDelayedCount();
       expect(delayedCountAfter).toBe(1);
-
-      await worker.close();
     });
   });
 

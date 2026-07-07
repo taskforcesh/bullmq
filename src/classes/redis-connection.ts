@@ -195,7 +195,17 @@ export class RedisConnection extends EventEmitter {
     };
 
     this.initializing = this.init();
-    this.initializing.catch(err => this.emit('error', err));
+    this.initializing.catch(err => {
+      // Only emit if there is an `error` listener attached. `EventEmitter.emit`
+      // throws when emitting `error` with no listeners, which would surface as
+      // an unhandled rejection — e.g. when the connection is force-closed during
+      // shutdown while its version-check `INFO` command is still in flight and
+      // rejects with "Connection is closed". The init error is still propagated
+      // to anything awaiting `initializing` (the `client` getter and `close`).
+      if (this.listenerCount('error') > 0) {
+        this.emit('error', err);
+      }
+    });
   }
 
   private checkBlockingOptions(

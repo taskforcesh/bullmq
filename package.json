@@ -61,7 +61,7 @@
     "test:vitest:ui": "vitest --ui",
     "test:ioredis": "vitest run --no-file-parallelism --config vitest.ioredis.config.ts",
     "test:node-redis": "vitest run --no-file-parallelism --config vitest.node-redis.config.ts",
-    "test:postgres": "vitest run --no-file-parallelism --config vitest.postgres.config.ts",
+    "test:postgres": "vitest run --config vitest.postgres.config.ts",
     "test:postgres:smoke": "vitest run --no-file-parallelism --config vitest.postgres.smoke.config.ts",
     "test:adapter-conformance": "vitest run --no-file-parallelism --config vitest.adapter-conformance.config.ts",
     "test:bun": "bun node_modules/vitest/dist/cli.js run --no-file-parallelism --config vitest.bun.config.ts",

@@ -902,6 +902,13 @@ BEGIN
     -- so `isPaused` (hasQueueMetaField 'paused') reports false rather than
     -- finding a lingering '0'.
     DELETE FROM bullmq_meta WHERE queue = p_queue AND field = 'paused';
+
+    -- Wake any worker blocked in waitForJob (LISTEN bullmq_jobs): jobs that were
+    -- unclaimable only because the queue was paused are now claimable, but no
+    -- `add` (which would notify) is involved. Without this the worker sleeps
+    -- until its drainDelay times out. The Redis backend wakes the blocking
+    -- fetch via a marker on resume; this is the LISTEN/NOTIFY analogue.
+    PERFORM pg_notify('bullmq_jobs', p_queue);
   END IF;
 
   PERFORM bullmq_publish_event(

@@ -9,8 +9,17 @@ import { defineConfig } from 'vitest/config';
  * the test connection factory becomes a no-op client, so this run needs **only
  * a PostgreSQL server** — no Redis.
  *
- *   POSTGRES_URL=postgres://postgres:postgres@localhost:5432/bullmq_test \
- *     npx vitest run --no-file-parallelism --config vitest.postgres.config.ts
+ *   POSTGRES_URL=postgres://postgres:postgres@127.0.0.1:5432/bullmq_test \
+ *     npx vitest run --config vitest.postgres.config.ts
+ *
+ * Test **files** run in parallel (separate worker processes) against the shared
+ * schema: the migrator is concurrency-safe (a per-schema advisory lock) and
+ * every test uses a unique random queue name, so files are data-isolated. This
+ * is the single biggest speed lever — the suite is dominated by per-connection
+ * setup cost (a fresh PostgreSQL connection is ~14ms of auth), which only
+ * parallelism hides. `maxWorkers` is capped (override with `VITEST_MAX_WORKERS`)
+ * so the concurrent connections stay within the server's `max_connections`;
+ * raise both together on beefier servers.
  */
 export default defineConfig({
   test: {
@@ -59,6 +68,13 @@ export default defineConfig({
     globalSetup: ['./vitest.postgres.global-setup.ts'],
     testTimeout: 10000,
     hookTimeout: 10000,
+    // Files run in parallel (see the header note); tests *within* a file stay
+    // sequential to preserve the shared-state assumptions the shared suite
+    // makes inside a `describe`.
+    fileParallelism: true,
+    maxWorkers: process.env.VITEST_MAX_WORKERS
+      ? Number(process.env.VITEST_MAX_WORKERS)
+      : 4,
     sequence: { concurrent: false },
     reporters: ['verbose'],
   },

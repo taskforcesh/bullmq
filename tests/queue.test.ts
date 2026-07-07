@@ -605,16 +605,20 @@ describe('queues', () => {
 
         let order = 0;
         let timestamp;
-        const failing = new Promise<void>(resolve => {
+        const failing = new Promise<void>((resolve, reject) => {
           worker.on('failed', job => {
-            expect(order).toEqual(job!.data.idx);
-            if (job!.data.idx === jobCount / 2 - 1) {
-              timestamp = Date.now();
+            try {
+              expect(order).toEqual(job!.data.idx);
+              if (job!.data.idx === jobCount / 2 - 1) {
+                timestamp = Date.now();
+              }
+              if (order === jobCount - 1) {
+                resolve();
+              }
+              order++;
+            } catch (err) {
+              reject(err);
             }
-            if (order === jobCount - 1) {
-              resolve();
-            }
-            order++;
           });
         });
 
@@ -628,13 +632,17 @@ describe('queues', () => {
         expect(failedCount.failed).toBe(jobCount);
 
         order = 0;
-        const completing = new Promise<void>(resolve => {
+        const completing = new Promise<void>((resolve, reject) => {
           worker.on('completed', job => {
-            expect(order).toEqual(job.data.idx);
-            if (order === jobCount / 2 - 1) {
-              resolve();
+            try {
+              expect(order).toEqual(job.data.idx);
+              if (order === jobCount / 2 - 1) {
+                resolve();
+              }
+              order++;
+            } catch (err) {
+              reject(err);
             }
-            order++;
           });
         });
 
@@ -670,13 +678,17 @@ describe('queues', () => {
         await worker.waitUntilReady();
 
         let order = 0;
-        const failing = new Promise<void>(resolve => {
+        const failing = new Promise<void>((resolve, reject) => {
           worker.on('failed', job => {
-            expect(order).toEqual(job!.data.idx);
-            if (order === jobCount - 1) {
-              resolve();
+            try {
+              expect(order).toEqual(job!.data.idx);
+              if (order === jobCount - 1) {
+                resolve();
+              }
+              order++;
+            } catch (err) {
+              reject(err);
             }
-            order++;
           });
         });
 
