@@ -1,3 +1,10 @@
+## [5.79.3](https://github.com/taskforcesh/bullmq/compare/v5.79.2...v5.79.3) (2026-07-07)
+
+
+### Bug Fixes
+
+* **queue-events:** correct delay event number type and documentation ([#3989](https://github.com/taskforcesh/bullmq/issues/3989)) ([6ffd88a](https://github.com/taskforcesh/bullmq/commit/6ffd88a0070b3ab84b77539dca7c35266716425e))
+
 ## [5.79.2](https://github.com/taskforcesh/bullmq/compare/v5.79.1...v5.79.2) (2026-06-27)
 
 
