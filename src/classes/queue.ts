@@ -156,6 +156,7 @@ export class Queue<
   protected libName = 'bullmq';
 
   protected _jobScheduler?: JobScheduler;
+  private readonly queueMetaInitialized: Promise<void>;
 
   constructor(
     name: string,
@@ -172,10 +173,12 @@ export class Queue<
 
     this.jobsOpts = opts?.defaultJobOptions ?? {};
 
-    this.waitUntilReady()
+    this.queueMetaInitialized = this.waitUntilReady()
       .then(() => {
         if (!this.closing && !opts?.skipMetasUpdate) {
-          return this.backend.setQueueMeta(this.metaValues);
+          return this.backend
+            .setQueueMeta(this.metaValues)
+            .then(() => undefined);
         }
       })
       .catch(err => {
@@ -239,6 +242,9 @@ export class Queue<
    * no other instance has written it).
    */
   async getVersion(): Promise<string | null> {
+    if (!this.opts?.skipMetasUpdate) {
+      await this.queueMetaInitialized;
+    }
     return await this.backend.getQueueMetaField('version');
   }
 
