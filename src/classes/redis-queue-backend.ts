@@ -198,8 +198,8 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
   parseNodeKey(key: string): { prefix: string; queueName: string; id: string } {
     const lastColon = key.lastIndexOf(':');
     const prevColon = key.lastIndexOf(':', lastColon - 1);
-    if (lastColon <= 0 || prevColon <= 0) {
-      const [prefix, queueName, id] = key.split(':');
+    if (lastColon === -1 || prevColon === -1) {
+      const [prefix = '', queueName = '', id = ''] = key.split(':');
       return { prefix, queueName, id };
     }
     const prefix = key.slice(0, prevColon);
