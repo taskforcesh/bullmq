@@ -2633,8 +2633,10 @@ mod progress_serialization_tests {
 
     #[test]
     fn serializes_non_finite_numbers_as_null() {
-        let serialized = serialize_progress_for_script(&JobProgress::Number(f64::NAN)).unwrap();
-        assert_eq!(serialized, "null");
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let serialized = serialize_progress_for_script(&JobProgress::Number(value)).unwrap();
+            assert_eq!(serialized, "null");
+        }
     }
 
     #[test]
