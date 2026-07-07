@@ -2449,7 +2449,7 @@ describe('flows', () => {
 
   describe('when custom prefix is set in flow producer', async () => {
     it('uses default prefix to add jobs', async () => {
-      const customPrefix = '{bull}';
+      const customPrefix = '{bull}:custom';
       const childrenQueue = new Queue(queueName, {
         prefix: customPrefix,
         connection,

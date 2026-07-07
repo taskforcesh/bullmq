@@ -127,10 +127,10 @@ const opts = {
 {% hint style="warning" %}
 The `schema` option is only honored when BullMQ builds the pool for you (a config
 object, or a connection string wrapped as `{ connectionString, schema }`). When
-you pass an already-constructed `pg.Pool`, BullMQ cannot pin the `search_path` on
-connections it did not create, so the schema is always the default. To use a
-non-default schema with your own pool, configure that pool's `search_path`
-yourself.
+you pass an already-constructed `pg.Pool`, BullMQ cannot change the `search_path`
+of connections it did not create. Configure your pool's `search_path` yourself so
+it includes BullMQ's schema (`bullmq` by default, or your custom schema),
+otherwise unqualified BullMQ queries will not resolve to BullMQ's tables.
 {% endhint %}
 
 ## Migrations

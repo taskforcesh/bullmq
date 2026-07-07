@@ -237,7 +237,7 @@ function mapSchedulerRow(row: SchedulerRow): {
  * Fulfils the same database-agnostic contract as {@link RedisQueueBackend}, but
  * backed by a PostgreSQL database: queue operations are expressed as SQL /
  * PL/pgSQL functions (created by the migrations), job state lives in a single
- * `job` table keyed by `(prefix, queue, id)` with a `state` column and partial
+ * `job` table keyed by `(queue, id)` with a `state` column and partial
  * indexes, claiming uses `FOR UPDATE SKIP LOCKED`, and the blocking
  * "wait for job" primitive uses `LISTEN`/`NOTIFY`.
  *
@@ -437,8 +437,9 @@ export class PostgresQueueBackend
   }
 
   /**
-   * PostgreSQL has no per-connection "client name" used for discovery; returned
-   * for interface completeness only (`setName` is a no-op).
+   * Returns a backend identifier used by the generic API; PostgreSQL discovery
+   * relies on {@link setName} setting `application_name` on the dedicated
+   * LISTEN client.
    */
   clientName(suffix = ''): string {
     return `${this.queueName}${suffix}`;
