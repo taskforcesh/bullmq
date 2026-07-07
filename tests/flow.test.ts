@@ -6086,7 +6086,7 @@ describe('flows', () => {
         expect(unprocessed).toBe(1);
 
         await flow.close();
-        await removeAllQueueData(createTestConnection(), parentQueueName);
+        await cleanupQueue(parentQueueName);
       });
     });
 
@@ -6143,7 +6143,7 @@ describe('flows', () => {
         expect(unprocessed).toBe(1);
 
         await flow.close();
-        await removeAllQueueData(createTestConnection(), parentQueueName);
+        await cleanupQueue(parentQueueName);
       });
     });
 

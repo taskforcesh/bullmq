@@ -1,4 +1,13 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import { Pool } from 'pg';
 import {
   assertPostgresVersion,
@@ -196,6 +205,13 @@ describe('PostgreSQL server-version check', () => {
       }),
     } as any;
   };
+
+  const resetRecommendedVersionWarning = () => {
+    delete (assertPostgresVersion as any)._warnedRecommendedVersion;
+  };
+
+  beforeEach(resetRecommendedVersionWarning);
+  afterEach(resetRecommendedVersionWarning);
 
   it('accepts a server at or above the minimum version', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
