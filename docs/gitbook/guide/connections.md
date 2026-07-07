@@ -218,6 +218,10 @@ const queue = new Queue('myqueue', { connection: {} }, myBackendFactory);
 
 The classes are generic over the backend type, so `getBackend()` returns the concrete type produced by whatever factory you provide (the default being `RedisQueueBackend`). A non-Redis user would, for example, write `new Queue<MyData, MyResult, string, MyBackend>(name, opts, createMyBackend)`.
 
+#### Built-in PostgreSQL backend
+
+BullMQ ships with a ready-made **PostgreSQL backend** (`createPostgresBackend`) that runs the full `Queue` / `Worker` / `QueueEvents` / `FlowProducer` API on PostgreSQL instead of Redis. See the dedicated [PostgreSQL backend](postgresql.md) page for requirements, connection options, schema and migrations.
+
 ### Queue
 
 Also note that simple Queue instance used for managing the queue such as adding jobs, pausing, using getters, etc. usually has different requirements from the worker.

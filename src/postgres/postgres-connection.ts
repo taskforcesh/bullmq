@@ -28,8 +28,15 @@ export type PostgresPoolConfig = PgPoolConfig & {
  * - a node-postgres pool config / connection string (we lazily `require('pg')`
  *   and construct the pool ourselves, owning its lifecycle).
  *
- * In every form the optional `schema` selects the namespace; when omitted it
- * defaults to {@link DEFAULT_SCHEMA}.
+ * The optional `schema` (the namespace for all queues) is only read from the
+ * **config-object** form, because that is the only case where we build the pool
+ * ourselves and can pin each connection's `search_path` to it. A bare
+ * connection string or an already-constructed `pg.Pool` always uses
+ * {@link DEFAULT_SCHEMA} — a raw pool cannot carry a `schema`, and we cannot set
+ * the `search_path` on a pool we did not create. To select a different schema,
+ * pass a config object (a connection string can be wrapped as
+ * `{ connectionString, schema }`; a pre-built pool must be configured with the
+ * desired `search_path` by the caller).
  */
 export type PostgresConnectionOptions = PgPool | PostgresPoolConfig | string;
 
@@ -166,8 +173,22 @@ export class PostgresConnection extends EventEmitter {
     }
 
     // The pool emits 'error' for idle clients that drop; surface it but never
-    // let it crash the process.
-    this.pool.on('error', err => this.emit('error', err));
+    // let it crash the process — hence the guarded {@link emitError} (a bare
+    // `emit('error')` with no listeners throws).
+    this.pool.on('error', err => this.emitError(err));
+  }
+
+  /**
+   * Forwards an underlying pool / LISTEN-client error as this connection's
+   * `'error'` event, but only when a listener is attached. `EventEmitter.emit`
+   * throws when emitting `'error'` with no listeners, so an unguarded forward
+   * would turn an idle-client error into a hard process crash. Mirrors the
+   * guard in {@link RedisConnection}.
+   */
+  private emitError(err: Error): void {
+    if (this.listenerCount('error') > 0) {
+      this.emit('error', err);
+    }
   }
 
   /**
@@ -216,13 +237,13 @@ export class PostgresConnection extends EventEmitter {
         if (this.pgModule && this.listenClientConfig) {
           const client = new this.pgModule.Client(this.listenClientConfig);
           await client.connect();
-          client.on('error', err => this.emit('error', err));
+          client.on('error', err => this.emitError(err));
           this.listenClientIsStandalone = true;
           this.listenClient = client;
           return client;
         } else {
           const client = await this.pool.connect();
-          client.on('error', err => this.emit('error', err));
+          client.on('error', err => this.emitError(err));
           this.listenClientIsStandalone = false;
           this.listenClient = client;
           return client;
