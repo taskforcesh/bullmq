@@ -9,7 +9,7 @@ import {
 } from 'vitest';
 
 import { FlowProducer, JobScheduler, Queue, Worker } from '../src/classes';
-import { randomUUID, removeAllQueueData } from '../src/utils';
+import { randomUUID } from '../src/utils';
 import {
   Telemetry,
   ContextManager,
@@ -28,6 +28,7 @@ import {
 import * as sinon from 'sinon';
 import { SpanKind, TelemetryAttributes, MetricNames } from '../src/enums';
 import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
 import { IRedisClient } from '../src/interfaces';
 
 describe('Telemetry', () => {
@@ -117,7 +118,7 @@ describe('Telemetry', () => {
   class MockContextManager<Context = any> implements ContextManager<Context> {
     private activeContext: Context = {} as Context;
 
-    with<A extends(...args: any[]) => any>(
+    with<A extends (...args: any[]) => any>(
       context: Context,
       fn: A,
     ): ReturnType<A> {
@@ -211,7 +212,7 @@ describe('Telemetry', () => {
 
   afterEach(async () => {
     await queue.close();
-    await removeAllQueueData(createTestConnection(), queueName);
+    await cleanupQueue(queueName);
   });
 
   afterAll(async () => {

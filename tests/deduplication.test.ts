@@ -9,9 +9,10 @@ import {
 } from 'vitest';
 
 import { Job, Queue, QueueEvents, Worker } from '../src/classes';
-import { delay, randomUUID, removeAllQueueData } from '../src/utils';
-import { createTestConnection } from './utils/connection-factory';
 import { IRedisClient } from '../src/interfaces';
+import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
+import { delay, randomUUID } from '../src/utils';
 
 describe('deduplication', () => {
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
@@ -29,20 +30,15 @@ describe('deduplication', () => {
   beforeEach(async () => {
     queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
-    queueEvents = new QueueEvents(queueName, {
-      connection,
-      prefix,
-      blockingTimeout: 500,
-    });
+    queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queue.waitUntilReady();
     await queueEvents.waitUntilReady();
-    await delay(50); // allow XREAD to start blocking before emitting events
   });
 
   afterEach(async () => {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(createTestConnection(), queueName);
+    await cleanupQueue(queueName);
   });
 
   afterAll(async function () {
@@ -101,7 +97,7 @@ describe('deduplication', () => {
           { foo: 'bar' },
           { debounce: { id: 'a1', ttl: 2000 } },
         );
-        await delay(500);
+        await delay(100);
 
         expect(debouncedCounter).toBe(4);
       });

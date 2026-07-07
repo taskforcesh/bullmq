@@ -10,8 +10,9 @@ import {
 } from 'vitest';
 
 import { Job, Queue, QueueEvents, Worker } from '../src/classes';
-import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
 import { IRedisClient } from '../src/interfaces';
 
 const ONE_SECOND = 1000;
@@ -42,7 +43,7 @@ describe('Job Scheduler Stress', () => {
     try {
       await queue.close();
       await queueEvents.close();
-      await removeAllQueueData(createTestConnection(), queueName);
+      await cleanupQueue(queueName);
     } catch (error) {
       // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
     }

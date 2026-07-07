@@ -8,9 +8,9 @@ import {
 } from '../interfaces';
 
 import { delay, DELAY_TIME_5, isNotConnectionError, trace } from '../utils';
-import { createRedisBackend } from '../utils/create-backend';
+import { getDefaultBackendFactory } from '../utils/create-backend';
 import { Job } from './job';
-import { KeysMap, QueueKeys } from './queue-keys';
+import { KeysMap } from './queue-keys';
 import { SpanKind } from '../enums';
 
 /**
@@ -43,7 +43,7 @@ export class QueueBase<B extends IQueueBackend = IQueueBackend>
   constructor(
     public readonly name: string,
     public opts: QueueBaseOptions = { connection: {} },
-    backendFactory: BackendFactory<B> = createRedisBackend as unknown as BackendFactory<B>,
+    backendFactory: BackendFactory<B> = getDefaultBackendFactory<B>(),
     hasBlockingConnection = false,
   ) {
     super();
@@ -51,7 +51,6 @@ export class QueueBase<B extends IQueueBackend = IQueueBackend>
     this.backendFactory = backendFactory;
     this.hasBlockingConnection = hasBlockingConnection;
     this.opts = {
-      prefix: 'bull',
       ...opts,
     };
 
@@ -63,11 +62,13 @@ export class QueueBase<B extends IQueueBackend = IQueueBackend>
       throw new Error('Queue name cannot contain :');
     }
 
-    const queueKeys = new QueueKeys(opts.prefix);
-    this.qualifiedName = queueKeys.getQueueQualifiedName(name);
-    this.keys = queueKeys.getKeys(name);
-    this.toKey = (type: string) => queueKeys.toKey(name, type);
     this.createBackend();
+    // Queue identity and key building are owned by the backend (a datastore
+    // concern). The Redis backend encodes the key `prefix`
+    // (`"<prefix>:<queue>"`); other backends format their own identity.
+    this.qualifiedName = this.backend.qualifiedName;
+    this.keys = this.backend.keys;
+    this.toKey = (type: string) => this.backend.toKey(type);
 
     this.backend.on('error', (error: Error) => this.emit('error', error));
     this.backend.on('close', () => {
@@ -136,8 +137,7 @@ export class QueueBase<B extends IQueueBackend = IQueueBackend>
   }
 
   protected clientName(suffix = ''): string {
-    const queueNameBase64 = this.base64Name();
-    return `${this.opts.prefix}:${queueNameBase64}${suffix}`;
+    return this.backend.clientName(suffix);
   }
 
   /**
