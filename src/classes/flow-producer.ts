@@ -10,7 +10,6 @@ import {
   JobJson,
   ParentKeyOpts,
   ParentOptions,
-  QueueBaseOptions,
   Tracer,
   ContextManager,
 } from '../interfaces';
