@@ -223,8 +223,7 @@ export class FlowProducer extends EventEmitter {
         });
 
         const results = (await multi.exec()) as
-          | [null | Error, string | number][]
-          | null;
+          [null | Error, string | number][] | null;
         const [result] = results || [];
         if (result) {
           const [err, jobId] = result;
@@ -234,8 +233,8 @@ export class FlowProducer extends EventEmitter {
           if (typeof jobId === 'number' && jobId < 0) {
             throw this.toFlowError(jobId, parentKey);
           }
-          if (typeof jobId === 'string') {
-            jobsTree.job.id = jobId;
+          if (typeof jobId === 'string' || typeof jobId === 'number') {
+            jobsTree.job.id = jobId.toString();
           }
         }
 
@@ -306,8 +305,7 @@ export class FlowProducer extends EventEmitter {
         const jobsTrees = await this.addNodes(multi, flows);
 
         const results = (await multi.exec()) as
-          | [null | Error, string | number][]
-          | null;
+          [null | Error, string | number][] | null;
         for (let index = 0; index < jobsTrees.length; ++index) {
           const result = results?.[index];
           if (!result) {
@@ -315,8 +313,11 @@ export class FlowProducer extends EventEmitter {
           }
 
           const [err, jobId] = result;
-          if (!err && typeof jobId === 'string') {
-            jobsTrees[index].job.id = jobId;
+          if (
+            !err &&
+            (typeof jobId === 'string' || typeof jobId === 'number')
+          ) {
+            jobsTrees[index].job.id = jobId.toString();
           }
         }
 
