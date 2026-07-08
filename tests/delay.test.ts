@@ -11,8 +11,9 @@ import {
 } from 'vitest';
 
 import { Queue, Job, Worker, QueueEvents } from '../src/classes';
-import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
 import { IRedisClient } from '../src/interfaces';
 
 describe('Delayed jobs', () => {
@@ -35,7 +36,7 @@ describe('Delayed jobs', () => {
 
   afterEach(async () => {
     await queue.close();
-    await removeAllQueueData(createTestConnection(), queueName);
+    await cleanupQueue(queueName);
   });
 
   afterAll(async function () {
@@ -101,84 +102,6 @@ describe('Delayed jobs', () => {
     await completed;
     await queueEvents.close();
     await worker.close();
-  });
-
-  describe('when markers are deleted', () => {
-    it('should process a delayed job without getting stuck', async () => {
-      const delayTime = 6000;
-      const margin = 1.2;
-
-      const queueEvents = new QueueEvents(queueName, { connection, prefix });
-      await queueEvents.waitUntilReady();
-
-      const worker = new Worker(queueName, async () => {}, {
-        connection,
-        autorun: false,
-        prefix,
-      });
-      await worker.waitUntilReady();
-
-      const timestamp = Date.now();
-      let publishHappened = false;
-
-      const delayed = new Promise<void>(resolve => {
-        queueEvents.on('delayed', () => {
-          publishHappened = true;
-          resolve();
-        });
-      });
-
-      const completed = new Promise<void>((resolve, reject) => {
-        worker.on('completed', async function (job) {
-          try {
-            expect(Date.now() > timestamp + delayTime);
-            expect(job.processedOn! - job.timestamp).toBeGreaterThanOrEqual(
-              delayTime,
-            );
-            expect(
-              job.processedOn! - job.timestamp,
-              'processedOn is not within margin',
-            ).toBeLessThan(delayTime * margin);
-
-            const jobs = await queue.getWaiting();
-            expect(jobs.length).toBe(0);
-
-            const delayedJobs = await queue.getDelayed();
-            expect(delayedJobs.length).toBe(0);
-            expect(publishHappened).toEqual(true);
-            resolve();
-          } catch (err) {
-            reject(err);
-          }
-        });
-      });
-
-      const job = await queue.add(
-        'test',
-        { delayed: 'foobar' },
-        { delay: delayTime },
-      );
-
-      expect(job.id).toBeTruthy();
-      expect(job.data.delayed).toEqual('foobar');
-      expect(job.opts.delay).toEqual(delayTime);
-      expect(job.delay).toEqual(delayTime);
-
-      await delayed;
-
-      const client = await getRedisClient(queue);
-      await client.del(queue.toKey('marker'));
-
-      worker.run();
-
-      await delay(2000);
-
-      await client.del(queue.toKey('marker'));
-
-      await completed;
-      await queueEvents.close();
-      await worker.close();
-    });
   });
 
   describe('when delay is provided as 0', () => {

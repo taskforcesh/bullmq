@@ -24,11 +24,6 @@ export interface QueueBaseOptions {
   blockingConnection?: boolean;
 
   /**
-   * Prefix for all queue keys.
-   */
-  prefix?: string;
-
-  /**
    * Avoid version validation to be greater or equal than v5.0.0.
    * @defaultValue false
    */
@@ -51,9 +46,23 @@ export interface QueueBaseOptions {
 }
 
 /**
+ * Options honored only by the Redis backend. The key `prefix` namespaces all of
+ * a queue's Redis keys, so BullMQ data can coexist with other keys in a shared
+ * keyspace. It is intentionally NOT part of {@link QueueBaseOptions}, because it
+ * is a Redis-specific concept: other backends namespace differently (e.g. the
+ * PostgreSQL backend uses a schema) and ignore it.
+ */
+export interface RedisKeyPrefixOptions {
+  /**
+   * Prefix for all queue keys (Redis backend only). Defaults to `bull`.
+   */
+  prefix?: string;
+}
+
+/**
  * Options for the Queue class.
  */
-export interface QueueOptions extends QueueBaseOptions {
+export interface QueueOptions extends QueueBaseOptions, RedisKeyPrefixOptions {
   defaultJobOptions?: DefaultJobOptions;
 
   /**
@@ -90,17 +99,16 @@ export interface QueueOptions extends QueueBaseOptions {
 /**
  * Options for the Repeat class.
  */
-export interface RepeatBaseOptions extends QueueBaseOptions {
+export interface RepeatBaseOptions
+  extends QueueBaseOptions, RedisKeyPrefixOptions {
   settings?: AdvancedRepeatOptions;
 }
 
 /**
  * Options for QueueEvents
  */
-export interface QueueEventsOptions extends Omit<
-  QueueBaseOptions,
-  'telemetry'
-> {
+export interface QueueEventsOptions
+  extends Omit<QueueBaseOptions, 'telemetry'>, RedisKeyPrefixOptions {
   /**
    * Condition to start listening to events at instance creation.
    */
@@ -121,4 +129,11 @@ export interface QueueEventsOptions extends Omit<
 /**
  * Options for QueueEventsProducer
  */
-export type QueueEventsProducerOptions = Omit<QueueBaseOptions, 'telemetry'>;
+export type QueueEventsProducerOptions = Omit<QueueBaseOptions, 'telemetry'> &
+  RedisKeyPrefixOptions;
+
+/**
+ * Options for the FlowProducer class.
+ */
+export interface FlowProducerOptions
+  extends QueueBaseOptions, RedisKeyPrefixOptions {}

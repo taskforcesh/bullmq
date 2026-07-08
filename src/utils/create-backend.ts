@@ -1,4 +1,9 @@
-import { BackendFactory, QueueBaseOptions } from '../interfaces';
+import {
+  BackendFactory,
+  IQueueBackend,
+  QueueBaseOptions,
+  RedisKeyPrefixOptions,
+} from '../interfaces';
 import { RedisQueueBackend } from '../classes/redis-queue-backend';
 import { RedisConnection } from '../classes/redis-connection';
 import { QueueKeys } from '../classes/queue-keys';
@@ -16,7 +21,7 @@ const createBlockingConnection = (
 ): RedisConnection => {
   const base64Name = Buffer.from(name).toString('base64');
   const workerName = (opts as { name?: string }).name;
-  const connectionName = `${opts.prefix}:${base64Name}${
+  const connectionName = `${(opts as RedisKeyPrefixOptions).prefix ?? 'bull'}:${base64Name}${
     workerName ? `:w:${workerName}` : ''
   }`;
 
@@ -60,15 +65,50 @@ export const createRedisBackend: BackendFactory<RedisQueueBackend> = (
     ? createBlockingConnection(name, opts)
     : undefined;
 
-  const queueKeys = new QueueKeys(opts.prefix);
+  const queueKeys = new QueueKeys((opts as RedisKeyPrefixOptions).prefix);
   const keys = queueKeys.getKeys(name);
   const toKey = (type: string) => queueKeys.toKey(name, type);
 
   return new RedisQueueBackend(
     connection,
+    name,
     keys,
     toKey,
     opts,
     blockingConnection,
   );
 };
+
+/**
+ * The process-wide default {@link BackendFactory} used by the high-level
+ * classes ({@link QueueBase}, {@link FlowProducer}) when the caller does not
+ * pass an explicit `backendFactory`. Initialised to the Redis backend so the
+ * default behaviour is unchanged.
+ */
+let defaultBackendFactory: BackendFactory =
+  createRedisBackend as unknown as BackendFactory;
+
+/**
+ * Overrides the process-wide default {@link BackendFactory}. Useful to point
+ * every Queue/Worker/FlowProducer at a different datastore (e.g. the PostgreSQL
+ * backend) without threading a factory through every constructor — notably so
+ * the existing test suite can run unchanged against another backend.
+ *
+ * Pass no argument (or `undefined`) to reset back to the Redis backend.
+ */
+export function setDefaultBackendFactory(
+  factory?: BackendFactory<IQueueBackend>,
+): void {
+  defaultBackendFactory =
+    factory ?? (createRedisBackend as unknown as BackendFactory);
+}
+
+/**
+ * Returns the current process-wide default {@link BackendFactory}, typed as the
+ * caller's concrete backend `B`.
+ */
+export function getDefaultBackendFactory<
+  B extends IQueueBackend = IQueueBackend,
+>(): BackendFactory<B> {
+  return defaultBackendFactory as unknown as BackendFactory<B>;
+}

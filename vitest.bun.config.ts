@@ -24,6 +24,9 @@ export default defineConfig({
       'tests/bun-redis.test.ts',
       'tests/bun-adapter-suite.test.ts',
 
+      // PostgreSQL backend tests run in the dedicated PostgreSQL CI job.
+      'tests/postgres/**',
+
       // Node.js-specific tests (worker threads / child processes)
       'tests/child-pool.test.ts',
 

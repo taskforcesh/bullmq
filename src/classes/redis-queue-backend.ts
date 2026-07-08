@@ -22,6 +22,7 @@ import {
   MoveToWaitingChildrenOpts,
   ParentKeyOpts,
   RedisClient,
+  RedisKeyPrefixOptions,
   WorkerOptions,
   MoveToDelayedOpts,
   RepeatableOptions,
@@ -58,6 +59,7 @@ import {
 import { IRedisTransaction } from '../interfaces';
 import { QueueBaseOptions } from '../interfaces';
 import { version as packageVersion } from '../version';
+import { finishedErrors } from './finished-errors';
 import { UnrecoverableError } from './errors';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { RedisConnection } from './redis-connection';
@@ -80,8 +82,15 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
    */
   protected queue: ScriptQueueContext;
 
+  /**
+   * The resolved key prefix (defaults to `bull`). A Redis-specific concept used
+   * to namespace this queue's keys, qualified name and client name.
+   */
+  protected readonly redisPrefix: string;
+
   constructor(
     public connection: RedisConnection,
+    protected readonly name: string,
     keys: KeysMap,
     toKey: (type: string) => string,
     opts: QueueBaseOptions,
@@ -89,6 +98,8 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
     protected ownsConnection = true,
   ) {
     super();
+
+    this.redisPrefix = (opts as RedisKeyPrefixOptions).prefix ?? 'bull';
 
     const self = this;
     this.queue = {
@@ -141,16 +152,69 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
    * does not own the connection, so its `close`/`disconnect` are no-ops.
    */
   forQueue(queueName: string, prefix?: string): IQueueBackend {
-    const resolvedPrefix = prefix ?? this.queue.opts.prefix;
+    const resolvedPrefix = prefix ?? this.redisPrefix;
     const queueKeys = new QueueKeys(resolvedPrefix);
     return new RedisQueueBackend(
       this.connection,
+      queueName,
       queueKeys.getKeys(queueName),
       (type: string) => queueKeys.toKey(queueName, type),
-      { ...this.queue.opts, prefix: resolvedPrefix },
+      {
+        ...this.queue.opts,
+        prefix: resolvedPrefix,
+      } as QueueBaseOptions & RedisKeyPrefixOptions,
       this.blockingConnection,
       false,
     );
+  }
+
+  /**
+   * The queue's fully-qualified name (`"<prefix>:<queue>"`). This is the
+   * cross-backend logical identifier (e.g. used as a flow parent reference).
+   */
+  get qualifiedName(): string {
+    return `${this.redisPrefix}:${this.name}`;
+  }
+
+  /**
+   * The concrete Redis keys for this queue (wait, active, events, …).
+   */
+  get keys(): KeysMap {
+    return this.queue.keys;
+  }
+
+  /**
+   * Builds a namespaced Redis sub-key of the given `type`
+   * (`"<prefix>:<queue>:<type>"`).
+   */
+  toKey(type: string): string {
+    return this.queue.toKey(type);
+  }
+
+  /**
+   * Parses a Redis flow child key (`"<prefix>:<queue>:<id>"`) into its
+   * components. Inverse of {@link toKey}.
+   */
+  parseNodeKey(key: string): { prefix: string; queueName: string; id: string } {
+    const lastColon = key.lastIndexOf(':');
+    const prevColon = key.lastIndexOf(':', lastColon - 1);
+    if (lastColon === -1 || prevColon === -1) {
+      const [prefix = '', queueName = '', id = ''] = key.split(':');
+      return { prefix, queueName, id };
+    }
+    const prefix = key.slice(0, prevColon);
+    const queueName = key.slice(prevColon + 1, lastColon);
+    const id = key.slice(lastColon + 1);
+    return { prefix, queueName, id };
+  }
+
+  /**
+   * Builds the Redis client name (`"<prefix>:<base64(queue)><suffix>"`), used
+   * for `CLIENT SETNAME` and worker/queue discovery via `CLIENT LIST`.
+   */
+  clientName(suffix = ''): string {
+    const base64Name = Buffer.from(this.name).toString('base64');
+    return `${this.redisPrefix}:${base64Name}${suffix}`;
   }
 
   /**
@@ -2097,66 +2161,7 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
     command: string;
     state?: string;
   }): Error {
-    let error: Error;
-    switch (code) {
-      case ErrorCode.JobNotExist:
-        error = new Error(`Missing key for job ${jobId}. ${command}`);
-        break;
-      case ErrorCode.JobLockNotExist:
-        error = new Error(`Missing lock for job ${jobId}. ${command}`);
-        break;
-      case ErrorCode.JobNotInState:
-        error = new Error(
-          `Job ${jobId} is not in the ${state} state. ${command}`,
-        );
-        break;
-      case ErrorCode.JobPendingChildren:
-        error = new Error(`Job ${jobId} has pending dependencies. ${command}`);
-        break;
-      case ErrorCode.ParentJobNotExist:
-        error = new Error(
-          `Missing key for parent job ${parentKey}. ${command}`,
-        );
-        break;
-      case ErrorCode.JobLockMismatch:
-        error = new Error(
-          `Lock mismatch for job ${jobId}. Cmd ${command} from ${state}`,
-        );
-        break;
-      case ErrorCode.ParentJobCannotBeReplaced:
-        error = new Error(
-          `The parent job ${parentKey} cannot be replaced. ${command}`,
-        );
-        break;
-      case ErrorCode.JobBelongsToJobScheduler:
-        error = new Error(
-          `Job ${jobId} belongs to a job scheduler and cannot be removed directly. ${command}`,
-        );
-        break;
-      case ErrorCode.JobHasFailedChildren:
-        error = new UnrecoverableError(
-          `Cannot complete job ${jobId} because it has at least one failed child. ${command}`,
-        );
-        break;
-      case ErrorCode.SchedulerJobIdCollision:
-        error = new Error(
-          `Cannot create job scheduler iteration - job ID already exists. ${command}`,
-        );
-        break;
-      case ErrorCode.SchedulerJobSlotsBusy:
-        error = new Error(
-          `Cannot create job scheduler iteration - current and next time slots already have jobs. ${command}`,
-        );
-        break;
-      default:
-        error = new Error(
-          `Unknown code ${code} error for ${jobId}. ${command}`,
-        );
-    }
-
-    // Add the code property to the error object
-    (error as any).code = code;
-    return error;
+    return finishedErrors({ code, jobId, parentKey, command, state });
   }
 
   /**

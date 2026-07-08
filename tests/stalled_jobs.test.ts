@@ -1,6 +1,6 @@
 import { getRedisClient } from './utils/get-redis-client';
 import { FlowProducer, Queue, Worker, QueueEvents } from '../src/classes';
-import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID } from '../src/utils';
 import { after } from 'lodash';
 import {
   describe,
@@ -12,9 +12,23 @@ import {
   expect,
 } from 'vitest';
 import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
 import { IRedisClient } from '../src/interfaces';
 
 const NoopProc = () => Promise.resolve();
+
+/**
+ * Backend-agnostic qualified queue name (the `bull:` prefix on Redis, nothing
+ * on PostgreSQL), derived from a reference queue's `qualifiedName`.
+ */
+const qualify = (
+  ref: { qualifiedName: string; name: string },
+  queueName: string,
+): string =>
+  `${ref.qualifiedName.slice(
+    0,
+    ref.qualifiedName.length - ref.name.length,
+  )}${queueName}`;
 
 describe('stalled jobs', () => {
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
@@ -33,7 +47,7 @@ describe('stalled jobs', () => {
 
   afterEach(async () => {
     await queue.close();
-    await removeAllQueueData(createTestConnection(), queueName);
+    await cleanupQueue(queueName);
   });
 
   afterAll(async function () {
@@ -391,15 +405,9 @@ describe('stalled jobs', () => {
           await allFailed;
           await globalAllFailed;
 
-          const redisClient = await getRedisClient(queue);
-          const keys = await redisClient.keys(`${prefix}:${queueName}:*`);
-
           for (let i = 0; i < jobs.length; i++) {
-            const job = jobs[i];
-            const key = keys.find(key => key.endsWith(job.id!));
-            if (key) {
-              throw new Error('Job should have been removed from redis');
-            }
+            const stored = await queue.getJob(jobs[i].id!);
+            expect(stored).toBeUndefined();
           }
         }
 
@@ -495,7 +503,7 @@ describe('stalled jobs', () => {
           parentWorker.once('failed', async (job, failedReason, prev) => {
             expect(prev).toBe('active');
             expect(failedReason.message).toBe(
-              `child ${prefix}:${queueName}:${children[0].job.id!} failed`,
+              `child ${qualify(queue, queueName)}:${children[0].job.id!} failed`,
             );
             resolve();
           });
@@ -507,7 +515,7 @@ describe('stalled jobs', () => {
         await parentWorker.close();
         await parentQueue.close();
         await flow.close();
-        await removeAllQueueData(createTestConnection(), parentQueueName);
+        await cleanupQueue(parentQueueName);
       });
     });
 
@@ -599,7 +607,7 @@ describe('stalled jobs', () => {
         await worker2.close();
         await parentQueue.close();
         await flow.close();
-        await removeAllQueueData(createTestConnection(), parentQueueName);
+        await cleanupQueue(parentQueueName);
       });
     });
 
@@ -693,7 +701,7 @@ describe('stalled jobs', () => {
         await worker2.close();
         await parentQueue.close();
         await flow.close();
-        await removeAllQueueData(createTestConnection(), parentQueueName);
+        await cleanupQueue(parentQueueName);
       });
     });
 
@@ -782,7 +790,7 @@ describe('stalled jobs', () => {
         await worker2.close();
         await parentQueue.close();
         await flow.close();
-        await removeAllQueueData(createTestConnection(), parentQueueName);
+        await cleanupQueue(parentQueueName);
       });
     });
 
@@ -835,19 +843,27 @@ describe('stalled jobs', () => {
         });
 
         const errorMessage = 'job stalled more than allowable limit';
-        const allFailed = new Promise<void>(resolve => {
-          worker2.on(
-            'failed',
-            after(concurrency, async (job, failedReason, prev) => {
-              const failedCount = await queue.getFailedCount();
-              expect(failedCount).toBe(3);
-
-              expect(job.data.index).toBe(0);
+        // The order in which the four stalled jobs are reprocessed (and hence
+        // which one is trimmed by `removeOnFail: 3`) is backend-specific, so we
+        // assert order-independently: every job fails as stalled, and the
+        // failed set ends up capped at the configured 3.
+        const failedIndices: number[] = [];
+        const allFailed = new Promise<void>((resolve, reject) => {
+          worker2.on('failed', async (job, failedReason, prev) => {
+            try {
               expect(prev).toBe('active');
               expect(failedReason.message).toBe(errorMessage);
-              resolve();
-            }),
-          );
+
+              failedIndices.push(job.data.index);
+              if (failedIndices.length === concurrency) {
+                const failedCount = await queue.getFailedCount();
+                expect(failedCount).toBe(3);
+                resolve();
+              }
+            } catch (err) {
+              reject(err);
+            }
+          });
         });
 
         await allFailed;
@@ -910,16 +926,20 @@ describe('stalled jobs', () => {
           });
 
           const errorMessage = 'job stalled more than allowable limit';
-          const allFailed = new Promise<void>(resolve => {
+          const allFailed = new Promise<void>((resolve, reject) => {
             worker2.on(
               'failed',
               after(concurrency, async (job, failedReason, prev) => {
-                expect(job?.attemptsStarted).toBe(2);
-                expect(job?.attemptsMade).toBe(1);
-                expect(job?.stalledCounter).toBe(1);
-                expect(prev).toBe('active');
-                expect(failedReason.message).toBe(errorMessage);
-                resolve();
+                try {
+                  expect(job?.attemptsStarted).toBe(2);
+                  expect(job?.attemptsMade).toBe(1);
+                  expect(job?.stalledCounter).toBe(1);
+                  expect(prev).toBe('active');
+                  expect(failedReason.message).toBe(errorMessage);
+                  resolve();
+                } catch (err) {
+                  reject(err);
+                }
               }),
             );
           });
@@ -934,15 +954,9 @@ describe('stalled jobs', () => {
           await allFailed;
           await globalAllFailed;
 
-          const redisClient = await getRedisClient(queue);
-          const keys = await redisClient.keys(`${prefix}:${queueName}:*`);
-
           for (let i = 0; i < jobs.length; i++) {
-            const job = jobs[i];
-            const key = keys.find(key => key.endsWith(job.id!));
-            if (key) {
-              throw new Error('Job should have been removed from redis');
-            }
+            const stored = await queue.getJob(jobs[i].id!);
+            expect(stored).toBeUndefined();
           }
 
           await queueEvents.close();

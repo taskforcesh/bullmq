@@ -181,9 +181,7 @@ export interface NodeRedisRawClient {
   flushAll(): Promise<string>;
 }
 
-export function createNodeRedisClient(
-  client: unknown,
-): IRedisClient {
+export function createNodeRedisClient(client: unknown): IRedisClient {
   return new NodeRedisAdapter(client as NodeRedisRawClient);
 }
 

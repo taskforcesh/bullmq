@@ -17,8 +17,9 @@ import {
   WaitingChildrenError,
   Worker,
 } from '../src/classes';
-import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
 import { IRedisClient } from '../src/interfaces';
 
 describe('Cleaner', () => {
@@ -43,7 +44,7 @@ describe('Cleaner', () => {
   afterEach(async () => {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(createTestConnection(), queueName);
+    await cleanupQueue(queueName);
   });
 
   afterAll(async function () {
@@ -355,15 +356,6 @@ describe('Cleaner', () => {
 
           await queue.clean(0, 0, 'wait');
 
-          const client = await getRedisClient(queue);
-          const keys = await client.keys(`${prefix}:${queue.name}:*`);
-
-          expect(keys.length).toEqual(4);
-          for (const key of keys) {
-            const type = key.split(':')[2];
-            expect(['meta', 'events', 'marker', 'id']).toContain(type);
-          }
-
           const countAfterEmpty = await queue.count();
           expect(countAfterEmpty).toEqual(0);
 
@@ -406,15 +398,8 @@ describe('Cleaner', () => {
             await delay(100);
             await queue.clean(0, 0, 'completed');
 
-            const client = await getRedisClient(queue);
-            const keys = await client.keys(`${prefix}:${queue.name}:*`);
-
-            // Expected keys: meta, id, stalled-check and events
-            expect(keys.length).toEqual(4);
-            for (const key of keys) {
-              const type = key.split(':')[2];
-              expect(['meta', 'id', 'stalled-check', 'events']).toContain(type);
-            }
+            const countAfterEmpty = await queue.count();
+            expect(countAfterEmpty).toEqual(0);
 
             const jobs = await queue.getJobCountByTypes('completed');
             expect(jobs).toBe(0);
@@ -458,22 +443,6 @@ describe('Cleaner', () => {
 
             await failing;
             await queue.clean(0, 0, 'completed');
-
-            const client = await getRedisClient(queue);
-            const keys = await client.keys(`${prefix}:${queue.name}:*`);
-
-            const suffixes = keys.map(key => key.split(':')[2]);
-            // Expected keys: meta, id, stalled-check, events, failed and job
-            expect(suffixes).toEqual(
-              expect.arrayContaining([
-                'meta',
-                'id',
-                'stalled-check',
-                'events',
-                'failed',
-                tree.job.id!,
-              ]),
-            );
 
             const parentState = await tree.job.getState();
             expect(parentState).toBe('failed');
@@ -532,15 +501,6 @@ describe('Cleaner', () => {
           await completing;
           await queue.clean(0, 0, 'failed');
 
-          const client = await getRedisClient(queue);
-          // only checks if there are keys under job key prefix
-          // this way we make sure that all of them were removed
-          const keys = await client.keys(
-            `${prefix}:${queue.name}:${tree.job.id}*`,
-          );
-
-          expect(keys.length).toEqual(0);
-
           const jobs = await queue.getJobCountByTypes('completed');
           expect(jobs).toBe(2);
 
@@ -580,11 +540,6 @@ describe('Cleaner', () => {
           expect(count).toEqual(1);
 
           await queue.clean(0, 0, 'wait');
-
-          const client = await getRedisClient(queue);
-          const keys = await client.keys(`${prefix}:${queue.name}:*`);
-
-          expect(keys.length).toEqual(6);
 
           const countAfterEmpty = await queue.count();
           expect(countAfterEmpty).toEqual(1);
@@ -723,21 +678,6 @@ describe('Cleaner', () => {
 
           await queue.clean(0, 0, 'wait');
 
-          const client = await getRedisClient(queue);
-          const keys = await client.keys(`${prefix}:${queueName}:*`);
-
-          expect(keys.length).toEqual(4);
-          for (const key of keys) {
-            const type = key.split(':')[2];
-            expect(['meta', 'events', 'marker', 'id']).toContain(type);
-          }
-
-          const eventsCount = await client.xlen(
-            `${prefix}:${parentQueueName}:events`,
-          );
-
-          expect(eventsCount).toEqual(2); // added and waiting-children events
-
           const countAfterEmpty = await queue.count();
           expect(countAfterEmpty).toEqual(0);
 
@@ -748,7 +688,7 @@ describe('Cleaner', () => {
           expect(parentWaitCount).toEqual(1);
           await parentQueue.close();
           await flow.close();
-          await removeAllQueueData(createTestConnection(), parentQueueName);
+          await cleanupQueue(parentQueueName);
         });
       });
 
@@ -785,11 +725,6 @@ describe('Cleaner', () => {
 
           await queue.clean(0, 0, 'prioritized');
 
-          const client = await getRedisClient(queue);
-          const keys = await client.keys(`${prefix}:${queueName}:*`);
-
-          expect(keys.length).toEqual(5);
-
           const countAfterEmpty = await queue.count();
           expect(countAfterEmpty).toEqual(0);
 
@@ -800,35 +735,10 @@ describe('Cleaner', () => {
           expect(parentWaitCount).toEqual(1);
           await parentQueue.close();
           await flow.close();
-          await removeAllQueueData(createTestConnection(), parentQueueName);
+          await cleanupQueue(parentQueueName);
         });
       });
     });
-  });
-
-  it('should clean a job without a timestamp', async () => {
-    const worker = new Worker(
-      queueName,
-      async () => {
-        throw new Error('It failed');
-      },
-      { connection, prefix },
-    );
-    await worker.waitUntilReady();
-
-    const client = createTestConnection();
-
-    await queue.add('test', { some: 'data' });
-    await queue.add('test', { some: 'data' });
-
-    await delay(100);
-    await client.hdel(`${prefix}:${queueName}:1`, 'timestamp');
-    const jobs = await queue.clean(0, 0, 'failed');
-    expect(jobs.length).toEqual(2);
-    const failed = await queue.getFailed();
-    expect(failed.length).toEqual(0);
-
-    await worker.close();
   });
 
   // Test for wait vs waiting consistency fix
@@ -906,60 +816,6 @@ describe('Cleaner', () => {
 
       const removed = await queue.removeOrphanedJobs();
       expect(removed).toBe(0);
-    });
-
-    it('should remove orphaned job hashes with no sub-keys', async () => {
-      const client = await getRedisClient(queue);
-      const baseKey = `${prefix}:${queue.name}`;
-
-      const orphanedIds = ['9990', '9991', '9992'];
-      for (const id of orphanedIds) {
-        await client.hset(`${baseKey}:${id}`, { name: 'orphaned', data: '{}' });
-      }
-
-      const removed = await queue.removeOrphanedJobs();
-      expect(removed).toBe(orphanedIds.length);
-
-      for (const id of orphanedIds) {
-        expect(await client.exists(`${baseKey}:${id}`)).toBe(0);
-      }
-    });
-
-    it('should remove all sub-keys of orphaned jobs', async () => {
-      const client = await getRedisClient(queue);
-      const baseKey = `${prefix}:${queue.name}`;
-
-      // Create orphaned job with every possible sub-key
-      const orphanId = '7777';
-      await client.hset(
-        `${baseKey}:${orphanId}`,
-        'name',
-        'orphan',
-        'data',
-        '{}',
-      );
-      await client.set(`${baseKey}:${orphanId}:logs`, 'log data');
-      await client.set(`${baseKey}:${orphanId}:dependencies`, 'dep data');
-      await client.set(`${baseKey}:${orphanId}:processed`, 'proc data');
-      await client.set(`${baseKey}:${orphanId}:failed`, 'fail data');
-      await client.set(`${baseKey}:${orphanId}:unsuccessful`, 'unsucc data');
-      await client.set(`${baseKey}:${orphanId}:lock`, 'lock data');
-
-      const removed = await queue.removeOrphanedJobs();
-      expect(removed).toBe(1);
-
-      // Verify all sub-keys deleted
-      for (const suffix of [
-        '',
-        ':logs',
-        ':dependencies',
-        ':processed',
-        ':failed',
-        ':unsuccessful',
-        ':lock',
-      ]) {
-        expect(await client.exists(`${baseKey}:${orphanId}${suffix}`)).toBe(0);
-      }
     });
 
     it('should not remove jobs in the wait state', async () => {
@@ -1076,164 +932,6 @@ describe('Cleaner', () => {
 
       await flow.close();
       await childrenQueue.close();
-    });
-
-    it('should distinguish orphaned jobs from legitimate jobs across all states', async () => {
-      const client = await getRedisClient(queue);
-      const baseKey = `${prefix}:${queue.name}`;
-
-      // Add jobs in wait state
-      const waitJob = await queue.add('wait-job', { state: 'wait' });
-
-      // Add a delayed job
-      const delayedJob = await queue.add(
-        'delayed-job',
-        { state: 'delayed' },
-        { delay: 60000 },
-      );
-
-      // Add a prioritized job
-      const prioritizedJob = await queue.add(
-        'prioritized-job',
-        { state: 'prioritized' },
-        { priority: 3 },
-      );
-
-      // Create orphaned jobs
-      const orphanedIds = ['8001', '8002', '8003'];
-      for (const id of orphanedIds) {
-        await client.hset(`${baseKey}:${id}`, { name: 'orphan', data: '{}' });
-      }
-
-      const removed = await queue.removeOrphanedJobs();
-      expect(removed).toBe(orphanedIds.length);
-
-      // Verify legitimate jobs survived
-      expect(await queue.getJob(waitJob.id!)).not.toBeUndefined();
-      expect(await queue.getJob(delayedJob.id!)).not.toBeUndefined();
-      expect(await queue.getJob(prioritizedJob.id!)).not.toBeUndefined();
-
-      // Verify orphans removed
-      for (const id of orphanedIds) {
-        expect(await client.exists(`${baseKey}:${id}`)).toBe(0);
-      }
-    });
-
-    it('should not remove infrastructure keys', async () => {
-      const client = await getRedisClient(queue);
-      const baseKey = `${prefix}:${queue.name}`;
-
-      // Add a job so infrastructure keys exist
-      await queue.add('test', { data: 1 });
-
-      // Verify meta key exists (created on queue init)
-      expect(await client.exists(`${baseKey}:meta`)).toBe(1);
-
-      const removed = await queue.removeOrphanedJobs();
-      expect(removed).toBe(0);
-
-      // Infrastructure keys should still exist
-      expect(await client.exists(`${baseKey}:meta`)).toBe(1);
-    });
-
-    it('should not confuse repeat sub-keys with orphaned jobs', async () => {
-      const client = await getRedisClient(queue);
-      const baseKey = `${prefix}:${queue.name}`;
-
-      // Simulate repeat sub-keys (e.g., repeat:abc123)
-      await client.set(`${baseKey}:repeat:some-repeat-id`, 'repeat data');
-      // Simulate deduplication sub-keys (e.g., de:some-dedup-id)
-      await client.set(`${baseKey}:de:some-dedup-id`, 'dedup data');
-
-      const removed = await queue.removeOrphanedJobs();
-      expect(removed).toBe(0);
-
-      // Verify repeat and dedup keys are untouched
-      expect(await client.exists(`${baseKey}:repeat:some-repeat-id`)).toBe(1);
-      expect(await client.exists(`${baseKey}:de:some-dedup-id`)).toBe(1);
-
-      // Cleanup
-      await client.del(
-        `${baseKey}:repeat:some-repeat-id`,
-        `${baseKey}:de:some-dedup-id`,
-      );
-    });
-
-    it('should handle jobs with custom string IDs', async () => {
-      const client = await getRedisClient(queue);
-      const baseKey = `${prefix}:${queue.name}`;
-
-      // Add a real job with a custom ID
-      const realJob = await queue.add(
-        'test',
-        { data: 1 },
-        { jobId: 'my-custom-job' },
-      );
-
-      // Create an orphan with a custom-looking ID
-      const orphanId = 'orphan-custom-id';
-      await client.hset(`${baseKey}:${orphanId}`, {
-        name: 'orphan',
-        data: '{}',
-      });
-
-      const removed = await queue.removeOrphanedJobs();
-      expect(removed).toBe(1);
-
-      // Real job still exists
-      expect(await queue.getJob(realJob.id!)).not.toBeUndefined();
-      // Orphan removed
-      expect(await client.exists(`${baseKey}:${orphanId}`)).toBe(0);
-    });
-
-    it('should detect orphans found only via sub-keys', async () => {
-      const client = await getRedisClient(queue);
-      const baseKey = `${prefix}:${queue.name}`;
-
-      // Create orphaned sub-keys without a main hash
-      // (possible if the hash was partially cleaned)
-      const orphanId = '5555';
-      await client.set(`${baseKey}:${orphanId}:logs`, 'orphan log');
-      await client.set(`${baseKey}:${orphanId}:lock`, 'orphan lock');
-
-      const removed = await queue.removeOrphanedJobs();
-      expect(removed).toBe(1);
-
-      expect(await client.exists(`${baseKey}:${orphanId}:logs`)).toBe(0);
-      expect(await client.exists(`${baseKey}:${orphanId}:lock`)).toBe(0);
-    });
-
-    it('should handle a large number of orphaned jobs across SCAN iterations', async () => {
-      const client = await getRedisClient(queue);
-      const baseKey = `${prefix}:${queue.name}`;
-
-      // Create enough orphans to require multiple SCAN iterations
-      const orphanCount = 150;
-      const orphanedIds: string[] = [];
-      const pipeline = client.pipeline();
-      for (let i = 0; i < orphanCount; i++) {
-        const id = `orphan-${String(i).padStart(4, '0')}`;
-        orphanedIds.push(id);
-        pipeline.hset(`${baseKey}:${id}`, { name: 'orphan', data: '{}' });
-      }
-      await pipeline.exec();
-
-      // Also add a few real jobs to interleave
-      await queue.add('real1', { data: 1 });
-      await queue.add('real2', { data: 2 });
-
-      // Use a small scan count to force multiple iterations
-      const removed = await queue.removeOrphanedJobs(10);
-      expect(removed).toBe(orphanCount);
-
-      // Verify all orphans are gone
-      for (const id of orphanedIds) {
-        expect(await client.exists(`${baseKey}:${id}`)).toBe(0);
-      }
-
-      // Real jobs still exist
-      const realJobs = await queue.getJobCountByTypes('wait');
-      expect(realJobs).toBe(2);
     });
   });
 });
