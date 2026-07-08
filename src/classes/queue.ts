@@ -178,10 +178,10 @@ export class Queue<
         if (!this.closing && !opts?.skipMetasUpdate) {
           return this.backend
             .setQueueMeta(this.metaValues)
-            .then(() => undefined);
+            .then((): void => undefined);
         }
       })
-      .catch(err => {
+      .catch((_err: Error) => {
         // We ignore this error to avoid warnings. The error can still
         // be received by listening to event 'error'
       });
