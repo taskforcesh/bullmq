@@ -20,7 +20,7 @@
     "dist"
   ],
   "engines": {
-    "node": ">=12.22.0"
+    "node": ">=14.17.0"
   },
   "scripts": {
     "build": "npm run clean:dist && npm run pretest && npm run tsc:all && npm run copy:main:type && npm run clean:temp:files && npm run copy:lua && npm run copy:includes:lua && npm run copy:sql",
