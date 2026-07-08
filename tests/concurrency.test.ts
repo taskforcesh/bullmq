@@ -511,6 +511,10 @@ describe('Concurrency', () => {
       worker.on('active', after(globalConcurrency, resolve));
     });
 
+    worker.on('error', () => {
+      // suppress expected connection errors during force close
+    });
+
     worker.run();
 
     await allActive;

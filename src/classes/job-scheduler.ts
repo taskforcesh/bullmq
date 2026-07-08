@@ -1,4 +1,4 @@
-import { parseExpression } from 'cron-parser';
+import { CronExpressionParser } from 'cron-parser';
 import {
   BackendFactory,
   JobSchedulerJson,
@@ -426,7 +426,7 @@ export const defaultRepeatStrategy = (
   const dateFromMillis = new Date(millis);
   const startDate = opts.startDate && new Date(opts.startDate);
   const currentDate = startDate > dateFromMillis ? startDate : dateFromMillis;
-  const interval = parseExpression(pattern, {
+  const interval = CronExpressionParser.parse(pattern, {
     ...opts,
     currentDate,
   });
@@ -470,7 +470,7 @@ export const getNextMillis = (
     opts.startDate && new Date(opts.startDate) > new Date(millis)
       ? new Date(opts.startDate)
       : new Date(millis);
-  const interval = parseExpression(pattern, {
+  const interval = CronExpressionParser.parse(pattern, {
     ...opts,
     currentDate,
   });
