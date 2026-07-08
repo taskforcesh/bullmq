@@ -463,15 +463,15 @@ impl QueueEvents {
         let key = self.keys.events();
         let opts = self.opts.clone();
         let closing = self.closing.clone();
-        let tx = self
-            .event_tx
-            .lock()
-            .await
-            .as_ref()
-            .cloned()
-            .ok_or_else(|| {
-                Error::InvalidConfig("Cannot run QueueEvents after close()".to_string())
-            })?;
+        let tx = match self.event_tx.lock().await.as_ref().cloned() {
+            Some(tx) => tx,
+            None => {
+                self.running.store(false, Ordering::SeqCst);
+                return Err(Error::InvalidConfig(
+                    "Cannot run QueueEvents after close()".to_string(),
+                ));
+            }
+        };
 
         let handle = tokio::spawn(async move {
             Self::consume(conn, key, opts, closing, tx).await;

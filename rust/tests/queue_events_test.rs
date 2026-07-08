@@ -162,6 +162,39 @@ async fn test_close_makes_next_event_return_none() {
 }
 
 #[tokio::test]
+async fn test_run_after_close_resets_running() {
+    let name = test_queue_name();
+    let events = QueueEvents::new(
+        &name,
+        QueueEventsOptions {
+            connection: test_connection(),
+            autorun: false,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    assert!(!events.is_running());
+    events.close().await;
+    assert!(!events.is_running());
+
+    let err = events.run().await;
+    assert!(err.is_err(), "run() after close should fail");
+    assert!(!events.is_running(), "failed run() should reset running");
+
+    let err = events.run().await;
+    assert!(
+        err.is_err(),
+        "subsequent run() after close should still fail"
+    );
+    assert!(
+        !events.is_running(),
+        "running should stay false after failed run()"
+    );
+}
+
+#[tokio::test]
 async fn test_autorun_false_then_run() {
     let name = test_queue_name();
     let queue = Queue::new(
