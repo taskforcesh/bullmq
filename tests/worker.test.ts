@@ -2088,6 +2088,44 @@ describe('workers', () => {
       });
     });
 
+    describe('when jobs are added with the maximum priority', () => {
+      it('should process jobs with the same priority in FIFO order', async () => {
+        const maxPriority = 2097151;
+        const numJobs = 5;
+
+        const jobs = Array.from(Array(numJobs).keys()).map(index => ({
+          name: 'test',
+          data: { order: index },
+          opts: { priority: maxPriority },
+        }));
+        await queue.addBulk(jobs);
+
+        const processedOrder: number[] = [];
+        let processor;
+        const processing = new Promise<void>((resolve, reject) => {
+          processor = async (job: Job) => {
+            try {
+              processedOrder.push(job.data.order);
+              if (processedOrder.length === numJobs) {
+                resolve();
+              }
+            } catch (err) {
+              reject(err);
+            }
+          };
+        });
+
+        const worker = new Worker(queueName, processor, { connection, prefix });
+        await worker.waitUntilReady();
+
+        await processing;
+
+        expect(processedOrder).toEqual([0, 1, 2, 3, 4]);
+
+        await worker.close();
+      });
+    });
+
     describe('while processing last active job', () => {
       it('should process prioritized job whithout delay', async () => {
         // TODO: Move timeout to test options: { timeout: 1000 }
