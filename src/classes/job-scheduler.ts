@@ -319,26 +319,6 @@ export class JobScheduler extends QueueBase {
 
       return jobSchedulerData;
     }
-
-    // TODO: remove this check and keyToData as it is here only to support legacy code
-    if (key.includes(':')) {
-      return this.keyToData(key, next);
-    }
-  }
-
-  private keyToData(key: string, next?: number): JobSchedulerJson {
-    const data = key.split(':');
-    const pattern = data.slice(4).join(':') || null;
-
-    return {
-      key,
-      name: data[0],
-      id: data[1] || null,
-      endDate: parseInt(data[2]) || null,
-      tz: data[3] || null,
-      pattern,
-      next,
-    };
   }
 
   /**
