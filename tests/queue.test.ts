@@ -169,6 +169,140 @@ describe('queues', () => {
         ).rejects.toThrow('Custom Id cannot contain :');
       });
     });
+
+    describe('when auto-generated job id counter reaches scientific notation threshold', () => {
+      // Redis Lua serializes the number 300000000 as "3e+8" when passed
+      // directly as a command argument, so we prime the counter just below it
+      // to force the next auto-generated id to be 300000000.
+      const primeCounter = async (client: IRedisClient, name: string) => {
+        await client.set(`${prefix}:${name}:id`, '299999999');
+      };
+
+      describe('addStandardJob', () => {
+        it('stores the job id consistently in decimal form (not 3e+8)', async () => {
+          const client = await queue.client;
+          await primeCounter(client, queue.name);
+
+          const job = await queue.add('test', { foo: 'bar' });
+
+          expect(job.id).toEqual('300000000');
+
+          // The job hash key and every internal reference must use the same
+          // decimal string representation.
+          const jobExists = await client.exists(
+            `${prefix}:${queue.name}:300000000`,
+          );
+          expect(jobExists).toEqual(1);
+
+          const waitingIds = await client.lrange(
+            `${prefix}:${queue.name}:wait`,
+            0,
+            -1,
+          );
+          expect(waitingIds).toContain('300000000');
+          expect(waitingIds).not.toContain('3e+8');
+
+          const storedJob = await queue.getJob('300000000');
+          expect(storedJob).toBeDefined();
+          expect(storedJob!.data).toEqual({ foo: 'bar' });
+        });
+      });
+
+      describe('addPrioritizedJob', () => {
+        it('stores the job id consistently in decimal form (not 3e+8)', async () => {
+          const client = await queue.client;
+          await primeCounter(client, queue.name);
+
+          const job = await queue.add('test', { foo: 'bar' }, { priority: 1 });
+
+          expect(job.id).toEqual('300000000');
+
+          const prioritizedIds = await client.zrange(
+            `${prefix}:${queue.name}:prioritized`,
+            0,
+            -1,
+          );
+          expect(prioritizedIds).toContain('300000000');
+          expect(prioritizedIds).not.toContain('3e+8');
+
+          const storedJob = await queue.getJob('300000000');
+          expect(storedJob).toBeDefined();
+          expect(storedJob!.data).toEqual({ foo: 'bar' });
+        });
+      });
+
+      describe('addDelayedJob', () => {
+        it('stores the job id consistently in decimal form (not 3e+8)', async () => {
+          const client = await queue.client;
+          await primeCounter(client, queue.name);
+
+          const job = await queue.add('test', { foo: 'bar' }, { delay: 10000 });
+
+          expect(job.id).toEqual('300000000');
+
+          const delayedIds = await client.zrange(
+            `${prefix}:${queue.name}:delayed`,
+            0,
+            -1,
+          );
+          expect(delayedIds).toContain('300000000');
+          expect(delayedIds).not.toContain('3e+8');
+
+          const storedJob = await queue.getJob('300000000');
+          expect(storedJob).toBeDefined();
+          expect(storedJob!.data).toEqual({ foo: 'bar' });
+        });
+      });
+
+      describe('addParentJob', () => {
+        it('stores the parent job id consistently in decimal form (not 3e+8)', async () => {
+          const client = await queue.client;
+          await primeCounter(client, queue.name);
+
+          // The child lives in a different queue so it does not consume an id
+          // from the parent queue, making the parent's auto-generated id land
+          // exactly on 300000000.
+          const childrenQueueName = `test-${randomUUID()}`;
+          const childrenQueue = new Queue(childrenQueueName, {
+            connection,
+            prefix,
+          });
+          await childrenQueue.waitUntilReady();
+
+          const flow = new FlowProducer({ connection, prefix });
+          const tree = await flow.add({
+            name: 'parent-job',
+            queueName,
+            data: { foo: 'bar' },
+            children: [
+              {
+                name: 'child-job',
+                data: { idx: 0 },
+                queueName: childrenQueueName,
+              },
+            ],
+          });
+
+          expect(tree.job.id).toEqual('300000000');
+
+          const waitingChildrenIds = await client.zrange(
+            `${prefix}:${queue.name}:waiting-children`,
+            0,
+            -1,
+          );
+          expect(waitingChildrenIds).toContain('300000000');
+          expect(waitingChildrenIds).not.toContain('3e+8');
+
+          const storedJob = await queue.getJob('300000000');
+          expect(storedJob).toBeDefined();
+          expect(storedJob!.data).toEqual({ foo: 'bar' });
+
+          await flow.close();
+          await childrenQueue.close();
+          await removeAllQueueData(createTestConnection(), childrenQueueName);
+        });
+      });
+    });
   });
 
   describe('when queue name contains :', () => {

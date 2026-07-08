@@ -37,7 +37,6 @@ local function storeDeduplicatedNextJob(deduplicationOpts, currentDebounceJobId,
                 fields[#fields+1] = repeatJobKey
             end
 
-            rcall('DEL', deduplicationNextKey)
             rcall('HSET', deduplicationNextKey, unpack(fields))
 
             -- Ensure the dedup key does not expire while the job is active,
