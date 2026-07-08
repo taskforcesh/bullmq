@@ -302,6 +302,25 @@ describe('Telemetry', () => {
     });
   });
 
+  describe('Queue.clean', () => {
+    it('should report the count of cleaned jobs to telemetry without the id array', async () => {
+      await queue.addBulk([
+        { name: 'job1', data: { foo: 'bar' } },
+        { name: 'job2', data: { baz: 'qux' } },
+      ]);
+
+      const cleaned = await queue.clean(0, 0, 'wait');
+      expect(cleaned).toHaveLength(2);
+
+      const activeContext = telemetryClient.contextManager.active();
+      const span = activeContext.getSpan?.() as MockSpan;
+      expect(span).toBeInstanceOf(MockSpan);
+      expect(span.name).toBe(`clean ${queueName}`);
+      expect(span.attributes[TelemetryAttributes.QueueCleanCount]).toBe(2);
+      expect(span.attributes[TelemetryAttributes.JobIds]).toBeUndefined();
+    });
+  });
+
   describe('Queue.upsertJobScheduler', async () => {
     it('should correctly interact with telemetry when adding a job scheduler', async () => {
       const jobSchedulerId = 'testJobScheduler';

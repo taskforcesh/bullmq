@@ -14,6 +14,7 @@ export enum TelemetryAttributes {
   QueueDrainDelay = 'bullmq.queue.drain.delay',
   QueueGrace = 'bullmq.queue.grace',
   QueueCleanLimit = 'bullmq.queue.clean.limit',
+  QueueCleanCount = 'bullmq.queue.clean.count',
   QueueRateLimit = 'bullmq.queue.rate.limit',
   JobType = 'bullmq.job.type',
   QueueOptions = 'bullmq.queue.options',
