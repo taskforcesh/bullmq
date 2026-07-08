@@ -6,7 +6,7 @@ Jobs can also include a `priority` option. Using priorities, job processing orde
 Adding prioritized jobs is a slower operation than the other types of jobs, with a complexity `O(log(n))` relative to the number of jobs in the prioritized set in the queue.
 {% endhint %}
 
-Note that the priorities go from `1` to `2 097 152`, where a lower number is always a **higher** priority than higher numbers.
+Note that the priorities go from `1` to `2 097 151`, where a lower number is always a **higher** priority than higher numbers.
 
 {% hint style="danger" %}
 Jobs without a `priority` assigned will get the highest priority, being processed before jobs with priorities assigned to them.

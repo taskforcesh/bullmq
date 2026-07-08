@@ -45,7 +45,7 @@ import { SpanKind, TelemetryAttributes, MetricNames } from '../enums';
 
 const logger = debuglog('bull');
 
-export const PRIORITY_LIMIT = 2 ** 21;
+export const PRIORITY_LIMIT = 2 ** 21 - 1;
 
 /**
  * Job
@@ -92,7 +92,7 @@ export class Job<
   delay = 0;
 
   /**
-   * Ranges from 0 (highest priority) to 2 097 152 (lowest priority). Note that
+   * Ranges from 0 (highest priority) to 2 097 151 (lowest priority). Note that
    * using priorities has a slight impact on performance,
    * so do not use it if not required.
    * @defaultValue 0
