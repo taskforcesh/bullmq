@@ -995,7 +995,6 @@ export class Worker<
           const now = Date.now();
 
           span?.setAttributes({
-            [TelemetryAttributes.JobFinishedTimestamp]: now,
             [TelemetryAttributes.JobAttemptFinishedTimestamp]:
               job.finishedOn || now,
             [TelemetryAttributes.JobProcessedTimestamp]: job.processedOn,

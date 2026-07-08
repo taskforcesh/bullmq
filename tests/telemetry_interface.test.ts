@@ -436,18 +436,15 @@ describe('Telemetry', () => {
 
       // Verify timestamp attributes are set in the finally block
       expect(
-        span.attributes[TelemetryAttributes.JobFinishedTimestamp],
-      ).toBeDefined();
-      expect(
         span.attributes[TelemetryAttributes.JobAttemptFinishedTimestamp],
       ).toBeDefined();
       expect(
         span.attributes[TelemetryAttributes.JobProcessedTimestamp],
       ).toBeDefined();
 
-      // JobFinishedTimestamp should be a recent timestamp
+      // JobAttemptFinishedTimestamp should be a recent timestamp
       const jobFinishedTimestamp =
-        span.attributes[TelemetryAttributes.JobFinishedTimestamp];
+        span.attributes[TelemetryAttributes.JobAttemptFinishedTimestamp];
       expect(typeof jobFinishedTimestamp).toBe('number');
       expect(jobFinishedTimestamp).toBeGreaterThan(Date.now() - 10000);
 
@@ -889,7 +886,7 @@ describe('Telemetry', () => {
       expect(completedCounter!.values[0].attributes).toMatchObject({
         [TelemetryAttributes.QueueName]: queueName,
         [TelemetryAttributes.JobName]: 'testJob',
-        [TelemetryAttributes.JobStatus]: 'completed',
+        [TelemetryAttributes.JobState]: 'completed',
       });
 
       await worker.close();
@@ -926,7 +923,7 @@ describe('Telemetry', () => {
       expect(failedCounter!.values[0].attributes).toMatchObject({
         [TelemetryAttributes.QueueName]: queueName,
         [TelemetryAttributes.JobName]: 'testJob',
-        [TelemetryAttributes.JobStatus]: 'failed',
+        [TelemetryAttributes.JobState]: 'failed',
       });
 
       await worker.close();
@@ -971,7 +968,7 @@ describe('Telemetry', () => {
       expect(delayedCounter!.values[0].attributes).toMatchObject({
         [TelemetryAttributes.QueueName]: queueName,
         [TelemetryAttributes.JobName]: 'testJob',
-        [TelemetryAttributes.JobStatus]: 'delayed',
+        [TelemetryAttributes.JobState]: 'delayed',
       });
 
       await worker.close();
