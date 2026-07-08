@@ -213,30 +213,6 @@ describe('Job', () => {
       });
     });
 
-    describe('when debounce id option is provided as empty string', () => {
-      it('throws an error', async () => {
-        const data = { foo: 'bar' };
-        const opts = { debounce: { id: '' } };
-        await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
-          'Debounce id must be provided',
-        );
-      });
-    });
-
-    describe('when debounce and parent options are provided', () => {
-      it('throws an error', async () => {
-        const data = { foo: 'bar' };
-        const parentJob = await Job.create(queue, 'parent', {});
-        const opts = {
-          debounce: { id: 'debounce-id' },
-          parent: { id: parentJob.id!, queue: `${prefix}:${queueName}` },
-        };
-        await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
-          'Debounce and parent options cannot be used together',
-        );
-      });
-    });
-
     describe('when jitter backoff option is provided with a value lesser than 0', () => {
       it('throws an error', async () => {
         const data = { foo: 'bar' };

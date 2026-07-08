@@ -149,12 +149,6 @@ export class Job<
   parent?: ParentKeys;
 
   /**
-   * Debounce identifier.
-   * @deprecated use deduplicationId
-   */
-  debounceId?: string;
-
-  /**
    * Deduplication identifier.
    */
   deduplicationId?: string;
@@ -247,10 +241,7 @@ export class Job<
       }
     }
 
-    this.debounceId = opts.debounce ? opts.debounce.id : undefined;
-    this.deduplicationId = opts.deduplication
-      ? opts.deduplication.id
-      : this.debounceId;
+    this.deduplicationId = opts.deduplication && opts.deduplication.id;
 
     this.toKey = queue.toKey.bind(queue);
     this.createBackend();
@@ -379,8 +370,7 @@ export class Job<
     }
 
     if (json.deduplicationId) {
-      job.debounceId = json.deduplicationId;
-      job.deduplicationId = json.deduplicationId;
+      job.deduplicationId = json.deduplicationId || json.debounceId;
     }
 
     if (json.failedReason) {
@@ -529,7 +519,6 @@ export class Job<
       timestamp: this.timestamp,
       failedReason: JSON.stringify(this.failedReason),
       stacktrace: JSON.stringify(this.stacktrace),
-      debounceId: this.debounceId,
       deduplicationId: this.deduplicationId,
       repeatJobKey: this.repeatJobKey,
       returnvalue: JSON.stringify(this.returnvalue),
@@ -1414,17 +1403,6 @@ export class Job<
         throw new Error(
           'Deduplication and parent options cannot be used together',
         );
-      }
-    }
-
-    // TODO: remove in v6
-    if (this.opts.debounce) {
-      if (!this.opts.debounce?.id) {
-        throw new Error('Debounce id must be provided');
-      }
-
-      if (this.parentKey) {
-        throw new Error('Debounce and parent options cannot be used together');
       }
     }
 

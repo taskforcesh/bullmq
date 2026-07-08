@@ -128,7 +128,6 @@ export const optsDecodeMap = {
 
 export const optsEncodeMap = {
   ...invertObject(optsDecodeMap),
-  /*/ Legacy for backwards compatibility */ debounce: 'de', // TODO: remove in next breaking change
 } as const;
 
 export function isRedisInstance(
