@@ -443,10 +443,10 @@ describe('Telemetry', () => {
       ).toBeDefined();
 
       // JobAttemptFinishedTimestamp should be a recent timestamp
-      const jobFinishedTimestamp =
+      const jobAttemptFinishedTimestamp =
         span.attributes[TelemetryAttributes.JobAttemptFinishedTimestamp];
-      expect(typeof jobFinishedTimestamp).toBe('number');
-      expect(jobFinishedTimestamp).toBeGreaterThan(Date.now() - 10000);
+      expect(typeof jobAttemptFinishedTimestamp).toBe('number');
+      expect(jobAttemptFinishedTimestamp).toBeGreaterThan(Date.now() - 10000);
 
       startSpanSpy.restore();
       moveToCompletedStub.restore();
