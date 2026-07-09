@@ -259,31 +259,12 @@ describe('queues', () => {
           const client = await queue.client;
           await primeCounter(client, queue.name);
 
-          // The child lives in a different queue so it does not consume an id
-          // from the parent queue, making the parent's auto-generated id land
-          // exactly on 300000000.
-          const childrenQueueName = `test-${randomUUID()}`;
-          const childrenQueue = new Queue(childrenQueueName, {
-            connection,
-            prefix,
-          });
-          await childrenQueue.waitUntilReady();
-
-          const flow = new FlowProducer({ connection, prefix });
-          const tree = await flow.add({
-            name: 'parent-job',
-            queueName,
-            data: { foo: 'bar' },
-            children: [
-              {
-                name: 'child-job',
-                data: { idx: 0 },
-                queueName: childrenQueueName,
-              },
-            ],
+          const job = new Job(queue, 'parent-job', { foo: 'bar' });
+          job.id = await job.addJob(client, {
+            addToWaitingChildren: true,
           });
 
-          expect(tree.job.id).toEqual('300000000');
+          expect(job.id).toEqual('300000000');
 
           const waitingChildrenIds = await client.zrange(
             `${prefix}:${queue.name}:waiting-children`,
@@ -296,10 +277,6 @@ describe('queues', () => {
           const storedJob = await queue.getJob('300000000');
           expect(storedJob).toBeDefined();
           expect(storedJob!.data).toEqual({ foo: 'bar' });
-
-          await flow.close();
-          await childrenQueue.close();
-          await removeAllQueueData(createTestConnection(), childrenQueueName);
         });
       });
     });
