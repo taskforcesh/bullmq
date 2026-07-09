@@ -874,7 +874,7 @@ export class Job<
       [TelemetryAttributes.JobState]: state,
     };
 
-    // Record counter metric based on status
+    // Record counter metric based on state
     const stateToCounterName: Record<
       | 'completed'
       | 'failed'
