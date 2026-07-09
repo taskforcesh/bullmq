@@ -18,6 +18,7 @@ import { delay, randomUUID } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
 import { cleanupQueue } from './utils/cleanup-queue';
 import { IRedisClient } from '../src/interfaces';
+import { streamEntriesToEvents } from './utils/stream-events';
 
 const moment = require('moment');
 
@@ -3302,17 +3303,9 @@ describe('Job Scheduler', () => {
     const entries = events?.[0]?.[1] ?? [];
     const expectedJobId = `repeat:${jobSchedulerId}:${date.getTime() + 1 * ONE_SECOND}`;
 
-    const waitingEvent = entries
-      .map(([, fields]) => {
-        const event: Record<string, string> = {};
-        for (let i = 0; i < fields.length; i += 2) {
-          event[fields[i]] = fields[i + 1];
-        }
-        return event;
-      })
-      .find(
-        event => event.event === 'waiting' && event.jobId === expectedJobId,
-      );
+    const waitingEvent = streamEntriesToEvents(entries).find(
+      event => event.event === 'waiting' && event.jobId === expectedJobId,
+    );
 
     expect(waitingEvent).toBeDefined();
     await worker.close();

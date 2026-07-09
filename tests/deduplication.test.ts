@@ -13,6 +13,7 @@ import { IRedisClient } from '../src/interfaces';
 import { createTestConnection } from './utils/connection-factory';
 import { cleanupQueue } from './utils/cleanup-queue';
 import { getRedisClient } from './utils/get-redis-client';
+import { streamEntriesToEvents } from './utils/stream-events';
 import { delay, randomUUID } from '../src/utils';
 
 describe('deduplication', () => {
@@ -348,21 +349,13 @@ describe('deduplication', () => {
       );
       const entries = events?.[0]?.[1] ?? [];
 
-      const deduplicatedEvent = entries
-        .map(([, fields]) => {
-          const event: Record<string, string> = {};
-          for (let i = 0; i < fields.length; i += 2) {
-            event[fields[i]] = fields[i + 1];
-          }
-          return event;
-        })
-        .find(
-          event =>
-            event.event === 'deduplicated' &&
-            event.jobId === 'a1' &&
-            event.deduplicationId === dedupId &&
-            event.deduplicatedJobId === 'a2',
-        );
+      const deduplicatedEvent = streamEntriesToEvents(entries).find(
+        event =>
+          event.event === 'deduplicated' &&
+          event.jobId === 'a1' &&
+          event.deduplicationId === dedupId &&
+          event.deduplicatedJobId === 'a2',
+      );
 
       expect(deduplicatedEvent).toBeDefined();
     });
