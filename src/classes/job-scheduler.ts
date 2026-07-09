@@ -266,11 +266,11 @@ export class JobScheduler extends QueueBase {
     return this.transformSchedulerData<D>(key, jobData, next);
   }
 
-  private keyToData<D>(
+  private keyToData(
     key: string,
     data: string[],
     next?: number,
-  ): JobSchedulerJson<D> {
+  ): JobSchedulerJson {
     const pattern = data.slice(4).join(':') || null;
 
     return {
@@ -340,8 +340,10 @@ export class JobScheduler extends QueueBase {
 
     const data = key.split(':');
     if (data.length >= 5) {
-      return this.keyToData<D>(key, data, next);
+      return this.keyToData(key, data, next);
     }
+
+    return undefined;
   }
 
   /**
