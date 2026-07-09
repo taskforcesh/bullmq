@@ -260,7 +260,7 @@ export class JobScheduler extends QueueBase {
   private async getSchedulerData<D>(
     key: string,
     next?: number,
-  ): Promise<JobSchedulerJson<D>> {
+  ): Promise<JobSchedulerJson<D> | undefined> {
     const jobData = await this.backend.getJobSchedulerData(key);
 
     return this.transformSchedulerData<D>(key, jobData, next);
@@ -404,7 +404,9 @@ export class JobScheduler extends QueueBase {
     for (let i = 0; i < result.length; i += 2) {
       jobs.push(this.getSchedulerData<D>(result[i], parseInt(result[i + 1])));
     }
-    return Promise.all(jobs);
+    return (await Promise.all(jobs)).filter(
+      (job): job is JobSchedulerJson<D> => !!job,
+    );
   }
 
   async getSchedulersCount(): Promise<number> {
