@@ -11,9 +11,11 @@ export interface DefaultJobOptions {
   timestamp?: number;
 
   /**
-   * Ranges from 0 (highest priority) to 2 097 151 (lowest priority). Note that
-   * using priorities has a slight impact on performance,
-   * so do not use it if not required.
+   * Ranges from 0 to 2 097 151. `0` means no explicit priority, and jobs with
+   * no explicit priority are processed before prioritized jobs. For prioritized
+   * jobs, lower numbers are processed before higher numbers. Note that using
+   * priorities has a slight impact on performance, so do not use it if not
+   * required.
    * @defaultValue 0
    */
   priority?: number;
