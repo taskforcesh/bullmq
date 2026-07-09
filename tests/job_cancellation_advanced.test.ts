@@ -10,8 +10,9 @@ import {
 
 import { randomUUID } from '../src/utils';
 import { Queue, QueueEvents, Worker, UnrecoverableError } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
 
 describe('Job Cancellation - Advanced Scenarios', () => {
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
@@ -35,7 +36,7 @@ describe('Job Cancellation - Advanced Scenarios', () => {
   afterEach(async () => {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(createTestConnection(), queueName);
+    await cleanupQueue(queueName);
   });
 
   afterAll(async function () {
@@ -559,6 +560,19 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       await worker.waitUntilReady();
 
+      // Register the active listener before adding jobs so we never miss an
+      // 'active' event (the worker can move jobs to active while the bulk add
+      // is still in flight).
+      let activeCount = 0;
+      const allActive = new Promise<void>(resolve => {
+        worker.on('active', () => {
+          activeCount++;
+          if (activeCount === concurrency) {
+            resolve();
+          }
+        });
+      });
+
       // Add many jobs
       const jobs = await Promise.all(
         Array.from({ length: concurrency }, (_, i) =>
@@ -567,15 +581,7 @@ describe('Job Cancellation - Advanced Scenarios', () => {
       );
 
       // Wait for all to be active
-      let activeCount = 0;
-      await new Promise<void>(resolve => {
-        worker.on('active', () => {
-          activeCount++;
-          if (activeCount === concurrency) {
-            resolve();
-          }
-        });
-      });
+      await allActive;
 
       // Cancel half of them rapidly
       const jobsToCancel = jobs.slice(0, 5);

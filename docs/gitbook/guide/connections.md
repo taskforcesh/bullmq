@@ -172,6 +172,56 @@ This setting tells the ioredis client how many times to try a command that fails
 
 This guarantees that the workers will keep processing forever as long as there is a working connection. If you create an ioredis client manually, BullMQ will throw an exception if this setting is not set to null when it is passed into worker instances. When using another Redis client through an adapter, configure that client's retry and reconnect behavior according to its own documentation so that worker connections can keep retrying.
 
+### The queue backend
+
+While the `IRedisClient` adapter described above abstracts the low-level _driver_ (ioredis, node-redis, Bun), the high-level classes (`Queue`, `Worker`, `FlowProducer`, `QueueEvents`, …) sit one level higher: they are **datastore-agnostic** and talk to a _backend_ that implements the [`IQueueBackend`](https://api.docs.bullmq.io) contract. The backend owns the connection(s) and implements every queue operation ("add job", "move to active", "extend lock", the blocking "wait for next job", …).
+
+The default backend is the Redis one (`RedisQueueBackend`), so you normally never interact with this layer directly — you just pass a `connection` as shown throughout this page and BullMQ wires up the Redis backend for you.
+
+#### Accessing the underlying Redis client
+
+The high-level classes no longer expose a `client` getter. When you need the raw Redis client — for example to run a custom command, or to inspect the connection in tests — reach it through `getBackend()`:
+
+```typescript
+import { Queue, RedisClient } from 'bullmq';
+
+const queue = new Queue('myqueue', {
+  connection: { host: 'localhost', port: 6379 },
+});
+
+// getBackend() returns the concrete Redis backend by default, so the
+// Redis-specific escape hatches are available without casting.
+const client: RedisClient = await queue.getBackend().client;
+
+await client.set('some-key', 'some-value');
+```
+
+The Redis backend also exposes other Redis-specific details, such as `redisVersion`, `databaseType` and the underlying `connection`. For a `Worker`, `getBackend().blockingClient` returns the dedicated blocking connection's client used by the blocking _wait-for-job_ primitive.
+
+{% hint style="warning" %}
+These are escape hatches into the Redis adapter. Prefer the high-level `Queue`/`Worker`/`FlowProducer` API whenever possible — anything you reach through `getBackend()` is specific to the Redis backend and is not part of the datastore-agnostic contract.
+{% endhint %}
+
+#### Providing a custom backend
+
+All high-level classes depend only on the `IQueueBackend` interface and receive a **backend factory** that builds it. By default this factory is `createRedisBackend`, but you can inject your own as the last constructor argument to back BullMQ with a different datastore or with a mock in tests:
+
+```typescript
+import { Queue, BackendFactory } from 'bullmq';
+
+const myBackendFactory: BackendFactory = (name, opts, options) => {
+  // return an object implementing IQueueBackend
+};
+
+const queue = new Queue('myqueue', { connection: {} }, myBackendFactory);
+```
+
+The classes are generic over the backend type, so `getBackend()` returns the concrete type produced by whatever factory you provide (the default being `RedisQueueBackend`). A non-Redis user would, for example, write `new Queue<MyData, MyResult, string, MyBackend>(name, opts, createMyBackend)`.
+
+#### Built-in PostgreSQL backend
+
+BullMQ ships with a ready-made **PostgreSQL backend** (`createPostgresBackend`) that runs the full `Queue` / `Worker` / `QueueEvents` / `FlowProducer` API on PostgreSQL instead of Redis. See the dedicated [PostgreSQL backend](postgresql.md) page for requirements, connection options, schema and migrations.
+
 ### Queue
 
 Also note that simple Queue instance used for managing the queue such as adding jobs, pausing, using getters, etc. usually has different requirements from the worker.

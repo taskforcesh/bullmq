@@ -1,19 +1,18 @@
-import { parseExpression } from 'cron-parser';
+import { CronExpressionParser } from 'cron-parser';
 import {
+  BackendFactory,
   JobSchedulerJson,
   JobSchedulerTemplateJson,
-  RedisClient,
   RepeatBaseOptions,
   RepeatOptions,
 } from '../interfaces';
 import {
   JobSchedulerTemplateOptions,
-  JobsOptions,
+  JobSchedulerJobOptions,
   RepeatStrategy,
 } from '../types';
 import { Job } from './job';
 import { QueueBase } from './queue-base';
-import { RedisConnection } from './redis-connection';
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { array2obj } from '../utils';
 
@@ -23,9 +22,9 @@ export class JobScheduler extends QueueBase {
   constructor(
     name: string,
     opts: RepeatBaseOptions,
-    Connection?: typeof RedisConnection,
+    backendFactory?: BackendFactory,
   ) {
-    super(name, opts, Connection);
+    super(name, opts, backendFactory);
 
     this.repeatStrategy =
       (opts.settings && opts.settings.repeatStrategy) || defaultRepeatStrategy;
@@ -138,11 +137,11 @@ export class JobScheduler extends QueueBase {
               nextMillis = now;
             }
 
-            const [jobId, delay] = await this.scripts.addJobScheduler(
+            const [jobId, delay] = await this.backend.addJobScheduler(
               jobSchedulerId,
               nextMillis,
               JSON.stringify(typeof jobData === 'undefined' ? {} : jobData),
-              Job.optsAsJSON(opts),
+              opts,
               {
                 name: jobName,
                 startDate: repeatOpts.startDate
@@ -155,7 +154,7 @@ export class JobScheduler extends QueueBase {
                 limit,
                 offset: newOffset,
               },
-              Job.optsAsJSON(mergedOpts),
+              mergedOpts,
               producerId,
             );
 
@@ -180,11 +179,11 @@ export class JobScheduler extends QueueBase {
 
             return job;
           } else {
-            const jobId = await this.scripts.updateJobSchedulerNextMillis(
+            const jobId = await this.backend.updateJobSchedulerNextMillis(
               jobSchedulerId,
               nextMillis,
               JSON.stringify(typeof jobData === 'undefined' ? {} : jobData),
-              Job.optsAsJSON(mergedOpts),
+              mergedOpts,
               producerId,
             );
 
@@ -215,10 +214,10 @@ export class JobScheduler extends QueueBase {
   private getNextJobOpts(
     nextMillis: number,
     jobSchedulerId: string,
-    opts: JobsOptions,
+    opts: JobSchedulerJobOptions,
     currentCount: number,
     offset?: number,
-  ): JobsOptions {
+  ): JobSchedulerJobOptions {
     //
     // Generate unique job id for this iteration.
     //
@@ -230,7 +229,7 @@ export class JobScheduler extends QueueBase {
     const now = Date.now();
     const delay = nextMillis + offset - now;
 
-    const mergedOpts: JobsOptions = {
+    const mergedOpts: JobSchedulerJobOptions = {
       ...opts,
       jobId,
       delay: delay < 0 ? 0 : delay,
@@ -255,15 +254,14 @@ export class JobScheduler extends QueueBase {
   }
 
   async removeJobScheduler(jobSchedulerId: string): Promise<number> {
-    return this.scripts.removeJobScheduler(jobSchedulerId);
+    return this.backend.removeJobScheduler(jobSchedulerId);
   }
 
   private async getSchedulerData<D>(
-    client: RedisClient,
     key: string,
     next?: number,
   ): Promise<JobSchedulerJson<D>> {
-    const jobData = await client.hgetall(this.toKey('repeat:' + key));
+    const jobData = await this.backend.getJobSchedulerData(key);
 
     return this.transformSchedulerData<D>(key, jobData, next);
   }
@@ -361,15 +359,13 @@ export class JobScheduler extends QueueBase {
    * flow.
    */
   async isJobScheduler(id: string): Promise<boolean> {
-    const client = await this.client;
-    const exists = await client.hexists(`${this.keys.repeat}:${id}`, 'ic');
-    return exists === 1;
+    return this.backend.isJobScheduler(id);
   }
 
   async getScheduler<D = any>(
     id: string,
   ): Promise<JobSchedulerJson<D> | undefined> {
-    const [rawJobData, next] = await this.scripts.getJobScheduler(id);
+    const [rawJobData, next] = await this.backend.getJobScheduler(id);
 
     return this.transformSchedulerData<D>(
       id,
@@ -397,29 +393,17 @@ export class JobScheduler extends QueueBase {
     end = -1,
     asc = false,
   ): Promise<JobSchedulerJson<D>[]> {
-    const client = await this.client;
-    const jobSchedulersKey = this.keys.repeat;
-
-    const result = asc
-      ? await client.zrange(jobSchedulersKey, start, end, { WITHSCORES: true })
-      : await client.zrevrange(jobSchedulersKey, start, end, {
-          WITHSCORES: true,
-        });
+    const result = await this.backend.getJobSchedulersRange(start, end, asc);
 
     const jobs = [];
     for (let i = 0; i < result.length; i += 2) {
-      jobs.push(
-        this.getSchedulerData<D>(client, result[i], parseInt(result[i + 1])),
-      );
+      jobs.push(this.getSchedulerData<D>(result[i], parseInt(result[i + 1])));
     }
     return Promise.all(jobs);
   }
 
   async getSchedulersCount(): Promise<number> {
-    const jobSchedulersKey = this.keys.repeat;
-    const client = await this.client;
-
-    return client.zcard(jobSchedulersKey);
+    return this.backend.getJobSchedulersCount();
   }
 
   private getSchedulerNextJobId({
@@ -442,7 +426,51 @@ export const defaultRepeatStrategy = (
   const dateFromMillis = new Date(millis);
   const startDate = opts.startDate && new Date(opts.startDate);
   const currentDate = startDate > dateFromMillis ? startDate : dateFromMillis;
-  const interval = parseExpression(pattern, {
+  const interval = CronExpressionParser.parse(pattern, {
+    ...opts,
+    currentDate,
+  });
+
+  try {
+    if (opts.immediately) {
+      return new Date().getTime();
+    } else {
+      return interval.next().getTime();
+    }
+  } catch (e) {
+    // Ignore error
+  }
+};
+
+/**
+ * Computes the next execution time (in ms since epoch) for the given repeat
+ * options, supporting both `.every` (fixed interval) and `.pattern` (cron)
+ * strategies. This is the default repeat strategy used to schedule the next
+ * iteration of a job scheduler.
+ */
+export const getNextMillis = (
+  millis: number,
+  opts: RepeatOptions,
+): number | undefined => {
+  const pattern = opts.pattern;
+  if (pattern && opts.every) {
+    throw new Error(
+      'Both .pattern and .every options are defined for this repeatable job',
+    );
+  }
+
+  if (opts.every) {
+    return (
+      Math.floor(millis / opts.every) * opts.every +
+      (opts.immediately ? 0 : opts.every)
+    );
+  }
+
+  const currentDate =
+    opts.startDate && new Date(opts.startDate) > new Date(millis)
+      ? new Date(opts.startDate)
+      : new Date(millis);
+  const interval = CronExpressionParser.parse(pattern, {
     ...opts,
     currentDate,
   });

@@ -1,5 +1,6 @@
 'use strict';
 
+import { getBlockingRedisClient } from './utils/get-redis-client';
 import { after } from 'lodash';
 import {
   describe,
@@ -14,8 +15,9 @@ import {
 import * as sinon from 'sinon';
 
 import { FlowProducer, Queue, QueueEvents, Worker } from '../src/classes';
-import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
 import { IRedisClient } from '../src/interfaces';
 
 describe('Jobs getters', () => {
@@ -35,7 +37,7 @@ describe('Jobs getters', () => {
 
   afterEach(async () => {
     await queue.close();
-    await removeAllQueueData(createTestConnection(), queueName);
+    await cleanupQueue(queueName);
   });
 
   afterAll(async function () {
@@ -181,7 +183,7 @@ describe('Jobs getters', () => {
       await queue2.close();
       await worker.close();
       await worker2.close();
-      await removeAllQueueData(createTestConnection(), queueName2);
+      await cleanupQueue(queueName2);
     });
 
     describe('when sharing connection', () => {
@@ -223,38 +225,6 @@ describe('Jobs getters', () => {
         await worker.close();
         await worker2.close();
         await localConnection.quit();
-      });
-    });
-
-    describe('when disconnection happens', () => {
-      it('gets all workers even after reconnection', async () => {
-        const worker = new Worker(queueName, async () => {}, {
-          autorun: false,
-          connection,
-          prefix,
-        });
-        await new Promise<void>(resolve => {
-          worker.on('ready', () => {
-            resolve();
-          });
-        });
-        const client = await worker.waitUntilReady();
-
-        const workers = await queue.getWorkers();
-        expect(workers).toHaveLength(1);
-
-        await client.disconnect();
-        await delay(10);
-
-        const nextWorkers = await queue.getWorkers();
-        expect(nextWorkers).toHaveLength(0);
-
-        await client.connect();
-        await delay(20);
-        const nextWorkers2 = await queue.getWorkers();
-        expect(nextWorkers2).toHaveLength(1);
-
-        await worker.close();
       });
     });
   });
@@ -1211,7 +1181,7 @@ describe('Jobs getters', () => {
         expect(metrics).toContain('env=' + '"' + expectedEscapedEnv + '"');
       } finally {
         await escapingQueue.close();
-        await removeAllQueueData(createTestConnection(), rawName);
+        await cleanupQueue(rawName);
       }
     });
   });

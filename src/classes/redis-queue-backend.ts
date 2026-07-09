@@ -3,6 +3,7 @@
  */
 
 'use strict';
+import { EventEmitter } from 'events';
 import { Packr } from 'msgpackr';
 
 const packer = new Packr({
@@ -13,65 +14,347 @@ const packer = new Packr({
 const pack = packer.pack;
 
 import {
+  BaseJobOptions,
+  DependenciesOpts,
+  IQueueBackend,
   JobJson,
-  JobJsonRaw,
   MinimalJob,
   MoveToWaitingChildrenOpts,
   ParentKeyOpts,
   RedisClient,
+  RedisKeyPrefixOptions,
   WorkerOptions,
   MoveToDelayedOpts,
   RepeatableOptions,
   RetryJobOpts,
   RetryOptions,
   ScriptQueueContext,
+  StreamReadRaw,
 } from '../interfaces';
 import {
+  CompressableJobOptions,
+  DeduplicationOptions,
   JobsOptions,
   JobState,
   JobType,
   FinishedStatus,
   FinishedPropValAttribute,
   KeepJobs,
-  RedisJobOptions,
   JobProgress,
 } from '../types';
 import { ErrorCode } from '../enums';
 import {
   array2obj,
+  clientCommandMessageReg,
+  errorObject,
   getParentKey,
+  isEmpty,
   isRedisVersionLowerThan,
   objectToFlatArray,
+  optsDecodeMap,
+  optsEncodeMap,
+  parseObjectValues,
+  tryCatch,
 } from '../utils';
 import { IRedisTransaction } from '../interfaces';
+import { QueueBaseOptions } from '../interfaces';
 import { version as packageVersion } from '../version';
+import { finishedErrors } from './finished-errors';
 import { UnrecoverableError } from './errors';
-export type JobData = [JobJsonRaw | number, string?];
+import { KeysMap, QueueKeys } from './queue-keys';
+import { RedisConnection } from './redis-connection';
+export type JobData = [JobJson | number, string?];
 
-export class Scripts {
+export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
   protected version = packageVersion;
 
   moveToFinishedKeys: (string | undefined)[];
 
-  constructor(protected queue: ScriptQueueContext) {
-    const queueKeys = this.queue.keys;
+  /**
+   * Resolves once a close has been initiated. Owned by the backend (it owns the
+   * underlying connection(s)).
+   */
+  closing: Promise<void> | undefined;
+
+  /**
+   * Internal Redis access context (client, version, keys, …). Built from the
+   * owned connection(s); kept private to this adapter.
+   */
+  protected queue: ScriptQueueContext;
+
+  /**
+   * The resolved key prefix (defaults to `bull`). A Redis-specific concept used
+   * to namespace this queue's keys, qualified name and client name.
+   */
+  protected readonly redisPrefix: string;
+
+  constructor(
+    public connection: RedisConnection,
+    protected readonly name: string,
+    keys: KeysMap,
+    toKey: (type: string) => string,
+    opts: QueueBaseOptions,
+    public blockingConnection?: RedisConnection,
+    protected ownsConnection = true,
+  ) {
+    super();
+
+    this.redisPrefix = (opts as RedisKeyPrefixOptions).prefix ?? 'bull';
+
+    const self = this;
+    this.queue = {
+      keys,
+      toKey,
+      opts,
+      get closing() {
+        return self.closing;
+      },
+      get client() {
+        return self.connection.client;
+      },
+      get blockingClient() {
+        return self.blockingConnection?.client;
+      },
+      get redisVersion() {
+        return self.connection.redisVersion;
+      },
+      get databaseType() {
+        return self.connection.databaseType;
+      },
+    };
 
     this.moveToFinishedKeys = [
-      queueKeys.wait,
-      queueKeys.active,
-      queueKeys.prioritized,
-      queueKeys.events,
-      queueKeys.stalled,
-      queueKeys.limiter,
-      queueKeys.delayed,
-      queueKeys.paused,
-      queueKeys.meta,
-      queueKeys.pc,
+      keys.wait,
+      keys.active,
+      keys.prioritized,
+      keys.events,
+      keys.stalled,
+      keys.limiter,
+      keys.delayed,
+      keys.paused,
+      keys.meta,
+      keys.pc,
       undefined,
       undefined,
       undefined,
       undefined,
     ];
+
+    if (this.ownsConnection) {
+      this.forwardConnectionEvents();
+    }
+  }
+
+  /**
+   * Returns a sibling backend bound to a different queue that shares this
+   * backend's connection(s). Used by {@link FlowProducer} to operate on the
+   * many queues that a flow may span over a single connection. The sibling
+   * does not own the connection, so its `close`/`disconnect` are no-ops.
+   */
+  forQueue(queueName: string, prefix?: string): IQueueBackend {
+    const resolvedPrefix = prefix ?? this.redisPrefix;
+    const queueKeys = new QueueKeys(resolvedPrefix);
+    return new RedisQueueBackend(
+      this.connection,
+      queueName,
+      queueKeys.getKeys(queueName),
+      (type: string) => queueKeys.toKey(queueName, type),
+      {
+        ...this.queue.opts,
+        prefix: resolvedPrefix,
+      } as QueueBaseOptions & RedisKeyPrefixOptions,
+      this.blockingConnection,
+      false,
+    );
+  }
+
+  /**
+   * The queue's fully-qualified name (`"<prefix>:<queue>"`). This is the
+   * cross-backend logical identifier (e.g. used as a flow parent reference).
+   */
+  get qualifiedName(): string {
+    return `${this.redisPrefix}:${this.name}`;
+  }
+
+  /**
+   * The concrete Redis keys for this queue (wait, active, events, …).
+   */
+  get keys(): KeysMap {
+    return this.queue.keys;
+  }
+
+  /**
+   * Builds a namespaced Redis sub-key of the given `type`
+   * (`"<prefix>:<queue>:<type>"`).
+   */
+  toKey(type: string): string {
+    return this.queue.toKey(type);
+  }
+
+  /**
+   * Parses a Redis flow child key (`"<prefix>:<queue>:<id>"`) into its
+   * components. Inverse of {@link toKey}.
+   */
+  parseNodeKey(key: string): { prefix: string; queueName: string; id: string } {
+    const lastColon = key.lastIndexOf(':');
+    const prevColon = key.lastIndexOf(':', lastColon - 1);
+    if (lastColon === -1 || prevColon === -1) {
+      const [prefix = '', queueName = '', id = ''] = key.split(':');
+      return { prefix, queueName, id };
+    }
+    const prefix = key.slice(0, prevColon);
+    const queueName = key.slice(prevColon + 1, lastColon);
+    const id = key.slice(lastColon + 1);
+    return { prefix, queueName, id };
+  }
+
+  /**
+   * Builds the Redis client name (`"<prefix>:<base64(queue)><suffix>"`), used
+   * for `CLIENT SETNAME` and worker/queue discovery via `CLIENT LIST`.
+   */
+  clientName(suffix = ''): string {
+    const base64Name = Buffer.from(this.name).toString('base64');
+    return `${this.redisPrefix}:${base64Name}${suffix}`;
+  }
+
+  /**
+   * Normalizes the events of the owned connection(s) into the backend's own
+   * `'ready' | 'error' | 'close'` events.
+   */
+  private forwardConnectionEvents(): void {
+    this.connection.on('error', err => this.emit('error', err));
+    this.connection.on('ready', () => this.emit('ready'));
+    this.connection.on('close', () => this.emit('close'));
+    if (this.blockingConnection) {
+      this.blockingConnection.on('error', err => this.emit('error', err));
+      this.blockingConnection.on('ready', () => this.emit('ready'));
+    }
+  }
+
+  /**
+   * Resolves once the backend's underlying connection(s) are ready.
+   */
+  async waitUntilReady(): Promise<void> {
+    await this.connection.client;
+    if (this.blockingConnection) {
+      await this.blockingConnection.client;
+    }
+  }
+
+  /**
+   * Closes the backend and its underlying connection(s).
+   *
+   * The dedicated blocking connection (if any) is closed first so that an
+   * in-flight blocking command (e.g. `bzpopmin`) is interrupted before the
+   * main connection is closed.
+   */
+  async close(force = false): Promise<void> {
+    if (!this.ownsConnection) {
+      return;
+    }
+    if (!this.closing) {
+      this.closing = (async () => {
+        if (this.blockingConnection) {
+          await this.blockingConnection.close(force);
+        }
+        await this.connection.close(force);
+      })();
+    }
+    return this.closing;
+  }
+
+  /**
+   * Forcibly disconnects the backend's underlying connection(s).
+   */
+  async disconnect(): Promise<void> {
+    if (!this.ownsConnection) {
+      return;
+    }
+    await this.connection.disconnect();
+    if (this.blockingConnection) {
+      await this.blockingConnection.disconnect();
+    }
+  }
+
+  /**
+   * Sets a human-readable name on the underlying connection (CLIENT SETNAME).
+   * Unsupported-command and shutdown errors are swallowed.
+   */
+  async setName(name: string): Promise<void> {
+    const client = await this.connection.client;
+    try {
+      await client.clientSetName(name);
+    } catch (err) {
+      if (
+        !clientCommandMessageReg.test((<Error>err).message) &&
+        !this.closing
+      ) {
+        throw err;
+      }
+    }
+  }
+
+  /**
+   * The raw Redis client. Redis-specific escape hatch (used e.g. by
+   * `Queue.client`); not part of {@link IQueueBackend}.
+   */
+  get client(): Promise<RedisClient> {
+    return this.connection.client;
+  }
+
+  /**
+   * The raw blocking Redis client (a dedicated connection used for the
+   * blocking `waitForJob` primitive), if this backend was created with one.
+   * Redis-specific escape hatch; not part of {@link IQueueBackend}.
+   */
+  get blockingClient(): Promise<RedisClient> | undefined {
+    return this.blockingConnection?.client;
+  }
+
+  /**
+   * The detected Redis server version. Redis-specific escape hatch; not part
+   * of {@link IQueueBackend}.
+   */
+  get redisVersion(): string {
+    return this.connection.redisVersion;
+  }
+
+  /**
+   * The detected datastore flavour (`redis`, `dragonfly`, `valkey`, …).
+   * Redis-specific escape hatch; not part of {@link IQueueBackend}.
+   */
+  get databaseType(): string {
+    return this.connection.databaseType;
+  }
+
+  /**
+   * Smallest meaningful block timeout (seconds) given the blocking
+   * connection's capabilities.
+   */
+  get minimumBlockTimeout(): number {
+    return (this.blockingConnection ?? this.connection).capabilities
+      .canBlockFor1Ms
+      ? 0.001
+      : 0.002;
+  }
+
+  /**
+   * Interrupts the in-flight blocking wait by disconnecting the dedicated
+   * blocking connection. No-op if there is none.
+   */
+  async disconnectBlocking(wait = true): Promise<void> {
+    if (this.blockingConnection) {
+      await this.blockingConnection.disconnect(wait);
+    }
+  }
+
+  /**
+   * Re-establishes the dedicated blocking connection after an interrupt.
+   */
+  async reconnectBlocking(): Promise<void> {
+    if (this.blockingConnection) {
+      await this.blockingConnection.reconnect();
+    }
   }
 
   /**
@@ -127,8 +410,9 @@ export class Scripts {
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
+    keysMap: KeysMap = this.queue.keys,
   ): (string | Buffer)[] {
-    const queueKeys = this.queue.keys;
+    const queueKeys = keysMap;
     const keys: (string | Buffer)[] = [
       queueKeys.marker,
       queueKeys.meta,
@@ -148,8 +432,9 @@ export class Scripts {
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
+    keys: KeysMap = this.queue.keys,
   ): Promise<string | number> {
-    const argsList = this.addDelayedJobArgs(job, encodedOpts, args);
+    const argsList = this.addDelayedJobArgs(job, encodedOpts, args, keys);
 
     return this.execCommand(client, 'addDelayedJob', argsList);
   }
@@ -158,8 +443,9 @@ export class Scripts {
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
+    keysMap: KeysMap = this.queue.keys,
   ): (string | Buffer)[] {
-    const queueKeys = this.queue.keys;
+    const queueKeys = keysMap;
     const keys: (string | Buffer)[] = [
       queueKeys.marker,
       queueKeys.meta,
@@ -182,8 +468,9 @@ export class Scripts {
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
+    keys: KeysMap = this.queue.keys,
   ): Promise<string | number> {
-    const argsList = this.addPrioritizedJobArgs(job, encodedOpts, args);
+    const argsList = this.addPrioritizedJobArgs(job, encodedOpts, args, keys);
 
     return this.execCommand(client, 'addPrioritizedJob', argsList);
   }
@@ -192,8 +479,9 @@ export class Scripts {
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
+    keysMap: KeysMap = this.queue.keys,
   ): (string | Buffer)[] {
-    const queueKeys = this.queue.keys;
+    const queueKeys = keysMap;
     const keys: (string | Buffer)[] = [
       queueKeys.meta,
       queueKeys.id,
@@ -213,8 +501,9 @@ export class Scripts {
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
+    keys: KeysMap = this.queue.keys,
   ): Promise<string | number> {
-    const argsList = this.addParentJobArgs(job, encodedOpts, args);
+    const argsList = this.addParentJobArgs(job, encodedOpts, args, keys);
 
     return this.execCommand(client, 'addParentJob', argsList);
   }
@@ -223,8 +512,9 @@ export class Scripts {
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
+    keysMap: KeysMap = this.queue.keys,
   ): (string | Buffer)[] {
-    const queueKeys = this.queue.keys;
+    const queueKeys = keysMap;
     const keys: (string | Buffer)[] = [
       queueKeys.wait,
       queueKeys.paused,
@@ -247,20 +537,31 @@ export class Scripts {
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
+    keys: KeysMap = this.queue.keys,
   ): Promise<string | number> {
-    const argsList = this.addStandardJobArgs(job, encodedOpts, args);
+    const argsList = this.addStandardJobArgs(job, encodedOpts, args, keys);
 
     return this.execCommand(client, 'addStandardJob', argsList);
   }
 
-  async addJob(
+  /**
+   * Low-level Redis adapter helper: queues/executes a single job insert on the
+   * provided client or transaction (pipeline/multi). This is the only place
+   * that needs a connection handle; the public {@link addJob} / {@link addJobs}
+   * operations obtain it from the backend itself.
+   *
+   * Kept public (but outside {@link IQueueBackend}) so that flow producers can
+   * batch inserts across queues onto a shared transaction.
+   */
+  async addJobToTransaction(
     client: RedisClient | IRedisTransaction,
     job: JobJson,
-    opts: RedisJobOptions,
     jobId: string,
     parentKeyOpts: ParentKeyOpts = {},
+    keys: KeysMap = this.queue.keys,
   ): Promise<string> {
-    const queueKeys = this.queue.keys;
+    const opts = job.opts;
+    const queueKeys = keys;
 
     const parent: Record<string, any> = job.parent;
 
@@ -276,37 +577,24 @@ export class Scripts {
       job.deduplicationId ? `${queueKeys.de}:${job.deduplicationId}` : null,
     ];
 
-    let encodedOpts;
-    if (opts.repeat) {
-      const repeat = {
-        ...opts.repeat,
-      };
-
-      if (repeat.startDate) {
-        repeat.startDate = +new Date(repeat.startDate);
-      }
-      if (repeat.endDate) {
-        repeat.endDate = +new Date(repeat.endDate);
-      }
-
-      encodedOpts = pack({
-        ...opts,
-        repeat,
-      });
-    } else {
-      encodedOpts = pack(opts);
-    }
+    const encodedOpts = pack(optsAsJSON(opts));
 
     let result: string | number;
 
     if (parentKeyOpts.addToWaitingChildren) {
-      result = await this.addParentJob(client, job, encodedOpts, args);
+      result = await this.addParentJob(client, job, encodedOpts, args, keys);
     } else if (typeof opts.delay == 'number' && opts.delay > 0) {
-      result = await this.addDelayedJob(client, job, encodedOpts, args);
+      result = await this.addDelayedJob(client, job, encodedOpts, args, keys);
     } else if (opts.priority) {
-      result = await this.addPrioritizedJob(client, job, encodedOpts, args);
+      result = await this.addPrioritizedJob(
+        client,
+        job,
+        encodedOpts,
+        args,
+        keys,
+      );
     } else {
-      result = await this.addStandardJob(client, job, encodedOpts, args);
+      result = await this.addStandardJob(client, job, encodedOpts, args, keys);
     }
 
     if (<number>result < 0) {
@@ -318,6 +606,84 @@ export class Scripts {
     }
 
     return <string>result;
+  }
+
+  async addJob(
+    job: JobJson,
+    jobId: string,
+    parentKeyOpts: ParentKeyOpts = {},
+  ): Promise<string> {
+    const client = await this.queue.client;
+    return this.addJobToTransaction(client, job, jobId, parentKeyOpts);
+  }
+
+  async addJobs(
+    entries: {
+      job: JobJson;
+      jobId: string;
+      parentKeyOpts?: ParentKeyOpts;
+    }[],
+  ): Promise<string[]> {
+    const client = await this.queue.client;
+    const pipeline = client.pipeline();
+
+    // Queue each insert on the pipeline. The command is enqueued synchronously,
+    // so we do not need to await each call before executing the pipeline.
+    for (const entry of entries) {
+      this.addJobToTransaction(
+        pipeline,
+        entry.job,
+        entry.jobId,
+        entry.parentKeyOpts,
+      );
+    }
+
+    const results = (await pipeline.exec()) as [null | Error, string][];
+
+    const ids: string[] = [];
+    for (const [err, id] of results) {
+      if (err) {
+        throw err;
+      }
+      ids.push(id);
+    }
+    return ids;
+  }
+
+  /**
+   * Atomically inserts a whole flow (tree) of jobs that may span multiple
+   * queues, returning one `[error, idOrCode]` tuple per entry in the same
+   * order they were provided. For the Redis adapter this is a single `MULTI`
+   * transaction; another backend would use a single SQL transaction.
+   *
+   * Each entry is self-describing (it carries its own queue `prefix` and
+   * `queueName`), so the operation does not need to be bound to a single
+   * queue's key map.
+   */
+  async addFlow(
+    entries: {
+      jobData: JobJson;
+      jobId: string;
+      parentKeyOpts: ParentKeyOpts;
+      prefix: string;
+      queueName: string;
+    }[],
+  ): Promise<[Error | null, string | number][]> {
+    const client = await this.queue.client;
+    const multi = client.multi();
+
+    for (const entry of entries) {
+      const keys = new QueueKeys(entry.prefix).getKeys(entry.queueName);
+      await this.addJobToTransaction(
+        multi,
+        entry.jobData,
+        entry.jobId,
+        entry.parentKeyOpts,
+        keys,
+      );
+    }
+
+    return (await multi.exec()) as [Error | null, string | number][];
   }
 
   protected pauseArgs(pause: boolean): (string | number)[] {
@@ -348,62 +714,6 @@ export class Scripts {
 
     const args = this.pauseArgs(pause);
     return this.execCommand(client, 'pause', args);
-  }
-
-  protected addRepeatableJobArgs(
-    customKey: string,
-    nextMillis: number,
-    opts: RepeatableOptions,
-    legacyCustomKey: string,
-  ): (string | number | Buffer)[] {
-    const queueKeys = this.queue.keys;
-    const keys: (string | number | Buffer)[] = [
-      queueKeys.repeat,
-      queueKeys.delayed,
-    ];
-
-    const args = [
-      nextMillis,
-      pack(opts),
-      legacyCustomKey,
-      customKey,
-      queueKeys[''],
-    ];
-
-    return keys.concat(args);
-  }
-
-  /**
-   * Adds (or updates) a repeatable job entry in the repeat zset and stores
-   * its repeat options under the corresponding repeat hash. If a previous
-   * delayed iteration for this repeat key exists, it is cleaned up so the
-   * next iteration can be scheduled separately when the job is created.
-   *
-   * @param customKey - The current repeat key identifying this repeatable job.
-   * @param nextMillis - The timestamp (ms since epoch) for the next run.
-   * @param opts - Repeatable options (cron/every pattern, tz, limit, etc.).
-   * @param legacyCustomKey - The previous/legacy repeat key, used for migration and cleanup.
-   * @returns The repeatable job key that was stored (either `customKey` or,
-   * for backwards-compatible entries, `legacyCustomKey`). The actual delayed
-   * iteration is scheduled later when the job for `nextMillis` is created.
-   *
-   * @private
-   */
-  async addRepeatableJob(
-    customKey: string,
-    nextMillis: number,
-    opts: RepeatableOptions,
-    legacyCustomKey: string,
-  ): Promise<string> {
-    const client = await this.queue.client;
-
-    const args = this.addRepeatableJobArgs(
-      customKey,
-      nextMillis,
-      opts,
-      legacyCustomKey,
-    );
-    return this.execCommand(client, 'addRepeatableJob', args);
   }
 
   /**
@@ -458,7 +768,7 @@ export class Scripts {
     jobSchedulerId: string,
     nextMillis: number,
     templateData: string,
-    templateOpts: RedisJobOptions,
+    templateOpts: JobsOptions,
     opts: RepeatableOptions,
     delayedJobOpts: JobsOptions,
     // The job id of the job that produced this next iteration
@@ -486,8 +796,8 @@ export class Scripts {
       pack(opts),
       jobSchedulerId,
       templateData,
-      pack(templateOpts),
-      pack(delayedJobOpts),
+      pack(optsAsJSON(templateOpts)),
+      pack(optsAsJSON(delayedJobOpts)),
       Date.now(),
       queueKeys[''],
       producerId ? this.queue.toKey(producerId) : '',
@@ -507,21 +817,6 @@ export class Scripts {
     }
 
     return result;
-  }
-
-  async updateRepeatableJobMillis(
-    client: RedisClient,
-    customKey: string,
-    nextMillis: number,
-    legacyCustomKey: string,
-  ): Promise<string> {
-    const args = [
-      this.queue.keys.repeat,
-      nextMillis,
-      customKey,
-      legacyCustomKey,
-    ];
-    return this.execCommand(client, 'updateRepeatableJobMillis', args);
   }
 
   async updateJobSchedulerNextMillis(
@@ -555,55 +850,13 @@ export class Scripts {
       nextMillis,
       jobSchedulerId,
       templateData,
-      pack(delayedJobOpts),
+      pack(optsAsJSON(delayedJobOpts)),
       Date.now(),
       queueKeys[''],
       producerId,
     ];
 
     return this.execCommand(client, 'updateJobScheduler', keys.concat(args));
-  }
-
-  private removeRepeatableArgs(
-    legacyRepeatJobId: string,
-    repeatConcatOptions: string,
-    repeatJobKey: string,
-  ): string[] {
-    const queueKeys = this.queue.keys;
-
-    const keys = [queueKeys.repeat, queueKeys.delayed, queueKeys.events];
-
-    const args = [
-      legacyRepeatJobId,
-      this.getRepeatConcatOptions(repeatConcatOptions, repeatJobKey),
-      repeatJobKey,
-      queueKeys[''],
-    ];
-
-    return keys.concat(args);
-  }
-
-  // TODO: remove this check in next breaking change
-  getRepeatConcatOptions(repeatConcatOptions: string, repeatJobKey: string) {
-    if (repeatJobKey && repeatJobKey.split(':').length > 2) {
-      return repeatJobKey;
-    }
-
-    return repeatConcatOptions;
-  }
-
-  async removeRepeatable(
-    legacyRepeatJobId: string,
-    repeatConcatOptions: string,
-    repeatJobKey: string,
-  ): Promise<number> {
-    const client = await this.queue.client;
-    const args = this.removeRepeatableArgs(
-      legacyRepeatJobId,
-      repeatConcatOptions,
-      repeatJobKey,
-    );
-    return this.execCommand(client, 'removeRepeatable', args);
   }
 
   async removeJobScheduler(jobSchedulerId: string): Promise<number> {
@@ -1408,6 +1661,37 @@ export class Scripts {
     return this.execCommand(client, 'getJobScheduler', args);
   }
 
+  async isJobScheduler(id: string): Promise<boolean> {
+    const client = await this.queue.client;
+    const exists = await client.hexists(
+      `${this.queue.keys.repeat}:${id}`,
+      'ic',
+    );
+    return exists === 1;
+  }
+
+  async getJobSchedulerData(key: string): Promise<Record<string, string>> {
+    const client = await this.queue.client;
+    return client.hgetall(this.queue.toKey('repeat:' + key));
+  }
+
+  async getJobSchedulersRange(
+    start: number,
+    end: number,
+    asc: boolean,
+  ): Promise<string[]> {
+    const client = await this.queue.client;
+    const key = this.queue.keys.repeat;
+    return asc
+      ? client.zrange(key, start, end, { WITHSCORES: true })
+      : client.zrevrange(key, start, end, { WITHSCORES: true });
+  }
+
+  async getJobSchedulersCount(): Promise<number> {
+    const client = await this.queue.client;
+    return client.zcard(this.queue.keys.repeat);
+  }
+
   retryJobArgs(
     jobId: string,
     lifo: boolean,
@@ -1584,7 +1868,23 @@ export class Scripts {
     return result;
   }
 
-  async moveToActive(client: RedisClient, token: string, name?: string) {
+  async getClientList(): Promise<string[]> {
+    const client = await this.queue.client;
+    if (client.isCluster && typeof client.nodes === 'function') {
+      const clusterNodes = client.nodes() || [];
+      return Promise.all(
+        clusterNodes.map((node: any) =>
+          typeof node.clientList === 'function'
+            ? node.clientList()
+            : node.client('LIST'),
+        ),
+      );
+    }
+    return [await client.clientList()];
+  }
+
+  async moveToActive(token: string, name?: string) {
+    const client = await this.queue.client;
     const opts = this.queue.opts as WorkerOptions;
 
     const queueKeys = this.queue.keys;
@@ -1771,7 +2071,7 @@ export class Scripts {
     cursor: string;
     items: { id: string; v?: any; err?: string }[];
     total: number;
-    jobs?: JobJsonRaw[];
+    jobs?: JobJson[];
   }> {
     const client = await this.queue.client;
 
@@ -1787,7 +2087,7 @@ export class Scripts {
       total,
       rawJobs,
       page: string[] = [],
-      jobs: JobJsonRaw[] = [];
+      jobs: JobJson[] = [];
     do {
       const args = [
         opts.start + page.length,
@@ -1810,7 +2110,11 @@ export class Scripts {
       page = page.concat(items);
 
       if (rawJobs && rawJobs.length) {
-        jobs = jobs.concat(rawJobs.map(array2obj));
+        jobs = jobs.concat(
+          rawJobs.map((rawJob: any) =>
+            rawToJobJson(array2obj(rawJob) as unknown as JobJsonRaw),
+          ),
+        );
       }
 
       // Important to keep this coercive inequality (!=) instead of strict inequality (!==)
@@ -1857,69 +2161,14 @@ export class Scripts {
     command: string;
     state?: string;
   }): Error {
-    let error: Error;
-    switch (code) {
-      case ErrorCode.JobNotExist:
-        error = new Error(`Missing key for job ${jobId}. ${command}`);
-        break;
-      case ErrorCode.JobLockNotExist:
-        error = new Error(`Missing lock for job ${jobId}. ${command}`);
-        break;
-      case ErrorCode.JobNotInState:
-        error = new Error(
-          `Job ${jobId} is not in the ${state} state. ${command}`,
-        );
-        break;
-      case ErrorCode.JobPendingChildren:
-        error = new Error(`Job ${jobId} has pending dependencies. ${command}`);
-        break;
-      case ErrorCode.ParentJobNotExist:
-        error = new Error(
-          `Missing key for parent job ${parentKey}. ${command}`,
-        );
-        break;
-      case ErrorCode.JobLockMismatch:
-        error = new Error(
-          `Lock mismatch for job ${jobId}. Cmd ${command} from ${state}`,
-        );
-        break;
-      case ErrorCode.ParentJobCannotBeReplaced:
-        error = new Error(
-          `The parent job ${parentKey} cannot be replaced. ${command}`,
-        );
-        break;
-      case ErrorCode.JobBelongsToJobScheduler:
-        error = new Error(
-          `Job ${jobId} belongs to a job scheduler and cannot be removed directly. ${command}`,
-        );
-        break;
-      case ErrorCode.JobHasFailedChildren:
-        error = new UnrecoverableError(
-          `Cannot complete job ${jobId} because it has at least one failed child. ${command}`,
-        );
-        break;
-      case ErrorCode.SchedulerJobIdCollision:
-        error = new Error(
-          `Cannot create job scheduler iteration - job ID already exists. ${command}`,
-        );
-        break;
-      case ErrorCode.SchedulerJobSlotsBusy:
-        error = new Error(
-          `Cannot create job scheduler iteration - current and next time slots already have jobs. ${command}`,
-        );
-        break;
-      default:
-        error = new Error(
-          `Unknown code ${code} error for ${jobId}. ${command}`,
-        );
-    }
-
-    // Add the code property to the error object
-    (error as any).code = code;
-    return error;
+    return finishedErrors({ code, jobId, parentKey, command, state });
   }
 
-  async removeOrphanedJobs(
+  /**
+   * Low-level Redis adapter helper: atomically check-and-delete a single batch
+   * of candidate orphaned jobs. Driven by {@link removeOrphanedJobs}.
+   */
+  protected async removeOrphanedJobsBatch(
     candidateJobIds: string[],
     stateKeySuffixes: string[],
     jobSubKeySuffixes: string[],
@@ -1937,15 +2186,693 @@ export class Scripts {
 
     return this.execCommand(client, 'removeOrphanedJobs', args);
   }
+
+  async removeOrphanedJobs(count = 1000, limit = 0): Promise<number> {
+    const client = await this.queue.client;
+    const keys = this.queue.keys;
+
+    // Derive infrastructure suffixes dynamically from the queue key map
+    // so any future keys are automatically excluded without code changes.
+    const knownSuffixes = new Set(Object.keys(keys));
+
+    // State key suffixes (excluding '') — passed to the Lua script which
+    // uses TYPE to decide whether a key is a list / zset / set.
+    const stateKeySuffixes = Object.keys(keys).filter(s => s !== '');
+
+    // Known job sub-key suffixes (cleaned up during deletion).
+    const jobSubKeySuffixes = [
+      'logs',
+      'dependencies',
+      'processed',
+      'failed',
+      'unsuccessful',
+      'lock',
+    ];
+
+    const basePrefix = keys[''];
+    const scanPattern = basePrefix + '*';
+    let totalRemoved = 0;
+
+    let cursor = '0';
+    do {
+      const [nextCursor, scannedKeys] = await client.scan(cursor, {
+        MATCH: scanPattern,
+        COUNT: count,
+      });
+      cursor = nextCursor;
+
+      // Extract unique potential job IDs from this batch.
+      const candidateJobIds = new Set<string>();
+      for (const key of scannedKeys) {
+        const suffix = key.slice(basePrefix.length);
+
+        // Skip infrastructure keys (derived from the key map).
+        if (knownSuffixes.has(suffix)) {
+          continue;
+        }
+
+        // Skip sub-keys of infrastructure prefixes (e.g. repeat:xxx, de:xxx).
+        const colonIdx = suffix.indexOf(':');
+        if (colonIdx !== -1) {
+          const prefixPart = suffix.slice(0, colonIdx);
+          if (knownSuffixes.has(prefixPart)) {
+            continue;
+          }
+        }
+
+        // Extract the job ID portion (before first colon, or the whole suffix).
+        const jobId = colonIdx === -1 ? suffix : suffix.slice(0, colonIdx);
+
+        // For sub-keys, only consider known job sub-key suffixes.
+        if (colonIdx !== -1) {
+          const subKey = suffix.slice(colonIdx + 1);
+          if (!jobSubKeySuffixes.includes(subKey)) {
+            continue;
+          }
+        }
+
+        candidateJobIds.add(jobId);
+      }
+
+      if (candidateJobIds.size === 0) {
+        continue;
+      }
+
+      // Run the Lua script atomically for this batch of candidates.
+      const result = await this.removeOrphanedJobsBatch(
+        [...candidateJobIds],
+        stateKeySuffixes,
+        jobSubKeySuffixes,
+      );
+
+      totalRemoved += result || 0;
+
+      if (limit > 0 && totalRemoved >= limit) {
+        break;
+      }
+    } while (cursor !== '0');
+
+    return totalRemoved;
+  }
+
+  // ============================================================
+  // High-level finished transitions (consolidate Lua arg-building + exec)
+  // ============================================================
+
+  async moveToCompleted<T = any, R = any, N extends string = string>(
+    job: MinimalJob<T, R, N>,
+    returnValue: R,
+    removeOnComplete: boolean | number | KeepJobs,
+    token: string,
+    fetchNext: boolean,
+  ): Promise<{ result: void | any[]; finishedOn: number }> {
+    const stringifiedReturnValue = tryCatch(JSON.stringify, JSON, [
+      returnValue,
+    ]);
+    if (stringifiedReturnValue === errorObject) {
+      throw errorObject.value;
+    }
+
+    const args = this.moveToCompletedArgs(
+      job,
+      stringifiedReturnValue,
+      removeOnComplete,
+      token,
+      fetchNext,
+    );
+
+    const result = await this.moveToFinished(job.id, args);
+    const finishedOn = args[this.moveToFinishedKeys.length + 1] as number;
+
+    return { result, finishedOn };
+  }
+
+  async moveToFailed<T = any, R = any, N extends string = string>(
+    job: MinimalJob<T, R, N>,
+    failedReason: string,
+    removeOnFail: boolean | number | KeepJobs,
+    token: string,
+    fetchNext: boolean,
+    fieldsToUpdate?: Record<string, any>,
+  ): Promise<{ result: void | any[]; finishedOn: number }> {
+    const args = this.moveToFailedArgs(
+      job,
+      failedReason,
+      removeOnFail,
+      token,
+      fetchNext,
+      fieldsToUpdate,
+    );
+
+    const result = await this.moveToFinished(job.id, args);
+    const finishedOn = args[this.moveToFinishedKeys.length + 1] as number;
+
+    return { result, finishedOn };
+  }
+
+  // ============================================================
+  // Promoted job getters (previously direct client calls in Job)
+  // ============================================================
+
+  async isJobInZSet(set: string, jobId: string): Promise<boolean> {
+    const client = await this.queue.client;
+    const score = await client.zscore(this.queue.toKey(set), jobId);
+    return score !== null;
+  }
+
+  async getJobData(jobId: string): Promise<JobJson | undefined> {
+    const client = await this.queue.client;
+    const jobData = await client.hgetall(this.queue.toKey(jobId));
+    return isEmpty(jobData)
+      ? undefined
+      : rawToJobJson(jobData as unknown as JobJsonRaw);
+  }
+
+  async getDeduplicationJobId(deduplicationId: string): Promise<string | null> {
+    const client = await this.queue.client;
+    return client.get(`${this.queue.keys.de}:${deduplicationId}`);
+  }
+
+  async getJobLogs(
+    jobId: string,
+    start: number,
+    end: number,
+    asc: boolean,
+  ): Promise<{ logs: string[]; count: number }> {
+    const client = await this.queue.client;
+    const multi = client.multi();
+
+    const logsKey = this.queue.toKey(jobId + ':logs');
+    if (asc) {
+      multi.lrange(logsKey, start, end);
+    } else {
+      multi.lrange(logsKey, -(end + 1), -(start + 1));
+    }
+    multi.llen(logsKey);
+    const result = (await multi.exec()) as [[Error, [string]], [Error, number]];
+    if (!asc) {
+      result[0][1].reverse();
+    }
+    return {
+      logs: result[0][1],
+      count: result[1][1],
+    };
+  }
+
+  async clearLogs(jobId: string, keepLogs?: number): Promise<void> {
+    const client = await this.queue.client;
+    const logsKey = this.queue.toKey(jobId) + ':logs';
+
+    if (keepLogs) {
+      await client.ltrim(logsKey, -keepLogs, -1);
+    } else {
+      await client.del(logsKey);
+    }
+  }
+
+  async getProcessedChildrenValues(
+    jobId: string,
+  ): Promise<Record<string, string>> {
+    const client = await this.queue.client;
+    return (await client.hgetall(
+      this.queue.toKey(`${jobId}:processed`),
+    )) as Record<string, string>;
+  }
+
+  async getIgnoredChildrenFailures(
+    jobId: string,
+  ): Promise<Record<string, string>> {
+    const client = await this.queue.client;
+    return client.hgetall(this.queue.toKey(`${jobId}:failed`));
+  }
+
+  async getDependencies(
+    jobId: string,
+    opts: DependenciesOpts = {},
+  ): Promise<{
+    nextFailedCursor?: number;
+    failed?: string[];
+    nextIgnoredCursor?: number;
+    ignored?: Record<string, any>;
+    nextProcessedCursor?: number;
+    processed?: Record<string, any>;
+    nextUnprocessedCursor?: number;
+    unprocessed?: string[];
+  }> {
+    const client = await this.queue.client;
+    const multi = client.pipeline();
+    if (!opts.processed && !opts.unprocessed && !opts.ignored && !opts.failed) {
+      multi.hgetall(this.queue.toKey(`${jobId}:processed`));
+      multi.smembers(this.queue.toKey(`${jobId}:dependencies`));
+      multi.hgetall(this.queue.toKey(`${jobId}:failed`));
+      multi.zrange(this.queue.toKey(`${jobId}:unsuccessful`), 0, -1);
+
+      const [
+        [err1, processed],
+        [err2, unprocessed],
+        [err3, ignored],
+        [err4, failed],
+      ] = (await multi.exec()) as [
+        [null | Error, { [jobKey: string]: string }],
+        [null | Error, string[]],
+        [null | Error, { [jobKey: string]: string }],
+        [null | Error, string[]],
+      ];
+
+      return {
+        processed: parseObjectValues(processed),
+        unprocessed,
+        failed,
+        ignored,
+      };
+    } else {
+      const defaultOpts = {
+        cursor: 0,
+        count: 20,
+      };
+
+      const childrenResultOrder = [];
+      if (opts.processed) {
+        childrenResultOrder.push('processed');
+        const processedOpts = Object.assign({ ...defaultOpts }, opts.processed);
+        multi.hscan(
+          this.queue.toKey(`${jobId}:processed`),
+          processedOpts.cursor,
+          {
+            COUNT: processedOpts.count,
+          },
+        );
+      }
+
+      if (opts.unprocessed) {
+        childrenResultOrder.push('unprocessed');
+        const unprocessedOpts = Object.assign(
+          { ...defaultOpts },
+          opts.unprocessed,
+        );
+        multi.sscan(
+          this.queue.toKey(`${jobId}:dependencies`),
+          unprocessedOpts.cursor,
+          { COUNT: unprocessedOpts.count },
+        );
+      }
+
+      if (opts.ignored) {
+        childrenResultOrder.push('ignored');
+        const ignoredOpts = Object.assign({ ...defaultOpts }, opts.ignored);
+        multi.hscan(this.queue.toKey(`${jobId}:failed`), ignoredOpts.cursor, {
+          COUNT: ignoredOpts.count,
+        });
+      }
+
+      let failedCursor;
+      if (opts.failed) {
+        childrenResultOrder.push('failed');
+        const failedOpts = Object.assign({ ...defaultOpts }, opts.failed);
+        failedCursor = failedOpts.cursor + failedOpts.count;
+        multi.zrange(
+          this.queue.toKey(`${jobId}:unsuccessful`),
+          failedOpts.cursor,
+          failedOpts.count - 1,
+        );
+      }
+
+      const results = (await multi.exec()) as [
+        Error,
+        [number[], string[] | undefined],
+      ][];
+
+      let processedCursor,
+        processed,
+        unprocessedCursor,
+        unprocessed,
+        failed,
+        ignoredCursor,
+        ignored;
+      childrenResultOrder.forEach((key, index) => {
+        switch (key) {
+          case 'processed': {
+            processedCursor = results[index][1][0];
+            const rawProcessed = results[index][1][1];
+            const transformedProcessed: Record<string, any> = {};
+
+            for (let ind = 0; ind < rawProcessed.length; ++ind) {
+              if (ind % 2) {
+                transformedProcessed[rawProcessed[ind - 1]] = JSON.parse(
+                  rawProcessed[ind],
+                );
+              }
+            }
+            processed = transformedProcessed;
+            break;
+          }
+          case 'failed': {
+            failed = results[index][1];
+            break;
+          }
+          case 'ignored': {
+            ignoredCursor = results[index][1][0];
+
+            const rawIgnored = results[index][1][1];
+            const transformedIgnored: Record<string, any> = {};
+
+            for (let ind = 0; ind < rawIgnored.length; ++ind) {
+              if (ind % 2) {
+                transformedIgnored[rawIgnored[ind - 1]] = rawIgnored[ind];
+              }
+            }
+            ignored = transformedIgnored;
+            break;
+          }
+          case 'unprocessed': {
+            unprocessedCursor = results[index][1][0];
+            unprocessed = results[index][1][1];
+            break;
+          }
+        }
+      });
+
+      return {
+        ...(processedCursor
+          ? {
+              processed,
+              nextProcessedCursor: Number(processedCursor),
+            }
+          : {}),
+        ...(ignoredCursor
+          ? {
+              ignored,
+              nextIgnoredCursor: Number(ignoredCursor),
+            }
+          : {}),
+        ...(failedCursor
+          ? {
+              failed,
+              nextFailedCursor: failedCursor,
+            }
+          : {}),
+        ...(unprocessedCursor
+          ? { unprocessed, nextUnprocessedCursor: Number(unprocessedCursor) }
+          : {}),
+      };
+    }
+  }
+
+  // ============================================================
+  // Promoted queue metadata & maintenance keys (previously direct
+  // client calls in Queue / Worker)
+  // ============================================================
+
+  async setQueueMeta(values: Record<string, string | number>): Promise<number> {
+    const client = await this.queue.client;
+    return client.hset(this.queue.keys.meta, values);
+  }
+
+  async getQueueMetaField(field: string): Promise<string | null> {
+    const client = await this.queue.client;
+    return client.hget(this.queue.keys.meta, field);
+  }
+
+  async getQueueMetaFields(fields: string[]): Promise<(string | null)[]> {
+    const client = await this.queue.client;
+    return client.hmget(this.queue.keys.meta, ...fields);
+  }
+
+  async getQueueMeta(): Promise<Record<string, string>> {
+    const client = await this.queue.client;
+    return client.hgetall(this.queue.keys.meta);
+  }
+
+  async removeQueueMetaFields(fields: string[]): Promise<number> {
+    const client = await this.queue.client;
+    return client.hdel(this.queue.keys.meta, ...fields);
+  }
+
+  async hasQueueMetaField(field: string): Promise<boolean> {
+    const client = await this.queue.client;
+    const exists = await client.hexists(this.queue.keys.meta, field);
+    return exists === 1;
+  }
+
+  async setRateLimit(expireTimeMs: number): Promise<void> {
+    const client = await this.queue.client;
+    await client.set(this.queue.keys.limiter, Number.MAX_SAFE_INTEGER, {
+      PX: expireTimeMs,
+    });
+  }
+
+  async removeRateLimitKey(): Promise<number> {
+    const client = await this.queue.client;
+    return client.del(this.queue.keys.limiter);
+  }
+
+  async removeDeprecatedPriorityKey(): Promise<number> {
+    const client = await this.queue.client;
+    return client.del(this.queue.toKey('priority'));
+  }
+
+  async deleteDeduplicationKey(deduplicationId: string): Promise<number> {
+    const client = await this.queue.client;
+    return client.del(`${this.queue.keys.de}:${deduplicationId}`);
+  }
+
+  async trimEvents(maxLength: number): Promise<number> {
+    const client = await this.queue.client;
+    return client.xtrim(this.queue.keys.events, 'MAXLEN', maxLength, {
+      approximate: true,
+    });
+  }
+
+  // ============================================================
+  // Worker blocking primitive (previously bzpopmin in Worker)
+  // ============================================================
+
+  async waitForJob(
+    blockTimeout: number,
+  ): Promise<{ member: string; score: number } | null> {
+    const conn = this.blockingConnection ?? this.connection;
+    const bclient = (await this.queue.blockingClient)!;
+
+    const roundedTimeout = conn.capabilities.canDoubleTimeout
+      ? blockTimeout
+      : Math.ceil(blockTimeout);
+
+    // We cannot trust that the blocking connection stays blocking forever due
+    // to issues in Redis and IORedis, so we reconnect the (owned) blocking
+    // connection if we don't get a response within the expected time.
+    const watchdog = setTimeout(
+      () => {
+        bclient.disconnect(!this.closing);
+      },
+      roundedTimeout * 1000 + 1000,
+    );
+
+    try {
+      const result = await bclient.bzpopmin(
+        this.queue.keys.marker,
+        roundedTimeout,
+      );
+      if (result) {
+        const [, member, score] = result;
+        if (member) {
+          return { member, score: parseInt(score) };
+        }
+      }
+      return null;
+    } finally {
+      clearTimeout(watchdog);
+    }
+  }
+
+  async publishEvent(
+    fields: Record<string, string | number>,
+    maxEvents: number,
+  ): Promise<string> {
+    const client = await this.queue.client;
+    return client.xadd(this.queue.keys.events, '*', fields, {
+      MAXLEN: maxEvents,
+      approximate: true,
+    });
+  }
+
+  async readEvents(id: string, blockTimeout: number): Promise<StreamReadRaw> {
+    const client = await this.queue.client;
+    return client.xread([{ key: this.queue.keys.events, id }], {
+      BLOCK: blockTimeout,
+    });
+  }
 }
 
 export function raw2NextJobData(raw: any[]) {
   if (raw) {
     const result = [null, raw[1], raw[2], raw[3]];
     if (raw[0]) {
-      result[0] = array2obj(raw[0]);
+      result[0] = rawToJobJson(array2obj(raw[0]) as unknown as JobJsonRaw);
     }
     return result;
   }
   return [];
+}
+
+/**
+ * A job hash as stored in Redis. Field names are abbreviated to save space and
+ * all values are strings (Redis hashes only store strings). This shape is an
+ * **internal detail of this (Redis) backend implementation** — it is
+ * intentionally not exported nor part of any public type or interface. The
+ * public, decoded representation is {@link JobJson}.
+ */
+interface JobJsonRaw {
+  id: string;
+  name: string;
+  data: string;
+  delay: string;
+  opts: string;
+  progress: string;
+  attemptsMade?: string;
+  finishedOn?: string;
+  processedOn?: string;
+  priority: string;
+  timestamp: string;
+  failedReason: string;
+  stacktrace?: string;
+  returnvalue: string;
+  parentKey?: string;
+  parent?: string;
+  deid?: string;
+  rjk?: string;
+  nrjid?: string;
+  atm?: string;
+  defa?: string;
+  stc?: string;
+  ats?: string;
+  pb?: string; // Worker name
+}
+
+/**
+ * Decodes the compact, stored job options ({@link RedisJobOptions}, short keys)
+ * back into their public form ({@link JobsOptions}). Internal to this backend.
+ */
+function optsFromJSON(
+  rawOpts?: string,
+  optsDecode: Record<string, string> = optsDecodeMap,
+): JobsOptions {
+  const opts = JSON.parse(rawOpts || '{}');
+
+  const optionEntries = Object.entries(opts) as Array<[string, any]>;
+
+  const options: Partial<Record<string, any>> = {};
+  for (const item of optionEntries) {
+    const [attributeName, value] = item;
+    if ((optsDecode as Record<string, any>)[<string>attributeName]) {
+      options[(optsDecode as Record<string, any>)[<string>attributeName]] =
+        value;
+    } else {
+      if (attributeName === 'tm') {
+        options.telemetry = { ...options.telemetry, metadata: value };
+      } else if (attributeName === 'omc') {
+        options.telemetry = { ...options.telemetry, omitContext: value };
+      } else {
+        options[<string>attributeName] = value;
+      }
+    }
+  }
+
+  return options as JobsOptions;
+}
+
+/**
+ * Decodes a raw Redis job hash ({@link JobJsonRaw}) into the public, datastore
+ * agnostic representation ({@link JobJson}). This translates the abbreviated
+ * field names and numeric strings used in Redis back into their public
+ * counterparts. Internal to this backend.
+ *
+ * Note: `data`, `stacktrace`, `returnvalue` and `failedReason` are kept as
+ * their JSON-encoded string form, matching {@link Job.asJSON}.
+ */
+function rawToJobJson(raw: JobJsonRaw): JobJson {
+  return {
+    id: raw.id,
+    name: raw.name,
+    data: raw.data || '{}',
+    opts: optsFromJSON(raw.opts),
+    progress: JSON.parse(raw.progress || '0'),
+    delay: parseInt(raw.delay),
+    priority: parseInt(raw.priority),
+    timestamp: parseInt(raw.timestamp),
+    attemptsStarted: parseInt(raw.ats || '0'),
+    attemptsMade: parseInt(raw.attemptsMade || raw.atm || '0'),
+    stalledCounter: parseInt(raw.stc || '0'),
+    finishedOn: raw.finishedOn ? parseInt(raw.finishedOn) : undefined,
+    processedOn: raw.processedOn ? parseInt(raw.processedOn) : undefined,
+    repeatJobKey: raw.rjk,
+    debounceId: raw.deid,
+    deduplicationId: raw.deid,
+    failedReason: raw.failedReason,
+    deferredFailure: raw.defa,
+    stacktrace: raw.stacktrace,
+    returnvalue: raw.returnvalue,
+    parentKey: raw.parentKey,
+    parent: raw.parent ? JSON.parse(raw.parent) : undefined,
+    processedBy: raw.pb,
+    nextSchedulerJobId: raw.nrjid,
+  };
+}
+
+/**
+ * Job options in their compact, stored form (short keys). This encoding exists
+ * solely to reduce the number of bytes used to store options in Redis and is
+ * therefore an **internal detail of this (Redis) backend implementation** — it
+ * is intentionally not exported nor part of any public type or interface.
+ */
+type RedisJobOptions = BaseJobOptions & {
+  deid?: string;
+  fpof?: boolean;
+  cpof?: boolean;
+  idof?: boolean;
+  kl?: number;
+  rdof?: boolean;
+  tm?: string;
+  omc?: boolean;
+  de?: DeduplicationOptions;
+};
+
+/**
+ * Encodes public job options ({@link JobsOptions}) into their compact, stored
+ * form (short keys) before they are packed and persisted in Redis. Internal to
+ * this backend.
+ */
+function optsAsJSON(
+  opts: JobsOptions = {},
+  optsEncode: Record<string, string> = optsEncodeMap,
+): RedisJobOptions {
+  const optionEntries = Object.entries(opts) as Array<[keyof JobsOptions, any]>;
+  const options: Record<string, any> = {};
+
+  for (const [attributeName, value] of optionEntries) {
+    if (typeof value === 'undefined') {
+      continue;
+    }
+    if (attributeName in optsEncode) {
+      const compressableAttribute = attributeName as keyof Omit<
+        CompressableJobOptions,
+        'debounce' | 'telemetry'
+      >;
+
+      const key = optsEncode[compressableAttribute];
+      options[key] = value;
+    } else {
+      // Handle complex compressable fields separately
+      if (attributeName === 'telemetry') {
+        if (value.metadata !== undefined) {
+          options.tm = value.metadata;
+        }
+        if (value.omitContext !== undefined) {
+          options.omc = value.omitContext;
+        }
+      } else {
+        options[attributeName] = value;
+      }
+    }
+  }
+  return options as RedisJobOptions;
 }
