@@ -1150,7 +1150,7 @@ export class Worker<
             this.run();
           }
         } else {
-          // TODO: await startStalledCheckTimer in next breaking change, that will convert resume method to async
+          // TODO: in the next breaking change, make resume() async again so it can await startStalledCheckTimer().
           // Main loop is still running (pause was called with doNotWaitActive=true).
           // Restart the stalled checker since pause() stopped it.
           void this.startStalledCheckTimer().catch(err => {
