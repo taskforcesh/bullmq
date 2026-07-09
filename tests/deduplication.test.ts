@@ -358,6 +358,11 @@ describe('deduplication', () => {
       );
 
       expect(deduplicatedEvent).toBeDefined();
+      const originalJob = await queue.getJob('a1');
+      const deduplicatedJob = await queue.getJob('a2');
+
+      expect(originalJob).toBeDefined();
+      expect(deduplicatedJob).toBeUndefined();
     });
 
     describe('when removing deduplication key', () => {

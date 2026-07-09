@@ -348,7 +348,7 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       let wasCancelled = false;
       const waitingOnActive = new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
+        worker.once('active', () => resolve());
       });
 
       const job = await queue.add('test', { foo: 'bar' });
@@ -392,7 +392,7 @@ describe('Job Cancellation - Advanced Scenarios', () => {
       await worker.waitUntilReady();
 
       const waitingOnActive = new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
+        worker.once('active', () => resolve());
       });
 
       const job = await queue.add('test', { foo: 'bar' });
@@ -440,7 +440,7 @@ describe('Job Cancellation - Advanced Scenarios', () => {
       await worker.waitUntilReady();
 
       const waitingOnActive = new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
+        worker.once('active', () => resolve());
       });
 
       const job = await queue.add('test', { foo: 'bar' });
