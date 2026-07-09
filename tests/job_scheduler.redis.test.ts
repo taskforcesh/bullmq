@@ -208,6 +208,11 @@ describe('Job Scheduler (redis-only)', () => {
       });
       await worker.waitUntilReady();
 
+      const errors: Error[] = [];
+      worker.on('error', err => {
+        errors.push(err);
+      });
+
       const errorPromise = new Promise<void>((resolve, reject) => {
         worker.once('error', err => {
           try {
@@ -233,6 +238,7 @@ describe('Job Scheduler (redis-only)', () => {
 
       expect(nextJob).toBeUndefined();
       await errorPromise;
+      expect(errors).toHaveLength(1);
       await worker.close();
     });
   });

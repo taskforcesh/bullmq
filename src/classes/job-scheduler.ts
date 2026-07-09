@@ -24,9 +24,11 @@ export const LEGACY_REPEATABLE_JOBS_MIGRATION_URL =
  * The cron pattern itself may contain additional colons, so legacy keys always
  * have at least five colon-separated segments.
  */
-export function isLegacyRepeatableJobKey(key: string): boolean {
+export function hasLegacyRepeatableKeyShape(key: string): boolean {
   return key.split(':').length >= 5;
 }
+
+export const isLegacyRepeatableJobKey = hasLegacyRepeatableKeyShape;
 
 export function getLegacyRepeatableJobError(key: string): Error {
   return new Error(
@@ -340,7 +342,7 @@ export class JobScheduler extends QueueBase {
       return jobSchedulerData;
     }
 
-    if (isLegacyRepeatableJobKey(key)) {
+    if (hasLegacyRepeatableKeyShape(key)) {
       throw getLegacyRepeatableJobError(key);
     }
 

@@ -39,7 +39,7 @@ import {
 import { SpanKind, TelemetryAttributes } from '../enums';
 import {
   getLegacyRepeatableJobError,
-  isLegacyRepeatableJobKey,
+  hasLegacyRepeatableKeyShape,
   JobScheduler,
 } from './job-scheduler';
 import { LockManager } from './lock-manager';
@@ -847,7 +847,7 @@ export class Worker<
       job.token = token;
 
       try {
-        await this.retryIfFailed(
+        const shouldScheduleRepeat = await this.retryIfFailed(
           async () => {
             // We need to distinguish between new job schedulers and legacy
             // repeatable jobs. Legacy repeatable keys always contain 5+
@@ -860,7 +860,7 @@ export class Worker<
             // repeatable path.
             const hasRepeatJobKey = !!job.repeatJobKey;
             const hasLegacyKeyShape =
-              hasRepeatJobKey && isLegacyRepeatableJobKey(job.repeatJobKey);
+              hasRepeatJobKey && hasLegacyRepeatableKeyShape(job.repeatJobKey);
             let isJobScheduler = hasRepeatJobKey && !hasLegacyKeyShape;
             if (hasLegacyKeyShape) {
               const jobScheduler = await this.jobScheduler;
@@ -881,12 +881,16 @@ export class Worker<
                 job.opts,
                 { override: false, producerId: job.id },
               );
-            } else if (hasLegacyKeyShape) {
-              throw getLegacyRepeatableJobError(job.repeatJobKey);
             }
+
+            return !hasLegacyKeyShape || isJobScheduler;
           },
           { delayInMs: this.opts.runRetryDelay },
         );
+
+        if (job.repeatJobKey && !shouldScheduleRepeat) {
+          throw getLegacyRepeatableJobError(job.repeatJobKey);
+        }
       } catch (err) {
         // Emit error but don't throw to avoid breaking current job completion
         // Note: This means the next repeatable job will not be scheduled
