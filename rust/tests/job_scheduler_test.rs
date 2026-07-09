@@ -3327,7 +3327,7 @@ async fn test_upsert_updates_delayed_job_timestamp() {
 
     // Allow minor millisecond drift when both cron expressions resolve to the
     // same boundary (e.g. exactly on the next hour).
-    let max_boundary_drift_ms = 1_000;
+    let max_boundary_drift_ms = 100;
 
     // Every-minute next should be earlier than hourly next, or effectively the
     // same when both schedules align on the next run boundary.
