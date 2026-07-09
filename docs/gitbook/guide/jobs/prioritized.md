@@ -6,7 +6,7 @@ Jobs can also include a `priority` option. Using priorities, job processing orde
 Adding prioritized jobs is a slower operation than the other types of jobs, with a complexity `O(log(n))` relative to the number of jobs in the prioritized set in the queue.
 {% endhint %}
 
-Note that the priorities go from `1` to `2 097 151`, where a lower number is always a **higher** priority than higher numbers.
+Note that prioritized jobs use values from `1` to `2 097 151`, where a lower number is always a **higher** priority than higher numbers. A `priority` of `0` means no priority, so those jobs are processed before prioritized jobs.
 
 {% hint style="danger" %}
 Jobs without a `priority` assigned will get the highest priority, being processed before jobs with priorities assigned to them.
@@ -75,7 +75,7 @@ const counts = await queue.getCountsPerPriority([1, 0]);
 
 ## Read more:
 
-* 📋 [Faster Priority jobs](https://bullmq.io/news/062123/faster-priority-jobs/)
-* 💡 [Change Priority API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#changepriority)
-* 💡 [Get Prioritized API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getprioritized)
-* 💡 [Get Counts per Priority API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getcountsperpriority)
+- 📋 [Faster Priority jobs](https://bullmq.io/news/062123/faster-priority-jobs/)
+- 💡 [Change Priority API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#changepriority)
+- 💡 [Get Prioritized API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getprioritized)
+- 💡 [Get Counts per Priority API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getcountsperpriority)

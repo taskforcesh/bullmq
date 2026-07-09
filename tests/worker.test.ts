@@ -2088,7 +2088,7 @@ describe('workers', () => {
       });
     });
 
-    describe('when jobs are added with the maximum priority', () => {
+    describe('when jobs are added with the maximum allowed priority value', () => {
       it('should process jobs with the same priority in FIFO order', async () => {
         const maxPriority = 2097151;
         const numJobs = 5;
