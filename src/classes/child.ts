@@ -241,6 +241,15 @@ const convertExecArgv = async (execArgv: string[]): Promise<string[]> => {
 
   for (let i = 0; i < execArgv.length; i++) {
     const arg = execArgv[i];
+
+    // Skip --inspect-publish-uid (not valid for Worker threads)
+    if (arg.startsWith('--inspect-publish-uid')) {
+      if (!arg.includes('=') && i + 1 < execArgv.length && !execArgv[i + 1].startsWith('-')) {
+        i++; // skip the value argument too
+      }
+      continue;
+    }
+
     if (arg.indexOf('--inspect') === -1) {
       standard.push(arg);
     } else {
