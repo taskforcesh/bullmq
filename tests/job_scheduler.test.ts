@@ -3286,26 +3286,35 @@ describe('Job Scheduler', () => {
       prefix,
     });
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
-
-    const waiting = new Promise<void>((resolve, reject) => {
-      queueEvents.on('waiting', function ({ jobId }) {
-        try {
-          expect(jobId).toBe(
-            `repeat:${jobSchedulerId}:${date.getTime() + 1 * ONE_SECOND}`,
-          );
-          resolve();
-        } catch (err) {
-          reject(err);
-        }
-      });
-    });
+    await worker.waitUntilReady();
 
     await queue.upsertJobScheduler(jobSchedulerId, {
       pattern: '*/1 * * * * *',
     });
     clock.tick(nextTick);
+    const client = await getRedisClient(queue);
+    const events = await client.xread(
+      [{ key: queue.toKey('events'), id: '0-0' }],
+      {
+        COUNT: 100,
+      },
+    );
+    const entries = events?.[0]?.[1] ?? [];
+    const expectedJobId = `repeat:${jobSchedulerId}:${date.getTime() + 1 * ONE_SECOND}`;
 
-    await waiting;
+    const waitingEvent = entries
+      .map(([, fields]) => {
+        const event: Record<string, string> = {};
+        for (let i = 0; i < fields.length; i += 2) {
+          event[fields[i]] = fields[i + 1];
+        }
+        return event;
+      })
+      .find(
+        event => event.event === 'waiting' && event.jobId === expectedJobId,
+      );
+
+    expect(waitingEvent).toBeDefined();
     await worker.close();
     delayStub.restore();
   });
