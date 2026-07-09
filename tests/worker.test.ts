@@ -2124,6 +2124,22 @@ describe('workers', () => {
 
         await worker.close();
       });
+
+      it('should reject jobs above the maximum allowed priority value', async () => {
+        await expect(
+          queue.add('test', { order: 0 }, { priority: 2097152 }),
+        ).rejects.toThrow('Priority should be between 0 and 2097151');
+
+        await expect(
+          queue.addBulk([
+            {
+              name: 'test',
+              data: { order: 0 },
+              opts: { priority: 2097152 },
+            },
+          ]),
+        ).rejects.toThrow('Priority should be between 0 and 2097151');
+      });
     });
 
     describe('while processing last active job', () => {
