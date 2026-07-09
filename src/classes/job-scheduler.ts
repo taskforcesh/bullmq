@@ -19,6 +19,11 @@ import { array2obj } from '../utils';
 export const LEGACY_REPEATABLE_JOBS_MIGRATION_URL =
   'https://docs.bullmq.io/guide/migrations/migrate-from-v5-to-v6';
 
+/**
+ * Legacy repeatable job keys use the format `name:id:endDate:tz:pattern`.
+ * The cron pattern itself may contain additional colons, so legacy keys always
+ * have at least five colon-separated segments.
+ */
 export function isLegacyRepeatableJobKey(key: string): boolean {
   return key.split(':').length >= 5;
 }
