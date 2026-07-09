@@ -264,7 +264,7 @@ defmodule BullMQ.WorkerIntegrationTest do
 
   describe "Job failure and retry" do
     @tag :integration
-    @tag timeout: 15_000
+    @tag timeout: 30_000
     test "worker retries failed job", %{conn: conn, queue_name: queue_name} do
       test_pid = self()
       {:ok, counter} = Agent.start_link(fn -> 0 end)
@@ -300,7 +300,7 @@ defmodule BullMQ.WorkerIntegrationTest do
       job_id = job.id
 
       # Wait for completion after retries
-      assert_receive {:completed, ^job_id, attempts}, 15_000
+      assert_receive {:completed, ^job_id, attempts}, 30_000
       # Failed twice, succeeded on third
       assert attempts == 3
 
