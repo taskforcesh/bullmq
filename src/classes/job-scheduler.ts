@@ -16,6 +16,21 @@ import { QueueBase } from './queue-base';
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { array2obj } from '../utils';
 
+export const LEGACY_REPEATABLE_JOBS_MIGRATION_URL =
+  'https://docs.bullmq.io/guide/migrations/migrate-from-v5-to-v6';
+
+export function isLegacyRepeatableJobKey(key: string): boolean {
+  return key.split(':').length >= 5;
+}
+
+export function getLegacyRepeatableJobError(key: string): Error {
+  return new Error(
+    `Legacy repeatable job metadata is not supported in BullMQ v6 ` +
+      `(key: "${key}"). Migrate legacy repeatable jobs to Job Schedulers ` +
+      `before upgrading. See ${LEGACY_REPEATABLE_JOBS_MIGRATION_URL}`,
+  );
+}
+
 export class JobScheduler extends QueueBase {
   private repeatStrategy: RepeatStrategy;
 
@@ -266,24 +281,6 @@ export class JobScheduler extends QueueBase {
     return this.transformSchedulerData<D>(key, jobData, next);
   }
 
-  private keyToData(
-    key: string,
-    data: string[],
-    next?: number,
-  ): JobSchedulerJson {
-    const pattern = data.slice(4).join(':') || null;
-
-    return {
-      key,
-      name: data[0],
-      id: data[1] || null,
-      endDate: parseInt(data[2]) || null,
-      tz: data[3] || null,
-      pattern,
-      next,
-    };
-  }
-
   private transformSchedulerData<D>(
     key: string,
     jobData: any,
@@ -338,9 +335,8 @@ export class JobScheduler extends QueueBase {
       return jobSchedulerData;
     }
 
-    const data = key.split(':');
-    if (data.length >= 5) {
-      return this.keyToData(key, data, next);
+    if (isLegacyRepeatableJobKey(key)) {
+      throw getLegacyRepeatableJobError(key);
     }
 
     return undefined;

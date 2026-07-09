@@ -37,7 +37,11 @@ import {
   UnrecoverableError,
 } from './errors';
 import { SpanKind, TelemetryAttributes } from '../enums';
-import { JobScheduler } from './job-scheduler';
+import {
+  getLegacyRepeatableJobError,
+  isLegacyRepeatableJobKey,
+  JobScheduler,
+} from './job-scheduler';
 import { LockManager } from './lock-manager';
 
 // 10 seconds is the maximum time a BZPOPMIN can block.
@@ -856,7 +860,7 @@ export class Worker<
             // repeatable path.
             const hasRepeatJobKey = !!job.repeatJobKey;
             const hasLegacyKeyShape =
-              hasRepeatJobKey && job.repeatJobKey.split(':').length >= 5;
+              hasRepeatJobKey && isLegacyRepeatableJobKey(job.repeatJobKey);
             let isJobScheduler = hasRepeatJobKey && !hasLegacyKeyShape;
             if (hasLegacyKeyShape) {
               const jobScheduler = await this.jobScheduler;
@@ -877,6 +881,8 @@ export class Worker<
                 job.opts,
                 { override: false, producerId: job.id },
               );
+            } else if (hasLegacyKeyShape) {
+              throw getLegacyRepeatableJobError(job.repeatJobKey);
             }
           },
           { delayInMs: this.opts.runRetryDelay },

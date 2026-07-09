@@ -166,26 +166,74 @@ describe('Job Scheduler (redis-only)', () => {
     expect(repeatableJobsAfterRemove).toHaveLength(0);
   });
 
-  describe('when listing legacy schedulers without hash data', () => {
-    it('should parse scheduler fields from legacy key format', async () => {
+  describe('when listing schedulers without hash data', () => {
+    it('should raise a migration error for legacy repeatable keys', async () => {
       const client = await getRedisClient(queue);
       const next = Date.now() + ONE_MINUTE;
       const legacyKey = 'legacy-name:legacy-id:::*/5 * * * * *';
 
       await client.zadd(queue.toKey('repeat'), next, legacyKey);
 
-      const schedulers = await queue.getJobSchedulers();
+      await expect(queue.getJobSchedulers()).rejects.toThrow(
+        'Legacy repeatable job metadata is not supported in BullMQ v6',
+      );
+    });
 
-      expect(schedulers).toHaveLength(1);
-      expect(schedulers[0]).toEqual({
-        key: legacyKey,
-        name: 'legacy-name',
-        id: 'legacy-id',
-        endDate: null,
-        tz: null,
-        pattern: '*/5 * * * * *',
-        next,
+    it('should ignore dangling scheduler references that are not legacy repeatable keys', async () => {
+      const client = await getRedisClient(queue);
+      const next = Date.now() + ONE_MINUTE;
+
+      await client.zadd(queue.toKey('repeat'), next, 'missing-scheduler');
+
+      await expect(queue.getJobSchedulers()).resolves.toEqual([]);
+    });
+  });
+
+  describe('when processing a legacy repeatable job in v6', () => {
+    it('should emit a migration error instead of silently skipping rescheduling', async () => {
+      const date = new Date('2017-02-07 9:24:00');
+      clock.setSystemTime(date);
+
+      const scheduledJob = await queue.upsertJobScheduler('test-scheduler', {
+        every: ONE_MINUTE,
       });
+      const legacyKey = 'legacy-name:legacy-id:::*/5 * * * * *';
+      const jobData = scheduledJob!.asJSON();
+      jobData.repeatJobKey = legacyKey;
+
+      const worker = new Worker(queueName, async () => {}, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      const errorPromise = new Promise<void>((resolve, reject) => {
+        worker.once('error', err => {
+          try {
+            expect(err.message).toContain(
+              'Failed to add repeatable job for next iteration',
+            );
+            expect(err.message).toContain(
+              'Legacy repeatable job metadata is not supported in BullMQ v6',
+            );
+            expect(err.message).toContain('migrate-from-v5-to-v6');
+            resolve();
+          } catch (assertionError) {
+            reject(assertionError);
+          }
+        });
+      });
+
+      const nextJob = await (worker as any).nextJobFromJobData(
+        jobData,
+        scheduledJob!.id!,
+        'token',
+      );
+
+      expect(nextJob).toBeUndefined();
+      await errorPromise;
+      await worker.close();
     });
   });
 
