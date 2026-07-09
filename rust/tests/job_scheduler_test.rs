@@ -3325,10 +3325,14 @@ async fn test_upsert_updates_delayed_job_timestamp() {
     let sched2 = queue.get_job_scheduler("ts-update").await.unwrap().unwrap();
     let next2 = sched2.next.unwrap();
 
+    // Allow minor millisecond drift when both cron expressions resolve to the
+    // same boundary (e.g. exactly on the next hour).
+    let max_boundary_drift_ms = 1_000;
+
     // Every-minute next should be earlier than hourly next, or effectively the
     // same when both schedules align on the next run boundary.
     assert!(
-        next2 <= next1 + 1_000,
+        next2 <= next1 + max_boundary_drift_ms,
         "After upserting with more frequent pattern, next timestamp should not be meaningfully later (was {}, now {})",
         next1,
         next2
