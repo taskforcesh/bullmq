@@ -210,7 +210,7 @@ export class QueueGetters<
   }> {
     const counts = await this.getJobCounts(...types);
     const meter = this.opts.telemetry?.meter;
-    if (meter) {
+    if (meter && typeof meter.createGauge === 'function') {
       const gauge = meter.createGauge(MetricNames.QueueJobsCount, {
         description: 'Number of jobs in the queue by state',
         unit: '{jobs}',
