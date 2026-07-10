@@ -2623,7 +2623,7 @@ describe('workers', () => {
             await runExecution;
             expect(worker.isRunning()).toBe(false);
 
-            worker.resume();
+            await worker.resume();
             resolve();
           });
         });
@@ -2709,7 +2709,7 @@ describe('workers', () => {
         expect(worker.isRunning()).toBe(true);
 
         // Resume should work even though isRunning() is true
-        worker.resume();
+        await worker.resume();
         expect(worker.isPaused()).toBe(false);
         expect(worker.isRunning()).toBe(true);
 
@@ -4649,7 +4649,7 @@ describe('workers', () => {
       const job1 = (await worker.getNextJob(token, { block: false })) as Job;
       expect(job1).toBe(undefined);
 
-      worker.resume();
+      await worker.resume();
 
       const job2 = (await worker.getNextJob(token, { block: false })) as Job;
       const isActive = await job2.isActive();

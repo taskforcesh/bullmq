@@ -1134,32 +1134,36 @@ export class Worker<
    *
    * Resumes processing of this worker (if paused).
    */
-  resume(): void {
-    if (!this.running || this.paused) {
-      this.trace<void>(SpanKind.INTERNAL, 'resume', this.name, span => {
-        span?.setAttributes({
-          [TelemetryAttributes.WorkerId]: this.id,
-          [TelemetryAttributes.WorkerName]: this.opts.name,
-        });
+  async resume(): Promise<void> {
+    try {
+      if (!this.running || this.paused) {
+        await this.trace<void>(
+          SpanKind.INTERNAL,
+          'resume',
+          this.name,
+          async span => {
+            span?.setAttributes({
+              [TelemetryAttributes.WorkerId]: this.id,
+              [TelemetryAttributes.WorkerName]: this.opts.name,
+            });
 
-        this.paused = false;
+            this.paused = false;
 
-        if (!this.running) {
-          if (this.processFn) {
-            this.run();
-          }
-        } else {
-          // TODO: await for startStalledCheckTimer in next breaking change, that will convert resume method to async
-          // Main loop is still running (pause was called with doNotWaitActive=true).
-          // Restart the stalled checker since pause() stopped it.
-          void this.startStalledCheckTimer().catch(err => {
-            this.emit('error', err);
-          });
-        }
-        this.emit('resumed');
-      }).catch(err => {
-        this.emit('error', err);
-      });
+            if (!this.running) {
+              if (this.processFn) {
+                this.run();
+              }
+            } else {
+              // Main loop is still running (pause was called with doNotWaitActive=true).
+              // Restart the stalled checker since pause() stopped it.
+              await this.startStalledCheckTimer();
+            }
+            this.emit('resumed');
+          },
+        );
+      }
+    } catch (error) {
+      this.emit('error', error as Error);
     }
   }
 

@@ -355,7 +355,7 @@ describe('Pause', () => {
     await delay(10);
     await worker.pause();
     await delay(10);
-    worker.resume();
+    await worker.resume();
     await delay(10);
     await worker.pause();
     await delay(10);
