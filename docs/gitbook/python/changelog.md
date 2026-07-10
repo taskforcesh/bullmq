@@ -3,9 +3,7 @@
 
 ### Bug Fixes
 
-* **connection:** use more permissive typing on NodeRedisRawClient options ([#4184](https://github.com/taskforcesh/bullmq/issues/4184)) ([#4187](https://github.com/taskforcesh/bullmq/issues/4187)) ([0feec14](https://github.com/taskforcesh/bullmq/commit/0feec14452865c419961edb9c733f9951b6a663f)), closes [#4170](https://github.com/taskforcesh/bullmq/issues/4170)
-* **deps:** update dependency msgpackr to v2.0.2 [security] ([#4202](https://github.com/taskforcesh/bullmq/issues/4202)) ([fbe04af](https://github.com/taskforcesh/bullmq/commit/fbe04af1b3e9c7c9683229544914a54c5bb1f8d8))
-* **job-scheduler:** coerce string offset in Lua helper ([#4266](https://github.com/taskforcesh/bullmq/issues/4266)) (python) (elixir) ([5a88614](https://github.com/taskforcesh/bullmq/commit/5a88614312243a12bb9e56b525c4deb60d76cf12))
+* **flow:** use correct data structure when retrying failed child using ignoreDependencyOnFailure fixes [#4235](https://github.com/taskforcesh/bullmq/issues/4235) ([#4236](https://github.com/taskforcesh/bullmq/issues/4236)) ([6f1b2e3](https://github.com/taskforcesh/bullmq/commit/6f1b2e33b01c9f97dee6ff96bab782a8399c7ae5))
 
 ## [2.25.2](https://github.com/taskforcesh/bullmq/compare/vpy2.25.1...vpy2.25.2) (2026-05-10)
 

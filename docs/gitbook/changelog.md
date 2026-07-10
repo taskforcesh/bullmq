@@ -1,5 +1,7 @@
 # [5.80.0](https://github.com/taskforcesh/bullmq/compare/v5.79.4...v5.80.0) (2026-07-10)
 
+* Nothing changed, triggered by a rust version release
+
 ## [5.79.4](https://github.com/taskforcesh/bullmq/compare/v5.79.3...v5.79.4) (2026-07-10)
 
 
