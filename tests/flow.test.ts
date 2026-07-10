@@ -6543,4 +6543,43 @@ describe('flows', () => {
       await flow.close();
     });
   });
+
+  describe('when a flow pipeline command fails', () => {
+    it('addBulk surfaces the pipeline error instead of silently returning unpersisted job nodes', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+      const client = await flow.client;
+
+      // Simulate a Redis-side failure of the MULTI/EXEC pipeline, e.g. Redis
+      // becoming READONLY during a failover (GH #3851). Before this fix
+      // addBulk discarded exec() errors and returned job nodes that were never
+      // actually persisted. The pipeline is still built normally; only its
+      // exec() result carries the error, mirroring real READONLY behavior.
+      const pipelineError = new Error(
+        "READONLY You can't write against a read only replica.",
+      );
+      const realMulti = client.multi.bind(client);
+      // Reassigning the override method is the supported way to spy on the
+      // client across adapters (see the proxy `set` trap in ioredis-client).
+      (client as any).multi = () => {
+        const multi = realMulti();
+        (multi as any).exec = () => Promise.resolve([[pipelineError, null]]);
+        return multi;
+      };
+
+      try {
+        await expect(
+          flow.addBulk([
+            {
+              name: 'parent',
+              queueName,
+              children: [{ name: 'child', queueName }],
+            },
+          ]),
+        ).rejects.toThrow("You can't write against a read only replica");
+      } finally {
+        (client as any).multi = realMulti;
+        await flow.close();
+      }
+    });
+  });
 });
