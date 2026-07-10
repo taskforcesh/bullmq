@@ -3283,11 +3283,13 @@ describe('Job Scheduler', () => {
     const jobSchedulerId = 'test';
 
     const worker = new Worker(queueName, async job => {}, {
+      autorun: false,
       connection,
       prefix,
     });
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
     await worker.waitUntilReady();
+    worker.run();
 
     await queue.upsertJobScheduler(jobSchedulerId, {
       pattern: '*/1 * * * * *',
