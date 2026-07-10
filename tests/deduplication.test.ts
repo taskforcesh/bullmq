@@ -12,6 +12,8 @@ import { Job, Queue, QueueEvents, Worker } from '../src/classes';
 import { IRedisClient } from '../src/interfaces';
 import { createTestConnection } from './utils/connection-factory';
 import { cleanupQueue } from './utils/cleanup-queue';
+import { getRedisClient } from './utils/get-redis-client';
+import { streamEntriesToEvents } from './utils/stream-events';
 import { delay, randomUUID } from '../src/utils';
 
 describe('deduplication', () => {
@@ -326,27 +328,7 @@ describe('deduplication', () => {
     it('emits deduplicated event', async () => {
       const testName = 'test';
       const dedupId = 'dedupId';
-
-      const waitingEvent = new Promise<void>((resolve, reject) => {
-        queueEvents.once(
-          'deduplicated',
-          async ({ jobId, deduplicationId, deduplicatedJobId }) => {
-            try {
-              const job = await queue.getJob(jobId);
-              expect(job).toBeDefined();
-              expect(jobId).toBe('a1');
-              expect(deduplicationId).toBe(dedupId);
-
-              const deduplicatedJob = await queue.getJob(deduplicatedJobId);
-              expect(deduplicatedJob).toBeUndefined();
-              expect(deduplicatedJobId).toBe('a2');
-              resolve();
-            } catch (error) {
-              reject(error);
-            }
-          },
-        );
-      });
+      const client = await getRedisClient(queue);
 
       await queue.add(
         testName,
@@ -359,7 +341,28 @@ describe('deduplication', () => {
         { jobId: 'a2', deduplication: { id: dedupId } },
       );
 
-      await waitingEvent;
+      const events = await client.xread(
+        [{ key: queue.toKey('events'), id: '0-0' }],
+        {
+          COUNT: 100,
+        },
+      );
+      const entries = events?.[0]?.[1] ?? [];
+
+      const deduplicatedEvent = streamEntriesToEvents(entries).find(
+        event =>
+          event.event === 'deduplicated' &&
+          event.jobId === 'a1' &&
+          event.deduplicationId === dedupId &&
+          event.deduplicatedJobId === 'a2',
+      );
+
+      expect(deduplicatedEvent).toBeDefined();
+      const originalJob = await queue.getJob('a1');
+      const deduplicatedJob = await queue.getJob('a2');
+
+      expect(originalJob).toBeDefined();
+      expect(deduplicatedJob).toBeUndefined();
     });
 
     describe('when removing deduplication key', () => {
