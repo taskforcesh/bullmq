@@ -18,7 +18,6 @@ import { delay, randomUUID } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
 import { cleanupQueue } from './utils/cleanup-queue';
 import { IRedisClient } from '../src/interfaces';
-import { streamEntriesToEvents } from './utils/stream-events';
 
 const moment = require('moment');
 
@@ -3289,27 +3288,28 @@ describe('Job Scheduler', () => {
     });
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
     await worker.waitUntilReady();
+
+    const waiting = new Promise<void>((resolve, reject) => {
+      queueEvents.once('waiting', function ({ jobId }) {
+        try {
+          expect(jobId).toBe(
+            `repeat:${jobSchedulerId}:${date.getTime() + 1 * ONE_SECOND}`,
+          );
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+
     worker.run();
 
     await queue.upsertJobScheduler(jobSchedulerId, {
       pattern: '*/1 * * * * *',
     });
     clock.tick(nextTick);
-    const client = await getRedisClient(queue);
-    const events = await client.xread(
-      [{ key: queue.toKey('events'), id: '0-0' }],
-      {
-        COUNT: 100,
-      },
-    );
-    const entries = events?.[0]?.[1] ?? [];
-    const expectedJobId = `repeat:${jobSchedulerId}:${date.getTime() + 1 * ONE_SECOND}`;
 
-    const waitingEvent = streamEntriesToEvents(entries).find(
-      event => event.event === 'waiting' && event.jobId === expectedJobId,
-    );
-
-    expect(waitingEvent).toBeDefined();
+    await waiting;
     await worker.close();
     delayStub.restore();
   });
