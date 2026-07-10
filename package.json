@@ -1,6 +1,6 @@
 {
   "name": "bullmq",
-  "version": "5.79.3",
+  "version": "5.80.0",
   "description": "Queue for messages and jobs based on Redis",
   "homepage": "https://bullmq.io/",
   "main": "./dist/cjs/index.js",
@@ -159,19 +159,19 @@
         {
           "releaseRules": [
             {
-              "message": "**/*\\[python\\]*",
+              "header": "**/*\\[python\\]*",
               "release": false
             },
             {
-              "message": "**/*\\[elixir\\]*",
+              "header": "**/*\\[elixir\\]*",
               "release": false
             },
             {
-              "message": "**/*\\[php\\]*",
+              "header": "**/*\\[php\\]*",
               "release": false
             },
             {
-              "message": "**/*\\[rust\\]*",
+              "header": "**/*\\[rust\\]*",
               "release": false
             }
           ]

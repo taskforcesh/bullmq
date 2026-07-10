@@ -8607,6 +8607,7 @@ async fn should_keep_children_results_in_parent_with_remove_on_complete_age() {
             bullmq::types::KeepJobs {
                 age: Some(1),
                 count: None,
+                limit: None,
             },
         )),
         ..Default::default()
