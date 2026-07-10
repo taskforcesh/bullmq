@@ -23,6 +23,7 @@ export * from './redis-client';
 export * from './redis-options';
 export * from './redis-streams';
 export * from './repeatable-options';
+export * from './repeatable-job';
 export * from './repeat-options';
 export * from './retry-options';
 export * from './script-queue-context';

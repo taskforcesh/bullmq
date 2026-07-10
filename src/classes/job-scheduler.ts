@@ -21,11 +21,18 @@ export const LEGACY_REPEATABLE_JOBS_MIGRATION_URL =
 
 /**
  * Legacy repeatable job keys use the format `name:id:endDate:tz:pattern`.
- * The cron pattern itself may contain additional colons, so legacy keys always
- * have at least five colon-separated segments.
+ * The suffix after `name:id:endDate:tz:` is either:
+ * - a cron pattern (contains spaces), or
+ * - an `every` interval (purely numeric).
  */
 export function hasLegacyRepeatableKeyShape(key: string): boolean {
-  return key.split(':').length >= 5;
+  const parts = key.split(':');
+  if (parts.length < 5) {
+    return false;
+  }
+
+  const legacySuffix = parts.slice(4).join(':');
+  return legacySuffix.includes(' ') || /^\d+$/.test(legacySuffix);
 }
 
 export const isLegacyRepeatableJobKey = hasLegacyRepeatableKeyShape;

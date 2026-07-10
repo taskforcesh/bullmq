@@ -850,14 +850,11 @@ export class Worker<
         const shouldScheduleRepeat = await this.retryIfFailed(
           async () => {
             // We need to distinguish between new job schedulers and legacy
-            // repeatable jobs. Legacy repeatable keys always contain 5+
-            // colon segments, but a user-provided jobSchedulerId may also
-            // contain 5+ segments, so we cannot rely on the segment count
-            // alone (see issue #3828). When the key has 5+ segments we
+            // repeatable jobs. We first use a key-shape heuristic to detect
+            // legacy repeat keys (`name:id:endDate:tz:<cron|every>`), then
             // probe the per-id scheduler metadata hash (`repeat:<id>` with
-            // the `ic` field) via `JobScheduler.isJobScheduler()` to confirm
-            // it really is a scheduler before falling back to the legacy
-            // repeatable path.
+            // the `ic` field) via `JobScheduler.isJobScheduler()` for
+            // disambiguation when needed (see issue #3828).
             const hasRepeatJobKey = !!job.repeatJobKey;
             const hasLegacyKeyShape =
               hasRepeatJobKey && hasLegacyRepeatableKeyShape(job.repeatJobKey);

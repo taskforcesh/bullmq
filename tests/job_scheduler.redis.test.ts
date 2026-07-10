@@ -179,11 +179,27 @@ describe('Job Scheduler (redis-only)', () => {
       );
     });
 
+    it('should raise a migration error for legacy every-based keys', async () => {
+      const client = await getRedisClient(queue);
+      const next = Date.now() + ONE_MINUTE;
+      const legacyKey = 'legacy-name:legacy-id:::1000';
+
+      await client.zadd(queue.toKey('repeat'), next, legacyKey);
+
+      await expect(queue.getJobSchedulers()).rejects.toThrow(
+        'Legacy repeatable job metadata is not supported in BullMQ v6',
+      );
+    });
+
     it('should ignore dangling scheduler references that are not legacy repeatable keys', async () => {
       const client = await getRedisClient(queue);
       const next = Date.now() + ONE_MINUTE;
 
-      await client.zadd(queue.toKey('repeat'), next, 'missing-scheduler');
+      await client.zadd(
+        queue.toKey('repeat'),
+        next,
+        'tenant:region:service:job:non-legacy',
+      );
 
       await expect(queue.getJobSchedulers()).resolves.toEqual([]);
     });
