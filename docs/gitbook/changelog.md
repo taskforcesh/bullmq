@@ -1,3 +1,10 @@
+## [5.80.1](https://github.com/taskforcesh/bullmq/compare/v5.80.0...v5.80.1) (2026-07-10)
+
+
+### Bug Fixes
+
+* **job:** enforce priority max of 2^21-1 to preserve FIFO at the boundary ([#4261](https://github.com/taskforcesh/bullmq/issues/4261)) ([418de1e](https://github.com/taskforcesh/bullmq/commit/418de1e51db09ffc8e95bac35015a1057d8a7271))
+
 # [5.80.0](https://github.com/taskforcesh/bullmq/compare/v5.79.4...v5.80.0) (2026-07-10)
 
 * Nothing changed, triggered by a rust version release
