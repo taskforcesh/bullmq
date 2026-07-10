@@ -369,7 +369,7 @@ export class Job<
       job.repeatJobKey = json.repeatJobKey;
     }
 
-    if (json.deduplicationId) {
+    if (json.deduplicationId || json.debounceId) {
       job.deduplicationId = json.deduplicationId || json.debounceId;
     }
 
@@ -1392,6 +1392,10 @@ export class Job<
       if (this.opts.priority > PRIORITY_LIMIT) {
         throw new Error(`Priority should be between 0 and ${PRIORITY_LIMIT}`);
       }
+    }
+
+    if ((this.opts as { debounce?: unknown })?.debounce) {
+      throw new Error('Debounce option is deprecated. Use deduplication');
     }
 
     if (this.opts.deduplication) {
