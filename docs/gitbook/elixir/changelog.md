@@ -1,3 +1,10 @@
+## [1.3.4](https://github.com/taskforcesh/bullmq/compare/vex1.3.3...vex1.3.4) (2026-07-10)
+
+
+### Bug Fixes
+
+* **job-scheduler:** coerce string offset in Lua helper ([#4266](https://github.com/taskforcesh/bullmq/issues/4266)) (python) (elixir) ([5a88614](https://github.com/taskforcesh/bullmq/commit/5a88614312243a12bb9e56b525c4deb60d76cf12))
+
 ## [1.3.3](https://github.com/taskforcesh/bullmq/compare/vex1.3.2...vex1.3.3) (2026-06-13)
 
 
