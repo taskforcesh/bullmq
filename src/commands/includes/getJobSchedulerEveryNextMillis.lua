@@ -1,6 +1,7 @@
 
 
 local function getJobSchedulerEveryNextMillis(prevMillis, every, now, offset, startDate)
+    offset = tonumber(offset)
     local nextMillis
     if not prevMillis then
         if startDate then
