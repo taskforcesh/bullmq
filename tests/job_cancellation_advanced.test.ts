@@ -1137,19 +1137,22 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       await worker.waitUntilReady();
 
+      const active = new Promise<void>(resolve => {
+        worker.once('active', () => resolve());
+      });
+      const failed = new Promise<void>(resolve => {
+        worker.once('failed', () => resolve());
+      });
+
       const job = await queue.add('test', { foo: 'bar' });
 
-      await new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
-      });
+      await active;
 
       await delay(50);
 
       worker.cancelJob(job.id!);
 
-      await new Promise<void>(resolve => {
-        worker.on('failed', () => resolve());
-      });
+      await failed;
 
       expect(progressUpdates.length).toBeGreaterThan(0);
       expect(progressUpdates[progressUpdates.length - 1]).toBeLessThan(100);
