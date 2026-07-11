@@ -313,10 +313,16 @@ export class FlowProducer extends EventEmitter {
           }
 
           const [err, jobId] = result;
-          if (
-            !err &&
-            (typeof jobId === 'string' || typeof jobId === 'number')
-          ) {
+          if (err) {
+            throw err;
+          }
+          if (typeof jobId === 'number' && jobId < 0) {
+            throw this.toFlowError(
+              jobId,
+              getParentKey(flows[index]?.opts?.parent),
+            );
+          }
+          if (typeof jobId === 'string' || typeof jobId === 'number') {
             jobsTrees[index].job.id = jobId.toString();
           }
         }
