@@ -203,6 +203,19 @@ describe('Job Scheduler (redis-only)', () => {
 
       await expect(queue.getJobSchedulers()).resolves.toEqual([]);
     });
+
+    it('should ignore dangling references with numeric suffix but non-legacy endDate segment', async () => {
+      const client = await getRedisClient(queue);
+      const next = Date.now() + ONE_MINUTE;
+
+      await client.zadd(
+        queue.toKey('repeat'),
+        next,
+        'tenant:region:service:job:1000',
+      );
+
+      await expect(queue.getJobSchedulers()).resolves.toEqual([]);
+    });
   });
 
   describe('when processing a legacy repeatable job in v6', () => {

@@ -31,6 +31,11 @@ export function hasLegacyRepeatableKeyShape(key: string): boolean {
     return false;
   }
 
+  const legacyEndDate = parts[2];
+  if (legacyEndDate !== '' && !/^\d+$/.test(legacyEndDate)) {
+    return false;
+  }
+
   const legacySuffix = parts.slice(4).join(':');
   return legacySuffix.includes(' ') || /^\d+$/.test(legacySuffix);
 }
