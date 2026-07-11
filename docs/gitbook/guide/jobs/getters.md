@@ -74,7 +74,7 @@ It is also possible to retrieve the jobs with pagination style semantics. For ex
 ```typescript
 const completed = await myQueue.getJobs(['completed'], 0, 100, true);
 
-// returns the oldest 100 jobs
+// returns jobs at indices 0-99 inclusive (100 jobs total)
 ```
 
 {% endtab %}

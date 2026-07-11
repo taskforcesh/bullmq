@@ -269,12 +269,12 @@ use bullmq::types::{RemoveOnFinish, KeepJobs};
 
 let worker = Worker::new("myQueueName", processor, WorkerOptions {
     remove_on_complete: Some(RemoveOnFinish::Options(KeepJobs {
-        age: Some(3600 * 1000),   // keep up to 1 hour
+        age: Some(3600 * 1000),   // keep up to 1 hour (in milliseconds)
         count: Some(1000), // keep up to 1000 jobs
         limit: Some(100),  // remove up to 100 jobs per cleanup iteration
     })),
     remove_on_fail: Some(RemoveOnFinish::Options(KeepJobs {
-        age: Some(24 * 3600 * 1000), // keep up to 24 hours
+        age: Some(24 * 3600 * 1000), // keep up to 24 hours (in milliseconds)
         count: None,
         limit: Some(50),      // remove up to 50 jobs per cleanup iteration
     })),
