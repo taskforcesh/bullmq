@@ -806,7 +806,7 @@ export class Queue<
           [TelemetryAttributes.QueueGrace]: grace,
           [TelemetryAttributes.JobType]: type,
           [TelemetryAttributes.QueueCleanLimit]: maxCount,
-          [TelemetryAttributes.JobIds]: deletedJobsIds,
+          [TelemetryAttributes.QueueCleanCount]: deletedCount,
         });
 
         return deletedJobsIds;

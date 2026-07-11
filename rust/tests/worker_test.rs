@@ -2871,6 +2871,7 @@ async fn test_keep_jobs_newer_than_age_remove_on_complete() {
             bullmq::types::KeepJobs {
                 age: Some(10),
                 count: None,
+                limit: None,
             },
         )),
         ..Default::default()
@@ -2946,6 +2947,7 @@ async fn test_keep_jobs_with_age_and_count_limit() {
             bullmq::types::KeepJobs {
                 age: Some(10),
                 count: Some(3),
+                limit: None,
             },
         )),
         ..Default::default()
@@ -6174,6 +6176,7 @@ async fn test_keep_jobs_age_and_count_remove_on_fail() {
                         bullmq::types::KeepJobs {
                             age: Some(7),
                             count: Some(keep_count),
+                            limit: None,
                         },
                     )),
                     ..Default::default()

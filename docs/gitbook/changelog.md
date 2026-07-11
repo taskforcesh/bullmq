@@ -1,3 +1,14 @@
+# [5.80.0](https://github.com/taskforcesh/bullmq/compare/v5.79.4...v5.80.0) (2026-07-10)
+
+* Nothing changed, triggered by a rust version release
+
+## [5.79.4](https://github.com/taskforcesh/bullmq/compare/v5.79.3...v5.79.4) (2026-07-10)
+
+
+### Bug Fixes
+
+* **job-scheduler:** coerce string offset in Lua helper ([#4266](https://github.com/taskforcesh/bullmq/issues/4266)) (python) (elixir) ([5a88614](https://github.com/taskforcesh/bullmq/commit/5a88614312243a12bb9e56b525c4deb60d76cf12))
+
 ## [5.79.3](https://github.com/taskforcesh/bullmq/compare/v5.79.2...v5.79.3) (2026-07-07)
 
 
