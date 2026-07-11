@@ -72,7 +72,7 @@ It is also possible to retrieve the jobs with pagination style semantics. For ex
 {% tab title="TypeScript" %}
 
 ```typescript
-const completed = await myQueue.getJobs(['completed'], 0, 100, true);
+const completed = await myQueue.getJobs(['completed'], 0, 99, true);
 
 // returns jobs at indices 0-99 inclusive (100 jobs total)
 ```
@@ -82,9 +82,9 @@ const completed = await myQueue.getJobs(['completed'], 0, 100, true);
 {% tab title="Python" %}
 
 ```python
-completed = await myQueue.getJobs(['completed'], 0, 100, True)
+completed = await myQueue.getJobs(['completed'], 0, 99, True)
 
-# returns the oldest 100 jobs
+# returns jobs at indices 0-99 inclusive (100 jobs total)
 ```
 
 {% endtab %}
