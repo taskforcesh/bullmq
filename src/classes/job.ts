@@ -854,10 +854,10 @@ export class Job<
   /**
    * Records job metrics if a meter is configured in telemetry options.
    *
-   * @param status - The job status
+   * @param state - The job state
    */
   private recordJobMetrics(
-    status:
+    state:
       | 'completed'
       | 'failed'
       | 'delayed'
@@ -873,11 +873,11 @@ export class Job<
     const attributes = {
       [TelemetryAttributes.QueueName]: this.queue.name,
       [TelemetryAttributes.JobName]: this.name,
-      [TelemetryAttributes.JobStatus]: status,
+      [TelemetryAttributes.JobState]: state,
     };
 
-    // Record counter metric based on status
-    const statusToCounterName: Record<
+    // Record counter metric based on state
+    const stateToCounterName: Record<
       | 'completed'
       | 'failed'
       | 'delayed'
@@ -894,9 +894,9 @@ export class Job<
       'waiting-children': MetricNames.JobsWaitingChildren,
     };
 
-    const counterName = statusToCounterName[status];
+    const counterName = stateToCounterName[state];
     const counter = meter.createCounter(counterName, {
-      description: `Number of jobs ${status}`,
+      description: `Number of jobs ${state}`,
       unit: '1',
     });
     counter.add(1, attributes);

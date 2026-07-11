@@ -3282,13 +3282,15 @@ describe('Job Scheduler', () => {
     const jobSchedulerId = 'test';
 
     const worker = new Worker(queueName, async job => {}, {
+      autorun: false,
       connection,
       prefix,
     });
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+    await worker.waitUntilReady();
 
     const waiting = new Promise<void>((resolve, reject) => {
-      queueEvents.on('waiting', function ({ jobId }) {
+      queueEvents.once('waiting', function ({ jobId }) {
         try {
           expect(jobId).toBe(
             `repeat:${jobSchedulerId}:${date.getTime() + 1 * ONE_SECOND}`,
@@ -3299,6 +3301,8 @@ describe('Job Scheduler', () => {
         }
       });
     });
+
+    worker.run();
 
     await queue.upsertJobScheduler(jobSchedulerId, {
       pattern: '*/1 * * * * *',

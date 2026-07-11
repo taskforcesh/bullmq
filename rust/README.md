@@ -6,11 +6,19 @@ Fully compatible with Node.js and Elixir BullMQ queues (same Lua scripts and Red
 
 ## Features
 
-- **Queue** — Add jobs with delay, priority, deduplication, and custom IDs; rich
-  getters (`get_jobs`, `get_waiting`, `count`, `get_counts_per_priority`, …),
-  global concurrency/rate-limit, and time-series metrics (`get_metrics`).
+- **Queue** — Add jobs with delay, priority, deduplication, custom IDs, and a
+  per-job `size_limit`; rich getters (`get_jobs`, `get_waiting`, `count`,
+  `get_counts_per_priority`, `get_meta`, `get_version`, `is_maxed`,
+  `get_workers`/`get_workers_count`, …), global concurrency/rate-limit,
+  time-series metrics (`get_metrics`) and Prometheus export
+  (`export_prometheus_metrics`).
 - **Worker** — Process jobs with configurable concurrency, stalled job detection,
-  lock renewal, rate limiting, cancellation, and optional metrics collection.
+  lock renewal, rate limiting, cancellation, optional metrics collection, and
+  behavioural flags (`max_started_attempts`, `skip_stalled_check`,
+  `skip_lock_renewal`).
+- **QueueEvents** — Cross-process, Redis-stream-based event listener observing
+  `completed`/`failed`/`progress`/`added`/`delayed`/`drained`/… events from any
+  process connected to the same Redis.
 - **Job** — First-class job lifecycle: progress tracking, retries, backoff,
   logs (`log`/`clear_logs`), `discard`, and parent/child relationships.
 - **FlowProducer** — Atomically add trees of dependent jobs, with `get_flow` and
@@ -23,10 +31,9 @@ Fully compatible with Node.js and Elixir BullMQ queues (same Lua scripts and Red
 - **Zero-copy Lua scripts** — Scripts are embedded at compile time via `include_str!`.
 
 > See [FEATURE_PARITY.md](./FEATURE_PARITY.md) for a detailed comparison with the
-> Node.js implementation, including the **"Next PR — Implementation Plan"** that
-> scopes the remaining work. Notable not-yet-implemented features: `QueueEvents`
-> (cross-process events), `Job.wait_until_finished`, `get_workers`, Redis
-> Cluster/Sentinel, and telemetry.
+> Node.js implementation. Remaining gaps are intentionally scoped: legacy
+> maintenance methods (`remove_orphaned_jobs`, legacy repeatable API),
+> `Job.wait_until_finished`, Redis Cluster/Sentinel, and telemetry.
 
 ## Quick Start
 
@@ -60,6 +67,38 @@ async fn main() -> bullmq::Result<()> {
     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 
     worker.close(5000).await?;
+    Ok(())
+}
+```
+
+## Listening to events (QueueEvents)
+
+`QueueEvents` consumes the queue's Redis event stream, so you can observe job
+lifecycle events from any process connected to the same Redis server:
+
+```rust
+use bullmq::{QueueEvents, QueueEventsOptions, QueueEvent};
+
+#[tokio::main]
+async fn main() -> bullmq::Result<()> {
+    let events = QueueEvents::new("my-queue", QueueEventsOptions::default()).await?;
+
+    while let Some(entry) = events.next_event().await {
+        match entry.event {
+            QueueEvent::Completed { job_id, return_value, .. } => {
+                println!("job {job_id} completed: {return_value}");
+            }
+            QueueEvent::Failed { job_id, failed_reason, .. } => {
+                println!("job {job_id} failed: {failed_reason}");
+            }
+            QueueEvent::Progress { job_id, data } => {
+                println!("job {job_id} progress: {data}");
+            }
+            _ => {}
+        }
+    }
+
+    events.close().await;
     Ok(())
 }
 ```
