@@ -17,7 +17,6 @@ import {
   Span,
 } from '../interfaces';
 import {
-  DeduplicationOptions,
   FinishedStatus,
   JobsOptions,
   JobState,
@@ -201,12 +200,9 @@ export class Job<
     public opts: JobsOptions = {},
     public id?: string,
   ) {
-    const legacyOpts = this.opts as JobsOptions & {
-      debounce?: DeduplicationOptions;
-    };
-    if (Object.prototype.hasOwnProperty.call(legacyOpts, 'debounce')) {
-      const { debounce, ...optsWithoutDebounce } = legacyOpts;
-      if (!legacyOpts.deduplication && debounce) {
+    if (Object.prototype.hasOwnProperty.call(this.opts, 'debounce')) {
+      const { debounce, ...optsWithoutDebounce } = this.opts;
+      if (!this.opts.deduplication && debounce) {
         this.opts = {
           ...optsWithoutDebounce,
           deduplication: debounce,
@@ -257,7 +253,8 @@ export class Job<
       }
     }
 
-    this.deduplicationId = opts.deduplication && opts.deduplication.id;
+    this.deduplicationId =
+      this.opts.deduplication && this.opts.deduplication.id;
 
     this.toKey = queue.toKey.bind(queue);
     this.createBackend();

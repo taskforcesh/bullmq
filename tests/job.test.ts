@@ -202,7 +202,7 @@ describe('Job', () => {
     describe('when deprecated debounce option is provided', () => {
       it('uses it as deduplication option', async () => {
         const data = { foo: 'bar' };
-        const opts = { debounce: { id: 'legacy' } } as any;
+        const opts = { debounce: { id: 'legacy' } };
         const job = await Job.create(queue, 'test', data, opts);
 
         expect(job.deduplicationId).toBe('legacy');

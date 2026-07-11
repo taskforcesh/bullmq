@@ -11,11 +11,15 @@ export interface FlowJobBase<T> {
 }
 
 export type FlowChildJob = FlowJobBase<
-  Omit<JobsOptions, 'deduplication' | 'parent'>
+  Omit<JobsOptions, 'debounce' | 'deduplication' | 'parent'>
 >;
 
 export type FlowJob = FlowJobBase<
-  Omit<JobsOptions, 'deduplication'> & {
+  Omit<JobsOptions, 'debounce' | 'deduplication'> & {
+    /**
+     * @deprecated use deduplication option
+     */
+    debounce?: Omit<DeduplicationOptions, 'replace'>;
     deduplication?: Omit<DeduplicationOptions, 'replace'>;
   }
 >;
