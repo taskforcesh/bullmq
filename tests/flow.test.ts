@@ -6493,6 +6493,7 @@ describe('flows', () => {
             data: {},
             queueName,
             opts: {
+              jobId: 'valid-root-id',
               deduplication: { id: 'dedup-valid-on-partial-failure' },
               delay: 1000,
             },
@@ -6510,6 +6511,12 @@ describe('flows', () => {
           },
         ]),
       ).rejects.toThrow(`Missing key for parent job ${parentKey}. addJob`);
+
+      const validRoot = await queue.getJob('valid-root-id');
+      expect(validRoot).not.toBeUndefined();
+      expect(
+        await queue.getDeduplicationJobId('dedup-valid-on-partial-failure'),
+      ).toBe('valid-root-id');
 
       await flow.close();
     });
