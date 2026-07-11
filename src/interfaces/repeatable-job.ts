@@ -1,6 +1,13 @@
-import { JobSchedulerJson } from './job-scheduler-json';
-
 /**
  * @deprecated Use JobSchedulerJson instead.
  */
-export type RepeatableJob<D = any> = JobSchedulerJson<D>;
+export type RepeatableJob = {
+  key: string;
+  name: string;
+  id?: string | null;
+  endDate: number | null;
+  tz: string | null;
+  pattern: string | null;
+  every?: string | null;
+  next?: number;
+};

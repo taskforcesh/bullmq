@@ -296,8 +296,13 @@ export class JobScheduler extends QueueBase {
     next?: number,
   ): Promise<JobSchedulerJson<D> | undefined> {
     const jobData = await this.backend.getJobSchedulerData(key);
+    const scheduler = this.transformSchedulerData<D>(key, jobData, next);
 
-    return this.transformSchedulerData<D>(key, jobData, next);
+    if (!scheduler) {
+      await this.backend.removeJobScheduler(key);
+    }
+
+    return scheduler;
   }
 
   private transformSchedulerData<D>(

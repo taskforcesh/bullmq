@@ -191,30 +191,32 @@ describe('Job Scheduler (redis-only)', () => {
       );
     });
 
-    it('should ignore dangling scheduler references that are not legacy repeatable keys', async () => {
+    it('should remove dangling scheduler references that are not legacy repeatable keys', async () => {
       const client = await getRedisClient(queue);
       const next = Date.now() + ONE_MINUTE;
+      const schedulerId = 'tenant:region:service:job:non-legacy';
 
-      await client.zadd(
-        queue.toKey('repeat'),
-        next,
-        'tenant:region:service:job:non-legacy',
-      );
+      await client.zadd(queue.toKey('repeat'), next, schedulerId);
 
+      await expect(queue.getJobSchedulersCount()).resolves.toBe(1);
       await expect(queue.getJobSchedulers()).resolves.toEqual([]);
+      await expect(queue.getJobSchedulersCount()).resolves.toBe(0);
+      await expect(
+        client.zscore(queue.toKey('repeat'), schedulerId),
+      ).resolves.toBeNull();
     });
 
-    it('should ignore dangling references with numeric suffix but non-legacy endDate segment', async () => {
+    it('should remove dangling references with numeric suffix but non-legacy endDate segment', async () => {
       const client = await getRedisClient(queue);
       const next = Date.now() + ONE_MINUTE;
+      const schedulerId = 'tenant:region:service:job:1000';
 
-      await client.zadd(
-        queue.toKey('repeat'),
-        next,
-        'tenant:region:service:job:1000',
-      );
+      await client.zadd(queue.toKey('repeat'), next, schedulerId);
 
       await expect(queue.getJobSchedulers()).resolves.toEqual([]);
+      await expect(
+        client.zscore(queue.toKey('repeat'), schedulerId),
+      ).resolves.toBeNull();
     });
   });
 
