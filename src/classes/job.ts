@@ -201,16 +201,19 @@ export class Job<
     public opts: JobsOptions = {},
     public id?: string,
   ) {
-    const { debounce, ...optsWithoutDebounce } = this.opts as JobsOptions & {
+    const legacyOpts = this.opts as JobsOptions & {
       debounce?: DeduplicationOptions;
     };
-    if (!this.opts.deduplication && debounce) {
-      this.opts = {
-        ...optsWithoutDebounce,
-        deduplication: debounce,
-      };
-    } else {
-      this.opts = optsWithoutDebounce;
+    if (Object.prototype.hasOwnProperty.call(legacyOpts, 'debounce')) {
+      const { debounce, ...optsWithoutDebounce } = legacyOpts;
+      if (!legacyOpts.deduplication && debounce) {
+        this.opts = {
+          ...optsWithoutDebounce,
+          deduplication: debounce,
+        };
+      } else {
+        this.opts = optsWithoutDebounce;
+      }
     }
 
     const { repeatJobKey, ...restOpts } = this.opts;
