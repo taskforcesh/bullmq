@@ -1,6 +1,6 @@
 # BullMQ Rust — Feature Parity Tracker
 
-Compared against Node.js BullMQ (master branch). Updated: 2026-06-10.
+Compared against Node.js BullMQ (master branch). Updated: 2026-06-18.
 
 ## Legend
 
@@ -19,7 +19,7 @@ Compared against Node.js BullMQ (master branch). Updated: 2026-06-10.
 | Job                 | ✅     | Full lifecycle, flows, logs, discard                  |
 | FlowProducer        | ✅     | Parent/child trees, `get_flow`, per-queue options     |
 | JobScheduler        | ✅     | Cron/interval scheduling (methods live on `Queue`)    |
-| QueueEvents         | ❌     | Global stream event listener (planned, separate PR)   |
+| QueueEvents         | ✅     | Cross-process stream event listener (`queue_events`)  |
 | Sandbox / ChildPool | ❌     | Not applicable — use native Rust tasks/threads        |
 
 ---
@@ -51,10 +51,12 @@ Compared against Node.js BullMQ (master branch). Updated: 2026-06-10.
 | remove_deduplication_key / get_deduplication_job_id                                                                                                    | ✅     |
 | get_metrics                                                                                                                                            | ✅     |
 | get_children_values / get_failed_children_values / get_dependencies_count / get_unprocessed_dependencies / remove_child_dependency                     | ✅     |
-| get_workers / get_workers_count                                                                                                                        | ❌     |
-| get_meta / get_version                                                                                                                                 | ❌     |
-| export_prometheus_metrics                                                                                                                              | ❌     |
-| get_repeatable_jobs / remove_repeatable (legacy)                                                                                                       | ❌     |
+| get_workers / get_workers_count                                                                                                                        | ✅     |
+| get_meta / get_version                                                                                                                                 | ✅     |
+| export_prometheus_metrics                                                                                                                              | ✅     |
+| is_maxed                                                                                                                                               | ✅     |
+| get_debounce_job_id / remove_debounce_key (deprecated aliases)                                                                                         | ✅     |
+| remove_orphaned_jobs / get_repeatable_jobs / remove_repeatable (legacy)                                                                                | ❌     |
 
 ---
 
@@ -76,31 +78,31 @@ Compared against Node.js BullMQ (master branch). Updated: 2026-06-10.
 | Metrics option (time-series)                                  | ✅       |
 | Manual processing (get_next_job)                              | ✅       |
 | Sandboxed processors (worker threads)                         | ❌ (N/A) |
-| max_started_attempts / skip_stalled_check / skip_lock_renewal | ❌       |
+| max_started_attempts / skip_stalled_check / skip_lock_renewal | ✅       |
 | Telemetry / OpenTelemetry                                     | ❌       |
 
 ---
 
 ## Job Features
 
-| Feature                                                                                          | Status                 |
-| ------------------------------------------------------------------------------------------------ | ---------------------- |
-| update_progress                                                                                  | ✅                     |
-| update_data                                                                                      | ✅                     |
-| log / clear_logs                                                                                 | ✅                     |
-| retry                                                                                            | ✅                     |
-| discard                                                                                          | ✅                     |
-| get_state / is_completed / is_failed / is_active / is_waiting / is_delayed / is_waiting_children | ✅                     |
-| move_to_completed / move_to_failed / move_to_delayed                                             | ✅                     |
-| move_to_waiting_children                                                                         | ✅                     |
-| extend_lock                                                                                      | ✅                     |
-| promote                                                                                          | ✅                     |
-| change_delay / change_priority                                                                   | ✅                     |
-| get_children_values                                                                              | ✅                     |
-| get_dependencies / get_dependencies_count                                                        | ✅                     |
-| get_ignored_children_failures / get_failed_children_values                                       | ✅                     |
-| remove_child_dependency                                                                          | ✅                     |
-| wait_until_finished                                                                              | ❌ (needs QueueEvents) |
+| Feature                                                                                          | Status                     |
+| ------------------------------------------------------------------------------------------------ | -------------------------- |
+| update_progress                                                                                  | ✅                         |
+| update_data                                                                                      | ✅                         |
+| log / clear_logs                                                                                 | ✅                         |
+| retry                                                                                            | ✅                         |
+| discard                                                                                          | ✅                         |
+| get_state / is_completed / is_failed / is_active / is_waiting / is_delayed / is_waiting_children | ✅                         |
+| move_to_completed / move_to_failed / move_to_delayed                                             | ✅                         |
+| move_to_waiting_children                                                                         | ✅                         |
+| extend_lock                                                                                      | ✅                         |
+| promote                                                                                          | ✅                         |
+| change_delay / change_priority                                                                   | ✅                         |
+| get_children_values                                                                              | ✅                         |
+| get_dependencies / get_dependencies_count                                                        | ✅                         |
+| get_ignored_children_failures / get_failed_children_values                                       | ✅                         |
+| remove_child_dependency                                                                          | ✅                         |
+| wait_until_finished                                                                              | ❌ (intentionally skipped) |
 
 ---
 
@@ -123,7 +125,8 @@ Compared against Node.js BullMQ (master branch). Updated: 2026-06-10.
 | removeDependencyOnFailure                        | ✅     |
 | ignoreDependencyOnFailure                        | ✅     |
 | continueParentOnFailure                          | ✅     |
-| sizeLimit                                        | ❌     |
+| sizeLimit                                        | ✅     |
+| keepLogs / KeepJobs.limit                        | ✅     |
 | telemetry                                        | ❌     |
 
 ---
@@ -142,17 +145,20 @@ Compared against Node.js BullMQ (master branch). Updated: 2026-06-10.
 
 ---
 
-## QueueEvents (planned in a separate PR)
+## QueueEvents (implemented)
 
-The global stream-based event listener is not yet implemented. The following
-events are therefore unavailable cross-process (the Worker still exposes them
-via a local in-process channel through `WorkerEvent`):
-`active`, `added`, `cleaned`, `completed`, `deduplicated`, `delayed`,
-`drained`, `duplicated`, `error`, `failed`, `paused`, `progress`,
+The global stream-based event listener is implemented in the `queue_events`
+module (`QueueEvents`, `QueueEvent`, `QueueEventEntry`, `QueueEventsOptions`).
+It opens a dedicated blocking connection and consumes the
+`{prefix}:{name}:events` stream via `XREAD BLOCK`, exposing typed events through
+`next_event()`. Supported event variants mirror the Node.js names:
+`active`, `added`, `cleaned`, `completed`, `deduplicated`, `debounced`,
+`delayed`, `drained`, `duplicated`, `error`, `failed`, `paused`, `progress`,
 `removed`, `resumed`, `retries-exhausted`, `stalled`, `waiting`,
-`waiting-children`
+`waiting-children` (plus an `Other` fallback for forward compatibility).
 
-This also blocks `Job.wait_until_finished()`.
+`Job.wait_until_finished()` remains intentionally unimplemented — it is mainly a
+testing convenience in Node.js and is prone to misuse in production.
 
 ---
 
@@ -165,155 +171,72 @@ This also blocks `Job.wait_until_finished()`.
 | Job schedulers (cron/repeat)      | ✅               |
 | FlowProducer / parent-child flows | ✅               |
 | Metrics collection (time-series)  | ✅               |
+| Prometheus metrics export         | ✅               |
 | TLS connections                   | ✅               |
 | Sandboxed processors              | ❌ (N/A in Rust) |
 | Redis Cluster                     | ❌               |
 | Telemetry / OpenTelemetry         | ❌               |
-| QueueEvents (cross-process)       | ❌ (separate PR) |
+| QueueEvents (cross-process)       | ✅               |
 
 ---
 
-# Next PR — Implementation Plan
+# Implementation Status
 
-Everything below is currently missing and should be implemented in the next PR.
-Items are ordered roughly by value/effort. Each item lists the Node.js
-reference, the Rust approach (including which Lua scripts already exist), and the
-tests to port.
+## Recently completed
 
-## 1. QueueEvents (cross-process event listener) — **largest item**
+These items were implemented with Node-parity integration tests (run with
+`cargo test`; tests require a Redis instance at `redis://127.0.0.1:6379`):
 
-The global, Redis-stream-based event listener. Today the `Worker` only exposes
-events via a local in-process `WorkerEvent` channel; there is no way to observe
-events from another process/instance.
+1. **QueueEvents** (`src/queue_events.rs`) — cross-process, stream-based event
+   listener (`QueueEvents`, `QueueEvent`, `QueueEventEntry`, `QueueEventsOptions`).
+   Tests: `tests/queue_events_test.rs`.
+2. **`get_workers` / `get_workers_count`** — workers register a client name
+   (`CLIENT SETNAME`) on their blocking connection; the queue discovers them via
+   `CLIENT LIST`. Tests: `tests/workers_test.rs`.
+3. **Queue meta getters** — `get_meta` (typed `QueueMeta`), `get_version`,
+   `is_maxed`. Tests: `tests/meta_test.rs`.
+4. **`export_prometheus_metrics`** — Prometheus text-exposition output with
+   optional global labels. Tests: `tests/prometheus_test.rs`.
+5. **Worker behavioural flags** — `max_started_attempts`, `skip_stalled_check`,
+   `skip_lock_renewal`. Tests: `tests/worker_options_test.rs`.
+6. **Job options** — `size_limit` (client-side byte-length validation) and
+   `KeepJobs.limit`. Tests: `tests/job_options_test.rs`.
+7. **Deprecated debounce aliases** — `get_debounce_job_id`,
+   `remove_debounce_key`. Tests: `tests/deduplication_test.rs`.
+8. **Convenience methods** — `Queue::update_job_progress`, `Job::move_to_wait`,
+   `Queue::record_job_counts_metric`. Tests: `tests/convenience_methods_test.rs`.
 
-- **Node reference:** `src/classes/queue-events.ts`
-- **Rust approach:**
-  - New module `src/queue_events.rs` with a `QueueEvents` struct
-    (`new`, `run`, `next_event`, `close`).
-  - Use a **dedicated blocking connection** and loop on
-    `XREAD BLOCK <timeout> COUNT <n> STREAMS {prefix}:{name}:events <last-id>`.
-    Track the last stream id across iterations (start from `$` or a provided id).
-  - Parse each stream entry's fields into a `QueueEvent` enum. The `event` field
-    selects the variant; common fields are `jobId`, plus per-event extras.
-  - Variants to support (match Node event names):
-    `active {job_id, prev}`, `added {job_id, name}`, `cleaned {count}`,
-    `completed {job_id, return_value, prev}`, `deduplicated {job_id, deduplication_id, deduplicated_job_id}`,
-    `delayed {job_id, delay}`, `drained`, `duplicated {job_id}`, `error {message}`,
-    `failed {job_id, failed_reason, prev}`, `paused`, `progress {job_id, data}`,
-    `removed {job_id}`, `resumed`, `retries-exhausted {job_id, attempts_made}`,
-    `stalled {job_id}`, `waiting {job_id, prev?}`, `waiting-children {job_id}`.
-  - Expose events via `tokio::sync::mpsc`/`broadcast` plus an async `next_event()`
-    mirroring the `Worker` API. Add a `QueueEventsOptions` (connection, prefix,
-    blocking timeout, last event id).
-  - Re-export `QueueEvents`, `QueueEvent`, `QueueEventsOptions` from `lib.rs`.
-- **Scripts:** none required (raw `XREAD`).
-- **Tests to port:** `tests/queue-events.test.ts` (added/completed/failed/
-  progress/delayed/drained/removed, plus blocking-timeout behaviour).
+## Still missing
 
-## 2. Job.wait_until_finished (depends on QueueEvents)
+Ordered roughly by value/effort.
 
-- **Node reference:** `Job.waitUntilFinished` in `src/classes/job.ts`.
-- **Rust approach:** `Job::wait_until_finished(&self, events: &QueueEvents, ttl_ms: Option<u64>)`.
-  First check the current state (already completed/failed → return immediately by
-  reading `returnvalue`/`failedReason`); otherwise subscribe to the `QueueEvents`
-  stream and resolve on the `completed`/`failed` event for this `job_id`.
-- **Tests to port:** the `waitUntilFinished` cases in `tests/job.test.ts`.
-
-## 3. Worker registration + `get_workers` / `get_workers_count`
-
-- **Node reference:** `QueueGetters.getWorkers`/`getWorkersCount` (uses
-  `CLIENT LIST` + name matching); workers set their client name via
-  `CLIENT SETNAME` (`{prefix}:{queueName}` and `:w:{name}` suffix when named).
-- **Rust approach:**
-  - On `Worker::new`, run `CLIENT SETNAME {prefix}:{queueName}[:w:{name}]` on the
-    worker's (blocking) connection.
-  - `Queue::get_workers` → `CLIENT LIST`, parse the `name=` field, match the
-    queue's client-name prefix, return the parsed client info maps.
-  - `Queue::get_workers_count` → length of `get_workers`.
-- **Scripts:** none (raw `CLIENT LIST` / `CLIENT SETNAME`).
-- **Tests to port:** `getWorkers` / `getWorkersCount` cases in `tests/getters.test.ts`.
-
-## 4. Queue meta/version getters
-
-- **Node reference:** `QueueGetters.getMeta`, `Queue.getVersion`.
-- **Rust approach:**
-  - `Queue::get_meta` → `HGETALL meta`, parse typed fields
-    (`concurrency`, `max`, `duration`, `paused` → bool, `maxLenEvents`) and return
-    a `QueueMeta` struct keeping the remaining string fields.
-  - `Queue::get_version` → `HGET meta library` (currently we write
-    `bullmq-rust:0.1.0` in `update_meta`; expose it).
-  - `Queue::is_maxed` → compare active count against global concurrency.
-- **Tests:** add unit tests (set concurrency / rate limit → assert `get_meta`).
-
-## 5. `export_prometheus_metrics`
-
-- **Node reference:** `QueueGetters.exportPrometheusMetrics`.
-- **Rust approach:** `Queue::export_prometheus_metrics(&self, global_labels: Option<HashMap<String,String>>)`
-  builds the Prometheus text-exposition string from `get_job_counts` with
-  `# HELP`/`# TYPE bullmq_job_count gauge` and one line per state. Escape label
-  values (`\\`, `"`, `\n`).
-- **Tests to port:** the Prometheus export cases in `tests/getters.test.ts`.
-
-## 6. Worker options (behavioural flags)
-
-- **Node reference:** `src/interfaces/worker-options.ts`.
-- Add to `WorkerOptions` and wire into the loops:
-  - `max_started_attempts` — fail with `Unrecoverable` once a job's
-    `attemptsStarted` exceeds this (guards against poison/stalling jobs).
-  - `skip_stalled_check: bool` — do not start the stalled-check timer.
-  - `skip_lock_renewal: bool` — do not start the lock-renewal timer.
-- **Tests to port:** the corresponding cases in `tests/worker.test.ts` and
-  `tests/stalled_jobs.test.ts`.
-
-## 7. Job options
-
-- `size_limit` — reject jobs whose serialized data exceeds the limit. Node packs
-  `sizeLimit` into the `addJob` opts; replicate in `pack_add_args`/`pack_job_opts`
-  and surface the script error.
-- `KeepJobs.limit` — add the `limit` field to `types::KeepJobs` and include it in
-  `write_keep_jobs` (worker.rs) so age/count/limit policies match Node.
-- **Tests:** add `sizeLimit` rejection test; extend keep-jobs tests with `limit`.
-
-## 8. Legacy / maintenance Queue methods
+### Legacy / maintenance Queue methods
 
 Lua scripts already vendored: `removeOrphanedJobs-1`, `removeRepeatable-3`,
 `paginate-1`.
 
-- `remove_orphaned_jobs(count, limit)` → `removeOrphanedJobs` script (loopable).
-- `remove_deprecated_priority_key()` → small Lua/`DEL`.
+- `remove_orphaned_jobs(count, limit)` → `removeOrphanedJobs` script. **Note:**
+  this method deletes job keys based on a precise set of known key suffixes; it
+  must be ported carefully (an incorrect suffix set risks deleting live job
+  data), which is why it is still pending.
 - `get_repeatable_jobs` / `remove_repeatable` / `remove_repeatable_by_key` —
-  legacy repeat API (superseded by job schedulers); port if needed for
-  compatibility, using `removeRepeatable`.
-- `get_debounce_job_id` / `remove_debounce_key` — deprecated aliases of the
-  deduplication API; thin wrappers.
-- `get_dependencies` (paginated, queue-level) → `paginate` script (the Node
-  `QueueGetters.getDependencies`). Note: `Job::get_dependencies` already exists
-  via HSCAN/SSCAN; this is the queue-level paginated variant returning
-  `{items, jobs, total}`.
-- **Tests:** port the relevant cases from `tests/getters.test.ts` and
-  `tests/repeat.test.ts`.
+  legacy repeat API (superseded by job schedulers), using `removeRepeatable`.
+- `get_dependencies` (paginated, queue-level) → `paginate` script. Note:
+  `Job::get_dependencies` already exists via HSCAN/SSCAN; this is the
+  queue-level paginated variant returning `{items, jobs, total}`.
+- `remove_deprecated_priority_key()` → small `DEL`/Lua cleanup.
+- `get_queue_events()` — deprecated `CLIENT LIST` variant for QueueEvents clients.
+- `QueueEventsProducer` — class for publishing _custom_ events into the stream
+  (the consumer `QueueEvents` is implemented).
 
-## 9. Connection: Redis Cluster & Sentinel
+### Intentionally skipped (for now)
 
-- **Rust approach:** refactor `redis_connection.rs` so `RedisConnection` wraps an
-  enum over single / cluster / sentinel clients. Enable the redis crate
-  `cluster-async` and `sentinel` features. Add typed options
-  (`cluster_nodes: Vec<String>`, `sentinel: { master_name, nodes }`).
-  - **Caveat:** BullMQ requires hash-tag key co-location on cluster
-    (`{prefix}:{queue}`), which our `QueueKeys` already nests — verify all
-    multi-key scripts stay within one slot.
-- **Tests:** require a Redis Cluster / Sentinel in CI (new docker-compose
-  services). Gate behind an env flag (e.g. `REDIS_CLUSTER_URL`).
-
-## 10. Telemetry / OpenTelemetry (lowest priority)
-
-- **Rust approach:** optional `tracing` spans around add/process/finish plus a
-  pluggable hook trait; integrate with `opentelemetry` behind a cargo feature.
-- **Tests:** span/attribute assertions using a test exporter.
-
----
-
-### Out of scope (intentionally not planned)
-
+- **`Job.wait_until_finished`** — mainly a testing convenience in Node.js and
+  prone to misuse in production; not needed by the Rust test suite.
+- **Redis Cluster & Sentinel** — requires new CI infrastructure (cluster/sentinel
+  docker-compose services) and a `RedisConnection` refactor over single/cluster/
+  sentinel clients.
+- **Telemetry / OpenTelemetry** — optional `tracing`/`opentelemetry` spans behind
+  a cargo feature.
 - **Sandboxed processors / worker threads** — not applicable in Rust; users run
   native `tokio` tasks or OS threads.

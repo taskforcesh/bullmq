@@ -93,6 +93,12 @@ pub struct KeepJobs {
     /// Maximum count.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub count: Option<usize>,
+    /// Maximum quantity of jobs to remove in a single eviction pass.
+    ///
+    /// Bounds how many aged jobs are trimmed when a job finishes (the Lua
+    /// script defaults to `1000` when unset). Mirrors Node.js `KeepJobs.limit`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<usize>,
 }
 
 /// Backoff strategy for job retries.
@@ -209,6 +215,27 @@ pub struct ParentKeys {
     pub queue_key: String,
     /// The parent job's ID.
     pub id: String,
+}
+
+/// Public queue metadata read from the `meta` hash.
+///
+/// Mirrors the Node.js `QueueMeta` interface: well-known numeric/boolean fields
+/// are parsed into typed fields, and any remaining hash entries are preserved
+/// in [`other`](Self::other).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QueueMeta {
+    /// Global concurrency limit, when set via `set_global_concurrency`.
+    pub concurrency: Option<u64>,
+    /// Rate-limit `max` (jobs per `duration` window), when set.
+    pub max: Option<u64>,
+    /// Rate-limit window length in milliseconds, paired with `max`.
+    pub duration: Option<u64>,
+    /// Maximum length of the events stream (`opts.maxLenEvents`), when set.
+    pub max_len_events: Option<u64>,
+    /// Whether the queue is paused.
+    pub paused: bool,
+    /// Any other meta-hash fields not parsed above (e.g. `library`).
+    pub other: std::collections::HashMap<String, String>,
 }
 
 /// Counts of dependencies by type for a parent job.

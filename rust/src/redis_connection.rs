@@ -134,6 +134,21 @@ impl BlockingRedisConnection {
             .await?;
         Ok(result)
     }
+
+    /// Set the Redis client connection name (`CLIENT SETNAME`).
+    ///
+    /// Used by workers so that `Queue::get_workers` can discover them via
+    /// `CLIENT LIST`. Best-effort: some managed providers (e.g. GCP) reject this
+    /// command, so callers typically ignore the error.
+    pub async fn set_name(&self, name: &str) -> Result<(), Error> {
+        let mut conn = self.inner.conn.lock().await;
+        redis::cmd("CLIENT")
+            .arg("SETNAME")
+            .arg(name)
+            .query_async::<()>(&mut *conn)
+            .await?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
