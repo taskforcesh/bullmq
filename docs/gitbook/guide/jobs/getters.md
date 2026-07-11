@@ -92,9 +92,9 @@ completed = await myQueue.getJobs(['completed'], 0, 100, True)
 {% tab title="Rust" %}
 
 ```rust
-// get_jobs is not yet available in the Rust API.
-// Use get_job(id) to fetch individual jobs by ID:
-let job = queue.get_job("some-job-id").await?;
+let completed = queue.get_jobs(&["completed"], 0, 100, true).await?;
+
+// returns the oldest 100 jobs
 ```
 
 {% endtab %}

@@ -265,13 +265,19 @@ end
 
 ```rust
 use bullmq::{Worker, WorkerOptions};
-use bullmq::types::RemoveOnFinish;
+use bullmq::types::{RemoveOnFinish, KeepJobs};
 
-// Note: Rust currently supports count-based removal.
-// Age-based removal uses the KeepJobs struct.
 let worker = Worker::new("myQueueName", processor, WorkerOptions {
-    remove_on_complete: Some(RemoveOnFinish::Count(1000)),
-    remove_on_fail: Some(RemoveOnFinish::Count(5000)),
+    remove_on_complete: Some(RemoveOnFinish::Options(KeepJobs {
+        age: Some(3600),   // keep up to 1 hour
+        count: Some(1000), // keep up to 1000 jobs
+        limit: Some(100),  // remove up to 100 jobs per cleanup iteration
+    })),
+    remove_on_fail: Some(RemoveOnFinish::Options(KeepJobs {
+        age: Some(24 * 3600), // keep up to 24 hours
+        count: None,
+        limit: Some(50),      // remove up to 50 jobs per cleanup iteration
+    })),
     ..Default::default()
 }).await?;
 ```
