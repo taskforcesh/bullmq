@@ -92,7 +92,7 @@ completed = await myQueue.getJobs(['completed'], 0, 100, True)
 {% tab title="Rust" %}
 
 ```rust
-let completed = queue.get_jobs(&["completed"], 0, 100, true).await?;
+let completed = queue.get_jobs(&["completed"], 0, 99, true).await?;
 
 // returns the oldest 100 jobs
 ```
