@@ -200,14 +200,14 @@ describe('Job', () => {
     });
 
     describe('when deprecated debounce option is provided', () => {
-      it('throws an error regardless of its value', async () => {
+      it('uses it as deduplication option', async () => {
         const data = { foo: 'bar' };
+        const opts = { debounce: { id: 'legacy' } } as any;
+        const job = await Job.create(queue, 'test', data, opts);
 
-        for (const debounce of [{ id: 'legacy' }, null, undefined]) {
-          await expect(
-            Job.create(queue, 'test', data, { debounce } as any),
-          ).rejects.toThrow('Debounce option is deprecated. Use deduplication');
-        }
+        expect(job.deduplicationId).toBe('legacy');
+        expect(job.opts).not.toHaveProperty('debounce');
+        expect(job.opts.deduplication).toEqual({ id: 'legacy' });
       });
     });
 

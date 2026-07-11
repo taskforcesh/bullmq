@@ -235,7 +235,7 @@ describe('deduplication', () => {
     });
 
     describe('when ttl is provided', () => {
-      it('used a fixed time period and emits deduplicated event', async () => {
+      it('uses a fixed time period and emits deduplicated event', async () => {
         const testName = 'test';
 
         const job = await queue.add(

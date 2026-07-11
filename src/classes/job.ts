@@ -17,6 +17,7 @@ import {
   Span,
 } from '../interfaces';
 import {
+  DeduplicationOptions,
   FinishedStatus,
   JobsOptions,
   JobState,
@@ -200,6 +201,18 @@ export class Job<
     public opts: JobsOptions = {},
     public id?: string,
   ) {
+    const { debounce, ...optsWithoutDebounce } = this.opts as JobsOptions & {
+      debounce?: DeduplicationOptions;
+    };
+    if (!this.opts.deduplication && debounce) {
+      this.opts = {
+        ...optsWithoutDebounce,
+        deduplication: debounce,
+      };
+    } else {
+      this.opts = optsWithoutDebounce;
+    }
+
     const { repeatJobKey, ...restOpts } = this.opts;
 
     this.opts = Object.assign(
@@ -1392,15 +1405,6 @@ export class Job<
       if (this.opts.priority > PRIORITY_LIMIT) {
         throw new Error(`Priority should be between 0 and ${PRIORITY_LIMIT}`);
       }
-    }
-
-    if (
-      Object.prototype.hasOwnProperty.call(
-        this.opts as { debounce?: unknown },
-        'debounce',
-      )
-    ) {
-      throw new Error('Debounce option is deprecated. Use deduplication');
     }
 
     if (this.opts.deduplication) {
