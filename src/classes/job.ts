@@ -1394,7 +1394,12 @@ export class Job<
       }
     }
 
-    if ((this.opts as { debounce?: unknown })?.debounce) {
+    if (
+      Object.prototype.hasOwnProperty.call(
+        this.opts as { debounce?: unknown },
+        'debounce',
+      )
+    ) {
       throw new Error('Debounce option is deprecated. Use deduplication');
     }
 

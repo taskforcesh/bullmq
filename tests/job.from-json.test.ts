@@ -42,15 +42,3 @@ describe('Job.fromJSON', () => {
     expect(job.deduplicationId).toBe('current-id');
   });
 });
-
-describe('Job validation', () => {
-  it('rejects deprecated debounce option', () => {
-    const job = new Job(fakeQueue, 'test', {}, {
-      debounce: { id: 'legacy' },
-    } as any);
-
-    expect(() => (job as any).validateOptions({})).toThrow(
-      'Debounce option is deprecated. Use deduplication',
-    );
-  });
-});
