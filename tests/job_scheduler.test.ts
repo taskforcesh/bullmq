@@ -98,6 +98,20 @@ describe('Job Scheduler', () => {
     });
   });
 
+  describe('when removed debounce option is provided', () => {
+    it('throws an error', async () => {
+      await expect(
+        queue.upsertJobScheduler(
+          'test-scheduler',
+          { every: 100 },
+          { opts: { debounce: { id: 'legacy' } } as any },
+        ),
+      ).rejects.toThrow(
+        'Debounce option has been removed. Use deduplication option instead',
+      );
+    });
+  });
+
   it('it should stop repeating after endDate', async () => {
     const every = 100;
     const date = new Date('2017-02-07 9:24:00');

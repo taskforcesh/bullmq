@@ -66,14 +66,7 @@ export interface QueueEventsListener extends IoredisListener {
   /**
    * Listen to 'debounced' event.
    *
-   * @deprecated Use the 'deduplicated' event instead.
-   *
-   * This event is triggered when a job is debounced because a job with the same debounceId still exists.
-   *
-   * @param args - An object containing details about the debounced job.
-   *   - `jobId` - The unique identifier of the job that was debounced.
-   *   - `debounceId` - The identifier used to debounce the job, preventing duplicate processing.
-   * @param id - The identifier of the event.
+   * @deprecated Use 'deduplicated' instead.
    */
   debounced: (args: { jobId: string; debounceId: string }, id: string) => void;
 

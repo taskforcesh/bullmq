@@ -199,6 +199,16 @@ describe('Job', () => {
       });
     });
 
+    describe('when removed debounce option is provided', () => {
+      it('throws an error', async () => {
+        const data = { foo: 'bar' };
+        const opts = { debounce: { id: 'legacy' } } as any;
+        await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
+          'Debounce option has been removed. Use deduplication option instead',
+        );
+      });
+    });
+
     describe('when deduplication and parent options are provided', () => {
       it('throws an error', async () => {
         const data = { foo: 'bar' };
@@ -209,30 +219,6 @@ describe('Job', () => {
         };
         await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
           'Deduplication and parent options cannot be used together',
-        );
-      });
-    });
-
-    describe('when debounce id option is provided as empty string', () => {
-      it('throws an error', async () => {
-        const data = { foo: 'bar' };
-        const opts = { debounce: { id: '' } };
-        await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
-          'Debounce id must be provided',
-        );
-      });
-    });
-
-    describe('when debounce and parent options are provided', () => {
-      it('throws an error', async () => {
-        const data = { foo: 'bar' };
-        const parentJob = await Job.create(queue, 'parent', {});
-        const opts = {
-          debounce: { id: 'debounce-id' },
-          parent: { id: parentJob.id!, queue: `${prefix}:${queueName}` },
-        };
-        await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
-          'Debounce and parent options cannot be used together',
         );
       });
     });

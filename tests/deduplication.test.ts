@@ -47,284 +47,7 @@ describe('deduplication', () => {
     await connection.quit();
   });
 
-  describe('when job is debounced when added again with same debounce id', () => {
-    describe('when ttl is provided', () => {
-      it('used a fixed time period and emits debounced event', async () => {
-        const testName = 'test';
-
-        const job = await queue.add(
-          testName,
-          { foo: 'bar' },
-          { debounce: { id: 'a1', ttl: 2000 } },
-        );
-
-        let debouncedCounter = 0;
-        // eslint-disable-next-line prefer-const
-        let secondJob: Job;
-        queueEvents.on('debounced', ({ jobId, debounceId }) => {
-          if (debouncedCounter > 1) {
-            expect(jobId).toBe(secondJob.id);
-            expect(debounceId).toBe('a1');
-          } else {
-            expect(jobId).toBe(job.id);
-            expect(debounceId).toBe('a1');
-          }
-          debouncedCounter++;
-        });
-
-        await delay(1000);
-        await queue.add(
-          testName,
-          { foo: 'bar' },
-          { debounce: { id: 'a1', ttl: 2000 } },
-        );
-        await queue.add(
-          testName,
-          { foo: 'bar' },
-          { debounce: { id: 'a1', ttl: 2000 } },
-        );
-        await delay(1100);
-        secondJob = await queue.add(
-          testName,
-          { foo: 'bar' },
-          { debounce: { id: 'a1', ttl: 2000 } },
-        );
-        await queue.add(
-          testName,
-          { foo: 'bar' },
-          { debounce: { id: 'a1', ttl: 2000 } },
-        );
-        await queue.add(
-          testName,
-          { foo: 'bar' },
-          { debounce: { id: 'a1', ttl: 2000 } },
-        );
-        await delay(100);
-
-        expect(debouncedCounter).toBe(4);
-      });
-
-      describe('when removing debounced job', () => {
-        it('removes debounce key', async () => {
-          const testName = 'test';
-
-          const job = await queue.add(
-            testName,
-            { foo: 'bar' },
-            { debounce: { id: 'a1', ttl: 2000 } },
-          );
-
-          let debouncedCounter = 0;
-          queueEvents.on('debounced', ({ jobId }) => {
-            debouncedCounter++;
-          });
-          await job.remove();
-
-          await queue.add(
-            testName,
-            { foo: 'bar' },
-            { debounce: { id: 'a1', ttl: 2000 } },
-          );
-          await delay(1000);
-          await queue.add(
-            testName,
-            { foo: 'bar' },
-            { debounce: { id: 'a1', ttl: 2000 } },
-          );
-          await delay(1100);
-          const secondJob = await queue.add(
-            testName,
-            { foo: 'bar' },
-            { debounce: { id: 'a1', ttl: 2000 } },
-          );
-          await secondJob.remove();
-
-          await queue.add(
-            testName,
-            { foo: 'bar' },
-            { debounce: { id: 'a1', ttl: 2000 } },
-          );
-          await queue.add(
-            testName,
-            { foo: 'bar' },
-            { debounce: { id: 'a1', ttl: 2000 } },
-          );
-          await delay(100);
-
-          expect(debouncedCounter).toBe(2);
-        });
-
-        describe('when manual removal on a debounced job in finished state', () => {
-          it('does not remove debounced key', async () => {
-            const testName = 'test';
-
-            const job = await queue.add(
-              testName,
-              { foo: 'bar' },
-              { debounce: { id: 'a1', ttl: 200 } },
-            );
-
-            const worker = new Worker(
-              queueName,
-              async () => {
-                await delay(200);
-              },
-              {
-                autorun: false,
-                connection,
-                prefix,
-              },
-            );
-
-            await worker.waitUntilReady();
-
-            const completion = new Promise<void>(resolve => {
-              worker.once('completed', () => {
-                resolve();
-              });
-            });
-
-            worker.run();
-
-            await completion;
-
-            let deduplicatedCounter = 0;
-            const deduplication = new Promise<void>(resolve => {
-              queueEvents.on('debounced', () => {
-                deduplicatedCounter++;
-                if (deduplicatedCounter == 1) {
-                  resolve();
-                }
-              });
-            });
-
-            await queue.add(
-              testName,
-              { foo: 'bar' },
-              { debounce: { id: 'a1', ttl: 200 } },
-            );
-
-            await job.remove();
-
-            await queue.add(
-              testName,
-              { foo: 'bar' },
-              { debounce: { id: 'a1', ttl: 200 } },
-            );
-
-            await deduplication;
-
-            expect(deduplicatedCounter).toBe(1);
-            await worker.close();
-          });
-        });
-      });
-    });
-
-    describe('when ttl is not provided', () => {
-      it('waits until job is finished before removing debounce key', async () => {
-        const testName = 'test';
-
-        const worker = new Worker(
-          queueName,
-          async () => {
-            await delay(100);
-            await queue.add(
-              testName,
-              { foo: 'bar' },
-              { debounce: { id: 'a1' } },
-            );
-            await delay(100);
-            await queue.add(
-              testName,
-              { foo: 'bar' },
-              { debounce: { id: 'a1' } },
-            );
-            await delay(100);
-          },
-          {
-            autorun: false,
-            connection,
-            prefix,
-          },
-        );
-        await worker.waitUntilReady();
-
-        let debouncedCounter = 0;
-
-        const completing = new Promise<void>(resolve => {
-          queueEvents.once('completed', ({ jobId }) => {
-            expect(jobId).toBe('1');
-            resolve();
-          });
-
-          queueEvents.on('debounced', ({ jobId }) => {
-            debouncedCounter++;
-          });
-        });
-
-        worker.run();
-
-        await queue.add(testName, { foo: 'bar' }, { debounce: { id: 'a1' } });
-
-        await completing;
-
-        const secondJob = await queue.add(
-          testName,
-          { foo: 'bar' },
-          { debounce: { id: 'a1' } },
-        );
-
-        const count = await queue.getJobCountByTypes();
-
-        expect(count).toEqual(2);
-
-        expect(debouncedCounter).toBe(2);
-        expect(secondJob.id).toBe('4');
-        await worker.close();
-      });
-
-      describe('when removing debounced job', () => {
-        it('removes debounce key', async () => {
-          const testName = 'test';
-
-          const job = await queue.add(
-            testName,
-            { foo: 'bar' },
-            { debounce: { id: 'a1' } },
-          );
-
-          let debouncedCounter = 0;
-          const debouncing = new Promise<void>(resolve => {
-            queueEvents.on('debounced', () => {
-              debouncedCounter++;
-              if (debouncedCounter == 2) {
-                resolve();
-              }
-            });
-          });
-
-          await job.remove();
-
-          await queue.add(testName, { foo: 'bar' }, { debounce: { id: 'a1' } });
-
-          await queue.add(testName, { foo: 'bar' }, { debounce: { id: 'a1' } });
-          await delay(100);
-          const secondJob = await queue.add(
-            testName,
-            { foo: 'bar' },
-            { debounce: { id: 'a1' } },
-          );
-          await secondJob.remove();
-          await debouncing;
-
-          expect(debouncedCounter).toBe(2);
-        });
-      });
-    });
-  });
-
-  describe('when job is deduplicated when added again with same debounce id', () => {
+  describe('when job is deduplicated when added again with same deduplication id', () => {
     it('emits deduplicated event', async () => {
       const testName = 'test';
       const dedupId = 'dedupId';
@@ -515,7 +238,7 @@ describe('deduplication', () => {
     });
 
     describe('when ttl is provided', () => {
-      it('used a fixed time period and emits debounced event', async () => {
+      it('uses a fixed time period and emits deduplicated event', async () => {
         const testName = 'test';
 
         const job = await queue.add(
@@ -943,7 +666,7 @@ describe('deduplication', () => {
     });
 
     describe('when ttl is not provided', () => {
-      it('waits until job is finished before removing debounce key', async () => {
+      it('waits until job is finished before removing deduplication key', async () => {
         const testName = 'test';
 
         const worker = new Worker(
@@ -986,7 +709,11 @@ describe('deduplication', () => {
 
         worker.run();
 
-        await queue.add(testName, { foo: 'bar' }, { debounce: { id: 'a1' } });
+        await queue.add(
+          testName,
+          { foo: 'bar' },
+          { deduplication: { id: 'a1' } },
+        );
 
         await completing;
 
@@ -1283,11 +1010,7 @@ describe('deduplication', () => {
     it('should still deduplicate when dedup job is waiting (not active)', async () => {
       const testName = 'test';
       const deduplicationId = 'dedup-waiting-1';
-
-      let deduplicatedCount = 0;
-      queueEvents.on('deduplicated', () => {
-        deduplicatedCount++;
-      });
+      const client = await getRedisClient(queue);
 
       // Add first job (goes to waiting, not active since no worker)
       const job1 = await queue.add(
@@ -1313,11 +1036,24 @@ describe('deduplication', () => {
         },
       );
 
-      await delay(100);
+      const events = await client.xread(
+        [{ key: queue.toKey('events'), id: '0-0' }],
+        {
+          COUNT: 100,
+        },
+      );
+      const entries = events?.[0]?.[1] ?? [];
+
+      const deduplicatedEvent = streamEntriesToEvents(entries).find(
+        event =>
+          event.event === 'deduplicated' &&
+          event.jobId === job1.id &&
+          event.deduplicationId === deduplicationId,
+      );
 
       // job2 should have the same ID as job1 (was deduplicated)
       expect(job2.id).toBe(job1.id);
-      expect(deduplicatedCount).toBe(1);
+      expect(deduplicatedEvent).toBeDefined();
     });
 
     it('should replace stored data with latest when multiple jobs added while active', async () => {

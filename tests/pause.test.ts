@@ -89,8 +89,13 @@ describe('Pause', () => {
       };
     });
 
-    const worker = new Worker(queueName, process, { connection, prefix });
+    const worker = new Worker(queueName, process, {
+      autorun: false,
+      connection,
+      prefix,
+    });
     await worker.waitUntilReady();
+    worker.run();
 
     await queue.pause();
     isPaused = true;
@@ -131,7 +136,12 @@ describe('Pause', () => {
       };
     });
 
-    const worker = new Worker(queueName, process, { connection, prefix });
+    const worker = new Worker(queueName, process, {
+      autorun: false,
+      connection,
+      prefix,
+    });
+    await worker.waitUntilReady();
 
     queueEvents.on('paused', async (args, eventId) => {
       isPaused = false;
@@ -148,6 +158,7 @@ describe('Pause', () => {
 
     await queue.add('test', { foo: 'paused' });
     await queue.add('test', { foo: 'paused' });
+    worker.run();
 
     await processPromise;
 
