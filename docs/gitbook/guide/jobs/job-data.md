@@ -79,6 +79,22 @@ job.data # { color: 'blue' }
 ```
 
 {% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Queue, QueueOptions};
+
+let queue = Queue::new("paint", QueueOptions::default()).await?;
+
+let mut job = queue.add("wall", serde_json::json!({ "color": "red" }), None).await?;
+
+job.update_data(serde_json::json!({ "color": "blue" })).await?;
+
+job.data(); // { "color": "blue" }
+```
+
+{% endtab %}
 {% endtabs %}
 
 ## Data is serialized as JSON

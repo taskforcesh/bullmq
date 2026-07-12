@@ -1,3 +1,10 @@
+## [5.80.2](https://github.com/taskforcesh/bullmq/compare/v5.80.1...v5.80.2) (2026-07-11)
+
+
+### Bug Fixes
+
+* **job-scheduler:** respect offset option in upsertJobScheduler (elixir) (rust) ([#3993](https://github.com/taskforcesh/bullmq/issues/3993)) ([78bbb25](https://github.com/taskforcesh/bullmq/commit/78bbb253546b4c45f7e23ceccc31eb644651416c))
+
 ## [5.80.1](https://github.com/taskforcesh/bullmq/compare/v5.80.0...v5.80.1) (2026-07-10)
 
 
