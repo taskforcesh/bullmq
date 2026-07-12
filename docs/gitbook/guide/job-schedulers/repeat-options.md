@@ -66,7 +66,7 @@ If you previously used `repeat.utc`, replace it with `tz: 'UTC'`.
 
 #### Limit
 
-This setting is used to limit the number of times a job will be repeated. When the count reaches this limit, no more jobs will be produced for the given job scheculer.
+This setting is used to limit the number of times a job will be repeated. When the count reaches this limit, no more jobs will be produced for the given job scheduler.
 
 ```typescript
 await myQueue.upsertJobScheduler(
