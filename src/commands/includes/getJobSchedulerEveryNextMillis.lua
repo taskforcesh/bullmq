@@ -9,25 +9,32 @@ local function getJobSchedulerEveryNextMillis(prevMillis, every, now, offset, st
             nextMillis = tonumber(startDate)
             nextMillis = nextMillis > now and nextMillis or now
         else
-            nextMillis = now
-            -- For the first iteration with no startDate and an explicit
-            -- offset, align nextMillis to the next offset slot strictly
-            -- after now. Without this the user-supplied offset is
-            -- recorded but ignored, and the first job fires at now
-            -- instead of the next aligned timestamp (issue #3705).
             if offset and offset > 0 then
-                local aligned = math.floor(nextMillis / every) * every + offset
-                if aligned <= nextMillis then
-                    aligned = aligned + every
+                -- Align to the next slot that respects the offset
+                nextMillis = math.floor(now / every) * every + offset
+                if nextMillis <= now then
+                    nextMillis = nextMillis + every
                 end
-                nextMillis = aligned
+            else
+                nextMillis = now
             end
         end
     else
         nextMillis = prevMillis + every
         -- check if we may have missed some iterations
         if nextMillis < now then
-            nextMillis = math.floor(now / every) * every + every + (offset or 0)
+            -- Use the same offset-aware alignment as the initial branch
+            -- above so a non-zero offset is preserved across catch-ups
+            -- instead of being flattened to (slot + every). When the
+            -- aligned slot is itself still in the past, advance by one
+            -- full interval; otherwise the aligned slot is the next
+            -- iteration.
+            local aligned = math.floor(now / every) * every + (offset or 0)
+            if aligned <= now then
+                nextMillis = aligned + every
+            else
+                nextMillis = aligned
+            end
         end
     end
 

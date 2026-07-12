@@ -1796,6 +1796,60 @@ describe('workers', () => {
     // (it pre-seeds the `:pc` counter past the 32-bit boundary via `incrby`) and
     // lives in `worker.redis.test.ts`.
 
+    describe('when jobs are added with the maximum allowed priority value', () => {
+      it('should process jobs with the same priority in FIFO order', async () => {
+        const maxPriority = 2097151;
+        const numJobs = 5;
+
+        const jobs = Array.from(Array(numJobs).keys()).map(index => ({
+          name: 'test',
+          data: { order: index },
+          opts: { priority: maxPriority },
+        }));
+        await queue.addBulk(jobs);
+
+        const processedOrder: number[] = [];
+        let processor;
+        const processing = new Promise<void>((resolve, reject) => {
+          processor = async (job: Job) => {
+            try {
+              processedOrder.push(job.data.order);
+              if (processedOrder.length === numJobs) {
+                resolve();
+              }
+            } catch (err) {
+              reject(err);
+            }
+          };
+        });
+
+        const worker = new Worker(queueName, processor, { connection, prefix });
+        await worker.waitUntilReady();
+
+        await processing;
+
+        expect(processedOrder).toEqual([0, 1, 2, 3, 4]);
+
+        await worker.close();
+      });
+
+      it('should reject jobs above the maximum allowed priority value', async () => {
+        await expect(
+          queue.add('test', { order: 0 }, { priority: 2097152 }),
+        ).rejects.toThrow('Priority should be between 0 and 2097151');
+
+        await expect(
+          queue.addBulk([
+            {
+              name: 'test',
+              data: { order: 0 },
+              opts: { priority: 2097152 },
+            },
+          ]),
+        ).rejects.toThrow('Priority should be between 0 and 2097151');
+      });
+    });
+
     describe('while processing last active job', () => {
       it('should process prioritized job whithout delay', async () => {
         // TODO: Move timeout to test options: { timeout: 1000 }
