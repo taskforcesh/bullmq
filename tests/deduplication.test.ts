@@ -1283,6 +1283,7 @@ describe('deduplication', () => {
     it('should still deduplicate when dedup job is waiting (not active)', async () => {
       const testName = 'test';
       const deduplicationId = 'dedup-waiting-1';
+      const eventReadCount = 10;
       const client = await getRedisClient(queue);
 
       // Add first job (goes to waiting, not active since no worker)
@@ -1312,7 +1313,7 @@ describe('deduplication', () => {
       const events = await client.xread(
         [{ key: queue.toKey('events'), id: '0-0' }],
         {
-          COUNT: 100,
+          COUNT: eventReadCount,
         },
       );
       const entries = events?.[0]?.[1] ?? [];
