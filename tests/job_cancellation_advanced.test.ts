@@ -248,20 +248,24 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       await worker.waitUntilReady();
 
+      const waitingOnActive = new Promise<void>(resolve => {
+        worker.once('active', () => resolve());
+      });
+
+      const waitingOnFailed = new Promise<void>(resolve => {
+        worker.once('failed', () => resolve());
+      });
+
       const job = await queue.add('test', { foo: 'bar' }, { attempts: 1 });
 
-      await new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
-      });
+      await waitingOnActive;
 
       const stateBefore = await job.getState();
       expect(stateBefore).toBe('active');
 
       worker.cancelJob(job.id!);
 
-      await new Promise<void>(resolve => {
-        worker.on('failed', () => resolve());
-      });
+      await waitingOnFailed;
 
       await delay(10);
 

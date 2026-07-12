@@ -37,7 +37,11 @@ import {
   UnrecoverableError,
 } from './errors';
 import { SpanKind, TelemetryAttributes } from '../enums';
-import { JobScheduler } from './job-scheduler';
+import {
+  getLegacyRepeatableJobError,
+  hasLegacyRepeatableKeyShape,
+  JobScheduler,
+} from './job-scheduler';
 import { LockManager } from './lock-manager';
 
 // 10 seconds is the maximum time a BZPOPMIN can block.
@@ -843,20 +847,17 @@ export class Worker<
       job.token = token;
 
       try {
-        await this.retryIfFailed(
+        const shouldScheduleRepeat = await this.retryIfFailed(
           async () => {
             // We need to distinguish between new job schedulers and legacy
-            // repeatable jobs. Legacy repeatable keys always contain 5+
-            // colon segments, but a user-provided jobSchedulerId may also
-            // contain 5+ segments, so we cannot rely on the segment count
-            // alone (see issue #3828). When the key has 5+ segments we
+            // repeatable jobs. We first use a key-shape heuristic to detect
+            // legacy repeat keys (`name:id:endDate:tz:<cron|every>`), then
             // probe the per-id scheduler metadata hash (`repeat:<id>` with
-            // the `ic` field) via `JobScheduler.isJobScheduler()` to confirm
-            // it really is a scheduler before falling back to the legacy
-            // repeatable path.
+            // the `ic` field) via `JobScheduler.isJobScheduler()` for
+            // disambiguation when needed (see issue #3828).
             const hasRepeatJobKey = !!job.repeatJobKey;
             const hasLegacyKeyShape =
-              hasRepeatJobKey && job.repeatJobKey.split(':').length >= 5;
+              hasRepeatJobKey && hasLegacyRepeatableKeyShape(job.repeatJobKey);
             let isJobScheduler = hasRepeatJobKey && !hasLegacyKeyShape;
             if (hasLegacyKeyShape) {
               const jobScheduler = await this.jobScheduler;
@@ -878,9 +879,20 @@ export class Worker<
                 { override: false, producerId: job.id },
               );
             }
+
+            return !hasLegacyKeyShape || isJobScheduler;
           },
           { delayInMs: this.opts.runRetryDelay },
         );
+
+        if (job.repeatJobKey && !shouldScheduleRepeat) {
+          const schedulingError = new Error(
+            `Failed to add repeatable job for next iteration: ${
+              getLegacyRepeatableJobError(job.repeatJobKey).message
+            }`,
+          );
+          this.emit('error', schedulingError);
+        }
       } catch (err) {
         // Emit error but don't throw to avoid breaking current job completion
         // Note: This means the next repeatable job will not be scheduled

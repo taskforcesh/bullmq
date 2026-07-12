@@ -1,4 +1,6 @@
-// TODO: remove this type in favor of JobSchedulerJson in next breaking change
+/**
+ * @deprecated Use JobSchedulerJson instead.
+ */
 export type RepeatableJob = {
   key: string;
   name: string;
