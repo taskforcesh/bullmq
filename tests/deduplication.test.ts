@@ -1010,11 +1010,7 @@ describe('deduplication', () => {
     it('should still deduplicate when dedup job is waiting (not active)', async () => {
       const testName = 'test';
       const deduplicationId = 'dedup-waiting-1';
-
-      let deduplicatedCount = 0;
-      queueEvents.on('deduplicated', () => {
-        deduplicatedCount++;
-      });
+      const client = await getRedisClient(queue);
 
       // Add first job (goes to waiting, not active since no worker)
       const job1 = await queue.add(
@@ -1040,11 +1036,24 @@ describe('deduplication', () => {
         },
       );
 
-      await delay(100);
+      const events = await client.xread(
+        [{ key: queue.toKey('events'), id: '0-0' }],
+        {
+          COUNT: 100,
+        },
+      );
+      const entries = events?.[0]?.[1] ?? [];
+
+      const deduplicatedEvent = streamEntriesToEvents(entries).find(
+        event =>
+          event.event === 'deduplicated' &&
+          event.jobId === job1.id &&
+          event.deduplicationId === deduplicationId,
+      );
 
       // job2 should have the same ID as job1 (was deduplicated)
       expect(job2.id).toBe(job1.id);
-      expect(deduplicatedCount).toBe(1);
+      expect(deduplicatedEvent).toBeDefined();
     });
 
     it('should replace stored data with latest when multiple jobs added while active', async () => {
