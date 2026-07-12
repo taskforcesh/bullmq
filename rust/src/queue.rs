@@ -9,7 +9,7 @@ use crate::redis_connection::RedisConnection;
 use crate::types::{DependenciesCount, JobCounts, JobState, QueueMeta};
 
 /// The version string stored in queue metadata for compatibility tracking.
-const BULLMQ_VERSION: &str = "bullmq-rust:0.1.0";
+const BULLMQ_VERSION: &str = "bullmq-official:0.1.0";
 
 /// A callback invoked once per `(state, count)` pair by
 /// [`Queue::record_job_counts_metric`]. This is the integration point for
@@ -1178,7 +1178,7 @@ impl Queue {
 
     /// Return the library version string stored in the `meta` hash.
     ///
-    /// The Rust port records `bullmq-rust:<version>` under the `library` field
+    /// The Rust port records `bullmq-official:<version>` under the `library` field
     /// when the queue is created. Returns `None` if the field is unset.
     pub async fn get_version(&self) -> Result<Option<String>, Error> {
         let mut conn = self.conn.conn();

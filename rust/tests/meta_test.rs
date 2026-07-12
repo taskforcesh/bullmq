@@ -32,7 +32,7 @@ async fn test_get_version_records_library() {
     let version = queue.get_version().await.unwrap();
     let version = version.expect("library version should be recorded on create");
     assert!(
-        version.starts_with("bullmq-rust:"),
+        version.starts_with("bullmq-official:"),
         "unexpected version: {version}"
     );
 
