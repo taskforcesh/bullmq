@@ -886,7 +886,12 @@ export class Worker<
         );
 
         if (job.repeatJobKey && !shouldScheduleRepeat) {
-          throw getLegacyRepeatableJobError(job.repeatJobKey);
+          const schedulingError = new Error(
+            `Failed to add repeatable job for next iteration: ${
+              getLegacyRepeatableJobError(job.repeatJobKey).message
+            }`,
+          );
+          this.emit('error', schedulingError);
         }
       } catch (err) {
         // Emit error but don't throw to avoid breaking current job completion

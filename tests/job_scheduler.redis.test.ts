@@ -221,7 +221,7 @@ describe('Job Scheduler (redis-only)', () => {
   });
 
   describe('when processing a legacy repeatable job in v6', () => {
-    it('should emit a migration error instead of silently skipping rescheduling', async () => {
+    it('should emit a migration error while continuing current job processing', async () => {
       const date = new Date('2017-02-07 9:24:00');
       clock.setSystemTime(date);
 
@@ -267,7 +267,7 @@ describe('Job Scheduler (redis-only)', () => {
         'token',
       );
 
-      expect(nextJob).toBeUndefined();
+      expect(nextJob).toBeDefined();
       await errorPromise;
       expect(errors).toHaveLength(1);
       await worker.close();
