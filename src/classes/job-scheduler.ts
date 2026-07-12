@@ -25,19 +25,62 @@ export const LEGACY_REPEATABLE_JOBS_MIGRATION_URL =
  * - a cron pattern (contains spaces), or
  * - an `every` interval (purely numeric).
  */
+/**
+ * Returns true when key[from..to) is composed only of ASCII digits.
+ */
+function isNumericSegment(key: string, from: number, to: number): boolean {
+  if (from >= to) {
+    return false;
+  }
+
+  for (let i = from; i < to; i++) {
+    const charCode = key.charCodeAt(i);
+    if (charCode < 48 || charCode > 57) {
+      return false;
+    }
+  }
+
+  return true;
+}
 export function hasLegacyRepeatableKeyShape(key: string): boolean {
-  const parts = key.split(':');
-  if (parts.length < 5) {
+  const firstColon = key.indexOf(':');
+  if (firstColon === -1) {
     return false;
   }
 
-  const legacyEndDate = parts[2];
-  if (legacyEndDate !== '' && !/^\d+$/.test(legacyEndDate)) {
+  const secondColon = key.indexOf(':', firstColon + 1);
+  if (secondColon === -1) {
     return false;
   }
 
-  const legacySuffix = parts.slice(4).join(':');
-  return legacySuffix.includes(' ') || /^\d+$/.test(legacySuffix);
+  const thirdColon = key.indexOf(':', secondColon + 1);
+  if (thirdColon === -1) {
+    return false;
+  }
+
+  const fourthColon = key.indexOf(':', thirdColon + 1);
+  if (fourthColon === -1) {
+    return false;
+  }
+
+  // endDate can be empty or numeric in legacy keys.
+  if (
+    secondColon + 1 < thirdColon &&
+    !isNumericSegment(key, secondColon + 1, thirdColon)
+  ) {
+    return false;
+  }
+
+  const suffixStart = fourthColon + 1;
+  if (suffixStart >= key.length) {
+    return false;
+  }
+
+  if (key.indexOf(' ', suffixStart) !== -1) {
+    return true;
+  }
+
+  return isNumericSegment(key, suffixStart, key.length);
 }
 
 export const isLegacyRepeatableJobKey = hasLegacyRepeatableKeyShape;
