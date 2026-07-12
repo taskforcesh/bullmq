@@ -1285,8 +1285,11 @@ describe('deduplication', () => {
       const deduplicationId = 'dedup-waiting-1';
 
       let deduplicatedCount = 0;
-      queueEvents.on('deduplicated', () => {
-        deduplicatedCount++;
+      const deduplicatedEvent = new Promise<void>(resolve => {
+        queueEvents.once('deduplicated', () => {
+          deduplicatedCount++;
+          resolve();
+        });
       });
 
       // Add first job (goes to waiting, not active since no worker)
@@ -1313,7 +1316,7 @@ describe('deduplication', () => {
         },
       );
 
-      await delay(100);
+      await deduplicatedEvent;
 
       // job2 should have the same ID as job1 (was deduplicated)
       expect(job2.id).toBe(job1.id);
