@@ -72,9 +72,9 @@ It is also possible to retrieve the jobs with pagination style semantics. For ex
 {% tab title="TypeScript" %}
 
 ```typescript
-const completed = await myQueue.getJobs(['completed'], 0, 100, true);
+const completed = await myQueue.getJobs(['completed'], 0, 99, true);
 
-// returns the oldest 100 jobs
+// returns jobs at indices 0-99 inclusive (100 jobs total)
 ```
 
 {% endtab %}
@@ -82,9 +82,9 @@ const completed = await myQueue.getJobs(['completed'], 0, 100, true);
 {% tab title="Python" %}
 
 ```python
-completed = await myQueue.getJobs(['completed'], 0, 100, True)
+completed = await myQueue.getJobs(['completed'], 0, 99, True)
 
-# returns the oldest 100 jobs
+# returns jobs at indices 0-99 inclusive (100 jobs total)
 ```
 
 {% endtab %}
@@ -92,9 +92,9 @@ completed = await myQueue.getJobs(['completed'], 0, 100, True)
 {% tab title="Rust" %}
 
 ```rust
-// get_jobs is not yet available in the Rust API.
-// Use get_job(id) to fetch individual jobs by ID:
-let job = queue.get_job("some-job-id").await?;
+let completed = queue.get_jobs(&["completed"], 0, 99, true).await?;
+
+// returns jobs at indices 0-99 inclusive (100 jobs total)
 ```
 
 {% endtab %}

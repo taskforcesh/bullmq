@@ -162,7 +162,7 @@
 ## Rust
 
 - [Introduction](rust/introduction.md)
-- [API Reference](https://docs.rs/bullmq)
+- [API Reference](https://docs.rs/bullmq-official)
 - [Changelogs](rust/changelog.md)
 
 ## Elixir

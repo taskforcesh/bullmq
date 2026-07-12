@@ -98,6 +98,17 @@ export class JobScheduler extends QueueBase {
       );
     }
 
+    if (
+      Object.prototype.hasOwnProperty.call(
+        opts as Record<string, unknown>,
+        'debounce',
+      )
+    ) {
+      throw new Error(
+        'Debounce option has been removed. Use deduplication option instead',
+      );
+    }
+
     // Check if we reached the limit of the repeatable job's iterations
     const iterationCount = repeatOpts.count ? repeatOpts.count + 1 : 1;
     if (

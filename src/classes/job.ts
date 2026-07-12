@@ -40,7 +40,7 @@ import { SpanKind, TelemetryAttributes, MetricNames } from '../enums';
 
 const logger = debuglog('bull');
 
-export const PRIORITY_LIMIT = 2 ** 21;
+export const PRIORITY_LIMIT = 2 ** 21 - 1;
 
 /**
  * Job
@@ -87,9 +87,11 @@ export class Job<
   delay = 0;
 
   /**
-   * Ranges from 0 (highest priority) to 2 097 152 (lowest priority). Note that
-   * using priorities has a slight impact on performance,
-   * so do not use it if not required.
+   * Ranges from 0 to 2 097 151. `0` means no explicit priority, and jobs with
+   * no explicit priority are processed before prioritized jobs. For prioritized
+   * jobs, lower numbers are processed before higher numbers. Note that using
+   * priorities has a slight impact on performance, so do not use it if not
+   * required.
    * @defaultValue 0
    */
   priority = 0;
@@ -147,12 +149,6 @@ export class Job<
    * Object that contains parentId (id) and parent queueKey.
    */
   parent?: ParentKeys;
-
-  /**
-   * Debounce identifier.
-   * @deprecated use deduplicationId
-   */
-  debounceId?: string;
 
   /**
    * Deduplication identifier.
@@ -247,10 +243,7 @@ export class Job<
       }
     }
 
-    this.debounceId = opts.debounce ? opts.debounce.id : undefined;
-    this.deduplicationId = opts.deduplication
-      ? opts.deduplication.id
-      : this.debounceId;
+    this.deduplicationId = this.opts.deduplication?.id;
 
     this.toKey = queue.toKey.bind(queue);
     this.createBackend();
@@ -379,7 +372,6 @@ export class Job<
     }
 
     if (json.deduplicationId) {
-      job.debounceId = json.deduplicationId;
       job.deduplicationId = json.deduplicationId;
     }
 
@@ -529,7 +521,6 @@ export class Job<
       timestamp: this.timestamp,
       failedReason: JSON.stringify(this.failedReason),
       stacktrace: JSON.stringify(this.stacktrace),
-      debounceId: this.debounceId,
       deduplicationId: this.deduplicationId,
       repeatJobKey: this.repeatJobKey,
       returnvalue: JSON.stringify(this.returnvalue),
@@ -1417,15 +1408,15 @@ export class Job<
       }
     }
 
-    // TODO: remove in v6
-    if (this.opts.debounce) {
-      if (!this.opts.debounce?.id) {
-        throw new Error('Debounce id must be provided');
-      }
-
-      if (this.parentKey) {
-        throw new Error('Debounce and parent options cannot be used together');
-      }
+    if (
+      Object.prototype.hasOwnProperty.call(
+        this.opts as Record<string, unknown>,
+        'debounce',
+      )
+    ) {
+      throw new Error(
+        'Debounce option has been removed. Use deduplication option instead',
+      );
     }
 
     if (
