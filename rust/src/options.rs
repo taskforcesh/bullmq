@@ -53,12 +53,46 @@ pub type BackoffStrategyFn = Arc<
 >;
 
 /// Options for connecting to Redis.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct RedisConnectionOptions {
     /// Redis connection URL (e.g., `redis://127.0.0.1:6379`).
+    ///
+    /// Used when [`host`](Self::host) is not set. For TLS, use a `rediss://`
+    /// URL (requires the crate to be built with TLS support, which is enabled
+    /// by default).
     pub url: String,
     /// Maximum number of connections in the pool.
     pub max_connections: usize,
+    /// Redis host. When set, the connection URL is built from the typed fields
+    /// below instead of [`url`](Self::url).
+    pub host: Option<String>,
+    /// Redis port (defaults to `6379` when [`host`](Self::host) is set).
+    pub port: Option<u16>,
+    /// Username for ACL authentication.
+    pub username: Option<String>,
+    /// Password for authentication.
+    pub password: Option<String>,
+    /// Database index to select.
+    pub db: Option<u8>,
+    /// Whether to connect over TLS (uses the `rediss://` scheme).
+    pub tls: bool,
+}
+
+pub(crate) fn redact_url_userinfo(url: &str) -> String {
+    let Some((scheme, rest)) = url.split_once("://") else {
+        return url.to_string();
+    };
+
+    let authority_end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+    let authority = &rest[..authority_end];
+
+    let Some(at_pos) = authority.rfind('@') else {
+        return url.to_string();
+    };
+
+    let host_part = &authority[at_pos + 1..];
+    let suffix = &rest[authority_end..];
+    format!("{}://***@{}{}", scheme, host_part, suffix)
 }
 
 impl Default for RedisConnectionOptions {
@@ -66,7 +100,104 @@ impl Default for RedisConnectionOptions {
         Self {
             url: "redis://127.0.0.1:6379".to_string(),
             max_connections: 4,
+            host: None,
+            port: None,
+            username: None,
+            password: None,
+            db: None,
+            tls: false,
         }
+    }
+}
+
+impl RedisConnectionOptions {
+    /// Build the effective connection URL.
+    ///
+    /// When [`host`](Self::host) is set, a URL is constructed from the typed
+    /// fields (`scheme://[user][:pass]@host:port[/db]`); otherwise
+    /// [`url`](Self::url) is returned as-is.
+    pub fn effective_url(&self) -> String {
+        let Some(host) = &self.host else {
+            return self.url.clone();
+        };
+
+        let scheme = if self.tls { "rediss" } else { "redis" };
+        let encoded_username = self
+            .username
+            .as_deref()
+            .map(Self::encode_userinfo_component);
+        let encoded_password = self
+            .password
+            .as_deref()
+            .map(Self::encode_userinfo_component);
+        let auth = match (&self.username, &self.password) {
+            (Some(_), Some(_)) => format!(
+                "{}:{}@",
+                encoded_username.as_deref().unwrap_or(""),
+                encoded_password.as_deref().unwrap_or("")
+            ),
+            (None, Some(_)) => format!(":{}@", encoded_password.as_deref().unwrap_or("")),
+            (Some(_), None) => format!("{}@", encoded_username.as_deref().unwrap_or("")),
+            (None, None) => String::new(),
+        };
+        let port = self.port.unwrap_or(6379);
+        let db = self.db.map(|d| format!("/{}", d)).unwrap_or_default();
+        let host = Self::normalize_host_for_url(host);
+        format!("{}://{}{}:{}{}", scheme, auth, host, port, db)
+    }
+
+    fn normalize_host_for_url(host: &str) -> String {
+        // Bracket IPv6 host literals so host:port parsing is unambiguous.
+        if host.contains(':') && !(host.starts_with('[') && host.ends_with(']')) {
+            format!("[{}]", host)
+        } else {
+            host.to_string()
+        }
+    }
+
+    fn encode_userinfo_component(input: &str) -> String {
+        let mut out = String::with_capacity(input.len());
+        for b in input.bytes() {
+            if Self::is_unreserved_userinfo_byte(b) {
+                out.push(b as char);
+            } else {
+                out.push('%');
+                out.push(Self::hex_upper((b >> 4) & 0x0F));
+                out.push(Self::hex_upper(b & 0x0F));
+            }
+        }
+        out
+    }
+
+    fn is_unreserved_userinfo_byte(b: u8) -> bool {
+        b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~')
+    }
+
+    fn hex_upper(nibble: u8) -> char {
+        match nibble {
+            0..=9 => (b'0' + nibble) as char,
+            10..=15 => (b'A' + (nibble - 10)) as char,
+            _ => unreachable!("hex nibble out of range"),
+        }
+    }
+}
+
+impl std::fmt::Debug for RedisConnectionOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let redacted_url = redact_url_userinfo(&self.url);
+        let redacted_username = self.username.as_ref().map(|_| "***");
+        let redacted_password = self.password.as_ref().map(|_| "***");
+
+        f.debug_struct("RedisConnectionOptions")
+            .field("url", &redacted_url)
+            .field("max_connections", &self.max_connections)
+            .field("host", &self.host)
+            .field("port", &self.port)
+            .field("username", &redacted_username)
+            .field("password", &redacted_password)
+            .field("db", &self.db)
+            .field("tls", &self.tls)
+            .finish()
     }
 }
 
@@ -131,6 +262,38 @@ pub struct WorkerOptions {
     pub limiter: Option<RateLimiterOptions>,
     /// Maximum delay in ms to wait when rate limited (default 30_000).
     pub maximum_rate_limit_delay: u64,
+    /// Maximum number of times a job may *start* processing (regardless of
+    /// completion/failure) before it is moved to `failed` with an
+    /// unrecoverable error. Each pickup increments the job's `attemptsStarted`
+    /// counter. `None` disables the check. Mirrors Node.js `maxStartedAttempts`.
+    pub max_started_attempts: Option<u32>,
+    /// Skip the stalled-job check for this worker. Other workers may still
+    /// perform stalled checks. Mirrors Node.js `skipStalledCheck`.
+    pub skip_stalled_check: bool,
+    /// Skip lock renewal for this worker. When `true`, locks expire after
+    /// `lock_duration` and the job is moved back to wait (if the stalled check
+    /// is not also disabled). Mirrors Node.js `skipLockRenewal`.
+    pub skip_lock_renewal: bool,
+    /// Time-series metrics collection. When set, the worker records
+    /// completed/failed counts per minute, readable via `Queue::get_metrics`.
+    pub metrics: Option<MetricsOptions>,
+}
+
+/// Configuration for time-series metrics collection.
+#[derive(Debug, Clone)]
+pub struct MetricsOptions {
+    /// Maximum number of per-minute data points to keep (older points are
+    /// trimmed). One data point covers one minute, so 2 weeks ≈ `2 * 7 * 24 * 60`.
+    pub max_data_points: usize,
+}
+
+impl Default for MetricsOptions {
+    fn default() -> Self {
+        // Two weeks of minute-resolution data points.
+        Self {
+            max_data_points: 2 * 7 * 24 * 60,
+        }
+    }
 }
 
 impl Default for WorkerOptions {
@@ -153,6 +316,10 @@ impl Default for WorkerOptions {
             backoff_strategy: None,
             limiter: None,
             maximum_rate_limit_delay: 30_000,
+            metrics: None,
+            max_started_attempts: None,
+            skip_stalled_check: false,
+            skip_lock_renewal: false,
         }
     }
 }
@@ -246,6 +413,28 @@ pub struct JobOptions {
     /// Repeat job key (scheduler ID).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repeat_job_key: Option<String>,
+
+    /// If true, the parent job will fail when this child fails.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fail_parent_on_failure: Option<bool>,
+
+    /// If true, the dependency on this child is ignored when it fails.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ignore_dependency_on_failure: Option<bool>,
+
+    /// If true, the dependency on this child is removed when it fails.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remove_dependency_on_failure: Option<bool>,
+
+    /// If true, the parent continues processing even if this child fails.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub continue_parent_on_failure: Option<bool>,
+
+    /// Reject the job if its serialized (JSON) data exceeds this many UTF-8
+    /// bytes. Enforced client-side when the job is added. Mirrors Node.js
+    /// `sizeLimit`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size_limit: Option<usize>,
 }
 
 /// Parent job options (for flow/dependency chains).
@@ -270,6 +459,9 @@ pub struct RedisKeepJobs {
     /// Maximum count of jobs to keep.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub count: Option<usize>,
+    /// Maximum quantity of jobs to remove per eviction pass.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<usize>,
 }
 
 impl From<KeepJobs> for RedisKeepJobs {
@@ -277,6 +469,7 @@ impl From<KeepJobs> for RedisKeepJobs {
         Self {
             age: k.age,
             count: k.count,
+            limit: k.limit,
         }
     }
 }

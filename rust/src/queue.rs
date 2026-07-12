@@ -1,14 +1,20 @@
+use std::collections::HashMap;
 use tracing::{debug, instrument};
 
 use crate::error::Error;
 use crate::job::{Job, ScriptContext};
-use crate::keys::QueueKeys;
+use crate::keys::{resolve_parent_queue_key, validate_queue_name, QueueKeys};
 use crate::options::{JobOptions, QueueOptions};
 use crate::redis_connection::RedisConnection;
-use crate::types::{JobCounts, JobState};
+use crate::types::{DependenciesCount, JobCounts, JobState, QueueMeta};
 
 /// The version string stored in queue metadata for compatibility tracking.
-const BULLMQ_VERSION: &str = "bullmq-rust:0.1.0";
+const BULLMQ_VERSION: &str = "bullmq-official:0.1.0";
+
+/// A callback invoked once per `(state, count)` pair by
+/// [`Queue::record_job_counts_metric`]. This is the integration point for
+/// forwarding job-count gauges to a metrics/telemetry backend.
+pub type JobCountRecorder<'a> = &'a dyn Fn(&str, u64);
 
 /// A Queue is the main entry point for adding jobs to be processed.
 ///
@@ -23,8 +29,23 @@ pub struct Queue {
 }
 
 impl Queue {
+    fn validate_job_size(job: &Job, argv2: &str) -> Result<(), Error> {
+        if let Some(size_limit) = job.opts().size_limit {
+            if argv2.len() > size_limit {
+                return Err(Error::InvalidConfig(format!(
+                    "The size of job {} exceeds the limit {} bytes",
+                    job.name(),
+                    size_limit
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
     /// Create a new Queue connected to Redis.
     pub async fn new(name: &str, opts: QueueOptions) -> Result<Self, Error> {
+        validate_queue_name(name)?;
         let conn = RedisConnection::new(&opts.connection).await?;
         let keys = QueueKeys::new(name, Some(&opts.prefix));
 
@@ -46,6 +67,7 @@ impl Queue {
         conn: RedisConnection,
         opts: QueueOptions,
     ) -> Result<Self, Error> {
+        validate_queue_name(name)?;
         let keys = QueueKeys::new(name, Some(&opts.prefix));
 
         let queue = Self {
@@ -110,10 +132,20 @@ impl Queue {
             })
             .collect();
 
+        let serialized_job_data: Vec<String> = job_objects
+            .iter()
+            .map(|job| {
+                let argv2 = serde_json::to_string(job.data())?;
+                Self::validate_job_size(job, &argv2)?;
+                Ok(argv2)
+            })
+            .collect::<Result<_, Error>>()?;
+
         // Run all add_job calls concurrently since the connection is multiplexed
         let futures: Vec<_> = job_objects
             .iter()
-            .map(|job| {
+            .zip(serialized_job_data)
+            .map(|(job, argv2)| {
                 let delay = job.delay();
                 let priority = job.priority();
                 let timestamp = job.timestamp();
@@ -136,13 +168,13 @@ impl Queue {
                     })
                     .cloned();
                 let keys = self.add_job_keys(script_name);
-                let argv1 = self.pack_add_args(job, &custom_job_id, timestamp);
-                let argv2 = serde_json::to_string(job.data()).unwrap_or_else(|_| "{}".into());
+                let packed_args = self.pack_add_args(job, &custom_job_id, timestamp);
                 let argv3 = self.pack_job_opts(job);
                 let mut conn = self.conn.conn();
 
                 async move {
                     let script = script?;
+                    let argv1 = packed_args?;
                     let argv2_bytes = argv2.into_bytes();
                     let args: Vec<&[u8]> = vec![&argv1, &argv2_bytes, &argv3];
                     let result = script.execute(&mut conn, &keys, &args).await?;
@@ -190,10 +222,14 @@ impl Queue {
         let keys = self.add_job_keys(script_name);
 
         // Build ARGV[1]: msgpack array of metadata
-        let argv1 = self.pack_add_args(job, custom_job_id, timestamp);
+        let argv1 = self.pack_add_args(job, custom_job_id, timestamp)?;
 
         // Build ARGV[2]: JSON stringified job data
-        let argv2 = serde_json::to_string(job.data()).unwrap_or_else(|_| "{}".to_string());
+        let argv2 = serde_json::to_string(job.data())?;
+
+        // Enforce sizeLimit client-side (matches Node.js `validateOptions`):
+        // reject jobs whose serialized data exceeds the configured byte limit.
+        Self::validate_job_size(job, &argv2)?;
 
         // Build ARGV[3]: msgpack map of options
         let argv3 = self.pack_job_opts(job);
@@ -302,7 +338,7 @@ impl Queue {
     /// Pack ARGV[1]: msgpack array matching the Lua script contract.
     ///
     /// Positions: [key_prefix, job_id, name, timestamp, parentKey, parentDepsKey, parent, repeatJobKey, deduplicationKey]
-    fn pack_add_args(&self, job: &Job, job_id: &str, timestamp: u64) -> Vec<u8> {
+    fn pack_add_args(&self, job: &Job, job_id: &str, timestamp: u64) -> Result<Vec<u8>, Error> {
         use rmp::encode::*;
 
         let mut buf = Vec::with_capacity(128);
@@ -316,12 +352,56 @@ impl Queue {
         write_str(&mut buf, job.name()).unwrap();
         // [4] timestamp
         write_uint(&mut buf, timestamp).unwrap();
-        // [5] parentKey - nil
-        write_nil(&mut buf).unwrap();
-        // [6] parent deps key - nil
-        write_nil(&mut buf).unwrap();
-        // [7] parent - nil
-        write_nil(&mut buf).unwrap();
+
+        // [5] parentKey, [6] parent deps key, [7] parent
+        if let Some(ref parent) = job.opts().parent {
+            let parent_queue_key = resolve_parent_queue_key(self.keys.prefix(), &parent.queue)?;
+            let parent_key = format!("{}:{}", parent_queue_key, parent.id);
+            let parent_deps_key = format!("{}:dependencies", parent_key);
+            let opts = job.opts();
+            let mut parent_map_len = 2u32;
+            if opts.fail_parent_on_failure == Some(true) {
+                parent_map_len += 1;
+            }
+            if opts.ignore_dependency_on_failure == Some(true) {
+                parent_map_len += 1;
+            }
+            if opts.remove_dependency_on_failure == Some(true) {
+                parent_map_len += 1;
+            }
+            if opts.continue_parent_on_failure == Some(true) {
+                parent_map_len += 1;
+            }
+
+            write_str(&mut buf, &parent_key).unwrap();
+            write_str(&mut buf, &parent_deps_key).unwrap();
+            write_map_len(&mut buf, parent_map_len).unwrap();
+            write_str(&mut buf, "id").unwrap();
+            write_str(&mut buf, &parent.id).unwrap();
+            write_str(&mut buf, "queueKey").unwrap();
+            write_str(&mut buf, &parent_queue_key).unwrap();
+            if opts.fail_parent_on_failure == Some(true) {
+                write_str(&mut buf, "fpof").unwrap();
+                write_bool(&mut buf, true).unwrap();
+            }
+            if opts.ignore_dependency_on_failure == Some(true) {
+                write_str(&mut buf, "idof").unwrap();
+                write_bool(&mut buf, true).unwrap();
+            }
+            if opts.remove_dependency_on_failure == Some(true) {
+                write_str(&mut buf, "rdof").unwrap();
+                write_bool(&mut buf, true).unwrap();
+            }
+            if opts.continue_parent_on_failure == Some(true) {
+                write_str(&mut buf, "cpof").unwrap();
+                write_bool(&mut buf, true).unwrap();
+            }
+        } else {
+            write_nil(&mut buf).unwrap();
+            write_nil(&mut buf).unwrap();
+            write_nil(&mut buf).unwrap();
+        }
+
         // [8] repeat job key - nil
         write_nil(&mut buf).unwrap();
         // [9] deduplication key
@@ -332,7 +412,7 @@ impl Queue {
             write_nil(&mut buf).unwrap();
         }
 
-        buf
+        Ok(buf)
     }
 
     /// Pack ARGV[3]: msgpack map of job options using the raw script keys.
@@ -418,6 +498,9 @@ impl Queue {
                 if keep.count.is_some() {
                     count += 1;
                 }
+                if keep.limit.is_some() {
+                    count += 1;
+                }
                 write_map_len(&mut b, count).unwrap();
                 if let Some(age) = keep.age {
                     write_str(&mut b, "age").unwrap();
@@ -426,6 +509,10 @@ impl Queue {
                 if let Some(cnt) = keep.count {
                     write_str(&mut b, "count").unwrap();
                     write_uint(&mut b, cnt as u64).unwrap();
+                }
+                if let Some(limit) = keep.limit {
+                    write_str(&mut b, "limit").unwrap();
+                    write_uint(&mut b, limit as u64).unwrap();
                 }
             }
         }
@@ -637,6 +724,741 @@ impl Queue {
         })
     }
 
+    /// Sanitize a list of job types: dedupe (preserving order) and add `paused`
+    /// whenever `waiting` is requested.
+    ///
+    /// Note: `paused` is **not** a per-job state — there is no way to pause an
+    /// individual job. It is the list where otherwise-`waiting` jobs are parked
+    /// while the *queue* is paused (via [`Queue::pause`]). Because a waiting job
+    /// may sit in either the `wait` or the `paused` list depending on whether the
+    /// queue is paused, querying `waiting` must also include `paused` to return
+    /// all waiting jobs. (This mirrors Node.js `sanitizeJobTypes`.)
+    ///
+    /// An empty input expands to all queryable states.
+    fn sanitize_job_types(types: &[&str]) -> Vec<String> {
+        if types.is_empty() {
+            return [
+                "active",
+                "completed",
+                "delayed",
+                "failed",
+                "paused",
+                "prioritized",
+                "waiting",
+                "waiting-children",
+            ]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        }
+
+        let mut out: Vec<String> = Vec::new();
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for t in types {
+            if seen.insert((*t).to_string()) {
+                out.push((*t).to_string());
+            }
+        }
+        if types.contains(&"waiting") && seen.insert("paused".to_string()) {
+            out.push("paused".to_string());
+        }
+        out
+    }
+
+    /// Return job IDs for the given states with pagination.
+    ///
+    /// `types` are state names (e.g. `"waiting"`, `"active"`, `"completed"`).
+    /// `start`/`end` are zero-based inclusive indices (`-1` = last). When `asc`
+    /// is true, jobs are returned in ascending (oldest-first) order.
+    ///
+    /// The requested types are sanitized via [`Queue::sanitize_job_types`]: an
+    /// empty slice expands to all states, `waiting` also queries `paused`, and
+    /// duplicate types are removed. Results from all requested states are
+    /// concatenated and de-duplicated while preserving order.
+    pub async fn get_ranges(
+        &self,
+        types: &[&str],
+        start: i64,
+        end: i64,
+        asc: bool,
+    ) -> Result<Vec<String>, Error> {
+        let script = self
+            .conn
+            .scripts()
+            .get("getRanges")
+            .ok_or_else(|| Error::InvalidConfig("getRanges script not found".to_string()))?
+            .clone();
+
+        // The Lua script uses the queue key prefix (with trailing colon) as KEYS[1].
+        let keys = vec![self.keys.key_prefix()];
+
+        let start_s = start.to_string();
+        let end_s = end.to_string();
+        let asc_s = if asc { "1" } else { "0" };
+        // Apply the same sanitization as `get_jobs`: de-duplicate the requested
+        // types and, when `waiting` is requested, also include `paused` (where
+        // otherwise-waiting jobs are parked while the queue is paused). Then
+        // alias "waiting" -> "wait" for the Lua script.
+        let sanitized = Self::sanitize_job_types(types);
+        let transformed: Vec<String> = sanitized
+            .iter()
+            .map(|t| {
+                if t == "waiting" {
+                    "wait".to_string()
+                } else {
+                    t.clone()
+                }
+            })
+            .collect();
+
+        let mut args: Vec<&[u8]> = vec![start_s.as_bytes(), end_s.as_bytes(), asc_s.as_bytes()];
+        for t in &transformed {
+            args.push(t.as_bytes());
+        }
+
+        let mut conn = self.conn.conn();
+        let result = script.execute(&mut conn, &keys, &args).await?;
+
+        // The script returns an array (one entry per state) of arrays of IDs.
+        // For list-based states (wait/paused/active) read in ascending order we
+        // must reverse the group — this mirrors the Node.js getter, which
+        // reverses `lrange` results when `asc` is set.
+        let extract_id = |v: redis::Value| -> Option<String> {
+            match v {
+                redis::Value::BulkString(bytes) => {
+                    Some(String::from_utf8_lossy(&bytes).to_string())
+                }
+                redis::Value::SimpleString(s) => Some(s),
+                _ => None,
+            }
+        };
+
+        let mut out: Vec<String> = Vec::new();
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+        if let redis::Value::Array(groups) = result {
+            for (i, group) in groups.into_iter().enumerate() {
+                let is_list = matches!(
+                    transformed.get(i).map(|s| s.as_str()),
+                    Some("wait") | Some("paused") | Some("active")
+                );
+                let mut ids: Vec<String> = match group {
+                    redis::Value::Array(items) => {
+                        items.into_iter().filter_map(extract_id).collect()
+                    }
+                    other => extract_id(other).into_iter().collect(),
+                };
+                if asc && is_list {
+                    ids.reverse();
+                }
+                for id in ids {
+                    if seen.insert(id.clone()) {
+                        out.push(id);
+                    }
+                }
+            }
+        }
+
+        Ok(out)
+    }
+
+    /// Return the jobs that are in the given states with pagination.
+    ///
+    /// `types` are state names. An empty slice returns jobs from all states.
+    pub async fn get_jobs(
+        &self,
+        types: &[&str],
+        start: i64,
+        end: i64,
+        asc: bool,
+    ) -> Result<Vec<Job>, Error> {
+        // `get_ranges` sanitizes the requested types (expanding `waiting` to
+        // also include `paused` and de-duplicating), so pass them through.
+        let ids = self.get_ranges(types, start, end, asc).await?;
+
+        // Fetch jobs concurrently over the multiplexed Redis connection.
+        let fetches = ids.iter().map(|id| self.get_job(id));
+        let results = futures::future::join_all(fetches).await;
+
+        let mut jobs = Vec::with_capacity(ids.len());
+        for result in results {
+            if let Some(job) = result? {
+                jobs.push(job);
+            }
+        }
+        Ok(jobs)
+    }
+
+    /// Return jobs in the `waiting` (and `paused`) state.
+    pub async fn get_waiting(&self, start: i64, end: i64) -> Result<Vec<Job>, Error> {
+        self.get_jobs(&["waiting"], start, end, true).await
+    }
+
+    /// Return jobs in the `waiting-children` state (parents with pending children).
+    pub async fn get_waiting_children(&self, start: i64, end: i64) -> Result<Vec<Job>, Error> {
+        self.get_jobs(&["waiting-children"], start, end, true).await
+    }
+
+    /// Return jobs in the `active` state.
+    pub async fn get_active(&self, start: i64, end: i64) -> Result<Vec<Job>, Error> {
+        self.get_jobs(&["active"], start, end, true).await
+    }
+
+    /// Return jobs in the `delayed` state.
+    pub async fn get_delayed(&self, start: i64, end: i64) -> Result<Vec<Job>, Error> {
+        self.get_jobs(&["delayed"], start, end, true).await
+    }
+
+    /// Return jobs in the `prioritized` state.
+    pub async fn get_prioritized(&self, start: i64, end: i64) -> Result<Vec<Job>, Error> {
+        self.get_jobs(&["prioritized"], start, end, true).await
+    }
+
+    /// Return jobs in the `completed` state.
+    pub async fn get_completed(&self, start: i64, end: i64) -> Result<Vec<Job>, Error> {
+        self.get_jobs(&["completed"], start, end, false).await
+    }
+
+    /// Return jobs in the `failed` state.
+    pub async fn get_failed(&self, start: i64, end: i64) -> Result<Vec<Job>, Error> {
+        self.get_jobs(&["failed"], start, end, false).await
+    }
+
+    /// Raw `getCounts` script call. Transforms `waiting` -> `wait` and returns
+    /// one count per provided type, in order.
+    async fn get_counts_raw(&self, types: &[String]) -> Result<Vec<u64>, Error> {
+        let script = self
+            .conn
+            .scripts()
+            .get("getCounts")
+            .ok_or_else(|| Error::InvalidConfig("getCounts script not found".to_string()))?
+            .clone();
+
+        let keys = vec![self.keys.key_prefix()];
+        let transformed: Vec<String> = types
+            .iter()
+            .map(|t| {
+                if t == "waiting" {
+                    "wait".to_string()
+                } else {
+                    t.clone()
+                }
+            })
+            .collect();
+        let args: Vec<&[u8]> = transformed.iter().map(|s| s.as_bytes()).collect();
+
+        let mut conn = self.conn.conn();
+        let result = script.execute(&mut conn, &keys, &args).await?;
+
+        let counts = match result {
+            redis::Value::Array(arr) => arr
+                .into_iter()
+                .map(|v| match v {
+                    redis::Value::Int(n) => n.max(0) as u64,
+                    _ => 0,
+                })
+                .collect(),
+            _ => Vec::new(),
+        };
+        Ok(counts)
+    }
+
+    /// Return the job counts for each provided type, keyed by type name.
+    ///
+    /// An empty `types` slice returns counts for every queryable state.
+    pub async fn get_job_counts_by_types(
+        &self,
+        types: &[&str],
+    ) -> Result<HashMap<String, u64>, Error> {
+        let sanitized = Self::sanitize_job_types(types);
+        let counts = self.get_counts_raw(&sanitized).await?;
+
+        let mut map = HashMap::new();
+        for (i, t) in sanitized.iter().enumerate() {
+            map.insert(t.clone(), counts.get(i).copied().unwrap_or(0));
+        }
+        Ok(map)
+    }
+
+    /// Return the total number of jobs across the provided types.
+    pub async fn get_job_count_by_types(&self, types: &[&str]) -> Result<u64, Error> {
+        let map = self.get_job_counts_by_types(types).await?;
+        Ok(map.values().sum())
+    }
+
+    /// Return job counts by state, invoking `recorder` once per `(state, count)`.
+    ///
+    /// Mirrors Node.js `Queue.recordJobCountsMetric`, which records gauge
+    /// metrics when telemetry is configured. The Rust port has no built-in
+    /// telemetry subsystem, so the optional `recorder` closure is the
+    /// integration point: pass `None` to simply retrieve the counts, or supply
+    /// a closure to forward each state's count to your metrics backend.
+    pub async fn record_job_counts_metric(
+        &self,
+        types: &[&str],
+        recorder: Option<JobCountRecorder<'_>>,
+    ) -> Result<HashMap<String, u64>, Error> {
+        let counts = self.get_job_counts_by_types(types).await?;
+        if let Some(record) = recorder {
+            for (state, count) in &counts {
+                record(state, *count);
+            }
+        }
+        Ok(counts)
+    }
+
+    /// Return the number of jobs waiting to be processed: this sums `waiting`,
+    /// `paused`, `delayed`, `prioritized` and `waiting-children`.
+    pub async fn count(&self) -> Result<u64, Error> {
+        self.get_job_count_by_types(&[
+            "waiting",
+            "paused",
+            "delayed",
+            "prioritized",
+            "waiting-children",
+        ])
+        .await
+    }
+
+    /// Return the number of jobs per priority for the provided priorities.
+    ///
+    /// Priorities are de-duplicated. The returned map is keyed by priority value.
+    pub async fn get_counts_per_priority(
+        &self,
+        priorities: &[u64],
+    ) -> Result<HashMap<u64, u64>, Error> {
+        let script = self
+            .conn
+            .scripts()
+            .get("getCountsPerPriority")
+            .ok_or_else(|| {
+                Error::InvalidConfig("getCountsPerPriority script not found".to_string())
+            })?
+            .clone();
+
+        // De-duplicate while preserving order.
+        let mut unique: Vec<u64> = Vec::new();
+        let mut seen: std::collections::HashSet<u64> = std::collections::HashSet::new();
+        for p in priorities {
+            if seen.insert(*p) {
+                unique.push(*p);
+            }
+        }
+
+        let keys = vec![
+            self.keys.wait(),
+            self.keys.paused(),
+            self.keys.meta(),
+            self.keys.prioritized(),
+        ];
+        let prio_strs: Vec<String> = unique.iter().map(|p| p.to_string()).collect();
+        let args: Vec<&[u8]> = prio_strs.iter().map(|s| s.as_bytes()).collect();
+
+        let mut conn = self.conn.conn();
+        let result = script.execute(&mut conn, &keys, &args).await?;
+
+        let counts: Vec<u64> = match result {
+            redis::Value::Array(arr) => arr
+                .into_iter()
+                .map(|v| match v {
+                    redis::Value::Int(n) => n.max(0) as u64,
+                    _ => 0,
+                })
+                .collect(),
+            _ => Vec::new(),
+        };
+
+        let mut map = HashMap::new();
+        for (i, p) in unique.iter().enumerate() {
+            map.insert(*p, counts.get(i).copied().unwrap_or(0));
+        }
+        Ok(map)
+    }
+
+    /// Return the number of jobs in the `completed` state.
+    pub async fn get_completed_count(&self) -> Result<u64, Error> {
+        self.get_job_count_by_types(&["completed"]).await
+    }
+
+    /// Return the number of jobs in the `failed` state.
+    pub async fn get_failed_count(&self) -> Result<u64, Error> {
+        self.get_job_count_by_types(&["failed"]).await
+    }
+
+    /// Return the number of jobs in the `delayed` state.
+    pub async fn get_delayed_count(&self) -> Result<u64, Error> {
+        self.get_job_count_by_types(&["delayed"]).await
+    }
+
+    /// Return the number of jobs in the `active` state.
+    pub async fn get_active_count(&self) -> Result<u64, Error> {
+        self.get_job_count_by_types(&["active"]).await
+    }
+
+    /// Return the number of jobs in the `prioritized` state.
+    pub async fn get_prioritized_count(&self) -> Result<u64, Error> {
+        self.get_job_count_by_types(&["prioritized"]).await
+    }
+
+    /// Return the number of jobs in the `waiting` (and `paused`) state.
+    pub async fn get_waiting_count(&self) -> Result<u64, Error> {
+        self.get_job_count_by_types(&["waiting"]).await
+    }
+
+    /// Return the number of jobs in the `waiting-children` state.
+    pub async fn get_waiting_children_count(&self) -> Result<u64, Error> {
+        self.get_job_count_by_types(&["waiting-children"]).await
+    }
+
+    /// Return the list of workers currently connected to this queue.
+    ///
+    /// Workers register themselves via `CLIENT SETNAME` on their blocking
+    /// connection; this method runs `CLIENT LIST` and returns the parsed info
+    /// maps for clients whose name matches this queue. Each map's `name` field
+    /// is set to the queue name and the original client name is preserved in
+    /// `rawname` (mirroring Node.js `Queue.getWorkers`).
+    ///
+    /// Note: some managed Redis providers (e.g. GCP Memorystore) do not support
+    /// `CLIENT SETNAME`/`CLIENT LIST`, in which case this returns an empty list.
+    pub async fn get_workers(&self) -> Result<Vec<HashMap<String, String>>, Error> {
+        let mut cmd = redis::cmd("CLIENT");
+        cmd.arg("LIST");
+        let list: String = match self.conn.cmd(&mut cmd).await {
+            Ok(list) => list,
+            Err(err) => {
+                debug!(error = %err, "CLIENT LIST unavailable; returning empty worker list");
+                return Ok(Vec::new());
+            }
+        };
+
+        let unnamed = self.keys.client_name("");
+        let named_prefix = self.keys.client_name(":w:");
+        Ok(parse_client_list(
+            &list,
+            &self.name,
+            &unnamed,
+            &named_prefix,
+        ))
+    }
+
+    /// Return the number of workers currently connected to this queue.
+    pub async fn get_workers_count(&self) -> Result<usize, Error> {
+        Ok(self.get_workers().await?.len())
+    }
+
+    /// Return the queue's public metadata (read from the `meta` hash).
+    ///
+    /// Well-known numeric/boolean fields (`concurrency`, `max`, `duration`,
+    /// `opts.maxLenEvents`, `paused`) are parsed into typed fields; any other
+    /// entries are preserved in [`QueueMeta::other`]. Mirrors Node.js
+    /// `Queue.getMeta`.
+    pub async fn get_meta(&self) -> Result<QueueMeta, Error> {
+        let mut conn = self.conn.conn();
+        let config: HashMap<String, String> = redis::cmd("HGETALL")
+            .arg(self.keys.meta())
+            .query_async(&mut conn)
+            .await?;
+
+        let mut meta = QueueMeta::default();
+        for (key, value) in config {
+            match key.as_str() {
+                "concurrency" => meta.concurrency = value.parse().ok(),
+                "max" => meta.max = value.parse().ok(),
+                "duration" => meta.duration = value.parse().ok(),
+                "opts.maxLenEvents" => meta.max_len_events = value.parse().ok(),
+                "paused" => meta.paused = value == "1",
+                _ => {
+                    meta.other.insert(key, value);
+                }
+            }
+        }
+
+        Ok(meta)
+    }
+
+    /// Return the library version string stored in the `meta` hash.
+    ///
+    /// The Rust port records `bullmq-official:<version>` under the `library` field
+    /// when the queue is created. Returns `None` if the field is unset.
+    pub async fn get_version(&self) -> Result<Option<String>, Error> {
+        let mut conn = self.conn.conn();
+        let value: Option<String> = redis::cmd("HGET")
+            .arg(self.keys.meta())
+            .arg("library")
+            .query_async(&mut conn)
+            .await?;
+        Ok(value)
+    }
+
+    /// Return `true` when the number of active jobs has reached the queue's
+    /// global concurrency limit. Returns `false` when no global concurrency is
+    /// configured. Mirrors Node.js `Queue.isMaxed`.
+    pub async fn is_maxed(&self) -> Result<bool, Error> {
+        let script = self
+            .conn
+            .scripts()
+            .get("isMaxed")
+            .ok_or_else(|| Error::InvalidConfig("isMaxed script not found".to_string()))?
+            .clone();
+
+        let keys = vec![self.keys.meta(), self.keys.active()];
+        let args: Vec<&[u8]> = vec![];
+
+        let mut conn = self.conn.conn();
+        let result = script.execute(&mut conn, &keys, &args).await?;
+        Ok(matches!(result, redis::Value::Int(1)) || matches!(result, redis::Value::Boolean(true)))
+    }
+
+    /// Export the queue's job counts and totals in the Prometheus text
+    /// exposition format.
+    ///
+    /// Emits a `bullmq_job_count` gauge per job state plus
+    /// `bullmq_job_completed_total` / `bullmq_job_failed_total` counters sourced
+    /// from the time-series metrics. `global_labels` are appended (in order) as
+    /// extra labels on every series; pass `&[]` for none. Mirrors Node.js
+    /// `Queue.exportPrometheusMetrics`.
+    pub async fn export_prometheus_metrics(
+        &self,
+        global_labels: &[(&str, &str)],
+    ) -> Result<String, Error> {
+        let counts = self.get_job_counts().await?;
+        let mut metrics: Vec<String> = Vec::new();
+
+        metrics.push("# HELP bullmq_job_count Number of jobs in the queue by state".to_string());
+        metrics.push("# TYPE bullmq_job_count gauge".to_string());
+
+        let escaped_queue = escape_prometheus_label_value(&self.name);
+        let variables: String = global_labels
+            .iter()
+            .map(|(k, v)| format!(", {}=\"{}\"", k, escape_prometheus_label_value(v)))
+            .collect();
+
+        let states: [(&str, u64); 8] = [
+            ("active", counts.active),
+            ("completed", counts.completed),
+            ("delayed", counts.delayed),
+            ("failed", counts.failed),
+            ("paused", counts.paused),
+            ("prioritized", counts.prioritized),
+            ("waiting", counts.waiting),
+            ("waiting-children", counts.waiting_children),
+        ];
+        for (state, count) in states {
+            metrics.push(format!(
+                "bullmq_job_count{{queue=\"{escaped_queue}\", state=\"{state}\"{variables}}} {count}"
+            ));
+        }
+
+        let completed_metrics = self.get_metrics("completed", 0, -1).await?;
+        let failed_metrics = self.get_metrics("failed", 0, -1).await?;
+
+        metrics
+            .push("# HELP bullmq_job_completed_total Total number of completed jobs".to_string());
+        metrics.push("# TYPE bullmq_job_completed_total counter".to_string());
+        metrics.push(format!(
+            "bullmq_job_completed_total{{queue=\"{escaped_queue}\"{variables}}} {}",
+            completed_metrics.meta.count
+        ));
+
+        metrics.push("# HELP bullmq_job_failed_total Total number of failed jobs".to_string());
+        metrics.push("# TYPE bullmq_job_failed_total counter".to_string());
+        metrics.push(format!(
+            "bullmq_job_failed_total{{queue=\"{escaped_queue}\"{variables}}} {}",
+            failed_metrics.meta.count
+        ));
+
+        Ok(metrics.join("\n"))
+    }
+
+    /// Return the time-series metrics for the queue.
+    ///
+    /// `metric_type` must be `"completed"` or `"failed"`. Metrics are recorded
+    /// per minute by workers configured with the `metrics` option. `start`/`end`
+    /// are zero-based indices into the data points where `0` is the newest.
+    pub async fn get_metrics(
+        &self,
+        metric_type: &str,
+        start: i64,
+        end: i64,
+    ) -> Result<crate::types::Metrics, Error> {
+        // Node.js restricts the metric type to `completed`/`failed` at the type
+        // level; in Rust we validate at runtime so an invalid name returns an
+        // error instead of silently reading non-existent keys and returning
+        // empty metrics.
+        if metric_type != "completed" && metric_type != "failed" {
+            return Err(Error::InvalidConfig(format!(
+                "metric type must be \"completed\" or \"failed\", got \"{}\"",
+                metric_type
+            )));
+        }
+
+        let script = self
+            .conn
+            .scripts()
+            .get("getMetrics")
+            .ok_or_else(|| Error::InvalidConfig("getMetrics script not found".to_string()))?
+            .clone();
+
+        let metrics_key = self.keys.get(&format!("metrics:{}", metric_type));
+        let data_key = self.keys.get(&format!("metrics:{}:data", metric_type));
+        let keys = vec![metrics_key, data_key];
+
+        let start_s = start.to_string();
+        let end_s = end.to_string();
+        let args: Vec<&[u8]> = vec![start_s.as_bytes(), end_s.as_bytes()];
+
+        let mut conn = self.conn.conn();
+        let result = script.execute(&mut conn, &keys, &args).await?;
+
+        // The script returns [meta(array of 3), data(array), count(int)].
+        let parse_u64 = |v: &redis::Value| -> u64 {
+            match v {
+                redis::Value::BulkString(b) => String::from_utf8_lossy(b).parse().unwrap_or(0),
+                redis::Value::SimpleString(s) => s.parse().unwrap_or(0),
+                redis::Value::Int(n) => (*n).max(0) as u64,
+                _ => 0,
+            }
+        };
+
+        let mut metrics = crate::types::Metrics::default();
+        if let redis::Value::Array(parts) = result {
+            if let Some(redis::Value::Array(meta)) = parts.first() {
+                metrics.meta.count = meta.first().map(parse_u64).unwrap_or(0);
+                metrics.meta.prev_ts = meta.get(1).map(parse_u64).unwrap_or(0);
+                metrics.meta.prev_count = meta.get(2).map(parse_u64).unwrap_or(0);
+            }
+            if let Some(redis::Value::Array(data)) = parts.get(1) {
+                metrics.data = data.iter().map(parse_u64).collect();
+            }
+            if let Some(count) = parts.get(2) {
+                metrics.count = parse_u64(count);
+            }
+        }
+
+        Ok(metrics)
+    }
+
+    /// Get return values of all completed children of a parent job.
+    pub async fn get_children_values(
+        &self,
+        job_id: &str,
+    ) -> Result<HashMap<String, serde_json::Value>, Error> {
+        let processed_key = format!("{}:processed", self.keys.job_key(job_id));
+        let mut conn = self.conn.conn();
+
+        let result: HashMap<String, String> = redis::cmd("HGETALL")
+            .arg(&processed_key)
+            .query_async(&mut conn)
+            .await?;
+
+        let mut parsed = HashMap::new();
+        for (key, value) in result {
+            let parsed_value: serde_json::Value =
+                serde_json::from_str(&value).unwrap_or(serde_json::Value::String(value));
+            parsed.insert(key, parsed_value);
+        }
+        Ok(parsed)
+    }
+
+    /// Get failure values of children that failed with ignoreDependencyOnFailure.
+    pub async fn get_failed_children_values(
+        &self,
+        job_id: &str,
+    ) -> Result<HashMap<String, String>, Error> {
+        let failed_key = format!("{}:failed", self.keys.job_key(job_id));
+        let mut conn = self.conn.conn();
+
+        let result: HashMap<String, String> = redis::cmd("HGETALL")
+            .arg(&failed_key)
+            .query_async(&mut conn)
+            .await?;
+
+        Ok(result)
+    }
+
+    /// Get counts of dependencies for a parent job.
+    pub async fn get_dependencies_count(&self, job_id: &str) -> Result<DependenciesCount, Error> {
+        let job_key = self.keys.job_key(job_id);
+        let processed_key = format!("{}:processed", job_key);
+        let deps_key = format!("{}:dependencies", job_key);
+        let failed_key = format!("{}:failed", job_key);
+        let unsuccessful_key = format!("{}:unsuccessful", job_key);
+
+        let mut conn = self.conn.conn();
+        let mut pipe = redis::pipe();
+        pipe.cmd("HLEN").arg(&processed_key);
+        pipe.cmd("SCARD").arg(&deps_key);
+        pipe.cmd("HLEN").arg(&failed_key);
+        pipe.cmd("ZCARD").arg(&unsuccessful_key);
+
+        let (processed, unprocessed, ignored, failed): (u64, u64, u64, u64) =
+            pipe.query_async(&mut conn).await?;
+
+        Ok(DependenciesCount {
+            processed,
+            unprocessed,
+            ignored,
+            failed,
+        })
+    }
+
+    /// Get unprocessed dependencies (children still pending).
+    pub async fn get_unprocessed_dependencies(&self, job_id: &str) -> Result<Vec<String>, Error> {
+        let deps_key = format!("{}:dependencies", self.keys.job_key(job_id));
+        let mut conn = self.conn.conn();
+
+        let result: Vec<String> = redis::cmd("SMEMBERS")
+            .arg(&deps_key)
+            .query_async(&mut conn)
+            .await?;
+
+        Ok(result)
+    }
+
+    /// Remove a child's dependency from its parent.
+    ///
+    /// `job_id` - the child job ID
+    /// `parent_key` - the fully qualified parent key (prefix:queue:parentId)
+    ///
+    /// Returns `true` if the dependency was broken, `false` otherwise.
+    pub async fn remove_child_dependency(
+        &self,
+        job_id: &str,
+        parent_key: &str,
+    ) -> Result<bool, Error> {
+        let script = self
+            .conn
+            .scripts()
+            .get("removeChildDependency")
+            .ok_or_else(|| {
+                Error::InvalidConfig("removeChildDependency script not found".to_string())
+            })?
+            .clone();
+
+        let prefix_key = self.keys.key_prefix().to_string();
+        let job_key = self.keys.job_key(job_id);
+
+        let keys = vec![prefix_key];
+        let args: Vec<&[u8]> = vec![job_key.as_bytes(), parent_key.as_bytes()];
+
+        let mut conn = self.conn.conn();
+        let result = script.execute(&mut conn, &keys, &args).await?;
+
+        match result {
+            redis::Value::Int(0) => Ok(true),
+            redis::Value::Int(1) => Ok(false),
+            redis::Value::Int(-1) => Err(Error::InvalidConfig(format!(
+                "Missing key for job {}. removeChildDependency",
+                job_id
+            ))),
+            redis::Value::Int(-5) => Err(Error::InvalidConfig(format!(
+                "Missing key for parent job {}. removeChildDependency",
+                parent_key
+            ))),
+            _ => Ok(false),
+        }
+    }
+
     /// Get the state of a specific job.
     pub async fn get_job_state(&self, job_id: &str) -> Result<JobState, Error> {
         let script = self
@@ -675,6 +1497,17 @@ impl Queue {
 
     /// Remove a job by its ID.
     pub async fn remove(&self, job_id: &str) -> Result<bool, Error> {
+        self.remove_job(job_id, true).await
+    }
+
+    /// Remove a job without removing its children.
+    ///
+    /// Children remain in their queues and lose their parent reference.
+    pub async fn remove_without_children(&self, job_id: &str) -> Result<bool, Error> {
+        self.remove_job(job_id, false).await
+    }
+
+    async fn remove_job(&self, job_id: &str, remove_children: bool) -> Result<bool, Error> {
         let script = self
             .conn
             .scripts()
@@ -684,15 +1517,56 @@ impl Queue {
 
         let keys = vec![self.keys.job_key(job_id), self.keys.repeat()];
         let prefix = self.keys.key_prefix();
-        let args: Vec<&[u8]> = vec![job_id.as_bytes(), b"1", prefix.as_bytes()];
+        let remove_children_flag = if remove_children { b"1" as &[u8] } else { b"0" };
+        let args: Vec<&[u8]> = vec![job_id.as_bytes(), remove_children_flag, prefix.as_bytes()];
 
         let mut conn = self.conn.conn();
         let result = script.execute(&mut conn, &keys, &args).await?;
 
         match result {
-            redis::Value::Int(n) => Ok(n == 1),
+            // 1 = removed, 0 = job (or a dependency) is locked. Mirroring
+            // Node.js, a locked job is a normal "not removed" outcome rather
+            // than an error.
+            redis::Value::Int(1) => Ok(true),
+            redis::Value::Int(0) => Ok(false),
+            redis::Value::Int(code) if code < 0 => {
+                if code == crate::error::error_code::JOB_BELONGS_TO_JOB_SCHEDULER {
+                    Err(Error::Script {
+                        code,
+                        message: format!(
+                            "Job {} belongs to a job scheduler and cannot be removed directly. removeJob",
+                            job_id
+                        ),
+                    })
+                } else {
+                    Err(Error::from_script_code(code))
+                }
+            }
             _ => Ok(false),
         }
+    }
+
+    /// Remove all unprocessed children of a job.
+    ///
+    /// This removes children that are still in the dependencies set (not yet completed/failed).
+    /// Active children are skipped.
+    pub async fn remove_unprocessed_children(&self, job_id: &str) -> Result<(), Error> {
+        let script = self
+            .conn
+            .scripts()
+            .get("removeUnprocessedChildren")
+            .ok_or_else(|| {
+                Error::InvalidConfig("removeUnprocessedChildren script not found".to_string())
+            })?
+            .clone();
+
+        let keys = vec![self.keys.job_key(job_id), self.keys.meta()];
+        let prefix = self.keys.key_prefix();
+        let args: Vec<&[u8]> = vec![prefix.as_bytes(), job_id.as_bytes()];
+
+        let mut conn = self.conn.conn();
+        script.execute(&mut conn, &keys, &args).await?;
+        Ok(())
     }
 
     /// Clean jobs from a specific set (completed, failed, etc.).
@@ -997,6 +1871,76 @@ impl Queue {
         Ok(())
     }
 
+    /// Return the time-to-live (in ms) for the rate-limited key.
+    ///
+    /// `max_jobs` is the maximum number of jobs considered in the rate-limit
+    /// state. When `None`, the remaining TTL is returned without checking
+    /// whether the max is exceeded. Returns `0` when not rate limited and
+    /// `-2`/`-1` mirror Redis `PTTL` semantics (no key / no expiry).
+    pub async fn get_rate_limit_ttl(&self, max_jobs: Option<u64>) -> Result<i64, Error> {
+        let script = self
+            .conn
+            .scripts()
+            .get("getRateLimitTtl")
+            .ok_or_else(|| Error::InvalidConfig("getRateLimitTtl script not found".to_string()))?
+            .clone();
+
+        let keys = vec![self.keys.limiter(), self.keys.meta()];
+        let max_jobs_str = max_jobs
+            .map(|m| m.to_string())
+            .unwrap_or_else(|| "0".to_string());
+        let args: Vec<&[u8]> = vec![max_jobs_str.as_bytes()];
+
+        let mut conn = self.conn.conn();
+        let result = script.execute(&mut conn, &keys, &args).await?;
+
+        match result {
+            redis::Value::Int(n) => Ok(n),
+            _ => Ok(0),
+        }
+    }
+
+    /// Return the global concurrency value, or `None` when not set.
+    pub async fn get_global_concurrency(&self) -> Result<Option<u64>, Error> {
+        let meta_key = self.keys.meta();
+        let mut conn = self.conn.conn();
+
+        let value: Option<String> = redis::cmd("HGET")
+            .arg(&meta_key)
+            .arg("concurrency")
+            .query_async(&mut conn)
+            .await?;
+
+        Ok(value.and_then(|v| v.parse::<u64>().ok()))
+    }
+
+    /// Return the global rate limit as `(max, duration)`, or `None` when not set.
+    pub async fn get_global_rate_limit(&self) -> Result<Option<(u64, u64)>, Error> {
+        let meta_key = self.keys.meta();
+        let mut conn = self.conn.conn();
+
+        let values: Vec<Option<String>> = redis::cmd("HMGET")
+            .arg(&meta_key)
+            .arg("max")
+            .arg("duration")
+            .query_async(&mut conn)
+            .await?;
+
+        let max = values
+            .first()
+            .and_then(|v| v.as_ref())
+            .and_then(|v| v.parse::<u64>().ok());
+        let duration = values
+            .get(1)
+            .and_then(|v| v.as_ref())
+            .and_then(|v| v.parse::<u64>().ok());
+
+        match (max, duration) {
+            (Some(m), Some(d)) => Ok(Some((m, d))),
+            _ => Ok(None),
+        }
+    }
+
     /// Remove a deduplication key if the stored job ID matches the given one.
     ///
     /// Uses the `removeDeduplicationKey` Lua script for atomic check-and-delete.
@@ -1025,6 +1969,56 @@ impl Queue {
             redis::Value::Int(1) => Ok(true),
             _ => Ok(false),
         }
+    }
+
+    /// Get the job ID stored for a given deduplication ID.
+    ///
+    /// Returns `None` if no deduplication key exists.
+    pub async fn get_deduplication_job_id(
+        &self,
+        deduplication_id: &str,
+    ) -> Result<Option<String>, Error> {
+        let dedup_key = format!("{}:de:{}", self.keys.base(), deduplication_id);
+        let mut conn = self.conn.conn();
+        let result: redis::Value = redis::cmd("GET")
+            .arg(&dedup_key)
+            .query_async(&mut conn)
+            .await
+            .map_err(Error::Redis)?;
+
+        match result {
+            redis::Value::BulkString(bytes) => {
+                Ok(Some(String::from_utf8_lossy(&bytes).to_string()))
+            }
+            redis::Value::SimpleString(s) => Ok(Some(s)),
+            redis::Value::Nil => Ok(None),
+            _ => Ok(None),
+        }
+    }
+
+    /// Get the job ID that started a debounced state.
+    ///
+    /// **Deprecated:** use [`Queue::get_deduplication_job_id`] instead. Provided
+    /// for parity with the legacy Node.js `Queue.getDebounceJobId`.
+    pub async fn get_debounce_job_id(&self, id: &str) -> Result<Option<String>, Error> {
+        self.get_deduplication_job_id(id).await
+    }
+
+    /// Remove a debounce key unconditionally, returning the number of keys
+    /// deleted (`0` or `1`).
+    ///
+    /// **Deprecated:** use [`Queue::remove_deduplication_key`] instead. Provided
+    /// for parity with the legacy Node.js `Queue.removeDebounceKey`. Unlike the
+    /// deduplication variant, this performs a plain `DEL` without checking the
+    /// stored job ID.
+    pub async fn remove_debounce_key(&self, id: &str) -> Result<u64, Error> {
+        let dedup_key = format!("{}:de:{}", self.keys.base(), id);
+        let mut conn = self.conn.conn();
+        let deleted: u64 = redis::cmd("DEL")
+            .arg(&dedup_key)
+            .query_async(&mut conn)
+            .await?;
+        Ok(deleted)
     }
 
     /// Get logs for a specific job.
@@ -1080,6 +2074,40 @@ impl Queue {
             .query_async(&mut conn)
             .await?;
         Ok(trimmed)
+    }
+
+    /// Update a job's progress by id, without loading the job first.
+    ///
+    /// Mirrors Node.js `Queue.updateJobProgress`: runs the `updateProgress`
+    /// script which sets the job's `progress` field and emits a `progress`
+    /// event on the queue's event stream.
+    pub async fn update_job_progress(
+        &self,
+        job_id: &str,
+        progress: crate::types::JobProgress,
+    ) -> Result<(), Error> {
+        let script = self
+            .conn
+            .scripts()
+            .get("updateProgress")
+            .ok_or_else(|| Error::InvalidConfig("updateProgress script not found".to_string()))?
+            .clone();
+
+        let job_key = self.keys.job_key(job_id);
+        let events_key = self.keys.events();
+        let meta_key = self.keys.meta();
+        let progress_json = serialize_progress_for_script(&progress)?;
+
+        let keys = vec![job_key, events_key, meta_key];
+        let args: Vec<&[u8]> = vec![job_id.as_bytes(), progress_json.as_bytes()];
+
+        let mut conn = self.conn.conn();
+        let result: redis::Value = script.execute(&mut conn, &keys, &args).await?;
+
+        match result {
+            redis::Value::Int(code) if code < 0 => Err(Error::from_script_code(code)),
+            _ => Ok(()),
+        }
     }
 
     /// Obliterate the queue (remove all keys).
@@ -1494,5 +2522,126 @@ impl Queue {
     /// Close the queue connection.
     pub async fn close(&self) {
         self.conn.close().await;
+    }
+}
+
+/// Escape a Prometheus label value (`\`, `"`, and newlines).
+///
+/// Mirrors Node.js `escapePrometheusLabelValue`.
+fn escape_prometheus_label_value(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+}
+
+/// Parse the output of Redis `CLIENT LIST` and return the info maps for clients
+/// belonging to this queue.
+/// Mirrors Node.js `QueueGetters.parseClientList`: each line is a space-
+/// separated set of `key=value` pairs. A client matches when its `name` equals
+/// `unnamed` (an unnamed worker) or starts with `named_prefix` (a named worker,
+/// `{clientName}:w:`). For matches, `name` is replaced with the queue name and
+/// the raw client name is kept under `rawname`.
+fn parse_client_list(
+    list: &str,
+    queue_name: &str,
+    unnamed: &str,
+    named_prefix: &str,
+) -> Vec<HashMap<String, String>> {
+    let mut clients = Vec::new();
+
+    for line in list.split(['\r', '\n']).filter(|l| !l.is_empty()) {
+        let mut client: HashMap<String, String> = HashMap::new();
+        for key_value in line.split(' ') {
+            if let Some(idx) = key_value.find('=') {
+                let key = &key_value[..idx];
+                let value = &key_value[idx + 1..];
+                client.insert(key.to_string(), value.to_string());
+            }
+        }
+
+        let name = client.get("name").cloned().unwrap_or_default();
+        if !name.is_empty() && (name == unnamed || name.starts_with(named_prefix)) {
+            client.insert("name".to_string(), queue_name.to_string());
+            client.insert("rawname".to_string(), name);
+            clients.push(client);
+        }
+    }
+
+    clients
+}
+
+fn serialize_progress_for_script(progress: &crate::types::JobProgress) -> Result<String, Error> {
+    match progress {
+        // Match Node.js behavior: JSON.stringify(NaN/±Infinity) -> "null".
+        crate::types::JobProgress::Number(n) if !n.is_finite() => Ok("null".to_string()),
+        _ => Ok(serde_json::to_string(progress)?),
+    }
+}
+
+#[cfg(test)]
+mod client_list_tests {
+    use super::parse_client_list;
+
+    #[test]
+    fn matches_unnamed_and_named_workers() {
+        let unnamed = "bull:dGVzdA==";
+        let named_prefix = "bull:dGVzdA==:w:";
+        let list = format!(
+            "id=1 addr=127.0.0.1:1 name={unnamed} age=5\n\
+             id=2 addr=127.0.0.1:2 name={named_prefix}alpha age=3\n\
+             id=3 addr=127.0.0.1:3 name=bull:b3RoZXI= age=1\n\
+             id=4 addr=127.0.0.1:4 name= age=1\n"
+        );
+
+        let clients = parse_client_list(&list, "test", unnamed, named_prefix);
+        assert_eq!(clients.len(), 2);
+        assert_eq!(clients[0].get("name"), Some(&"test".to_string()));
+        assert_eq!(clients[0].get("rawname"), Some(&unnamed.to_string()));
+        assert_eq!(
+            clients[1].get("rawname"),
+            Some(&format!("{named_prefix}alpha"))
+        );
+        assert_eq!(clients[1].get("name"), Some(&"test".to_string()));
+    }
+
+    #[test]
+    fn returns_empty_when_no_match() {
+        let list = "id=1 addr=127.0.0.1:1 name=other age=5\n";
+        let clients = parse_client_list(list, "test", "bull:dGVzdA==", "bull:dGVzdA==:w:");
+        assert!(clients.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod prometheus_tests {
+    use super::escape_prometheus_label_value;
+
+    #[test]
+    fn escapes_special_characters() {
+        assert_eq!(escape_prometheus_label_value("plain"), "plain");
+        assert_eq!(escape_prometheus_label_value("a\\b"), "a\\\\b");
+        assert_eq!(escape_prometheus_label_value("a\"b"), "a\\\"b");
+        assert_eq!(escape_prometheus_label_value("a\nb"), "a\\nb");
+    }
+}
+
+#[cfg(test)]
+mod progress_serialization_tests {
+    use super::serialize_progress_for_script;
+    use crate::types::JobProgress;
+
+    #[test]
+    fn serializes_non_finite_numbers_as_null() {
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let serialized = serialize_progress_for_script(&JobProgress::Number(value)).unwrap();
+            assert_eq!(serialized, "null");
+        }
+    }
+
+    #[test]
+    fn serializes_regular_values_as_json() {
+        let serialized = serialize_progress_for_script(&JobProgress::Number(42.0)).unwrap();
+        assert_eq!(serialized, "42.0");
     }
 }

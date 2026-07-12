@@ -2871,6 +2871,7 @@ async fn test_keep_jobs_newer_than_age_remove_on_complete() {
             bullmq::types::KeepJobs {
                 age: Some(10),
                 count: None,
+                limit: None,
             },
         )),
         ..Default::default()
@@ -2946,6 +2947,7 @@ async fn test_keep_jobs_with_age_and_count_limit() {
             bullmq::types::KeepJobs {
                 age: Some(10),
                 count: Some(3),
+                limit: None,
             },
         )),
         ..Default::default()
@@ -3305,6 +3307,29 @@ async fn test_concurrency_cannot_be_zero() {
                 .contains("concurrency must be a finite number greater than 0"),
             "got: {}",
             e
+        ),
+        Ok(_) => panic!("expected error"),
+    }
+}
+
+#[tokio::test]
+async fn test_queue_name_cannot_contain_colon() {
+    let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {
+        Box::pin(async move { Ok(serde_json::json!(null)) })
+    });
+
+    let worker_opts = WorkerOptions {
+        connection: test_connection(),
+        ..Default::default()
+    };
+
+    let result = Worker::new("invalid:queue", processor, worker_opts).await;
+    assert!(result.is_err());
+    match result {
+        Err(err) => assert!(
+            err.to_string().contains("Queue name cannot contain :"),
+            "got: {}",
+            err
         ),
         Ok(_) => panic!("expected error"),
     }
@@ -6151,6 +6176,7 @@ async fn test_keep_jobs_age_and_count_remove_on_fail() {
                         bullmq::types::KeepJobs {
                             age: Some(7),
                             count: Some(keep_count),
+                            limit: None,
                         },
                     )),
                     ..Default::default()
@@ -9560,6 +9586,80 @@ async fn test_delayed_error_does_not_emit_failed_event() {
     .await;
     assert!(timeout.is_ok(), "Should complete");
     assert!(!saw_failed, "DelayedError should NOT emit a Failed event");
+
+    worker.close(5000).await.unwrap();
+    cleanup_queue(&queue).await;
+}
+
+#[tokio::test]
+async fn test_discard_does_not_convert_delayed_error_to_failure() {
+    let name = test_queue_name();
+    let conn_opts = test_connection();
+
+    let queue_opts = QueueOptions {
+        connection: conn_opts.clone(),
+        ..Default::default()
+    };
+    let queue = Queue::new(&name, queue_opts).await.unwrap();
+
+    queue
+        .add("test", serde_json::json!({"step": 0}), None)
+        .await
+        .unwrap();
+
+    let attempt_count = Arc::new(AtomicUsize::new(0));
+    let attempts = attempt_count.clone();
+
+    let processor: ProcessorFn = Arc::new(move |mut job: Job, _token: CancellationToken| {
+        let attempts = attempts.clone();
+        Box::pin(async move {
+            let step = job.data().get("step").and_then(|v| v.as_u64()).unwrap_or(0);
+            attempts.fetch_add(1, Ordering::SeqCst);
+
+            if step == 0 {
+                job.discard();
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis() as u64;
+                job.move_to_delayed(now + 100).await.unwrap();
+                job.update_data(serde_json::json!({"step": 1}))
+                    .await
+                    .unwrap();
+                return Err(Error::Delayed);
+            }
+
+            Ok(serde_json::json!({"done": true}))
+        })
+    });
+
+    let worker_opts = WorkerOptions {
+        connection: conn_opts,
+        autorun: true,
+        ..Default::default()
+    };
+
+    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+
+    let timeout = tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            match worker.next_event().await {
+                Some(WorkerEvent::Completed { .. }) => break,
+                Some(WorkerEvent::Failed { error, .. }) => {
+                    panic!("discarded Delayed error should not fail the job: {error}")
+                }
+                Some(WorkerEvent::Closed) | None => panic!("worker closed unexpectedly"),
+                _ => {}
+            }
+        }
+    })
+    .await;
+    assert!(timeout.is_ok(), "Job should complete after being delayed");
+
+    assert_eq!(attempt_count.load(Ordering::SeqCst), 2);
+    let counts = queue.get_job_counts().await.unwrap();
+    assert_eq!(counts.completed, 1);
+    assert_eq!(counts.failed, 0);
 
     worker.close(5000).await.unwrap();
     cleanup_queue(&queue).await;

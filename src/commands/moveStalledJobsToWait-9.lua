@@ -10,6 +10,7 @@
       KEYS[6] 'paused', (LIST)
       KEYS[7] 'marker'
       KEYS[8] 'event stream' (STREAM)
+      KEYS[9] 'repeat' key
 
       ARGV[1]  Max stalled job count
       ARGV[2]  queue.toKey('')
@@ -35,6 +36,7 @@ local metaKey = KEYS[5]
 local pausedKey = KEYS[6]
 local markerKey = KEYS[7]
 local eventStreamKey = KEYS[8]
+local repeatKey = KEYS[9]
 local maxStalledJobCount = tonumber(ARGV[1])
 local queueKeyPrefix = ARGV[2]
 local timestamp = ARGV[3]
@@ -74,12 +76,20 @@ if (#stalling > 0) then
                     local stalledCount = rcall("HINCRBY", jobKey, "stc", 1)
                     
                     -- Check if this is a repeatable job by looking at job options
-                    local jobOpts = rcall("HGET", jobKey, "opts")
+                    local jobSchedulerId = rcall("HGET", jobKey, "rjk")
                     local isRepeatableJob = false
-                    if jobOpts then
-                        local opts = cjson.decode(jobOpts)
-                        if opts and opts["repeat"] then
+                    if jobSchedulerId then
+                        local schedulerKey = repeatKey .. ":" .. jobSchedulerId
+
+                        if rcall("EXISTS", schedulerKey) == 1 then
                             isRepeatableJob = true
+                        else
+                            -- TODO: remove this check in v6, as it is only needed for legacy repeatable jobs
+                            -- that stored the scheduler id in the job key but did not create the scheduler hash key
+                            local prevMillis = rcall("ZSCORE", repeatKey, jobSchedulerId)
+                            if prevMillis then
+                                isRepeatableJob = true
+                            end
                         end
                     end
                     

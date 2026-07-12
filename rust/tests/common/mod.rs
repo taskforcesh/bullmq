@@ -15,10 +15,12 @@ pub fn test_queue_name() -> String {
 }
 
 /// Default test connection options.
+#[allow(dead_code)]
 pub fn test_connection() -> RedisConnectionOptions {
     RedisConnectionOptions {
         url: std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string()),
         max_connections: 4,
+        ..Default::default()
     }
 }
 

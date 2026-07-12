@@ -9,15 +9,20 @@ description: BullMQ is available as a native Rust crate with full async/await su
 Add BullMQ to your project via Cargo:
 
 ```bash
-cargo add bullmq
+cargo add bullmq-official
 ```
 
 Or add it to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-bullmq = "0.1"
+bullmq-official = "0.1"
 ```
+
+> The crate is published as `bullmq-official` (the `bullmq`, `bullmq-rust` and
+> `bullmq-rs` names on crates.io are already taken by unrelated third-party
+> crates), but it is imported in code as `bullmq` — e.g.
+> `use bullmq::{Queue, Worker};`.
 
 BullMQ for Rust requires:
 
@@ -184,6 +189,24 @@ let worker = Worker::new("my-queue", processor, WorkerOptions {
     connection: conn,
     ..Default::default()
 }).await?;
+```
+
+Instead of a URL you can use typed connection fields. When `host` is set, the
+URL is built from these fields (use `tls: true` for a `rediss://` TLS
+connection):
+
+```rust
+use bullmq::options::RedisConnectionOptions;
+
+let conn = RedisConnectionOptions {
+    host: Some("redis.example.com".to_string()),
+    port: Some(6380),
+    username: Some("user".to_string()),
+    password: Some("password".to_string()),
+    db: Some(0),
+    tls: true,
+    ..Default::default()
+};
 ```
 
 ## Key Differences from Node.js

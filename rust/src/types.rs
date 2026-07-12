@@ -93,6 +93,12 @@ pub struct KeepJobs {
     /// Maximum count.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub count: Option<usize>,
+    /// Maximum quantity of jobs to remove in a single eviction pass.
+    ///
+    /// Bounds how many aged jobs are trimmed when a job finishes (the Lua
+    /// script defaults to `1000` when unset). Mirrors Node.js `KeepJobs.limit`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<usize>,
 }
 
 /// Backoff strategy for job retries.
@@ -180,6 +186,28 @@ pub struct JobCounts {
     pub paused: u64,
 }
 
+/// Metadata for a queue's time-series metrics.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct MetricsMeta {
+    /// Total number of jobs counted since metrics collection began.
+    pub count: u64,
+    /// Timestamp (ms) of the previous recorded data point.
+    pub prev_ts: u64,
+    /// Cumulative count at the previous data point.
+    pub prev_count: u64,
+}
+
+/// Time-series metrics for a queue (completed or failed jobs per minute).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Metrics {
+    /// Metrics metadata.
+    pub meta: MetricsMeta,
+    /// Per-minute data points (newest first), each the number of jobs in that minute.
+    pub data: Vec<u64>,
+    /// Total number of data points available.
+    pub count: u64,
+}
+
 /// Information about a parent job relationship.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParentKeys {
@@ -187,6 +215,53 @@ pub struct ParentKeys {
     pub queue_key: String,
     /// The parent job's ID.
     pub id: String,
+}
+
+/// Public queue metadata read from the `meta` hash.
+///
+/// Mirrors the Node.js `QueueMeta` interface: well-known numeric/boolean fields
+/// are parsed into typed fields, and any remaining hash entries are preserved
+/// in [`other`](Self::other).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QueueMeta {
+    /// Global concurrency limit, when set via `set_global_concurrency`.
+    pub concurrency: Option<u64>,
+    /// Rate-limit `max` (jobs per `duration` window), when set.
+    pub max: Option<u64>,
+    /// Rate-limit window length in milliseconds, paired with `max`.
+    pub duration: Option<u64>,
+    /// Maximum length of the events stream (`opts.maxLenEvents`), when set.
+    pub max_len_events: Option<u64>,
+    /// Whether the queue is paused.
+    pub paused: bool,
+    /// Any other meta-hash fields not parsed above (e.g. `library`).
+    pub other: std::collections::HashMap<String, String>,
+}
+
+/// Counts of dependencies by type for a parent job.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DependenciesCount {
+    /// Number of children that completed successfully.
+    pub processed: u64,
+    /// Number of children still pending (in dependencies set).
+    pub unprocessed: u64,
+    /// Number of children that failed with ignoreDependencyOnFailure.
+    pub ignored: u64,
+    /// Number of children that failed (in unsuccessful zset).
+    pub failed: u64,
+}
+
+/// Paginated result of a parent job's dependencies.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct DependenciesResult {
+    /// Map of processed child job key -> return value (JSON).
+    pub processed: std::collections::HashMap<String, serde_json::Value>,
+    /// Cursor for the next page of processed children (0 = no more).
+    pub next_processed_cursor: u64,
+    /// Set of unprocessed (pending) child job keys.
+    pub unprocessed: Vec<String>,
+    /// Cursor for the next page of unprocessed children (0 = no more).
+    pub next_unprocessed_cursor: u64,
 }
 
 /// Remove-on-complete/fail policy.

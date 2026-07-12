@@ -300,6 +300,75 @@ describe('Job Scheduler', () => {
       await worker.close();
     });
 
+    it('should respect offset when upserting a job scheduler with every', async () => {
+      const date = new Date('2017-02-07T09:24:00.000+05:30');
+      clock.setSystemTime(date);
+
+      const every = ONE_MINUTE * 15;
+      const offset = ONE_MINUTE * 3; // 3 minutes offset
+
+      const job = await queue.upsertJobScheduler(
+        'test-offset',
+        {
+          every,
+          offset,
+        },
+        {
+          name: 'test',
+          data: { foo: 'bar' },
+        },
+      );
+
+      const now = Date.now();
+
+      // The next job should be scheduled at the next slot aligned to every + offset
+      // With every=15min and offset=3min, jobs should run at :03, :18, :33, :48
+      // Current time is :24:00, so next should be :33:00
+      const expectedNext = Math.floor(now / every) * every + offset + every;
+
+      expect(job).toBeDefined();
+      expect(job!.opts.delay).toBeGreaterThan(0);
+
+      const schedulers = await queue.getJobSchedulers();
+      expect(schedulers.length).toEqual(1);
+      expect(schedulers[0].next).toEqual(expectedNext);
+      expect(schedulers[0].offset).toEqual(offset);
+    });
+
+    it('should respect offset on first upsert when offset slot is in the future', async () => {
+      // Set time to :16:00 so with every=15min, offset=3min,
+      // floor(now/every)*every + offset = :18:00 which is still in the future,
+      // so next should be :18:00 (the base slot itself, not base + every).
+      const date = new Date('2017-02-07T09:16:00.000+05:30');
+      clock.setSystemTime(date);
+
+      const every = ONE_MINUTE * 15;
+      const offset = ONE_MINUTE * 3;
+
+      await queue.upsertJobScheduler(
+        'test-offset-2',
+        {
+          every,
+          offset,
+        },
+        {
+          name: 'test',
+          data: {},
+        },
+      );
+
+      const now = Date.now();
+      const baseSlot = Math.floor(now / every) * every + offset;
+      // Sanity check: this test exercises the baseSlot > now branch.
+      expect(baseSlot).toBeGreaterThan(now);
+      const expectedNext = baseSlot;
+
+      const schedulers = await queue.getJobSchedulers();
+      expect(schedulers.length).toEqual(1);
+      expect(schedulers[0].next).toEqual(expectedNext);
+      expect(schedulers[0].offset).toEqual(offset);
+    });
+
     describe('when next delayed job already exists and it is not in waiting or delayed states', () => {
       it('updates the scheduler with the new settings', async () => {
         const date = new Date('2017-02-07T09:24:00.000+05:30');
@@ -2665,6 +2734,129 @@ describe('Job Scheduler', () => {
       const delayedCount3 = await queue.getDelayedCount();
       expect(delayedCount3).toBe(1);
       delayStub.restore();
+    });
+
+    describe('when the scheduler has been removed', () => {
+      it('should fail a stalled scheduler job after maxStalledCount', async () => {
+        const date = new Date('2017-02-07 9:24:00');
+        clock.setSystemTime(date);
+
+        const schedulerJobId = 'test-scheduler';
+        const repeatOpts = { every: 2000 };
+
+        const repeatableJob = await queue.upsertJobScheduler(
+          schedulerJobId,
+          repeatOpts,
+        );
+        expect(repeatableJob).toBeTruthy();
+
+        const waitingCount = await queue.getWaitingCount();
+        expect(waitingCount).toBe(1);
+
+        let resolveCompleting: () => void;
+        const completingJob = new Promise<void>(resolve => {
+          resolveCompleting = resolve;
+        });
+
+        let worker: Worker;
+        const processing = new Promise<void>(resolve => {
+          worker = new Worker(
+            queueName,
+            async () => {
+              resolve();
+              return completingJob;
+            },
+            {
+              connection,
+              prefix,
+              skipLockRenewal: true,
+              skipStalledCheck: true,
+              maxStalledCount: 0,
+            },
+          );
+        });
+        const delayStub = sinon
+          .stub(worker!, 'delay')
+          .callsFake(async () => {});
+
+        await processing;
+
+        // Force remove the lock so the job appears stalled
+        const client = await queue.client;
+        const lockKey = `${prefix}:${queueName}:${repeatableJob!.id}:lock`;
+        await client.del(lockKey);
+
+        // Remove the scheduler — the job's rjk no longer points to an existing scheduler
+        await queue.removeJobScheduler(schedulerJobId);
+
+        const stalledCheckerKey = `${prefix}:${queueName}:stalled-check`;
+        await client.del(stalledCheckerKey);
+
+        const scripts = (<any>worker!).scripts;
+
+        // First call: marks the active job as stalled
+        await scripts.moveStalledJobsToWait();
+
+        await client.del(stalledCheckerKey);
+
+        // Second call: stalledCount = 1 which exceeds maxStalledCount = 0, and since
+        // the scheduler no longer exists the job is NOT treated as repeatable.
+        // The Lua script sets deferredFailure on the job and moves it back to wait.
+        await scripts.moveStalledJobsToWait();
+
+        const waitingJobs = await queue.getWaiting();
+        expect(waitingJobs.length).toBe(1);
+
+        // Verify deferredFailure has been stamped onto the job
+        const stalledJob = await queue.getJob(repeatableJob!.id!);
+        expect(stalledJob!.deferredFailure).toBe(
+          'job stalled more than allowable limit',
+        );
+
+        resolveCompleting!();
+        await worker!.close();
+
+        // A new worker should pick the job up and immediately fail it
+        // because deferredFailure is set (UnrecoverableError path in worker.ts)
+        const failedPromise = new Promise<void>((resolve, reject) => {
+          worker = new Worker(
+            queueName,
+            async () => {
+              reject(
+                new Error(
+                  'processor should not be called for a deferred-failed job',
+                ),
+              );
+            },
+            {
+              connection,
+              prefix,
+              skipLockRenewal: true,
+              skipStalledCheck: true,
+              maxStalledCount: 0,
+            },
+          );
+          worker.on('failed', (_job, err) => {
+            try {
+              expect(err.message).toBe('job stalled more than allowable limit');
+              resolve();
+            } catch (assertionError) {
+              reject(assertionError);
+            }
+          });
+        });
+
+        await failedPromise;
+        await worker!.close();
+
+        const failedJobs = await queue.getFailed();
+        expect(failedJobs.length).toBe(1);
+        expect(failedJobs[0].failedReason).toBe(
+          'job stalled more than allowable limit',
+        );
+
+        delayStub.restore();
+      });
     });
   });
 
