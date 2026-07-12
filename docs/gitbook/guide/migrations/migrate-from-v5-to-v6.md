@@ -55,6 +55,7 @@ The repeat settings map directly:
 - `repeat.startDate` → `upsertJobScheduler(..., { startDate })`
 - `repeat.endDate` → `upsertJobScheduler(..., { endDate })`
 - `repeat.tz` → `upsertJobScheduler(..., { tz })`
+- `repeat.utc: true` → `upsertJobScheduler(..., { tz: 'UTC' })`
 
 Move the job name, data, and job options into the scheduler template argument:
 
