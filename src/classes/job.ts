@@ -200,18 +200,6 @@ export class Job<
     public opts: JobsOptions = {},
     public id?: string,
   ) {
-    if (Object.prototype.hasOwnProperty.call(this.opts, 'debounce')) {
-      const { debounce, ...optsWithoutDebounce } = this.opts;
-      if (!this.opts.deduplication && debounce) {
-        this.opts = {
-          ...optsWithoutDebounce,
-          deduplication: debounce,
-        };
-      } else {
-        this.opts = optsWithoutDebounce;
-      }
-    }
-
     const { repeatJobKey, ...restOpts } = this.opts;
 
     this.opts = Object.assign(
@@ -382,8 +370,8 @@ export class Job<
       job.repeatJobKey = json.repeatJobKey;
     }
 
-    if (json.deduplicationId || json.debounceId) {
-      job.deduplicationId = json.deduplicationId || json.debounceId;
+    if (json.deduplicationId) {
+      job.deduplicationId = json.deduplicationId;
     }
 
     if (json.failedReason) {
@@ -1417,6 +1405,17 @@ export class Job<
           'Deduplication and parent options cannot be used together',
         );
       }
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(
+        this.opts as Record<string, unknown>,
+        'debounce',
+      )
+    ) {
+      throw new Error(
+        'Debounce option has been removed. Use deduplication option instead',
+      );
     }
 
     if (

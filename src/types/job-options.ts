@@ -8,12 +8,6 @@ import { DeduplicationOptions } from './deduplication-options';
  */
 export type CompressableJobOptions = {
   /**
-   * Debounce options.
-   * @deprecated use deduplication option
-   */
-  debounce?: DeduplicationOptions;
-
-  /**
    * Deduplication options.
    */
   deduplication?: DeduplicationOptions;

@@ -199,15 +199,13 @@ describe('Job', () => {
       });
     });
 
-    describe('when deprecated debounce option is provided', () => {
-      it('uses it as deduplication option', async () => {
+    describe('when removed debounce option is provided', () => {
+      it('throws an error', async () => {
         const data = { foo: 'bar' };
-        const opts = { debounce: { id: 'legacy' } };
-        const job = await Job.create(queue, 'test', data, opts);
-
-        expect(job.deduplicationId).toBe('legacy');
-        expect(job.opts).not.toHaveProperty('debounce');
-        expect(job.opts.deduplication).toEqual({ id: 'legacy' });
+        const opts = { debounce: { id: 'legacy' } } as any;
+        await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
+          'Debounce option has been removed. Use deduplication option instead',
+        );
       });
     });
 
