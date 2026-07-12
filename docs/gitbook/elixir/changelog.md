@@ -1,3 +1,15 @@
+## [1.3.5](https://github.com/taskforcesh/bullmq/compare/vex1.3.4...vex1.3.5) (2026-07-11)
+
+
+### Bug Fixes
+
+* **job-scheduler:** respect offset option in upsertJobScheduler (elixir) (rust) ([#3993](https://github.com/taskforcesh/bullmq/issues/3993)) ([78bbb25](https://github.com/taskforcesh/bullmq/commit/78bbb253546b4c45f7e23ceccc31eb644651416c))
+
+
+### Features
+
+* add QueueEvents, queue/worker getters, and missing options [rust] ([#4229](https://github.com/taskforcesh/bullmq/issues/4229)) ([60ae049](https://github.com/taskforcesh/bullmq/commit/60ae0492a3200f8496976a3b51609e7e54eafd1b))
+
 ## [1.3.4](https://github.com/taskforcesh/bullmq/compare/vex1.3.3...vex1.3.4) (2026-07-10)
 
 
