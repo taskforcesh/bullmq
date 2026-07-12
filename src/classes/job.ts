@@ -241,8 +241,7 @@ export class Job<
       }
     }
 
-    this.deduplicationId =
-      this.opts.deduplication && this.opts.deduplication.id;
+    this.deduplicationId = this.opts.deduplication?.id;
 
     this.toKey = queue.toKey.bind(queue);
     this.createBackend();
