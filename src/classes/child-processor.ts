@@ -1,6 +1,7 @@
 import { AbortController } from './abort-controller';
 import { ParentCommand } from '../enums';
 import {
+  DependenciesOpts,
   MoveToWaitingChildrenOpts,
   Receiver,
   SandboxedJob,
@@ -228,7 +229,9 @@ export class ChildProcessor {
       /**
        * Proxy `getChildrenValues` function.
        */
-      getChildrenValues: async () => {
+      getChildrenValues: async <CT = any>(): Promise<{
+        [jobKey: string]: CT;
+      }> => {
         const requestId = Math.random().toString(36).substring(2, 15);
         await send({
           requestId,
@@ -240,7 +243,7 @@ export class ChildProcessor {
           this.receiver,
           RESPONSE_TIMEOUT,
           'getChildrenValues',
-        );
+        ) as Promise<{ [jobKey: string]: CT }>;
       },
 
       /**
@@ -252,7 +255,9 @@ export class ChildProcessor {
        * @returns - A promise that resolves with the ignored children failures.
        * The exact structure of the returned data depends on the parent process implementation.
        */
-      getIgnoredChildrenFailures: async () => {
+      getIgnoredChildrenFailures: async (): Promise<{
+        [jobKey: string]: string;
+      }> => {
         const requestId = Math.random().toString(36).substring(2, 15);
         await send({
           requestId,
@@ -264,7 +269,7 @@ export class ChildProcessor {
           this.receiver,
           RESPONSE_TIMEOUT,
           'getIgnoredChildrenFailures',
-        );
+        ) as Promise<{ [jobKey: string]: string }>;
       },
 
       /**
@@ -275,7 +280,12 @@ export class ChildProcessor {
         ignored?: boolean;
         processed?: boolean;
         unprocessed?: boolean;
-      }) => {
+      }): Promise<{
+        failed?: number;
+        ignored?: number;
+        processed?: number;
+        unprocessed?: number;
+      }> => {
         const requestId = Math.random().toString(36).substring(2, 15);
         await send({
           requestId,
@@ -288,6 +298,30 @@ export class ChildProcessor {
           this.receiver,
           RESPONSE_TIMEOUT,
           'getDependenciesCount',
+        ) as Promise<{
+          failed?: number;
+          ignored?: number;
+          processed?: number;
+          unprocessed?: number;
+        }>;
+      },
+
+      /**
+       * Proxy `getDependencies` function.
+       */
+      getDependencies: async (opts?: DependenciesOpts) => {
+        const requestId = Math.random().toString(36).substring(2, 15);
+        await send({
+          requestId,
+          cmd: ParentCommand.GetDependencies,
+          value: opts,
+        });
+
+        return waitResponse(
+          requestId,
+          this.receiver,
+          RESPONSE_TIMEOUT,
+          'getDependencies',
         );
       },
     };

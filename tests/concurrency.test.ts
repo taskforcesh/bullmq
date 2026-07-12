@@ -1,4 +1,3 @@
-import { default as IORedis } from 'ioredis';
 import {
   describe,
   beforeEach,
@@ -16,30 +15,28 @@ import {
   Worker,
   RateLimitError,
 } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
-
-import { v4 } from 'uuid';
+import { delay, removeAllQueueData, randomUUID } from '../src/utils';
 
 import ProgressBar from 'progress';
 import { after } from 'lodash';
+import { createTestConnection } from './utils/connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 describe('Concurrency', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queueName: string;
 
-  let connection;
+  let connection: IRedisClient;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
-    await new IORedis().flushall();
+    queueName = `test-${randomUUID()}`;
   });
 
   afterEach(async () => {
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async function () {
@@ -74,7 +71,7 @@ describe('Concurrency', () => {
         async job => {
           try {
             // Check order is correct
-            expect(job.id).to.be.eq(`${++lastJobId}`);
+            expect(job.id).toBe(`${++lastJobId}`);
             count++;
             parallelJobs++;
             await delay(100);
@@ -113,7 +110,7 @@ describe('Concurrency', () => {
 
     await worker.close();
     await queue.close();
-  }); // TODO: Add { timeout: 16000 } to the it() options
+  }, 16000);
 
   it('should run max concurrency for jobs added', async () => {
     const queue = new Queue(queueName, { connection, prefix });
@@ -141,7 +138,7 @@ describe('Concurrency', () => {
         async job => {
           try {
             // Check order is correct
-            expect(job.id).to.be.eq(`${++lastJobId}`);
+            expect(job.id).toBe(`${++lastJobId}`);
             count++;
             parallelJobs++;
             await delay(100);
@@ -181,7 +178,7 @@ describe('Concurrency', () => {
 
     await worker.close();
     await queue.close();
-  }); // TODO: Add { timeout: 4000 } to the it() options
+  }, 4000);
 
   it('emits drained global event only once when worker is idle', async () => {
     const queue = new Queue(queueName, { connection, prefix });
@@ -221,7 +218,7 @@ describe('Concurrency', () => {
     await worker.close();
     await queue.close();
     await queueEvents.close();
-  }); // TODO: Add { timeout: 6000 } to the it() options
+  }, 6000);
 
   describe('when global dynamic limit is used', () => {
     it('should run max concurrency for jobs added respecting global dynamic limit', async () => {
@@ -271,7 +268,7 @@ describe('Concurrency', () => {
           after(numJobs, async () => {
             try {
               const timeDiff = new Date().getTime() - startTime;
-              expect(timeDiff).to.be.gte(
+              expect(timeDiff).toBeGreaterThanOrEqual(
                 numJobs * (dynamicLimit + duration) - duration,
               );
               resolve();
@@ -353,7 +350,7 @@ describe('Concurrency', () => {
             after(numJobs, async () => {
               try {
                 const timeDiff = new Date().getTime() - startTime;
-                expect(timeDiff).to.be.gte(numJobs * dynamicLimit);
+                expect(timeDiff).toBeGreaterThanOrEqual(numJobs * dynamicLimit);
                 resolve();
               } catch (err) {
                 reject(err);
@@ -383,7 +380,7 @@ describe('Concurrency', () => {
         await queueEvents.close();
         await worker.close();
         await queue.close();
-      }); // TODO: Add { timeout: 4000 } to the it() options
+      }, 4000);
     });
   });
 
@@ -476,7 +473,7 @@ describe('Concurrency', () => {
       await flow.close();
       await worker.close();
       await queue.close();
-    }); // TODO: Add { timeout: 16000 } to the it() options
+    }, 16000);
   });
 
   it('should automatically process stalled jobs respecting group order', async () => {
@@ -624,7 +621,7 @@ describe('Concurrency', () => {
 
       await worker.close();
       await queue.close();
-    }); // TODO: Add { timeout: 20000 } to the it() options
+    }, 20000);
 
     describe('when backoff is 0', () => {
       it('processes jobs without getting stuck', async () => {

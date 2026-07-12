@@ -1,9 +1,9 @@
 ## [1.0.2](https://github.com/taskforcesh/bullmq/compare/vphp1.0.1...vphp1.0.2) (2026-04-03)
 
 
-### Bug Fixes
+### Features
 
-* fix worker connection name on cluster [#3340](https://github.com/taskforcesh/bullmq/issues/3340) ([#3660](https://github.com/taskforcesh/bullmq/issues/3660)) ([fa22e84](https://github.com/taskforcesh/bullmq/commit/fa22e844d29961db95df58f2ae63b440d71c11f6))
+* **deduplication:** add keepLastIfActive option for at-least-once-after-active semantics ([#3902](https://github.com/taskforcesh/bullmq/issues/3902)) ([aa529bc](https://github.com/taskforcesh/bullmq/commit/aa529bc512b15cdb9d173cc9cc3b0d9f8b8959eb))
 
 ## [1.0.1](https://github.com/taskforcesh/bullmq/compare/vphp1.0.0...vphp1.0.1) (2025-12-19)
 

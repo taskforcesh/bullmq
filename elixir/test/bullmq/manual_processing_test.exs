@@ -84,6 +84,50 @@ defmodule BullMQ.ManualProcessingTest do
     end
 
     @tag timeout: 10_000
+    test "emits on_active callback when a waiting job is fetched", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      test_pid = self()
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job -> {:ok, "unused"} end,
+          autorun: false,
+          on_active: fn job ->
+            send(test_pid, {:active, job})
+          end
+        )
+
+      # Add a job to the queue
+      {:ok, job} =
+        Queue.add(queue_name, "test-job", %{foo: "bar"}, connection: conn, prefix: @test_prefix)
+
+      # Fetch the job manually
+      token = generate_token()
+      {:ok, fetched_job} = Worker.get_next_job(worker, token)
+
+      assert fetched_job != nil
+      assert fetched_job.id == job.id
+
+      # The on_active callback should have been triggered with the same job
+      assert_receive {:active, activated_job}, 1_000
+      assert activated_job.id == fetched_job.id
+
+      # Job should be in active state
+      {:ok, state} =
+        Queue.get_job_state(queue_name, job.id, connection: conn, prefix: @test_prefix)
+
+      assert state == "active"
+
+      {:ok, _} = Job.move_to_completed(fetched_job, "done", token, fetch_next: false)
+      Worker.close(worker)
+    end
+
+    @tag timeout: 10_000
     test "returns nil when no jobs available", %{conn: conn, queue_name: queue_name} do
       {:ok, worker} =
         Worker.start_link(

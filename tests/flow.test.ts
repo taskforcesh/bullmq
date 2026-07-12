@@ -1,4 +1,3 @@
-import { default as IORedis } from 'ioredis';
 import {
   describe,
   beforeEach,
@@ -9,7 +8,7 @@ import {
   expect,
 } from 'vitest';
 
-import { v4 } from 'uuid';
+import { randomUUID } from '../src/utils';
 import {
   Job,
   Queue,
@@ -22,27 +21,28 @@ import {
   RateLimitError,
 } from '../src/classes';
 import { removeAllQueueData, delay } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 describe('flows', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
   let queue: Queue;
   let queueName: string;
 
-  let connection: IORedis;
+  let connection: IRedisClient;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
   });
 
   afterEach(async () => {
     await queue.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async function () {
@@ -266,7 +266,7 @@ describe('flows', () => {
       { qux: 'something' },
     ];
 
-    const parentQueueName = `parent-queue-${v4()}`;
+    const parentQueueName = `parent-queue-${randomUUID()}`;
 
     let childrenProcessor,
       parentProcessor,
@@ -357,15 +357,15 @@ describe('flows', () => {
 
     await flow.close();
 
-    await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+    await removeAllQueueData(createTestConnection(), parentQueueName);
   });
 
   it('should allow parent opts on the root job', async () => {
     const name = 'child-job';
     const values = [{ bar: 'something' }, { baz: 'something' }];
 
-    const parentQueueName = `parent-queue-${v4()}`;
-    const grandparentQueueName = `grandparent-queue-${v4()}`;
+    const parentQueueName = `parent-queue-${randomUUID()}`;
+    const grandparentQueueName = `grandparent-queue-${randomUUID()}`;
     const grandparentQueue = new Queue(grandparentQueueName, {
       connection,
       prefix,
@@ -462,8 +462,8 @@ describe('flows', () => {
     await flow.close();
 
     await grandparentQueue.close();
-    await removeAllQueueData(new IORedis(redisHost), grandparentQueueName);
-    await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+    await removeAllQueueData(createTestConnection(), grandparentQueueName);
+    await removeAllQueueData(createTestConnection(), parentQueueName);
   });
 
   describe('when removeChildDependency is called', () => {
@@ -526,6 +526,39 @@ describe('flows', () => {
 
         await flow.close();
         await worker.close();
+      });
+    });
+
+    describe('when child is retrieved from getJob', () => {
+      it('does not restore the parent reference', async () => {
+        const flow = new FlowProducer({ connection, prefix });
+        const { job, children } = await flow.add({
+          name: 'parent',
+          data: {},
+          queueName,
+          children: [
+            {
+              queueName,
+              name: 'child0',
+              data: {},
+              opts: {},
+            },
+          ],
+        });
+
+        const relationshipIsBroken =
+          await children![0].job.removeChildDependency();
+
+        expect(relationshipIsBroken).toBe(true);
+        expect(children![0].job.parent).toBeUndefined();
+        expect(children![0].job.parentKey).toBeUndefined();
+
+        const childJob = await queue.getJob(children![0].job.id!);
+
+        expect(childJob?.parent).toBeUndefined();
+        expect(childJob?.parentKey).toBeUndefined();
+
+        await flow.close();
       });
     });
 
@@ -666,7 +699,7 @@ describe('flows', () => {
 
   describe('when ignoreDependencyOnFailure is provided', async () => {
     it('moves parent to wait after children fail', async () => {
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
       const parentQueue = new Queue(parentQueueName, { connection, prefix });
       const name = 'child-job';
 
@@ -778,13 +811,13 @@ describe('flows', () => {
       await flow.close();
       await parentQueue.close();
 
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     }); // TODO: Add { timeout: 8000 } to the it() options
   });
 
   describe('when removeDependencyOnFailure is provided', async () => {
     it('moves parent to wait after children fail', async () => {
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
       const parentQueue = new Queue(parentQueueName, { connection, prefix });
       const name = 'child-job';
 
@@ -878,15 +911,15 @@ describe('flows', () => {
       await flow.close();
       await parentQueue.close();
 
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     }); // TODO: Add { timeout: 8000 } to the it() options
   });
 
   describe('when chaining flows at runtime using step jobs', () => {
     it('should wait children as one step of the parent job', async () => {
       // TODO: Move timeout to test options: { timeout: 8000 }
-      const childrenQueueName = `children-queue-${v4()}`;
-      const grandchildrenQueueName = `grandchildren-queue-${v4()}`;
+      const childrenQueueName = `children-queue-${randomUUID()}`;
+      const grandchildrenQueueName = `grandchildren-queue-${randomUUID()}`;
 
       enum Step {
         Initial,
@@ -999,13 +1032,13 @@ describe('flows', () => {
       await worker.close();
       await childrenWorker.close();
       await grandchildrenWorker.close();
-      await removeAllQueueData(new IORedis(redisHost), childrenQueueName);
-      await removeAllQueueData(new IORedis(redisHost), grandchildrenQueueName);
+      await removeAllQueueData(createTestConnection(), childrenQueueName);
+      await removeAllQueueData(createTestConnection(), grandchildrenQueueName);
     });
 
     describe('when parent has pending children to be processed when trying to move it to completed', () => {
       it('should fail parent with pending dependencies error', async () => {
-        const childrenQueueName = `children-queue-${v4()}`;
+        const childrenQueueName = `children-queue-${randomUUID()}`;
 
         enum Step {
           Initial,
@@ -1086,12 +1119,12 @@ describe('flows', () => {
         await flow.close();
         await worker.close();
         await queueEvents.close();
-        await removeAllQueueData(new IORedis(redisHost), childrenQueueName);
+        await removeAllQueueData(createTestConnection(), childrenQueueName);
       });
 
       describe('when parent has pending children to be processed when trying to move it to completed', () => {
         it('should fail parent with pending dependencies error', async () => {
-          const childrenQueueName = `children-queue-${v4()}`;
+          const childrenQueueName = `children-queue-${randomUUID()}`;
 
           enum Step {
             Initial,
@@ -1174,15 +1207,15 @@ describe('flows', () => {
           await flow.close();
           await worker.close();
           await queueEvents.close();
-          await removeAllQueueData(new IORedis(redisHost), childrenQueueName);
+          await removeAllQueueData(createTestConnection(), childrenQueueName);
         });
       });
     });
 
     describe('when parent is not in waiting-children state when one child with failParentOnFailure failed', () => {
       it('should fail parent when trying to move it to waiting children', async () => {
-        const childrenQueueName = `children-queue-${v4()}`;
-        const grandchildrenQueueName = `grandchildren-queue-${v4()}`;
+        const childrenQueueName = `children-queue-${randomUUID()}`;
+        const grandchildrenQueueName = `grandchildren-queue-${randomUUID()}`;
 
         enum Step {
           Initial,
@@ -1337,8 +1370,8 @@ describe('flows', () => {
 
       describe('when parent has another parent', () => {
         it('should fail parent and grandparent when trying to move it to waiting children', async () => {
-          const childrenQueueName = `children-queue-${v4()}`;
-          const grandchildrenQueueName = `grandchildren-queue-${v4()}`;
+          const childrenQueueName = `children-queue-${randomUUID()}`;
+          const grandchildrenQueueName = `grandchildren-queue-${randomUUID()}`;
 
           enum Step {
             Initial,
@@ -1512,8 +1545,8 @@ describe('flows', () => {
 
     describe('when parent failed before moving to waiting-children', () => {
       it('should fail parent with last error', async () => {
-        const childrenQueueName = `children-queue-${v4()}`;
-        const grandchildrenQueueName = `grandchildren-queue-${v4()}`;
+        const childrenQueueName = `children-queue-${randomUUID()}`;
+        const grandchildrenQueueName = `grandchildren-queue-${randomUUID()}`;
 
         enum Step {
           Initial,
@@ -1711,7 +1744,7 @@ describe('flows', () => {
 
   describe('when defaultJobOptions is provided', async () => {
     it('processes children before the parent', async () => {
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
       const parentQueue = new Queue(parentQueueName, { connection, prefix });
       const name = 'child-job';
       const values = [
@@ -1827,14 +1860,14 @@ describe('flows', () => {
 
       await flow.close();
 
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
   });
 
   describe('when priority is provided', async () => {
     it('processes children before the parent respecting priority option', async () => {
-      const parentQueueName = `parent-queue-${v4()}`;
-      const grandchildrenQueueName = `grandchildren-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
+      const grandchildrenQueueName = `grandchildren-queue-${randomUUID()}`;
       const parentQueue = new Queue(parentQueueName, { connection, prefix });
       const parentName = 'parent-job';
       const grandchildrenName = 'grandchildren-job';
@@ -2021,8 +2054,8 @@ describe('flows', () => {
 
       await flow.close();
 
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
-      await removeAllQueueData(new IORedis(redisHost), grandchildrenQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
+      await removeAllQueueData(createTestConnection(), grandchildrenQueueName);
     }); // TODO: Add { timeout: 8000 } to the it() options
   });
 
@@ -2031,7 +2064,7 @@ describe('flows', () => {
       const name = 'child-job';
       const values = [{ bar: 'something' }];
 
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       let childrenProcessor,
         parentProcessor,
@@ -2118,7 +2151,7 @@ describe('flows', () => {
 
       await flow.close();
 
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
   });
 
@@ -2409,7 +2442,7 @@ describe('flows', () => {
       const name = 'child-job';
       const values = [{ bar: 'something' }];
 
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       let childrenProcessor,
         parentProcessor,
@@ -2491,11 +2524,11 @@ describe('flows', () => {
       await flow.close();
       await childrenQueue.close();
       await removeAllQueueData(
-        new IORedis(redisHost),
+        createTestConnection(),
         parentQueueName,
         customPrefix,
       );
-      await removeAllQueueData(new IORedis(redisHost), queueName, customPrefix);
+      await removeAllQueueData(createTestConnection(), queueName, customPrefix);
     });
   });
 
@@ -2508,8 +2541,8 @@ describe('flows', () => {
         { qux: 'something' },
       ];
 
-      const parentQueueName = `parent-queue-${v4()}`;
-      const grandChildrenQueueName = `grand-children-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
+      const grandChildrenQueueName = `grand-children-queue-${randomUUID()}`;
 
       let grandChildrenProcessor,
         childrenProcessor,
@@ -2656,8 +2689,8 @@ describe('flows', () => {
 
       await flow.close();
 
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
-      await removeAllQueueData(new IORedis(redisHost), grandChildrenQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
+      await removeAllQueueData(createTestConnection(), grandChildrenQueueName);
     }); // TODO: Add { timeout: 8000 } to the it() options
   });
 
@@ -2666,8 +2699,8 @@ describe('flows', () => {
       it('should move parent to failed when child is moved to failed', async () => {
         const name = 'child-job';
 
-        const parentQueueName = `parent-queue-${v4()}`;
-        const grandChildrenQueueName = `grand-children-queue-${v4()}`;
+        const parentQueueName = `parent-queue-${randomUUID()}`;
+        const grandChildrenQueueName = `grand-children-queue-${randomUUID()}`;
 
         const parentQueue = new Queue(parentQueueName, {
           connection,
@@ -2818,9 +2851,9 @@ describe('flows', () => {
         await flow.close();
         await queueEvents.close();
 
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(createTestConnection(), parentQueueName);
         await removeAllQueueData(
-          new IORedis(redisHost),
+          createTestConnection(),
           grandChildrenQueueName,
         );
       });
@@ -2828,8 +2861,8 @@ describe('flows', () => {
 
     describe('when parent is in delayed state', async () => {
       it('should move parent to failed when child is moved to failed', async () => {
-        const childrenQueueName = `children-queue-${v4()}`;
-        const grandchildrenQueueName = `grandchildren-queue-${v4()}`;
+        const childrenQueueName = `children-queue-${randomUUID()}`;
+        const grandchildrenQueueName = `grandchildren-queue-${randomUUID()}`;
 
         enum Step {
           Initial,
@@ -2958,9 +2991,9 @@ describe('flows', () => {
         await childrenWorker.close();
         await grandchildrenWorker.close();
         await queueEvents.close();
-        await removeAllQueueData(new IORedis(redisHost), childrenQueueName);
+        await removeAllQueueData(createTestConnection(), childrenQueueName);
         await removeAllQueueData(
-          new IORedis(redisHost),
+          createTestConnection(),
           grandchildrenQueueName,
         );
       });
@@ -2968,8 +3001,8 @@ describe('flows', () => {
 
     describe('when parent is in prioritized state', async () => {
       it('should move parent to failed when child is moved to failed', async () => {
-        const childrenQueueName = `children-queue-${v4()}`;
-        const grandchildrenQueueName = `grandchildren-queue-${v4()}`;
+        const childrenQueueName = `children-queue-${randomUUID()}`;
+        const grandchildrenQueueName = `grandchildren-queue-${randomUUID()}`;
 
         enum Step {
           Initial,
@@ -3097,9 +3130,9 @@ describe('flows', () => {
         await childrenWorker.close();
         await grandchildrenWorker.close();
         await queueEvents.close();
-        await removeAllQueueData(new IORedis(redisHost), childrenQueueName);
+        await removeAllQueueData(createTestConnection(), childrenQueueName);
         await removeAllQueueData(
-          new IORedis(redisHost),
+          createTestConnection(),
           grandchildrenQueueName,
         );
       });
@@ -3109,8 +3142,8 @@ describe('flows', () => {
       it('should remove parent when child is moved to failed', async () => {
         const name = 'child-job';
 
-        const parentQueueName = `parent-queue-${v4()}`;
-        const grandChildrenQueueName = `grand-children-queue-${v4()}`;
+        const parentQueueName = `parent-queue-${randomUUID()}`;
+        const grandChildrenQueueName = `grand-children-queue-${randomUUID()}`;
 
         const parentQueue = new Queue(parentQueueName, {
           connection,
@@ -3248,9 +3281,9 @@ describe('flows', () => {
         await flow.close();
         await queueEvents.close();
 
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(createTestConnection(), parentQueueName);
         await removeAllQueueData(
-          new IORedis(redisHost),
+          createTestConnection(),
           grandChildrenQueueName,
         );
       });
@@ -3260,8 +3293,8 @@ describe('flows', () => {
       it('moves parent to wait after children fail', async () => {
         const name = 'child-job';
 
-        const parentQueueName = `parent-queue-${v4()}`;
-        const grandChildrenQueueName = `grand-children-queue-${v4()}`;
+        const parentQueueName = `parent-queue-${randomUUID()}`;
+        const grandChildrenQueueName = `grand-children-queue-${randomUUID()}`;
 
         const parentQueue = new Queue(parentQueueName, {
           connection,
@@ -3395,9 +3428,9 @@ describe('flows', () => {
         await flow.close();
         await queueEvents.close();
 
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(createTestConnection(), parentQueueName);
         await removeAllQueueData(
-          new IORedis(redisHost),
+          createTestConnection(),
           grandChildrenQueueName,
         );
       }); // TODO: Add { timeout: 8000 } to the it() options
@@ -3407,8 +3440,8 @@ describe('flows', () => {
       it('moves parent to wait after children fail', async () => {
         const name = 'child-job';
 
-        const parentQueueName = `parent-queue-${v4()}`;
-        const grandChildrenQueueName = `grand-children-queue-${v4()}`;
+        const parentQueueName = `parent-queue-${randomUUID()}`;
+        const grandChildrenQueueName = `grand-children-queue-${randomUUID()}`;
 
         const parentQueue = new Queue(parentQueueName, {
           connection,
@@ -3554,9 +3587,9 @@ describe('flows', () => {
         await flow.close();
         await queueEvents.close();
 
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(createTestConnection(), parentQueueName);
         await removeAllQueueData(
-          new IORedis(redisHost),
+          createTestConnection(),
           grandChildrenQueueName,
         );
       }); // TODO: Add { timeout: 8000 } to the it() options
@@ -3566,7 +3599,7 @@ describe('flows', () => {
   describe('when continueParentOnFailure option is provided', async () => {
     it('should start processing parent after a child fails', async () => {
       const name = 'child-job';
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       const flow = new FlowProducer({ connection, prefix });
       const flowTree = await flow.add({
@@ -3631,12 +3664,12 @@ describe('flows', () => {
       await parentWorker.close();
       await childrenWorker.close();
       await flow.close();
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
 
     it('should start processing parent after child fails even with more unprocessed children', async () => {
       const name = 'child-job';
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       const flow = new FlowProducer({ connection, prefix });
       const flowTree = await flow.add({
@@ -3723,12 +3756,12 @@ describe('flows', () => {
       await waitingChildren;
       await childrenWorker.close();
       await flow.close();
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
 
     it('should ignore parent if a child has already failed and another one fails afterwards', async () => {
       const name = 'child-job';
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       const flow = new FlowProducer({ connection, prefix });
       const flowTree = await flow.add({
@@ -3813,12 +3846,12 @@ describe('flows', () => {
       await waitingChildren;
       await childrenWorker.close();
       await flow.close();
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
 
     it('should move the parent to delayed after a child fails', async () => {
       const name = 'child-job';
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       const parentQueue = new Queue(parentQueueName, {
         connection,
@@ -3901,12 +3934,12 @@ describe('flows', () => {
       await childrenWorker.close();
       await parentQueue.close();
       await flow.close();
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
 
     it('should move the parent to prioritized after a child fails', async () => {
       const name = 'child-job';
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       const parentQueue = new Queue(parentQueueName, {
         connection,
@@ -3992,7 +4025,7 @@ describe('flows', () => {
       await childrenWorker.close();
       await parentQueue.close();
       await flow.close();
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
   });
 
@@ -4002,7 +4035,7 @@ describe('flows', () => {
       bar: 'something',
     }));
 
-    const parentQueueName = `parent-queue-${v4()}`;
+    const parentQueueName = `parent-queue-${randomUUID()}`;
 
     let childrenProcessor,
       parentProcessor,
@@ -4084,13 +4117,13 @@ describe('flows', () => {
 
     await flow.close();
 
-    await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+    await removeAllQueueData(createTestConnection(), parentQueueName);
   });
 
   it('should get a flow tree', async () => {
     const name = 'child-job';
 
-    const topQueueName = `parent-queue-${v4()}`;
+    const topQueueName = `parent-queue-${randomUUID()}`;
 
     const flow = new FlowProducer({ connection, prefix });
     const originalTree = await flow.add({
@@ -4145,13 +4178,13 @@ describe('flows', () => {
 
     await flow.close();
 
-    await removeAllQueueData(new IORedis(redisHost), topQueueName);
+    await removeAllQueueData(createTestConnection(), topQueueName);
   });
 
   it('should get part of flow tree', async () => {
     const name = 'child-job';
 
-    const topQueueName = `parent-queue-${v4()}`;
+    const topQueueName = `parent-queue-${randomUUID()}`;
 
     const flow = new FlowProducer({ connection, prefix });
     const originalTree = await flow.add({
@@ -4202,7 +4235,7 @@ describe('flows', () => {
     const isWaitingChildren = await job.isWaitingChildren();
 
     expect(isWaitingChildren).toBe(true);
-    expect(children.length).to.be.greaterThanOrEqual(2);
+    expect(children.length).toBeGreaterThanOrEqual(2);
 
     expect(children[0].job.id).toBeTruthy();
     expect(children[0].children).toBeUndefined();
@@ -4212,13 +4245,13 @@ describe('flows', () => {
 
     await flow.close();
 
-    await removeAllQueueData(new IORedis(redisHost), topQueueName);
+    await removeAllQueueData(createTestConnection(), topQueueName);
   });
 
   describe('when prefix is not provided in getFlow', () => {
     it('should get a flow tree using default prefix from FlowProducer', async () => {
       const name = 'child-job';
-      const topQueueName = `parent-queue-${v4()}`;
+      const topQueueName = `parent-queue-${randomUUID()}`;
       const customPrefix = `{${prefix}}`;
 
       const flow = new FlowProducer({ connection, prefix: customPrefix });
@@ -4273,7 +4306,7 @@ describe('flows', () => {
 
       await flow.close();
 
-      await removeAllQueueData(new IORedis(redisHost), topQueueName);
+      await removeAllQueueData(createTestConnection(), topQueueName);
     });
   });
 
@@ -4286,7 +4319,7 @@ describe('flows', () => {
         { qux: 'something' },
       ];
 
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       const parentQueue = new Queue(parentQueueName, { connection, prefix });
 
@@ -4389,12 +4422,12 @@ describe('flows', () => {
       await flow.close();
       await parentQueue.close();
 
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
   });
 
   it('should process parent when children is an empty array', async () => {
-    const parentQueueName = `parent-queue-${v4()}`;
+    const parentQueueName = `parent-queue-${randomUUID()}`;
 
     let parentProcessor;
 
@@ -4426,7 +4459,7 @@ describe('flows', () => {
 
     await flow.close();
 
-    await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+    await removeAllQueueData(createTestConnection(), parentQueueName);
   });
 
   it('should allow passing custom jobId in options', async () => {
@@ -4437,7 +4470,7 @@ describe('flows', () => {
       { qux: 'something' },
     ];
 
-    const parentQueueName = `parent-queue-${v4()}`;
+    const parentQueueName = `parent-queue-${randomUUID()}`;
 
     let childrenProcessor,
       parentProcessor,
@@ -4527,7 +4560,7 @@ describe('flows', () => {
 
     await flow.close();
 
-    await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+    await removeAllQueueData(createTestConnection(), parentQueueName);
   });
 
   it('should process a chain of jobs', async () => {
@@ -4538,7 +4571,7 @@ describe('flows', () => {
       { idx: 2, qux: 'something' },
     ];
 
-    const topQueueName = `top-queue-${v4()}`;
+    const topQueueName = `top-queue-${randomUUID()}`;
 
     let childrenProcessor,
       parentProcessor,
@@ -4658,12 +4691,12 @@ describe('flows', () => {
 
     await flow.close();
 
-    await removeAllQueueData(new IORedis(redisHost), topQueueName);
+    await removeAllQueueData(createTestConnection(), topQueueName);
   });
 
   it('should add meta key to both parents and children', async () => {
     const name = 'child-job';
-    const topQueueName = `top-queue-${v4()}`;
+    const topQueueName = `top-queue-${randomUUID()}`;
 
     const flow = new FlowProducer({ connection, prefix });
     await flow.add({
@@ -4698,7 +4731,7 @@ describe('flows', () => {
 
     await flow.close();
 
-    await removeAllQueueData(new IORedis(redisHost), topQueueName);
+    await removeAllQueueData(createTestConnection(), topQueueName);
   });
 
   describe('when parent has delay', () => {
@@ -4706,7 +4739,7 @@ describe('flows', () => {
       const name = 'child-job';
       const values = [{ idx: 0, bar: 'something' }];
 
-      const topQueueName = `top-queue-${v4()}`;
+      const topQueueName = `top-queue-${randomUUID()}`;
 
       let parentProcessor;
       const childrenWorker = new Worker(
@@ -4727,8 +4760,9 @@ describe('flows', () => {
       const delayed = new Promise<void>((resolve, reject) => {
         queueEvents.on('delayed', async ({ jobId, delay }) => {
           try {
+            expect(typeof delay).toBe('number');
             const milliseconds = delay - Date.now();
-            expect(milliseconds).to.be.lessThanOrEqual(3000);
+            expect(milliseconds).toBeLessThanOrEqual(3000);
             expect(milliseconds).toBeGreaterThan(2000);
             resolve();
           } catch (error) {
@@ -4814,7 +4848,7 @@ describe('flows', () => {
       await queueEvents.close();
       await flow.close();
 
-      await removeAllQueueData(new IORedis(redisHost), topQueueName);
+      await removeAllQueueData(createTestConnection(), topQueueName);
     }); // TODO: Add { timeout: 4500 } to the it() options
   });
 
@@ -4823,7 +4857,7 @@ describe('flows', () => {
       const name = 'child-job';
       const values = [{ idx: 0, bar: 'something' }];
 
-      const topQueueName = `top-queue-${v4()}`;
+      const topQueueName = `top-queue-${randomUUID()}`;
 
       let parentProcessor;
       const childrenWorker = new Worker(
@@ -4910,14 +4944,14 @@ describe('flows', () => {
       await parentWorker.close();
       await flow.close();
 
-      await removeAllQueueData(new IORedis(redisHost), topQueueName);
+      await removeAllQueueData(createTestConnection(), topQueueName);
     });
   });
 
   it('should not process parent if child fails', async () => {
     const name = 'child-job';
 
-    const parentQueueName = `parent-queue-${v4()}`;
+    const parentQueueName = `parent-queue-${randomUUID()}`;
 
     let childrenProcessor;
     const processingChildren = new Promise<void>(
@@ -4960,12 +4994,12 @@ describe('flows', () => {
 
     await flow.close();
     await parentQueue.close();
-    await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+    await removeAllQueueData(createTestConnection(), parentQueueName);
   });
 
   it('should not process parent until queue is unpaused', async () => {
     const name = 'child-job';
-    const parentQueueName = `parent-queue-${v4()}`;
+    const parentQueueName = `parent-queue-${randomUUID()}`;
 
     let childrenProcessor, parentProcessor;
     const processingChildren = new Promise<void>(
@@ -5031,7 +5065,7 @@ describe('flows', () => {
 
     await flow.close();
     await parentQueue.close();
-    await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+    await removeAllQueueData(createTestConnection(), parentQueueName);
   });
 
   describe('.addBulk', () => {
@@ -5039,8 +5073,8 @@ describe('flows', () => {
       const name = 'child-job';
       const values = [{ bar: 'something' }, { baz: 'something' }];
 
-      const parentQueueName = `parent-queue-${v4()}`;
-      const grandparentQueueName = `grandparent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
+      const grandparentQueueName = `grandparent-queue-${randomUUID()}`;
       const grandparentQueue = new Queue(grandparentQueueName, {
         connection,
         prefix,
@@ -5140,8 +5174,8 @@ describe('flows', () => {
       await flow.close();
 
       await grandparentQueue.close();
-      await removeAllQueueData(new IORedis(redisHost), grandparentQueueName);
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), grandparentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
 
     it('should process jobs', async () => {
@@ -5262,7 +5296,7 @@ describe('flows', () => {
 
       await flow.close();
 
-      await removeAllQueueData(new IORedis(redisHost), rootQueueName);
+      await removeAllQueueData(createTestConnection(), rootQueueName);
     });
   });
 
@@ -5271,7 +5305,7 @@ describe('flows', () => {
       const name = 'child-job';
       const values = [{ idx: 0, bar: 'something' }];
 
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
       const flow = new FlowProducer({ connection, prefix });
 
       const tree = await flow.add({
@@ -5359,12 +5393,12 @@ describe('flows', () => {
       } finally {
         await worker.close();
         await flow.close();
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(createTestConnection(), parentQueueName);
       }
     });
 
     it('should not remove completed children', async () => {
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
       const name = 'child-job';
       const numChildren = 6;
 
@@ -5422,13 +5456,13 @@ describe('flows', () => {
       await flow.close();
       await childrenWorker.close();
       await parentWorker.close();
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
   });
 
   describe('.remove', () => {
     it('should remove all children when removing a parent', async () => {
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
       const name = 'child-job';
 
       const flow = new FlowProducer({ connection, prefix });
@@ -5484,12 +5518,12 @@ describe('flows', () => {
 
       await flow.close();
       await parentQueue.close();
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
 
     describe('when removeChildren option is provided as false', () => {
       it('does not remove any children when removing a parent', async () => {
-        const parentQueueName = `parent-queue-${v4()}`;
+        const parentQueueName = `parent-queue-${randomUUID()}`;
         const name = 'child-job';
 
         const flow = new FlowProducer({ connection, prefix });
@@ -5547,13 +5581,13 @@ describe('flows', () => {
 
         await flow.close();
         await parentQueue.close();
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(createTestConnection(), parentQueueName);
       });
     });
 
     describe('when there are processed children', () => {
       it('removes all children when removing a parent', async () => {
-        const parentQueueName = `parent-queue-${v4()}`;
+        const parentQueueName = `parent-queue-${randomUUID()}`;
         const name = 'child-job';
 
         const flow = new FlowProducer({ connection, prefix });
@@ -5635,13 +5669,13 @@ describe('flows', () => {
         await childrenWorker.close();
         await parentWorker.close();
         await parentQueue.close();
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(createTestConnection(), parentQueueName);
       });
 
       describe('when there is a grand parent', () => {
         it('removes all children when removing a parent, but not grandparent', async () => {
-          const parentQueueName = `parent-queue-${v4()}`;
-          const grandparentQueueName = `grandparent-queue-${v4()}`;
+          const parentQueueName = `parent-queue-${randomUUID()}`;
+          const grandparentQueueName = `grandparent-queue-${randomUUID()}`;
           const name = 'child-job';
 
           const flow = new FlowProducer({ connection, prefix });
@@ -5748,17 +5782,17 @@ describe('flows', () => {
           await parentWorker.close();
           await parentQueue.close();
           await removeAllQueueData(
-            new IORedis(redisHost),
+            createTestConnection(),
             grandparentQueueName,
           );
-          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+          await removeAllQueueData(createTestConnection(), parentQueueName);
         });
       });
     });
 
     describe('when there are unsuccessful children', () => {
       it('removes all children when removing a parent', async () => {
-        const parentQueueName = `parent-queue-${v4()}`;
+        const parentQueueName = `parent-queue-${randomUUID()}`;
         const name = 'child-job';
 
         const flow = new FlowProducer({ connection, prefix });
@@ -5861,12 +5895,12 @@ describe('flows', () => {
         await childrenWorker.close();
         await parentWorker.close();
         await parentQueue.close();
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(createTestConnection(), parentQueueName);
       });
     });
 
     it('should not remove anything if there is a locked job in the tree', async () => {
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
       const name = 'child-job';
 
       const worker = new Worker(queueName, null, { connection, prefix });
@@ -5898,11 +5932,11 @@ describe('flows', () => {
 
       await flow.close();
       await worker.close();
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
 
     it('should remove from parent dependencies and move parent to wait', async () => {
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
       const name = 'child-job';
 
       const flow = new FlowProducer({ connection, prefix });
@@ -5945,11 +5979,11 @@ describe('flows', () => {
 
       await flow.close();
       await parentQueue.close();
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
 
     it(`should only move parent to wait when all children have been removed`, async () => {
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
       const name = 'child-job';
 
       const flow = new FlowProducer({ connection, prefix });
@@ -5976,14 +6010,14 @@ describe('flows', () => {
       expect(await tree.job.getState()).toBe('waiting');
 
       await flow.close();
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
   });
 
   describe('.retry', () => {
     describe('when retrying a failed child', () => {
       it('should update parent dependencies reference', async () => {
-        const parentQueueName = `parent-queue-${v4()}`;
+        const parentQueueName = `parent-queue-${randomUUID()}`;
         const name = 'child-job';
 
         const flow = new FlowProducer({ connection, prefix });
@@ -6036,13 +6070,129 @@ describe('flows', () => {
         await flow.close();
         await childrenWorker.close();
         await parentWorker.close();
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(createTestConnection(), parentQueueName);
+      });
+    });
+
+    describe('when retrying a failed child with ignoreDependencyOnFailure', () => {
+      it('should move the child back to the parent dependencies', async () => {
+        const parentQueueName = `parent-queue-${randomUUID()}`;
+        const name = 'child-job';
+
+        const flow = new FlowProducer({ connection, prefix });
+        const tree = await flow.add({
+          name: 'parent-job',
+          queueName: parentQueueName,
+          data: {},
+          children: [
+            {
+              name,
+              data: { foo: 'bar' },
+              queueName,
+              opts: { ignoreDependencyOnFailure: true, attempts: 1 },
+            },
+          ],
+        });
+
+        const childrenWorker = new Worker(
+          queueName,
+          async () => {
+            throw new Error('error');
+          },
+          {
+            connection,
+            prefix,
+          },
+        );
+        const failing = new Promise<void>(resolve => {
+          childrenWorker.once('failed', () => resolve());
+        });
+
+        await childrenWorker.waitUntilReady();
+        await failing;
+        await childrenWorker.close();
+
+        const childJob = await queue.getJob(tree.children![0].job.id!);
+
+        // This used to throw a WRONGTYPE error because the failed child was
+        // stored in the parent's :failed hash but reprocessJob tried to ZREM it.
+        await childJob!.retry('failed');
+
+        const state = await childJob!.getState();
+        expect(state).toBe('waiting');
+
+        const { ignored, unprocessed } = await tree.job.getDependenciesCount({
+          ignored: true,
+          unprocessed: true,
+        });
+        expect(ignored).toBe(0);
+        expect(unprocessed).toBe(1);
+
+        await flow.close();
+        await removeAllQueueData(createTestConnection(), parentQueueName);
+      });
+    });
+
+    describe('when retrying a failed child with continueParentOnFailure', () => {
+      it('should move the child back to the parent dependencies', async () => {
+        const parentQueueName = `parent-queue-${randomUUID()}`;
+        const name = 'child-job';
+
+        const flow = new FlowProducer({ connection, prefix });
+        const tree = await flow.add({
+          name: 'parent-job',
+          queueName: parentQueueName,
+          data: {},
+          children: [
+            {
+              name,
+              data: { foo: 'bar' },
+              queueName,
+              opts: { continueParentOnFailure: true, attempts: 1 },
+            },
+          ],
+        });
+
+        const childrenWorker = new Worker(
+          queueName,
+          async () => {
+            throw new Error('error');
+          },
+          {
+            connection,
+            prefix,
+          },
+        );
+        const failing = new Promise<void>(resolve => {
+          childrenWorker.once('failed', () => resolve());
+        });
+
+        await childrenWorker.waitUntilReady();
+        await failing;
+        await childrenWorker.close();
+
+        const childJob = await queue.getJob(tree.children![0].job.id!);
+
+        // This used to throw a WRONGTYPE error because the failed child was
+        // stored in the parent's :failed hash but reprocessJob tried to ZREM it.
+        await childJob!.retry('failed');
+
+        const state = await childJob!.getState();
+        expect(state).toBe('waiting');
+
+        const { unprocessed } = await tree.job.getDependenciesCount({
+          unprocessed: true,
+        });
+        expect(unprocessed).toBe(1);
+
+        await flow.close();
+        await removeAllQueueData(createTestConnection(), parentQueueName);
       });
     });
 
     describe('when retrying a completed child', () => {
       it('should update parent dependencies reference', async () => {
-        const parentQueueName = `parent-queue-${v4()}`;
+        const parentQueueName = `parent-queue-${randomUUID()}`;
         const name = 'child-job';
 
         const flow = new FlowProducer({ connection, prefix });
@@ -6097,16 +6247,53 @@ describe('flows', () => {
         await flow.close();
         await childrenWorker.close();
         await parentWorker.close();
-        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(createTestConnection(), parentQueueName);
       });
     });
   });
 
   describe('when root parent job has deduplication option', () => {
+    it('should return deduplicated root job id when flow has no children', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+      const dedupId = 'dedup-root-without-children';
+
+      const firstTree = await flow.add({
+        name: 'root',
+        data: { order: 1 },
+        queueName,
+        opts: {
+          deduplication: { id: dedupId },
+          delay: 1000,
+        },
+      });
+
+      const secondTree = await flow.add({
+        name: 'root',
+        data: { order: 2 },
+        queueName,
+        opts: {
+          deduplication: { id: dedupId },
+          delay: 1000,
+        },
+      });
+
+      expect(secondTree.job.id).toBe(firstTree.job.id);
+
+      const deduplicationJobId = await queue.getDeduplicationJobId(dedupId);
+      expect(deduplicationJobId).toBe(firstTree.job.id);
+
+      await flow.close();
+    });
+
     it('should deduplicate root parent job when added again with same deduplication id', async () => {
       const flow = new FlowProducer({ connection, prefix });
-      const queueEvents = new QueueEvents(queueName, { connection, prefix });
+      const queueEvents = new QueueEvents(queueName, {
+        connection,
+        prefix,
+        blockingTimeout: 1000,
+      });
       await queueEvents.waitUntilReady();
+      await delay(50); // allow XREAD to start blocking
 
       const dedupId = 'dedup-parent-id';
 
@@ -6126,7 +6313,7 @@ describe('flows', () => {
         );
       });
 
-      await flow.add({
+      const firstTree = await flow.add({
         name: 'parent',
         data: { order: 1 },
         queueName,
@@ -6144,7 +6331,7 @@ describe('flows', () => {
       });
 
       // Add second flow with same deduplication id
-      await flow.add({
+      const secondTree = await flow.add({
         name: 'parent',
         data: { order: 2 },
         queueName,
@@ -6162,6 +6349,8 @@ describe('flows', () => {
       });
 
       await deduplicatedPromise;
+      expect(firstTree.job.id).toBe('parent1');
+      expect(secondTree.job.id).toBe('parent1');
 
       // Verify only first parent exists
       const parent1 = await queue.getJob('parent1');
@@ -6178,6 +6367,179 @@ describe('flows', () => {
       expect(childJobs[0].name).toBe('child1');
 
       await queueEvents.close();
+      await flow.close();
+    });
+
+    it('should return deduplicated id for nested flows', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+      const dedupId = 'dedup-nested-root';
+
+      const firstTree = await flow.add({
+        name: 'parent',
+        data: { order: 1 },
+        queueName,
+        opts: {
+          deduplication: { id: dedupId },
+        },
+        children: [
+          {
+            queueName,
+            name: 'child-1',
+            data: {},
+            children: [
+              {
+                queueName,
+                name: 'grandchild-1',
+                data: {},
+              },
+            ],
+          },
+        ],
+      });
+
+      const secondTree = await flow.add({
+        name: 'parent',
+        data: { order: 2 },
+        queueName,
+        opts: {
+          deduplication: { id: dedupId },
+        },
+        children: [
+          {
+            queueName,
+            name: 'child-2',
+            data: {},
+            children: [
+              {
+                queueName,
+                name: 'grandchild-2',
+                data: {},
+              },
+            ],
+          },
+        ],
+      });
+
+      expect(secondTree.job.id).toBe(firstTree.job.id);
+      await flow.close();
+    });
+
+    it('should return deduplicated ids from addBulk when roots share deduplication id', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+      const dedupId = 'dedup-bulk-root';
+
+      const [firstTree, secondTree] = await flow.addBulk([
+        {
+          name: 'root-1',
+          data: { idx: 1 },
+          queueName,
+          opts: {
+            deduplication: { id: dedupId },
+            delay: 1000,
+          },
+        },
+        {
+          name: 'root-2',
+          data: { idx: 2 },
+          queueName,
+          opts: {
+            deduplication: { id: dedupId },
+            delay: 1000,
+          },
+        },
+      ]);
+
+      expect(secondTree.job.id).toBe(firstTree.job.id);
+      const deduplicationJobId = await queue.getDeduplicationJobId(dedupId);
+      expect(deduplicationJobId).toBe(firstTree.job.id);
+
+      await flow.close();
+    });
+
+    it('should return same deduplicated id for concurrent add calls', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+      const dedupId = 'dedup-concurrent-root';
+      const numberOfCalls = 8;
+
+      const trees = await Promise.all(
+        [...Array(numberOfCalls)].map((_, index) =>
+          flow.add({
+            name: `root-${index}`,
+            data: { index },
+            queueName,
+            opts: {
+              deduplication: { id: dedupId },
+              delay: 1000,
+            },
+          }),
+        ),
+      );
+
+      const uniqueIds = new Set(trees.map(tree => tree.job.id));
+      expect(uniqueIds.size).toBe(1);
+
+      await flow.close();
+    });
+
+    it('should not corrupt id mapping for successful jobs when some addBulk commands fail', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+
+      const trees = await flow.addBulk([
+        {
+          name: 'valid-root',
+          data: {},
+          queueName,
+          opts: {
+            deduplication: { id: 'dedup-valid-on-partial-failure' },
+            delay: 1000,
+          },
+        },
+        {
+          name: 'invalid-root',
+          data: {},
+          queueName,
+          opts: {
+            parent: { id: 'missing-parent', queue: `${prefix}:${queueName}` },
+          },
+        },
+      ]);
+
+      const [validTree, invalidTree] = trees;
+      const validJob = await queue.getJob(validTree.job.id);
+      const invalidJob = await queue.getJob(invalidTree.job.id);
+
+      expect(validJob).toBeDefined();
+      expect(invalidJob).toBeUndefined();
+
+      await flow.close();
+    });
+  });
+
+  describe('when add is called with a non-existing parent', () => {
+    it('throws an error instead of silently dropping the job', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+      const missingParentId = `missing-parent-${randomUUID()}`;
+      const parentKey = `${prefix}:${queueName}:${missingParentId}`;
+
+      await expect(
+        flow.add({
+          name: 'orphan-child',
+          queueName,
+          data: { foo: 'bar' },
+          opts: {
+            parent: {
+              id: missingParentId,
+              queue: `${prefix}:${queueName}`,
+            },
+            jobId: 'orphan-child-id',
+          },
+        }),
+      ).rejects.toThrow(`Missing key for parent job ${parentKey}. addJob`);
+
+      // The job should NOT have been added to Redis.
+      const orphanJob = await queue.getJob('orphan-child-id');
+      expect(orphanJob).toBeUndefined();
+
       await flow.close();
     });
   });

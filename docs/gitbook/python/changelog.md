@@ -1,9 +1,112 @@
+## [2.25.3](https://github.com/taskforcesh/bullmq/compare/vpy2.25.2...vpy2.25.3) (2026-07-10)
+
+
+### Bug Fixes
+
+* **flow:** use correct data structure when retrying failed child using ignoreDependencyOnFailure fixes [#4235](https://github.com/taskforcesh/bullmq/issues/4235) ([#4236](https://github.com/taskforcesh/bullmq/issues/4236)) ([6f1b2e3](https://github.com/taskforcesh/bullmq/commit/6f1b2e33b01c9f97dee6ff96bab782a8399c7ae5))
+
+## [2.25.2](https://github.com/taskforcesh/bullmq/compare/vpy2.25.1...vpy2.25.2) (2026-05-10)
+
+
+### Bug Fixes
+
+* **worker:** [python] avoid tight error loop on Redis disconnect ([#4102](https://github.com/taskforcesh/bullmq/issues/4102)) ([51c935b](https://github.com/taskforcesh/bullmq/commit/51c935bdbf19744edccf1b39002585d81a014613))
+
+## [2.25.1](https://github.com/taskforcesh/bullmq/compare/vpy2.25.0...vpy2.25.1) (2026-05-04)
+
+
+### Bug Fixes
+
+* **connection:** deprecate skipWaitingForReady option as is not having any effect [python] ([#4140](https://github.com/taskforcesh/bullmq/issues/4140)) ([c9c0c0a](https://github.com/taskforcesh/bullmq/commit/c9c0c0a03218511deb73eac74c31ac50ba9c4f77))
+
+# [2.25.0](https://github.com/taskforcesh/bullmq/compare/vpy2.24.0...vpy2.25.0) (2026-04-29)
+
+
+### Features
+
+* **queue:** add skipVersionCheck and skipWaitingForReady to QueueBaseOptions [python] ([#4086](https://github.com/taskforcesh/bullmq/issues/4086)) ([54311e5](https://github.com/taskforcesh/bullmq/commit/54311e59445562f65065b772800b8449f7d99f83))
+
+# [2.24.0](https://github.com/taskforcesh/bullmq/compare/vpy2.23.1...vpy2.24.0) (2026-04-28)
+
+
+### Features
+
+* **connection:** add return type hints to RedisConnection methods [python] ([#4025](https://github.com/taskforcesh/bullmq/issues/4025)) ([4ca9c27](https://github.com/taskforcesh/bullmq/commit/4ca9c27ea68d303b86a80cbb24c8e390d87a5e8f))
+
+## [2.23.1](https://github.com/taskforcesh/bullmq/compare/vpy2.23.0...vpy2.23.1) (2026-04-26)
+
+
+### Bug Fixes
+
+* **queue:** guard getCompleted against empty task set [python] ([#3885](https://github.com/taskforcesh/bullmq/issues/3885)) ([19b9ca0](https://github.com/taskforcesh/bullmq/commit/19b9ca08be6f6efbc58291fa55efd93a0663d536))
+
+# [2.23.0](https://github.com/taskforcesh/bullmq/compare/vpy2.22.0...vpy2.23.0) (2026-04-22)
+
+
+### Features
+
+* **python:** add type hints to worker.py methods ([#4035](https://github.com/taskforcesh/bullmq/issues/4035)) ([1423b58](https://github.com/taskforcesh/bullmq/commit/1423b584b5707b3f71ee2fba5eb14122fb7b0275))
+
+# [2.22.0](https://github.com/taskforcesh/bullmq/compare/vpy2.21.1...vpy2.22.0) (2026-04-20)
+
+
+### Features
+
+* **job:** add return type hints to Job methods ([#4003](https://github.com/taskforcesh/bullmq/issues/4003)) [python] ([704690c](https://github.com/taskforcesh/bullmq/commit/704690c62f4cedddf82379335b8ff42a46fda7f3))
+
+## [2.21.1](https://github.com/taskforcesh/bullmq/compare/vpy2.21.0...vpy2.21.1) (2026-04-20)
+
+
+### Bug Fixes
+
+* **queue:** getFailed() incorrectly returns completed jobs ([#3996](https://github.com/taskforcesh/bullmq/issues/3996)) [python] ([f77f249](https://github.com/taskforcesh/bullmq/commit/f77f249acb82daf331bd61e1f425780270888d8d))
+
+# [2.21.0](https://github.com/taskforcesh/bullmq/compare/vpy2.20.4...vpy2.21.0) (2026-04-20)
+
+
+### Bug Fixes
+
+* **queue:** use slice reversal instead of reverse() which returns None ([#4022](https://github.com/taskforcesh/bullmq/issues/4022)) ([1652435](https://github.com/taskforcesh/bullmq/commit/1652435b06f583015055df4e74ee7dea203bdae4))
+
+
+### Features
+
+* **python:** add type hints to Timer class ([#4024](https://github.com/taskforcesh/bullmq/issues/4024)) ([8c78e30](https://github.com/taskforcesh/bullmq/commit/8c78e3004dcd5df726d9b7277dd455d0d224791f))
+
+## [2.20.4](https://github.com/taskforcesh/bullmq/compare/vpy2.20.3...vpy2.20.4) (2026-04-17)
+
+
+### Bug Fixes
+
+* **error:** export UnrecoverableError from package root ([#4047](https://github.com/taskforcesh/bullmq/issues/4047)) [python] ([be9f032](https://github.com/taskforcesh/bullmq/commit/be9f03246d1644f397d660fba91285604a824284))
+
+## [2.20.3](https://github.com/taskforcesh/bullmq/compare/vpy2.20.2...vpy2.20.3) (2026-04-10)
+
+
+### Bug Fixes
+
+* **worker:** emit active event as soon as getting next job (elixir) (python) ([#3936](https://github.com/taskforcesh/bullmq/issues/3936)) ref [#3911](https://github.com/taskforcesh/bullmq/issues/3911) ([d5eca5a](https://github.com/taskforcesh/bullmq/commit/d5eca5acff37b7a95f72c136685105504fc7f5be))
+
+## [2.20.2](https://github.com/taskforcesh/bullmq/compare/vpy2.20.1...vpy2.20.2) (2026-04-09)
+
+
+### Performance Improvements
+
+* **delayed:** allow to fetch next job when moving job to delayed (python) (elixir) ([#3870](https://github.com/taskforcesh/bullmq/issues/3870)) ([0cb0b8c](https://github.com/taskforcesh/bullmq/commit/0cb0b8cf5981ad8d56fd539071eacbe0df4b55ad))
+
+## [2.20.1](https://github.com/taskforcesh/bullmq/compare/vpy2.20.0...vpy2.20.1) (2026-04-09)
+
+
+### Bug Fixes
+
+* **connection:** use single_connection_client as true ([#3887](https://github.com/taskforcesh/bullmq/issues/3887)) fixes [#2243](https://github.com/taskforcesh/bullmq/issues/2243) [python] ([bf45186](https://github.com/taskforcesh/bullmq/commit/bf451868b932125d857280a5a21173bfafbc2801))
+
 # [2.20.0](https://github.com/taskforcesh/bullmq/compare/vpy2.19.8...vpy2.20.0) (2026-04-03)
 
 
 ### Features
 
-* **sandbox:** add getDependenciesCount proxy for jobs ([#3923](https://github.com/taskforcesh/bullmq/issues/3923)) ref [#3533](https://github.com/taskforcesh/bullmq/issues/3533) (elixir) (php) (python) ([cbfe437](https://github.com/taskforcesh/bullmq/commit/cbfe437a9aa967bd960890f8ddfb9b01a8c83505))
+* **deduplication:** add keepLastIfActive option for at-least-once-after-active semantics ([#3902](https://github.com/taskforcesh/bullmq/issues/3902)) ([aa529bc](https://github.com/taskforcesh/bullmq/commit/aa529bc512b15cdb9d173cc9cc3b0d9f8b8959eb))
 
 ## [2.19.8](https://github.com/taskforcesh/bullmq/compare/vpy2.19.7...vpy2.19.8) (2026-03-19)
 

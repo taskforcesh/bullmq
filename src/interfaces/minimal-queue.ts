@@ -27,7 +27,7 @@ export interface MinimalQueue extends ScriptQueueContext {
    * @param operation - operation name (such as add, process, etc)
    * @param destination - destination name (normally the queue name)
    * @param callback - code to wrap with telemetry
-   * @param srcPropagationMedatada -
+   * @param srcPropagationMetadata -
    * @returns
    */
   trace<T>(

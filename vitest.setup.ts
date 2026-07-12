@@ -3,9 +3,19 @@
  * This file runs before all tests
  */
 import { expect } from 'vitest';
+import { default as IORedis } from 'ioredis';
+import { createIORedisClient } from './src/classes/ioredis-client';
+import { setConnectionFactory } from './tests/utils/connection-factory';
 
-// Extend Vitest's expect with custom matchers if needed
-// For chai-as-promised like behavior, Vitest has built-in support for async assertions
+// Configure the default factory: ioredis
+setConnectionFactory(opts => {
+  const client = new IORedis({
+    host: opts?.host || process.env.REDIS_HOST || 'localhost',
+    port: opts?.port || Number(process.env.REDIS_PORT) || 6379,
+    maxRetriesPerRequest: null,
+  });
+  return createIORedisClient(client);
+});
 
 // Set longer timeout for CI environments
 if (process.env.CI) {

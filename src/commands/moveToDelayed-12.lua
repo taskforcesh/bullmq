@@ -10,6 +10,10 @@
     KEYS[6] events stream
     KEYS[7] meta key
     KEYS[8] stalled key
+    KEYS[9] wait key
+    KEYS[10] rate limiter key
+    KEYS[11] paused key
+    KEYS[12] pc priority counter
 
     ARGV[1] key prefix
     ARGV[2] timestamp
@@ -18,6 +22,8 @@
     ARGV[5] delay value
     ARGV[6] skip attempt
     ARGV[7] optional job fields to update
+    ARGV[8] fetch next?
+    ARGV[9] opts
 
   Output:
     0 - OK
@@ -31,12 +37,14 @@ local rcall = redis.call
 
 -- Includes
 --- @include "includes/addDelayMarkerIfNeeded"
+--- @include "includes/fetchNextJob"
 --- @include "includes/getDelayedScore"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/removeLock"
 --- @include "includes/updateJobFields"
 
 local jobKey = KEYS[5]
+local markerKey = KEYS[1]
 local metaKey = KEYS[7]
 local token = ARGV[4] 
 if rcall("EXISTS", jobKey) == 1 then
@@ -68,8 +76,19 @@ if rcall("EXISTS", jobKey) == 1 then
     rcall("XADD", KEYS[6], "MAXLEN", "~", maxEvents, "*", "event", "delayed",
           "jobId", jobId, "delay", delayedTimestamp)
 
+    -- Try to get next job to avoid an extra roundtrip if the queue is not closing,
+    -- and not rate limited.
+    if (ARGV[8] == "1") then
+        local opts = cmsgpack.unpack(ARGV[9])
+        local result = fetchNextJob(KEYS[9], KEYS[2], KEYS[3], KEYS[6],
+            KEYS[10], KEYS[4], KEYS[11], metaKey, KEYS[12], markerKey,
+            ARGV[1], ARGV[2], opts)
+        if result and type(result[1]) == "table" then
+            return result
+        end
+    end
+
     -- Check if we need to push a marker job to wake up sleeping workers.
-    local markerKey = KEYS[1]
     addDelayMarkerIfNeeded(markerKey, delayedKey)
 
     return 0

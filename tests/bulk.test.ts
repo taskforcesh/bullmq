@@ -1,4 +1,3 @@
-import { default as IORedis } from 'ioredis';
 import {
   describe,
   beforeEach,
@@ -9,30 +8,30 @@ import {
   expect,
 } from 'vitest';
 
-import { v4 } from 'uuid';
 import { Queue, QueueEvents, Worker, Job } from '../src/classes';
-import { removeAllQueueData, delay } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 describe('bulk jobs', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
   let queue: Queue;
   let queueName: string;
 
-  let connection;
+  let connection: IRedisClient;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
   });
 
   afterEach(async () => {
     await queue.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async () => {
@@ -74,7 +73,7 @@ describe('bulk jobs', () => {
 
   it('should allow to pass parent option', async () => {
     const name = 'test';
-    const parentQueueName = `parent-queue-${v4()}`;
+    const parentQueueName = `parent-queue-${randomUUID()}`;
     const parentQueue = new Queue(parentQueueName, { connection, prefix });
 
     const parentWorker = new Worker(parentQueueName, null, {
@@ -124,7 +123,7 @@ describe('bulk jobs', () => {
     await childrenWorker.close();
     await parentWorker.close();
     await parentQueue.close();
-    await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+    await removeAllQueueData(createTestConnection(), parentQueueName);
   });
 
   it('should keep workers busy', { timeout: 10_000 }, async () => {

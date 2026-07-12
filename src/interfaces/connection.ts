@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
-import { Cluster, Redis } from 'ioredis';
+import { IRedisClient } from './redis-client';
 
-export type RedisClient = Redis | Cluster;
+export type RedisClient = IRedisClient;
 
 export interface IConnection extends EventEmitter {
   waitUntilReady(): Promise<boolean>;

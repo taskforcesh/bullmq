@@ -2,11 +2,11 @@ async-timeout==5.0.1
 certifi==2026.2.25
 distlib==0.4.0
 filelock==3.25.2
-msgpack==1.1.2
+msgpack==1.2.1
 pipenv==2026.5.1
 platformdirs==4.9.4
 pre-commit==4.5.1
-pytest==9.0.2
+pytest==9.0.3
 pytest-timeout==2.4.0
 redis==7.4.0
 semver==3.0.4

@@ -1,9 +1,51 @@
+## [1.3.5](https://github.com/taskforcesh/bullmq/compare/vex1.3.4...vex1.3.5) (2026-07-11)
+
+
+### Bug Fixes
+
+* **job-scheduler:** respect offset option in upsertJobScheduler (elixir) (rust) ([#3993](https://github.com/taskforcesh/bullmq/issues/3993)) ([78bbb25](https://github.com/taskforcesh/bullmq/commit/78bbb253546b4c45f7e23ceccc31eb644651416c))
+
+
+### Features
+
+* add QueueEvents, queue/worker getters, and missing options [rust] ([#4229](https://github.com/taskforcesh/bullmq/issues/4229)) ([60ae049](https://github.com/taskforcesh/bullmq/commit/60ae0492a3200f8496976a3b51609e7e54eafd1b))
+
+## [1.3.4](https://github.com/taskforcesh/bullmq/compare/vex1.3.3...vex1.3.4) (2026-07-10)
+
+
+### Bug Fixes
+
+* **job-scheduler:** coerce string offset in Lua helper ([#4266](https://github.com/taskforcesh/bullmq/issues/4266)) (python) (elixir) ([5a88614](https://github.com/taskforcesh/bullmq/commit/5a88614312243a12bb9e56b525c4deb60d76cf12))
+* **flow:** use correct data structure when retrying failed child using ignoreDependencyOnFailure fixes [#4235](https://github.com/taskforcesh/bullmq/issues/4235) ([#4236](https://github.com/taskforcesh/bullmq/issues/4236)) ([6f1b2e3](https://github.com/taskforcesh/bullmq/commit/6f1b2e33b01c9f97dee6ff96bab782a8399c7ae5))
+
+
+## [1.3.3](https://github.com/taskforcesh/bullmq/compare/vex1.3.2...vex1.3.3) (2026-06-13)
+
+
+### Bug Fixes
+
+* **scheduler:** fail stalled jobs if scheduler does not longer exist (elixir) (rust) ([#4222](https://github.com/taskforcesh/bullmq/issues/4222)) ([d1fcda5](https://github.com/taskforcesh/bullmq/commit/d1fcda5f9c4f53b56846a73421d6eb9a32603aa4))
+
+## [1.3.2](https://github.com/taskforcesh/bullmq/compare/vex1.3.1...vex1.3.2) (2026-04-10)
+
+
+### Bug Fixes
+
+* **worker:** emit active event as soon as getting next job (elixir) (python) ([#3936](https://github.com/taskforcesh/bullmq/issues/3936)) ref [#3911](https://github.com/taskforcesh/bullmq/issues/3911) ([d5eca5a](https://github.com/taskforcesh/bullmq/commit/d5eca5acff37b7a95f72c136685105504fc7f5be))
+
+## [1.3.1](https://github.com/taskforcesh/bullmq/compare/vex1.3.0...vex1.3.1) (2026-04-09)
+
+
+### Performance Improvements
+
+* **delayed:** allow to fetch next job when moving job to delayed (python) (elixir) ([#3870](https://github.com/taskforcesh/bullmq/issues/3870)) ([0cb0b8c](https://github.com/taskforcesh/bullmq/commit/0cb0b8cf5981ad8d56fd539071eacbe0df4b55ad))
+
 # [1.3.0](https://github.com/taskforcesh/bullmq/compare/vex1.2.7...vex1.3.0) (2026-04-03)
 
 
 ### Features
 
-* **sandbox:** add getDependenciesCount proxy for jobs ([#3923](https://github.com/taskforcesh/bullmq/issues/3923)) ref [#3533](https://github.com/taskforcesh/bullmq/issues/3533) (elixir) (php) (python) ([cbfe437](https://github.com/taskforcesh/bullmq/commit/cbfe437a9aa967bd960890f8ddfb9b01a8c83505))
+* **deduplication:** add keepLastIfActive option for at-least-once-after-active semantics ([#3902](https://github.com/taskforcesh/bullmq/issues/3902)) ([aa529bc](https://github.com/taskforcesh/bullmq/commit/aa529bc512b15cdb9d173cc9cc3b0d9f8b8959eb))
 
 ## [1.2.7](https://github.com/taskforcesh/bullmq/compare/vex1.2.6...vex1.2.7) (2026-03-06)
 

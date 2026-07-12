@@ -12,15 +12,15 @@
     "semantic-release:debug": "semantic-release --no-ci --dry-run --debug"
   },
   "devDependencies": {
-    "@commitlint/cli": "20.5.0",
-    "@commitlint/config-conventional": "20.5.0",
+    "@commitlint/cli": "21.1.0",
+    "@commitlint/config-conventional": "21.1.0",
     "@semantic-release/changelog": "6.0.3",
     "@semantic-release/commit-analyzer": "13.0.1",
     "@semantic-release/exec": "7.1.0",
     "@semantic-release/git": "10.0.1",
-    "@semantic-release/github": "12.0.6",
-    "@semantic-release/release-notes-generator": "14.1.0",
-    "semantic-release": "25.0.3"
+    "@semantic-release/github": "12.0.8",
+    "@semantic-release/release-notes-generator": "14.1.1",
+    "semantic-release": "25.0.5"
   },
   "commitlint": {
     "extends": [
@@ -35,7 +35,7 @@
         {
           "releaseRules": [
             {
-              "message": "!(*\\(elixir\\)*|*\\[elixir\\]*)",
+              "header": "!({*,**/*}\\(elixir\\)*|{*,**/*}\\[elixir\\]*)",
               "release": false
             }
           ]

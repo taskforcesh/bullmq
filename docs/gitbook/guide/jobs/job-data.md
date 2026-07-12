@@ -4,6 +4,7 @@ Every job can have its own custom data. The data is stored in the **`data`** att
 
 {% tabs %}
 {% tab title="TypeScript" %}
+
 ```typescript
 import { Queue } from 'bullmq';
 
@@ -13,9 +14,11 @@ const job = await myQueue.add('wall', { color: 'red' });
 
 job.data; // { color: 'red' }
 ```
+
 {% endtab %}
 
 {% tab title="Python" %}
+
 ```python
 from bullmq import Queue
 
@@ -25,6 +28,21 @@ job = await queue.add('wall', {'color': 'red'})
 
 job.data # { color: 'red' }
 ```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Queue, QueueOptions};
+
+let queue = Queue::new("paint", QueueOptions::default()).await?;
+
+let job = queue.add("wall", serde_json::json!({"color": "red"}), None).await?;
+
+let data = job.data(); // {"color": "red"}
+```
+
 {% endtab %}
 {% endtabs %}
 
@@ -34,6 +52,7 @@ If you want to change the data after inserting a job, just use the **`updateData
 
 {% tabs %}
 {% tab title="TypeScript" %}
+
 ```typescript
 const job = await Job.create(queue, 'wall', { color: 'red' });
 
@@ -43,9 +62,11 @@ await job.updateData({
 
 job.data; // { color: 'blue' }
 ```
+
 {% endtab %}
 
 {% tab title="Python" %}
+
 ```python
 from bullmq import Queue
 
@@ -56,9 +77,26 @@ job = await queue.add('wall', {'color': 'red'})
 await job.updateData({'color': 'blue'})
 job.data # { color: 'blue' }
 ```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Queue, QueueOptions};
+
+let queue = Queue::new("paint", QueueOptions::default()).await?;
+
+let mut job = queue.add("wall", serde_json::json!({ "color": "red" }), None).await?;
+
+job.update_data(serde_json::json!({ "color": "blue" })).await?;
+
+job.data(); // { "color": "blue" }
+```
+
 {% endtab %}
 {% endtabs %}
 
 ## Read more:
 
-* 💡 [Update Data API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#updatedata)
+- 💡 [Update Data API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#updatedata)

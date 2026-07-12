@@ -1,4 +1,3 @@
-import type { Cluster } from 'ioredis';
 import { JobProgress } from '../types';
 import {
   IoredisListener,
@@ -14,6 +13,7 @@ import {
 } from '../utils';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
+import { createIORedisClient, isIRedisClient } from './ioredis-client';
 
 export interface QueueEventsListener extends IoredisListener {
   /**
@@ -107,7 +107,8 @@ export interface QueueEventsListener extends IoredisListener {
    *
    * @param args - An object containing details about the delayed job.
    *  - `jobId` - The unique identifier of the job that was delayed.
-   *  - `delay` - The delay duration in milliseconds before the job becomes active.
+   *  - `delay` - The timestamp at which the job will become active, in milliseconds
+   *    elapsed since January 1, 1970 UTC.
    * @param id - The identifier of the event.
    */
   delayed: (args: { jobId: string; delay: number }, id: string) => void;
@@ -139,6 +140,8 @@ export interface QueueEventsListener extends IoredisListener {
    * Listen to 'error' event.
    *
    * This event is triggered when an error in the Redis backend is thrown.
+   *
+   * @param args - The error that was thrown.
    */
   error: (args: Error) => void;
 
@@ -289,11 +292,10 @@ export class QueueEvents extends QueueBase {
       {
         ...opts,
         connection: isRedisInstance(connection)
-          ? (<RedisClient>connection).isCluster
-            ? (<Cluster>connection).duplicate(undefined, {
-                redisOptions: (<Cluster>connection).options?.redisOptions,
-              })
-            : (<RedisClient>connection).duplicate()
+          ? (isIRedisClient(connection)
+              ? connection
+              : createIORedisClient(connection as any)
+            ).duplicate()
           : connection,
       },
       Connection,
@@ -353,11 +355,14 @@ export class QueueEvents extends QueueBase {
         this.running = true;
         const client = await this.client;
 
-        // TODO: Planed for deprecation as it has no really a use case
+        // TODO: Planned for deprecation as it really has no use case
         try {
-          await client.client('SETNAME', this.clientName(QUEUE_EVENT_SUFFIX));
+          await client.clientSetName(this.clientName(QUEUE_EVENT_SUFFIX));
         } catch (err) {
-          if (!clientCommandMessageReg.test((<Error>err).message)) {
+          if (
+            !clientCommandMessageReg.test((<Error>err).message) &&
+            !this.closing
+          ) {
             throw err;
           }
         }
@@ -382,7 +387,7 @@ export class QueueEvents extends QueueBase {
       this.blocking = true;
       // Cast to actual return type, see: https://github.com/DefinitelyTyped/DefinitelyTyped/issues/44301
       const data: StreamReadRaw = await this.checkConnectionError(() =>
-        client.xread('BLOCK', opts.blockingTimeout!, 'STREAMS', key, id),
+        client.xread([{ key, id }], { BLOCK: opts.blockingTimeout! }),
       );
       this.blocking = false;
       if (data) {
@@ -394,7 +399,7 @@ export class QueueEvents extends QueueBase {
           const args = array2obj(events[i][1]);
 
           //
-          // TODO: we may need to have a separate xtream for progress data
+          // TODO: we may need to have a separate stream for progress data
           // to avoid this hack.
           switch (args.event) {
             case 'progress':
@@ -402,6 +407,9 @@ export class QueueEvents extends QueueBase {
               break;
             case 'completed':
               args.returnvalue = JSON.parse(args.returnvalue);
+              break;
+            case 'delayed':
+              (args as Record<string, any>).delay = Number(args.delay);
               break;
           }
 
@@ -429,7 +437,7 @@ export class QueueEvents extends QueueBase {
     if (!this.closing) {
       this.closing = (async () => {
         try {
-          // As the connection has been wrongly markes as "shared" by QueueBase,
+          // As the connection has been wrongly marked as "shared" by QueueBase,
           // we need to forcibly close it here. We should fix QueueBase to avoid this in the future.
           const client = await this.client;
           client.disconnect();

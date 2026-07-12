@@ -1,8 +1,6 @@
 import * as fs from 'fs';
 import { URL } from 'url';
-import type { Cluster, Redis } from 'ioredis';
 import * as path from 'path';
-import { v4 } from 'uuid';
 import { AbortController } from './abort-controller';
 
 import {
@@ -22,12 +20,14 @@ import {
   DELAY_TIME_1,
   isNotConnectionError,
   isRedisInstance,
+  randomUUID,
 } from '../utils';
 import { QueueBase } from './queue-base';
 import { Repeat } from './repeat';
 import { ChildPool } from './child-pool';
 import { Job } from './job';
 import { RedisConnection } from './redis-connection';
+import { createIORedisClient, isIRedisClient } from './ioredis-client';
 import sandbox from './sandbox';
 import { AsyncFifoQueue } from './async-fifo-queue';
 import {
@@ -61,7 +61,7 @@ export interface WorkerListener<
   active: (job: Job<DataType, ResultType, NameType>, prev: string) => void;
 
   /**
-   * Listen to 'closing' event.
+   * Listen to 'closed' event.
    *
    * This event is triggered when the worker is closed.
    */
@@ -183,7 +183,7 @@ export class Worker<
   ResultType = any,
   NameType extends string = string,
 > extends QueueBase {
-  readonly opts: WorkerOptions;
+  declare readonly opts: WorkerOptions;
   readonly id: string;
 
   private abortDelayController: AbortController | null = null;
@@ -196,6 +196,7 @@ export class Worker<
   protected lockManager: LockManager;
   private processorAcceptsSignal = false;
 
+  private stalledCheckerRunning = false;
   private stalledCheckStopper?: () => void;
   private waiting: Promise<number> | null = null;
   private _repeat: Repeat; // To be deprecated in v6 in favor of Job Scheduler
@@ -268,7 +269,7 @@ export class Worker<
     this.opts.lockRenewTime =
       this.opts.lockRenewTime || this.opts.lockDuration / 2;
 
-    this.id = v4();
+    this.id = randomUUID();
 
     this.createLockManager();
 
@@ -339,14 +340,10 @@ export class Worker<
       this.clientName() + (this.opts.name ? `:w:${this.opts.name}` : '');
     this.blockingConnection = new RedisConnection(
       isRedisInstance(opts.connection)
-        ? (<Redis>opts.connection).isCluster
-          ? (<Cluster>opts.connection).duplicate(undefined, {
-              redisOptions: {
-                ...((<Cluster>opts.connection).options?.redisOptions || {}),
-                connectionName,
-              },
-            })
-          : (<Redis>opts.connection).duplicate({ connectionName })
+        ? (isIRedisClient(opts.connection)
+            ? opts.connection
+            : createIORedisClient(opts.connection as any)
+          ).duplicate({ connectionName })
         : { ...opts.connection, connectionName },
       {
         shared: false,
@@ -701,22 +698,29 @@ export class Worker<
       return;
     }
 
+    let job: Job<DataType, ResultType, NameType> | undefined;
     if (this.drained && block && !this.limitUntil && !this.waiting) {
       this.waiting = this.waitForJob(bclient, this.blockUntil);
       try {
         this.blockUntil = await this.waiting;
 
         if (this.blockUntil <= 0 || this.blockUntil - Date.now() < 1) {
-          return await this.moveToActive(client, token, this.opts.name);
+          job = await this.moveToActive(client, token, this.opts.name);
         }
       } finally {
         this.waiting = null;
       }
     } else {
       if (!this.isRateLimited()) {
-        return this.moveToActive(client, token, this.opts.name);
+        job = await this.moveToActive(client, token, this.opts.name);
       }
     }
+
+    if (job) {
+      this.emit('active', job, 'waiting');
+    }
+
+    return job;
   }
 
   /**
@@ -736,12 +740,9 @@ export class Worker<
         });
 
         await this.client.then(client =>
-          client.set(
-            this.keys.limiter,
-            Number.MAX_SAFE_INTEGER,
-            'PX',
-            expireTimeMs,
-          ),
+          client.set(this.keys.limiter, Number.MAX_SAFE_INTEGER, {
+            PX: expireTimeMs,
+          }),
         );
       },
     );
@@ -806,7 +807,7 @@ will never work with more accuracy than 1ms. */
           // function only.
           const result = await bclient.bzpopmin(this.keys.marker, blockTimeout);
           if (result) {
-            const [_key, member, score] = result;
+            const [, member, score] = result;
 
             if (member) {
               const newBlockUntil = parseInt(score);
@@ -902,7 +903,27 @@ will never work with more accuracy than 1ms. */
       try {
         await this.retryIfFailed(
           async () => {
-            if (job.repeatJobKey && job.repeatJobKey.split(':').length < 5) {
+            // We need to distinguish between new job schedulers and legacy
+            // repeatable jobs. Legacy repeatable keys always contain 5+
+            // colon segments, but a user-provided jobSchedulerId may also
+            // contain 5+ segments, so we cannot rely on the segment count
+            // alone (see issue #3828). When the key has 5+ segments we
+            // probe the per-id scheduler metadata hash (`repeat:<id>` with
+            // the `ic` field) via `JobScheduler.isJobScheduler()` to confirm
+            // it really is a scheduler before falling back to the legacy
+            // repeatable path.
+            const hasRepeatJobKey = !!job.repeatJobKey;
+            const hasLegacyKeyShape =
+              hasRepeatJobKey && job.repeatJobKey.split(':').length >= 5;
+            let isJobScheduler = hasRepeatJobKey && !hasLegacyKeyShape;
+            if (hasLegacyKeyShape) {
+              const jobScheduler = await this.jobScheduler;
+              isJobScheduler = await jobScheduler.isJobScheduler(
+                job.repeatJobKey,
+              );
+            }
+
+            if (isJobScheduler) {
               const jobScheduler = await this.jobScheduler;
               await jobScheduler.upsertJobScheduler(
                 // Most of these arguments are not really needed
@@ -944,7 +965,7 @@ will never work with more accuracy than 1ms. */
     token: string,
     fetchNextCallback = () => true,
   ): Promise<void | Job<DataType, ResultType, NameType>> {
-    const srcPropagationMedatada = job.opts?.telemetry?.metadata;
+    const srcPropagationMetadata = job.opts?.telemetry?.metadata;
 
     return this.trace<void | Job<DataType, ResultType, NameType>>(
       SpanKind.CONSUMER,
@@ -957,8 +978,6 @@ will never work with more accuracy than 1ms. */
           [TelemetryAttributes.JobId]: job.id,
           [TelemetryAttributes.JobName]: job.name,
         });
-
-        this.emit('active', job, 'waiting');
 
         const abortController = this.lockManager.trackJob(
           job.id,
@@ -1046,7 +1065,7 @@ will never work with more accuracy than 1ms. */
           });
         }
       },
-      srcPropagationMedatada,
+      srcPropagationMetadata,
     );
   }
 
@@ -1111,6 +1130,7 @@ will never work with more accuracy than 1ms. */
         return;
       }
 
+      const fetchNext = fetchNextCallback() && !(this.closing || this.paused);
       if (
         err instanceof DelayedError ||
         err.name == 'DelayedError' ||
@@ -1119,15 +1139,15 @@ will never work with more accuracy than 1ms. */
         err instanceof WaitingChildrenError ||
         err.name == 'WaitingChildrenError'
       ) {
+        if (!fetchNext) {
+          return;
+        }
+
         const client = await this.client;
         return this.moveToActive(client, token, this.opts.name);
       }
 
-      const result = await job.moveToFailed(
-        err,
-        token,
-        fetchNextCallback() && !(this.closing || this.paused),
-      );
+      const result = await job.moveToFailed(err, token, fetchNext);
 
       this.emit('failed', job, err, 'active');
 
@@ -1180,7 +1200,7 @@ will never work with more accuracy than 1ms. */
    * Resumes processing of this worker (if paused).
    */
   resume(): void {
-    if (!this.running) {
+    if (!this.running || this.paused) {
       this.trace<void>(SpanKind.INTERNAL, 'resume', this.name, span => {
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
@@ -1189,10 +1209,21 @@ will never work with more accuracy than 1ms. */
 
         this.paused = false;
 
-        if (this.processFn) {
-          this.run();
+        if (!this.running) {
+          if (this.processFn) {
+            this.run();
+          }
+        } else {
+          // TODO: await for startStalledCheckTimer in next breaking change, that will convert resume method to async
+          // Main loop is still running (pause was called with doNotWaitActive=true).
+          // Restart the stalled checker since pause() stopped it.
+          void this.startStalledCheckTimer().catch(err => {
+            this.emit('error', err);
+          });
         }
         this.emit('resumed');
+      }).catch(err => {
+        this.emit('error', err);
       });
     }
   }
@@ -1293,7 +1324,7 @@ will never work with more accuracy than 1ms. */
    */
   async startStalledCheckTimer(): Promise<void> {
     if (!this.opts.skipStalledCheck) {
-      if (!this.closing) {
+      if (!this.closing && !this.stalledCheckerRunning) {
         await this.trace<void>(
           SpanKind.INTERNAL,
           'startStalledCheckTimer',
@@ -1304,9 +1335,14 @@ will never work with more accuracy than 1ms. */
               [TelemetryAttributes.WorkerName]: this.opts.name,
             });
 
-            this.stalledChecker().catch(err => {
-              this.emit('error', <Error>err);
-            });
+            this.stalledCheckerRunning = true;
+            this.stalledChecker()
+              .catch(err => {
+                this.emit('error', <Error>err);
+              })
+              .finally(() => {
+                this.stalledCheckerRunning = false;
+              });
           },
         );
       }
@@ -1333,18 +1369,15 @@ will never work with more accuracy than 1ms. */
    * @returns
    */
   private async whenCurrentJobsFinished(reconnect = true) {
-    //
-    // Force reconnection of blocking connection to abort blocking redis call immediately.
-    //
-    if (this.waiting) {
-      // If we are not going to reconnect, we will not wait for the disconnection.
-      await this.blockingConnection.disconnect(reconnect);
+    // The blocking connection is dedicated to bzpopmin, so it is safe to
+    // always disconnect it whenever the main loop is running. Waiting for the
+    // actual disconnect ('end' event) is required to avoid a race where the
+    // bzpopmin call is still in flight when the main loop awaits its result.
+    if (this.mainLoopRunning) {
+      await this.blockingConnection.disconnect(true);
+      await this.mainLoopRunning;
     } else {
       reconnect = false;
-    }
-
-    if (this.mainLoopRunning) {
-      await this.mainLoopRunning;
     }
 
     reconnect && (await this.blockingConnection.reconnect());

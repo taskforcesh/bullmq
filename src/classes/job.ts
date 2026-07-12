@@ -3,6 +3,7 @@ import {
   BackoffOptions,
   BulkJobOptions,
   DependenciesOpts,
+  IRedisTransaction,
   JobJson,
   JobJsonRaw,
   MinimalJob,
@@ -44,7 +45,7 @@ import { SpanKind, TelemetryAttributes, MetricNames } from '../enums';
 
 const logger = debuglog('bull');
 
-export const PRIORITY_LIMIT = 2 ** 21;
+export const PRIORITY_LIMIT = 2 ** 21 - 1;
 
 /**
  * Job
@@ -82,7 +83,7 @@ export class Job<
    * Stacktrace for the error (for failed jobs).
    * @defaultValue null
    */
-  stacktrace: string[] = null;
+  stacktrace: string[] | null = null;
 
   /**
    * An amount of milliseconds to wait until this job can be processed.
@@ -91,9 +92,11 @@ export class Job<
   delay = 0;
 
   /**
-   * Ranges from 0 (highest priority) to 2 097 152 (lowest priority). Note that
-   * using priorities has a slight impact on performance,
-   * so do not use it if not required.
+   * Ranges from 0 to 2 097 151. `0` means no explicit priority, and jobs with
+   * no explicit priority are processed before prioritized jobs. For prioritized
+   * jobs, lower numbers are processed before higher numbers. Note that using
+   * priorities has a slight impact on performance, so do not use it if not
+   * required.
    * @defaultValue 0
    */
   priority = 0;
@@ -270,7 +273,7 @@ export class Job<
    * @param name - the name of the job.
    * @param data - the payload of the job.
    * @param opts - the options bag for this job.
-   * @returns
+   * @returns The created Job instance
    */
   static async create<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
@@ -295,9 +298,9 @@ export class Job<
   /**
    * Creates a bulk of jobs and adds them atomically to the given queue.
    *
-   * @param queue -the queue were to add the jobs.
+   * @param queue - the queue where to add the jobs.
    * @param jobs - an array of jobs to be added to the queue.
-   * @returns
+   * @returns The created Job instances
    */
   static async createBulk<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
@@ -317,7 +320,7 @@ export class Job<
     const pipeline = client.pipeline();
 
     for (const job of jobInstances) {
-      job.addJob(<RedisClient>(pipeline as unknown), {
+      job.addJob(pipeline, {
         parentKey: job.parentKey,
         parentDependenciesKey: job.parentKey
           ? `${job.parentKey}:dependencies`
@@ -344,7 +347,7 @@ export class Job<
    * @param queue - the queue where the job belongs to.
    * @param json - the plain object containing the job.
    * @param jobId - an optional job id (overrides the id coming from the JSON object)
-   * @returns
+   * @returns A Job instance reconstructed from the JSON data
    */
   static fromJSON<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
@@ -409,10 +412,14 @@ export class Job<
 
     if (json.parentKey) {
       job.parentKey = json.parentKey;
+    } else {
+      job.parentKey = undefined;
     }
 
     if (json.parent) {
       job.parent = JSON.parse(json.parent);
+    } else {
+      job.parent = undefined;
     }
 
     if (json.pb) {
@@ -815,12 +822,12 @@ export class Job<
       SpanKind.INTERNAL,
       this.getSpanOperation(shouldRetry, retryDelay),
       this.queue.name,
-      async (span, dstPropagationMedatadata) => {
+      async (span, dstPropagationMetadata) => {
         this.setSpanJobAttributes(span);
 
         let tm;
-        if (!this.opts?.telemetry?.omitContext && dstPropagationMedatadata) {
-          tm = dstPropagationMedatadata;
+        if (!this.opts?.telemetry?.omitContext && dstPropagationMetadata) {
+          tm = dstPropagationMetadata;
         }
         let result;
 
@@ -841,7 +848,7 @@ export class Job<
               Date.now(),
               retryDelay,
               token,
-              { fieldsToUpdate },
+              { fieldsToUpdate, fetchNext },
             );
 
             this.recordJobMetrics('delayed');
@@ -1083,7 +1090,7 @@ export class Job<
 
   /**
    * Retrieves the failures of child jobs that were explicitly ignored while using ignoreDependencyOnFailure option.
-   * This method is useful for inspecting which child jobs were intentionally ignored when an error occured.
+   * This method is useful for inspecting which child jobs were intentionally ignored when an error occurred.
    * @see {@link https://docs.bullmq.io/guide/flows/ignore-dependency}
    *
    * @returns Object mapping children job keys with their failure values.
@@ -1129,7 +1136,7 @@ export class Job<
     unprocessed?: string[];
   }> {
     const client = await this.queue.client;
-    const multi = client.multi();
+    const multi = client.pipeline();
     if (!opts.processed && !opts.unprocessed && !opts.ignored && !opts.failed) {
       multi.hgetall(this.toKey(`${this.id}:processed`));
       multi.smembers(this.toKey(`${this.id}:dependencies`));
@@ -1164,12 +1171,9 @@ export class Job<
       if (opts.processed) {
         childrenResultOrder.push('processed');
         const processedOpts = Object.assign({ ...defaultOpts }, opts.processed);
-        multi.hscan(
-          this.toKey(`${this.id}:processed`),
-          processedOpts.cursor,
-          'COUNT',
-          processedOpts.count,
-        );
+        multi.hscan(this.toKey(`${this.id}:processed`), processedOpts.cursor, {
+          COUNT: processedOpts.count,
+        });
       }
 
       if (opts.unprocessed) {
@@ -1181,20 +1185,16 @@ export class Job<
         multi.sscan(
           this.toKey(`${this.id}:dependencies`),
           unprocessedOpts.cursor,
-          'COUNT',
-          unprocessedOpts.count,
+          { COUNT: unprocessedOpts.count },
         );
       }
 
       if (opts.ignored) {
         childrenResultOrder.push('ignored');
         const ignoredOpts = Object.assign({ ...defaultOpts }, opts.ignored);
-        multi.hscan(
-          this.toKey(`${this.id}:failed`),
-          ignoredOpts.cursor,
-          'COUNT',
-          ignoredOpts.count,
-        );
+        multi.hscan(this.toKey(`${this.id}:failed`), ignoredOpts.cursor, {
+          COUNT: ignoredOpts.count,
+        });
       }
 
       let failedCursor;
@@ -1414,18 +1414,12 @@ export class Job<
     const now = Date.now();
     const delay = timestamp - now;
     const finalDelay = delay > 0 ? delay : 0;
-    const movedToDelayed = await this.scripts.moveToDelayed(
-      this.id,
-      now,
-      finalDelay,
-      token,
-      { skipAttempt: true },
-    );
+    await this.scripts.moveToDelayed(this.id, now, finalDelay, token, {
+      skipAttempt: true,
+    });
     this.delay = finalDelay;
 
     this.recordJobMetrics('delayed');
-
-    return movedToDelayed;
   }
 
   /**
@@ -1513,11 +1507,14 @@ export class Job<
   /**
    * Adds the job to Redis.
    *
-   * @param client -
-   * @param parentOpts -
-   * @returns
+   * @param client - The Redis client to use for adding the job.
+   * @param parentOpts - Options for the parent-child relationship.
+   * @returns The job ID
    */
-  addJob(client: RedisClient, parentOpts?: ParentKeyOpts): Promise<string> {
+  addJob(
+    client: RedisClient | IRedisTransaction,
+    parentOpts?: ParentKeyOpts,
+  ): Promise<string> {
     const jobData = this.asJSON();
 
     this.validateOptions(jobData);
@@ -1565,7 +1562,7 @@ export class Job<
     }
 
     if (this.opts.delay && this.opts.repeat && !this.opts.repeat?.count) {
-      throw new Error(`Delay and repeat options could not be used together`);
+      throw new Error(`Delay and repeat options cannot be used together`);
     }
 
     const enabledExclusiveOptions = exclusiveOptions.filter(

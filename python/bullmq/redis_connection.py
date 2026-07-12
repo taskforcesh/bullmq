@@ -1,5 +1,5 @@
 import redis.asyncio as redis
-from typing import Union
+from typing import Optional, Union
 from redis.backoff import ExponentialBackoff
 from redis.asyncio.retry import Retry
 from redis.exceptions import (
@@ -29,9 +29,9 @@ SCRIPT_DEFINITIONS = {
     "getState": "getState-8.lua",
     "getStateV2": "getStateV2-8.lua",
     "isJobInList": "isJobInList-1.lua",
-    "moveStalledJobsToWait": "moveStalledJobsToWait-8.lua",
+    "moveStalledJobsToWait": "moveStalledJobsToWait-9.lua",
     "moveToActive": "moveToActive-11.lua",
-    "moveToDelayed": "moveToDelayed-8.lua",
+    "moveToDelayed": "moveToDelayed-12.lua",
     "moveToFinished": "moveToFinished-14.lua",
     "moveToWaitingChildren": "moveToWaitingChildren-7.lua",
     "obliterate": "obliterate-2.lua",
@@ -68,8 +68,20 @@ class RedisConnection:
         "canDoubleTimeout": False
     }
 
-    def __init__(self, redisOpts: Union[dict, str, redis.Redis] = {}):
-        self.version = None
+    def __init__(
+        self,
+        redisOpts: Union[dict, str, redis.Redis] = {},
+        skipVersionCheck: bool = False,
+        skipWaitingForReady: bool = False,
+    ):
+        if skipWaitingForReady:
+            warnings.warn(
+                "skipWaitingForReady is deprecated and has no effect. It will be removed in a future release.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        self.version: Optional[str] = None
+        self.skipVersionCheck = skipVersionCheck
         retry = Retry(ExponentialBackoff(cap=20, base=1), 20)
         retry_errors = [BusyLoadingError, ConnectionError, TimeoutError]
 
@@ -84,16 +96,17 @@ class RedisConnection:
                 "username": None,
             }
             finalOpts = {**defaultOpts, **redisOpts}
+            finalOpts.pop('single_connection_client', None)
 
-            self.conn = redis.Redis(decode_responses=True, retry=retry, retry_on_error=retry_errors, **finalOpts)
+            self.conn = redis.Redis(decode_responses=True, retry=retry, retry_on_error=retry_errors, single_connection_client=True, **finalOpts)
         else:
             self.conn = redis.from_url(redisOpts, decode_responses=True, retry=retry,
-                retry_on_error=retry_errors)
+                retry_on_error=retry_errors, single_connection_client=True)
 
         self.commands = {}
         self.loadCommands()
 
-    def loadCommands(self):
+    def loadCommands(self) -> None:
         """
         Load and register all Lua scripts on the Redis client.
         This is called once during initialization to avoid re-registering
@@ -108,14 +121,26 @@ class RedisConnection:
         """
         return self.conn.disconnect()
 
-    async def close(self):
+    async def close(self) -> None:
         """
         Close the connection
         """
         return await self.conn.aclose()
 
-    async def getRedisVersion(self):
+    async def getRedisVersion(self) -> Optional[str]:
         if self.version is not None:
+            return self.version
+
+        # Mirror the JS RedisConnection: when skipVersionCheck is enabled we
+        # report the minimum supported version without calling INFO. This lets
+        # callers bypass the version comparison while still getting capability
+        # flags consistent with a baseline-compatible Redis.
+        if self.skipVersionCheck:
+            self.version = self.minimum_version
+            self.capabilities = {
+                "canBlockFor1Ms": not isRedisVersionLowerThan(self.version, '7.0.8'),
+                "canDoubleTimeout": not isRedisVersionLowerThan(self.version, '6.0.0'),
+            }
             return self.version
 
         doc = await self.conn.info()
@@ -130,7 +155,7 @@ class RedisConnection:
         }
         return self.version
 
-    async def set_client_name(self, name: str):
+    async def set_client_name(self, name: str) -> None:
         if not name:
             return
 
@@ -146,13 +171,13 @@ class RedisConnection:
             self._set_client_name_on_pool(self.conn, name)
             await self._set_client_name_on_client(self.conn, name)
 
-    async def _set_client_name_on_client(self, client, name: str):
+    async def _set_client_name_on_client(self, client, name: str) -> None:
         if hasattr(client, "client_setname"):
             await client.client_setname(name)
         else:
             await client.execute_command("CLIENT", "SETNAME", name)
 
-    def _set_client_name_on_pool(self, client, name: str):
+    def _set_client_name_on_pool(self, client, name: str) -> None:
         pool = getattr(client, "connection_pool", None)
         if pool is None:
             return

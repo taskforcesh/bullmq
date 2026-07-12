@@ -7,6 +7,7 @@ https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 from asyncio import Future
 import redis.asyncio as redis
 from bullmq import Queue, Worker, Job, WaitingChildrenError
+from bullmq.worker import getCompleted
 from uuid import uuid4
 from enum import Enum
 
@@ -78,6 +79,35 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         self.assertNotEqual(job.finishedOn, None)
         self.assertEqual(job.returnvalue, 'return value')
 
+        await worker.close(force=True)
+        await queue.close()
+
+    async def test_manual_process_active_event_on_get_next_job(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        data = {"foo": "bar"}
+
+        worker = Worker(queueName, None, {"prefix": prefix})
+        token = 'my-token'
+
+        await queue.add("test", data)
+
+        active_event = Future()
+
+        def on_active(job, prev):
+            active_event.set_result(job)
+
+        worker.on("active", on_active)
+
+        job = await worker.getNextJob(token)
+
+        activated_job = await active_event
+
+        self.assertEqual(activated_job.id, job.id)
+
+        is_active = await job.isActive()
+        self.assertEqual(is_active, True)
+
+        await job.moveToCompleted('done', token)
         await worker.close(force=True)
         await queue.close()
 
@@ -815,6 +845,18 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
 
         # The final count should be less than or equal to initial due to potential cleanup
         self.assertLessEqual(final_count, completed_count + 1)
+
+    async def test_get_completed_handles_empty_task_set(self):
+        # Regression test: getCompleted must not call asyncio.wait() with an
+        # empty set, which raises ValueError. This empty state is reachable
+        # during drain/close transitions when self.processing is empty.
+        def noop_emit(*args, **kwargs):
+            pass
+
+        jobs, pending = await getCompleted(set(), noop_emit)
+
+        self.assertEqual(jobs, [])
+        self.assertEqual(pending, set())
 
 if __name__ == '__main__':
     unittest.main()

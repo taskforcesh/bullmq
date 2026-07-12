@@ -11,9 +11,11 @@ export interface DefaultJobOptions {
   timestamp?: number;
 
   /**
-   * Ranges from 0 (highest priority) to 2 097 152 (lowest priority). Note that
-   * using priorities has a slight impact on performance,
-   * so do not use it if not required.
+   * Ranges from 0 to 2 097 151. `0` means no explicit priority, and jobs with
+   * no explicit priority are processed before prioritized jobs. For prioritized
+   * jobs, lower numbers are processed before higher numbers. Note that using
+   * priorities has a slight impact on performance, so do not use it if not
+   * required.
    * @defaultValue 0
    */
   priority?: number;
@@ -50,6 +52,11 @@ export interface DefaultJobOptions {
    * jobs to keep, or you can provide an object specifying max
    * age and/or count to keep. It overrides whatever setting is used in the worker.
    * Default behavior is to keep the job in the completed set.
+   *
+   * When using `age` or `count`, the eviction is evaluated on a
+   * best-effort basis every time a job finishes; BullMQ does not run a
+   * background timer, so aged jobs are only removed once another job
+   * completes after their expiration.
    */
   removeOnComplete?: boolean | number | KeepJobs;
 
@@ -59,6 +66,11 @@ export interface DefaultJobOptions {
    * jobs to keep, or you can provide an object specifying max
    * age and/or count to keep. It overrides whatever setting is used in the worker.
    * Default behavior is to keep the job in the failed set.
+   *
+   * When using `age` or `count`, the eviction is evaluated on a
+   * best-effort basis every time a job fails; BullMQ does not run a
+   * background timer, so aged jobs are only removed once another job
+   * fails after their expiration.
    */
   removeOnFail?: boolean | number | KeepJobs;
 

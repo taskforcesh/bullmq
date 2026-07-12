@@ -1,3 +1,4 @@
+import { SpanKind } from '../enums';
 import { Span } from './telemetry';
 
 /**
@@ -23,7 +24,7 @@ export interface LockManagerWorkerContext {
    * Wraps code with telemetry tracing.
    */
   trace<T>(
-    spanKind: any,
+    spanKind: SpanKind,
     operation: string,
     destination: string,
     callback: (span?: Span) => Promise<T> | T,

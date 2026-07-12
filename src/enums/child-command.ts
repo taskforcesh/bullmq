@@ -7,4 +7,5 @@ export enum ChildCommand {
   GetDependenciesCountResponse,
   MoveToWaitingChildrenResponse,
   Cancel,
+  GetDependenciesResponse,
 }
