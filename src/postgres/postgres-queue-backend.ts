@@ -1476,7 +1476,7 @@ export class PostgresQueueBackend
     return rows[0].maxed;
   }
 
-  async isJobInQueueState(state: string, jobId: string): Promise<boolean> {
+  async isJobInState(state: string, jobId: string): Promise<boolean> {
     if (state === 'active') {
       const { rows } = await this.run<{ present: boolean }>('is_job_in_state', [
         this.queueName,
@@ -1484,18 +1484,15 @@ export class PostgresQueueBackend
         'active',
       ]);
       return rows[0].present;
-    }
-    // 'wait' or 'paused' — distinguished by the queue's paused flag.
-    const { rows } = await this.run<{ present: boolean }>('is_job_in_wait', [
-      this.queueName,
-      jobId,
-      state === 'paused',
-    ]);
-    return rows[0].present;
-  }
-
-  async isJobInScoredState(state: string, jobId: string): Promise<boolean> {
-    if (state === 'prioritized') {
+    } else if (state === 'wait' || state === 'paused') {
+      // 'wait' or 'paused' — distinguished by the queue's paused flag.
+      const { rows } = await this.run<{ present: boolean }>('is_job_in_wait', [
+        this.queueName,
+        jobId,
+        state === 'paused',
+      ]);
+      return rows[0].present;
+    } else if (state === 'prioritized') {
       const { rows } = await this.run<{ present: boolean }>(
         'is_job_prioritized',
         [this.queueName, jobId],

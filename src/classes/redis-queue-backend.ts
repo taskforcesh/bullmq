@@ -379,32 +379,34 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
   }
 
   /**
-   * Checks whether a job with the given id is present in a Redis list
-   * (e.g. the wait or active list). Uses `LPOS` on Redis \>= 6.0.6, and
-   * falls back to a Lua script on older versions.
-   *
-   * @param state - Queue state backed by a list (e.g. wait/active/paused).
-   * @param jobId - The job id to look up in the list.
-   * @returns `true` if the job is found in the list, `false` otherwise.
-   *
-   * @private
+   * Checks whether a job with the given id is present in the provided queue
+   * state.
    */
-  async isJobInQueueState(state: string, jobId: string): Promise<boolean> {
+  async isJobInState(state: string, jobId: string): Promise<boolean> {
     const client = await this.queue.client;
-    const listKey = this.queue.toKey(state);
-    let result;
-    if (
-      isRedisVersionLowerThan(
-        this.queue.redisVersion,
-        '6.0.6',
-        this.queue.databaseType,
-      )
-    ) {
-      result = await this.execCommand(client, 'isJobInList', [listKey, jobId]);
+
+    if (state === 'wait' || state === 'active' || state === 'paused') {
+      const listKey = this.queue.toKey(state);
+      let result;
+      if (
+        isRedisVersionLowerThan(
+          this.queue.redisVersion,
+          '6.0.6',
+          this.queue.databaseType,
+        )
+      ) {
+        result = await this.execCommand(client, 'isJobInList', [
+          listKey,
+          jobId,
+        ]);
+      } else {
+        result = await client.lpos(listKey, jobId);
+      }
+      return Number.isInteger(result);
     } else {
-      result = await client.lpos(listKey, jobId);
+      const score = await client.zscore(this.queue.toKey(state), jobId);
+      return score !== null;
     }
-    return Number.isInteger(result);
   }
 
   protected addDelayedJobArgs(
@@ -2334,12 +2336,6 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
   // ============================================================
   // Promoted job getters (previously direct client calls in Job)
   // ============================================================
-
-  async isJobInScoredState(state: string, jobId: string): Promise<boolean> {
-    const client = await this.queue.client;
-    const score = await client.zscore(this.queue.toKey(state), jobId);
-    return score !== null;
-  }
 
   async getJobData(jobId: string): Promise<JobJson | undefined> {
     const client = await this.queue.client;

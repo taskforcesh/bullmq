@@ -902,42 +902,42 @@ export class Job<
    * @returns true if the job has completed.
    */
   isCompleted(): Promise<boolean> {
-    return this.isInZSet('completed');
+    return this.isInState('completed');
   }
 
   /**
    * @returns true if the job has failed.
    */
   isFailed(): Promise<boolean> {
-    return this.isInZSet('failed');
+    return this.isInState('failed');
   }
 
   /**
    * @returns true if the job is delayed.
    */
   isDelayed(): Promise<boolean> {
-    return this.isInZSet('delayed');
+    return this.isInState('delayed');
   }
 
   /**
    * @returns true if the job is waiting for children.
    */
   isWaitingChildren(): Promise<boolean> {
-    return this.isInZSet('waiting-children');
+    return this.isInState('waiting-children');
   }
 
   /**
    * @returns true of the job is active.
    */
   isActive(): Promise<boolean> {
-    return this.isInList('active');
+    return this.isInState('active');
   }
 
   /**
    * @returns true if the job is waiting.
    */
   async isWaiting(): Promise<boolean> {
-    return (await this.isInList('wait')) || (await this.isInList('paused'));
+    return (await this.isInState('wait')) || (await this.isInState('paused'));
   }
 
   /**
@@ -1266,12 +1266,8 @@ export class Job<
     this.discarded = true;
   }
 
-  private async isInZSet(set: string): Promise<boolean> {
-    return this.backend.isJobInScoredState(set, this.id);
-  }
-
-  private async isInList(list: string): Promise<boolean> {
-    return this.backend.isJobInQueueState(list, this.id);
+  private async isInState(state: string): Promise<boolean> {
+    return this.backend.isJobInState(state, this.id);
   }
 
   /**

@@ -564,15 +564,9 @@ export interface IQueueBackend {
   isMaxed(): Promise<boolean>;
 
   /**
-   * Returns whether a job id is present in a datastore list (wait/active).
+   * Returns whether a job id is present in the given state.
    */
-  isJobInQueueState(state: string, jobId: string): Promise<boolean>;
-
-  /**
-   * Returns whether a job id is present in a datastore sorted set
-   * (completed/failed/delayed/…).
-   */
-  isJobInScoredState(state: string, jobId: string): Promise<boolean>;
+  isJobInState(state: string, jobId: string): Promise<boolean>;
 
   /**
    * Returns the stored data for a job, or `undefined` if it is missing.

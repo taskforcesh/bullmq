@@ -73,8 +73,7 @@ to better reflect datastore-agnostic semantics:
 - `reprocessJob` → `retryFinishedJob`
 - `retryJobs` → `retryFinishedJobs`
 - `cleanJobsInSet` → `cleanJobsByState`
-- `isJobInList` → `isJobInQueueState`
-- `isJobInZSet` → `isJobInScoredState`
+- `isJobInList` and `isJobInZSet` → `isJobInState`
 
 ### Minimum supported Node.js version
 
