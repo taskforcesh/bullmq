@@ -106,11 +106,11 @@ async fn test_worker_fetch_next_respects_limiter() {
     }
 
     let processed = Arc::new(AtomicUsize::new(0));
-    let processed_for_processor = processed.clone();
+    let processed_counter = processed.clone();
     let (tx, mut rx) = mpsc::channel(10);
     let processor: ProcessorFn = Arc::new(move |_job: Job, _token: CancellationToken| {
         let tx = tx.clone();
-        let processed = processed_for_processor.clone();
+        let processed = processed_counter.clone();
         Box::pin(async move {
             processed.fetch_add(1, Ordering::SeqCst);
             tx.send(std::time::Instant::now()).await.unwrap();
