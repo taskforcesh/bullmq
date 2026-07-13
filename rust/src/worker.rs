@@ -236,6 +236,9 @@ struct LoopContext {
     token_counter: std::sync::atomic::AtomicU64,
 }
 
+/// RAII guard for an acquired concurrency slot.
+///
+/// Ensures the slot is always released when dropped, including on panic.
 struct ConcurrencySlotGuard {
     ctx: Arc<LoopContext>,
 }
