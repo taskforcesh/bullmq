@@ -385,6 +385,13 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
   async isJobInState(state: string, jobId: string): Promise<boolean> {
     const client = await this.queue.client;
 
+    if (state === 'waiting') {
+      return (
+        (await this.isJobInState('wait', jobId)) ||
+        (await this.isJobInState('paused', jobId))
+      );
+    }
+
     if (state === 'wait' || state === 'active' || state === 'paused') {
       const listKey = this.queue.toKey(state);
       let result;
@@ -403,10 +410,18 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
         result = await client.lpos(listKey, jobId);
       }
       return Number.isInteger(result);
-    } else {
+    } else if (
+      state === 'prioritized' ||
+      state === 'completed' ||
+      state === 'failed' ||
+      state === 'delayed' ||
+      state === 'waiting-children'
+    ) {
       const score = await client.zscore(this.queue.toKey(state), jobId);
       return score !== null;
     }
+
+    throw new Error(`Unknown job state: ${state}`);
   }
 
   protected addDelayedJobArgs(

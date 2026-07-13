@@ -927,7 +927,7 @@ export class Job<
   }
 
   /**
-   * @returns true of the job is active.
+   * @returns true if the job is active.
    */
   isActive(): Promise<boolean> {
     return this.isInState('active');
@@ -937,7 +937,7 @@ export class Job<
    * @returns true if the job is waiting.
    */
   async isWaiting(): Promise<boolean> {
-    return (await this.isInState('wait')) || (await this.isInState('paused'));
+    return this.isInState('waiting');
   }
 
   /**

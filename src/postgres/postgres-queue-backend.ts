@@ -1492,19 +1492,32 @@ export class PostgresQueueBackend
         state === 'paused',
       ]);
       return rows[0].present;
+    } else if (state === 'waiting') {
+      return (
+        (await this.isJobInState('wait', jobId)) ||
+        (await this.isJobInState('paused', jobId))
+      );
     } else if (state === 'prioritized') {
       const { rows } = await this.run<{ present: boolean }>(
         'is_job_prioritized',
         [this.queueName, jobId],
       );
       return rows[0].present;
+    } else if (
+      state === 'completed' ||
+      state === 'failed' ||
+      state === 'delayed' ||
+      state === 'waiting-children'
+    ) {
+      const { rows } = await this.run<{ present: boolean }>('is_job_in_state', [
+        this.queueName,
+        jobId,
+        state,
+      ]);
+      return rows[0].present;
     }
-    const { rows } = await this.run<{ present: boolean }>('is_job_in_state', [
-      this.queueName,
-      jobId,
-      state,
-    ]);
-    return rows[0].present;
+
+    throw new Error(`Unknown job state: ${state}`);
   }
 
   async getJobData(jobId: string): Promise<JobJson | undefined> {
