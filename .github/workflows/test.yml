@@ -45,6 +45,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 2
       - name: Detect changed paths
         id: filter
         uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
@@ -351,10 +353,12 @@ jobs:
     # or shared Lua inputs changed. When only Python changed, `ioredis-redis`
     # is skipped and we still run this job (a skipped dependency is allowed, a
     # failed one is not).
-    needs: [changes, ioredis-redis]
+    needs: [changes, smoke, ioredis-redis]
     if: >-
+      always() &&
       !cancelled() &&
       (needs.changes.outputs.python == 'true' || needs.changes.outputs.lua == 'true') &&
+      needs.smoke.result == 'success' &&
       needs.ioredis-redis.result != 'failure' &&
       needs.ioredis-redis.result != 'cancelled'
 
@@ -406,10 +410,12 @@ jobs:
 
   python-dragonflydb:
     runs-on: ubuntu-latest
-    needs: [changes, ioredis-redis]
+    needs: [changes, smoke, ioredis-redis]
     if: >-
+      always() &&
       !cancelled() &&
       (needs.changes.outputs.python == 'true' || needs.changes.outputs.lua == 'true') &&
+      needs.smoke.result == 'success' &&
       needs.ioredis-redis.result != 'failure' &&
       needs.ioredis-redis.result != 'cancelled'
 
@@ -467,10 +473,12 @@ jobs:
 
   php:
     runs-on: ubuntu-latest
-    needs: [changes, ioredis-redis]
+    needs: [changes, smoke, ioredis-redis]
     if: >-
+      always() &&
       !cancelled() &&
       (needs.changes.outputs.php == 'true' || needs.changes.outputs.lua == 'true') &&
+      needs.smoke.result == 'success' &&
       needs.ioredis-redis.result != 'failure' &&
       needs.ioredis-redis.result != 'cancelled'
 
