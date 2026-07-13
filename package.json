@@ -80,10 +80,14 @@
     "tslib": "2.8.1"
   },
   "peerDependencies": {
+    "ioredis": ">=5.0.0",
     "pg": ">=8.0.0",
     "redis": ">=5.0.0"
   },
   "peerDependenciesMeta": {
+    "ioredis": {
+      "optional": true
+    },
     "pg": {
       "optional": true
     },

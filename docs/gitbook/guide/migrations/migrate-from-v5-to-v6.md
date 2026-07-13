@@ -33,6 +33,42 @@ Use the Job Scheduler APIs instead:
 - `queue.getJobSchedulers()`
 - `queue.removeJobScheduler(...)`
 
+### Scheduler timezone migration (`utc` → `tz: 'UTC'`)
+
+The legacy repeat option `repeat.utc` is removed. To run cron schedules in UTC, use:
+
+- `upsertJobScheduler(..., { tz: 'UTC' })`
+
+### Deduplication replaces debounce
+
+The legacy `debounce` option is removed in favor of deduplication, which provides
+more flexible behavior through deduplication ids and TTL/replace/extend modes.
+
+### Telemetry interface and attributes changes
+
+- `createGauge` in the telemetry interface is no longer optional.
+- Deprecated telemetry attribute enum members were removed and `JobState` was introduced.
+- Worker spans no longer set the removed `JobFinishedTimestamp` attribute.
+- Job metrics terminology was updated from `status` to `state`.
+- `clean` telemetry now reports only the cleaned-job **count** (not full job id arrays).
+
+### `Queue.resume()` is asynchronous
+
+`resume` must now be awaited:
+
+```typescript
+await queue.resume();
+```
+
+### Flow job ids without `jobId` are now UUIDs
+
+When creating flow jobs through `FlowProducer`, if a node does not provide `opts.jobId`,
+BullMQ now assigns a UUID instead of relying on Redis-style incremental ids.
+
+### Minimum supported Node.js version
+
+BullMQ v6 requires **Node.js 14.17.0 or newer**.
+
 ## Migrating legacy repeatable jobs
 
 Legacy repeatable jobs stored by BullMQ v5 are not supported in BullMQ v6. If v6 encounters legacy repeatable-job metadata, it raises an error instead of trying to keep running with partially compatible behavior.

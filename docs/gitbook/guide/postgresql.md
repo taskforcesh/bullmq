@@ -34,13 +34,22 @@ Pass `createPostgresBackend` as the **last constructor argument**, with a
 or a `pg.Pool`):
 
 ```typescript
-import { Queue, Worker, createPostgresBackend } from 'bullmq';
+import {
+  Queue,
+  Worker,
+  PostgresQueueBackend,
+  createPostgresBackend,
+} from 'bullmq';
 
 const opts = {
   connection: 'postgres://user:password@localhost:5432/mydb',
 };
 
-const queue = new Queue('my-queue', opts, createPostgresBackend);
+const queue = new Queue<any, any, string, PostgresQueueBackend>(
+  'my-queue',
+  opts,
+  createPostgresBackend,
+);
 
 const worker = new Worker(
   'my-queue',
@@ -102,18 +111,23 @@ The `connection` option is forwarded to node-postgres and may be any of:
 // 3) An already-constructed pg.Pool. BullMQ uses it as-is and does NOT close it
 //    on close() — you own its lifecycle.
 import { Pool } from 'pg';
-{ connection: new Pool({ connectionString: 'postgres://…' }) }
+const pool = new Pool({ connectionString: 'postgres://…' });
+{ connection: pool }
 ```
 
 When BullMQ builds the pool for you (from a string or config), it owns and
 closes that pool on `close()`. When you pass your own `pg.Pool`, its lifecycle
-is yours.
+is yours (you should close it yourself when your process shuts down).
 
 ## Schema
 
 All BullMQ objects live in a single PostgreSQL **schema** (namespace), which
 defaults to `bullmq`. This keeps BullMQ's tables cleanly separated from the rest
-of your database. Set a custom schema via the config-object form:
+of your database.
+
+In general, prefer the default schema and use a dedicated database for BullMQ
+when possible. Custom schemas are supported, but add operational complexity.
+Set a custom schema via the config-object form:
 
 ```typescript
 const opts = {
@@ -146,7 +160,11 @@ schema and applies any pending migrations. This is:
 No manual migration step is required. If a database was migrated by a _newer_
 BullMQ release and an _older_ instance then connects, it refuses to operate
 (`SchemaVersionMismatchError`) rather than risk corruption — upgrade BullMQ to
-match. Schema downgrades are not supported.
+match.
+
+{% hint style="danger" %}
+Schema downgrades are **not supported**.
+{% endhint %}
 
 ## How it works
 
@@ -176,12 +194,13 @@ What to expect relative to the Redis backend:
   network (same host / same datacenter). Individual operations such as adding a
   job or reading counts take on the order of a millisecond, dominated by the
   network round-trip rather than by the database itself.
-- **Job-processing throughput is lower than Redis** — typically in the ballpark
-  of **~1.5–2× fewer jobs per second** on comparable hardware. This is inherent,
-  not a missing optimization: every job transition is a durable, transactional
-  write (WAL + MVCC with `fsync`), whereas Redis processes jobs in memory. You
-  are trading some raw throughput for ACID durability and for keeping jobs in
-  the same database as your relational data.
+- **Job-processing throughput is usually lower than Redis** (often around
+  **~1.5–2× fewer jobs/s** on similar setups), but this is workload-dependent.
+  Redis is optimized for in-memory data structures and can also be configured
+  with persistence trade-offs (RDB/AOF settings, or even no local persistence).
+  PostgreSQL performs durable transactional writes by default (WAL + MVCC +
+  `fsync`). In practice, you are often trading some throughput for stronger
+  relational guarantees and a single-database operational model.
 - **Bulk enqueues** (`addBulk`, flows) come much closer to Redis, because many
   jobs are inserted per transaction.
 
@@ -241,8 +260,8 @@ backends.
 A few things are inherently Redis-specific and therefore do not apply to
 PostgreSQL:
 
-- The Redis-only escape hatches reached through
-  [`getBackend()`](connections.md#accessing-the-underlying-redis-client) (the raw
-  Redis `client`, `redisVersion`, and similar) exist only on the Redis backend.
+- `getBackend()` always returns the currently configured backend. Redis-only
+  escape hatches (raw Redis `client`, `redisVersion`, and similar) exist only
+  when the backend is Redis.
 - Redis deployment concerns (Redis Cluster, `maxmemory-policy`, etc.) don't
   apply; the relevant knob on PostgreSQL is `max_connections`.

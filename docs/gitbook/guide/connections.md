@@ -178,9 +178,11 @@ While the `IRedisClient` adapter described above abstracts the low-level _driver
 
 The default backend is the Redis one (`RedisQueueBackend`), so you normally never interact with this layer directly — you just pass a `connection` as shown throughout this page and BullMQ wires up the Redis backend for you.
 
-#### Accessing the underlying Redis client
+#### Accessing the current backend (and backend-specific clients)
 
-The high-level classes no longer expose a `client` getter. When you need the raw Redis client — for example to run a custom command, or to inspect the connection in tests — reach it through `getBackend()`:
+The high-level classes no longer expose a `client` getter. `getBackend()` returns
+the **actual backend in use** (Redis, PostgreSQL, or a custom backend). With the
+default Redis backend, you can still reach the raw Redis client when needed:
 
 ```typescript
 import { Queue, RedisClient } from 'bullmq';
@@ -189,22 +191,30 @@ const queue = new Queue('myqueue', {
   connection: { host: 'localhost', port: 6379 },
 });
 
-// getBackend() returns the concrete Redis backend by default, so the
-// Redis-specific escape hatches are available without casting.
+// By default BullMQ uses the Redis backend, so getBackend() exposes
+// Redis-specific escape hatches.
 const client: RedisClient = await queue.getBackend().client;
 
 await client.set('some-key', 'some-value');
 ```
 
-The Redis backend also exposes other Redis-specific details, such as `redisVersion`, `databaseType` and the underlying `connection`. For a `Worker`, `getBackend().blockingClient` returns the dedicated blocking connection's client used by the blocking _wait-for-job_ primitive.
+The Redis backend also exposes other Redis-specific details, such as `redisVersion`,
+`databaseType` and the underlying `connection`. For a `Worker`,
+`getBackend().blockingClient` returns the dedicated blocking connection's client used
+by the blocking _wait-for-job_ primitive.
 
 {% hint style="warning" %}
-These are escape hatches into the Redis adapter. Prefer the high-level `Queue`/`Worker`/`FlowProducer` API whenever possible — anything you reach through `getBackend()` is specific to the Redis backend and is not part of the datastore-agnostic contract.
+Prefer the high-level `Queue`/`Worker`/`FlowProducer` API whenever possible.
+Anything backend-specific you reach through `getBackend()` is outside the
+datastore-agnostic contract and may differ between backends.
 {% endhint %}
 
 #### Providing a custom backend
 
-All high-level classes depend only on the `IQueueBackend` interface and receive a **backend factory** that builds it. By default this factory is `createRedisBackend`, but you can inject your own as the last constructor argument to back BullMQ with a different datastore or with a mock in tests:
+All high-level classes depend only on the `IQueueBackend` interface and receive a
+**backend factory** that builds it. By default this factory is `createRedisBackend`,
+but you can inject your own as the last constructor argument to back BullMQ with a
+different datastore or with a mock in tests:
 
 ```typescript
 import { Queue, BackendFactory } from 'bullmq';
@@ -216,7 +226,17 @@ const myBackendFactory: BackendFactory = (name, opts, options) => {
 const queue = new Queue('myqueue', { connection: {} }, myBackendFactory);
 ```
 
-The classes are generic over the backend type, so `getBackend()` returns the concrete type produced by whatever factory you provide (the default being `RedisQueueBackend`). A non-Redis user would, for example, write `new Queue<MyData, MyResult, string, MyBackend>(name, opts, createMyBackend)`.
+The classes are generic over the backend type, so `getBackend()` returns the concrete
+type produced by whatever factory you provide (the default being
+`RedisQueueBackend`). A non-Redis user would, for example, write
+`new Queue<MyData, MyResult, string, MyBackend>(name, opts, createMyBackend)`.
+
+{% hint style="warning" %}
+Building a production-grade backend is substantial work: you must implement the full
+`IQueueBackend` contract with correct atomicity, locking, timing and event semantics.
+Use the adapter-conformance and full BullMQ test suites to validate behavior before
+considering a backend production-ready.
+{% endhint %}
 
 #### Built-in PostgreSQL backend
 

@@ -411,11 +411,8 @@ export class Job<
       job.processedBy = json.processedBy;
     }
 
-    const nextSchedulerJobId =
-      json.nextSchedulerJobId ?? json.nextRepeatableJobId;
-
-    if (nextSchedulerJobId) {
-      job.nextSchedulerJobId = nextSchedulerJobId;
+    if (json.nextSchedulerJobId) {
+      job.nextSchedulerJobId = json.nextSchedulerJobId;
     }
 
     return job;

@@ -30,11 +30,10 @@ import {
  * ("move job to active", "extend lock", "promote job", …) **independently of
  * the underlying datastore**.
  *
- * Today the only implementation is the Redis adapter ({@link RedisQueueBackend}), which
- * fulfils every operation using Lua scripts and a small number of plain Redis
- * commands. A future implementation (e.g. PostgreSQL) could fulfil the very
- * same operations using SQL functions/procedures, `LISTEN`/`NOTIFY`, etc.,
- * without requiring any change to `Queue`, `Worker` or `Job`.
+ * Built-in implementations currently include the Redis adapter
+ * ({@link RedisQueueBackend}) and the PostgreSQL adapter. Both fulfil the same
+ * operations over different datastores without requiring any change to
+ * `Queue`, `Worker` or `Job`.
  *
  * The method names and signatures intentionally mirror the existing
  * `RedisQueueBackend` class so that the Redis adapter is a near
