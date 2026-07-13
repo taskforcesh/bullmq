@@ -849,7 +849,7 @@ impl Worker {
             if !Self::acquire_concurrency_slot(&ctx).await {
                 break; // closing
             }
-            let _slot_guard = ConcurrencySlotGuard::new(ctx.clone());
+            let slot_guard = ConcurrencySlotGuard::new(ctx.clone());
 
             let token = ctx.next_token();
 
@@ -876,6 +876,7 @@ impl Worker {
                     }
                 }
                 Ok(FetchResult::NextTimestamp(next_ts)) => {
+                    drop(slot_guard);
                     // No job ready, but there's a delayed job coming
                     let now = SystemTime::now()
                         .duration_since(UNIX_EPOCH)
@@ -893,6 +894,7 @@ impl Worker {
                     continue;
                 }
                 Ok(FetchResult::RateLimited(ttl_ms)) => {
+                    drop(slot_guard);
                     // Rate limited — wait for the TTL to expire (capped by maximumRateLimitDelay)
                     let delay = ttl_ms.min(ctx.opts.maximum_rate_limit_delay);
                     tokio::select! {
@@ -902,6 +904,7 @@ impl Worker {
                     continue;
                 }
                 Ok(FetchResult::Empty) => {
+                    drop(slot_guard);
                     let _ = ctx.event_tx.send(WorkerEvent::Drained);
                     // Use select to allow periodic re-check of `closing` flag
                     tokio::select! {
@@ -911,6 +914,7 @@ impl Worker {
                     continue;
                 }
                 Err(e) => {
+                    drop(slot_guard);
                     let _ = ctx.event_tx.send(WorkerEvent::Error(e.to_string()));
                     tokio::time::sleep(Duration::from_millis(ctx.opts.run_retry_delay)).await;
                     continue;
