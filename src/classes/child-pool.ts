@@ -67,7 +67,11 @@ export class ChildPool {
       return child;
     } catch (err) {
       console.error(err);
-      this.release(child);
+      // A child that failed to initialize (or exited during init) must never
+      // be released back into the free pool, otherwise it becomes a "zombie"
+      // that is reused for every subsequent job and fails them instantly.
+      // Kill and remove it so a fresh child is forked on the next retain.
+      this.kill(child, 'SIGKILL').catch(() => {});
       throw err;
     }
   }

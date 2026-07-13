@@ -22,6 +22,7 @@ import {
 } from '../src/classes';
 
 import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { existsSync, unlinkSync, writeFileSync } from 'fs';
 const { stdout, stderr } = require('test-console');
 
 describe('Sandboxed process using child processes', () => {
@@ -1750,6 +1751,67 @@ function sandboxProcessTests(
 
       await failing;
       await worker.close();
+    });
+
+    describe('when a child fails to initialize once (transient error)', () => {
+      it('does not reuse the broken child and recovers on the next job', async () => {
+        const processFile =
+          __dirname + '/fixtures/fixture_processor_fail_init_once.js';
+        const flagFile = __dirname + '/fixtures/fail-init-once.flag';
+
+        // Arm the transient failure: the first import of the processor file
+        // will throw and then remove this flag.
+        writeFileSync(flagFile, '1');
+
+        const worker = new Worker(queueName, processFile, {
+          connection,
+          prefix,
+          concurrency: 1,
+          drainDelay: 1,
+          useWorkerThreads,
+        });
+
+        try {
+          await worker.waitUntilReady();
+
+          // First job: the child fails during init with the transient error.
+          const failedReason = await new Promise<string>((resolve, reject) => {
+            worker.once('failed', (_job, error) => {
+              try {
+                resolve(error.message);
+              } catch (err) {
+                reject(err);
+              }
+            });
+            queue.add('test', { i: 0 }, { attempts: 1 }).catch(reject);
+          });
+
+          expect(failedReason).toBe('transient module load failure');
+
+          // The broken child must not be released back into the free pool.
+          expect(worker['childPool'].getAllFree()).toHaveLength(0);
+
+          // Second job: a fresh child is forked and processes the job normally.
+          const completedValue = await new Promise<any>((resolve, reject) => {
+            worker.once('completed', (_job, value) => resolve(value));
+            worker.once('failed', (_job, error) =>
+              reject(
+                new Error(
+                  `expected job to complete but it failed with: "${error.message}"`,
+                ),
+              ),
+            );
+            queue.add('test', { i: 1 }, { attempts: 1 }).catch(reject);
+          });
+
+          expect(completedValue).toBe('ok');
+        } finally {
+          if (existsSync(flagFile)) {
+            unlinkSync(flagFile);
+          }
+          await worker.close();
+        }
+      });
     });
 
     describe('when child process a job and its killed direcly after completing', () => {
