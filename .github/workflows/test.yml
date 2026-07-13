@@ -19,8 +19,9 @@ permissions:
 jobs:
   # Detect which parts of the repository changed so we only run the test
   # suites that are actually affected:
-  #   - Any Lua script change (the shared core used by every runtime) runs
-  #     ALL runtime suites.
+  #   - Any Lua script change (the shared core used by every runtime), or a
+  #     change under `scripts/**` used by pretest/build generation, runs ALL
+  #     runtime suites.
   #   - A change scoped to a single runtime (node/python/php) runs only that
   #     runtime's suite.
   #   - Documentation-only changes only run this change-detection job.
