@@ -221,7 +221,6 @@ struct LoopContext {
     desired_concurrency: Arc<AtomicUsize>,
     concurrency_gate: Arc<Notify>,
     active_fetchers: Arc<AtomicUsize>,
-
     // Pre-computed keys (avoid re-generating on every call)
     move_to_active_keys: Vec<String>,
     move_to_finished_base_keys: Vec<String>,
@@ -235,6 +234,22 @@ struct LoopContext {
     // Token generation
     worker_id: String,
     token_counter: std::sync::atomic::AtomicU64,
+}
+
+struct ConcurrencySlotGuard {
+    ctx: Arc<LoopContext>,
+}
+
+impl ConcurrencySlotGuard {
+    fn new(ctx: Arc<LoopContext>) -> Self {
+        Self { ctx }
+    }
+}
+
+impl Drop for ConcurrencySlotGuard {
+    fn drop(&mut self) {
+        Worker::release_concurrency_slot(&self.ctx);
+    }
 }
 
 impl LoopContext {
@@ -831,6 +846,7 @@ impl Worker {
             if !Self::acquire_concurrency_slot(&ctx).await {
                 break; // closing
             }
+            let _concurrency_slot = ConcurrencySlotGuard::new(ctx.clone());
 
             let token = ctx.next_token();
 
@@ -855,11 +871,9 @@ impl Worker {
                     while let Some(current) = next.take() {
                         next = Self::process_fetched_job(&ctx, current, &token).await;
                     }
-                    Self::release_concurrency_slot(&ctx);
                 }
                 Ok(FetchResult::NextTimestamp(next_ts)) => {
                     // No job ready, but there's a delayed job coming
-                    Self::release_concurrency_slot(&ctx);
                     let now = SystemTime::now()
                         .duration_since(UNIX_EPOCH)
                         .unwrap()
@@ -877,7 +891,6 @@ impl Worker {
                 }
                 Ok(FetchResult::RateLimited(ttl_ms)) => {
                     // Rate limited — wait for the TTL to expire (capped by maximumRateLimitDelay)
-                    Self::release_concurrency_slot(&ctx);
                     let delay = ttl_ms.min(ctx.opts.maximum_rate_limit_delay);
                     tokio::select! {
                         _ = tokio::time::sleep(Duration::from_millis(delay)) => {}
@@ -886,7 +899,6 @@ impl Worker {
                     continue;
                 }
                 Ok(FetchResult::Empty) => {
-                    Self::release_concurrency_slot(&ctx);
                     let _ = ctx.event_tx.send(WorkerEvent::Drained);
                     // Use select to allow periodic re-check of `closing` flag
                     tokio::select! {
@@ -896,7 +908,6 @@ impl Worker {
                     continue;
                 }
                 Err(e) => {
-                    Self::release_concurrency_slot(&ctx);
                     let _ = ctx.event_tx.send(WorkerEvent::Error(e.to_string()));
                     tokio::time::sleep(Duration::from_millis(ctx.opts.run_retry_delay)).await;
                     continue;
