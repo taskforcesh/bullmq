@@ -23,7 +23,7 @@ jobs:
   #     ALL runtime suites.
   #   - A change scoped to a single runtime (node/python/php) runs only that
   #     runtime's suite.
-  #   - Documentation-only changes run nothing.
+  #   - Documentation-only changes only run this change-detection job.
   # Shared build inputs (package.json, yarn.lock, this workflow) are grouped
   # under `lua` so that changing them re-runs every runtime as well.
   changes:
@@ -53,6 +53,7 @@ jobs:
               - 'src/commands/**/*.lua'
               - 'package.json'
               - 'yarn.lock'
+              - 'scripts/**'
               - '.github/workflows/test.yml'
             node:
               - 'src/**'
@@ -76,34 +77,41 @@ jobs:
   smoke:
     runs-on: ubuntu-latest
     needs: changes
-    # Node source (and therefore all downstream node adapter jobs, which chain
-    # off this smoke gate) only needs to run when node code or a Lua script
-    # changed.
-    if: ${{ needs.changes.outputs.node == 'true' || needs.changes.outputs.lua == 'true' }}
 
     name: smoke (lint + fast tests on node@lts, ioredis, redis@7)
 
     env:
       node-version: lts/*
       redis-version: 7-alpine
+      run-smoke: ${{ needs.changes.outputs.node == 'true' || needs.changes.outputs.lua == 'true' }}
 
     steps:
+      - name: Skip smoke run when node/lua inputs are unchanged
+        if: ${{ env.run-smoke != 'true' }}
+        run: echo "No node/lua changes detected; skipping smoke steps."
       - name: Checkout repository
+        if: ${{ env.run-smoke == 'true' }}
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Use Node.js
+        if: ${{ env.run-smoke == 'true' }}
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: ${{ env.node-version }}
           cache: 'yarn'
       - name: Start Redis
+        if: ${{ env.run-smoke == 'true' }}
         uses: supercharge/redis-github-action@bc274cb7238cd63a45029db04ee48c07a72609fd # 1.8.1
         with:
           redis-version: ${{ env.redis-version }}
-      - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
+      - if: ${{ env.run-smoke == 'true' }}
+        run: yarn install --ignore-engines --frozen-lockfile --non-interactive
       - name: Run ESLint
+        if: ${{ env.run-smoke == 'true' }}
         run: yarn lint
-      - run: yarn build
-      - run: yarn test:smoke
+      - if: ${{ env.run-smoke == 'true' }}
+        run: yarn build
+      - if: ${{ env.run-smoke == 'true' }}
+        run: yarn test:smoke
 
   # Primary ioredis test run on a single (current LTS) Node version.
   # Also produces the coverage report — the test set executed by
