@@ -104,7 +104,7 @@
     "@types/lodash.defaults": "4.2.9",
     "@types/lodash.isarguments": "3.1.9",
     "@types/msgpack": "0.0.34",
-    "@types/node": "24.13.2",
+    "@types/node": "24.13.3",
     "@types/pg": "8.15.6",
     "@types/semver": "7.7.1",
     "@types/sinon": "21.0.1",
