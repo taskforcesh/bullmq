@@ -24,7 +24,8 @@ jobs:
   #     runtime suites.
   #   - A change scoped to a single runtime (node/python/php) runs only that
   #     runtime's suite.
-  #   - Documentation-only changes only run this change-detection job.
+  #   - Documentation-only changes only run this change-detection job and a
+  #     no-op `smoke` job (to satisfy required checks).
   # Shared build inputs (package.json, yarn.lock, this workflow) are grouped
   # under `lua` so that changing them re-runs every runtime as well.
   changes:
@@ -125,7 +126,7 @@ jobs:
   ioredis-redis:
     runs-on: ubuntu-latest
     needs: [changes, smoke]
-    if: ${{ !cancelled() && (needs.changes.outputs.node == 'true' || needs.changes.outputs.lua == 'true') }}
+    if: ${{ !cancelled() && needs.smoke.result == 'success' && (needs.changes.outputs.node == 'true' || needs.changes.outputs.lua == 'true') }}
 
     name: testing node@${{ matrix.node-version }}, redis@${{ matrix.redis-version }}
 
