@@ -989,7 +989,7 @@ export class PostgresQueueBackend
     }
   }
 
-  async reprocessJob<T = any, R = any, N extends string = string>(
+  async retryFinishedJob<T = any, R = any, N extends string = string>(
     job: MinimalJob<T, R, N>,
     state: 'failed' | 'completed',
     opts: RetryOptions = {},
@@ -1050,7 +1050,7 @@ export class PostgresQueueBackend
   // Bulk admin transitions
   // ============================================================
 
-  async retryJobs(
+  async retryFinishedJobs(
     state?: FinishedStatus,
     count?: number,
     timestamp?: number,
@@ -1080,14 +1080,14 @@ export class PostgresQueueBackend
     await this.run('drain', [this.queueName, delayed]);
   }
 
-  async cleanJobsInSet(
-    set: string,
+  async cleanJobsByState(
+    state: string,
     timestamp: number,
     limit = 0,
   ): Promise<string[]> {
     const { rows } = await this.run<{ id: string }>('clean', [
       this.queueName,
-      set,
+      state,
       timestamp,
       limit,
     ]);
@@ -1476,11 +1476,8 @@ export class PostgresQueueBackend
     return rows[0].maxed;
   }
 
-  async isJobInList(listKey: string, jobId: string): Promise<boolean> {
-    // listKey is `<queue>:<list>`; the list is the part after the last colon
-    // (queue names cannot contain ':').
-    const list = listKey.slice(listKey.lastIndexOf(':') + 1);
-    if (list === 'active') {
+  async isJobInQueueState(state: string, jobId: string): Promise<boolean> {
+    if (state === 'active') {
       const { rows } = await this.run<{ present: boolean }>('is_job_in_state', [
         this.queueName,
         jobId,
@@ -1492,13 +1489,13 @@ export class PostgresQueueBackend
     const { rows } = await this.run<{ present: boolean }>('is_job_in_wait', [
       this.queueName,
       jobId,
-      list === 'paused',
+      state === 'paused',
     ]);
     return rows[0].present;
   }
 
-  async isJobInZSet(set: string, jobId: string): Promise<boolean> {
-    if (set === 'prioritized') {
+  async isJobInScoredState(state: string, jobId: string): Promise<boolean> {
+    if (state === 'prioritized') {
       const { rows } = await this.run<{ present: boolean }>(
         'is_job_prioritized',
         [this.queueName, jobId],
@@ -1508,7 +1505,7 @@ export class PostgresQueueBackend
     const { rows } = await this.run<{ present: boolean }>('is_job_in_state', [
       this.queueName,
       jobId,
-      set,
+      state,
     ]);
     return rows[0].present;
   }

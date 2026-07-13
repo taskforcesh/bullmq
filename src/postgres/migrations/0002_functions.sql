@@ -16,7 +16,9 @@
 -- parallel. Ids are still 1, 2, 3, … per queue (sequence starts at 1), matching
 -- Redis; a rolled-back add may leave a gap, exactly as a failed Redis add leaves
 -- its INCR in place. The sequence is created lazily on first use and dropped by
--- `bullmq_obliterate`.
+-- `bullmq_obliterate`. If we ever need user-facing immutable ids independent from
+-- this allocator, we can add a separate custom-id column/index without regressing
+-- the hot-path insert concurrency.
 CREATE FUNCTION bullmq_job_id_seq_name(p_queue text) RETURNS text
 LANGUAGE sql IMMUTABLE AS $$
   SELECT 'bullmq_jid_' || md5(p_queue)

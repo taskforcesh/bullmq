@@ -73,7 +73,6 @@
   },
   "dependencies": {
     "cron-parser": "5.6.1",
-    "ioredis": "5.10.1",
     "msgpackr": "2.0.4",
     "node-abort-controller": "3.1.1",
     "semver": "7.8.5",
@@ -125,6 +124,7 @@
     "fast-glob": "3.3.3",
     "globals": "17.7.0",
     "husky": "9.1.7",
+    "ioredis": "5.10.1",
     "lint-staged": "17.0.8",
     "madge": "8.0.0",
     "minimatch": "10.2.5",

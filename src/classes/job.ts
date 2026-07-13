@@ -1243,7 +1243,7 @@ export class Job<
     state: FinishedStatus = 'failed',
     opts: RetryOptions = {},
   ): Promise<void> {
-    await this.backend.reprocessJob(this, state, opts);
+    await this.backend.retryFinishedJob(this, state, opts);
     this.failedReason = null;
     this.finishedOn = null;
     this.processedOn = null;
@@ -1267,11 +1267,11 @@ export class Job<
   }
 
   private async isInZSet(set: string): Promise<boolean> {
-    return this.backend.isJobInZSet(set, this.id);
+    return this.backend.isJobInScoredState(set, this.id);
   }
 
   private async isInList(list: string): Promise<boolean> {
-    return this.backend.isJobInList(this.queue.toKey(list), this.id);
+    return this.backend.isJobInQueueState(list, this.id);
   }
 
   /**

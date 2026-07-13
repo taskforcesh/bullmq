@@ -21,6 +21,8 @@ import {
   KeepJobs,
 } from '../types';
 
+type FinishedState = FinishedStatus;
+
 /**
  * IQueueBackend
  *
@@ -335,7 +337,7 @@ export interface IQueueBackend {
   /**
    * Reprocesses a finished (failed/completed) job, moving it back to wait.
    */
-  reprocessJob<T = any, R = any, N extends string = string>(
+  retryFinishedJob<T = any, R = any, N extends string = string>(
     job: MinimalJob<T, R, N>,
     state: 'failed' | 'completed',
     opts?: RetryOptions,
@@ -360,8 +362,8 @@ export interface IQueueBackend {
    * Moves up to `count` finished jobs of the given `state` back to wait.
    * @returns A cursor; `0` when there are no more jobs to move.
    */
-  retryJobs(
-    state?: FinishedStatus,
+  retryFinishedJobs(
+    state?: FinishedState,
     count?: number,
     timestamp?: number,
   ): Promise<number>;
@@ -386,8 +388,8 @@ export interface IQueueBackend {
    * Removes jobs in a given state that are older than `timestamp`.
    * @returns The ids of the removed jobs.
    */
-  cleanJobsInSet(
-    set: string,
+  cleanJobsByState(
+    state: string,
     timestamp: number,
     limit?: number,
   ): Promise<string[]>;
@@ -564,13 +566,13 @@ export interface IQueueBackend {
   /**
    * Returns whether a job id is present in a datastore list (wait/active).
    */
-  isJobInList(listKey: string, jobId: string): Promise<boolean>;
+  isJobInQueueState(state: string, jobId: string): Promise<boolean>;
 
   /**
    * Returns whether a job id is present in a datastore sorted set
    * (completed/failed/delayed/…).
    */
-  isJobInZSet(set: string, jobId: string): Promise<boolean>;
+  isJobInScoredState(state: string, jobId: string): Promise<boolean>;
 
   /**
    * Returns the stored data for a job, or `undefined` if it is missing.

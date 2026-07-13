@@ -65,6 +65,17 @@ await queue.resume();
 When creating flow jobs through `FlowProducer`, if a node does not provide `opts.jobId`,
 BullMQ now assigns a UUID instead of relying on Redis-style incremental ids.
 
+### Custom backend API updates
+
+If you maintain a custom `IQueueBackend` implementation, v6 renames a few methods
+to better reflect datastore-agnostic semantics:
+
+- `reprocessJob` → `retryFinishedJob`
+- `retryJobs` → `retryFinishedJobs`
+- `cleanJobsInSet` → `cleanJobsByState`
+- `isJobInList` → `isJobInQueueState`
+- `isJobInZSet` → `isJobInScoredState`
+
 ### Minimum supported Node.js version
 
 BullMQ v6 requires **Node.js 14.17.0 or newer**.

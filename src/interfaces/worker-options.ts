@@ -1,5 +1,5 @@
 import { AdvancedOptions } from './advanced-options';
-import { QueueBaseOptions, RedisKeyPrefixOptions } from './queue-options';
+import { KeyPrefixOptions, QueueBaseOptions } from './queue-options';
 import { RateLimiterOptions } from './rate-limiter-options';
 import { MetricsOptions } from './metrics-options';
 import { KeepJobs } from '../types/keep-jobs';
@@ -7,7 +7,7 @@ import { Telemetry } from './telemetry';
 import { SandboxedOptions } from './sandboxed-options';
 
 export interface WorkerOptions
-  extends QueueBaseOptions, SandboxedOptions, RedisKeyPrefixOptions {
+  extends QueueBaseOptions, SandboxedOptions, KeyPrefixOptions {
   /**
    * Optional worker name. The name will be stored on every job
    * processed by this worker instance, and can be used to monitor
