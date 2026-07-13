@@ -200,6 +200,10 @@ fn should_convert_discarded_error(error: &Error) -> bool {
     )
 }
 
+fn processing_drained(active_job_count: usize, active_fetchers: usize) -> bool {
+    active_job_count == 0 && active_fetchers == 0
+}
+
 /// Shared context for all worker loops within a single Worker instance.
 ///
 /// Pre-computes keys and holds all shared state needed by the processing loops,
@@ -683,11 +687,13 @@ impl Worker {
         // Wait for active jobs to drain
         let deadline = tokio::time::Instant::now() + Duration::from_millis(timeout_ms);
         loop {
-            if self.active_jobs.read().await.is_empty() {
+            let active_job_count = self.active_jobs.read().await.len();
+            let active_fetchers = self.active_fetchers.load(Ordering::Relaxed);
+            if processing_drained(active_job_count, active_fetchers) {
                 break;
             }
             if tokio::time::Instant::now() >= deadline {
-                warn!("close timeout reached with active jobs remaining");
+                warn!("close timeout reached with active work remaining");
                 break;
             }
             tokio::time::sleep(Duration::from_millis(100)).await;
@@ -2376,7 +2382,7 @@ impl Drop for Worker {
 
 #[cfg(test)]
 mod tests {
-    use super::should_convert_discarded_error;
+    use super::{processing_drained, should_convert_discarded_error};
     use crate::error::Error;
 
     #[test]
@@ -2399,5 +2405,12 @@ mod tests {
         assert!(!should_convert_discarded_error(&Error::Unrecoverable(
             "fatal".to_string()
         )));
+    }
+
+    #[test]
+    fn processing_is_not_drained_while_fetcher_is_chaining_next_job() {
+        assert!(!processing_drained(0, 1));
+        assert!(!processing_drained(1, 0));
+        assert!(processing_drained(0, 0));
     }
 }
