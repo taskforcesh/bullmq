@@ -688,7 +688,7 @@ impl Worker {
         let deadline = tokio::time::Instant::now() + Duration::from_millis(timeout_ms);
         loop {
             let active_job_count = self.active_jobs.read().await.len();
-            let active_fetchers = self.active_fetchers.load(Ordering::Relaxed);
+            let active_fetchers = self.active_fetchers.load(Ordering::SeqCst);
             if processing_drained(active_job_count, active_fetchers) {
                 break;
             }
