@@ -849,7 +849,7 @@ impl Worker {
             if !Self::acquire_concurrency_slot(&ctx).await {
                 break; // closing
             }
-            let _concurrency_slot = ConcurrencySlotGuard::new(ctx.clone());
+            let _slot_guard = ConcurrencySlotGuard::new(ctx.clone());
 
             let token = ctx.next_token();
 
