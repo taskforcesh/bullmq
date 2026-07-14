@@ -17,7 +17,6 @@
 //!
 //! ```rust,no_run
 //! use bullmq::{Queue, Worker, Job};
-//! use std::sync::Arc;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), bullmq::Error> {
@@ -25,10 +24,10 @@
 //!
 //!     queue.add("my-job", serde_json::json!({"foo": "bar"})).await?;
 //!
-//!     let worker = Worker::new("my-queue", Arc::new(|job: Job, _token| Box::pin(async move {
+//!     let worker = Worker::new("my-queue", |job: Job, _token| Box::pin(async move {
 //!         println!("Processing job: {}", job.id());
 //!         Ok(serde_json::Value::Null)
-//!     }))).await?;
+//!     })).await?;
 //!
 //!     Ok(())
 //! }

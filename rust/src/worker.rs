@@ -50,13 +50,9 @@ where
     }
 }
 
-impl<C, Fut> IntoProcessor for Arc<C>
-where
-    C: Fn(Job, CancellationToken) -> Fut + Send + Sync + ?Sized + 'static,
-    Fut: Future<Output = Result<serde_json::Value, Error>> + Send + 'static,
-{
+impl IntoProcessor for ProcessorFn {
     fn into_processor(self) -> ProcessorFn {
-        Arc::new(move |job, token| Box::pin((*self)(job, token)))
+        self
     }
 }
 
@@ -163,15 +159,14 @@ pub enum WorkerEvent {
 ///
 /// ```rust,no_run
 /// use bullmq::{Worker, Job};
-/// use std::sync::Arc;
 ///
 /// # async fn example() -> bullmq::Result<()> {
 /// let worker = Worker::new(
 ///     "my-queue",
-///     Arc::new(|job: Job, _token| Box::pin(async move {
+///     |job: Job, _token| Box::pin(async move {
 ///         println!("Processing: {}", job.name());
 ///         Ok(serde_json::Value::Null)
-///     })),
+///     }),
 /// ).await?;
 /// # Ok(())
 /// # }

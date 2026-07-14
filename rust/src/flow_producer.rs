@@ -43,23 +43,24 @@ impl FlowJob {
     /// ```
     /// use bullmq::FlowJob;
     ///
-    /// let flow = FlowJob::new("parent", "emails", serde_json::json!({}))
-    ///     .add_child(FlowJob::new("child", "images", serde_json::json!({ "id": 1 })));
+    /// let flow = FlowJob::new("parent", "emails", serde_json::json!({}))?
+    ///     .add_child(FlowJob::new("child", "images", serde_json::json!({ "id": 1 }))?);
     /// assert_eq!(flow.children.unwrap().len(), 1);
+    /// # Ok::<(), bullmq::Error>(())
     /// ```
     pub fn new<T: Serialize>(
         name: impl Into<String>,
         queue_name: impl Into<String>,
         data: T,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, Error> {
+        Ok(Self {
             name: name.into(),
             queue_name: queue_name.into(),
-            data: serde_json::to_value(data).unwrap_or(serde_json::Value::Null),
+            data: serde_json::to_value(data)?,
             opts: None,
             prefix: None,
             children: None,
-        }
+        })
     }
 
     /// Set the job options.
@@ -1171,6 +1172,8 @@ fn merge_job_options(base: &mut JobOptions, over: JobOptions) {
 mod tests {
     use super::{FlowProducer, JobNode};
     use crate::job::Job;
+    use serde::ser::Error as _;
+    use serde::Serialize;
 
     fn leaf(name: &str) -> JobNode {
         JobNode {
@@ -1264,6 +1267,26 @@ mod tests {
         assert_eq!(FlowProducer::parse_child_key("bull:queue"), None);
         assert_eq!(FlowProducer::parse_child_key("bull::job-1"), None);
         assert_eq!(FlowProducer::parse_child_key("bull:queue:"), None);
+    }
+
+    #[test]
+    fn flow_job_new_returns_serialization_errors() {
+        struct FailingSerialize;
+
+        impl Serialize for FailingSerialize {
+            fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: serde::Serializer,
+            {
+                Err(S::Error::custom("boom"))
+            }
+        }
+
+        let result = super::FlowJob::new("job", "queue", FailingSerialize);
+        assert!(
+            result.is_err(),
+            "invalid JSON numbers should not be coerced"
+        );
     }
 
     #[test]
