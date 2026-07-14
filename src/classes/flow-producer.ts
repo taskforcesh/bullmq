@@ -233,7 +233,9 @@ export class FlowProducer extends EventEmitter {
           if (typeof jobId === 'number' && jobId < 0) {
             throw this.toFlowError(jobId, parentKey);
           }
-          if (typeof jobId === 'string' || typeof jobId === 'number') {
+          if (typeof jobId === 'string') {
+            jobsTree.job.id = jobId;
+          } else if (typeof jobId === 'number') {
             jobsTree.job.id = jobId.toString();
           }
         }
@@ -321,7 +323,9 @@ export class FlowProducer extends EventEmitter {
               getParentKey(flows[index]?.opts?.parent),
             );
           }
-          if (typeof jobId === 'string' || typeof jobId === 'number') {
+          if (typeof jobId === 'string') {
+            jobsTrees[index].job.id = jobId;
+          } else if (typeof jobId === 'number') {
             jobsTrees[index].job.id = jobId.toString();
           }
         }
