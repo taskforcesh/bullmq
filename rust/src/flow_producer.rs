@@ -1283,10 +1283,7 @@ mod tests {
         }
 
         let result = super::FlowJob::new("job", "queue", FailingSerialize);
-        assert!(
-            result.is_err(),
-            "invalid JSON numbers should not be coerced"
-        );
+        assert!(result.is_err(), "serialization failures should be returned");
     }
 
     #[test]

@@ -244,7 +244,10 @@ impl QueueOptions {
         self
     }
 
-    /// Set the default job options applied to every job added to this queue.
+    /// Set the default job options merged into every job added to this queue.
+    ///
+    /// Only `attempts`, `backoff`, `remove_on_complete`, `remove_on_fail`,
+    /// `delay`, `priority`, and `lifo` are applied as queue-level defaults.
     pub fn default_job_options(mut self, options: JobOptions) -> Self {
         self.default_job_options = options;
         self

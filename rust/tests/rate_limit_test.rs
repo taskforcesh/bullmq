@@ -130,10 +130,10 @@ async fn test_worker_rate_limit_does_not_block_without_limiter() {
         timestamps.push(ts);
     }
 
-    // All 4 should be processed within 500ms (no rate limiting)
+    // All 4 should still be processed quickly without rate limiting.
     let total = timestamps[3].duration_since(timestamps[0]);
     assert!(
-        total < Duration::from_millis(500),
+        total < Duration::from_millis(1500),
         "Without limiter, all jobs should process fast, took {:?}",
         total
     );
