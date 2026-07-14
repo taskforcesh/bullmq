@@ -17,6 +17,60 @@ permissions:
   contents: read # to fetch code (actions/checkout)
 
 jobs:
+  # Detect which parts of the repository changed so we only run the test
+  # suites that are actually affected:
+  #   - Any Lua script change (the shared core used by every runtime), or a
+  #     change under `scripts/**` used by pretest/build generation, runs ALL
+  #     runtime suites.
+  #   - A change scoped to a single runtime (node/python/php) runs only that
+  #     runtime's suite.
+  #   - Documentation-only changes only run this change-detection job and a
+  #     no-op `smoke` job (to satisfy required checks).
+  # Shared build inputs (package.json, yarn.lock, this workflow) are grouped
+  # under `lua` so that changing them re-runs every runtime as well.
+  changes:
+    runs-on: ubuntu-latest
+
+    name: detect changed paths
+
+    permissions:
+      contents: read
+      pull-requests: read
+
+    outputs:
+      lua: ${{ steps.filter.outputs.lua }}
+      node: ${{ steps.filter.outputs.node }}
+      python: ${{ steps.filter.outputs.python }}
+      php: ${{ steps.filter.outputs.php }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
+        with:
+          filters: |
+            lua:
+              - 'src/commands/**/*.lua'
+              - 'package.json'
+              - 'yarn.lock'
+              - 'scripts/**'
+              - '.github/workflows/test.yml'
+            node:
+              - 'src/**'
+              - 'tests/**'
+              - 'tsconfig*.json'
+              - 'vitest*.ts'
+              - 'bun-test-preload.ts'
+              - 'mocha.setup.ts'
+              - '.mocharc.js'
+              - 'eslint.config.mjs'
+            python:
+              - 'python/**'
+            php:
+              - 'php/**'
+
   # Fast smoke test gate. Runs a small subset of fast, representative tests
   # against the default (node + ioredis) adapter with --bail so we fail fast.
   # All other heavier jobs depend on this so a quick failure cancels the rest.
@@ -24,6 +78,7 @@ jobs:
   # and gates merging via branch protection / required checks.)
   smoke:
     runs-on: ubuntu-latest
+    needs: changes
 
     name: smoke (lint + fast tests on node@lts, ioredis, redis@7)
 
@@ -32,22 +87,32 @@ jobs:
       redis-version: 7-alpine
 
     steps:
+      - name: Skip smoke run when node/lua inputs are unchanged
+        if: ${{ needs.changes.outputs.node != 'true' && needs.changes.outputs.lua != 'true' }}
+        run: echo "No node/lua changes detected; skipping smoke steps."
       - name: Checkout repository
+        if: ${{ needs.changes.outputs.node == 'true' || needs.changes.outputs.lua == 'true' }}
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Use Node.js
+        if: ${{ needs.changes.outputs.node == 'true' || needs.changes.outputs.lua == 'true' }}
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: ${{ env.node-version }}
           cache: 'yarn'
       - name: Start Redis
+        if: ${{ needs.changes.outputs.node == 'true' || needs.changes.outputs.lua == 'true' }}
         uses: supercharge/redis-github-action@bc274cb7238cd63a45029db04ee48c07a72609fd # 1.8.1
         with:
           redis-version: ${{ env.redis-version }}
-      - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
+      - if: ${{ needs.changes.outputs.node == 'true' || needs.changes.outputs.lua == 'true' }}
+        run: yarn install --ignore-engines --frozen-lockfile --non-interactive
       - name: Run ESLint
+        if: ${{ needs.changes.outputs.node == 'true' || needs.changes.outputs.lua == 'true' }}
         run: yarn lint
-      - run: yarn build
-      - run: yarn test:smoke
+      - if: ${{ needs.changes.outputs.node == 'true' || needs.changes.outputs.lua == 'true' }}
+        run: yarn build
+      - if: ${{ needs.changes.outputs.node == 'true' || needs.changes.outputs.lua == 'true' }}
+        run: yarn test:smoke
 
   # Primary ioredis test run on a single (current LTS) Node version.
   # Also produces the coverage report — the test set executed by
@@ -58,7 +123,8 @@ jobs:
   # ioredis Node/Redis version matrix run in parallel.
   ioredis-redis:
     runs-on: ubuntu-latest
-    needs: smoke
+    needs: [changes, smoke]
+    if: ${{ !cancelled() && needs.smoke.result == 'success' && (needs.changes.outputs.node == 'true' || needs.changes.outputs.lua == 'true') }}
 
     name: testing node@${{ matrix.node-version }}, redis@${{ matrix.redis-version }}
 
@@ -283,8 +349,18 @@ jobs:
     runs-on: ubuntu-latest
     # Depend on the primary node suite (which also runs coverage) so a Node
     # test failure aborts the cross-language jobs before they consume runner
-    # time. `ioredis-redis` itself depends on `smoke`.
-    needs: ioredis-redis
+    # time. `ioredis-redis` itself depends on `smoke` and only runs when Node
+    # or shared Lua inputs changed. When only Python changed, `ioredis-redis`
+    # is skipped and we still run this job (a skipped dependency is allowed, a
+    # failed one is not).
+    needs: [changes, smoke, ioredis-redis]
+    if: >-
+      always() &&
+      !cancelled() &&
+      (needs.changes.outputs.python == 'true' || needs.changes.outputs.lua == 'true') &&
+      needs.smoke.result == 'success' &&
+      needs.ioredis-redis.result != 'failure' &&
+      needs.ioredis-redis.result != 'cancelled'
 
     name: testing python@${{ matrix.python-version }}, redis@${{ matrix.redis-version }}
 
@@ -334,7 +410,14 @@ jobs:
 
   python-dragonflydb:
     runs-on: ubuntu-latest
-    needs: ioredis-redis
+    needs: [changes, smoke, ioredis-redis]
+    if: >-
+      always() &&
+      !cancelled() &&
+      (needs.changes.outputs.python == 'true' || needs.changes.outputs.lua == 'true') &&
+      needs.smoke.result == 'success' &&
+      needs.ioredis-redis.result != 'failure' &&
+      needs.ioredis-redis.result != 'cancelled'
 
     name: testing python@${{ matrix.python-version }}, dragonflydb@latest
 
@@ -390,7 +473,14 @@ jobs:
 
   php:
     runs-on: ubuntu-latest
-    needs: ioredis-redis
+    needs: [changes, smoke, ioredis-redis]
+    if: >-
+      always() &&
+      !cancelled() &&
+      (needs.changes.outputs.php == 'true' || needs.changes.outputs.lua == 'true') &&
+      needs.smoke.result == 'success' &&
+      needs.ioredis-redis.result != 'failure' &&
+      needs.ioredis-redis.result != 'cancelled'
 
     name: testing php@${{ matrix.php-version }}, redis@7
 
