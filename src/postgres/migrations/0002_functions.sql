@@ -2559,7 +2559,7 @@ $$;
 -- `deduplication` (or legacy `debounce`) option carries a `de` opts object
 -- `{ id, ttl, extend, replace, keepLastIfActive }`. When a *live* key already
 -- exists for that id the new job is NOT added: the existing "winner" job id is
--- returned and `debounced` + `deduplicated` events are emitted. The key is one
+-- returned and `deduplicated` events are emitted. The key is one
 -- row of `bullmq_dedup` (`job_id` ⇔ the winner, `expire_at_ms` ⇔ the Redis
 -- PTTL window; NULL = no expiry). The full key lifecycle:
 --   * add        — set / check the key (see bullmq_deduplicate_job),
@@ -2780,8 +2780,6 @@ BEGIN
         DELETE FROM bullmq_job WHERE queue = p_queue AND id = v_cur;
         PERFORM bullmq_publish_event(p_queue, 'removed',
           jsonb_build_object('jobId', v_cur, 'prev', 'delayed'));
-        PERFORM bullmq_publish_event(p_queue, 'debounced',
-          jsonb_build_object('jobId', p_job_id, 'debounceId', v_id));
         PERFORM bullmq_publish_event(p_queue, 'deduplicated',
           jsonb_build_object('jobId', p_job_id, 'deduplicationId', v_id,
             'deduplicatedJobId', v_cur));
@@ -2829,8 +2827,6 @@ BEGIN
            SET expire_at_ms = CASE WHEN v_keeplast THEN NULL ELSE p_now + v_ttl END
          WHERE queue = p_queue AND dedup_id = v_id;
       END IF;
-      PERFORM bullmq_publish_event(p_queue, 'debounced',
-        jsonb_build_object('jobId', v_cur, 'debounceId', v_id));
       PERFORM bullmq_publish_event(p_queue, 'deduplicated',
         jsonb_build_object('jobId', v_cur, 'deduplicationId', v_id,
           'deduplicatedJobId', p_job_id));
@@ -2848,8 +2844,6 @@ BEGIN
   IF v_cur IS NOT NULL THEN
     PERFORM bullmq_dedup_store_next(p_queue, v_id, v_cur, p_job_id,
       v_keeplast, p_name, p_data, p_opts);
-    PERFORM bullmq_publish_event(p_queue, 'debounced',
-      jsonb_build_object('jobId', v_cur, 'debounceId', v_id));
     PERFORM bullmq_publish_event(p_queue, 'deduplicated',
       jsonb_build_object('jobId', v_cur, 'deduplicationId', v_id,
         'deduplicatedJobId', p_job_id));
