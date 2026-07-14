@@ -21,6 +21,8 @@ import {
   KeepJobs,
 } from '../types';
 
+type FinishedState = FinishedStatus;
+
 /**
  * IQueueBackend
  *
@@ -30,11 +32,10 @@ import {
  * ("move job to active", "extend lock", "promote job", …) **independently of
  * the underlying datastore**.
  *
- * Today the only implementation is the Redis adapter ({@link RedisQueueBackend}), which
- * fulfils every operation using Lua scripts and a small number of plain Redis
- * commands. A future implementation (e.g. PostgreSQL) could fulfil the very
- * same operations using SQL functions/procedures, `LISTEN`/`NOTIFY`, etc.,
- * without requiring any change to `Queue`, `Worker` or `Job`.
+ * Built-in implementations currently include the Redis adapter
+ * ({@link RedisQueueBackend}) and the PostgreSQL adapter. Both fulfil the same
+ * operations over different datastores without requiring any change to
+ * `Queue`, `Worker` or `Job`.
  *
  * The method names and signatures intentionally mirror the existing
  * `RedisQueueBackend` class so that the Redis adapter is a near
@@ -336,7 +337,7 @@ export interface IQueueBackend {
   /**
    * Reprocesses a finished (failed/completed) job, moving it back to wait.
    */
-  reprocessJob<T = any, R = any, N extends string = string>(
+  retryFinishedJob<T = any, R = any, N extends string = string>(
     job: MinimalJob<T, R, N>,
     state: 'failed' | 'completed',
     opts?: RetryOptions,
@@ -361,8 +362,8 @@ export interface IQueueBackend {
    * Moves up to `count` finished jobs of the given `state` back to wait.
    * @returns A cursor; `0` when there are no more jobs to move.
    */
-  retryJobs(
-    state?: FinishedStatus,
+  retryFinishedJobs(
+    state?: FinishedState,
     count?: number,
     timestamp?: number,
   ): Promise<number>;
@@ -387,8 +388,8 @@ export interface IQueueBackend {
    * Removes jobs in a given state that are older than `timestamp`.
    * @returns The ids of the removed jobs.
    */
-  cleanJobsInSet(
-    set: string,
+  cleanJobsByState(
+    state: string,
     timestamp: number,
     limit?: number,
   ): Promise<string[]>;
@@ -563,15 +564,9 @@ export interface IQueueBackend {
   isMaxed(): Promise<boolean>;
 
   /**
-   * Returns whether a job id is present in a datastore list (wait/active).
+   * Returns whether a job id is present in the given state.
    */
-  isJobInList(listKey: string, jobId: string): Promise<boolean>;
-
-  /**
-   * Returns whether a job id is present in a datastore sorted set
-   * (completed/failed/delayed/…).
-   */
-  isJobInZSet(set: string, jobId: string): Promise<boolean>;
+  isJobInState(state: string, jobId: string): Promise<boolean>;
 
   /**
    * Returns the stored data for a job, or `undefined` if it is missing.

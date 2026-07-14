@@ -18,11 +18,11 @@ import {
   DependenciesOpts,
   IQueueBackend,
   JobJson,
+  KeyPrefixOptions,
   MinimalJob,
   MoveToWaitingChildrenOpts,
   ParentKeyOpts,
   RedisClient,
-  RedisKeyPrefixOptions,
   WorkerOptions,
   MoveToDelayedOpts,
   RepeatableOptions,
@@ -99,7 +99,7 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
   ) {
     super();
 
-    this.redisPrefix = (opts as RedisKeyPrefixOptions).prefix ?? 'bull';
+    this.redisPrefix = (opts as KeyPrefixOptions).prefix ?? 'bull';
 
     const self = this;
     this.queue = {
@@ -162,7 +162,7 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       {
         ...this.queue.opts,
         prefix: resolvedPrefix,
-      } as QueueBaseOptions & RedisKeyPrefixOptions,
+      } as QueueBaseOptions & KeyPrefixOptions,
       this.blockingConnection,
       false,
     );
@@ -379,31 +379,49 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
   }
 
   /**
-   * Checks whether a job with the given id is present in a Redis list
-   * (e.g. the wait or active list). Uses `LPOS` on Redis \>= 6.0.6, and
-   * falls back to a Lua script on older versions.
-   *
-   * @param listKey - The Redis list key to search.
-   * @param jobId - The job id to look up in the list.
-   * @returns `true` if the job is found in the list, `false` otherwise.
-   *
-   * @private
+   * Checks whether a job with the given id is present in the provided queue
+   * state.
    */
-  async isJobInList(listKey: string, jobId: string): Promise<boolean> {
+  async isJobInState(state: string, jobId: string): Promise<boolean> {
     const client = await this.queue.client;
-    let result;
-    if (
-      isRedisVersionLowerThan(
-        this.queue.redisVersion,
-        '6.0.6',
-        this.queue.databaseType,
-      )
-    ) {
-      result = await this.execCommand(client, 'isJobInList', [listKey, jobId]);
-    } else {
-      result = await client.lpos(listKey, jobId);
+
+    if (state === 'waiting') {
+      return (
+        (await this.isJobInState('wait', jobId)) ||
+        (await this.isJobInState('paused', jobId))
+      );
     }
-    return Number.isInteger(result);
+
+    if (state === 'wait' || state === 'active' || state === 'paused') {
+      const listKey = this.queue.toKey(state);
+      let result;
+      if (
+        isRedisVersionLowerThan(
+          this.queue.redisVersion,
+          '6.0.6',
+          this.queue.databaseType,
+        )
+      ) {
+        result = await this.execCommand(client, 'isJobInList', [
+          listKey,
+          jobId,
+        ]);
+      } else {
+        result = await client.lpos(listKey, jobId);
+      }
+      return Number.isInteger(result);
+    } else if (
+      state === 'prioritized' ||
+      state === 'completed' ||
+      state === 'failed' ||
+      state === 'delayed' ||
+      state === 'waiting-children'
+    ) {
+      const score = await client.zscore(this.queue.toKey(state), jobId);
+      return score !== null;
+    }
+
+    throw new Error(`Unknown job state: ${state}`);
   }
 
   protected addDelayedJobArgs(
@@ -1629,21 +1647,21 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
    *
    * @returns Id jobs from the deleted records.
    */
-  async cleanJobsInSet(
-    set: string,
+  async cleanJobsByState(
+    state: string,
     timestamp: number,
     limit = 0,
   ): Promise<string[]> {
     const client = await this.queue.client;
 
     return this.execCommand(client, 'cleanJobsInSet', [
-      this.queue.toKey(set),
+      this.queue.toKey(state),
       this.queue.toKey('events'),
       this.queue.toKey('repeat'),
       this.queue.toKey(''),
       timestamp,
       limit,
-      set,
+      state,
     ]);
   }
 
@@ -1767,7 +1785,7 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
     return keys.concat(args);
   }
 
-  async retryJobs(
+  async retryFinishedJobs(
     state: FinishedStatus = 'failed',
     count = 1000,
     timestamp = new Date().getTime(),
@@ -1800,7 +1818,7 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
    *   - code -1: Job is currently locked and can't be retried
    *   - code -2: Job was not found in the expected set
    */
-  async reprocessJob<T = any, R = any, N extends string = string>(
+  async retryFinishedJob<T = any, R = any, N extends string = string>(
     job: MinimalJob<T, R, N>,
     state: 'failed' | 'completed',
     opts: RetryOptions = {},
@@ -2333,12 +2351,6 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
   // ============================================================
   // Promoted job getters (previously direct client calls in Job)
   // ============================================================
-
-  async isJobInZSet(set: string, jobId: string): Promise<boolean> {
-    const client = await this.queue.client;
-    const score = await client.zscore(this.queue.toKey(set), jobId);
-    return score !== null;
-  }
 
   async getJobData(jobId: string): Promise<JobJson | undefined> {
     const client = await this.queue.client;

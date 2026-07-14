@@ -3,12 +3,10 @@
 {% hint style="danger" %}
 Note: these APIs were deprecated from BullMQ version 5.16.0 onwards and have been **removed** in v6 in favor of ["Job Schedulers"](../job-schedulers/), which provide a more cohesive and more robust API for handling repeatable jobs.
 
-The `repeat` option on `Queue.add`/`Queue.addBulk`, the `Repeat` class, and the `getRepeatableJobs`, `removeRepeatable` and `removeRepeatableByKey` methods are no longer available. The examples on this page are kept for historical reference only — use [Job Schedulers](../job-schedulers/) (`upsertJobScheduler`, `getJobSchedulers`, `removeJobScheduler`) instead.
+The `repeat` option on `Queue.add`/`Queue.addBulk`, the `Repeat` class, and the `getRepeatableJobs`, `removeRepeatable` and `removeRepeatableByKey` methods are no longer available. The examples on this page are kept for historical reference only — use [Job Schedulers](../job-schedulers/) (`upsertJobScheduler`, `getJobSchedulers`, `removeJobScheduler`) instead. If you are upgrading an existing installation, follow the [v5 to v6 migration guide](../migrations/migrate-from-v5-to-v6.md) before deploying v6.
 {% endhint %}
 
-There is a special type of _meta_ job called **repeatable**. These jobs are special in the sense that even though you only add one job to the queue, they will keep repeating according to a predefined schedule.
-
-Adding a job with the `repeat` option set will actually do two things immediately: create a Repeatable Job configuration, and schedule a regular delayed job for the job's first run. This first run will be scheduled "on the hour", that is if you create a job that repeats every 15 minutes at 4:07, the job will first run at 4:15, then 4:30, and so on.
+In BullMQ v5, repeatable jobs were stored as a repeat configuration plus delayed jobs generated from that configuration. In BullMQ v6 this legacy model is replaced by Job Schedulers, which store scheduler metadata under scheduler keys and enqueue normal delayed jobs for each run.
 
 The Repeatable Job configuration is not a job, so it will not show up in methods like `getJobs()`. To manage Repeatable Job configurations, use [`getRepeatableJobs()`](https://api.docs.bullmq.io/classes/v5.Queue.html#getrepeatablejobs) and similar. This also means repeated jobs do **not** participate in evaluating `jobId` uniqueness - that is, a non-repeatable job can have the same `jobId` as a Repeatable Job configuration, and two Repeatable Job configurations can have the same `jobId` as long as they have different repeat options.
 

@@ -16,6 +16,83 @@ import { QueueBase } from './queue-base';
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { array2obj } from '../utils';
 
+export const LEGACY_REPEATABLE_JOBS_MIGRATION_URL =
+  'https://docs.bullmq.io/guide/migrations/migrate-from-v5-to-v6';
+
+/**
+ * Legacy repeatable job keys use the format `name:id:endDate:tz:pattern`.
+ * The suffix after `name:id:endDate:tz:` is either:
+ * - a cron pattern (contains spaces), or
+ * - an `every` interval (purely numeric).
+ */
+/**
+ * Returns true when key[from..to) is composed only of ASCII digits.
+ */
+function isNumericSegment(key: string, from: number, to: number): boolean {
+  if (from >= to) {
+    return false;
+  }
+
+  for (let i = from; i < to; i++) {
+    const charCode = key.charCodeAt(i);
+    if (charCode < 48 || charCode > 57) {
+      return false;
+    }
+  }
+
+  return true;
+}
+export function hasLegacyRepeatableKeyShape(key: string): boolean {
+  const firstColon = key.indexOf(':');
+  if (firstColon === -1) {
+    return false;
+  }
+
+  const secondColon = key.indexOf(':', firstColon + 1);
+  if (secondColon === -1) {
+    return false;
+  }
+
+  const thirdColon = key.indexOf(':', secondColon + 1);
+  if (thirdColon === -1) {
+    return false;
+  }
+
+  const fourthColon = key.indexOf(':', thirdColon + 1);
+  if (fourthColon === -1) {
+    return false;
+  }
+
+  // endDate can be empty or numeric in legacy keys.
+  if (
+    secondColon + 1 < thirdColon &&
+    !isNumericSegment(key, secondColon + 1, thirdColon)
+  ) {
+    return false;
+  }
+
+  const suffixStart = fourthColon + 1;
+  if (suffixStart >= key.length) {
+    return false;
+  }
+
+  if (key.indexOf(' ', suffixStart) !== -1) {
+    return true;
+  }
+
+  return isNumericSegment(key, suffixStart, key.length);
+}
+
+export const isLegacyRepeatableJobKey = hasLegacyRepeatableKeyShape;
+
+export function getLegacyRepeatableJobError(key: string): Error {
+  return new Error(
+    `Legacy repeatable job metadata is not supported in BullMQ v6 ` +
+      `(key: "${key}"). Migrate legacy repeatable jobs to Job Schedulers ` +
+      `before upgrading. See ${LEGACY_REPEATABLE_JOBS_MIGRATION_URL}`,
+  );
+}
+
 export class JobScheduler extends QueueBase {
   private repeatStrategy: RepeatStrategy;
 
@@ -61,6 +138,17 @@ export class JobScheduler extends QueueBase {
     if (repeatOpts.immediately && repeatOpts.every) {
       console.warn(
         "Using option immediately with every does not affect the job's schedule. Job will run immediately anyway.",
+      );
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(
+        opts as Record<string, unknown>,
+        'debounce',
+      )
+    ) {
+      throw new Error(
+        'Debounce option has been removed. Use deduplication option instead',
       );
     }
 
@@ -260,10 +348,15 @@ export class JobScheduler extends QueueBase {
   private async getSchedulerData<D>(
     key: string,
     next?: number,
-  ): Promise<JobSchedulerJson<D>> {
+  ): Promise<JobSchedulerJson<D> | undefined> {
     const jobData = await this.backend.getJobSchedulerData(key);
+    const scheduler = this.transformSchedulerData<D>(key, jobData, next);
 
-    return this.transformSchedulerData<D>(key, jobData, next);
+    if (!scheduler) {
+      await this.backend.removeJobScheduler(key);
+    }
+
+    return scheduler;
   }
 
   private transformSchedulerData<D>(
@@ -320,25 +413,11 @@ export class JobScheduler extends QueueBase {
       return jobSchedulerData;
     }
 
-    // TODO: remove this check and keyToData as it is here only to support legacy code
-    if (key.includes(':')) {
-      return this.keyToData(key, next);
+    if (hasLegacyRepeatableKeyShape(key)) {
+      throw getLegacyRepeatableJobError(key);
     }
-  }
 
-  private keyToData(key: string, next?: number): JobSchedulerJson {
-    const data = key.split(':');
-    const pattern = data.slice(4).join(':') || null;
-
-    return {
-      key,
-      name: data[0],
-      id: data[1] || null,
-      endDate: parseInt(data[2]) || null,
-      tz: data[3] || null,
-      pattern,
-      next,
-    };
+    return undefined;
   }
 
   /**
@@ -399,7 +478,9 @@ export class JobScheduler extends QueueBase {
     for (let i = 0; i < result.length; i += 2) {
       jobs.push(this.getSchedulerData<D>(result[i], parseInt(result[i + 1])));
     }
-    return Promise.all(jobs);
+    return (await Promise.all(jobs)).filter(
+      (job): job is JobSchedulerJson<D> => !!job,
+    );
   }
 
   async getSchedulersCount(): Promise<number> {

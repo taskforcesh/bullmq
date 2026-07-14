@@ -295,7 +295,9 @@ CREATE TABLE bullmq_dedup (
   PRIMARY KEY (queue, dedup_id)
 );
 
--- Reclaim expired dedup keys.
+-- Expired dedup keys are reclaimed lazily by operation functions in
+-- 0002_functions.sql (for example bullmq_deduplicate_job and
+-- bullmq_dedup_finalize). This index keeps those lookups/deletes efficient.
 CREATE INDEX bullmq_dedup_expire_idx
   ON bullmq_dedup (queue, expire_at_ms)
   WHERE expire_at_ms IS NOT NULL;

@@ -1,5 +1,5 @@
 {
-  "name": "bullmq-rust",
+  "name": "bullmq-official",
   "description": "BullMQ Rust SDK - semantic release configuration",
   "author": "Taskforce.sh Inc.",
   "license": "MIT",
@@ -24,7 +24,7 @@
         {
           "releaseRules": [
             {
-              "message": "!({*,**/*}\\(rust\\)*|{*,**/*}\\[rust\\]*)",
+              "header": "!({*,**/*}\\(rust\\)*|{*,**/*}\\[rust\\]*)",
               "release": false
             }
           ]

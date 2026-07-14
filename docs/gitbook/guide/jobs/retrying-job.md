@@ -128,6 +128,20 @@ await job.retry('failed', {"resetAttemptsMade": True})
 ```
 
 {% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::types::RetryOptions;
+
+// Retry and reset the attempts counter
+job.retry("failed", Some(RetryOptions {
+    reset_attempts_made: true,
+    ..Default::default()
+})).await?;
+```
+
+{% endtab %}
 {% endtabs %}
 
 ### Reset Attempts Started
@@ -167,6 +181,20 @@ await job.retry('failed', {
   reset_attempts_made: true,
   reset_attempts_started: true
 )
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::types::RetryOptions;
+
+// Retry and reset both counters
+job.retry("failed", Some(RetryOptions {
+    reset_attempts_made: true,
+    reset_attempts_started: true,
+})).await?;
 ```
 
 {% endtab %}
@@ -238,6 +266,17 @@ case Job.retry(job, :failed) do
   {:error, reason} ->
     IO.puts("Failed to retry: #{inspect(reason)}")
 end
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+match job.retry("failed", None).await {
+    Ok(()) => println!("Job retried successfully"),
+    Err(err) => eprintln!("Failed to retry job: {err}"),
+}
 ```
 
 {% endtab %}

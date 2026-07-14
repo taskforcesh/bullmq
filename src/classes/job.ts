@@ -40,7 +40,7 @@ import { SpanKind, TelemetryAttributes, MetricNames } from '../enums';
 
 const logger = debuglog('bull');
 
-export const PRIORITY_LIMIT = 2 ** 21;
+export const PRIORITY_LIMIT = 2 ** 21 - 1;
 
 /**
  * Job
@@ -87,9 +87,11 @@ export class Job<
   delay = 0;
 
   /**
-   * Ranges from 0 (highest priority) to 2 097 152 (lowest priority). Note that
-   * using priorities has a slight impact on performance,
-   * so do not use it if not required.
+   * Ranges from 0 to 2 097 151. `0` means no explicit priority, and jobs with
+   * no explicit priority are processed before prioritized jobs. For prioritized
+   * jobs, lower numbers are processed before higher numbers. Note that using
+   * priorities has a slight impact on performance, so do not use it if not
+   * required.
    * @defaultValue 0
    */
   priority = 0;
@@ -147,12 +149,6 @@ export class Job<
    * Object that contains parentId (id) and parent queueKey.
    */
   parent?: ParentKeys;
-
-  /**
-   * Debounce identifier.
-   * @deprecated use deduplicationId
-   */
-  debounceId?: string;
 
   /**
    * Deduplication identifier.
@@ -247,10 +243,7 @@ export class Job<
       }
     }
 
-    this.debounceId = opts.debounce ? opts.debounce.id : undefined;
-    this.deduplicationId = opts.deduplication
-      ? opts.deduplication.id
-      : this.debounceId;
+    this.deduplicationId = this.opts.deduplication?.id;
 
     this.toKey = queue.toKey.bind(queue);
     this.createBackend();
@@ -379,7 +372,6 @@ export class Job<
     }
 
     if (json.deduplicationId) {
-      job.debounceId = json.deduplicationId;
       job.deduplicationId = json.deduplicationId;
     }
 
@@ -419,11 +411,8 @@ export class Job<
       job.processedBy = json.processedBy;
     }
 
-    const nextSchedulerJobId =
-      json.nextSchedulerJobId ?? json.nextRepeatableJobId;
-
-    if (nextSchedulerJobId) {
-      job.nextSchedulerJobId = nextSchedulerJobId;
+    if (json.nextSchedulerJobId) {
+      job.nextSchedulerJobId = json.nextSchedulerJobId;
     }
 
     return job;
@@ -529,7 +518,6 @@ export class Job<
       timestamp: this.timestamp,
       failedReason: JSON.stringify(this.failedReason),
       stacktrace: JSON.stringify(this.stacktrace),
-      debounceId: this.debounceId,
       deduplicationId: this.deduplicationId,
       repeatJobKey: this.repeatJobKey,
       returnvalue: JSON.stringify(this.returnvalue),
@@ -852,10 +840,10 @@ export class Job<
   /**
    * Records job metrics if a meter is configured in telemetry options.
    *
-   * @param status - The job status
+   * @param state - The job state
    */
   private recordJobMetrics(
-    status:
+    state:
       | 'completed'
       | 'failed'
       | 'delayed'
@@ -871,11 +859,11 @@ export class Job<
     const attributes = {
       [TelemetryAttributes.QueueName]: this.queue.name,
       [TelemetryAttributes.JobName]: this.name,
-      [TelemetryAttributes.JobStatus]: status,
+      [TelemetryAttributes.JobState]: state,
     };
 
-    // Record counter metric based on status
-    const statusToCounterName: Record<
+    // Record counter metric based on state
+    const stateToCounterName: Record<
       | 'completed'
       | 'failed'
       | 'delayed'
@@ -892,9 +880,9 @@ export class Job<
       'waiting-children': MetricNames.JobsWaitingChildren,
     };
 
-    const counterName = statusToCounterName[status];
+    const counterName = stateToCounterName[state];
     const counter = meter.createCounter(counterName, {
-      description: `Number of jobs ${status}`,
+      description: `Number of jobs ${state}`,
       unit: '1',
     });
     counter.add(1, attributes);
@@ -914,42 +902,42 @@ export class Job<
    * @returns true if the job has completed.
    */
   isCompleted(): Promise<boolean> {
-    return this.isInZSet('completed');
+    return this.isInState('completed');
   }
 
   /**
    * @returns true if the job has failed.
    */
   isFailed(): Promise<boolean> {
-    return this.isInZSet('failed');
+    return this.isInState('failed');
   }
 
   /**
    * @returns true if the job is delayed.
    */
   isDelayed(): Promise<boolean> {
-    return this.isInZSet('delayed');
+    return this.isInState('delayed');
   }
 
   /**
    * @returns true if the job is waiting for children.
    */
   isWaitingChildren(): Promise<boolean> {
-    return this.isInZSet('waiting-children');
+    return this.isInState('waiting-children');
   }
 
   /**
-   * @returns true of the job is active.
+   * @returns true if the job is active.
    */
   isActive(): Promise<boolean> {
-    return this.isInList('active');
+    return this.isInState('active');
   }
 
   /**
    * @returns true if the job is waiting.
    */
   async isWaiting(): Promise<boolean> {
-    return (await this.isInList('wait')) || (await this.isInList('paused'));
+    return this.isInState('waiting');
   }
 
   /**
@@ -1255,7 +1243,7 @@ export class Job<
     state: FinishedStatus = 'failed',
     opts: RetryOptions = {},
   ): Promise<void> {
-    await this.backend.reprocessJob(this, state, opts);
+    await this.backend.retryFinishedJob(this, state, opts);
     this.failedReason = null;
     this.finishedOn = null;
     this.processedOn = null;
@@ -1278,12 +1266,8 @@ export class Job<
     this.discarded = true;
   }
 
-  private async isInZSet(set: string): Promise<boolean> {
-    return this.backend.isJobInZSet(set, this.id);
-  }
-
-  private async isInList(list: string): Promise<boolean> {
-    return this.backend.isJobInList(this.queue.toKey(list), this.id);
+  private async isInState(state: string): Promise<boolean> {
+    return this.backend.isJobInState(state, this.id);
   }
 
   /**
@@ -1417,15 +1401,15 @@ export class Job<
       }
     }
 
-    // TODO: remove in v6
-    if (this.opts.debounce) {
-      if (!this.opts.debounce?.id) {
-        throw new Error('Debounce id must be provided');
-      }
-
-      if (this.parentKey) {
-        throw new Error('Debounce and parent options cannot be used together');
-      }
+    if (
+      Object.prototype.hasOwnProperty.call(
+        this.opts as Record<string, unknown>,
+        'debounce',
+      )
+    ) {
+      throw new Error(
+        'Debounce option has been removed. Use deduplication option instead',
+      );
     }
 
     if (

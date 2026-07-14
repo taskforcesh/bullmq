@@ -1,3 +1,28 @@
+## [5.80.2](https://github.com/taskforcesh/bullmq/compare/v5.80.1...v5.80.2) (2026-07-11)
+
+
+### Bug Fixes
+
+* **job-scheduler:** respect offset option in upsertJobScheduler (elixir) (rust) ([#3993](https://github.com/taskforcesh/bullmq/issues/3993)) ([78bbb25](https://github.com/taskforcesh/bullmq/commit/78bbb253546b4c45f7e23ceccc31eb644651416c))
+
+## [5.80.1](https://github.com/taskforcesh/bullmq/compare/v5.80.0...v5.80.1) (2026-07-10)
+
+
+### Bug Fixes
+
+* **job:** enforce priority max of 2^21-1 to preserve FIFO at the boundary ([#4261](https://github.com/taskforcesh/bullmq/issues/4261)) ([418de1e](https://github.com/taskforcesh/bullmq/commit/418de1e51db09ffc8e95bac35015a1057d8a7271))
+
+# [5.80.0](https://github.com/taskforcesh/bullmq/compare/v5.79.4...v5.80.0) (2026-07-10)
+
+* Nothing changed, triggered by a rust version release
+
+## [5.79.4](https://github.com/taskforcesh/bullmq/compare/v5.79.3...v5.79.4) (2026-07-10)
+
+
+### Bug Fixes
+
+* **job-scheduler:** coerce string offset in Lua helper ([#4266](https://github.com/taskforcesh/bullmq/issues/4266)) (python) (elixir) ([5a88614](https://github.com/taskforcesh/bullmq/commit/5a88614312243a12bb9e56b525c4deb60d76cf12))
+
 ## [5.79.3](https://github.com/taskforcesh/bullmq/compare/v5.79.2...v5.79.3) (2026-07-07)
 
 

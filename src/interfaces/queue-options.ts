@@ -52,7 +52,7 @@ export interface QueueBaseOptions {
  * is a Redis-specific concept: other backends namespace differently (e.g. the
  * PostgreSQL backend uses a schema) and ignore it.
  */
-export interface RedisKeyPrefixOptions {
+export interface KeyPrefixOptions {
   /**
    * Prefix for all queue keys (Redis backend only). Defaults to `bull`.
    */
@@ -60,9 +60,14 @@ export interface RedisKeyPrefixOptions {
 }
 
 /**
+ * @deprecated Use KeyPrefixOptions instead.
+ */
+export type RedisKeyPrefixOptions = KeyPrefixOptions;
+
+/**
  * Options for the Queue class.
  */
-export interface QueueOptions extends QueueBaseOptions, RedisKeyPrefixOptions {
+export interface QueueOptions extends QueueBaseOptions, KeyPrefixOptions {
   defaultJobOptions?: DefaultJobOptions;
 
   /**
@@ -99,8 +104,7 @@ export interface QueueOptions extends QueueBaseOptions, RedisKeyPrefixOptions {
 /**
  * Options for the Repeat class.
  */
-export interface RepeatBaseOptions
-  extends QueueBaseOptions, RedisKeyPrefixOptions {
+export interface RepeatBaseOptions extends QueueBaseOptions, KeyPrefixOptions {
   settings?: AdvancedRepeatOptions;
 }
 
@@ -108,7 +112,7 @@ export interface RepeatBaseOptions
  * Options for QueueEvents
  */
 export interface QueueEventsOptions
-  extends Omit<QueueBaseOptions, 'telemetry'>, RedisKeyPrefixOptions {
+  extends Omit<QueueBaseOptions, 'telemetry'>, KeyPrefixOptions {
   /**
    * Condition to start listening to events at instance creation.
    */
@@ -130,10 +134,10 @@ export interface QueueEventsOptions
  * Options for QueueEventsProducer
  */
 export type QueueEventsProducerOptions = Omit<QueueBaseOptions, 'telemetry'> &
-  RedisKeyPrefixOptions;
+  KeyPrefixOptions;
 
 /**
  * Options for the FlowProducer class.
  */
 export interface FlowProducerOptions
-  extends QueueBaseOptions, RedisKeyPrefixOptions {}
+  extends QueueBaseOptions, KeyPrefixOptions {}

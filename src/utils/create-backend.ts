@@ -1,8 +1,8 @@
 import {
   BackendFactory,
   IQueueBackend,
+  KeyPrefixOptions,
   QueueBaseOptions,
-  RedisKeyPrefixOptions,
 } from '../interfaces';
 import { RedisQueueBackend } from '../classes/redis-queue-backend';
 import { RedisConnection } from '../classes/redis-connection';
@@ -21,7 +21,7 @@ const createBlockingConnection = (
 ): RedisConnection => {
   const base64Name = Buffer.from(name).toString('base64');
   const workerName = (opts as { name?: string }).name;
-  const connectionName = `${(opts as RedisKeyPrefixOptions).prefix ?? 'bull'}:${base64Name}${
+  const connectionName = `${(opts as KeyPrefixOptions).prefix ?? 'bull'}:${base64Name}${
     workerName ? `:w:${workerName}` : ''
   }`;
 
@@ -65,7 +65,7 @@ export const createRedisBackend: BackendFactory<RedisQueueBackend> = (
     ? createBlockingConnection(name, opts)
     : undefined;
 
-  const queueKeys = new QueueKeys((opts as RedisKeyPrefixOptions).prefix);
+  const queueKeys = new QueueKeys((opts as KeyPrefixOptions).prefix);
   const keys = queueKeys.getKeys(name);
   const toKey = (type: string) => queueKeys.toKey(name, type);
 

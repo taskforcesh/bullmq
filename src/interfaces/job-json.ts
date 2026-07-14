@@ -25,13 +25,6 @@ export interface JobJson {
    * ID of the next job that will be scheduled by the job scheduler.
    */
   nextSchedulerJobId?: string;
-  /**
-   * Old name for nextSchedulerJobId, accepted during deserialization for
-   * backwards compatibility.
-   *
-   * @deprecated use nextSchedulerJobId
-   */
-  nextRepeatableJobId?: string;
   debounceId?: string;
   deduplicationId?: string;
   deferredFailure?: string;

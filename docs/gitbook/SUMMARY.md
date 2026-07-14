@@ -81,6 +81,7 @@
 - [Going to production](guide/going-to-production.md)
 - [Migrations](guide/migrations/migration-to-newer-versions.md)
   - [Bull to BullMQ](guide/migrations/bull-to-bullmq.md)
+  - [Migrate from v5 to v6](guide/migrations/migrate-from-v5-to-v6.md)
 - [Troubleshooting](guide/troubleshooting.md)
 
 ## Patterns
@@ -161,7 +162,7 @@
 ## Rust
 
 - [Introduction](rust/introduction.md)
-- [API Reference](https://docs.rs/bullmq)
+- [API Reference](https://docs.rs/bullmq-official)
 - [Changelogs](rust/changelog.md)
 
 ## Elixir

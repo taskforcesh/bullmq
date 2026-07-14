@@ -1,6 +1,6 @@
 {
   "name": "bullmq",
-  "version": "5.79.3",
+  "version": "5.80.2",
   "description": "Queue for messages and jobs based on Redis",
   "homepage": "https://bullmq.io/",
   "main": "./dist/cjs/index.js",
@@ -20,7 +20,7 @@
     "dist"
   ],
   "engines": {
-    "node": ">=12.22.0"
+    "node": ">=14.17.0"
   },
   "scripts": {
     "build": "npm run clean:dist && npm run pretest && npm run tsc:all && npm run copy:main:type && npm run clean:temp:files && npm run copy:lua && npm run copy:includes:lua && npm run copy:sql",
@@ -73,17 +73,20 @@
   },
   "dependencies": {
     "cron-parser": "5.6.1",
-    "ioredis": "5.10.1",
     "msgpackr": "2.0.4",
     "node-abort-controller": "3.1.1",
     "semver": "7.8.5",
     "tslib": "2.8.1"
   },
   "peerDependencies": {
+    "ioredis": ">=5.0.0",
     "pg": ">=8.0.0",
     "redis": ">=5.0.0"
   },
   "peerDependenciesMeta": {
+    "ioredis": {
+      "optional": true
+    },
     "pg": {
       "optional": true
     },
@@ -104,7 +107,7 @@
     "@types/lodash.defaults": "4.2.9",
     "@types/lodash.isarguments": "3.1.9",
     "@types/msgpack": "0.0.34",
-    "@types/node": "24.13.2",
+    "@types/node": "24.13.3",
     "@types/pg": "8.15.6",
     "@types/semver": "7.7.1",
     "@types/sinon": "21.0.1",
@@ -121,6 +124,7 @@
     "fast-glob": "3.3.3",
     "globals": "17.7.0",
     "husky": "9.1.7",
+    "ioredis": "5.10.1",
     "lint-staged": "17.0.8",
     "madge": "8.0.0",
     "minimatch": "10.2.5",
@@ -159,19 +163,19 @@
         {
           "releaseRules": [
             {
-              "message": "**/*\\[python\\]*",
+              "header": "**/*\\[python\\]*",
               "release": false
             },
             {
-              "message": "**/*\\[elixir\\]*",
+              "header": "**/*\\[elixir\\]*",
               "release": false
             },
             {
-              "message": "**/*\\[php\\]*",
+              "header": "**/*\\[php\\]*",
               "release": false
             },
             {
-              "message": "**/*\\[rust\\]*",
+              "header": "**/*\\[rust\\]*",
               "release": false
             }
           ]

@@ -12,6 +12,8 @@ import { Job, Queue, QueueEvents, Worker } from '../src/classes';
 import { IRedisClient } from '../src/interfaces';
 import { createTestConnection } from './utils/connection-factory';
 import { cleanupQueue } from './utils/cleanup-queue';
+import { getRedisClient } from './utils/get-redis-client';
+import { streamEntriesToEvents } from './utils/stream-events';
 import { delay, randomUUID } from '../src/utils';
 
 describe('deduplication', () => {
@@ -45,31 +47,11 @@ describe('deduplication', () => {
     await connection.quit();
   });
 
-  describe('when job is deduplicated when added again with same debounce id', () => {
+  describe('when job is deduplicated when added again with same deduplication id', () => {
     it('emits deduplicated event', async () => {
       const testName = 'test';
       const dedupId = 'dedupId';
-
-      const waitingEvent = new Promise<void>((resolve, reject) => {
-        queueEvents.once(
-          'deduplicated',
-          async ({ jobId, deduplicationId, deduplicatedJobId }) => {
-            try {
-              const job = await queue.getJob(jobId);
-              expect(job).toBeDefined();
-              expect(jobId).toBe('a1');
-              expect(deduplicationId).toBe(dedupId);
-
-              const deduplicatedJob = await queue.getJob(deduplicatedJobId);
-              expect(deduplicatedJob).toBeUndefined();
-              expect(deduplicatedJobId).toBe('a2');
-              resolve();
-            } catch (error) {
-              reject(error);
-            }
-          },
-        );
-      });
+      const client = await getRedisClient(queue);
 
       await queue.add(
         testName,
@@ -82,7 +64,28 @@ describe('deduplication', () => {
         { jobId: 'a2', deduplication: { id: dedupId } },
       );
 
-      await waitingEvent;
+      const events = await client.xread(
+        [{ key: queue.toKey('events'), id: '0-0' }],
+        {
+          COUNT: 100,
+        },
+      );
+      const entries = events?.[0]?.[1] ?? [];
+
+      const deduplicatedEvent = streamEntriesToEvents(entries).find(
+        event =>
+          event.event === 'deduplicated' &&
+          event.jobId === 'a1' &&
+          event.deduplicationId === dedupId &&
+          event.deduplicatedJobId === 'a2',
+      );
+
+      expect(deduplicatedEvent).toBeDefined();
+      const originalJob = await queue.getJob('a1');
+      const deduplicatedJob = await queue.getJob('a2');
+
+      expect(originalJob).toBeDefined();
+      expect(deduplicatedJob).toBeUndefined();
     });
 
     describe('when removing deduplication key', () => {
@@ -235,7 +238,7 @@ describe('deduplication', () => {
     });
 
     describe('when ttl is provided', () => {
-      it('used a fixed time period and emits deduplicated event', async () => {
+      it('uses a fixed time period and emits deduplicated event', async () => {
         const testName = 'test';
 
         const job = await queue.add(
@@ -663,7 +666,7 @@ describe('deduplication', () => {
     });
 
     describe('when ttl is not provided', () => {
-      it('waits until job is finished before removing debounce key', async () => {
+      it('waits until job is finished before removing deduplication key', async () => {
         const testName = 'test';
 
         const worker = new Worker(
@@ -706,7 +709,11 @@ describe('deduplication', () => {
 
         worker.run();
 
-        await queue.add(testName, { foo: 'bar' }, { debounce: { id: 'a1' } });
+        await queue.add(
+          testName,
+          { foo: 'bar' },
+          { deduplication: { id: 'a1' } },
+        );
 
         await completing;
 
@@ -1003,11 +1010,10 @@ describe('deduplication', () => {
     it('should still deduplicate when dedup job is waiting (not active)', async () => {
       const testName = 'test';
       const deduplicationId = 'dedup-waiting-1';
-
-      let deduplicatedCount = 0;
-      queueEvents.on('deduplicated', () => {
-        deduplicatedCount++;
-      });
+      // This assertion only needs the small set of events produced in this
+      // test.
+      const maxEventsToRead = 10;
+      const client = await getRedisClient(queue);
 
       // Add first job (goes to waiting, not active since no worker)
       const job1 = await queue.add(
@@ -1033,11 +1039,23 @@ describe('deduplication', () => {
         },
       );
 
-      await delay(100);
+      const events = await client.xread(
+        [{ key: queue.toKey('events'), id: '0-0' }],
+        {
+          COUNT: maxEventsToRead,
+        },
+      );
+      const entries = events?.[0]?.[1] ?? [];
+      const deduplicatedEvents = streamEntriesToEvents(entries).filter(
+        event =>
+          event.event === 'deduplicated' &&
+          event.jobId === job1.id &&
+          event.deduplicationId === deduplicationId,
+      );
 
       // job2 should have the same ID as job1 (was deduplicated)
       expect(job2.id).toBe(job1.id);
-      expect(deduplicatedCount).toBe(1);
+      expect(deduplicatedEvents).toHaveLength(1);
     });
 
     it('should replace stored data with latest when multiple jobs added while active', async () => {

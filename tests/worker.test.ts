@@ -1698,9 +1698,32 @@ describe('workers', () => {
       );
       await worker.waitUntilReady();
 
+      let bulkStart = 0;
+      let bulkCompletedCount = 0;
+
+      const completing2 = new Promise<void>(resolve => {
+        worker.on('completed', job => {
+          if (!bulkStart) {
+            return;
+          }
+
+          bulkCompletedCount += 1;
+
+          if (bulkCompletedCount === 2) {
+            const timeDiff = Date.now() - bulkStart;
+            expect(timeDiff).toBeGreaterThanOrEqual(4000);
+            expect(timeDiff).toBeLessThan(4500);
+            expect(job.delay).toBe(0);
+            resolve();
+          }
+        });
+      });
+
       // after this event, worker should be drained
       const completing = new Promise<void>(resolve => {
         worker.once('completed', async () => {
+          bulkStart = Date.now();
+
           await queue.addBulk([
             { name: 'test1', data: { idx: 0, foo: 'bar' } },
             {
@@ -1717,20 +1740,6 @@ describe('workers', () => {
       await Job.create(queue, 'test1', { foo: 'bar' });
 
       await completing;
-
-      const now = Date.now();
-      const completing2 = new Promise<void>(resolve => {
-        worker.on(
-          'completed',
-          after(2, job => {
-            const timeDiff = Date.now() - now;
-            expect(timeDiff).toBeGreaterThanOrEqual(4000);
-            expect(timeDiff).toBeLessThan(4500);
-            expect(job.delay).toBe(0);
-            resolve();
-          }),
-        );
-      });
 
       await completing2;
       await worker.close();
@@ -1795,6 +1804,60 @@ describe('workers', () => {
     // NOTE: 'when priority counter is having a high number' is Redis-specific
     // (it pre-seeds the `:pc` counter past the 32-bit boundary via `incrby`) and
     // lives in `worker.redis.test.ts`.
+
+    describe('when jobs are added with the maximum allowed priority value', () => {
+      it('should process jobs with the same priority in FIFO order', async () => {
+        const maxPriority = 2097151;
+        const numJobs = 5;
+
+        const jobs = Array.from(Array(numJobs).keys()).map(index => ({
+          name: 'test',
+          data: { order: index },
+          opts: { priority: maxPriority },
+        }));
+        await queue.addBulk(jobs);
+
+        const processedOrder: number[] = [];
+        let processor;
+        const processing = new Promise<void>((resolve, reject) => {
+          processor = async (job: Job) => {
+            try {
+              processedOrder.push(job.data.order);
+              if (processedOrder.length === numJobs) {
+                resolve();
+              }
+            } catch (err) {
+              reject(err);
+            }
+          };
+        });
+
+        const worker = new Worker(queueName, processor, { connection, prefix });
+        await worker.waitUntilReady();
+
+        await processing;
+
+        expect(processedOrder).toEqual([0, 1, 2, 3, 4]);
+
+        await worker.close();
+      });
+
+      it('should reject jobs above the maximum allowed priority value', async () => {
+        await expect(
+          queue.add('test', { order: 0 }, { priority: 2097152 }),
+        ).rejects.toThrow('Priority should be between 0 and 2097151');
+
+        await expect(
+          queue.addBulk([
+            {
+              name: 'test',
+              data: { order: 0 },
+              opts: { priority: 2097152 },
+            },
+          ]),
+        ).rejects.toThrow('Priority should be between 0 and 2097151');
+      });
+    });
 
     describe('while processing last active job', () => {
       it('should process prioritized job whithout delay', async () => {
@@ -2623,7 +2686,7 @@ describe('workers', () => {
             await runExecution;
             expect(worker.isRunning()).toBe(false);
 
-            worker.resume();
+            await worker.resume();
             resolve();
           });
         });
@@ -2709,7 +2772,7 @@ describe('workers', () => {
         expect(worker.isRunning()).toBe(true);
 
         // Resume should work even though isRunning() is true
-        worker.resume();
+        await worker.resume();
         expect(worker.isPaused()).toBe(false);
         expect(worker.isRunning()).toBe(true);
 
@@ -4649,7 +4712,7 @@ describe('workers', () => {
       const job1 = (await worker.getNextJob(token, { block: false })) as Job;
       expect(job1).toBe(undefined);
 
-      worker.resume();
+      await worker.resume();
 
       const job2 = (await worker.getNextJob(token, { block: false })) as Job;
       const isActive = await job2.isActive();

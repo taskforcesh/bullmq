@@ -787,7 +787,7 @@ export class Queue<
         const normalizedType = type === 'waiting' ? 'wait' : type;
 
         while (deletedCount < maxCount) {
-          const jobsIds = await this.backend.cleanJobsInSet(
+          const jobsIds = await this.backend.cleanJobsByState(
             normalizedType,
             timestamp,
             maxCountPerCall,
@@ -806,7 +806,7 @@ export class Queue<
           [TelemetryAttributes.QueueGrace]: grace,
           [TelemetryAttributes.JobType]: type,
           [TelemetryAttributes.QueueCleanLimit]: maxCount,
-          [TelemetryAttributes.JobIds]: deletedJobsIds,
+          [TelemetryAttributes.QueueCleanCount]: deletedCount,
         });
 
         return deletedJobsIds;
@@ -869,7 +869,7 @@ export class Queue<
 
         let cursor = 0;
         do {
-          cursor = await this.backend.retryJobs(
+          cursor = await this.backend.retryFinishedJobs(
             opts.state,
             opts.count,
             opts.timestamp,

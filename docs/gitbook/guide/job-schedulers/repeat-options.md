@@ -42,9 +42,31 @@ await myQueue.upsertJobScheduler(
 );
 ```
 
+#### Timezone (`tz`)
+
+Use `tz` to evaluate cron patterns in a specific timezone.
+
+```typescript
+await myQueue.upsertJobScheduler(
+  'utc-cron-job',
+  {
+    pattern: '0 15 3 * * *',
+    tz: 'UTC',
+  },
+  {
+    name: 'utc-execution-job',
+    data: { message: 'Runs at 03:15 UTC' },
+  },
+);
+```
+
+{% hint style="info" %}
+If you previously used `repeat.utc`, replace it with `tz: 'UTC'`.
+{% endhint %}
+
 #### Limit
 
-This setting is used to limit the number of times a job will be repeated. When the count reaches this limit, no more jobs will be produced for the given job scheculer.
+This setting is used to limit the number of times a job will be repeated. When the count reaches this limit, no more jobs will be produced for the given job scheduler.
 
 ```typescript
 await myQueue.upsertJobScheduler(
