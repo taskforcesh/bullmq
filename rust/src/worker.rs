@@ -230,6 +230,10 @@ fn should_convert_discarded_error(error: &Error) -> bool {
     )
 }
 
+fn processing_drained(active_job_count: usize, active_fetchers: usize) -> bool {
+    active_job_count == 0 && active_fetchers == 0
+}
+
 /// Shared context for all worker loops within a single Worker instance.
 ///
 /// Pre-computes keys and holds all shared state needed by the processing loops,
@@ -247,7 +251,6 @@ struct LoopContext {
     desired_concurrency: Arc<AtomicUsize>,
     concurrency_gate: Arc<Notify>,
     active_fetchers: Arc<AtomicUsize>,
-
     // Pre-computed keys (avoid re-generating on every call)
     move_to_active_keys: Vec<String>,
     move_to_finished_base_keys: Vec<String>,
@@ -261,6 +264,25 @@ struct LoopContext {
     // Token generation
     worker_id: String,
     token_counter: std::sync::atomic::AtomicU64,
+}
+
+/// RAII guard for an acquired concurrency slot.
+///
+/// Ensures the slot is always released when dropped, including on panic.
+struct ConcurrencySlotGuard {
+    ctx: Arc<LoopContext>,
+}
+
+impl ConcurrencySlotGuard {
+    fn new(ctx: Arc<LoopContext>) -> Self {
+        Self { ctx }
+    }
+}
+
+impl Drop for ConcurrencySlotGuard {
+    fn drop(&mut self) {
+        Worker::release_concurrency_slot(&self.ctx);
+    }
 }
 
 impl LoopContext {
@@ -423,6 +445,9 @@ fn pack_move_to_finished_opts(
     if opts.name.is_some() {
         len += 1;
     }
+    if opts.limiter.is_some() {
+        len += 1;
+    }
 
     let mut buf = Vec::with_capacity(160);
     write_map_len(&mut buf, len).unwrap();
@@ -467,6 +492,18 @@ fn pack_move_to_finished_opts(
     if let Some(name) = opts.name.as_deref() {
         write_str(&mut buf, "name").unwrap();
         write_str(&mut buf, name).unwrap();
+    }
+
+    // Include the limiter so that, when the script fetches the next job in the
+    // same round-trip (`fetchNext`), rate limiting is still honoured. Mirrors
+    // the Node.js `moveToFinishedArgs` opts (`limiter: opts.limiter`).
+    if let Some(ref limiter) = opts.limiter {
+        write_str(&mut buf, "limiter").unwrap();
+        write_map_len(&mut buf, 2).unwrap();
+        write_str(&mut buf, "max").unwrap();
+        write_uint(&mut buf, limiter.max).unwrap();
+        write_str(&mut buf, "duration").unwrap();
+        write_uint(&mut buf, limiter.duration).unwrap();
     }
 
     buf
@@ -726,11 +763,13 @@ impl Worker {
         // Wait for active jobs to drain
         let deadline = tokio::time::Instant::now() + Duration::from_millis(timeout_ms);
         loop {
-            if self.active_jobs.read().await.is_empty() {
+            let active_job_count = self.active_jobs.read().await.len();
+            let active_fetchers = self.active_fetchers.load(Ordering::SeqCst);
+            if processing_drained(active_job_count, active_fetchers) {
                 break;
             }
             if tokio::time::Instant::now() >= deadline {
-                warn!("close timeout reached with active jobs remaining");
+                warn!("close timeout reached with active work remaining");
                 break;
             }
             tokio::time::sleep(Duration::from_millis(100)).await;
@@ -868,6 +907,7 @@ impl Worker {
             if !Self::acquire_concurrency_slot(&ctx).await {
                 break; // closing
             }
+            let slot_guard = ConcurrencySlotGuard::new(ctx.clone());
 
             let token = ctx.next_token();
 
@@ -883,12 +923,19 @@ impl Worker {
 
             match fetch_result {
                 Ok(FetchResult::Job(job)) => {
-                    Self::process_fetched_job(&ctx, *job, &token).await;
-                    Self::release_concurrency_slot(&ctx);
+                    // Process the fetched job. When the finishing script fetches
+                    // the next job in the same round-trip, keep processing that
+                    // job directly (reusing the same token, as Node.js does)
+                    // until the chain runs dry — avoiding a `moveToActive` call
+                    // per job.
+                    let mut next = Some(*job);
+                    while let Some(current) = next.take() {
+                        next = Self::process_fetched_job(&ctx, current, &token).await;
+                    }
                 }
                 Ok(FetchResult::NextTimestamp(next_ts)) => {
+                    drop(slot_guard);
                     // No job ready, but there's a delayed job coming
-                    Self::release_concurrency_slot(&ctx);
                     let now = SystemTime::now()
                         .duration_since(UNIX_EPOCH)
                         .unwrap()
@@ -905,8 +952,8 @@ impl Worker {
                     continue;
                 }
                 Ok(FetchResult::RateLimited(ttl_ms)) => {
+                    drop(slot_guard);
                     // Rate limited — wait for the TTL to expire (capped by maximumRateLimitDelay)
-                    Self::release_concurrency_slot(&ctx);
                     let delay = ttl_ms.min(ctx.opts.maximum_rate_limit_delay);
                     tokio::select! {
                         _ = tokio::time::sleep(Duration::from_millis(delay)) => {}
@@ -915,7 +962,7 @@ impl Worker {
                     continue;
                 }
                 Ok(FetchResult::Empty) => {
-                    Self::release_concurrency_slot(&ctx);
+                    drop(slot_guard);
                     let _ = ctx.event_tx.send(WorkerEvent::Drained);
                     // Use select to allow periodic re-check of `closing` flag
                     tokio::select! {
@@ -925,7 +972,7 @@ impl Worker {
                     continue;
                 }
                 Err(e) => {
-                    Self::release_concurrency_slot(&ctx);
+                    drop(slot_guard);
                     let _ = ctx.event_tx.send(WorkerEvent::Error(e.to_string()));
                     tokio::time::sleep(Duration::from_millis(ctx.opts.run_retry_delay)).await;
                     continue;
@@ -966,9 +1013,13 @@ impl Worker {
         ctx.active_fetchers.fetch_sub(1, Ordering::SeqCst);
         ctx.concurrency_gate.notify_one();
     }
-
     /// Process a job that was successfully fetched from the queue.
-    async fn process_fetched_job(ctx: &LoopContext, mut job: Job, token: &str) {
+    ///
+    /// Returns the next job to process when the finishing script fetched one in
+    /// the same round-trip (see [`Self::move_to_finished_fast`]). The caller can
+    /// process the returned job directly, reusing `token`, without issuing a
+    /// separate `moveToActive` call.
+    async fn process_fetched_job(ctx: &LoopContext, mut job: Job, token: &str) -> Option<Job> {
         let cancel_token = CancellationToken::new();
         let job_id = job.id().to_string();
         let job_attempts = job.opts().attempts.unwrap_or(0);
@@ -1016,7 +1067,7 @@ impl Worker {
 
         if let Some(reason) = unrecoverable_reason {
             let err = Error::Unrecoverable(reason);
-            Self::handle_job_failed(
+            let next_job = Self::handle_job_failed(
                 ctx,
                 &job_id,
                 token,
@@ -1025,6 +1076,7 @@ impl Worker {
                 job_attempts_made,
                 &job_opts,
                 &job_data,
+                Self::should_fetch_next(ctx),
             )
             .await;
             // Remove from active jobs before returning early, otherwise close()
@@ -1033,16 +1085,22 @@ impl Worker {
                 let mut jobs = ctx.active_jobs.write().await;
                 jobs.retain(|j| j.job_id != job_id);
             }
-            return;
+            return next_job;
         }
 
         // Run the processor
         let discarded = job.discarded_handle();
         let result = (ctx.processor.clone())(job, cancel_token).await;
 
-        match result {
+        // Decide whether to fetch the next job in the same round-trip as the
+        // finishing script. Mirrors the Node.js `fetchNextCallback`: only chain
+        // when we are not shutting down/paused and still within the concurrency
+        // budget (this loop already owns one slot).
+        let fetch_next = Self::should_fetch_next(ctx);
+
+        let next_job = match result {
             Ok(return_value) => {
-                Self::handle_job_completed(
+                let next = Self::handle_job_completed(
                     ctx,
                     &job_id,
                     token,
@@ -1051,6 +1109,7 @@ impl Worker {
                     job_attempts_made,
                     &job_opts,
                     &job_data,
+                    fetch_next,
                 )
                 .await;
 
@@ -1078,6 +1137,8 @@ impl Worker {
                         )));
                     }
                 }
+
+                next
             }
             Err(e) => {
                 // If the processor called `job.discard()`, treat the failure as
@@ -1087,7 +1148,7 @@ impl Worker {
                 } else {
                     e
                 };
-                Self::handle_job_failed(
+                let next = Self::handle_job_failed(
                     ctx,
                     &job_id,
                     token,
@@ -1096,6 +1157,7 @@ impl Worker {
                     job_attempts_made,
                     &job_opts,
                     &job_data,
+                    fetch_next,
                 )
                 .await;
 
@@ -1123,17 +1185,33 @@ impl Worker {
                         )));
                     }
                 }
+
+                next
             }
-        }
+        };
 
         // Remove from active jobs
         {
             let mut jobs = ctx.active_jobs.write().await;
             jobs.retain(|j| j.job_id != job_id);
         }
+
+        next_job
+    }
+
+    /// Whether the finishing script should also fetch the next job in the same
+    /// round-trip. Mirrors the Node.js `fetchNextCallback`.
+    fn should_fetch_next(ctx: &LoopContext) -> bool {
+        !ctx.closing.load(Ordering::Relaxed)
+            && !ctx.paused.load(Ordering::Relaxed)
+            && ctx.active_fetchers.load(Ordering::Relaxed)
+                <= ctx.desired_concurrency.load(Ordering::Relaxed)
     }
 
     /// Handle a successfully completed job.
+    ///
+    /// Returns the next job to process when `fetch_next` was honoured by the
+    /// `moveToFinished` script (single round-trip completion + fetch).
     #[allow(clippy::too_many_arguments)]
     async fn handle_job_completed(
         ctx: &LoopContext,
@@ -1144,8 +1222,9 @@ impl Worker {
         job_attempts_made: u32,
         job_opts: &JobOptions,
         job_data: &serde_json::Value,
-    ) {
-        if let Err(e) = Self::move_to_finished_fast(
+        fetch_next: bool,
+    ) -> Option<Job> {
+        match Self::move_to_finished_fast(
             &ctx.conn,
             &ctx.move_to_finished_base_keys,
             &ctx.prefix_bytes,
@@ -1160,36 +1239,42 @@ impl Worker {
             &ctx.completed_key,
             &ctx.metrics_completed_key,
             &ctx.marker_key,
+            fetch_next,
         )
         .await
         {
-            // A negative status code from moveToFinished means the job could not be
-            // completed (e.g. it still has pending or failed children). Mirror the
-            // Node.js behaviour: turn the script code into a descriptive error and
-            // move the job to the failed state.
-            if let Error::Script { code, .. } = e {
-                let mapped = finished_error(code, job_id, "moveToFinished", "active");
-                Self::handle_job_failed(
-                    ctx,
-                    job_id,
-                    token,
-                    mapped,
-                    job_attempts,
-                    job_attempts_made,
-                    job_opts,
-                    job_data,
-                )
-                .await;
-                return;
+            Ok(next_job) => {
+                let _ = ctx.event_tx.send(WorkerEvent::Completed {
+                    job_id: job_id.to_string(),
+                    result: return_value.clone(),
+                });
+                next_job
             }
+            Err(e) => {
+                // A negative status code from moveToFinished means the job could not be
+                // completed (e.g. it still has pending or failed children). Mirror the
+                // Node.js behaviour: turn the script code into a descriptive error and
+                // move the job to the failed state.
+                if let Error::Script { code, .. } = e {
+                    let mapped = finished_error(code, job_id, "moveToFinished", "active");
+                    return Self::handle_job_failed(
+                        ctx,
+                        job_id,
+                        token,
+                        mapped,
+                        job_attempts,
+                        job_attempts_made,
+                        job_opts,
+                        job_data,
+                        fetch_next,
+                    )
+                    .await;
+                }
 
-            error!(job_id = %job_id, error = %e, "failed to move job to completed");
-            let _ = ctx.event_tx.send(WorkerEvent::Error(e.to_string()));
-        } else {
-            let _ = ctx.event_tx.send(WorkerEvent::Completed {
-                job_id: job_id.to_string(),
-                result: return_value.clone(),
-            });
+                error!(job_id = %job_id, error = %e, "failed to move job to completed");
+                let _ = ctx.event_tx.send(WorkerEvent::Error(e.to_string()));
+                None
+            }
         }
     }
 
@@ -1465,10 +1550,11 @@ impl Worker {
         job_attempts_made: u32,
         job_opts: &JobOptions,
         job_data: &serde_json::Value,
-    ) {
+        fetch_next: bool,
+    ) -> Option<Job> {
         // DelayedError / WaitingChildren: job was already moved by the processor
         if matches!(error, Error::Delayed | Error::WaitingChildren) {
-            return;
+            return None;
         }
 
         // RateLimited: the processor called `queue.rate_limit(..)` and signalled a
@@ -1479,7 +1565,7 @@ impl Worker {
                 error!(job_id = %job_id, error = %e, "failed to move rate-limited job back to wait");
                 let _ = ctx.event_tx.send(WorkerEvent::Error(e.to_string()));
             }
-            return;
+            return None;
         }
 
         let is_unrecoverable = matches!(error, Error::Unrecoverable(_));
@@ -1498,9 +1584,18 @@ impl Worker {
                 job_data,
             )
             .await;
+            None
         } else {
-            Self::move_to_permanent_failure(ctx, job_id, token, &error, job_attempts, job_opts)
-                .await;
+            Self::move_to_permanent_failure(
+                ctx,
+                job_id,
+                token,
+                &error,
+                job_attempts,
+                job_opts,
+                fetch_next,
+            )
+            .await
         }
     }
 
@@ -1527,9 +1622,19 @@ impl Worker {
             .await;
 
             if delay == -1 {
-                // Custom backoff says don't retry — move to failed
-                Self::move_to_permanent_failure(ctx, job_id, token, error, job_attempts, job_opts)
-                    .await;
+                // Custom backoff says don't retry — move to failed.
+                // Never fetch the next job here: the retry path discards the
+                // return value, so a chained job would be stranded in active.
+                Self::move_to_permanent_failure(
+                    ctx,
+                    job_id,
+                    token,
+                    error,
+                    job_attempts,
+                    job_opts,
+                    false,
+                )
+                .await;
                 return;
             } else if delay > 0 {
                 Self::move_to_delayed_for_retry(
@@ -1564,6 +1669,9 @@ impl Worker {
     }
 
     /// Move a job to permanent failure state.
+    ///
+    /// Returns the next job to process when `fetch_next` was honoured by the
+    /// `moveToFinished` script (single round-trip failure + fetch).
     async fn move_to_permanent_failure(
         ctx: &LoopContext,
         job_id: &str,
@@ -1571,9 +1679,10 @@ impl Worker {
         error: &Error,
         job_attempts: u32,
         job_opts: &JobOptions,
-    ) {
+        fetch_next: bool,
+    ) -> Option<Job> {
         let error_value = serde_json::Value::String(error.to_string());
-        if let Err(move_err) = Self::move_to_finished_fast(
+        let next_job = match Self::move_to_finished_fast(
             &ctx.conn,
             &ctx.move_to_finished_base_keys,
             &ctx.prefix_bytes,
@@ -1588,16 +1697,22 @@ impl Worker {
             &ctx.failed_key,
             &ctx.metrics_failed_key,
             &ctx.marker_key,
+            fetch_next,
         )
         .await
         {
-            error!(job_id = %job_id, error = %move_err, "failed to move job to failed");
-            let _ = ctx.event_tx.send(WorkerEvent::Error(move_err.to_string()));
-        }
+            Ok(next) => next,
+            Err(move_err) => {
+                error!(job_id = %job_id, error = %move_err, "failed to move job to failed");
+                let _ = ctx.event_tx.send(WorkerEvent::Error(move_err.to_string()));
+                None
+            }
+        };
         let _ = ctx.event_tx.send(WorkerEvent::Failed {
             job_id: job_id.to_string(),
             error: error.to_string(),
         });
+        next_job
     }
 
     /// Move a job from the active list back to wait (or prioritized, if it has a
@@ -1706,6 +1821,12 @@ impl Worker {
     }
 
     /// Fast version of move_to_completed/failed using pre-computed base keys.
+    ///
+    /// When `fetch_next` is `true`, the `moveToFinished` script also fetches and
+    /// locks the next job to process in the same round-trip (mirroring the
+    /// Node.js worker). The fetched job — if any — is returned so the caller can
+    /// process it directly without an extra `moveToActive` call. The fetched
+    /// job is locked with the same `token` that finished the current job.
     #[allow(clippy::too_many_arguments)]
     async fn move_to_finished_fast(
         conn: &RedisConnection,
@@ -1722,7 +1843,8 @@ impl Worker {
         target_set_key: &str,
         metrics_key: &str,
         marker_key: &str,
-    ) -> Result<(), Error> {
+        fetch_next: bool,
+    ) -> Result<Option<Job>, Error> {
         let script = conn
             .scripts()
             .get("moveToFinished")
@@ -1768,13 +1890,14 @@ impl Worker {
         let now_bytes = now.to_string().into_bytes();
         let opts_packed = pack_move_to_finished_opts(token, opts, job_opts, attempts, target);
         let fields_to_update: Vec<u8> = Vec::new();
+        let fetch_next_flag: &[u8] = if fetch_next { b"1" } else { b"0" };
         let args: Vec<&[u8]> = vec![
             job_id_bytes,
             &now_bytes,
             field_name,
             field_value,
             target.as_bytes(),
-            b"0",
+            fetch_next_flag,
             prefix_bytes,
             &opts_packed,
             &fields_to_update,
@@ -1785,7 +1908,17 @@ impl Worker {
 
         match result {
             redis::Value::Int(code) if code < 0 => Err(Error::from_script_code(code)),
-            _ => Ok(()),
+            // When `fetch_next` is set, the script returns the next job in the
+            // same `[HGETALL, jobId, expireTime, nextTimestamp]` shape as
+            // `moveToActive`. Any non-job result (rate limited, delayed marker,
+            // drained) simply means there is nothing to chain into.
+            redis::Value::Array(_) if fetch_next => {
+                match Self::parse_move_to_active_result(&result)? {
+                    FetchResult::Job(job) => Ok(Some(*job)),
+                    _ => Ok(None),
+                }
+            }
+            _ => Ok(None),
         }
     }
 
@@ -2325,7 +2458,7 @@ impl Drop for Worker {
 
 #[cfg(test)]
 mod tests {
-    use super::should_convert_discarded_error;
+    use super::{processing_drained, should_convert_discarded_error};
     use crate::error::Error;
 
     #[test]
@@ -2348,5 +2481,12 @@ mod tests {
         assert!(!should_convert_discarded_error(&Error::Unrecoverable(
             "fatal".to_string()
         )));
+    }
+
+    #[test]
+    fn processing_is_not_drained_while_fetcher_is_chaining_next_job() {
+        assert!(!processing_drained(0, 1));
+        assert!(!processing_drained(1, 0));
+        assert!(processing_drained(0, 0));
     }
 }
