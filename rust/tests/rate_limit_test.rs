@@ -2,6 +2,7 @@
 
 mod common;
 
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -138,6 +139,82 @@ async fn test_worker_rate_limit_does_not_block_without_limiter() {
     );
 
     worker.close(5000).await.unwrap();
+    cleanup_queue(&queue).await;
+}
+
+#[tokio::test]
+async fn test_worker_fetch_next_respects_limiter() {
+    let name = test_queue_name();
+    let conn_opts = test_connection();
+    let queue_opts = QueueOptions {
+        connection: conn_opts.clone(),
+        ..Default::default()
+    };
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
+
+    for i in 0..3 {
+        queue
+            .add("fetch-next-rate-test", serde_json::json!({"idx": i}))
+            .options(JobOptions::default())
+            .await
+            .unwrap();
+    }
+
+    let processed = Arc::new(AtomicUsize::new(0));
+    let processed_counter = processed.clone();
+    let (tx, mut rx) = mpsc::channel(10);
+    let processor: ProcessorFn = Arc::new(move |_job: Job, _token: CancellationToken| {
+        let tx = tx.clone();
+        let processed = processed_counter.clone();
+        Box::pin(async move {
+            processed.fetch_add(1, Ordering::SeqCst);
+            tx.send(std::time::Instant::now()).await.unwrap();
+            Ok(serde_json::Value::Null)
+        })
+    });
+
+    let worker_opts = WorkerOptions {
+        connection: conn_opts.clone(),
+        autorun: true,
+        limiter: Some(RateLimiterOptions {
+            max: 1,
+            duration: 1000,
+        }),
+        ..Default::default()
+    };
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
+
+    let mut timestamps = Vec::new();
+    for _ in 0..3 {
+        let ts = tokio::time::timeout(Duration::from_secs(8), rx.recv())
+            .await
+            .expect("Timed out waiting for rate-limited job")
+            .unwrap();
+        timestamps.push(ts);
+    }
+
+    let first_gap = timestamps[1].duration_since(timestamps[0]);
+    let second_gap = timestamps[2].duration_since(timestamps[1]);
+    assert!(
+        first_gap >= Duration::from_millis(800),
+        "First fetch-next limiter gap should be >= 800ms, got {:?}",
+        first_gap
+    );
+    assert!(
+        second_gap >= Duration::from_millis(800),
+        "Second fetch-next limiter gap should be >= 800ms, got {:?}",
+        second_gap
+    );
+    assert_eq!(processed.load(Ordering::SeqCst), 3);
+
+    worker.close(5000).await.unwrap();
+
+    let counts = queue.get_job_counts().await.unwrap();
+    assert_eq!(counts.completed, 3);
+    assert_eq!(counts.active, 0);
+
     cleanup_queue(&queue).await;
 }
 
