@@ -71,7 +71,12 @@ export class ChildPool {
       // be released back into the free pool, otherwise it becomes a "zombie"
       // that is reused for every subsequent job and fails them instantly.
       // Kill and remove it so a fresh child is forked on the next retain.
-      this.kill(child, 'SIGKILL').catch(() => {});
+      // The child also exits itself after a failed init (see ChildProcessor),
+      // so this is normally a no-op; log any kill failure instead of silently
+      // swallowing it so a lingering child would not go unnoticed.
+      this.kill(child, 'SIGKILL').catch(killErr => {
+        console.error('Failed to kill child after init error:', killErr);
+      });
       throw err;
     }
   }

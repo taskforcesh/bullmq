@@ -1,6 +1,7 @@
 import { pathToFileURL } from 'url';
 import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
+import { EventEmitter } from 'events';
 import {
   describe,
   beforeEach,
@@ -20,8 +21,15 @@ import {
   UNRECOVERABLE_ERROR,
   Worker,
 } from '../src/classes';
+import sandbox from '../src/classes/sandbox';
+import { ParentCommand } from '../src/enums';
 
-import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import {
+  delay,
+  errorToJSON,
+  randomUUID,
+  removeAllQueueData,
+} from '../src/utils';
 import { existsSync, unlinkSync, writeFileSync } from 'fs';
 const { stdout, stderr } = require('test-console');
 
@@ -226,6 +234,45 @@ describe('Sandboxed process using worker threads', () => {
 
       await worker.close();
     });
+  });
+});
+
+describe('Sandbox error message handling', () => {
+  // A child that refuses a Start (e.g. 'cannot start a not idling child
+  // process') reports the reason via ParentCommand.Error, whose payload is
+  // carried under the `err` key — unlike ParentCommand.Failed which uses
+  // `value`. The sandbox message handler must read from either key so the
+  // reason is never lost as an empty-message error. This guards the
+  // `msg.value ?? msg.err` fix independently of the child lifecycle, since the
+  // refusal path is otherwise hard to reach once init-failed children exit.
+  it('propagates the reason when ParentCommand.Error uses the `err` key', async () => {
+    const reason = 'cannot start a not idling child process';
+
+    const fakeChild: any = new EventEmitter();
+    fakeChild.exitCode = null;
+    fakeChild.signalCode = null;
+    fakeChild.processFile = 'fake-process-file';
+    fakeChild.pid = 1;
+    fakeChild.send = () => {
+      // Simulate the child refusing the Start command and reporting the reason
+      // under `err` (ParentCommand.Error), not `value` (ParentCommand.Failed).
+      queueMicrotask(() => {
+        fakeChild.emit('message', {
+          cmd: ParentCommand.Error,
+          err: errorToJSON(new Error(reason)),
+        });
+      });
+    };
+
+    const fakeChildPool: any = {
+      retain: async () => fakeChild,
+      release: () => {},
+    };
+
+    const processFn = sandbox('fake-process-file', fakeChildPool);
+    const fakeJob: any = { asJSONSandbox: () => ({}) };
+
+    await expect(processFn(fakeJob)).rejects.toThrow(reason);
   });
 });
 
