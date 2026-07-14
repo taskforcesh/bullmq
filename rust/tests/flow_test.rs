@@ -22,12 +22,12 @@ async fn test_flow_producer(prefix: &str) -> FlowProducer {
         connection: test_connection(),
         prefix: Some(prefix.to_string()),
     };
-    FlowProducer::new(opts).await.unwrap()
+    FlowProducer::with_options(opts).await.unwrap()
 }
 
 /// Helper to create a Queue with a specific prefix.
 async fn test_queue_with_prefix(name: &str, prefix: &str) -> Queue {
-    Queue::new(
+    Queue::with_options(
         name,
         QueueOptions {
             connection: test_connection(),
@@ -62,7 +62,7 @@ async fn should_process_children_before_the_parent() {
     ];
 
     // Child worker
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let children_processed = children_processed_clone.clone();
@@ -85,7 +85,7 @@ async fn should_process_children_before_the_parent() {
     let barrier = Arc::new(Barrier::new(2));
     let barrier_clone = barrier.clone();
 
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             let children_processed = children_processed.clone();
@@ -187,7 +187,7 @@ async fn should_process_parent_when_children_is_an_empty_array() {
     let barrier = Arc::new(Barrier::new(2));
     let barrier_clone = barrier.clone();
 
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -307,7 +307,7 @@ async fn should_process_a_chain_of_jobs() {
     let processing_order = Arc::new(std::sync::Mutex::new(Vec::new()));
 
     let order_gc = processing_order.clone();
-    let grandchild_worker = Worker::new(
+    let grandchild_worker = Worker::with_options(
         &grandchild_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let order = order_gc.clone();
@@ -329,7 +329,7 @@ async fn should_process_a_chain_of_jobs() {
     .unwrap();
 
     let order_c = processing_order.clone();
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let order = order_c.clone();
@@ -351,7 +351,7 @@ async fn should_process_a_chain_of_jobs() {
     let barrier_clone = barrier.clone();
     let order_p = processing_order.clone();
 
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let order = order_p.clone();
@@ -490,7 +490,7 @@ async fn should_not_process_parent_if_child_fails() {
     let parent_processed_clone = parent_processed.clone();
 
     // Child worker that always fails
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move { Err(bullmq::Error::ProcessingError("child failed".to_string())) })
@@ -505,7 +505,7 @@ async fn should_not_process_parent_if_child_fails() {
     .unwrap();
 
     // Parent worker — should NOT be called
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             let parent_processed = parent_processed_clone.clone();
@@ -570,7 +570,7 @@ async fn should_fail_parent_when_child_with_fail_parent_on_failure_fails() {
     let parent_queue = test_queue_with_prefix(&parent_queue_name, prefix).await;
 
     // Child worker that fails permanently
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move { Err(bullmq::Error::Unrecoverable("child error".to_string())) })
@@ -585,7 +585,7 @@ async fn should_fail_parent_when_child_with_fail_parent_on_failure_fails() {
     .unwrap();
 
     // Parent worker — needed so the deferred failure is processed
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move { Ok(serde_json::Value::Null) })
@@ -649,7 +649,7 @@ async fn should_move_parent_to_wait_when_ignore_dependency_on_failure() {
     let barrier_clone = barrier.clone();
 
     // Child worker that always fails
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move { Err(bullmq::Error::ProcessingError("child error".to_string())) })
@@ -664,7 +664,7 @@ async fn should_move_parent_to_wait_when_ignore_dependency_on_failure() {
     .unwrap();
 
     // Parent worker — should be called since child failures are ignored
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -731,7 +731,7 @@ async fn should_move_parent_to_wait_when_remove_dependency_on_failure() {
     let barrier_clone = barrier.clone();
 
     // Child worker that always fails
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move { Err(bullmq::Error::ProcessingError("child error".to_string())) })
@@ -746,7 +746,7 @@ async fn should_move_parent_to_wait_when_remove_dependency_on_failure() {
     .unwrap();
 
     // Parent worker — should be called since child dependency is removed on failure
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -811,7 +811,7 @@ async fn should_process_parent_when_child_with_remove_on_fail_fails() {
     let barrier = Arc::new(Barrier::new(2));
     let barrier_clone = barrier.clone();
 
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -1011,7 +1011,7 @@ async fn should_process_parent_with_delay_after_children_complete() {
     let barrier_clone = barrier.clone();
 
     // Child worker
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move { Ok(serde_json::json!({"done": true})) })
@@ -1026,7 +1026,7 @@ async fn should_process_parent_with_delay_after_children_complete() {
     .unwrap();
 
     // Parent worker
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -1095,7 +1095,7 @@ async fn should_process_children_with_priority() {
     let barrier_clone = barrier.clone();
 
     // Child worker (processes sequentially since concurrency=1)
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let order = order_clone.clone();
@@ -1117,7 +1117,7 @@ async fn should_process_children_with_priority() {
     .unwrap();
 
     // Parent worker
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -1203,7 +1203,7 @@ async fn should_continue_parent_on_failure() {
     let barrier_clone = barrier.clone();
 
     // Child worker that always fails
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move { Err(bullmq::Error::ProcessingError("child failed".to_string())) })
@@ -1218,7 +1218,7 @@ async fn should_continue_parent_on_failure() {
     .unwrap();
 
     // Parent worker
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -1286,7 +1286,7 @@ async fn should_process_parent_with_multiple_children_where_some_fail() {
     let barrier_clone = barrier.clone();
 
     // Child worker: fails if idx is even
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             Box::pin(async move {
@@ -1308,7 +1308,7 @@ async fn should_process_parent_with_multiple_children_where_some_fail() {
     .unwrap();
 
     // Parent worker
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -1394,7 +1394,7 @@ async fn should_keep_children_results_in_parent_when_remove_on_complete() {
     let barrier_clone = barrier.clone();
 
     // Worker returns job name
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -1485,7 +1485,7 @@ async fn should_process_children_before_parent_with_children_values() {
     let values_clone = values.clone();
 
     // Child worker returns values[idx]
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let values = values_clone.clone();
@@ -1509,7 +1509,7 @@ async fn should_process_children_before_parent_with_children_values() {
     let parent_values_ok = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let parent_values_ok_clone = parent_values_ok.clone();
 
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -1604,7 +1604,7 @@ async fn should_get_dependencies_count_with_remove_on_fail() {
     let deps_count_ok = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let deps_count_ok_clone = deps_count_ok.clone();
 
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -1700,7 +1700,7 @@ async fn should_move_parent_to_wait_with_ignored_children_failures() {
     let ignored_count_ok = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let ignored_count_ok_clone = ignored_count_ok.clone();
 
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -1724,7 +1724,7 @@ async fn should_move_parent_to_wait_with_ignored_children_failures() {
     .unwrap();
 
     // Child worker always fails
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move { Err(bullmq::Error::ProcessingError("error".to_string())) })
@@ -1828,13 +1828,13 @@ async fn should_allow_parent_opts_on_the_root_job() {
 
     // Add a grandparent job first
     let grandparent_job = grandparent_queue
-        .add("grandparent", serde_json::json!({"foo": "bar"}), None)
+        .add("grandparent", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
     let grandparent_job_id = grandparent_job.id().to_string();
 
     // Child worker
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             Box::pin(async move {
@@ -1857,7 +1857,7 @@ async fn should_allow_parent_opts_on_the_root_job() {
     let parent_ok = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let parent_ok_clone = parent_ok.clone();
 
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -1888,7 +1888,7 @@ async fn should_allow_parent_opts_on_the_root_job() {
             queue_name: parent_queue_name.clone(),
             data: serde_json::json!({}),
             opts: Some(JobOptions {
-                parent: Some(bullmq::options::ParentOpts {
+                parent: Some(bullmq::options::ParentOptions {
                     id: grandparent_job_id.clone(),
                     queue: grandparent_queue_name.clone(),
                     wait_children: None,
@@ -1954,7 +1954,7 @@ async fn should_retry_child_with_fixed_backoff_in_flow() {
     let parent_queue = test_queue_with_prefix(&parent_queue_name, prefix).await;
 
     // Child worker fails on first attempt, succeeds on second
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             Box::pin(async move {
@@ -1977,7 +1977,7 @@ async fn should_retry_child_with_fixed_backoff_in_flow() {
     let barrier = Arc::new(Barrier::new(2));
     let barrier_clone = barrier.clone();
 
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -2055,7 +2055,7 @@ async fn should_not_process_parent_until_queue_is_unpaused() {
     let child_barrier = Arc::new(Barrier::new(2));
     let child_barrier_clone = child_barrier.clone();
 
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             let barrier = child_barrier_clone.clone();
@@ -2077,7 +2077,7 @@ async fn should_not_process_parent_until_queue_is_unpaused() {
     let parent_barrier = Arc::new(Barrier::new(2));
     let parent_barrier_clone = parent_barrier.clone();
 
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             let barrier = parent_barrier_clone.clone();
@@ -2218,7 +2218,7 @@ async fn should_get_unprocessed_dependencies() {
     let barrier = Arc::new(Barrier::new(2));
     let barrier_clone = barrier.clone();
 
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move { Ok(serde_json::json!("done")) })
@@ -2232,7 +2232,7 @@ async fn should_get_unprocessed_dependencies() {
     .await
     .unwrap();
 
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -2280,7 +2280,7 @@ async fn should_move_children_to_delayed() {
     let parent_queue = test_queue_with_prefix(&parent_queue_name, prefix).await;
 
     // Child worker
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             Box::pin(async move {
@@ -2303,7 +2303,7 @@ async fn should_move_children_to_delayed() {
     let parent_got_values = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let parent_got_values_clone = parent_got_values.clone();
 
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -2419,7 +2419,7 @@ async fn should_start_processing_parent_after_child_fails_with_continue() {
     let parent_check_ok = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let parent_check_ok_clone = parent_check_ok.clone();
 
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -2458,7 +2458,7 @@ async fn should_start_processing_parent_after_child_fails_with_continue() {
     .unwrap();
 
     // Child worker always fails
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move { Err(bullmq::Error::ProcessingError("failed".to_string())) })
@@ -2494,7 +2494,7 @@ async fn should_use_custom_prefix_to_add_jobs() {
     let parent_queue = test_queue_with_prefix(&parent_queue_name, custom_prefix).await;
 
     // Child worker
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             Box::pin(async move {
@@ -2517,7 +2517,7 @@ async fn should_use_custom_prefix_to_add_jobs() {
     let parent_ok = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let parent_ok_clone = parent_ok.clone();
 
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -2545,7 +2545,7 @@ async fn should_use_custom_prefix_to_add_jobs() {
         connection: test_connection(),
         prefix: Some(custom_prefix.to_string()),
     };
-    let flow = FlowProducer::new(flow_opts).await.unwrap();
+    let flow = FlowProducer::with_options(flow_opts).await.unwrap();
     let tree = flow
         .add(FlowJob {
             name: "parent-job".to_string(),
@@ -2604,7 +2604,7 @@ async fn should_move_parent_to_failed_in_deep_chain_with_fpof() {
     let gc_counter = Arc::new(std::sync::atomic::AtomicU32::new(0));
     let gc_counter_clone = gc_counter.clone();
 
-    let grandchild_worker = Worker::new(
+    let grandchild_worker = Worker::with_options(
         &grandchild_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             let counter = gc_counter_clone.clone();
@@ -2629,7 +2629,7 @@ async fn should_move_parent_to_failed_in_deep_chain_with_fpof() {
     .unwrap();
 
     // Child worker (just processes normally)
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move { Ok(serde_json::json!("child-done")) })
@@ -2644,7 +2644,7 @@ async fn should_move_parent_to_failed_in_deep_chain_with_fpof() {
     .unwrap();
 
     // Parent worker (just processes normally)
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move { Ok(serde_json::json!("parent-done")) })
@@ -2816,7 +2816,7 @@ async fn should_process_parent_after_child_fails_with_unprocessed_siblings() {
     let parent_check_ok_clone = parent_check_ok.clone();
     let child_qualified_name = format!("{}:{}", prefix, child_queue_name);
 
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -2846,7 +2846,7 @@ async fn should_process_parent_after_child_fails_with_unprocessed_siblings() {
 
     // Child worker: fails the specific child, processes others normally
     let fail_id = tree.children.as_ref().unwrap()[2].job.id().to_string();
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let fail_id = fail_id.clone();
@@ -2894,7 +2894,7 @@ async fn should_move_parent_to_wait_when_remove_on_fail_child_fails() {
     let deps_ok = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let deps_ok_clone = deps_ok.clone();
 
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -3002,7 +3002,7 @@ async fn should_move_parent_to_delayed_after_child_fails_with_cpof() {
     let child_qualified_name = format!("{}:{}", prefix, child_queue_name);
 
     // Child worker always fails
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move { Err(bullmq::Error::ProcessingError("failed".to_string())) })
@@ -3030,7 +3030,7 @@ async fn should_move_parent_to_delayed_after_child_fails_with_cpof() {
     let parent_ok = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let parent_ok_clone = parent_ok.clone();
 
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -3108,7 +3108,7 @@ async fn should_move_parent_to_prioritized_after_child_fails_with_cpof() {
         .unwrap();
 
     // Child worker always fails
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move { Err(bullmq::Error::ProcessingError("failed".to_string())) })
@@ -3143,7 +3143,7 @@ async fn should_move_parent_to_prioritized_after_child_fails_with_cpof() {
     let parent_ok = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let parent_ok_clone = parent_ok.clone();
 
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -3195,7 +3195,7 @@ async fn should_move_parent_to_delayed_after_children_complete() {
     let parent_queue = test_queue_with_prefix(&parent_queue_name, prefix).await;
 
     // Child worker
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             Box::pin(async move {
@@ -3218,7 +3218,7 @@ async fn should_move_parent_to_delayed_after_children_complete() {
     let parent_ok = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let parent_ok_clone = parent_ok.clone();
 
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -3302,7 +3302,7 @@ async fn should_add_bulk_and_process_flows() {
     let root_processed_clone = root_processed.clone();
 
     // Child worker
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             Box::pin(async move {
@@ -3323,7 +3323,7 @@ async fn should_add_bulk_and_process_flows() {
     let barrier = Arc::new(Barrier::new(2));
     let barrier_clone = barrier.clone();
 
-    let root_worker = Worker::new(
+    let root_worker = Worker::with_options(
         &root_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let root_processed = root_processed_clone.clone();
@@ -3484,7 +3484,7 @@ async fn should_ignore_parent_when_multiple_cpof_children_fail() {
     let parent_check_ok_clone = parent_check_ok.clone();
     let child_qualified_name = format!("{}:{}", prefix, child_queue_name);
 
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -3516,7 +3516,7 @@ async fn should_ignore_parent_when_multiple_cpof_children_fail() {
     // Child worker: fails the cpof children, succeeds others
     let fail_1 = child_to_fail_2.clone();
     let fail_2 = tree.children.as_ref().unwrap()[1].job.id().to_string();
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let fail_1 = fail_1.clone();
@@ -3565,7 +3565,7 @@ async fn should_move_grandparent_to_wait_with_rdof_and_fpof_cascade() {
     let gc_counter = Arc::new(std::sync::atomic::AtomicU32::new(0));
     let gc_counter_clone = gc_counter.clone();
 
-    let grandchild_worker = Worker::new(
+    let grandchild_worker = Worker::with_options(
         &grandchild_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let counter = gc_counter_clone.clone();
@@ -3589,7 +3589,7 @@ async fn should_move_grandparent_to_wait_with_rdof_and_fpof_cascade() {
     .unwrap();
 
     // Child worker processes normally
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move { Ok(serde_json::json!("child-done")) })
@@ -3687,7 +3687,7 @@ async fn should_move_grandparent_to_wait_with_idof_and_fpof_cascade() {
     let grandchild_queue = test_queue_with_prefix(&grandchild_queue_name, prefix).await;
 
     // Grandchild worker: "bar" data fails, "baz" succeeds
-    let grandchild_worker = Worker::new(
+    let grandchild_worker = Worker::with_options(
         &grandchild_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             Box::pin(async move {
@@ -3709,7 +3709,7 @@ async fn should_move_grandparent_to_wait_with_idof_and_fpof_cascade() {
     .unwrap();
 
     // Child worker processes normally
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move { Ok(serde_json::json!("child-done")) })
@@ -3847,7 +3847,7 @@ async fn should_move_parent_to_wait_when_last_child_removes_dependency() {
     let deps_ok = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let deps_ok_clone = deps_ok.clone();
 
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -3941,7 +3941,7 @@ async fn should_keep_parent_waiting_when_removing_one_of_many_dependencies() {
     let processed_ok = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let processed_ok_clone = processed_ok.clone();
 
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -4397,7 +4397,7 @@ async fn should_wait_children_as_one_step_of_parent_job() {
     let flow = Arc::new(test_flow_producer(prefix).await);
 
     // Child worker - just completes
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(|_job: Job, _token: CancellationToken| {
             Box::pin(async move { Ok(serde_json::json!("child-done")) })
@@ -4419,7 +4419,7 @@ async fn should_wait_children_as_one_step_of_parent_job() {
     let flow_clone = flow.clone();
     let child_queue_name_clone = child_queue_name.clone();
 
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let flow = flow_clone.clone();
@@ -4437,7 +4437,7 @@ async fn should_wait_children_as_one_step_of_parent_job() {
                             queue_name: child_qn,
                             data: serde_json::json!({}),
                             opts: Some(JobOptions {
-                                parent: Some(bullmq::ParentOpts {
+                                parent: Some(bullmq::ParentOptions {
                                     id: job.id().to_string(),
                                     queue: qualified_name,
                                     wait_children: None,
@@ -4488,7 +4488,7 @@ async fn should_wait_children_as_one_step_of_parent_job() {
 
     // Add the parent job
     parent_queue
-        .add("test", serde_json::json!({"step": 0}), None)
+        .add("test", serde_json::json!({"step": 0}))
         .await
         .unwrap();
 
@@ -4517,7 +4517,7 @@ async fn should_fail_parent_when_child_with_fpof_failed_before_move_to_waiting_c
     let flow = Arc::new(test_flow_producer(prefix).await);
 
     // Child worker - fails immediately
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(|_job: Job, _token: CancellationToken| {
             Box::pin(async move { Err(bullmq::Error::ProcessingError("child failed".to_string())) })
@@ -4539,7 +4539,7 @@ async fn should_fail_parent_when_child_with_fpof_failed_before_move_to_waiting_c
     let flow_clone = flow.clone();
     let child_queue_name_clone = child_queue_name.clone();
 
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let flow = flow_clone.clone();
@@ -4557,7 +4557,7 @@ async fn should_fail_parent_when_child_with_fpof_failed_before_move_to_waiting_c
                             queue_name: child_qn,
                             data: serde_json::json!({}),
                             opts: Some(JobOptions {
-                                parent: Some(bullmq::ParentOpts {
+                                parent: Some(bullmq::ParentOptions {
                                     id: job.id().to_string(),
                                     queue: qualified_name,
                                     wait_children: None,
@@ -4609,7 +4609,7 @@ async fn should_fail_parent_when_child_with_fpof_failed_before_move_to_waiting_c
     .unwrap();
 
     parent_queue
-        .add("test", serde_json::json!({"step": 0}), None)
+        .add("test", serde_json::json!({"step": 0}))
         .await
         .unwrap();
 
@@ -4640,7 +4640,7 @@ async fn should_wait_children_as_one_step_with_grandchildren() {
     let flow = Arc::new(test_flow_producer(prefix).await);
 
     // Grandchild worker
-    let grandchild_worker = Worker::new(
+    let grandchild_worker = Worker::with_options(
         &grandchild_queue_name,
         Arc::new(|_job: Job, _token: CancellationToken| {
             Box::pin(async move { Ok(serde_json::json!("gc-done")) })
@@ -4655,7 +4655,7 @@ async fn should_wait_children_as_one_step_with_grandchildren() {
     .unwrap();
 
     // Child worker
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(|_job: Job, _token: CancellationToken| {
             Box::pin(async move { Ok(serde_json::json!("child-done")) })
@@ -4676,7 +4676,7 @@ async fn should_wait_children_as_one_step_with_grandchildren() {
     let child_queue_name_clone = child_queue_name.clone();
     let grandchild_queue_name_clone = grandchild_queue_name.clone();
 
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let flow = flow_clone.clone();
@@ -4694,7 +4694,7 @@ async fn should_wait_children_as_one_step_with_grandchildren() {
                             queue_name: child_qn,
                             data: serde_json::json!({}),
                             opts: Some(JobOptions {
-                                parent: Some(bullmq::ParentOpts {
+                                parent: Some(bullmq::ParentOptions {
                                     id: job.id().to_string(),
                                     queue: qualified_name,
                                     wait_children: None,
@@ -4751,7 +4751,7 @@ async fn should_wait_children_as_one_step_with_grandchildren() {
     .unwrap();
 
     parent_queue
-        .add("test", serde_json::json!({"step": 0}), None)
+        .add("test", serde_json::json!({"step": 0}))
         .await
         .unwrap();
 
@@ -4805,32 +4805,26 @@ async fn should_error_when_job_already_has_parent() {
 
     // Add a standalone job "wed"
     queue
-        .add(
-            "wed",
-            serde_json::json!({}),
-            Some(JobOptions {
-                job_id: Some("wed".to_string()),
-                ..Default::default()
-            }),
-        )
+        .add("wed", serde_json::json!({}))
+        .options(JobOptions {
+            job_id: Some("wed".to_string()),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
     // Try to add "mon" again as a child of "wed" - should fail since "mon" already has parent
     let result = queue
-        .add(
-            "mon",
-            serde_json::json!({}),
-            Some(JobOptions {
-                job_id: Some("mon".to_string()),
-                parent: Some(bullmq::ParentOpts {
-                    id: "wed".to_string(),
-                    queue: format!("{}:{}", prefix, queue_name),
-                    wait_children: None,
-                }),
-                ..Default::default()
+        .add("mon", serde_json::json!({}))
+        .options(JobOptions {
+            job_id: Some("mon".to_string()),
+            parent: Some(bullmq::ParentOptions {
+                id: "wed".to_string(),
+                queue: format!("{}:{}", prefix, queue_name),
+                wait_children: None,
             }),
-        )
+            ..Default::default()
+        })
         .await;
 
     assert!(
@@ -4888,7 +4882,7 @@ async fn should_get_a_flow_tree() {
         .unwrap();
 
     let tree = flow
-        .get_flow(bullmq::GetFlowOpts {
+        .get_flow(bullmq::GetFlowOptions {
             id: original_tree.job.id().to_string(),
             queue_name: parent_queue_name.clone(),
             prefix: Some(prefix.to_string()),
@@ -4984,7 +4978,7 @@ async fn should_propagate_get_flow_dependency_errors() {
         .unwrap();
 
     let result = flow
-        .get_flow(bullmq::GetFlowOpts {
+        .get_flow(bullmq::GetFlowOptions {
             id: original_tree.job.id().to_string(),
             queue_name: parent_queue_name.clone(),
             prefix: Some(prefix.to_string()),
@@ -5048,7 +5042,7 @@ async fn should_ignore_missing_child_jobs_when_loading_flow() {
         .unwrap();
 
     let result = flow
-        .get_flow(bullmq::GetFlowOpts {
+        .get_flow(bullmq::GetFlowOptions {
             id: original_tree.job.id().to_string(),
             queue_name: parent_queue_name.clone(),
             prefix: Some(prefix.to_string()),
@@ -5113,7 +5107,7 @@ async fn should_propagate_child_loading_errors_when_loading_flow() {
         .unwrap();
 
     let result = flow
-        .get_flow(bullmq::GetFlowOpts {
+        .get_flow(bullmq::GetFlowOptions {
             id: original_tree.job.id().to_string(),
             queue_name: parent_queue_name.clone(),
             prefix: Some(prefix.to_string()),
@@ -5202,7 +5196,7 @@ async fn should_get_part_of_flow_tree() {
         .unwrap();
 
     let tree = flow
-        .get_flow(bullmq::GetFlowOpts {
+        .get_flow(bullmq::GetFlowOptions {
             id: original_tree.job.id().to_string(),
             queue_name: parent_queue_name.clone(),
             prefix: Some(prefix.to_string()),
@@ -5284,7 +5278,7 @@ async fn should_reject_colon_in_flow_queue_names() {
     );
 
     let result = flow
-        .get_flow(bullmq::GetFlowOpts {
+        .get_flow(bullmq::GetFlowOptions {
             id: "1".to_string(),
             queue_name: "invalid:root".to_string(),
             prefix: Some(prefix.to_string()),
@@ -5803,7 +5797,7 @@ async fn should_not_remove_completed_children_with_remove_unprocessed() {
         .unwrap();
 
     // Process all children with a worker
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move { Ok(serde_json::json!(null)) })
@@ -5817,7 +5811,7 @@ async fn should_not_remove_completed_children_with_remove_unprocessed() {
     .await
     .unwrap();
 
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move {
@@ -5909,7 +5903,7 @@ async fn should_remove_all_children_after_processing() {
         .unwrap();
 
     // Process all jobs
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move { Ok(serde_json::json!(null)) })
@@ -5923,7 +5917,7 @@ async fn should_remove_all_children_after_processing() {
     .await
     .unwrap();
 
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move {
@@ -6032,7 +6026,7 @@ async fn should_remove_children_but_not_grandparent() {
         .unwrap();
 
     // Process children
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move { Ok(serde_json::json!(null)) })
@@ -6046,7 +6040,7 @@ async fn should_remove_children_but_not_grandparent() {
     .await
     .unwrap();
 
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move {
@@ -6144,7 +6138,7 @@ async fn should_not_remove_locked_job_in_tree() {
 
     // Start a worker that will hold a lock on a job (process slowly)
     let (tx, mut rx) = tokio::sync::mpsc::channel::<()>(1);
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             let tx = tx.clone();
@@ -6289,7 +6283,7 @@ async fn should_update_parent_deps_when_retrying_failed_child() {
     // Parent worker signals completion via barrier
     let barrier = Arc::new(Barrier::new(2));
     let barrier_clone = barrier.clone();
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -6308,7 +6302,7 @@ async fn should_update_parent_deps_when_retrying_failed_child() {
     .unwrap();
 
     // Child worker: on idx 0, update data to idx 1 and fail; on idx 1 succeed
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |mut job: Job, _token: CancellationToken| {
             Box::pin(async move {
@@ -6399,7 +6393,7 @@ async fn should_update_parent_deps_when_retrying_completed_child() {
     // Parent worker signals completion via barrier
     let barrier = Arc::new(Barrier::new(2));
     let barrier_clone = barrier.clone();
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             let barrier = barrier_clone.clone();
@@ -6418,7 +6412,7 @@ async fn should_update_parent_deps_when_retrying_completed_child() {
     .unwrap();
 
     // Child worker: updates data to idx+2 and completes
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |mut job: Job, _token: CancellationToken| {
             Box::pin(async move {
@@ -6538,7 +6532,7 @@ async fn should_return_error_when_some_add_bulk_commands_fail() {
                 queue_name: queue_name.clone(),
                 data: serde_json::json!({}),
                 opts: Some(JobOptions {
-                    parent: Some(bullmq::ParentOpts {
+                    parent: Some(bullmq::ParentOptions {
                         id: "missing-parent".to_string(),
                         queue: queue_key.clone(),
                         wait_children: None,
@@ -6584,7 +6578,7 @@ async fn should_throw_error_when_add_with_non_existing_parent() {
             queue_name: queue_name.clone(),
             data: serde_json::json!({"foo": "bar"}),
             opts: Some(JobOptions {
-                parent: Some(bullmq::ParentOpts {
+                parent: Some(bullmq::ParentOptions {
                     id: missing_parent_id.clone(),
                     queue: queue_key.clone(),
                     wait_children: None,
@@ -6658,7 +6652,7 @@ async fn should_get_a_flow_tree_using_default_prefix() {
 
     // Call get_flow WITHOUT specifying a prefix - should fall back to producer default
     let tree = flow
-        .get_flow(bullmq::GetFlowOpts {
+        .get_flow(bullmq::GetFlowOptions {
             id: original_tree.job.id().to_string(),
             queue_name: parent_queue_name.clone(),
             prefix: None,
@@ -6712,7 +6706,7 @@ async fn should_remove_processed_data_when_parent_remove_on_complete() {
     let child_queue = test_queue_with_prefix(&child_queue_name, prefix).await;
 
     // Child worker returns a value based on idx
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             Box::pin(async move {
@@ -6792,7 +6786,7 @@ async fn should_remove_processed_data_when_parent_remove_on_complete() {
     assert_eq!(deps.processed.len(), 3, "should have 3 processed children");
 
     // Now process the parent with a worker (removeOnComplete=true removes it)
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move { Ok(serde_json::Value::Null) })
@@ -6841,7 +6835,7 @@ async fn should_move_parent_to_wait_without_getting_stuck_with_remove_on_fail_ch
     let queue = test_queue_with_prefix(&queue_name, prefix).await;
 
     // Single worker on the queue: child0 fails, everything else succeeds.
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             Box::pin(async move {
@@ -6926,7 +6920,7 @@ async fn should_process_parent_added_while_child_is_active() {
     let queue = test_queue_with_prefix(&queue_name, prefix).await;
 
     // Worker sleeps ~1s per job so the child stays active long enough.
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move {
@@ -7014,7 +7008,7 @@ async fn should_move_parent_to_wait_if_child_already_completed() {
     let queue_name = test_queue_name();
     let queue = test_queue_with_prefix(&queue_name, prefix).await;
 
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move {
@@ -7184,7 +7178,7 @@ async fn should_process_children_before_parent_prioritizing_per_queue_name() {
     let gc_order_ok = Arc::new(AtomicBool::new(true));
     let gc_counter_c = gc_counter.clone();
     let gc_order_ok_c = gc_order_ok.clone();
-    let grand_worker = Worker::new(
+    let grand_worker = Worker::with_options(
         &grand_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let counter = gc_counter_c.clone();
@@ -7214,7 +7208,7 @@ async fn should_process_children_before_parent_prioritizing_per_queue_name() {
     let c_order_ok = Arc::new(AtomicBool::new(true));
     let c_counter_c = c_counter.clone();
     let c_order_ok_c = c_order_ok.clone();
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let counter = c_counter_c.clone();
@@ -7352,7 +7346,7 @@ async fn should_add_jobs_that_do_not_exist_continually() {
     let queue_name = test_queue_name();
     let queue = test_queue_with_prefix(&queue_name, prefix).await;
 
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move { Ok(serde_json::Value::Null) })
@@ -7487,7 +7481,7 @@ async fn should_begin_with_attempts_made_as_one_in_flow() {
     let attempts_ok_c = attempts_ok.clone();
     let completed_c = completed.clone();
 
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let attempts_ok = attempts_ok_c.clone();
@@ -7590,7 +7584,7 @@ async fn should_fail_parent_with_pending_dependencies_error() {
     // Step processor: at step 0 it adds a child whose parent is itself, then
     // updates step to 1 and finally to "finish" and returns. Because the child
     // is still pending, moveToFinished should fail the parent.
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let flow = flow_clone.clone();
@@ -7606,7 +7600,7 @@ async fn should_fail_parent_with_pending_dependencies_error() {
                             queue_name: child_qn,
                             data: serde_json::json!({}),
                             opts: Some(JobOptions {
-                                parent: Some(bullmq::ParentOpts {
+                                parent: Some(bullmq::ParentOptions {
                                     id: job.id().to_string(),
                                     queue: qualified_name,
                                     wait_children: None,
@@ -7639,7 +7633,7 @@ async fn should_fail_parent_with_pending_dependencies_error() {
     .unwrap();
 
     let job = queue
-        .add("test", serde_json::json!({"step": 0}), None)
+        .add("test", serde_json::json!({"step": 0}))
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -7682,7 +7676,7 @@ async fn should_fail_parent_with_pending_dependencies_error_fpof_child() {
     let flow_clone = flow.clone();
     let child_qn = child_queue_name.clone();
 
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let flow = flow_clone.clone();
@@ -7698,7 +7692,7 @@ async fn should_fail_parent_with_pending_dependencies_error_fpof_child() {
                             queue_name: child_qn,
                             data: serde_json::json!({}),
                             opts: Some(JobOptions {
-                                parent: Some(bullmq::ParentOpts {
+                                parent: Some(bullmq::ParentOptions {
                                     id: job.id().to_string(),
                                     queue: qualified_name,
                                     wait_children: None,
@@ -7731,7 +7725,7 @@ async fn should_fail_parent_with_pending_dependencies_error_fpof_child() {
     .unwrap();
 
     let job = queue
-        .add("test", serde_json::json!({"step": 0}), None)
+        .add("test", serde_json::json!({"step": 0}))
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -7771,7 +7765,7 @@ async fn should_process_children_before_parent_with_default_job_options() {
     let child_queue = test_queue_with_prefix(&child_queue_name, prefix).await;
 
     // Child worker returns a value keyed by idx.
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             Box::pin(async move {
@@ -7791,7 +7785,7 @@ async fn should_process_children_before_parent_with_default_job_options() {
     // Parent worker verifies it has 3 processed dependencies.
     let deps_ok = Arc::new(AtomicBool::new(false));
     let deps_ok_c = deps_ok.clone();
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let deps_ok = deps_ok_c.clone();
@@ -7825,7 +7819,7 @@ async fn should_process_children_before_parent_with_default_job_options() {
             }),
         },
     );
-    let flow_opts = bullmq::FlowOpts { queues_options };
+    let flow_opts = bullmq::FlowOptions { queues_options };
 
     let tree = flow
         .add_with_opts(
@@ -7918,7 +7912,7 @@ async fn should_fail_parent_and_grandparent_when_moving_to_waiting_children() {
     let flow = Arc::new(test_flow_producer(prefix).await);
 
     // Grandchild worker: fails immediately.
-    let grandchildren_worker = Worker::new(
+    let grandchildren_worker = Worker::with_options(
         &grandchildren_queue_name,
         Arc::new(|_job: Job, _token: CancellationToken| {
             Box::pin(async move { Err(bullmq::Error::ProcessingError("fail".to_string())) })
@@ -7953,7 +7947,7 @@ async fn should_fail_parent_and_grandparent_when_moving_to_waiting_children() {
     // Child worker (step): adds a grandchild with fpof, then waits & moves.
     let flow_child = flow.clone();
     let grand_qn = grandchildren_queue_name.clone();
-    let children_worker = Worker::new(
+    let children_worker = Worker::with_options(
         &children_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let flow = flow_child.clone();
@@ -7966,7 +7960,7 @@ async fn should_fail_parent_and_grandparent_when_moving_to_waiting_children() {
                     queue_name: grand_qn,
                     data: serde_json::json!({"idx": 0, "foo": "bar"}),
                     opts: Some(JobOptions {
-                        parent: Some(bullmq::ParentOpts {
+                        parent: Some(bullmq::ParentOptions {
                             id: job.id().to_string(),
                             queue: qualified_name,
                             wait_children: None,
@@ -7997,7 +7991,7 @@ async fn should_fail_parent_and_grandparent_when_moving_to_waiting_children() {
     // Root worker (step): adds a child with fpof, then waits & moves.
     let flow_root = flow.clone();
     let children_qn = children_queue_name.clone();
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let flow = flow_root.clone();
@@ -8010,7 +8004,7 @@ async fn should_fail_parent_and_grandparent_when_moving_to_waiting_children() {
                     queue_name: children_qn,
                     data: serde_json::json!({}),
                     opts: Some(JobOptions {
-                        parent: Some(bullmq::ParentOpts {
+                        parent: Some(bullmq::ParentOptions {
                             id: job.id().to_string(),
                             queue: qualified_name,
                             wait_children: None,
@@ -8039,15 +8033,12 @@ async fn should_fail_parent_and_grandparent_when_moving_to_waiting_children() {
     .unwrap();
 
     let job = queue
-        .add(
-            "test",
-            serde_json::json!({"step": 0}),
-            Some(JobOptions {
-                attempts: Some(3),
-                backoff: Some(bullmq::types::BackoffStrategy::Fixed(1000)),
-                ..Default::default()
-            }),
-        )
+        .add("test", serde_json::json!({"step": 0}))
+        .options(JobOptions {
+            attempts: Some(3),
+            backoff: Some(bullmq::types::BackoffStrategy::Fixed(1000)),
+            ..Default::default()
+        })
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -8108,7 +8099,7 @@ async fn should_fail_parent_with_last_error() {
     let flow = Arc::new(test_flow_producer(prefix).await);
 
     // Grandchild worker fails immediately.
-    let grandchildren_worker = Worker::new(
+    let grandchildren_worker = Worker::with_options(
         &grandchildren_queue_name,
         Arc::new(|_job: Job, _token: CancellationToken| {
             Box::pin(async move { Err(bullmq::Error::ProcessingError("fail".to_string())) })
@@ -8126,7 +8117,7 @@ async fn should_fail_parent_with_last_error() {
     let flow_root = flow.clone();
     let children_qn = children_queue_name.clone();
     let grand_qn = grandchildren_queue_name.clone();
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let flow = flow_root.clone();
@@ -8140,7 +8131,7 @@ async fn should_fail_parent_with_last_error() {
                     queue_name: children_qn,
                     data: serde_json::json!({}),
                     opts: Some(JobOptions {
-                        parent: Some(bullmq::ParentOpts {
+                        parent: Some(bullmq::ParentOptions {
                             id: job.id().to_string(),
                             queue: qualified_name,
                             wait_children: None,
@@ -8180,7 +8171,7 @@ async fn should_fail_parent_with_last_error() {
     .unwrap();
 
     let job = queue
-        .add("test", serde_json::json!({"step": 0}), None)
+        .add("test", serde_json::json!({"step": 0}))
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -8228,7 +8219,7 @@ async fn should_move_parent_to_failed_when_child_fails_parent_delayed() {
         Arc::new(tokio::sync::Mutex::new(None));
 
     // Grandchild worker: sleeps then fails.
-    let grandchildren_worker = Worker::new(
+    let grandchildren_worker = Worker::with_options(
         &grandchildren_queue_name,
         Arc::new(|_job: Job, _token: CancellationToken| {
             Box::pin(async move {
@@ -8247,7 +8238,7 @@ async fn should_move_parent_to_failed_when_child_fails_parent_delayed() {
     .unwrap();
 
     // Children worker: no-op (children that become processable just complete).
-    let children_worker = Worker::new(
+    let children_worker = Worker::with_options(
         &children_queue_name,
         Arc::new(|_job: Job, _token: CancellationToken| {
             Box::pin(async move { Ok(serde_json::Value::Null) })
@@ -8267,7 +8258,7 @@ async fn should_move_parent_to_failed_when_child_fails_parent_delayed() {
     let children_qn = children_queue_name.clone();
     let grand_qn = grandchildren_queue_name.clone();
     let child_id_slot_c = child_id_slot.clone();
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let flow = flow_root.clone();
@@ -8285,7 +8276,7 @@ async fn should_move_parent_to_failed_when_child_fails_parent_delayed() {
                             queue_name: children_qn,
                             data: serde_json::json!({}),
                             opts: Some(JobOptions {
-                                parent: Some(bullmq::ParentOpts {
+                                parent: Some(bullmq::ParentOptions {
                                     id: job.id().to_string(),
                                     queue: qualified_name,
                                     wait_children: None,
@@ -8341,15 +8332,12 @@ async fn should_move_parent_to_failed_when_child_fails_parent_delayed() {
     .unwrap();
 
     let job = queue
-        .add(
-            "test",
-            serde_json::json!({"step": 0}),
-            Some(JobOptions {
-                attempts: Some(3),
-                backoff: Some(bullmq::types::BackoffStrategy::Fixed(1000)),
-                ..Default::default()
-            }),
-        )
+        .add("test", serde_json::json!({"step": 0}))
+        .options(JobOptions {
+            attempts: Some(3),
+            backoff: Some(bullmq::types::BackoffStrategy::Fixed(1000)),
+            ..Default::default()
+        })
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -8404,7 +8392,7 @@ async fn should_move_parent_to_failed_when_child_fails_parent_prioritized() {
         Arc::new(tokio::sync::Mutex::new(None));
 
     // Grandchild worker: sleeps then fails.
-    let grandchildren_worker = Worker::new(
+    let grandchildren_worker = Worker::with_options(
         &grandchildren_queue_name,
         Arc::new(|_job: Job, _token: CancellationToken| {
             Box::pin(async move {
@@ -8423,7 +8411,7 @@ async fn should_move_parent_to_failed_when_child_fails_parent_prioritized() {
     .unwrap();
 
     // Children worker: no-op.
-    let children_worker = Worker::new(
+    let children_worker = Worker::with_options(
         &children_queue_name,
         Arc::new(|_job: Job, _token: CancellationToken| {
             Box::pin(async move { Ok(serde_json::Value::Null) })
@@ -8444,7 +8432,7 @@ async fn should_move_parent_to_failed_when_child_fails_parent_prioritized() {
     let grand_qn = grandchildren_queue_name.clone();
     let child_id_slot_c = child_id_slot.clone();
     let rl_queue = queue.clone();
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let flow = flow_root.clone();
@@ -8463,7 +8451,7 @@ async fn should_move_parent_to_failed_when_child_fails_parent_prioritized() {
                             queue_name: children_qn,
                             data: serde_json::json!({}),
                             opts: Some(JobOptions {
-                                parent: Some(bullmq::ParentOpts {
+                                parent: Some(bullmq::ParentOptions {
                                     id: job.id().to_string(),
                                     queue: qualified_name,
                                     wait_children: None,
@@ -8514,14 +8502,11 @@ async fn should_move_parent_to_failed_when_child_fails_parent_prioritized() {
     .unwrap();
 
     let job = queue
-        .add(
-            "test",
-            serde_json::json!({"step": 0}),
-            Some(JobOptions {
-                priority: Some(10),
-                ..Default::default()
-            }),
-        )
+        .add("test", serde_json::json!({"step": 0}))
+        .options(JobOptions {
+            priority: Some(10),
+            ..Default::default()
+        })
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -8577,7 +8562,7 @@ async fn should_keep_children_results_in_parent_with_remove_on_complete_age() {
 
     // Single worker for both parent and children: returns the job name.
     // Children carry removeOnComplete: { age: 1 }.
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let processed_slot = processed_slot_c.clone();
@@ -8700,7 +8685,7 @@ async fn should_process_children_respecting_priority_with_queues_options() {
     // Grandchildren worker (autorun) — just completes.
     let gc_count = Arc::new(AtomicU32::new(0));
     let gc_count_c = gc_count.clone();
-    let grand_worker = Worker::new(
+    let grand_worker = Worker::with_options(
         &grand_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             let gc = gc_count_c.clone();
@@ -8725,7 +8710,7 @@ async fn should_process_children_respecting_priority_with_queues_options() {
     let order_ok = Arc::new(AtomicBool::new(true));
     let processed_children_c = processed_children.clone();
     let order_ok_c = order_ok.clone();
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let processed_children = processed_children_c.clone();
@@ -8753,7 +8738,7 @@ async fn should_process_children_respecting_priority_with_queues_options() {
     // Parent worker — verifies 3 processed dependencies.
     let deps_ok = Arc::new(AtomicBool::new(false));
     let deps_ok_c = deps_ok.clone();
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let deps_ok = deps_ok_c.clone();
@@ -8808,7 +8793,7 @@ async fn should_process_children_respecting_priority_with_queues_options() {
             }),
         },
     );
-    let flow_opts = bullmq::FlowOpts { queues_options };
+    let flow_opts = bullmq::FlowOptions { queues_options };
 
     let tree = flow
         .add_with_opts(
@@ -8903,7 +8888,7 @@ async fn should_remove_parent_when_child_moved_to_failed_remove_on_fail() {
     // Grandchild worker: the first grandchild it sees fails ('failed'), the rest succeed.
     let gc_count = Arc::new(AtomicU32::new(0));
     let gc_count_c = gc_count.clone();
-    let grand_worker = Worker::new(
+    let grand_worker = Worker::with_options(
         &grand_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             let gc = gc_count_c.clone();
@@ -8928,7 +8913,7 @@ async fn should_remove_parent_when_child_moved_to_failed_remove_on_fail() {
     .unwrap();
 
     // Children worker (no-op) and parent worker (no-op).
-    let children_worker = Worker::new(
+    let children_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(|_job: Job, _token: CancellationToken| {
             Box::pin(async move { Ok(serde_json::Value::Null) })
@@ -8942,7 +8927,7 @@ async fn should_remove_parent_when_child_moved_to_failed_remove_on_fail() {
     )
     .await
     .unwrap();
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(|_job: Job, _token: CancellationToken| {
             Box::pin(async move { Ok(serde_json::Value::Null) })
@@ -9070,7 +9055,7 @@ async fn should_get_paginated_processed_dependencies_keys() {
     let num_children = 72usize;
 
     // Child worker: completes every child with a small value.
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move { Ok(serde_json::json!({"bar": "something"})) })
@@ -9175,13 +9160,13 @@ async fn should_allow_parent_opts_on_the_root_job_add_bulk() {
 
     // Add a standalone grandparent job.
     let grandparent_job = grandparent_queue
-        .add("grandparent", serde_json::json!({"foo": "bar"}), None)
+        .add("grandparent", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
     let grandparent_id = grandparent_job.id().to_string();
 
     // Child worker returns a value keyed by idx.
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             Box::pin(async move {
@@ -9202,7 +9187,7 @@ async fn should_allow_parent_opts_on_the_root_job_add_bulk() {
     // Parent worker verifies it has 2 processed dependencies.
     let deps_ok = Arc::new(AtomicBool::new(false));
     let deps_ok_c = deps_ok.clone();
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(move |job: Job, _token: CancellationToken| {
             let deps_ok = deps_ok_c.clone();
@@ -9231,7 +9216,7 @@ async fn should_allow_parent_opts_on_the_root_job_add_bulk() {
             queue_name: parent_queue_name.clone(),
             data: serde_json::json!({}),
             opts: Some(JobOptions {
-                parent: Some(bullmq::ParentOpts {
+                parent: Some(bullmq::ParentOptions {
                     id: grandparent_id.clone(),
                     queue: grandparent_queue_name.clone(),
                     wait_children: None,
@@ -9353,7 +9338,7 @@ async fn should_remove_all_children_when_removing_parent_with_unsuccessful_child
     );
 
     // Child worker fails every job, cascading the failure up to the root.
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(|_job: Job, _token: CancellationToken| {
             Box::pin(async move { Err(bullmq::Error::ProcessingError("failure".to_string())) })
@@ -9370,7 +9355,7 @@ async fn should_remove_all_children_when_removing_parent_with_unsuccessful_child
 
     // Parent worker: a fpof child failure moves the parent to wait with a
     // deferred-failure marker; the worker fetch fails it for real.
-    let parent_worker = Worker::new(
+    let parent_worker = Worker::with_options(
         &parent_queue_name,
         Arc::new(|_job: Job, _token: CancellationToken| {
             Box::pin(async move { Ok(serde_json::Value::Null) })
@@ -9484,7 +9469,7 @@ async fn should_get_ignored_children_failures_via_job() {
     let child_queue = test_queue_with_prefix(&child_queue_name, prefix).await;
 
     // Child worker always fails.
-    let child_worker = Worker::new(
+    let child_worker = Worker::with_options(
         &child_queue_name,
         Arc::new(move |_job: Job, _token: CancellationToken| {
             Box::pin(async move { Err(bullmq::Error::ProcessingError("error".to_string())) })

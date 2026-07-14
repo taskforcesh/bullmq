@@ -6,7 +6,7 @@ mod common;
 use bullmq::error::Error;
 use bullmq::types::{BackoffStrategy, JobProgress, JobState, RetryOptions};
 use bullmq::worker::{CancellationToken, ProcessorFn, WorkerEvent};
-use bullmq::{Job, JobOptions, Queue, QueueOptions, Worker, WorkerOptions};
+use bullmq::{BulkJob, Job, JobOptions, Queue, QueueOptions, Worker, WorkerOptions};
 use common::{cleanup_queue, test_connection, test_queue_name};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -26,10 +26,10 @@ async fn test_worker_processes_job() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("process-me", serde_json::json!({"x": 42}), None)
+        .add("process-me", serde_json::json!({"x": 42}))
         .await
         .unwrap();
 
@@ -48,7 +48,9 @@ async fn test_worker_processes_job() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let processed_id = tokio::time::timeout(Duration::from_secs(10), rx.recv())
         .await
@@ -70,12 +72,12 @@ async fn test_worker_processes_jobs_serially() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let num_jobs = 10u32;
     for i in 1..=num_jobs {
         queue
-            .add("serial", serde_json::json!({"num": i}), None)
+            .add("serial", serde_json::json!({"num": i}))
             .await
             .unwrap();
     }
@@ -98,7 +100,9 @@ async fn test_worker_processes_jobs_serially() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::sleep(Duration::from_secs(10)).await;
     assert_eq!(counter.load(std::sync::atomic::Ordering::SeqCst), num_jobs);
@@ -116,10 +120,10 @@ async fn test_worker_async_processing() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
 
@@ -136,7 +140,9 @@ async fn test_worker_async_processing() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let result = tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -165,15 +171,11 @@ async fn test_processes_jobs_added_before_worker() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     for i in 0..4 {
         queue
-            .add(
-                "test",
-                serde_json::json!({"bar": format!("baz{}", i)}),
-                None,
-            )
+            .add("test", serde_json::json!({"bar": format!("baz{}", i)}))
             .await
             .unwrap();
     }
@@ -192,7 +194,9 @@ async fn test_processes_jobs_added_before_worker() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let mut count = 0;
     tokio::time::timeout(Duration::from_secs(10), async {
@@ -223,11 +227,11 @@ async fn test_worker_concurrency() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     for i in 0..5 {
         queue
-            .add(&format!("concurrent-{}", i), serde_json::json!({}), None)
+            .add(&format!("concurrent-{}", i), serde_json::json!({}))
             .await
             .unwrap();
     }
@@ -251,7 +255,9 @@ async fn test_worker_concurrency() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::sleep(Duration::from_secs(5)).await;
 
@@ -270,14 +276,14 @@ async fn test_worker_slow_job_does_not_block_others() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("slow", serde_json::json!({"type": "slow"}), None)
+        .add("slow", serde_json::json!({"type": "slow"}))
         .await
         .unwrap();
     queue
-        .add("fast", serde_json::json!({"type": "fast"}), None)
+        .add("fast", serde_json::json!({"type": "fast"}))
         .await
         .unwrap();
 
@@ -299,7 +305,9 @@ async fn test_worker_slow_job_does_not_block_others() {
         concurrency: 2,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let mut completed = Vec::new();
     tokio::time::timeout(Duration::from_secs(5), async {
@@ -328,12 +336,12 @@ async fn test_worker_multiple_concurrent_workers() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let num_jobs = 20u32;
     for i in 0..num_jobs {
         queue
-            .add(&format!("multi-{}", i), serde_json::json!({}), None)
+            .add(&format!("multi-{}", i), serde_json::json!({}))
             .await
             .unwrap();
     }
@@ -352,7 +360,7 @@ async fn test_worker_multiple_concurrent_workers() {
             })
         });
 
-        let w = Worker::new(
+        let w = Worker::with_options(
             &name,
             processor,
             WorkerOptions {
@@ -389,10 +397,10 @@ async fn test_worker_completed_event() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("event-test", serde_json::json!({"val": 99}), None)
+        .add("event-test", serde_json::json!({"val": 99}))
         .await
         .unwrap();
 
@@ -406,7 +414,9 @@ async fn test_worker_completed_event() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let event = tokio::time::timeout(Duration::from_secs(10), async {
         loop {
@@ -439,10 +449,10 @@ async fn test_worker_failed_event() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("fail-event-test", serde_json::json!({}), None)
+        .add("fail-event-test", serde_json::json!({}))
         .await
         .unwrap();
 
@@ -456,7 +466,9 @@ async fn test_worker_failed_event() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let event = tokio::time::timeout(Duration::from_secs(10), async {
         loop {
@@ -493,12 +505,9 @@ async fn test_worker_job_failure() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
-    queue
-        .add("fail-me", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("fail-me", serde_json::json!({})).await.unwrap();
 
     let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {
         Box::pin(async move { Err(Error::Unrecoverable("intentional failure".to_string())) })
@@ -510,7 +519,9 @@ async fn test_worker_job_failure() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::sleep(Duration::from_secs(5)).await;
 
@@ -527,10 +538,10 @@ async fn test_worker_job_state_completed() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job = queue
-        .add("state-complete", serde_json::json!({}), None)
+        .add("state-complete", serde_json::json!({}))
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -545,7 +556,9 @@ async fn test_worker_job_state_completed() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
@@ -579,10 +592,10 @@ async fn test_worker_job_state_failed() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job = queue
-        .add("state-fail", serde_json::json!({}), None)
+        .add("state-fail", serde_json::json!({}))
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -597,7 +610,9 @@ async fn test_worker_job_state_failed() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
@@ -630,10 +645,10 @@ async fn test_get_job_failed_reason() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job = queue
-        .add("fail-reason", serde_json::json!({}), None)
+        .add("fail-reason", serde_json::json!({}))
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -648,7 +663,9 @@ async fn test_get_job_failed_reason() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
@@ -686,12 +703,9 @@ async fn test_worker_cancellation() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
-    queue
-        .add("cancel-me", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("cancel-me", serde_json::json!({})).await.unwrap();
 
     let (tx, mut rx) = mpsc::channel::<bool>(1);
     let processor: ProcessorFn = Arc::new(move |_job: Job, token: CancellationToken| {
@@ -716,7 +730,9 @@ async fn test_worker_cancellation() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::sleep(Duration::from_secs(2)).await;
 
@@ -742,7 +758,7 @@ async fn test_worker_pause_resume() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let counter = Arc::new(std::sync::atomic::AtomicU32::new(0));
     let counter_clone = counter.clone();
@@ -761,13 +777,15 @@ async fn test_worker_pause_resume() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     worker.pause();
     assert!(worker.is_paused());
 
     queue
-        .add("paused-job", serde_json::json!({}), None)
+        .add("paused-job", serde_json::json!({}))
         .await
         .unwrap();
 
@@ -791,12 +809,9 @@ async fn test_worker_graceful_close() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
-    queue
-        .add("slow-job", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("slow-job", serde_json::json!({})).await.unwrap();
 
     let (tx, mut rx) = mpsc::channel::<String>(1);
 
@@ -815,7 +830,9 @@ async fn test_worker_graceful_close() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::sleep(Duration::from_millis(200)).await;
 
@@ -836,10 +853,10 @@ async fn test_worker_does_not_process_when_autorun_false() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("no-autorun", serde_json::json!({}), None)
+        .add("no-autorun", serde_json::json!({}))
         .await
         .unwrap();
 
@@ -860,7 +877,11 @@ async fn test_worker_does_not_process_when_autorun_false() {
         ..Default::default()
     };
 
-    let worker = Arc::new(Worker::new(&name, processor, worker_opts).await.unwrap());
+    let worker = Arc::new(
+        Worker::with_options(&name, processor, worker_opts)
+            .await
+            .unwrap(),
+    );
 
     tokio::time::sleep(Duration::from_secs(2)).await;
     assert_eq!(counter.load(std::sync::atomic::Ordering::SeqCst), 0);
@@ -889,20 +910,17 @@ async fn test_worker_lifo_processing_order() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue.pause().await.unwrap();
 
     for i in 0..4 {
         queue
-            .add(
-                &format!("lifo-{}", i),
-                serde_json::json!({"order": i}),
-                Some(JobOptions {
-                    lifo: Some(true),
-                    ..Default::default()
-                }),
-            )
+            .add(&format!("lifo-{}", i), serde_json::json!({"order": i}))
+            .options(JobOptions {
+                lifo: Some(true),
+                ..Default::default()
+            })
             .await
             .unwrap();
     }
@@ -932,7 +950,9 @@ async fn test_worker_lifo_processing_order() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     queue.resume().await.unwrap();
 
@@ -961,10 +981,10 @@ async fn test_return_value_stored_in_db() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job = queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -981,7 +1001,9 @@ async fn test_return_value_stored_in_db() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -1011,10 +1033,10 @@ async fn test_return_value_string_stored_in_db() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job = queue
-        .add("test", serde_json::json!({"testing": true}), None)
+        .add("test", serde_json::json!({"testing": true}))
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -1028,7 +1050,9 @@ async fn test_return_value_string_stored_in_db() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -1062,12 +1086,9 @@ async fn test_processed_on_set_after_processing() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
-    let job = queue
-        .add("test", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    let job = queue.add("test", serde_json::json!({})).await.unwrap();
     let job_id = job.id().to_string();
 
     let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {
@@ -1079,7 +1100,9 @@ async fn test_processed_on_set_after_processing() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -1112,10 +1135,10 @@ async fn test_get_job_finished_on_after_completion() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job = queue
-        .add("finished-on-test", serde_json::json!({}), None)
+        .add("finished-on-test", serde_json::json!({}))
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -1130,7 +1153,9 @@ async fn test_get_job_finished_on_after_completion() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
@@ -1162,11 +1187,11 @@ async fn test_get_job_counts_after_processing() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     for i in 0..3 {
         queue
-            .add(&format!("count-{}", i), serde_json::json!({}), None)
+            .add(&format!("count-{}", i), serde_json::json!({}))
             .await
             .unwrap();
     }
@@ -1181,7 +1206,9 @@ async fn test_get_job_counts_after_processing() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::sleep(Duration::from_secs(5)).await;
 
@@ -1206,14 +1233,15 @@ async fn test_remove_on_complete_true() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job_opts = JobOptions {
         remove_on_complete: Some(bullmq::types::RemoveOnFinish::Bool(true)),
         ..Default::default()
     };
     let job = queue
-        .add("test", serde_json::json!({"foo": "bar"}), Some(job_opts))
+        .add("test", serde_json::json!({"foo": "bar"}))
+        .options(job_opts)
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -1227,7 +1255,9 @@ async fn test_remove_on_complete_true() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -1262,14 +1292,15 @@ async fn test_remove_on_fail_true() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job_opts = JobOptions {
         remove_on_fail: Some(bullmq::types::RemoveOnFinish::Bool(true)),
         ..Default::default()
     };
     let job = queue
-        .add("test", serde_json::json!({}), Some(job_opts))
+        .add("test", serde_json::json!({}))
+        .options(job_opts)
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -1283,7 +1314,9 @@ async fn test_remove_on_fail_true() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -1321,7 +1354,7 @@ async fn test_remove_on_complete_keeps_specified_count() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job_opts = JobOptions {
         remove_on_complete: Some(bullmq::types::RemoveOnFinish::Count(3)),
@@ -1330,11 +1363,8 @@ async fn test_remove_on_complete_keeps_specified_count() {
 
     for i in 0..5 {
         queue
-            .add(
-                "test",
-                serde_json::json!({"idx": i}),
-                Some(job_opts.clone()),
-            )
+            .add("test", serde_json::json!({"idx": i}))
+            .options(job_opts.clone())
             .await
             .unwrap();
     }
@@ -1348,7 +1378,9 @@ async fn test_remove_on_complete_keeps_specified_count() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let mut completed = 0;
     tokio::time::timeout(Duration::from_secs(10), async {
@@ -1388,10 +1420,10 @@ async fn test_worker_level_remove_on_complete() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job = queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -1406,7 +1438,9 @@ async fn test_worker_level_remove_on_complete() {
         remove_on_complete: Some(bullmq::types::RemoveOnFinish::Bool(true)),
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -1445,12 +1479,12 @@ async fn test_process_several_jobs_serially_with_data_check() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let max_jobs = 35u32;
     for i in 1..=max_jobs {
         queue
-            .add("test", serde_json::json!({"foo": "bar", "num": i}), None)
+            .add("test", serde_json::json!({"foo": "bar", "num": i}))
             .await
             .unwrap();
     }
@@ -1480,7 +1514,9 @@ async fn test_process_several_jobs_serially_with_data_check() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(15), rx.recv())
         .await
@@ -1507,10 +1543,10 @@ async fn test_process_job_returns_data() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
 
@@ -1526,7 +1562,9 @@ async fn test_process_job_returns_data() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let result = tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -1560,10 +1598,10 @@ async fn test_process_job_throws_exception() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job = queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -1580,7 +1618,9 @@ async fn test_process_job_throws_exception() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let (failed_job_id, error_msg) = tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -1619,10 +1659,10 @@ async fn test_process_job_returns_error() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
 
@@ -1638,7 +1678,9 @@ async fn test_process_job_returns_error() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let (_, error_msg) = tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -1672,16 +1714,13 @@ async fn test_process_job_respecting_concurrency() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let num_jobs = 8u32;
     let concurrency = 4u32;
 
     for _ in 0..num_jobs {
-        queue
-            .add("test", serde_json::json!({}), None)
-            .await
-            .unwrap();
+        queue.add("test", serde_json::json!({})).await.unwrap();
     }
 
     let current_processing = Arc::new(std::sync::atomic::AtomicU32::new(0));
@@ -1721,7 +1760,9 @@ async fn test_process_job_respecting_concurrency() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(10), rx.recv())
         .await
@@ -1755,16 +1796,10 @@ async fn test_run_job_in_sequence_concurrency_1() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
-    queue
-        .add("test", serde_json::json!({}), None)
-        .await
-        .unwrap();
-    queue
-        .add("test", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("test", serde_json::json!({})).await.unwrap();
+    queue.add("test", serde_json::json!({})).await.unwrap();
 
     let processing = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let processing_clone = processing.clone();
@@ -1799,7 +1834,9 @@ async fn test_run_job_in_sequence_concurrency_1() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(5), rx.recv())
         .await
@@ -1824,13 +1861,10 @@ async fn test_should_not_keep_active_jobs() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     for _ in 0..10 {
-        queue
-            .add("test", serde_json::json!({}), None)
-            .await
-            .unwrap();
+        queue.add("test", serde_json::json!({})).await.unwrap();
     }
 
     let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {
@@ -1847,7 +1881,9 @@ async fn test_should_not_keep_active_jobs() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for all to complete
     let mut completed = 0;
@@ -1889,14 +1925,15 @@ async fn test_auto_retry_failed_job_with_attempts() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job_opts = JobOptions {
         attempts: Some(3),
         ..Default::default()
     };
     queue
-        .add("test", serde_json::json!({"foo": "bar"}), Some(job_opts))
+        .add("test", serde_json::json!({"foo": "bar"}))
+        .options(job_opts)
         .await
         .unwrap();
 
@@ -1920,7 +1957,9 @@ async fn test_auto_retry_failed_job_with_attempts() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
@@ -1952,14 +1991,15 @@ async fn test_not_retry_more_than_attempts() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job_opts = JobOptions {
         attempts: Some(3),
         ..Default::default()
     };
     let job = queue
-        .add("test", serde_json::json!({"foo": "bar"}), Some(job_opts))
+        .add("test", serde_json::json!({"foo": "bar"}))
+        .options(job_opts)
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -1980,7 +2020,9 @@ async fn test_not_retry_more_than_attempts() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for 3 failed events
     let mut failed_count = 0;
@@ -2025,7 +2067,7 @@ async fn test_retry_exponential_backoff() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job_opts = JobOptions {
         attempts: Some(3),
@@ -2035,7 +2077,8 @@ async fn test_retry_exponential_backoff() {
 
     let start = std::time::Instant::now();
     queue
-        .add("test", serde_json::json!({"foo": "bar"}), Some(job_opts))
+        .add("test", serde_json::json!({"foo": "bar"}))
+        .options(job_opts)
         .await
         .unwrap();
 
@@ -2055,7 +2098,9 @@ async fn test_retry_exponential_backoff() {
         drain_delay: 1,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
@@ -2094,20 +2139,17 @@ async fn test_process_jobs_by_priority() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Add jobs with different priorities (lower number = higher priority)
     // Add them in reverse priority order
     for (i, prio) in [(1, 10u32), (2, 5), (3, 1)] {
         queue
-            .add(
-                "test",
-                serde_json::json!({"idx": i}),
-                Some(JobOptions {
-                    priority: Some(prio),
-                    ..Default::default()
-                }),
-            )
+            .add("test", serde_json::json!({"idx": i}))
+            .options(JobOptions {
+                priority: Some(prio),
+                ..Default::default()
+            })
             .await
             .unwrap();
     }
@@ -2128,7 +2170,9 @@ async fn test_process_jobs_by_priority() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let mut order = Vec::new();
     tokio::time::timeout(Duration::from_secs(5), async {
@@ -2162,23 +2206,20 @@ async fn test_pick_standard_job_without_delay() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Add a delayed job, then a standard job
     queue
-        .add(
-            "delayed",
-            serde_json::json!({"type": "delayed"}),
-            Some(JobOptions {
-                delay: Some(2000),
-                ..Default::default()
-            }),
-        )
+        .add("delayed", serde_json::json!({"type": "delayed"}))
+        .options(JobOptions {
+            delay: Some(2000),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
     queue
-        .add("standard", serde_json::json!({"type": "standard"}), None)
+        .add("standard", serde_json::json!({"type": "standard"}))
         .await
         .unwrap();
 
@@ -2198,7 +2239,9 @@ async fn test_pick_standard_job_without_delay() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Standard job should be picked first
     let first = tokio::time::timeout(Duration::from_secs(2), rx.recv())
@@ -2227,10 +2270,10 @@ async fn test_remove_on_complete_from_worker_default() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job = queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -2248,7 +2291,9 @@ async fn test_remove_on_complete_from_worker_default() {
         remove_on_complete: Some(bullmq::types::RemoveOnFinish::Bool(true)),
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -2288,10 +2333,10 @@ async fn test_remove_on_fail_from_worker_default() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job = queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -2306,7 +2351,9 @@ async fn test_remove_on_fail_from_worker_default() {
         remove_on_fail: Some(bullmq::types::RemoveOnFinish::Bool(true)),
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -2346,7 +2393,7 @@ async fn test_keep_specified_count_remove_on_fail() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let keep_jobs = 3;
     let total_jobs = 6;
@@ -2358,11 +2405,8 @@ async fn test_keep_specified_count_remove_on_fail() {
 
     for i in 0..total_jobs {
         queue
-            .add(
-                "test",
-                serde_json::json!({"idx": i}),
-                Some(job_opts.clone()),
-            )
+            .add("test", serde_json::json!({"idx": i}))
+            .options(job_opts.clone())
             .await
             .unwrap();
     }
@@ -2376,7 +2420,9 @@ async fn test_keep_specified_count_remove_on_fail() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let mut failed = 0;
     tokio::time::timeout(Duration::from_secs(10), async {
@@ -2422,7 +2468,7 @@ async fn test_remove_all_jobs_count_0_remove_on_fail() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job_opts = JobOptions {
         remove_on_fail: Some(bullmq::types::RemoveOnFinish::Bool(true)),
@@ -2431,11 +2477,8 @@ async fn test_remove_all_jobs_count_0_remove_on_fail() {
 
     for i in 0..5 {
         queue
-            .add(
-                "test",
-                serde_json::json!({"idx": i}),
-                Some(job_opts.clone()),
-            )
+            .add("test", serde_json::json!({"idx": i}))
+            .options(job_opts.clone())
             .await
             .unwrap();
     }
@@ -2449,7 +2492,9 @@ async fn test_remove_all_jobs_count_0_remove_on_fail() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let mut failed = 0;
     tokio::time::timeout(Duration::from_secs(10), async {
@@ -2489,14 +2534,15 @@ async fn test_saves_failed_reason() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job_opts = JobOptions {
         attempts: Some(3),
         ..Default::default()
     };
     let job = queue
-        .add("test", serde_json::json!({"foo": "bar"}), Some(job_opts))
+        .add("test", serde_json::json!({"foo": "bar"}))
+        .options(job_opts)
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -2510,7 +2556,9 @@ async fn test_saves_failed_reason() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for all 3 attempts to fail
     let mut failed_count = 0;
@@ -2556,7 +2604,7 @@ async fn test_unrecoverable_error_moves_to_failed_immediately() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Even with attempts=3, unrecoverable should not retry
     let job_opts = JobOptions {
@@ -2564,7 +2612,8 @@ async fn test_unrecoverable_error_moves_to_failed_immediately() {
         ..Default::default()
     };
     let job = queue
-        .add("test", serde_json::json!({}), Some(job_opts))
+        .add("test", serde_json::json!({}))
+        .options(job_opts)
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -2585,7 +2634,9 @@ async fn test_unrecoverable_error_moves_to_failed_immediately() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -2629,12 +2680,9 @@ async fn test_lock_extender_runs_until_jobs_complete() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
-    queue
-        .add("test", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("test", serde_json::json!({})).await.unwrap();
 
     let (tx, mut rx) = mpsc::channel(1);
     let processor: ProcessorFn = Arc::new(move |_job: Job, _token: CancellationToken| {
@@ -2653,7 +2701,9 @@ async fn test_lock_extender_runs_until_jobs_complete() {
         lock_duration: 500,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait a moment then close with generous timeout
     tokio::time::sleep(Duration::from_millis(200)).await;
@@ -2688,10 +2738,10 @@ async fn test_clear_job_from_stalled_set_on_complete() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
 
@@ -2708,7 +2758,9 @@ async fn test_clear_job_from_stalled_set_on_complete() {
         stalled_interval: 10,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -2745,12 +2797,9 @@ async fn test_does_not_process_job_being_processed_by_another() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
-    queue
-        .add("test", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("test", serde_json::json!({})).await.unwrap();
 
     let processed_ids = Arc::new(tokio::sync::Mutex::new(Vec::new()));
     let ids1 = processed_ids.clone();
@@ -2773,7 +2822,7 @@ async fn test_does_not_process_job_being_processed_by_another() {
         })
     });
 
-    let worker1 = Worker::new(
+    let worker1 = Worker::with_options(
         &name,
         processor1,
         WorkerOptions {
@@ -2788,7 +2837,7 @@ async fn test_does_not_process_job_being_processed_by_another() {
     // Start second worker after first has picked up the job
     tokio::time::sleep(Duration::from_millis(200)).await;
 
-    let worker2 = Worker::new(
+    let worker2 = Worker::with_options(
         &name,
         processor2,
         WorkerOptions {
@@ -2829,7 +2878,7 @@ async fn test_worker_is_running() {
         Box::pin(async move { Ok(serde_json::Value::Null) })
     });
 
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &name,
         processor,
         WorkerOptions {
@@ -2863,7 +2912,7 @@ async fn test_keep_jobs_newer_than_age_remove_on_complete() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Keep jobs younger than 10 seconds — all should be kept in this fast test
     let job_opts = JobOptions {
@@ -2879,11 +2928,8 @@ async fn test_keep_jobs_newer_than_age_remove_on_complete() {
 
     for i in 0..5 {
         queue
-            .add(
-                "test",
-                serde_json::json!({"idx": i}),
-                Some(job_opts.clone()),
-            )
+            .add("test", serde_json::json!({"idx": i}))
+            .options(job_opts.clone())
             .await
             .unwrap();
     }
@@ -2897,7 +2943,9 @@ async fn test_keep_jobs_newer_than_age_remove_on_complete() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let mut completed = 0;
     tokio::time::timeout(Duration::from_secs(10), async {
@@ -2939,7 +2987,7 @@ async fn test_keep_jobs_with_age_and_count_limit() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // age=10s, count=3 — since all are < 10s old, count takes precedence
     let job_opts = JobOptions {
@@ -2955,11 +3003,8 @@ async fn test_keep_jobs_with_age_and_count_limit() {
 
     for i in 0..6 {
         queue
-            .add(
-                "test",
-                serde_json::json!({"idx": i}),
-                Some(job_opts.clone()),
-            )
+            .add("test", serde_json::json!({"idx": i}))
+            .options(job_opts.clone())
             .await
             .unwrap();
     }
@@ -2973,7 +3018,9 @@ async fn test_keep_jobs_with_age_and_count_limit() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let mut completed = 0;
     tokio::time::timeout(Duration::from_secs(10), async {
@@ -3018,11 +3065,11 @@ async fn test_global_remove_on_fail_from_worker() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     for i in 0..6 {
         queue
-            .add("test", serde_json::json!({"idx": i}), None)
+            .add("test", serde_json::json!({"idx": i}))
             .await
             .unwrap();
     }
@@ -3037,7 +3084,9 @@ async fn test_global_remove_on_fail_from_worker() {
         remove_on_fail: Some(bullmq::types::RemoveOnFinish::Count(3)),
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let mut failed = 0;
     tokio::time::timeout(Duration::from_secs(10), async {
@@ -3082,10 +3131,10 @@ async fn test_continues_processing_after_stall() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("test", serde_json::json!({"bar": "baz"}), None)
+        .add("test", serde_json::json!({"bar": "baz"}))
         .await
         .unwrap();
 
@@ -3097,7 +3146,7 @@ async fn test_continues_processing_after_stall() {
         })
     });
 
-    let worker1 = Worker::new(
+    let worker1 = Worker::with_options(
         &name,
         processor1,
         WorkerOptions {
@@ -3125,7 +3174,7 @@ async fn test_continues_processing_after_stall() {
         })
     });
 
-    let worker2 = Worker::new(
+    let worker2 = Worker::with_options(
         &name,
         processor2,
         WorkerOptions {
@@ -3162,7 +3211,7 @@ async fn test_retry_fixed_backoff_timing() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let start = std::time::Instant::now();
     let job_opts = JobOptions {
@@ -3171,7 +3220,8 @@ async fn test_retry_fixed_backoff_timing() {
         ..Default::default()
     };
     queue
-        .add("test", serde_json::json!({"foo": "bar"}), Some(job_opts))
+        .add("test", serde_json::json!({"foo": "bar"}))
+        .options(job_opts)
         .await
         .unwrap();
 
@@ -3191,7 +3241,9 @@ async fn test_retry_fixed_backoff_timing() {
         drain_delay: 1,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
@@ -3230,7 +3282,7 @@ async fn test_attempts_made_is_correct() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job_opts = JobOptions {
         attempts: Some(3),
@@ -3238,7 +3290,8 @@ async fn test_attempts_made_is_correct() {
         ..Default::default()
     };
     let job = queue
-        .add("test", serde_json::json!({}), Some(job_opts))
+        .add("test", serde_json::json!({}))
+        .options(job_opts)
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -3253,7 +3306,9 @@ async fn test_attempts_made_is_correct() {
         drain_delay: 1,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let mut failed_count = 0;
     tokio::time::timeout(Duration::from_secs(10), async {
@@ -3299,7 +3354,7 @@ async fn test_concurrency_cannot_be_zero() {
         ..Default::default()
     };
 
-    let result = Worker::new(&name, processor, worker_opts).await;
+    let result = Worker::with_options(&name, processor, worker_opts).await;
     assert!(result.is_err());
     match result {
         Err(ref e) => assert!(
@@ -3323,7 +3378,7 @@ async fn test_queue_name_cannot_contain_colon() {
         ..Default::default()
     };
 
-    let result = Worker::new("invalid:queue", processor, worker_opts).await;
+    let result = Worker::with_options("invalid:queue", processor, worker_opts).await;
     assert!(result.is_err());
     match result {
         Err(err) => assert!(
@@ -3350,7 +3405,7 @@ async fn test_stalled_interval_cannot_be_zero() {
         ..Default::default()
     };
 
-    let result = Worker::new(&name, processor, worker_opts).await;
+    let result = Worker::with_options(&name, processor, worker_opts).await;
     assert!(result.is_err());
     match result {
         Err(ref e) => assert!(
@@ -3378,7 +3433,7 @@ async fn test_drain_delay_cannot_be_zero() {
         ..Default::default()
     };
 
-    let result = Worker::new(&name, processor, worker_opts).await;
+    let result = Worker::with_options(&name, processor, worker_opts).await;
     assert!(result.is_err());
     match result {
         Err(ref e) => assert!(
@@ -3403,10 +3458,10 @@ async fn test_sets_worker_name_on_job() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job = queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -3426,7 +3481,9 @@ async fn test_sets_worker_name_on_job() {
         name: Some("foobar".to_string()),
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(5), rx.recv())
         .await
@@ -3462,7 +3519,9 @@ async fn test_concurrency_getter() {
         concurrency: 100,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     assert_eq!(worker.concurrency(), 100);
 
@@ -3482,12 +3541,12 @@ async fn test_processes_jobs_with_autorun_false_then_run() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let num_jobs = 10u32;
     for i in 1..=num_jobs {
         queue
-            .add("test", serde_json::json!({"num": i}), None)
+            .add("test", serde_json::json!({"num": i}))
             .await
             .unwrap();
     }
@@ -3507,7 +3566,9 @@ async fn test_processes_jobs_with_autorun_false_then_run() {
         autorun: false,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Worker should not process until run() is called
     tokio::time::sleep(Duration::from_millis(200)).await;
@@ -3546,7 +3607,9 @@ async fn test_run_throws_when_already_running() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let result = worker.run().await;
     assert!(result.is_err());
@@ -3575,10 +3638,10 @@ async fn test_close_waits_for_job_to_complete() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
 
@@ -3598,7 +3661,9 @@ async fn test_close_waits_for_job_to_complete() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for processing to start
     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -3627,10 +3692,10 @@ async fn test_close_allows_job_that_fails_to_finish() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
 
@@ -3646,7 +3711,9 @@ async fn test_close_allows_job_that_fails_to_finish() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for processing to start
     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -3675,7 +3742,7 @@ async fn test_pause_does_not_fetch_new_jobs() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let (tx, mut rx) = mpsc::channel::<u32>(16);
     let processor: ProcessorFn = Arc::new(move |job: Job, _token: CancellationToken| {
@@ -3693,11 +3760,13 @@ async fn test_pause_does_not_fetch_new_jobs() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Add a job that will be processed
     queue
-        .add("test", serde_json::json!({"num": 1}), None)
+        .add("test", serde_json::json!({"num": 1}))
         .await
         .unwrap();
 
@@ -3713,7 +3782,7 @@ async fn test_pause_does_not_fetch_new_jobs() {
 
     // Add another job while paused
     queue
-        .add("test", serde_json::json!({"num": 2}), None)
+        .add("test", serde_json::json!({"num": 2}))
         .await
         .unwrap();
 
@@ -3750,14 +3819,15 @@ async fn test_job_only_executes_once_when_attempts_is_1() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job_opts = JobOptions {
         attempts: Some(1),
         ..Default::default()
     };
     let job = queue
-        .add("test", serde_json::json!({"foo": "bar"}), Some(job_opts))
+        .add("test", serde_json::json!({"foo": "bar"}))
+        .options(job_opts)
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -3771,7 +3841,9 @@ async fn test_job_only_executes_once_when_attempts_is_1() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for failed event
     tokio::time::timeout(Duration::from_secs(5), async {
@@ -3808,7 +3880,7 @@ async fn test_does_not_retry_more_than_attempts_fixed_backoff() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job_opts = JobOptions {
         attempts: Some(3),
@@ -3816,7 +3888,8 @@ async fn test_does_not_retry_more_than_attempts_fixed_backoff() {
         ..Default::default()
     };
     let job = queue
-        .add("test", serde_json::json!({"foo": "bar"}), Some(job_opts))
+        .add("test", serde_json::json!({"foo": "bar"}))
+        .options(job_opts)
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -3831,7 +3904,9 @@ async fn test_does_not_retry_more_than_attempts_fixed_backoff() {
         drain_delay: 1,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for 3 failed events (retries exhausted)
     let mut failed_count = 0;
@@ -3876,7 +3951,7 @@ async fn test_retry_respects_fixed_backoff_delay() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job_opts = JobOptions {
         attempts: Some(3),
@@ -3884,7 +3959,8 @@ async fn test_retry_respects_fixed_backoff_delay() {
         ..Default::default()
     };
     queue
-        .add("test", serde_json::json!({"foo": "bar"}), Some(job_opts))
+        .add("test", serde_json::json!({"foo": "bar"}))
+        .options(job_opts)
         .await
         .unwrap();
 
@@ -3914,7 +3990,9 @@ async fn test_retry_respects_fixed_backoff_delay() {
     };
 
     let start = std::time::Instant::now();
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(10), rx.recv())
         .await
@@ -3946,7 +4024,7 @@ async fn test_unrecoverable_stops_retries_with_backoff() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job_opts = JobOptions {
         attempts: Some(3),
@@ -3954,7 +4032,8 @@ async fn test_unrecoverable_stops_retries_with_backoff() {
         ..Default::default()
     };
     let job = queue
-        .add("test", serde_json::json!({"foo": "bar"}), Some(job_opts))
+        .add("test", serde_json::json!({"foo": "bar"}))
+        .options(job_opts)
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -3980,7 +4059,9 @@ async fn test_unrecoverable_stops_retries_with_backoff() {
         drain_delay: 1,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for 2 failed events (first retry + unrecoverable)
     let mut failed_count = 0;
@@ -4026,14 +4107,11 @@ async fn test_concurrency_4_processes_jobs_in_parallel() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let total_jobs = 8u32;
     for _ in 0..total_jobs {
-        queue
-            .add("test", serde_json::json!({}), None)
-            .await
-            .unwrap();
+        queue.add("test", serde_json::json!({})).await.unwrap();
     }
 
     let max_concurrent = Arc::new(std::sync::atomic::AtomicU32::new(0));
@@ -4063,7 +4141,9 @@ async fn test_concurrency_4_processes_jobs_in_parallel() {
         concurrency: 4,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for all jobs to complete
     let mut completed = 0u32;
@@ -4107,12 +4187,9 @@ async fn test_drained_event_emitted() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
-    queue
-        .add("test", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("test", serde_json::json!({})).await.unwrap();
 
     let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {
         Box::pin(async move { Ok(serde_json::json!(null)) })
@@ -4123,7 +4200,9 @@ async fn test_drained_event_emitted() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // After the job completes, we should get a Drained event
     let mut got_completed = false;
@@ -4168,12 +4247,12 @@ async fn test_multiple_workers_process_all_jobs() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let total_jobs = 20u32;
     for i in 0..total_jobs {
         queue
-            .add("test", serde_json::json!({"i": i}), None)
+            .add("test", serde_json::json!({"i": i}))
             .await
             .unwrap();
     }
@@ -4204,10 +4283,10 @@ async fn test_multiple_workers_process_all_jobs() {
         ..Default::default()
     };
 
-    let worker1 = Worker::new(&name, make_processor(count.clone()), w1_opts)
+    let worker1 = Worker::with_options(&name, make_processor(count.clone()), w1_opts)
         .await
         .unwrap();
-    let worker2 = Worker::new(&name, make_processor(count.clone()), w2_opts)
+    let worker2 = Worker::with_options(&name, make_processor(count.clone()), w2_opts)
         .await
         .unwrap();
 
@@ -4243,12 +4322,9 @@ async fn test_worker_emits_error_event_on_failure() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
-    queue
-        .add("test", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("test", serde_json::json!({})).await.unwrap();
 
     let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {
         Box::pin(async move { Err(Error::ProcessingError("something went wrong".to_string())) })
@@ -4259,7 +4335,9 @@ async fn test_worker_emits_error_event_on_failure() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Should receive a Failed event with the error message
     tokio::time::timeout(Duration::from_secs(5), async {
@@ -4292,7 +4370,7 @@ async fn test_auto_retry_without_backoff_retries_immediately() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job_opts = JobOptions {
         attempts: Some(3),
@@ -4300,7 +4378,8 @@ async fn test_auto_retry_without_backoff_retries_immediately() {
         ..Default::default()
     };
     queue
-        .add("test", serde_json::json!({}), Some(job_opts))
+        .add("test", serde_json::json!({}))
+        .options(job_opts)
         .await
         .unwrap();
 
@@ -4329,7 +4408,9 @@ async fn test_auto_retry_without_backoff_retries_immediately() {
     };
 
     let start = std::time::Instant::now();
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(10), rx.recv())
         .await
@@ -4361,12 +4442,9 @@ async fn test_return_value_object_stored() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
-    let job = queue
-        .add("test", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    let job = queue.add("test", serde_json::json!({})).await.unwrap();
     let job_id = job.id().to_string();
 
     let (tx, mut rx) = mpsc::channel::<()>(1);
@@ -4383,7 +4461,9 @@ async fn test_return_value_object_stored() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(5), rx.recv())
         .await
@@ -4410,12 +4490,9 @@ async fn test_return_value_array_stored() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
-    let job = queue
-        .add("test", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    let job = queue.add("test", serde_json::json!({})).await.unwrap();
     let job_id = job.id().to_string();
 
     let (tx, mut rx) = mpsc::channel::<()>(1);
@@ -4432,7 +4509,9 @@ async fn test_return_value_array_stored() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(5), rx.recv())
         .await
@@ -4458,12 +4537,9 @@ async fn test_return_value_number_stored() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
-    let job = queue
-        .add("test", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    let job = queue.add("test", serde_json::json!({})).await.unwrap();
     let job_id = job.id().to_string();
 
     let (tx, mut rx) = mpsc::channel::<()>(1);
@@ -4480,7 +4556,9 @@ async fn test_return_value_number_stored() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(5), rx.recv())
         .await
@@ -4515,16 +4593,16 @@ async fn test_worker_only_processes_its_own_queue() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue1 = Queue::new(&name1, queue_opts1).await.unwrap();
-    let queue2 = Queue::new(&name2, queue_opts2).await.unwrap();
+    let queue1 = Queue::with_options(&name1, queue_opts1).await.unwrap();
+    let queue2 = Queue::with_options(&name2, queue_opts2).await.unwrap();
 
     // Add jobs to both queues
     queue1
-        .add("test", serde_json::json!({"queue": 1}), None)
+        .add("test", serde_json::json!({"queue": 1}))
         .await
         .unwrap();
     queue2
-        .add("test", serde_json::json!({"queue": 2}), None)
+        .add("test", serde_json::json!({"queue": 2}))
         .await
         .unwrap();
 
@@ -4544,7 +4622,9 @@ async fn test_worker_only_processes_its_own_queue() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name1, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name1, processor, worker_opts)
+        .await
+        .unwrap();
 
     let val = tokio::time::timeout(Duration::from_secs(5), rx.recv())
         .await
@@ -4574,13 +4654,12 @@ async fn test_job_data_available_in_processor() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
         .add(
             "test",
             serde_json::json!({"name": "Alice", "age": 30, "tags": ["a", "b"]}),
-            None,
         )
         .await
         .unwrap();
@@ -4599,7 +4678,9 @@ async fn test_job_data_available_in_processor() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let data = tokio::time::timeout(Duration::from_secs(5), rx.recv())
         .await
@@ -4623,10 +4704,10 @@ async fn test_job_name_available_in_processor() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("my-job-name", serde_json::json!({}), None)
+        .add("my-job-name", serde_json::json!({}))
         .await
         .unwrap();
 
@@ -4644,7 +4725,9 @@ async fn test_job_name_available_in_processor() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let job_name = tokio::time::timeout(Duration::from_secs(5), rx.recv())
         .await
@@ -4670,7 +4753,7 @@ async fn test_delay_property_updated_on_fixed_backoff() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job_opts = JobOptions {
         attempts: Some(3),
@@ -4678,7 +4761,8 @@ async fn test_delay_property_updated_on_fixed_backoff() {
         ..Default::default()
     };
     let job = queue
-        .add("test", serde_json::json!({"bar": "baz"}), Some(job_opts))
+        .add("test", serde_json::json!({"bar": "baz"}))
+        .options(job_opts)
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -4693,7 +4777,9 @@ async fn test_delay_property_updated_on_fixed_backoff() {
         drain_delay: 1,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for first failed event
     tokio::time::timeout(Duration::from_secs(5), async {
@@ -4727,7 +4813,7 @@ async fn test_delay_property_updated_on_exponential_backoff() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job_opts = JobOptions {
         attempts: Some(3),
@@ -4735,7 +4821,8 @@ async fn test_delay_property_updated_on_exponential_backoff() {
         ..Default::default()
     };
     let job = queue
-        .add("test", serde_json::json!({"bar": "baz"}), Some(job_opts))
+        .add("test", serde_json::json!({"bar": "baz"}))
+        .options(job_opts)
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -4750,7 +4837,9 @@ async fn test_delay_property_updated_on_exponential_backoff() {
         drain_delay: 1,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for second failed event (to check exponential growth)
     let mut failed_count = 0;
@@ -4798,7 +4887,7 @@ async fn test_token_deleted_after_move_to_delayed() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job_opts = JobOptions {
         attempts: Some(3),
@@ -4806,7 +4895,8 @@ async fn test_token_deleted_after_move_to_delayed() {
         ..Default::default()
     };
     let job = queue
-        .add("test", serde_json::json!({"bar": "baz"}), Some(job_opts))
+        .add("test", serde_json::json!({"bar": "baz"}))
+        .options(job_opts)
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -4836,7 +4926,9 @@ async fn test_token_deleted_after_move_to_delayed() {
         lock_duration: 10000,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for completion
     tokio::time::timeout(Duration::from_secs(10), rx.recv())
@@ -4877,7 +4969,7 @@ async fn test_promotes_delayed_jobs_first() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Add job 1 with attempts (will fail once then succeed)
     let job_opts = JobOptions {
@@ -4885,7 +4977,8 @@ async fn test_promotes_delayed_jobs_first() {
         ..Default::default()
     };
     queue
-        .add("test", serde_json::json!({"foo": "bar"}), Some(job_opts))
+        .add("test", serde_json::json!({"foo": "bar"}))
+        .options(job_opts)
         .await
         .unwrap();
 
@@ -4896,7 +4989,8 @@ async fn test_promotes_delayed_jobs_first() {
             ..Default::default()
         };
         queue
-            .add("test", serde_json::json!({}), Some(opts))
+            .add("test", serde_json::json!({}))
+            .options(opts)
             .await
             .unwrap();
     }
@@ -4937,7 +5031,9 @@ async fn test_promotes_delayed_jobs_first() {
         drain_delay: 1,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(10), rx.recv())
         .await
@@ -4972,7 +5068,7 @@ async fn test_fixed_backoff_respects_delay_timing() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job_opts = JobOptions {
         attempts: Some(4),
@@ -4980,7 +5076,8 @@ async fn test_fixed_backoff_respects_delay_timing() {
         ..Default::default()
     };
     queue
-        .add("test", serde_json::json!({}), Some(job_opts))
+        .add("test", serde_json::json!({}))
+        .options(job_opts)
         .await
         .unwrap();
 
@@ -5010,7 +5107,9 @@ async fn test_fixed_backoff_respects_delay_timing() {
     };
 
     let start = std::time::Instant::now();
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(15), rx.recv())
         .await
@@ -5048,7 +5147,7 @@ async fn test_exponential_backoff_timing() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job_opts = JobOptions {
         attempts: Some(3),
@@ -5056,7 +5155,8 @@ async fn test_exponential_backoff_timing() {
         ..Default::default()
     };
     queue
-        .add("test", serde_json::json!({}), Some(job_opts))
+        .add("test", serde_json::json!({}))
+        .options(job_opts)
         .await
         .unwrap();
 
@@ -5086,7 +5186,9 @@ async fn test_exponential_backoff_timing() {
     };
 
     let start = std::time::Instant::now();
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(10), rx.recv())
         .await
@@ -5118,18 +5220,15 @@ async fn test_process_prioritized_job_without_delay() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Add first job with priority 2
     queue
-        .add(
-            "test1",
-            serde_json::json!({"p": 2}),
-            Some(JobOptions {
-                priority: Some(2),
-                ..Default::default()
-            }),
-        )
+        .add("test1", serde_json::json!({"p": 2}))
+        .options(JobOptions {
+            priority: Some(2),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
@@ -5151,17 +5250,14 @@ async fn test_process_prioritized_job_without_delay() {
                     connection: conn,
                     ..Default::default()
                 };
-                let q = Queue::new(&queue_name, q_opts).await.unwrap();
-                q.add(
-                    "test2",
-                    serde_json::json!({"p": 2}),
-                    Some(JobOptions {
+                let q = Queue::with_options(&queue_name, q_opts).await.unwrap();
+                q.add("test2", serde_json::json!({"p": 2}))
+                    .options(JobOptions {
                         priority: Some(2),
                         ..Default::default()
-                    }),
-                )
-                .await
-                .unwrap();
+                    })
+                    .await
+                    .unwrap();
             }
 
             assert_eq!(job.data()["p"], 2);
@@ -5178,7 +5274,9 @@ async fn test_process_prioritized_job_without_delay() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(5), rx.recv())
         .await
@@ -5202,14 +5300,11 @@ async fn test_pause_waits_for_concurrent_processing() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Add 8 jobs
     for _ in 0..8 {
-        queue
-            .add("test", serde_json::json!({}), None)
-            .await
-            .unwrap();
+        queue.add("test", serde_json::json!({})).await.unwrap();
     }
 
     let finish_count = Arc::new(std::sync::atomic::AtomicU32::new(0));
@@ -5238,7 +5333,9 @@ async fn test_pause_waits_for_concurrent_processing() {
         concurrency: 4,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for first batch to start processing
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -5297,7 +5394,7 @@ async fn test_delay_reset_to_zero_after_retries_exhausted() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job_opts = JobOptions {
         attempts: Some(3),
@@ -5305,7 +5402,8 @@ async fn test_delay_reset_to_zero_after_retries_exhausted() {
         ..Default::default()
     };
     let job = queue
-        .add("test", serde_json::json!({}), Some(job_opts))
+        .add("test", serde_json::json!({}))
+        .options(job_opts)
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -5320,7 +5418,9 @@ async fn test_delay_reset_to_zero_after_retries_exhausted() {
         drain_delay: 1,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for all 3 failures
     let mut failed_count = 0;
@@ -5366,7 +5466,7 @@ async fn test_attempts_made_increments_on_each_retry() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job_opts = JobOptions {
         attempts: Some(4),
@@ -5374,7 +5474,8 @@ async fn test_attempts_made_increments_on_each_retry() {
         ..Default::default()
     };
     let job = queue
-        .add("test", serde_json::json!({}), Some(job_opts))
+        .add("test", serde_json::json!({}))
+        .options(job_opts)
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -5403,7 +5504,9 @@ async fn test_attempts_made_increments_on_each_retry() {
         drain_delay: 1,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(10), rx.recv())
         .await
@@ -5440,12 +5543,9 @@ async fn test_worker_events_order() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
-    queue
-        .add("test", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("test", serde_json::json!({})).await.unwrap();
 
     let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {
         Box::pin(async move { Ok(serde_json::json!(null)) })
@@ -5456,7 +5556,9 @@ async fn test_worker_events_order() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let mut events = Vec::new();
     tokio::time::timeout(Duration::from_secs(10), async {
@@ -5514,7 +5616,7 @@ async fn test_failed_reason_saved_during_retry() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job_opts = JobOptions {
         attempts: Some(3),
@@ -5522,7 +5624,8 @@ async fn test_failed_reason_saved_during_retry() {
         ..Default::default()
     };
     let job = queue
-        .add("test", serde_json::json!({"foo": "bar"}), Some(job_opts))
+        .add("test", serde_json::json!({"foo": "bar"}))
+        .options(job_opts)
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -5537,7 +5640,9 @@ async fn test_failed_reason_saved_during_retry() {
         drain_delay: 1,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for all attempts to fail (job moves to permanently failed)
     tokio::time::timeout(Duration::from_secs(10), async {
@@ -5578,7 +5683,7 @@ async fn test_worker_does_not_fetch_new_jobs_during_close() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let processed_count = Arc::new(std::sync::atomic::AtomicU32::new(0));
     let processed_clone = processed_count.clone();
@@ -5597,24 +5702,17 @@ async fn test_worker_does_not_fetch_new_jobs_during_close() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
-
-    // Add a job and wait for it to start processing
-    queue
-        .add("test", serde_json::json!({}), None)
+    let worker = Worker::with_options(&name, processor, worker_opts)
         .await
         .unwrap();
+
+    // Add a job and wait for it to start processing
+    queue.add("test", serde_json::json!({})).await.unwrap();
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     // Now close and simultaneously add more jobs
-    queue
-        .add("test2", serde_json::json!({}), None)
-        .await
-        .unwrap();
-    queue
-        .add("test3", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("test2", serde_json::json!({})).await.unwrap();
+    queue.add("test3", serde_json::json!({})).await.unwrap();
 
     worker.close(5000).await.unwrap();
 
@@ -5642,12 +5740,9 @@ async fn test_close_resolves_after_active_job_finishes() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
-    queue
-        .add("test", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("test", serde_json::json!({})).await.unwrap();
 
     let (started_tx, mut started_rx) = mpsc::channel::<()>(1);
     let processor: ProcessorFn = Arc::new(move |_job: Job, _token: CancellationToken| {
@@ -5664,7 +5759,9 @@ async fn test_close_resolves_after_active_job_finishes() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for processing to start
     tokio::time::timeout(Duration::from_secs(5), started_rx.recv())
@@ -5708,10 +5805,10 @@ async fn test_default_job_options_remove_on_complete() {
         },
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job = queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -5728,7 +5825,9 @@ async fn test_default_job_options_remove_on_complete() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -5771,10 +5870,10 @@ async fn test_default_job_options_remove_on_fail() {
         },
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job = queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -5788,7 +5887,9 @@ async fn test_default_job_options_remove_on_fail() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -5832,12 +5933,12 @@ async fn test_default_job_options_keep_count_remove_on_complete() {
         },
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let total_jobs = 9;
     for i in 0..total_jobs {
         queue
-            .add("test", serde_json::json!({"idx": i}), None)
+            .add("test", serde_json::json!({"idx": i}))
             .await
             .unwrap();
     }
@@ -5857,7 +5958,9 @@ async fn test_default_job_options_keep_count_remove_on_complete() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
@@ -5892,30 +5995,24 @@ async fn test_process_prioritized_jobs_custom_id() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add(
-            "test1",
-            serde_json::json!({"p": 2}),
-            Some(JobOptions {
-                priority: Some(2),
-                job_id: Some("custom1".to_string()),
-                ..Default::default()
-            }),
-        )
+        .add("test1", serde_json::json!({"p": 2}))
+        .options(JobOptions {
+            priority: Some(2),
+            job_id: Some("custom1".to_string()),
+            ..Default::default()
+        })
         .await
         .unwrap();
     queue
-        .add(
-            "test2",
-            serde_json::json!({"p": 3}),
-            Some(JobOptions {
-                priority: Some(3),
-                job_id: Some("custom2".to_string()),
-                ..Default::default()
-            }),
-        )
+        .add("test2", serde_json::json!({"p": 3}))
+        .options(JobOptions {
+            priority: Some(3),
+            job_id: Some("custom2".to_string()),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
@@ -5934,7 +6031,9 @@ async fn test_process_prioritized_jobs_custom_id() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -5967,10 +6066,10 @@ async fn test_add_bulk_processing() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
-    let jobs: Vec<(String, serde_json::Value, Option<JobOptions>)> = (0..5)
-        .map(|i| (format!("job-{}", i), serde_json::json!({"idx": i}), None))
+    let jobs: Vec<BulkJob> = (0..5)
+        .map(|i| BulkJob::new(format!("job-{}", i), serde_json::json!({"idx": i})))
         .collect();
 
     let added = queue.add_bulk(jobs).await.unwrap();
@@ -5992,7 +6091,9 @@ async fn test_add_bulk_processing() {
         concurrency: 3,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -6025,14 +6126,15 @@ async fn test_retries_job_then_succeeds() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job_opts = JobOptions {
         attempts: Some(3),
         ..Default::default()
     };
     queue
-        .add("test", serde_json::json!({"foo": "bar"}), Some(job_opts))
+        .add("test", serde_json::json!({"foo": "bar"}))
+        .options(job_opts)
         .await
         .unwrap();
 
@@ -6056,7 +6158,9 @@ async fn test_retries_job_then_succeeds() {
         drain_delay: 1,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for completion
     tokio::time::timeout(Duration::from_secs(5), async {
@@ -6094,20 +6198,17 @@ async fn test_no_orphaned_data_when_limit_less_than_removable() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let total_jobs = 10;
     let keep_count: usize = 2;
     for i in 0..total_jobs {
         queue
-            .add(
-                "test",
-                serde_json::json!({"idx": i}),
-                Some(JobOptions {
-                    remove_on_complete: Some(bullmq::types::RemoveOnFinish::Count(keep_count)),
-                    ..Default::default()
-                }),
-            )
+            .add("test", serde_json::json!({"idx": i}))
+            .options(JobOptions {
+                remove_on_complete: Some(bullmq::types::RemoveOnFinish::Count(keep_count)),
+                ..Default::default()
+            })
             .await
             .unwrap();
     }
@@ -6127,7 +6228,9 @@ async fn test_no_orphaned_data_when_limit_less_than_removable() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
@@ -6163,25 +6266,22 @@ async fn test_keep_jobs_age_and_count_remove_on_fail() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let total_jobs = 10;
     for i in 0..total_jobs {
         queue
-            .add(
-                "test",
-                serde_json::json!({"idx": i}),
-                Some(JobOptions {
-                    remove_on_fail: Some(bullmq::types::RemoveOnFinish::Options(
-                        bullmq::types::KeepJobs {
-                            age: Some(7),
-                            count: Some(keep_count),
-                            limit: None,
-                        },
-                    )),
-                    ..Default::default()
-                }),
-            )
+            .add("test", serde_json::json!({"idx": i}))
+            .options(JobOptions {
+                remove_on_fail: Some(bullmq::types::RemoveOnFinish::Options(
+                    bullmq::types::KeepJobs {
+                        age: Some(7),
+                        count: Some(keep_count),
+                        limit: None,
+                    },
+                )),
+                ..Default::default()
+            })
             .await
             .unwrap();
     }
@@ -6201,7 +6301,9 @@ async fn test_keep_jobs_age_and_count_remove_on_fail() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
@@ -6241,7 +6343,7 @@ async fn test_retries_job_resets_attempts_made() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job_opts = JobOptions {
         attempts: Some(3),
@@ -6249,7 +6351,8 @@ async fn test_retries_job_resets_attempts_made() {
         ..Default::default()
     };
     queue
-        .add("test", serde_json::json!({"foo": "bar"}), Some(job_opts))
+        .add("test", serde_json::json!({"foo": "bar"}))
+        .options(job_opts)
         .await
         .unwrap();
 
@@ -6280,7 +6383,9 @@ async fn test_retries_job_resets_attempts_made() {
         drain_delay: 1,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
@@ -6315,34 +6420,13 @@ async fn test_add_bulk_with_priority() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Add jobs with different priorities
-    let jobs: Vec<(String, serde_json::Value, Option<JobOptions>)> = vec![
-        (
-            "low".to_string(),
-            serde_json::json!({"priority": "low"}),
-            Some(JobOptions {
-                priority: Some(10),
-                ..Default::default()
-            }),
-        ),
-        (
-            "high".to_string(),
-            serde_json::json!({"priority": "high"}),
-            Some(JobOptions {
-                priority: Some(1),
-                ..Default::default()
-            }),
-        ),
-        (
-            "medium".to_string(),
-            serde_json::json!({"priority": "medium"}),
-            Some(JobOptions {
-                priority: Some(5),
-                ..Default::default()
-            }),
-        ),
+    let jobs: Vec<BulkJob> = vec![
+        BulkJob::new("low", serde_json::json!({"priority": "low"})).priority(10),
+        BulkJob::new("high", serde_json::json!({"priority": "high"})).priority(1),
+        BulkJob::new("medium", serde_json::json!({"priority": "medium"})).priority(5),
     ];
 
     let added = queue.add_bulk(jobs).await.unwrap();
@@ -6369,7 +6453,9 @@ async fn test_add_bulk_with_priority() {
         concurrency: 1,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -6405,12 +6491,12 @@ async fn test_concurrent_workers_keep_locks() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let concurrency = 10;
     for i in 0..concurrency {
         queue
-            .add("test", serde_json::json!({"idx": i}), None)
+            .add("test", serde_json::json!({"idx": i}))
             .await
             .unwrap();
     }
@@ -6435,7 +6521,9 @@ async fn test_concurrent_workers_keep_locks() {
         lock_duration: 1000,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
@@ -6469,12 +6557,12 @@ async fn test_no_active_jobs_after_all_processed() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let total = 20;
     for i in 0..total {
         queue
-            .add("test", serde_json::json!({"idx": i}), None)
+            .add("test", serde_json::json!({"idx": i}))
             .await
             .unwrap();
     }
@@ -6495,7 +6583,9 @@ async fn test_no_active_jobs_after_all_processed() {
         concurrency: 5,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
@@ -6531,15 +6621,15 @@ async fn test_slow_job_does_not_block_concurrent() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // First job is slow, second is fast
     queue
-        .add("test", serde_json::json!({"index": 1, "slow": true}), None)
+        .add("test", serde_json::json!({"index": 1, "slow": true}))
         .await
         .unwrap();
     queue
-        .add("test", serde_json::json!({"index": 2, "slow": false}), None)
+        .add("test", serde_json::json!({"index": 2, "slow": false}))
         .await
         .unwrap();
 
@@ -6567,7 +6657,9 @@ async fn test_slow_job_does_not_block_concurrent() {
         concurrency: 2,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -6602,13 +6694,13 @@ async fn test_concurrency_never_exceeded() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let total_jobs = 8;
     let concurrency = 4_usize;
     for i in 0..total_jobs {
         queue
-            .add("test", serde_json::json!({"idx": i}), None)
+            .add("test", serde_json::json!({"idx": i}))
             .await
             .unwrap();
     }
@@ -6643,7 +6735,9 @@ async fn test_concurrency_never_exceeded() {
         concurrency,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
@@ -6687,10 +6781,10 @@ async fn test_process_async_job_with_return_value() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job = queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -6708,7 +6802,9 @@ async fn test_process_async_job_with_return_value() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -6747,12 +6843,12 @@ async fn test_default_job_options_lifo() {
         },
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Add jobs: 1, 2, 3 - with LIFO, processing should be 3, 2, 1
     for i in 1..=3 {
         queue
-            .add("test", serde_json::json!({"idx": i}), None)
+            .add("test", serde_json::json!({"idx": i}))
             .await
             .unwrap();
     }
@@ -6778,7 +6874,9 @@ async fn test_default_job_options_lifo() {
         concurrency: 1,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -6814,17 +6912,17 @@ async fn test_worker_ignores_other_queues() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue1 = Queue::new(&name1, queue_opts1).await.unwrap();
+    let queue1 = Queue::with_options(&name1, queue_opts1).await.unwrap();
 
     let queue_opts2 = QueueOptions {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue2 = Queue::new(&name2, queue_opts2).await.unwrap();
+    let queue2 = Queue::with_options(&name2, queue_opts2).await.unwrap();
 
     // Add job to queue2
     queue2
-        .add("test", serde_json::json!({"queue": 2}), None)
+        .add("test", serde_json::json!({"queue": 2}))
         .await
         .unwrap();
 
@@ -6845,7 +6943,9 @@ async fn test_worker_ignores_other_queues() {
         drain_delay: 1,
         ..Default::default()
     };
-    let worker = Worker::new(&name1, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name1, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait a bit, no jobs should be processed
     tokio::time::sleep(Duration::from_secs(2)).await;
@@ -6853,7 +6953,7 @@ async fn test_worker_ignores_other_queues() {
 
     // Now add a job to queue1
     queue1
-        .add("test", serde_json::json!({"queue": 1}), None)
+        .add("test", serde_json::json!({"queue": 1}))
         .await
         .unwrap();
 
@@ -6888,10 +6988,10 @@ async fn test_autorun_false_no_processing_until_run() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
 
@@ -6910,7 +7010,9 @@ async fn test_autorun_false_no_processing_until_run() {
         autorun: false,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Worker is not running, so no processing should happen
     tokio::time::sleep(Duration::from_millis(500)).await;
@@ -6949,10 +7051,10 @@ async fn test_update_progress_as_number() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("progress-job", serde_json::json!({"foo": "bar"}), None)
+        .add("progress-job", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
 
@@ -6970,7 +7072,9 @@ async fn test_update_progress_as_number() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let mut progress_values: Vec<f64> = Vec::new();
 
@@ -7009,10 +7113,10 @@ async fn test_update_progress_as_object() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("progress-obj-job", serde_json::json!({}), None)
+        .add("progress-obj-job", serde_json::json!({}))
         .await
         .unwrap();
 
@@ -7032,7 +7136,9 @@ async fn test_update_progress_as_object() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let mut got_progress = false;
 
@@ -7074,10 +7180,10 @@ async fn test_active_event_emitted() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("active-test", serde_json::json!({}), None)
+        .add("active-test", serde_json::json!({}))
         .await
         .unwrap();
 
@@ -7091,7 +7197,9 @@ async fn test_active_event_emitted() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let mut got_active = false;
     let mut active_job_id = String::new();
@@ -7129,7 +7237,7 @@ async fn test_paused_resumed_events() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let processor: ProcessorFn = Arc::new(move |_job: Job, _token: CancellationToken| {
         Box::pin(async move { Ok(serde_json::json!(null)) })
@@ -7141,7 +7249,9 @@ async fn test_paused_resumed_events() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait a bit for worker to start
     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -7185,14 +7295,10 @@ async fn test_update_data() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add(
-            "update-data-job",
-            serde_json::json!({"initial": true}),
-            None,
-        )
+        .add("update-data-job", serde_json::json!({"initial": true}))
         .await
         .unwrap();
 
@@ -7213,7 +7319,9 @@ async fn test_update_data() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let data = tokio::time::timeout(Duration::from_secs(10), rx.recv())
         .await
@@ -7236,12 +7344,9 @@ async fn test_job_log() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
-    queue
-        .add("log-job", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("log-job", serde_json::json!({})).await.unwrap();
 
     let (tx, mut rx) = mpsc::channel::<u64>(1);
     let processor: ProcessorFn = Arc::new(move |job: Job, _token: CancellationToken| {
@@ -7260,7 +7365,9 @@ async fn test_job_log() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let count = tokio::time::timeout(Duration::from_secs(10), rx.recv())
         .await
@@ -7286,10 +7393,10 @@ async fn test_retry_failed_job() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let mut job = queue
-        .add("retry-me", serde_json::json!({"x": 1}), None)
+        .add("retry-me", serde_json::json!({"x": 1}))
         .await
         .unwrap();
 
@@ -7314,7 +7421,9 @@ async fn test_retry_failed_job() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for the first processing to fail
     let timeout = tokio::time::timeout(Duration::from_secs(10), async {
@@ -7364,10 +7473,10 @@ async fn test_retry_completed_job() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let mut job = queue
-        .add("retry-completed", serde_json::json!({}), None)
+        .add("retry-completed", serde_json::json!({}))
         .await
         .unwrap();
 
@@ -7388,7 +7497,9 @@ async fn test_retry_completed_job() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for first completion
     let timeout = tokio::time::timeout(Duration::from_secs(10), async {
@@ -7441,10 +7552,10 @@ async fn test_retry_with_reset_attempts_made() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let mut job = queue
-        .add("retry-reset", serde_json::json!({}), None)
+        .add("retry-reset", serde_json::json!({}))
         .await
         .unwrap();
 
@@ -7472,7 +7583,9 @@ async fn test_retry_with_reset_attempts_made() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for failure
     let timeout = tokio::time::timeout(Duration::from_secs(10), async {
@@ -7538,18 +7651,15 @@ async fn test_custom_backoff_strategy() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add(
-            "custom-backoff",
-            serde_json::json!({}),
-            Some(JobOptions {
-                attempts: Some(3),
-                backoff: Some(BackoffStrategy::Custom("custom".to_string())),
-                ..Default::default()
-            }),
-        )
+        .add("custom-backoff", serde_json::json!({}))
+        .options(JobOptions {
+            attempts: Some(3),
+            backoff: Some(BackoffStrategy::Custom("custom".to_string())),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
@@ -7582,7 +7692,9 @@ async fn test_custom_backoff_strategy() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for completion (should retry twice with custom backoff then succeed)
     let mut failed_count = 0usize;
@@ -7633,18 +7745,15 @@ async fn test_custom_backoff_returns_minus_one_no_retry() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add(
-            "no-retry-custom",
-            serde_json::json!({}),
-            Some(JobOptions {
-                attempts: Some(5),
-                backoff: Some(BackoffStrategy::Custom("myCustom".to_string())),
-                ..Default::default()
-            }),
-        )
+        .add("no-retry-custom", serde_json::json!({}))
+        .options(JobOptions {
+            attempts: Some(5),
+            backoff: Some(BackoffStrategy::Custom("myCustom".to_string())),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
@@ -7673,7 +7782,9 @@ async fn test_custom_backoff_returns_minus_one_no_retry() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for the failed event (should only process once since backoff returns -1)
     let timeout = tokio::time::timeout(Duration::from_secs(10), async {
@@ -7710,18 +7821,15 @@ async fn test_custom_backoff_based_on_error() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add(
-            "error-based-backoff",
-            serde_json::json!({}),
-            Some(JobOptions {
-                attempts: Some(3),
-                backoff: Some(BackoffStrategy::Custom("errorBased".to_string())),
-                ..Default::default()
-            }),
-        )
+        .add("error-based-backoff", serde_json::json!({}))
+        .options(JobOptions {
+            attempts: Some(3),
+            backoff: Some(BackoffStrategy::Custom("errorBased".to_string())),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
@@ -7760,7 +7868,9 @@ async fn test_custom_backoff_based_on_error() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for completion
     let timeout = tokio::time::timeout(Duration::from_secs(10), async {
@@ -7793,18 +7903,18 @@ async fn test_custom_backoff_based_on_job_data() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
         .add(
             "data-based-backoff",
             serde_json::json!({"delay_factor": 200}),
-            Some(JobOptions {
-                attempts: Some(3),
-                backoff: Some(BackoffStrategy::Custom("dataBased".to_string())),
-                ..Default::default()
-            }),
         )
+        .options(JobOptions {
+            attempts: Some(3),
+            backoff: Some(BackoffStrategy::Custom("dataBased".to_string())),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
@@ -7846,7 +7956,9 @@ async fn test_custom_backoff_based_on_job_data() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for completion
     let timeout = tokio::time::timeout(Duration::from_secs(10), async {
@@ -7879,18 +7991,15 @@ async fn test_custom_backoff_for_custom_type() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add(
-            "typed-backoff",
-            serde_json::json!({}),
-            Some(JobOptions {
-                attempts: Some(3),
-                backoff: Some(BackoffStrategy::Custom("mySpecialType".to_string())),
-                ..Default::default()
-            }),
-        )
+        .add("typed-backoff", serde_json::json!({}))
+        .options(JobOptions {
+            attempts: Some(3),
+            backoff: Some(BackoffStrategy::Custom("mySpecialType".to_string())),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
@@ -7929,7 +8038,9 @@ async fn test_custom_backoff_for_custom_type() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for completion
     let timeout = tokio::time::timeout(Duration::from_secs(10), async {
@@ -7966,10 +8077,10 @@ async fn test_update_progress_as_string() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
 
@@ -7989,7 +8100,9 @@ async fn test_update_progress_as_string() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let timeout = tokio::time::timeout(Duration::from_secs(10), async {
         loop {
@@ -8026,10 +8139,10 @@ async fn test_update_progress_as_boolean() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
 
@@ -8047,7 +8160,9 @@ async fn test_update_progress_as_boolean() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let timeout = tokio::time::timeout(Duration::from_secs(10), async {
         loop {
@@ -8088,7 +8203,7 @@ async fn test_get_next_job_nonblocking_returns_none_when_empty() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let processor: ProcessorFn = Arc::new(move |_job: Job, _token: CancellationToken| {
         Box::pin(async move { Ok(serde_json::json!(null)) })
@@ -8100,7 +8215,9 @@ async fn test_get_next_job_nonblocking_returns_none_when_empty() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Non-blocking should return None immediately when no jobs
     let result = worker.get_next_job_nonblocking("token-1").await.unwrap();
@@ -8108,7 +8225,7 @@ async fn test_get_next_job_nonblocking_returns_none_when_empty() {
 
     // Add a job and fetch it
     queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
 
@@ -8133,7 +8250,7 @@ async fn test_get_next_job_nonblocking_when_paused() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let processor: ProcessorFn = Arc::new(move |_job: Job, _token: CancellationToken| {
         Box::pin(async move { Ok(serde_json::json!(null)) })
@@ -8145,11 +8262,13 @@ async fn test_get_next_job_nonblocking_when_paused() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Add a job
     queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
 
@@ -8179,10 +8298,10 @@ async fn test_get_next_job_emits_active_event() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job = queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
 
@@ -8196,7 +8315,9 @@ async fn test_get_next_job_emits_active_event() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Fetch the job manually
     let fetched = worker.get_next_job("token-1").await.unwrap();
@@ -8228,7 +8349,7 @@ async fn test_cannot_retry_active_job() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let (tx, mut rx) = mpsc::unbounded_channel::<()>();
 
@@ -8248,10 +8369,12 @@ async fn test_cannot_retry_active_job() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let mut job = queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
 
@@ -8275,7 +8398,7 @@ async fn test_cannot_retry_completed_job_from_failed_state() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let attempt_count = Arc::new(AtomicUsize::new(0));
     let attempt_count_clone = attempt_count.clone();
@@ -8297,10 +8420,12 @@ async fn test_cannot_retry_completed_job_from_failed_state() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let mut job = queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
 
@@ -8354,10 +8479,10 @@ async fn test_close_while_job_completes() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
 
@@ -8380,7 +8505,9 @@ async fn test_close_while_job_completes() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for processing to start
     rx.recv().await.unwrap();
@@ -8399,10 +8526,10 @@ async fn test_close_while_job_fails() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
 
@@ -8425,7 +8552,9 @@ async fn test_close_while_job_fails() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for processing to start
     rx.recv().await.unwrap();
@@ -8448,7 +8577,7 @@ async fn test_exponential_backoff_total_timing() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let base_delay: u64 = 100;
     let attempts: u32 = 4;
@@ -8459,7 +8588,8 @@ async fn test_exponential_backoff_total_timing() {
         ..Default::default()
     };
     queue
-        .add("test", serde_json::json!({}), Some(opts))
+        .add("test", serde_json::json!({}))
+        .options(opts)
         .await
         .unwrap();
 
@@ -8482,7 +8612,9 @@ async fn test_exponential_backoff_total_timing() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for all attempts to be exhausted (final failure)
     let timeout = tokio::time::timeout(Duration::from_secs(30), async {
@@ -8528,7 +8660,7 @@ async fn test_fixed_backoff_constant_delay() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let delay_ms: u64 = 1500;
     let attempts: u32 = 3;
@@ -8539,7 +8671,8 @@ async fn test_fixed_backoff_constant_delay() {
         ..Default::default()
     };
     queue
-        .add("test", serde_json::json!({}), Some(opts))
+        .add("test", serde_json::json!({}))
+        .options(opts)
         .await
         .unwrap();
 
@@ -8565,7 +8698,9 @@ async fn test_fixed_backoff_constant_delay() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let timeout = tokio::time::timeout(Duration::from_secs(15), async {
         let mut fail_count = 0u32;
@@ -8616,7 +8751,7 @@ async fn test_concurrency_limits_parallel_processing() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let concurrency = 4;
     let total_jobs = 8;
@@ -8624,7 +8759,7 @@ async fn test_concurrency_limits_parallel_processing() {
     // Add jobs
     for i in 0..total_jobs {
         queue
-            .add("test", serde_json::json!({"index": i}), None)
+            .add("test", serde_json::json!({"index": i}))
             .await
             .unwrap();
     }
@@ -8665,7 +8800,9 @@ async fn test_concurrency_limits_parallel_processing() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for all jobs to complete
     let timeout = tokio::time::timeout(Duration::from_secs(15), async {
@@ -8716,7 +8853,7 @@ async fn test_retry_moves_job_to_paused_when_queue_paused() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let attempt_count = Arc::new(AtomicUsize::new(0));
     let attempt_count_clone = attempt_count.clone();
@@ -8738,10 +8875,12 @@ async fn test_retry_moves_job_to_paused_when_queue_paused() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let mut job = queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
 
@@ -8798,10 +8937,10 @@ async fn test_job_get_state_waiting() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job = queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
 
@@ -8820,7 +8959,7 @@ async fn test_job_get_state_active() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let (tx, mut rx) = mpsc::unbounded_channel::<String>();
 
@@ -8839,12 +8978,11 @@ async fn test_job_get_state_active() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
-
-    let job = queue
-        .add("test", serde_json::json!({}), None)
+    let worker = Worker::with_options(&name, processor, worker_opts)
         .await
         .unwrap();
+
+    let job = queue.add("test", serde_json::json!({})).await.unwrap();
 
     // Wait for the job to become active
     let _active_job_id = rx.recv().await.unwrap();
@@ -8865,7 +9003,7 @@ async fn test_job_get_state_completed() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let processor: ProcessorFn = Arc::new(move |_job: Job, _token: CancellationToken| {
         Box::pin(async move { Ok(serde_json::json!("done")) })
@@ -8877,12 +9015,11 @@ async fn test_job_get_state_completed() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
-
-    let job = queue
-        .add("test", serde_json::json!({}), None)
+    let worker = Worker::with_options(&name, processor, worker_opts)
         .await
         .unwrap();
+
+    let job = queue.add("test", serde_json::json!({})).await.unwrap();
 
     // Wait for completion
     let timeout = tokio::time::timeout(Duration::from_secs(10), async {
@@ -8913,7 +9050,7 @@ async fn test_job_get_state_failed() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let processor: ProcessorFn = Arc::new(move |_job: Job, _token: CancellationToken| {
         Box::pin(async move { Err(Error::ProcessingError("fail".to_string())) })
@@ -8925,12 +9062,11 @@ async fn test_job_get_state_failed() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
-
-    let job = queue
-        .add("test", serde_json::json!({}), None)
+    let worker = Worker::with_options(&name, processor, worker_opts)
         .await
         .unwrap();
+
+    let job = queue.add("test", serde_json::json!({})).await.unwrap();
 
     // Wait for failure
     let timeout = tokio::time::timeout(Duration::from_secs(10), async {
@@ -8961,14 +9097,15 @@ async fn test_job_get_state_delayed() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let opts = JobOptions {
         delay: Some(60000), // 60 seconds — won't be promoted during test
         ..Default::default()
     };
     let job = queue
-        .add("test", serde_json::json!({}), Some(opts))
+        .add("test", serde_json::json!({}))
+        .options(opts)
         .await
         .unwrap();
 
@@ -8987,10 +9124,10 @@ async fn test_job_is_active_via_get_next_job() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job = queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
 
@@ -9004,7 +9141,9 @@ async fn test_job_is_active_via_get_next_job() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Manually fetch the job — it should now be active
     let fetched = worker.get_next_job("token-1").await.unwrap();
@@ -9030,7 +9169,7 @@ async fn test_worker_processes_after_pause_resume_cycle() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let processor: ProcessorFn = Arc::new(move |_job: Job, _token: CancellationToken| {
         Box::pin(async move { Ok(serde_json::json!("done")) })
@@ -9042,16 +9181,15 @@ async fn test_worker_processes_after_pause_resume_cycle() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Pause, add a job, resume — job should be processed
     worker.pause();
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    queue
-        .add("test", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("test", serde_json::json!({})).await.unwrap();
 
     worker.resume();
 
@@ -9080,7 +9218,7 @@ async fn test_worker_multiple_pause_resume_cycles() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let completed_count = Arc::new(AtomicUsize::new(0));
     let completed_clone = completed_count.clone();
@@ -9099,13 +9237,12 @@ async fn test_worker_multiple_pause_resume_cycles() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
-
-    // Add job, wait for completion
-    queue
-        .add("test1", serde_json::json!({}), None)
+    let worker = Worker::with_options(&name, processor, worker_opts)
         .await
         .unwrap();
+
+    // Add job, wait for completion
+    queue.add("test1", serde_json::json!({})).await.unwrap();
 
     let timeout = tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -9125,10 +9262,7 @@ async fn test_worker_multiple_pause_resume_cycles() {
     worker.resume();
 
     // Add another job
-    queue
-        .add("test2", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("test2", serde_json::json!({})).await.unwrap();
 
     let timeout = tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -9156,7 +9290,7 @@ async fn test_worker_unrecoverable_error_skips_retries() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let attempt_count = Arc::new(AtomicUsize::new(0));
     let attempt_count_clone = attempt_count.clone();
@@ -9175,7 +9309,9 @@ async fn test_worker_unrecoverable_error_skips_retries() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Job with 3 attempts but should fail immediately with unrecoverable error
     let opts = JobOptions {
@@ -9184,7 +9320,8 @@ async fn test_worker_unrecoverable_error_skips_retries() {
         ..Default::default()
     };
     queue
-        .add("test", serde_json::json!({}), Some(opts))
+        .add("test", serde_json::json!({}))
+        .options(opts)
         .await
         .unwrap();
 
@@ -9221,12 +9358,12 @@ async fn test_set_concurrency_increase() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let total_jobs = 16;
     for i in 0..total_jobs {
         queue
-            .add("test", serde_json::json!({"index": i}), None)
+            .add("test", serde_json::json!({"index": i}))
             .await
             .unwrap();
     }
@@ -9273,7 +9410,9 @@ async fn test_set_concurrency_increase() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for first 8 completions
     let timeout = tokio::time::timeout(Duration::from_secs(15), async {
@@ -9336,12 +9475,12 @@ async fn test_set_concurrency_decrease() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let total_jobs = 16;
     for i in 0..total_jobs {
         queue
-            .add("test", serde_json::json!({"index": i}), None)
+            .add("test", serde_json::json!({"index": i}))
             .await
             .unwrap();
     }
@@ -9389,7 +9528,9 @@ async fn test_set_concurrency_decrease() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for first 8 completions
     let timeout = tokio::time::timeout(Duration::from_secs(15), async {
@@ -9456,10 +9597,10 @@ async fn test_delayed_error_moves_job_to_delayed_and_reprocesses() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("test", serde_json::json!({"step": 0}), None)
+        .add("test", serde_json::json!({"step": 0}))
         .await
         .unwrap();
 
@@ -9496,7 +9637,9 @@ async fn test_delayed_error_moves_job_to_delayed_and_reprocesses() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for completion
     let timeout = tokio::time::timeout(Duration::from_secs(10), async {
@@ -9535,10 +9678,10 @@ async fn test_delayed_error_does_not_emit_failed_event() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("test", serde_json::json!({"step": 0}), None)
+        .add("test", serde_json::json!({"step": 0}))
         .await
         .unwrap();
 
@@ -9568,7 +9711,9 @@ async fn test_delayed_error_does_not_emit_failed_event() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let mut saw_failed = false;
     let timeout = tokio::time::timeout(Duration::from_secs(10), async {
@@ -9600,10 +9745,10 @@ async fn test_discard_does_not_convert_delayed_error_to_failure() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("test", serde_json::json!({"step": 0}), None)
+        .add("test", serde_json::json!({"step": 0}))
         .await
         .unwrap();
 
@@ -9639,7 +9784,9 @@ async fn test_discard_does_not_convert_delayed_error_to_failure() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let timeout = tokio::time::timeout(Duration::from_secs(10), async {
         loop {
@@ -9678,12 +9825,12 @@ async fn test_queue_clean_completed_jobs() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Add and process jobs
     for i in 0..5 {
         queue
-            .add("test", serde_json::json!({"i": i}), None)
+            .add("test", serde_json::json!({"i": i}))
             .await
             .unwrap();
     }
@@ -9698,7 +9845,9 @@ async fn test_queue_clean_completed_jobs() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for all jobs to complete
     let timeout = tokio::time::timeout(Duration::from_secs(5), async {
@@ -9742,11 +9891,11 @@ async fn test_queue_clean_with_limit() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     for i in 0..10 {
         queue
-            .add("test", serde_json::json!({"i": i}), None)
+            .add("test", serde_json::json!({"i": i}))
             .await
             .unwrap();
     }
@@ -9761,7 +9910,9 @@ async fn test_queue_clean_with_limit() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let timeout = tokio::time::timeout(Duration::from_secs(5), async {
         let mut count = 0;
@@ -9801,11 +9952,11 @@ async fn test_queue_clean_failed_jobs() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     for i in 0..3 {
         queue
-            .add("test", serde_json::json!({"i": i}), None)
+            .add("test", serde_json::json!({"i": i}))
             .await
             .unwrap();
     }
@@ -9820,7 +9971,9 @@ async fn test_queue_clean_failed_jobs() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let timeout = tokio::time::timeout(Duration::from_secs(5), async {
         let mut count = 0;
@@ -9866,10 +10019,10 @@ async fn test_manual_move_to_completed() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
 
@@ -9884,7 +10037,9 @@ async fn test_manual_move_to_completed() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let token = "manual-token";
     let mut job = worker.get_next_job(token).await.unwrap().unwrap();
@@ -9913,10 +10068,10 @@ async fn test_manual_move_to_failed() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
 
@@ -9930,7 +10085,9 @@ async fn test_manual_move_to_failed() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let token = "manual-token";
     let mut job = worker.get_next_job(token).await.unwrap().unwrap();
@@ -9962,18 +10119,15 @@ async fn test_job_promote_delayed_to_waiting() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Add a delayed job (delay 60 seconds - should not run naturally)
     let job = queue
-        .add(
-            "test",
-            serde_json::json!({"promote": true}),
-            Some(JobOptions {
-                delay: Some(60_000),
-                ..Default::default()
-            }),
-        )
+        .add("test", serde_json::json!({"promote": true}))
+        .options(JobOptions {
+            delay: Some(60_000),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
@@ -9999,12 +10153,9 @@ async fn test_job_extend_lock_manual_processing() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
-    queue
-        .add("test", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("test", serde_json::json!({})).await.unwrap();
 
     let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {
         Box::pin(async move { Ok(serde_json::json!(null)) })
@@ -10017,7 +10168,9 @@ async fn test_job_extend_lock_manual_processing() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let token = "lock-test-token";
     let job = worker.get_next_job(token).await.unwrap().unwrap();
@@ -10048,18 +10201,15 @@ async fn test_job_change_delay() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Add a job with 60s delay
     let job = queue
-        .add(
-            "test",
-            serde_json::json!({}),
-            Some(JobOptions {
-                delay: Some(60_000),
-                ..Default::default()
-            }),
-        )
+        .add("test", serde_json::json!({}))
+        .options(JobOptions {
+            delay: Some(60_000),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
@@ -10083,7 +10233,9 @@ async fn test_job_change_delay() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let timeout = tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -10110,30 +10262,24 @@ async fn test_job_change_priority() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Add jobs: low priority first, then high priority
     let _job_low = queue
-        .add(
-            "low",
-            serde_json::json!({"order": 1}),
-            Some(JobOptions {
-                priority: Some(10),
-                ..Default::default()
-            }),
-        )
+        .add("low", serde_json::json!({"order": 1}))
+        .options(JobOptions {
+            priority: Some(10),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
     let job_high = queue
-        .add(
-            "high",
-            serde_json::json!({"order": 2}),
-            Some(JobOptions {
-                priority: Some(10),
-                ..Default::default()
-            }),
-        )
+        .add("high", serde_json::json!({"order": 2}))
+        .options(JobOptions {
+            priority: Some(10),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
@@ -10151,7 +10297,9 @@ async fn test_job_change_priority() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let token = "prio-token";
     let first_job = worker.get_next_job(token).await.unwrap().unwrap();
@@ -10170,12 +10318,12 @@ async fn test_queue_retry_jobs() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Add jobs that will fail
     for i in 0..5 {
         queue
-            .add("fail-job", serde_json::json!({"i": i}), None)
+            .add("fail-job", serde_json::json!({"i": i}))
             .await
             .unwrap();
     }
@@ -10191,7 +10339,9 @@ async fn test_queue_retry_jobs() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for all jobs to fail
     let timeout = tokio::time::timeout(Duration::from_secs(5), async {
@@ -10236,14 +10386,11 @@ async fn test_queue_retry_jobs_completed() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Add and process jobs
     for i in 0..3 {
-        queue
-            .add("job", serde_json::json!({"i": i}), None)
-            .await
-            .unwrap();
+        queue.add("job", serde_json::json!({"i": i})).await.unwrap();
     }
 
     let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {
@@ -10256,7 +10403,9 @@ async fn test_queue_retry_jobs_completed() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let timeout = tokio::time::timeout(Duration::from_secs(5), async {
         let mut count = 0;
@@ -10300,19 +10449,16 @@ async fn test_queue_promote_jobs() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Add delayed jobs
     for i in 0..5 {
         queue
-            .add(
-                "delayed-job",
-                serde_json::json!({"i": i}),
-                Some(bullmq::JobOptions {
-                    delay: Some(60000), // 60 seconds in the future
-                    ..Default::default()
-                }),
-            )
+            .add("delayed-job", serde_json::json!({"i": i}))
+            .options(bullmq::JobOptions {
+                delay: Some(60000), // 60 seconds in the future
+                ..Default::default()
+            })
             .await
             .unwrap();
     }
@@ -10340,11 +10486,11 @@ async fn test_queue_get_job_logs() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Add a job and log to it
     let job = queue
-        .add("log-job", serde_json::json!({"test": true}), None)
+        .add("log-job", serde_json::json!({"test": true}))
         .await
         .unwrap();
 
@@ -10363,7 +10509,9 @@ async fn test_queue_get_job_logs() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for completion
     let timeout = tokio::time::timeout(Duration::from_secs(5), async {
@@ -10411,12 +10559,12 @@ async fn test_queue_trim_events() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Add and process many jobs to generate events
     for i in 0..20 {
         queue
-            .add("event-job", serde_json::json!({"i": i}), None)
+            .add("event-job", serde_json::json!({"i": i}))
             .await
             .unwrap();
     }
@@ -10431,7 +10579,9 @@ async fn test_queue_trim_events() {
         ..Default::default()
     };
 
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for all jobs to complete
     let timeout = tokio::time::timeout(Duration::from_secs(10), async {

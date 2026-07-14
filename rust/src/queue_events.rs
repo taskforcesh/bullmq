@@ -9,10 +9,10 @@
 //! # Example
 //!
 //! ```rust,no_run
-//! use bullmq::{QueueEvents, QueueEventsOptions, QueueEvent};
+//! use bullmq::{QueueEvents, QueueEvent};
 //!
 //! # async fn example() -> bullmq::Result<()> {
-//! let events = QueueEvents::new("my-queue", QueueEventsOptions::default()).await?;
+//! let events = QueueEvents::new("my-queue").await?;
 //!
 //! while let Some(entry) = events.next_event().await {
 //!     match entry.event {
@@ -373,8 +373,16 @@ pub struct QueueEvents {
 }
 
 impl QueueEvents {
-    /// Create a new `QueueEvents` listener with its own Redis connection.
-    pub async fn new(name: &str, opts: QueueEventsOptions) -> Result<Self, Error> {
+    /// Create a new `QueueEvents` listener with default options.
+    ///
+    /// Uses a default Redis connection (`redis://127.0.0.1:6379`) and the `bull`
+    /// key prefix. Use [`QueueEvents::with_options`] to customize.
+    pub async fn new(name: &str) -> Result<Self, Error> {
+        Self::with_options(name, QueueEventsOptions::default()).await
+    }
+
+    /// Create a new `QueueEvents` listener with explicit options.
+    pub async fn with_options(name: &str, opts: QueueEventsOptions) -> Result<Self, Error> {
         validate_queue_name(name)?;
         let conn = RedisConnection::new(&opts.connection).await?;
         Self::build(name, conn, opts).await
@@ -395,7 +403,7 @@ impl QueueEvents {
 
     /// Convenience constructor that derives options from [`QueueOptions`].
     pub async fn from_queue_options(name: &str, opts: &QueueOptions) -> Result<Self, Error> {
-        Self::new(
+        Self::with_options(
             name,
             QueueEventsOptions {
                 connection: opts.connection.clone(),

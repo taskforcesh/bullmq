@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::types::{BackoffStrategy, KeepJobs, RemoveOnFinish};
 
@@ -225,6 +226,37 @@ impl Default for QueueOptions {
     }
 }
 
+impl QueueOptions {
+    /// Create default queue options.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the Redis connection configuration.
+    pub fn connection(mut self, connection: RedisConnectionOptions) -> Self {
+        self.connection = connection;
+        self
+    }
+
+    /// Set the key prefix for all queue keys.
+    pub fn prefix(mut self, prefix: impl Into<String>) -> Self {
+        self.prefix = prefix.into();
+        self
+    }
+
+    /// Set the default job options applied to every job added to this queue.
+    pub fn default_job_options(mut self, options: JobOptions) -> Self {
+        self.default_job_options = options;
+        self
+    }
+
+    /// Skip the Redis server version compatibility check on startup.
+    pub fn skip_version_check(mut self) -> Self {
+        self.skip_version_check = true;
+        self
+    }
+}
+
 /// Options for creating a Worker.
 #[derive(Clone)]
 pub struct WorkerOptions {
@@ -337,6 +369,159 @@ impl std::fmt::Debug for WorkerOptions {
 }
 
 impl WorkerOptions {
+    /// Create default worker options.
+    ///
+    /// ```
+    /// use std::time::Duration;
+    /// use bullmq::{RateLimiterOptions, WorkerOptions};
+    ///
+    /// let opts = WorkerOptions::new()
+    ///     .concurrency(8)
+    ///     .lock_duration(Duration::from_secs(30))
+    ///     .limiter(RateLimiterOptions::new(100, Duration::from_secs(1)))
+    ///     .manual_start();
+    /// assert_eq!(opts.concurrency, 8);
+    /// assert_eq!(opts.lock_duration, 30_000);
+    /// assert!(!opts.autorun);
+    /// ```
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the Redis connection configuration.
+    pub fn connection(mut self, connection: RedisConnectionOptions) -> Self {
+        self.connection = connection;
+        self
+    }
+
+    /// Set the key prefix for all queue keys.
+    pub fn prefix(mut self, prefix: impl Into<String>) -> Self {
+        self.prefix = prefix.into();
+        self
+    }
+
+    /// Set the worker name (stored on processed jobs).
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// Set how many jobs are processed concurrently.
+    pub fn concurrency(mut self, concurrency: usize) -> Self {
+        self.concurrency = concurrency;
+        self
+    }
+
+    /// Set the job lock duration.
+    pub fn lock_duration(mut self, duration: Duration) -> Self {
+        self.lock_duration = duration_to_millis(duration);
+        self
+    }
+
+    /// Set the lock renewal interval (defaults to half the lock duration).
+    pub fn lock_renew_time(mut self, duration: Duration) -> Self {
+        self.lock_renew_time = Some(duration_to_millis(duration));
+        self
+    }
+
+    /// Set the maximum number of times a stalled job is re-queued before failing.
+    pub fn max_stalled_count(mut self, count: u32) -> Self {
+        self.max_stalled_count = count;
+        self
+    }
+
+    /// Set the interval between stalled-job checks.
+    pub fn stalled_interval(mut self, duration: Duration) -> Self {
+        self.stalled_interval = duration_to_millis(duration);
+        self
+    }
+
+    /// Set the delay applied when the queue is drained (no jobs available).
+    ///
+    /// Resolution is whole seconds.
+    pub fn drain_delay(mut self, duration: Duration) -> Self {
+        self.drain_delay = duration.as_secs();
+        self
+    }
+
+    /// Set whether processing starts automatically (defaults to `true`).
+    pub fn autorun(mut self, autorun: bool) -> Self {
+        self.autorun = autorun;
+        self
+    }
+
+    /// Do not start processing automatically; the worker must be started manually.
+    pub fn manual_start(mut self) -> Self {
+        self.autorun = false;
+        self
+    }
+
+    /// Skip the Redis server version compatibility check on startup.
+    pub fn skip_version_check(mut self) -> Self {
+        self.skip_version_check = true;
+        self
+    }
+
+    /// Set the completed-job retention policy.
+    pub fn remove_on_complete(mut self, policy: RemoveOnFinish) -> Self {
+        self.remove_on_complete = Some(policy);
+        self
+    }
+
+    /// Set the failed-job retention policy.
+    pub fn remove_on_fail(mut self, policy: RemoveOnFinish) -> Self {
+        self.remove_on_fail = Some(policy);
+        self
+    }
+
+    /// Set the delay before retrying after a transient processing error.
+    pub fn run_retry_delay(mut self, duration: Duration) -> Self {
+        self.run_retry_delay = duration_to_millis(duration);
+        self
+    }
+
+    /// Enable rate limiting (maximum jobs per window).
+    pub fn limiter(mut self, limiter: RateLimiterOptions) -> Self {
+        self.limiter = Some(limiter);
+        self
+    }
+
+    /// Set the maximum time to wait when rate limited.
+    pub fn maximum_rate_limit_delay(mut self, duration: Duration) -> Self {
+        self.maximum_rate_limit_delay = duration_to_millis(duration);
+        self
+    }
+
+    /// Limit how many times a job may start processing before it is failed.
+    pub fn max_started_attempts(mut self, attempts: u32) -> Self {
+        self.max_started_attempts = Some(attempts);
+        self
+    }
+
+    /// Skip the stalled-job check for this worker.
+    pub fn skip_stalled_check(mut self) -> Self {
+        self.skip_stalled_check = true;
+        self
+    }
+
+    /// Skip lock renewal for this worker.
+    pub fn skip_lock_renewal(mut self) -> Self {
+        self.skip_lock_renewal = true;
+        self
+    }
+
+    /// Enable time-series metrics collection.
+    pub fn metrics(mut self, metrics: MetricsOptions) -> Self {
+        self.metrics = Some(metrics);
+        self
+    }
+
+    /// Set a custom backoff-strategy function used to compute retry delays.
+    pub fn backoff_strategy(mut self, strategy: BackoffStrategyFn) -> Self {
+        self.backoff_strategy = Some(strategy);
+        self
+    }
+
     /// Effective lock renewal time.
     pub fn effective_lock_renew_time(&self) -> u64 {
         self.lock_renew_time
@@ -395,7 +580,7 @@ pub struct JobOptions {
 
     /// Parent job information.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub parent: Option<ParentOpts>,
+    pub parent: Option<ParentOptions>,
 
     /// Deduplication options.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -437,10 +622,152 @@ pub struct JobOptions {
     pub size_limit: Option<usize>,
 }
 
+impl JobOptions {
+    /// Create an empty set of job options.
+    ///
+    /// Every field is unset; use the chainable setters below to configure only
+    /// what you need. Fields are public, so a struct literal with
+    /// `..Default::default()` works equally well.
+    ///
+    /// ```
+    /// use std::time::Duration;
+    /// use bullmq::JobOptions;
+    ///
+    /// let opts = JobOptions::new()
+    ///     .delay(Duration::from_secs(30))
+    ///     .attempts(3)
+    ///     .priority(5);
+    /// assert_eq!(opts.delay, Some(30_000));
+    /// assert_eq!(opts.attempts, Some(3));
+    /// ```
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Delay before the job becomes available for processing.
+    pub fn delay(mut self, delay: Duration) -> Self {
+        self.delay = Some(duration_to_millis(delay));
+        self
+    }
+
+    /// Job priority. Lower values are processed first; unset (or `0`) means the
+    /// job is not prioritized and follows normal FIFO/LIFO ordering.
+    pub fn priority(mut self, priority: u32) -> Self {
+        self.priority = Some(priority);
+        self
+    }
+
+    /// Total number of attempts before the job permanently fails.
+    pub fn attempts(mut self, attempts: u32) -> Self {
+        self.attempts = Some(attempts);
+        self
+    }
+
+    /// Backoff strategy applied between retries.
+    pub fn backoff(mut self, backoff: BackoffStrategy) -> Self {
+        self.backoff = Some(backoff);
+        self
+    }
+
+    /// Add the job to the back of the queue (last-in-first-out ordering).
+    pub fn lifo(mut self) -> Self {
+        self.lifo = Some(true);
+        self
+    }
+
+    /// Completed-job retention policy.
+    pub fn remove_on_complete(mut self, policy: RemoveOnFinish) -> Self {
+        self.remove_on_complete = Some(policy);
+        self
+    }
+
+    /// Failed-job retention policy.
+    pub fn remove_on_fail(mut self, policy: RemoveOnFinish) -> Self {
+        self.remove_on_fail = Some(policy);
+        self
+    }
+
+    /// Maximum number of log entries to retain for the job.
+    pub fn keep_logs(mut self, count: u32) -> Self {
+        self.keep_logs = Some(count);
+        self
+    }
+
+    /// Use a custom, unique job id instead of an auto-generated one.
+    pub fn job_id(mut self, id: impl Into<String>) -> Self {
+        self.job_id = Some(id.into());
+        self
+    }
+
+    /// Logical creation timestamp for the job (defaults to now). Times before
+    /// the Unix epoch are clamped to `0`.
+    pub fn timestamp(mut self, timestamp: SystemTime) -> Self {
+        let millis = timestamp
+            .duration_since(UNIX_EPOCH)
+            .map(duration_to_millis)
+            .unwrap_or(0);
+        self.timestamp = Some(millis);
+        self
+    }
+
+    /// Maximum number of stack-trace lines to store on failure.
+    pub fn stack_trace_limit(mut self, limit: u32) -> Self {
+        self.stack_trace_limit = Some(limit);
+        self
+    }
+
+    /// Attach this job to a parent job (flow / dependency chains).
+    pub fn parent(mut self, parent: ParentOptions) -> Self {
+        self.parent = Some(parent);
+        self
+    }
+
+    /// Deduplicate the job using the given options.
+    pub fn deduplication(mut self, deduplication: DeduplicationOptions) -> Self {
+        self.deduplication = Some(deduplication);
+        self
+    }
+
+    /// Reject the job if its serialized payload exceeds `bytes` UTF-8 bytes.
+    pub fn size_limit(mut self, bytes: usize) -> Self {
+        self.size_limit = Some(bytes);
+        self
+    }
+
+    /// Fail the parent job when this child fails.
+    pub fn fail_parent_on_failure(mut self) -> Self {
+        self.fail_parent_on_failure = Some(true);
+        self
+    }
+
+    /// Ignore this child's dependency on the parent when it fails.
+    pub fn ignore_dependency_on_failure(mut self) -> Self {
+        self.ignore_dependency_on_failure = Some(true);
+        self
+    }
+
+    /// Remove this child's dependency from the parent when it fails.
+    pub fn remove_dependency_on_failure(mut self) -> Self {
+        self.remove_dependency_on_failure = Some(true);
+        self
+    }
+
+    /// Let the parent continue processing even if this child fails.
+    pub fn continue_parent_on_failure(mut self) -> Self {
+        self.continue_parent_on_failure = Some(true);
+        self
+    }
+}
+
+/// Convert a [`Duration`] to whole milliseconds, saturating at [`u64::MAX`].
+fn duration_to_millis(duration: Duration) -> u64 {
+    u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
+}
+
 /// Parent job options (for flow/dependency chains).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ParentOpts {
+pub struct ParentOptions {
     /// Parent queue name.
     pub queue: String,
     /// Parent job ID.
@@ -506,4 +833,14 @@ pub struct RateLimiterOptions {
     pub max: u64,
     /// Duration of the rate limit window in milliseconds.
     pub duration: u64,
+}
+
+impl RateLimiterOptions {
+    /// Create rate limiter options allowing `max` jobs per `duration` window.
+    pub fn new(max: u64, duration: Duration) -> Self {
+        Self {
+            max,
+            duration: duration_to_millis(duration),
+        }
+    }
 }

@@ -29,6 +29,37 @@ pub type ProcessorFn = Arc<
         + Sync,
 >;
 
+/// Conversion into a boxed [`ProcessorFn`].
+///
+/// This lets [`Worker::new`] / [`Worker::with_options`] accept either a plain
+/// async closure `Fn(Job, CancellationToken) -> impl Future<Output =
+/// Result<serde_json::Value, Error>>` (the ergonomic form) or an already-boxed
+/// [`ProcessorFn`].
+pub trait IntoProcessor {
+    /// Convert `self` into a boxed processor function.
+    fn into_processor(self) -> ProcessorFn;
+}
+
+impl<F, Fut> IntoProcessor for F
+where
+    F: Fn(Job, CancellationToken) -> Fut + Send + Sync + 'static,
+    Fut: Future<Output = Result<serde_json::Value, Error>> + Send + 'static,
+{
+    fn into_processor(self) -> ProcessorFn {
+        Arc::new(move |job, token| Box::pin(self(job, token)))
+    }
+}
+
+impl<C, Fut> IntoProcessor for Arc<C>
+where
+    C: Fn(Job, CancellationToken) -> Fut + Send + Sync + ?Sized + 'static,
+    Fut: Future<Output = Result<serde_json::Value, Error>> + Send + 'static,
+{
+    fn into_processor(self) -> ProcessorFn {
+        Arc::new(move |job, token| Box::pin((*self)(job, token)))
+    }
+}
+
 /// A token that signals whether a job has been cancelled.
 #[derive(Debug, Clone)]
 pub struct CancellationToken {
@@ -131,7 +162,7 @@ pub enum WorkerEvent {
 /// # Example
 ///
 /// ```rust,no_run
-/// use bullmq::{Worker, WorkerOptions, Job};
+/// use bullmq::{Worker, Job};
 /// use std::sync::Arc;
 ///
 /// # async fn example() -> bullmq::Result<()> {
@@ -141,7 +172,6 @@ pub enum WorkerEvent {
 ///         println!("Processing: {}", job.name());
 ///         Ok(serde_json::Value::Null)
 ///     })),
-///     WorkerOptions::default(),
 /// ).await?;
 /// # Ok(())
 /// # }
@@ -483,12 +513,40 @@ fn write_keep_jobs(buf: &mut Vec<u8>, policy: Option<&RemoveOnFinish>) {
 }
 
 impl Worker {
-    /// Create a new Worker and start processing jobs.
-    pub async fn new(
+    /// Create a new Worker with default options and start processing jobs.
+    ///
+    /// Uses a default Redis connection (`redis://127.0.0.1:6379`) and the `bull`
+    /// key prefix. Use [`Worker::with_options`] to customize.
+    ///
+    /// The `processor` may be any async closure. Annotate the first parameter
+    /// as [`Job`] so its type can be inferred:
+    ///
+    /// ```no_run
+    /// # async fn demo() -> bullmq::Result<()> {
+    /// use bullmq::{Job, Worker};
+    /// let worker = Worker::new("emails", |job: Job, _token| async move {
+    ///     println!("processing {}", job.id());
+    ///     Ok(serde_json::Value::Null)
+    /// })
+    /// .await?;
+    /// # let _ = worker; Ok(()) }
+    /// ```
+    pub async fn new<P: IntoProcessor>(queue_name: &str, processor: P) -> Result<Self, Error> {
+        Self::with_options(queue_name, processor, WorkerOptions::default()).await
+    }
+
+    /// Create a new Worker with explicit options and start processing jobs.
+    ///
+    /// The `processor` may be any async closure `Fn(Job, CancellationToken) ->
+    /// impl Future<Output = Result<serde_json::Value, Error>>`. A pre-boxed
+    /// [`ProcessorFn`] is also accepted, so existing call sites keep working.
+    pub async fn with_options<P: IntoProcessor>(
         queue_name: &str,
-        processor: ProcessorFn,
+        processor: P,
         opts: WorkerOptions,
     ) -> Result<Self, Error> {
+        let processor: ProcessorFn = processor.into_processor();
+
         validate_queue_name(queue_name)?;
 
         // Validate options

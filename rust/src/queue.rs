@@ -1,12 +1,19 @@
 use std::collections::HashMap;
+use std::future::{Future, IntoFuture};
+use std::pin::Pin;
+use std::time::Duration;
+
+use serde::Serialize;
 use tracing::{debug, instrument};
 
 use crate::error::Error;
 use crate::job::{Job, ScriptContext};
 use crate::keys::{resolve_parent_queue_key, validate_queue_name, QueueKeys};
-use crate::options::{JobOptions, QueueOptions};
+use crate::options::{DeduplicationOptions, JobOptions, ParentOptions, QueueOptions};
 use crate::redis_connection::RedisConnection;
-use crate::types::{DependenciesCount, JobCounts, JobState, QueueMeta};
+use crate::types::{
+    BackoffStrategy, DependenciesCount, JobCounts, JobState, QueueMeta, RemoveOnFinish,
+};
 
 /// The version string stored in queue metadata for compatibility tracking.
 const BULLMQ_VERSION: &str = "bullmq-official:0.1.0";
@@ -43,8 +50,24 @@ impl Queue {
         Ok(())
     }
 
-    /// Create a new Queue connected to Redis.
-    pub async fn new(name: &str, opts: QueueOptions) -> Result<Self, Error> {
+    /// Create a new Queue with default options.
+    ///
+    /// Uses a default Redis connection (`redis://127.0.0.1:6379`) and the `bull`
+    /// key prefix. Use [`Queue::with_options`] to customize the connection,
+    /// prefix, or default job options.
+    ///
+    /// ```no_run
+    /// # async fn demo() -> bullmq::Result<()> {
+    /// use bullmq::Queue;
+    /// let queue = Queue::new("emails").await?;
+    /// # let _ = queue; Ok(()) }
+    /// ```
+    pub async fn new(name: &str) -> Result<Self, Error> {
+        Self::with_options(name, QueueOptions::default()).await
+    }
+
+    /// Create a new Queue with explicit options.
+    pub async fn with_options(name: &str, opts: QueueOptions) -> Result<Self, Error> {
         validate_queue_name(name)?;
         let conn = RedisConnection::new(&opts.connection).await?;
         let keys = QueueKeys::new(name, Some(&opts.prefix));
@@ -98,8 +121,34 @@ impl Queue {
     }
 
     /// Add a job to the queue.
+    ///
+    /// Returns an [`AddJob`] builder that can be awaited directly, or customized
+    /// fluently before awaiting:
+    ///
+    /// ```no_run
+    /// # async fn demo(queue: bullmq::Queue) -> bullmq::Result<()> {
+    /// use std::time::Duration;
+    /// // simplest form:
+    /// queue.add("cars", serde_json::json!({ "color": "blue" })).await?;
+    /// // customized:
+    /// queue
+    ///     .add("cars", serde_json::json!({ "color": "blue" }))
+    ///     .delay(Duration::from_secs(30))
+    ///     .priority(5)
+    ///     .await?;
+    /// # Ok(()) }
+    /// ```
+    ///
+    /// `data` can be any [`Serialize`] type (your own struct, a
+    /// [`serde_json::Value`], …); it is serialized to JSON internally, so a
+    /// serialization failure surfaces when the builder is awaited.
+    pub fn add<T: Serialize>(&self, name: &str, data: T) -> AddJob<'_> {
+        AddJob::new(self, name, data)
+    }
+
+    /// Internal single-job add used by [`AddJob`].
     #[instrument(skip(self, data, opts), fields(queue = %self.name))]
-    pub async fn add(
+    async fn add_internal(
         &self,
         name: &str,
         data: serde_json::Value,
@@ -116,21 +165,19 @@ impl Queue {
     ///
     /// Jobs are added concurrently over the multiplexed connection for maximum throughput.
     #[instrument(skip(self, jobs), fields(queue = %self.name, count = jobs.len()))]
-    pub async fn add_bulk(
-        &self,
-        jobs: Vec<(String, serde_json::Value, Option<JobOptions>)>,
-    ) -> Result<Vec<Job>, Error> {
+    pub async fn add_bulk(&self, jobs: Vec<BulkJob>) -> Result<Vec<Job>, Error> {
         if jobs.is_empty() {
             return Ok(Vec::new());
         }
 
         let mut job_objects: Vec<Job> = jobs
             .into_iter()
-            .map(|(name, data, opts)| {
-                let merged = self.merge_job_options(opts);
-                Job::new(&name, data, merged)
+            .map(|bulk| {
+                let BulkJob { name, data, opts } = bulk;
+                let merged = self.merge_job_options(Some(opts));
+                Ok(Job::new(&name, data?, merged))
             })
-            .collect();
+            .collect::<Result<_, Error>>()?;
 
         let serialized_job_data: Vec<String> = job_objects
             .iter()
@@ -2523,6 +2570,242 @@ impl Queue {
     pub async fn close(&self) {
         self.conn.close().await;
     }
+}
+
+/// Fluent builder returned by [`Queue::add`].
+///
+/// `AddJob` implements [`IntoFuture`], so awaiting it adds the job with the
+/// accumulated options. Setters are infallible and chainable; any invalid
+/// configuration (or a data serialization failure) is reported when the builder
+/// is awaited.
+#[must_use = "an AddJob does nothing until awaited"]
+pub struct AddJob<'a> {
+    queue: &'a Queue,
+    name: String,
+    data: Result<serde_json::Value, Error>,
+    opts: JobOptions,
+}
+
+impl<'a> AddJob<'a> {
+    fn new<T: Serialize>(queue: &'a Queue, name: &str, data: T) -> Self {
+        Self {
+            queue,
+            name: name.to_string(),
+            data: serde_json::to_value(data).map_err(Error::from),
+            opts: JobOptions::default(),
+        }
+    }
+
+    /// Use `opts` as the base options, replacing anything set so far.
+    ///
+    /// Useful for reusing a prepared [`JobOptions`]; subsequent setters still
+    /// override individual fields.
+    pub fn options(mut self, opts: JobOptions) -> Self {
+        self.opts = opts;
+        self
+    }
+
+    /// Delay before the job becomes available for processing.
+    pub fn delay(mut self, delay: Duration) -> Self {
+        self.opts.delay = Some(duration_as_millis(delay));
+        self
+    }
+
+    /// Job priority. Lower values are processed first; unset (or `0`) means the
+    /// job is not prioritized and follows normal FIFO/LIFO ordering.
+    pub fn priority(mut self, priority: u32) -> Self {
+        self.opts.priority = Some(priority);
+        self
+    }
+
+    /// Total number of attempts before the job permanently fails.
+    pub fn attempts(mut self, attempts: u32) -> Self {
+        self.opts.attempts = Some(attempts);
+        self
+    }
+
+    /// Backoff strategy applied between retries.
+    pub fn backoff(mut self, backoff: BackoffStrategy) -> Self {
+        self.opts.backoff = Some(backoff);
+        self
+    }
+
+    /// Add the job to the back of the queue (last-in-first-out ordering).
+    pub fn lifo(mut self) -> Self {
+        self.opts.lifo = Some(true);
+        self
+    }
+
+    /// Use a custom, unique job id instead of an auto-generated one.
+    pub fn job_id(mut self, id: impl Into<String>) -> Self {
+        self.opts.job_id = Some(id.into());
+        self
+    }
+
+    /// Completed-job retention policy.
+    pub fn remove_on_complete(mut self, policy: RemoveOnFinish) -> Self {
+        self.opts.remove_on_complete = Some(policy);
+        self
+    }
+
+    /// Failed-job retention policy.
+    pub fn remove_on_fail(mut self, policy: RemoveOnFinish) -> Self {
+        self.opts.remove_on_fail = Some(policy);
+        self
+    }
+
+    /// Maximum number of log entries to retain for the job.
+    pub fn keep_logs(mut self, count: u32) -> Self {
+        self.opts.keep_logs = Some(count);
+        self
+    }
+
+    /// Attach this job to a parent job (flow / dependency chains).
+    pub fn parent(mut self, parent: ParentOptions) -> Self {
+        self.opts.parent = Some(parent);
+        self
+    }
+
+    /// Deduplicate the job using the given options.
+    pub fn deduplication(mut self, deduplication: DeduplicationOptions) -> Self {
+        self.opts.deduplication = Some(deduplication);
+        self
+    }
+
+    /// Reject the job if its serialized payload exceeds `bytes` UTF-8 bytes.
+    pub fn size_limit(mut self, bytes: usize) -> Self {
+        self.opts.size_limit = Some(bytes);
+        self
+    }
+}
+
+impl<'a> IntoFuture for AddJob<'a> {
+    type Output = Result<Job, Error>;
+    type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>;
+
+    fn into_future(self) -> Self::IntoFuture {
+        Box::pin(async move {
+            let data = self.data?;
+            self.queue
+                .add_internal(&self.name, data, Some(self.opts))
+                .await
+        })
+    }
+}
+
+/// A single job definition for [`Queue::add_bulk`].
+///
+/// Construct with [`BulkJob::new`] (or [`BulkJob::with_options`]) and, if
+/// needed, attach options fluently or via [`BulkJob::options`]. `data` may be
+/// any [`Serialize`] type; it is serialized internally and any failure surfaces
+/// when the batch is added.
+///
+/// ```no_run
+/// # async fn demo(queue: bullmq::Queue) -> bullmq::Result<()> {
+/// use std::time::Duration;
+/// use bullmq::BulkJob;
+///
+/// queue
+///     .add_bulk(vec![
+///         BulkJob::new("email", serde_json::json!({ "to": "a@example.com" })),
+///         BulkJob::new("email", serde_json::json!({ "to": "b@example.com" }))
+///             .delay(Duration::from_secs(60))
+///             .priority(5),
+///     ])
+///     .await?;
+/// # Ok(()) }
+/// ```
+#[must_use = "a BulkJob must be passed to Queue::add_bulk to have any effect"]
+pub struct BulkJob {
+    name: String,
+    data: Result<serde_json::Value, Error>,
+    opts: JobOptions,
+}
+
+impl BulkJob {
+    /// Create a bulk job entry with default options.
+    pub fn new<T: Serialize>(name: impl Into<String>, data: T) -> Self {
+        Self {
+            name: name.into(),
+            data: serde_json::to_value(data).map_err(Error::from),
+            opts: JobOptions::default(),
+        }
+    }
+
+    /// Create a bulk job entry with explicit options.
+    pub fn with_options<T: Serialize>(name: impl Into<String>, data: T, opts: JobOptions) -> Self {
+        Self {
+            name: name.into(),
+            data: serde_json::to_value(data).map_err(Error::from),
+            opts,
+        }
+    }
+
+    /// Use `opts` as the options, replacing anything set so far.
+    pub fn options(mut self, opts: JobOptions) -> Self {
+        self.opts = opts;
+        self
+    }
+
+    /// Delay before the job becomes available for processing.
+    pub fn delay(mut self, delay: Duration) -> Self {
+        self.opts = std::mem::take(&mut self.opts).delay(delay);
+        self
+    }
+
+    /// Job priority. Lower values are processed first; unset (or `0`) means the
+    /// job is not prioritized.
+    pub fn priority(mut self, priority: u32) -> Self {
+        self.opts = std::mem::take(&mut self.opts).priority(priority);
+        self
+    }
+
+    /// Total number of attempts before the job permanently fails.
+    pub fn attempts(mut self, attempts: u32) -> Self {
+        self.opts = std::mem::take(&mut self.opts).attempts(attempts);
+        self
+    }
+
+    /// Backoff strategy applied between retries.
+    pub fn backoff(mut self, backoff: BackoffStrategy) -> Self {
+        self.opts = std::mem::take(&mut self.opts).backoff(backoff);
+        self
+    }
+
+    /// Add the job to the back of the queue (last-in-first-out ordering).
+    pub fn lifo(mut self) -> Self {
+        self.opts = std::mem::take(&mut self.opts).lifo();
+        self
+    }
+
+    /// Use a custom, unique job id instead of an auto-generated one.
+    pub fn job_id(mut self, id: impl Into<String>) -> Self {
+        self.opts = std::mem::take(&mut self.opts).job_id(id);
+        self
+    }
+
+    /// Attach this job to a parent job (flow / dependency chains).
+    pub fn parent(mut self, parent: ParentOptions) -> Self {
+        self.opts = std::mem::take(&mut self.opts).parent(parent);
+        self
+    }
+
+    /// Deduplicate the job using the given options.
+    pub fn deduplication(mut self, deduplication: DeduplicationOptions) -> Self {
+        self.opts = std::mem::take(&mut self.opts).deduplication(deduplication);
+        self
+    }
+
+    /// Reject the job if its serialized payload exceeds `bytes` UTF-8 bytes.
+    pub fn size_limit(mut self, bytes: usize) -> Self {
+        self.opts = std::mem::take(&mut self.opts).size_limit(bytes);
+        self
+    }
+}
+
+/// Convert a [`Duration`] to whole milliseconds, saturating at [`u64::MAX`].
+fn duration_as_millis(duration: Duration) -> u64 {
+    u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
 }
 
 /// Escape a Prometheus label value (`\`, `"`, and newlines).
