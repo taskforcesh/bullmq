@@ -611,7 +611,7 @@ defmodule BullMQ.QueueIntegrationTest do
       end
 
       {:ok, counts} =
-        Queue.get_job_counts(queue_name, [:paused],
+        Queue.get_job_counts(queue_name, [:waiting],
           connection: conn,
           prefix: prefix
         )

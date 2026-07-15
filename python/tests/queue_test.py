@@ -404,8 +404,8 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.pause()
         await queue.retryJobs({'count': 2})
 
-        paused_count = await queue.getJobCounts('paused')
-        self.assertEqual(paused_count['paused'], job_count)
+        paused_count = await queue.getJobCounts('waiting')
+        self.assertEqual(paused_count['waiting'], job_count)
 
         await queue.close()
         await worker.close()
@@ -697,17 +697,14 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
             await queue.add("test", {"foo": "bar", "num": i}, {})
         
         # Check initial count
-        initial_count = await queue.getJobCountByTypes("paused")
+        initial_count = await queue.getJobCountByTypes("waiting")
         self.assertEqual(initial_count, max_jobs)
-        
-        paused_counts = await queue.getJobCounts("paused")
-        self.assertEqual(paused_counts["paused"], max_jobs)
         
         # Drain the queue
         await queue.drain()
         
         # Check that all jobs are removed
-        count_after_drain = await queue.getJobCountByTypes("paused")
+        count_after_drain = await queue.getJobCountByTypes("waiting")
         self.assertEqual(count_after_drain, 0)
         
         await queue.close()
