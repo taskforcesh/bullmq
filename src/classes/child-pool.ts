@@ -74,9 +74,15 @@ export class ChildPool {
       // The child also exits itself after a failed init (see ChildProcessor),
       // so this is normally a no-op; log any kill failure instead of silently
       // swallowing it so a lingering child would not go unnoticed.
-      this.kill(child, 'SIGKILL').catch(killErr => {
-        console.error('Failed to kill child after init error:', killErr);
-      });
+      if (child.childProcess || child.worker) {
+        try {
+          this.kill(child, 'SIGKILL').catch(killErr => {
+            console.error('Failed to kill child after init error:', killErr);
+          });
+        } catch (killErr) {
+          console.error('Failed to kill child after init error:', killErr);
+        }
+      }
       throw err;
     }
   }

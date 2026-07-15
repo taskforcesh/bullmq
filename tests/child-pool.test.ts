@@ -1,6 +1,6 @@
-import { ChildPool } from '../src/classes';
+import { Child, ChildPool } from '../src/classes';
 import { join } from 'path';
-import { describe, beforeEach, afterEach, it, expect } from 'vitest';
+import { describe, beforeEach, afterEach, it, expect, vi } from 'vitest';
 
 const NoopProc = () => {};
 describe('Child pool for Child Processes', () => {
@@ -113,6 +113,26 @@ function sandboxProcessTests(
       expect(child).toBeTruthy();
       if (!useWorkerThreads) {
         expect(child.childProcess.spawnargs).toContain('--no-warnings');
+      }
+    });
+
+    it('should preserve init errors when the child never creates a process', async () => {
+      const processor = __dirname + '/fixtures/fixture_processor_bar.js';
+      const initError = new Error('init failed before fork');
+      const consoleErrorSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => undefined);
+      const initSpy = vi
+        .spyOn(Child.prototype, 'init')
+        .mockRejectedValue(initError);
+
+      try {
+        await expect(pool.retain(processor)).rejects.toThrow(
+          'init failed before fork',
+        );
+      } finally {
+        initSpy.mockRestore();
+        consoleErrorSpy.mockRestore();
       }
     });
   });
