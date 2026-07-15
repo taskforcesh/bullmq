@@ -2129,8 +2129,8 @@ describe('workers', () => {
       await queue.pause();
       await job.retry('completed');
 
-      const pausedJobsCount = await queue.getWaitingCount();
-      expect(pausedJobsCount).toBe(1);
+      const waitingJobsCount = await queue.getWaitingCount();
+      expect(waitingJobsCount).toBe(1);
 
       await worker.close();
     });
