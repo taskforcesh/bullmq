@@ -1,4 +1,3 @@
-import { default as IORedis } from 'ioredis';
 import {
   describe,
   beforeEach,
@@ -9,19 +8,19 @@ import {
   expect,
 } from 'vitest';
 
-import { v4 } from 'uuid';
+import { randomUUID } from '../src/utils';
 import { LockManager, Queue, Worker } from '../src/classes';
-import { LockManagerWorkerContext } from '../src/interfaces';
+import { IRedisClient, LockManagerWorkerContext } from '../src/interfaces';
 import { delay, removeAllQueueData } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
 
 describe('LockManager', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
-  let connection: IORedis;
+  let connection: IRedisClient;
 
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   afterAll(async function () {
@@ -297,7 +296,7 @@ describe('LockManager', () => {
       // Wait for lock renewal
       await delay(300);
 
-      expect(emittedErrors).to.have.lengthOf.at.least(1);
+      expect(emittedErrors.length).toBeGreaterThanOrEqual(1);
       expect(emittedErrors[0].message).toContain(
         'could not renew lock for job job-1',
       );
@@ -337,7 +336,7 @@ describe('LockManager', () => {
       // Wait for lock renewal
       await delay(300);
 
-      expect(emittedErrors).to.have.lengthOf.at.least(1);
+      expect(emittedErrors.length).toBeGreaterThanOrEqual(1);
       expect(emittedErrors[0]).toBe(testError);
 
       await lockManager.close();
@@ -411,13 +410,13 @@ describe('LockManager', () => {
     let queueName: string;
 
     beforeEach(async () => {
-      queueName = `test-lock-manager-${v4()}`;
+      queueName = `test-lock-manager-${randomUUID()}`;
       queue = new Queue(queueName, { connection, prefix });
     });
 
     afterEach(async () => {
       await queue.close();
-      await removeAllQueueData(new IORedis(redisHost), queueName);
+      await removeAllQueueData(createTestConnection(), queueName);
     }, 15000);
 
     it('should track jobs during processing', async () => {
@@ -548,7 +547,7 @@ describe('LockManager', () => {
       });
 
       // Lock should have been renewed multiple times during the 3-second job
-      expect(lockRenewalCount).to.be.gte(2);
+      expect(lockRenewalCount).toBeGreaterThanOrEqual(2);
 
       await worker.close();
     }, 15000);

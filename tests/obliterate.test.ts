@@ -1,4 +1,3 @@
-import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
 import {
   describe,
@@ -10,25 +9,25 @@ import {
   expect,
 } from 'vitest';
 
-import { v4 } from 'uuid';
 import { Queue, QueueEvents, FlowProducer, Worker, Job } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 describe('Obliterate', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  let connection;
+  let connection: IRedisClient;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
@@ -37,7 +36,7 @@ describe('Obliterate', () => {
   afterEach(async () => {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async function () {
@@ -195,7 +194,7 @@ describe('Obliterate', () => {
       describe('when parent has pending children in different queue', async () => {
         it('keeps parent in waiting-children', async () => {
           await queue.waitUntilReady();
-          const childrenQueueName = `test-${v4()}`;
+          const childrenQueueName = `test-${randomUUID()}`;
           const childrenQueue = new Queue(childrenQueueName, {
             connection,
             prefix,
@@ -239,7 +238,7 @@ describe('Obliterate', () => {
       describe('when parent has more than 1 pending children', async () => {
         it('deletes each children until trying to move parent to wait', async () => {
           await queue.waitUntilReady();
-          const parentQueueName = `test-${v4()}`;
+          const parentQueueName = `test-${randomUUID()}`;
           const parentQueue = new Queue(parentQueueName, {
             connection,
             prefix,
@@ -285,14 +284,14 @@ describe('Obliterate', () => {
           expect(parentWaitCount).toEqual(1);
           await parentQueue.close();
           await flow.close();
-          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+          await removeAllQueueData(createTestConnection(), parentQueueName);
         });
       });
 
       describe('when parent has only 1 pending children', async () => {
         it('moves parent to wait to try to process it', async () => {
           await queue.waitUntilReady();
-          const parentQueueName = `test-${v4()}`;
+          const parentQueueName = `test-${randomUUID()}`;
           const parentQueue = new Queue(parentQueueName, {
             connection,
             prefix,
@@ -328,7 +327,7 @@ describe('Obliterate', () => {
           expect(parentWaitCount).toEqual(1);
           await parentQueue.close();
           await flow.close();
-          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+          await removeAllQueueData(createTestConnection(), parentQueueName);
         });
       });
     });
@@ -364,7 +363,7 @@ describe('Obliterate', () => {
     );
     const client = await queue.client;
     const keys = await client.keys(`${prefix}:${queue.name}:*`);
-    expect(keys.length).to.be.not.eql(0);
+    expect(keys.length).not.toEqual(0);
 
     await worker.close();
   });

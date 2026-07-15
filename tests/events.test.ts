@@ -1,5 +1,3 @@
-import { default as IORedis } from 'ioredis';
-import { v4 } from 'uuid';
 import {
   describe,
   beforeEach,
@@ -20,10 +18,11 @@ import {
   QueueEventsProducer,
   Worker,
 } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 describe('events', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
   // TODO: Move timeout to test options: { timeout: 8000 }
@@ -31,23 +30,28 @@ describe('events', () => {
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  let connection: IORedis;
+  let connection: IRedisClient;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
-    queueEvents = new QueueEvents(queueName, { connection, prefix });
+    queueEvents = new QueueEvents(queueName, {
+      connection,
+      prefix,
+      blockingTimeout: 1000,
+    });
     await queue.waitUntilReady();
     await queueEvents.waitUntilReady();
+    await delay(50); // allow XREAD to start blocking before emitting events
   });
 
   afterEach(async () => {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async function () {
@@ -56,7 +60,7 @@ describe('events', () => {
 
   describe('when autorun option is provided as false', () => {
     it('emits waiting when a job has been added', async () => {
-      const queueName2 = `test-${v4()}`;
+      const queueName2 = `test-${randomUUID()}`;
       const queue2 = new Queue(queueName2, { connection, prefix });
       const queueEvents2 = new QueueEvents(queueName2, {
         autorun: false,
@@ -78,12 +82,12 @@ describe('events', () => {
       await queue2.close();
       await queueEvents2.close();
       await expect(running).resolves.toBeUndefined();
-      await removeAllQueueData(new IORedis(redisHost), queueName2);
+      await removeAllQueueData(createTestConnection(), queueName2);
     });
 
     describe('when run method is called when queueEvent is running', () => {
       it('throws error', async () => {
-        const queueName2 = `test-${v4()}`;
+        const queueName2 = `test-${randomUUID()}`;
         const queue2 = new Queue(queueName2, { connection, prefix });
         const queueEvents2 = new QueueEvents(queueName2, {
           autorun: false,
@@ -103,7 +107,7 @@ describe('events', () => {
         await queue2.close();
         await queueEvents2.close();
         await expect(running).resolves.toBeUndefined();
-        await removeAllQueueData(new IORedis(redisHost), queueName2);
+        await removeAllQueueData(createTestConnection(), queueName2);
       });
     });
   });
@@ -443,7 +447,7 @@ describe('events', () => {
         prefix,
       });
       const name = 'parent-job';
-      const childrenQueueName = `children-queue-${v4()}`;
+      const childrenQueueName = `children-queue-${randomUUID()}`;
 
       const childrenWorker = new Worker(
         childrenQueueName,
@@ -503,7 +507,7 @@ describe('events', () => {
       await worker.close();
       await childrenWorker.close();
       await flow.close();
-      await removeAllQueueData(new IORedis(redisHost), childrenQueueName);
+      await removeAllQueueData(createTestConnection(), childrenQueueName);
     });
   });
 
@@ -514,7 +518,6 @@ describe('events', () => {
     });
 
     let state: string;
-    await delay(50); // additional delay since XREAD from '$' is unstable
     queueEvents.on('waiting', function ({ jobId }) {
       expect(jobId).toBe('1');
       expect(state).toBeUndefined();
@@ -561,7 +564,7 @@ describe('events', () => {
       expect(eventsLength).toEqual(0);
 
       await trimmedQueue.close();
-      await removeAllQueueData(new IORedis(redisHost), queueName);
+      await removeAllQueueData(createTestConnection(), queueName);
     });
   });
 
@@ -618,11 +621,11 @@ describe('events', () => {
 
       const eventsLength = await client.xlen(trimmedQueue.keys.events);
 
-      expect(eventsLength).to.be.lte(2);
+      expect(eventsLength).toBeLessThanOrEqual(2);
 
       await worker.close();
       await trimmedQueue.close();
-      await removeAllQueueData(new IORedis(redisHost), queueName);
+      await removeAllQueueData(createTestConnection(), queueName);
     });
   });
 
@@ -672,12 +675,12 @@ describe('events', () => {
 
       const eventsLength = await client.xlen(trimmedQueue.keys.events);
 
-      expect(eventsLength).to.be.lte(45);
-      expect(eventsLength).to.be.gte(20);
+      expect(eventsLength).toBeLessThanOrEqual(45);
+      expect(eventsLength).toBeGreaterThanOrEqual(20);
 
       await worker.close();
       await trimmedQueue.close();
-      await removeAllQueueData(new IORedis(redisHost), queueName);
+      await removeAllQueueData(createTestConnection(), queueName);
     });
 
     describe('when jobs are moved to delayed', () => {
@@ -730,12 +733,12 @@ describe('events', () => {
 
         const eventsLength = await client.xlen(trimmedQueue.keys.events);
 
-        expect(eventsLength).to.be.lte(35);
-        expect(eventsLength).to.be.gte(20);
+        expect(eventsLength).toBeLessThanOrEqual(35);
+        expect(eventsLength).toBeGreaterThanOrEqual(20);
 
         await worker.close();
         await trimmedQueue.close();
-        await removeAllQueueData(new IORedis(redisHost), queueName);
+        await removeAllQueueData(createTestConnection(), queueName);
       });
     });
 
@@ -794,12 +797,12 @@ describe('events', () => {
 
         const eventsLength = await client.xlen(trimmedQueue.keys.events);
 
-        expect(eventsLength).to.be.lte(35);
-        expect(eventsLength).to.be.gte(20);
+        expect(eventsLength).toBeLessThanOrEqual(35);
+        expect(eventsLength).toBeGreaterThanOrEqual(20);
 
         await worker.close();
         await trimmedQueue.close();
-        await removeAllQueueData(new IORedis(redisHost), queueName);
+        await removeAllQueueData(createTestConnection(), queueName);
       });
     });
 
@@ -830,17 +833,17 @@ describe('events', () => {
 
         const eventsLength = await client.xlen(trimmedQueue.keys.events);
 
-        expect(eventsLength).to.be.lte(100);
-        expect(eventsLength).to.be.gte(20);
+        expect(eventsLength).toBeLessThanOrEqual(100);
+        expect(eventsLength).toBeGreaterThanOrEqual(20);
 
         await trimmedQueue.close();
-        await removeAllQueueData(new IORedis(redisHost), queueName);
+        await removeAllQueueData(createTestConnection(), queueName);
       });
     });
   });
 
   it('should trim events manually', async () => {
-    const queueName = 'test-manual-' + v4();
+    const queueName = 'test-manual-' + randomUUID();
     const trimmedQueue = new Queue(queueName, { connection, prefix });
 
     await trimmedQueue.add('test', {});
@@ -861,12 +864,12 @@ describe('events', () => {
     expect(eventsLength).toBe(0);
 
     await trimmedQueue.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   describe('when publishing custom events', () => {
     it('emits waiting when a job has been added', async () => {
-      const queueName2 = `test-${v4()}`;
+      const queueName2 = `test-${randomUUID()}`;
       const queueEventsProducer = new QueueEventsProducer(queueName2, {
         connection,
         prefix,
@@ -905,7 +908,7 @@ describe('events', () => {
 
       await queueEventsProducer.close();
       await queueEvents2.close();
-      await removeAllQueueData(new IORedis(redisHost), queueName2);
+      await removeAllQueueData(createTestConnection(), queueName2);
     });
   });
 });

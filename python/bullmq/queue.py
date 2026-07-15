@@ -19,7 +19,10 @@ class Queue(EventEmitter):
         """
         self.name = name
         redisOpts = opts.get("connection", {})
-        self.redisConnection = RedisConnection(redisOpts)
+        self.redisConnection = RedisConnection(
+            redisOpts,
+            skipVersionCheck=opts.get("skipVersionCheck", False)
+        )
         self.client = self.redisConnection.conn
         self.opts = opts
         self.jobsOpts = opts.get("defaultJobOptions", {})

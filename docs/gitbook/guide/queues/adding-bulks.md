@@ -35,6 +35,22 @@ jobs = await queue.addBulk([
 ```
 
 {% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Queue, QueueOptions};
+
+let queue = Queue::new("paint", QueueOptions::default()).await?;
+
+let jobs = queue.add_bulk(vec![
+    ("jobName".into(), serde_json::json!({"paint": "car"}), None),
+    ("jobName".into(), serde_json::json!({"paint": "house"}), None),
+    ("jobName".into(), serde_json::json!({"paint": "boat"}), None),
+]).await?;
+```
+
+{% endtab %}
 {% endtabs %}
 
 This call can only succeed or fail, and all or none of the jobs will be added.

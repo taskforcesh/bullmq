@@ -20,7 +20,7 @@ class MinimalQueue:
         self.redisConnection = redisConnection
         self.client = self.redisConnection.conn
         self.opts = opts
-        self.prefix = opts.get("prefix", "bull"),
+        self.prefix = opts.get("prefix", "bull")
         self.keys = queue_keys.getKeys(name)
         self.qualifiedName = queue_keys.getQueueQualifiedName(name)
         self.scripts = scripts
@@ -36,7 +36,10 @@ class FlowProducer:
         """
         Initialize a connection
         """
-        self.redisConnection = RedisConnection(redisOpts)
+        self.redisConnection = RedisConnection(
+            redisOpts,
+            skipVersionCheck=opts.get("skipVersionCheck", False)
+        )
         self.client = self.redisConnection.conn
         self.opts: dict = opts
         self.prefix = opts.get("prefix", "bull")

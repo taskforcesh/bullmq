@@ -1,4 +1,3 @@
-import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
 import {
   describe,
@@ -10,7 +9,6 @@ import {
   expect,
 } from 'vitest';
 
-import { v4 } from 'uuid';
 import {
   FlowProducer,
   Queue,
@@ -18,22 +16,23 @@ import {
   WaitingChildrenError,
   Worker,
 } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 describe('Cleaner', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  let connection;
+  let connection: IRedisClient;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
@@ -43,7 +42,7 @@ describe('Cleaner', () => {
   afterEach(async () => {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async function () {
@@ -554,7 +553,7 @@ describe('Cleaner', () => {
 
       describe('when parent has pending children in different queue', async () => {
         it('keeps parent in waiting-children', async () => {
-          const childrenQueueName = `test-${v4()}`;
+          const childrenQueueName = `test-${randomUUID()}`;
           const childrenQueue = new Queue(childrenQueueName, {
             connection,
             prefix,
@@ -698,7 +697,7 @@ describe('Cleaner', () => {
     describe('when parent belongs to different queue', async () => {
       describe('when parent has more than 1 pending children', async () => {
         it('deletes each children until trying to move parent to wait', async () => {
-          const parentQueueName = `test-${v4()}`;
+          const parentQueueName = `test-${randomUUID()}`;
           const parentQueue = new Queue(parentQueueName, {
             connection,
             prefix,
@@ -748,13 +747,13 @@ describe('Cleaner', () => {
           expect(parentWaitCount).toEqual(1);
           await parentQueue.close();
           await flow.close();
-          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+          await removeAllQueueData(createTestConnection(), parentQueueName);
         });
       });
 
       describe('when parent has only 1 pending children', async () => {
         it('moves parent to wait to try to process it', async () => {
-          const parentQueueName = `test-${v4()}`;
+          const parentQueueName = `test-${randomUUID()}`;
           const parentQueue = new Queue(parentQueueName, {
             connection,
             prefix,
@@ -800,7 +799,7 @@ describe('Cleaner', () => {
           expect(parentWaitCount).toEqual(1);
           await parentQueue.close();
           await flow.close();
-          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+          await removeAllQueueData(createTestConnection(), parentQueueName);
         });
       });
     });
@@ -816,7 +815,7 @@ describe('Cleaner', () => {
     );
     await worker.waitUntilReady();
 
-    const client = new IORedis(redisHost);
+    const client = createTestConnection();
 
     await queue.add('test', { some: 'data' });
     await queue.add('test', { some: 'data' });
@@ -914,7 +913,7 @@ describe('Cleaner', () => {
 
       const orphanedIds = ['9990', '9991', '9992'];
       for (const id of orphanedIds) {
-        await client.hset(`${baseKey}:${id}`, 'name', 'orphaned', 'data', '{}');
+        await client.hset(`${baseKey}:${id}`, { name: 'orphaned', data: '{}' });
       }
 
       const removed = await queue.removeOrphanedJobs();
@@ -1050,7 +1049,7 @@ describe('Cleaner', () => {
     });
 
     it('should not remove jobs in the waiting-children state', async () => {
-      const childrenQueueName = `test-children-${v4()}`;
+      const childrenQueueName = `test-children-${randomUUID()}`;
       const childrenQueue = new Queue(childrenQueueName, {
         connection,
         prefix,
@@ -1102,7 +1101,7 @@ describe('Cleaner', () => {
       // Create orphaned jobs
       const orphanedIds = ['8001', '8002', '8003'];
       for (const id of orphanedIds) {
-        await client.hset(`${baseKey}:${id}`, 'name', 'orphan', 'data', '{}');
+        await client.hset(`${baseKey}:${id}`, { name: 'orphan', data: '{}' });
       }
 
       const removed = await queue.removeOrphanedJobs();
@@ -1172,13 +1171,10 @@ describe('Cleaner', () => {
 
       // Create an orphan with a custom-looking ID
       const orphanId = 'orphan-custom-id';
-      await client.hset(
-        `${baseKey}:${orphanId}`,
-        'name',
-        'orphan',
-        'data',
-        '{}',
-      );
+      await client.hset(`${baseKey}:${orphanId}`, {
+        name: 'orphan',
+        data: '{}',
+      });
 
       const removed = await queue.removeOrphanedJobs();
       expect(removed).toBe(1);
@@ -1217,7 +1213,7 @@ describe('Cleaner', () => {
       for (let i = 0; i < orphanCount; i++) {
         const id = `orphan-${String(i).padStart(4, '0')}`;
         orphanedIds.push(id);
-        pipeline.hset(`${baseKey}:${id}`, 'name', 'orphan', 'data', '{}');
+        pipeline.hset(`${baseKey}:${id}`, { name: 'orphan', data: '{}' });
       }
       await pipeline.exec();
 
