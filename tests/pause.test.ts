@@ -372,9 +372,10 @@ describe('Pause', () => {
     const pausedKey = queue.toKey('paused');
     const waitKey = queue.toKey('wait');
     const eventsKey = queue.toKey('events');
-    // 7005 forces more than one migration pass: 7000 jobs first, then 5 more.
+    const legacyMigrationBatchSize = 7000;
+    // Exceed the per-call batch size so resume must drain the legacy list twice.
     const legacyJobs = Array.from(
-      { length: 7005 },
+      { length: legacyMigrationBatchSize + 5 },
       (_, index) => `legacy-${index}`,
     );
 

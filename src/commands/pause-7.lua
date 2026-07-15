@@ -40,7 +40,7 @@ else
             rcall("RENAME", KEYS[1], KEYS[2])
         else
             --move a maximum of 7000 jobs per resumed call in order to not block
-            --(LRANGE 0..6999) while keeping each RPUSH argument list bounded
+            --using LRANGE 0..6999 so each RPUSH argument list stays bounded
             --if users have more jobs in paused state, call resumed multiple times
             local jobs = rcall('LRANGE', KEYS[1], 0, 6999)
             rcall("RPUSH", KEYS[2], unpack(jobs))
