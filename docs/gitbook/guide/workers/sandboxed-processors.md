@@ -47,6 +47,12 @@ worker = new Worker(queueName, processorUrl);
 Recommended for Windows OS.
 {% endhint %}
 
+### Running under `node --watch`
+
+BullMQ spawns sandboxed processors as separate Node.js processes (or worker threads) using the parent process's `execArgv`. The `--watch` family of flags (`--watch`, `--watch-path`, `--watch-preserve-output`, etc.) is stripped before being forwarded to the child so that the sandboxed runtime does not also enter watch mode, which can interfere with IPC and leave jobs stuck in the `active` state.
+
+If you pass additional flags through `workerForkOptions.execArgv` or `workerThreadsOptions.execArgv`, make sure none of them enable watch mode on the child.
+
 ### Worker Threads
 
 The default mechanism for launching sandboxed workers is using Node's spawn process library. From BullMQ version v3.13.0, it is also possible to launch the workers using Node's new Worker Threads library. These threads are supposed to be less resource-demanding than the previous approach, however, they are still not as lightweight as we could expect since Node's runtime needs to be duplicated by every thread.

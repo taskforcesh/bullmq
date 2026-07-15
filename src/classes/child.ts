@@ -235,12 +235,33 @@ const getFreePort = async () => {
   });
 };
 
+/**
+ * Returns true when the given execArgv entry is a Node.js `--watch*` family
+ * flag (e.g. `--watch`, `--watch=path`, `--watch-path=foo`,
+ * `--watch-preserve-output`, `--watch-kill-signal=SIGTERM`).
+ *
+ * These flags must not be forwarded to sandboxed child processes or worker
+ * threads. Forwarding them causes the child Node.js runtime to also enter
+ * watch mode, which interferes with IPC between the parent worker and the
+ * sandboxed processor and can leave jobs stuck in the `active` state.
+ *
+ * See https://github.com/taskforcesh/bullmq/issues/1833
+ */
+const isWatchFlag = (arg: string): boolean => {
+  return arg === '--watch' || arg.startsWith('--watch=') || arg.startsWith('--watch-');
+};
+
 const convertExecArgv = async (execArgv: string[]): Promise<string[]> => {
   const standard: string[] = [];
   const convertedArgs: string[] = [];
 
   for (let i = 0; i < execArgv.length; i++) {
     const arg = execArgv[i];
+    if (isWatchFlag(arg)) {
+      // Skip `--watch*` flags so sandboxed children don't inherit watch mode
+      // from the parent process (see GH #1833).
+      continue;
+    }
     if (arg.indexOf('--inspect') === -1) {
       standard.push(arg);
     } else {
