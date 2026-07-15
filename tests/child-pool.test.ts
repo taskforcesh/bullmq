@@ -35,7 +35,7 @@ function sandboxProcessTests(
       const processor = __dirname + '/fixtures/fixture_processor_bar.js';
       const child = await pool.retain(processor, NoopProc);
       expect(child).toBeTruthy();
-      pool.release(child);
+      await pool.release(child);
       expect(Object.keys(pool.retained)).toHaveLength(0);
       const newChild = await pool.retain(processor, NoopProc);
       expect(child).toEqual(newChild);
@@ -45,7 +45,7 @@ function sandboxProcessTests(
       const processor = __dirname + '/fixtures/fixture_processor_bar.js';
       let child = await pool.retain(processor, NoopProc);
       expect(child).toBeTruthy();
-      pool.release(child);
+      await pool.release(child);
       expect(Object.keys(pool.retained)).toHaveLength(0);
       let newChild = await pool.retain(processor, NoopProc);
       expect(child).toEqual(newChild);
@@ -100,9 +100,38 @@ function sandboxProcessTests(
       ]);
 
       expect(children).toHaveLength(6);
-      pool.release(children[0]);
+      await pool.release(children[0]);
       const child = await pool.retain(processor);
       expect(children).toContain(child);
+    });
+
+    it('should kill child on release when reuseChildProcess is false', async () => {
+      const noReusePool = new ChildPool({
+        mainFile,
+        useWorkerThreads,
+        reuseChildProcess: false,
+      });
+      const processor = __dirname + '/fixtures/fixture_processor_bar.js';
+      const child = await noReusePool.retain(processor, NoopProc);
+      expect(child).toBeTruthy();
+      await noReusePool.release(child);
+      expect(Object.keys(noReusePool.retained)).toHaveLength(0);
+      expect(noReusePool.getAllFree()).toHaveLength(0);
+      await noReusePool.clean();
+    });
+
+    it('should return a new child after release when reuseChildProcess is false', async () => {
+      const noReusePool = new ChildPool({
+        mainFile,
+        useWorkerThreads,
+        reuseChildProcess: false,
+      });
+      const processor = __dirname + '/fixtures/fixture_processor_bar.js';
+      const child = await noReusePool.retain(processor, NoopProc);
+      await noReusePool.release(child);
+      const newChild = await noReusePool.retain(processor, NoopProc);
+      expect(child).not.toEqual(newChild);
+      await noReusePool.clean();
     });
 
     it('should consume execArgv array from process', async () => {
