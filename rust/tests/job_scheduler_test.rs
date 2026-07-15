@@ -25,7 +25,7 @@ async fn test_upsert_job_scheduler_with_every() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(1000),
@@ -56,7 +56,7 @@ async fn test_upsert_job_scheduler_with_cron_pattern() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         pattern: Some("*/5 * * * * *".to_string()), // every 5 seconds
@@ -87,7 +87,7 @@ async fn test_upsert_job_scheduler_with_custom_name_and_data() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(2000),
@@ -122,7 +122,7 @@ async fn test_upsert_job_scheduler_idempotent() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Upsert twice with same ID but different every
     let repeat_opts1 = RepeatOptions {
@@ -158,7 +158,7 @@ async fn test_upsert_validates_pattern_and_every_exclusive() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(1000),
@@ -182,7 +182,7 @@ async fn test_upsert_validates_pattern_or_every_required() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions::default();
 
@@ -202,7 +202,7 @@ async fn test_upsert_validates_end_date_in_past() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(1000),
@@ -230,7 +230,7 @@ async fn test_get_job_scheduler_by_id() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(5000),
@@ -260,7 +260,7 @@ async fn test_get_nonexistent_scheduler_returns_none() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let scheduler = queue.get_job_scheduler("does-not-exist").await.unwrap();
     assert!(scheduler.is_none());
@@ -276,7 +276,7 @@ async fn test_get_job_schedulers_list() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Add multiple schedulers
     for i in 0..3 {
@@ -308,7 +308,7 @@ async fn test_get_job_schedulers_count() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     assert_eq!(queue.get_job_schedulers_count().await.unwrap(), 0);
 
@@ -340,7 +340,7 @@ async fn test_remove_job_scheduler() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(1000),
@@ -369,7 +369,7 @@ async fn test_remove_nonexistent_scheduler() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let removed = queue.remove_job_scheduler("nope").await.unwrap();
     assert!(!removed);
@@ -385,7 +385,7 @@ async fn test_remove_scheduler_also_removes_delayed_job() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Use a cron pattern far in the future so the job lands in "delayed"
     let repeat_opts = RepeatOptions {
@@ -426,7 +426,7 @@ async fn test_scheduler_repeats_with_every() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(500), // every 500ms
@@ -451,7 +451,9 @@ async fn test_scheduler_repeats_with_every() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Should process at least 3 iterations within 3 seconds
     let mut count = 0;
@@ -480,7 +482,7 @@ async fn test_scheduler_respects_limit() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(200),
@@ -506,7 +508,9 @@ async fn test_scheduler_respects_limit() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait enough time for more than 3 iterations if there was no limit
     tokio::time::sleep(Duration::from_secs(3)).await;
@@ -532,7 +536,7 @@ async fn test_multiple_schedulers_independent() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Two independent schedulers
     let repeat_opts_a = RepeatOptions {
@@ -576,7 +580,7 @@ async fn test_scheduler_with_job_options() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(5000),
@@ -617,7 +621,7 @@ async fn test_scheduler_with_future_end_date() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let future_end = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -660,7 +664,7 @@ async fn test_scheduler_repeats_with_cron_pattern() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Every second
     let repeat_opts = RepeatOptions {
@@ -686,7 +690,9 @@ async fn test_scheduler_repeats_with_cron_pattern() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Should fire at least 2 times within 3 seconds
     let mut count = 0;
@@ -716,7 +722,7 @@ async fn test_scheduler_stops_after_end_date() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -748,7 +754,9 @@ async fn test_scheduler_stops_after_end_date() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait long enough for many iterations if there was no endDate
     tokio::time::sleep(Duration::from_secs(2)).await;
@@ -784,7 +792,7 @@ async fn test_scheduler_continues_after_failure() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(300),
@@ -819,7 +827,9 @@ async fn test_scheduler_continues_after_failure() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for at least 2 successful iterations (after the first failure)
     let result = tokio::time::timeout(Duration::from_secs(4), async {
@@ -852,7 +862,7 @@ async fn test_same_cron_different_ids_creates_multiple_jobs() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts1 = RepeatOptions {
         pattern: Some("0 0 * * *".to_string()), // daily at midnight
@@ -896,7 +906,7 @@ async fn test_same_id_different_every_creates_one_scheduler() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts1 = RepeatOptions {
         every: Some(1000),
@@ -938,7 +948,7 @@ async fn test_scheduler_with_start_date_in_future() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -969,7 +979,9 @@ async fn test_scheduler_with_start_date_in_future() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Should NOT have fired in the first 500ms
     tokio::time::sleep(Duration::from_millis(500)).await;
@@ -998,7 +1010,7 @@ async fn test_scheduler_immediately_fires_first_job() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Cron pattern that would normally be far in the future (every day at midnight)
     // but with immediately=true should fire right away
@@ -1026,7 +1038,9 @@ async fn test_scheduler_immediately_fires_first_job() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Should fire within 2 seconds (immediately)
     let result = tokio::time::timeout(Duration::from_secs(2), rx.recv()).await;
@@ -1051,7 +1065,7 @@ async fn test_upsert_quick_succession_only_one_scheduler() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Rapid-fire upserts with same ID
     for i in 0..5 {
@@ -1088,7 +1102,7 @@ async fn test_readd_scheduler_after_removal() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(1000),
@@ -1127,7 +1141,7 @@ async fn test_scheduler_job_has_correct_name_and_data() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(500),
@@ -1162,7 +1176,9 @@ async fn test_scheduler_job_has_correct_name_and_data() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let result = tokio::time::timeout(Duration::from_secs(3), rx.recv()).await;
     assert!(result.is_ok());
@@ -1186,7 +1202,7 @@ async fn test_scheduler_has_correct_iteration_count() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(200),
@@ -1212,7 +1228,9 @@ async fn test_scheduler_has_correct_iteration_count() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for all 5 iterations to complete
     for _ in 0..5 {
@@ -1248,7 +1266,7 @@ async fn test_every_starts_immediately() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(60_000), // 1 minute interval
@@ -1273,7 +1291,9 @@ async fn test_every_starts_immediately() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // With 'every', the first job should be created immediately (delay=0)
     // So it should be processed within a couple seconds, not in 60s
@@ -1301,7 +1321,7 @@ async fn test_scheduler_with_remove_on_complete() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(300),
@@ -1333,7 +1353,9 @@ async fn test_scheduler_with_remove_on_complete() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for all 3 to complete
     for _ in 0..3 {
@@ -1366,7 +1388,7 @@ async fn test_scheduler_with_timezone() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Every second cron with a timezone
     let repeat_opts = RepeatOptions {
@@ -1401,7 +1423,7 @@ async fn test_scheduler_pagination() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Create 10 schedulers with increasing intervals so they have different next timestamps
     for i in 0..10u64 {
@@ -1447,7 +1469,7 @@ async fn test_scheduler_with_priority() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(500),
@@ -1481,7 +1503,7 @@ async fn test_upsert_validates_immediately_and_start_date_exclusive() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -1518,7 +1540,7 @@ async fn test_scheduler_with_concurrent_workers() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(300),
@@ -1549,7 +1571,9 @@ async fn test_scheduler_with_concurrent_workers() {
             autorun: true,
             ..Default::default()
         };
-        let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+        let worker = Worker::with_options(&name, processor, worker_opts)
+            .await
+            .unwrap();
         workers.push(worker);
     }
 
@@ -1582,7 +1606,7 @@ async fn test_upsert_updates_data_and_options() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // First upsert
     let repeat_opts = RepeatOptions {
@@ -1639,7 +1663,7 @@ async fn test_worker_processes_scheduler_after_drain() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let (tx, mut rx) = mpsc::channel(10);
     let processor: ProcessorFn = Arc::new(move |_job: Job, _token: CancellationToken| {
@@ -1655,7 +1679,9 @@ async fn test_worker_processes_scheduler_after_drain() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Worker starts with empty queue (drained state)
     tokio::time::sleep(Duration::from_millis(500)).await;
@@ -1693,7 +1719,7 @@ async fn test_scheduler_job_has_repeat_job_key() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(500),
@@ -1719,7 +1745,9 @@ async fn test_scheduler_job_has_repeat_job_key() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let result = tokio::time::timeout(Duration::from_secs(3), rx.recv()).await;
     assert!(result.is_ok());
@@ -1742,7 +1770,7 @@ async fn test_scheduler_each_iteration_has_unique_id() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(200),
@@ -1769,7 +1797,9 @@ async fn test_scheduler_each_iteration_has_unique_id() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let mut ids = Vec::new();
     for _ in 0..4 {
@@ -1809,7 +1839,7 @@ async fn test_scheduler_emits_events() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(300),
@@ -1830,7 +1860,9 @@ async fn test_scheduler_emits_events() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for at least one Completed event using next_event()
     let result = tokio::time::timeout(Duration::from_secs(3), async {
@@ -1862,7 +1894,7 @@ async fn test_scheduler_cron_5_field_pattern() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Standard 5-field cron (minute-level)
     let repeat_opts = RepeatOptions {
@@ -1897,7 +1929,7 @@ async fn test_scheduler_cron_6_field_pattern() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // 6-field cron (second-level)
     let repeat_opts = RepeatOptions {
@@ -1927,7 +1959,7 @@ async fn test_scheduler_invalid_cron_returns_error() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         pattern: Some("not a cron".to_string()),
@@ -1954,7 +1986,7 @@ async fn test_scheduler_invalid_timezone_returns_error() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         pattern: Some("* * * * *".to_string()),
@@ -1982,7 +2014,7 @@ async fn test_scheduler_every_with_offset() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(10_000), // every 10 seconds
@@ -2019,7 +2051,7 @@ async fn test_scheduler_with_start_date_in_past() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -2051,7 +2083,9 @@ async fn test_scheduler_with_start_date_in_past() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // With startDate in the past, the first job should fire immediately
     let result = tokio::time::timeout(Duration::from_secs(3), rx.recv()).await;
@@ -2076,7 +2110,7 @@ async fn test_create_schedulers_with_different_patterns() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let patterns = vec![
         ("hourly", "0 * * * *"),
@@ -2120,7 +2154,7 @@ async fn test_scheduler_processes_after_remove_and_readd() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let (tx, mut rx) = mpsc::channel(10);
     let processor: ProcessorFn = Arc::new(move |_job: Job, _token: CancellationToken| {
@@ -2136,7 +2170,9 @@ async fn test_scheduler_processes_after_remove_and_readd() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // First: add and process
     let repeat_opts = RepeatOptions {
@@ -2181,7 +2217,7 @@ async fn test_scheduler_limit_with_slow_processing() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(100),
@@ -2211,7 +2247,9 @@ async fn test_scheduler_limit_with_slow_processing() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait plenty of time
     tokio::time::sleep(Duration::from_secs(3)).await;
@@ -2239,7 +2277,7 @@ async fn test_scheduler_many_upserts_stress() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Upsert the same scheduler 20 times rapidly
     for i in 0..20u64 {
@@ -2275,7 +2313,7 @@ async fn test_scheduler_many_independent_schedulers() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Create 20 independent schedulers
     for i in 0..20 {
@@ -2321,7 +2359,7 @@ async fn test_scheduler_id_with_colons() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Test scheduler IDs with 5+ colon segments (regression for issue #3828)
     let scheduler_id = "org:team:project:env:task";
@@ -2363,7 +2401,7 @@ async fn test_scheduler_utc_timezone() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         pattern: Some("* * * * * *".to_string()),
@@ -2409,7 +2447,7 @@ async fn test_remove_scheduler_does_not_affect_others() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     for i in 0..3 {
         let repeat_opts = RepeatOptions {
@@ -2447,7 +2485,7 @@ async fn test_scheduler_reliable_over_many_iterations() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(100),
@@ -2473,7 +2511,9 @@ async fn test_scheduler_reliable_over_many_iterations() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // All 10 iterations should complete
     let mut count = 0;
@@ -2508,7 +2548,7 @@ async fn test_drain_does_not_remove_scheduler_delayed_jobs() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Scheduler with 'every' puts first job in waiting (delay=0)
     let repeat_opts = RepeatOptions {
@@ -2548,7 +2588,7 @@ async fn test_clean_does_not_remove_scheduler_waiting_jobs() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(5000),
@@ -2588,7 +2628,7 @@ async fn test_cannot_directly_remove_scheduler_job() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(5000),
@@ -2633,7 +2673,7 @@ async fn test_promote_scheduler_job_creates_next_iteration() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Use 'every' with long interval — first job goes to waiting (delay=0),
     // after processing, next goes to delayed (far in future)
@@ -2665,7 +2705,9 @@ async fn test_promote_scheduler_job_creates_next_iteration() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let result = tokio::time::timeout(Duration::from_secs(3), rx.recv()).await;
     assert!(result.is_ok(), "First job should be processed");
@@ -2712,7 +2754,7 @@ async fn test_promote_every_scheduler_creates_next_delayed() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // 'every' with large interval — first job goes to waiting immediately
     let repeat_opts = RepeatOptions {
@@ -2744,7 +2786,9 @@ async fn test_promote_every_scheduler_creates_next_delayed() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(3), rx.recv())
         .await
@@ -2797,7 +2841,7 @@ async fn test_retry_failed_scheduler_job_no_duplicate_delayed() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(5000),
@@ -2830,7 +2874,9 @@ async fn test_retry_failed_scheduler_job_no_duplicate_delayed() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for the job to fail
     tokio::time::sleep(Duration::from_millis(500)).await;
@@ -2882,7 +2928,7 @@ async fn test_job_retry_on_failed_scheduler_job_no_duplicate() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(5000),
@@ -2915,7 +2961,9 @@ async fn test_job_retry_on_failed_scheduler_job_no_duplicate() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for the job to fail
     tokio::time::sleep(Duration::from_millis(500)).await;
@@ -2978,7 +3026,7 @@ async fn test_scheduler_repeats_with_stall_recovery_configured() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(500),
@@ -3009,7 +3057,9 @@ async fn test_scheduler_repeats_with_stall_recovery_configured() {
         max_stalled_count: 2,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for multiple iterations to process
     tokio::time::sleep(Duration::from_secs(3)).await;
@@ -3037,7 +3087,7 @@ async fn test_promote_pattern_scheduler_then_process() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Use 'every' with large interval — more predictable than cron for promote tests
     let repeat_opts = RepeatOptions {
@@ -3068,7 +3118,9 @@ async fn test_promote_pattern_scheduler_then_process() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(3), rx.recv())
         .await
@@ -3115,7 +3167,7 @@ async fn test_promote_pattern_immediately_scheduler() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Use immediately with a long-interval 'every' instead of cron
     // to avoid timing issues with cron patterns near second boundaries
@@ -3147,7 +3199,9 @@ async fn test_promote_pattern_immediately_scheduler() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(2), rx.recv())
         .await
@@ -3192,7 +3246,7 @@ async fn test_scheduler_job_has_correct_count_in_opts() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(300),
@@ -3219,7 +3273,9 @@ async fn test_scheduler_job_has_correct_count_in_opts() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Collect count values from each iteration
     let mut counts = Vec::new();
@@ -3250,7 +3306,7 @@ async fn test_upsert_keeps_only_one_delayed_job() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // First upsert with cron (creates delayed)
     let repeat_opts = RepeatOptions {
@@ -3297,7 +3353,7 @@ async fn test_upsert_updates_delayed_job_timestamp() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Hourly cron
     let repeat_opts = RepeatOptions {
@@ -3356,7 +3412,7 @@ async fn test_upsert_keeps_only_one_waiting_job_every() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // First upsert with 'every' (puts first job in waiting)
     let repeat_opts = RepeatOptions {
@@ -3405,7 +3461,7 @@ async fn test_delete_and_upsert_during_processing() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let repeat_opts = RepeatOptions {
         every: Some(300),
@@ -3432,7 +3488,9 @@ async fn test_delete_and_upsert_during_processing() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Let it process one iteration
     tokio::time::sleep(Duration::from_millis(500)).await;
@@ -3473,7 +3531,7 @@ async fn test_scheduler_processes_jobs_by_priority() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Create two schedulers with different priorities
     let repeat_opts_low = RepeatOptions {
@@ -3533,7 +3591,9 @@ async fn test_scheduler_processes_jobs_by_priority() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Collect the order they're processed
     let first = tokio::time::timeout(Duration::from_secs(3), rx.recv())

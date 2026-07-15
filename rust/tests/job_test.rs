@@ -17,7 +17,7 @@ use std::time::Duration;
 #[tokio::test]
 async fn test_clear_logs() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),
@@ -28,7 +28,7 @@ async fn test_clear_logs() {
     .unwrap();
 
     let job = queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
 
@@ -52,7 +52,7 @@ async fn test_clear_logs() {
 #[tokio::test]
 async fn test_clear_logs_keep_latest() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),
@@ -63,7 +63,7 @@ async fn test_clear_logs_keep_latest() {
     .unwrap();
 
     let job = queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
 
@@ -113,7 +113,7 @@ async fn test_clear_logs_keep_latest() {
 async fn test_discard_prevents_retry() {
     let name = test_queue_name();
     let conn = test_connection();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: conn.clone(),
@@ -124,14 +124,11 @@ async fn test_discard_prevents_retry() {
     .unwrap();
 
     queue
-        .add(
-            "test",
-            serde_json::json!({}),
-            Some(JobOptions {
-                attempts: Some(5),
-                ..Default::default()
-            }),
-        )
+        .add("test", serde_json::json!({}))
+        .options(JobOptions {
+            attempts: Some(5),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
@@ -148,7 +145,7 @@ async fn test_discard_prevents_retry() {
         })
     });
 
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &name,
         processor,
         WorkerOptions {

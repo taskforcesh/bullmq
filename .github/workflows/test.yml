@@ -124,12 +124,16 @@ jobs:
   ioredis-redis:
     runs-on: ubuntu-latest
     needs: [changes, smoke]
-    if: ${{ !cancelled() && needs.smoke.result == 'success' && (needs.changes.outputs.node == 'true' || needs.changes.outputs.lua == 'true') }}
+    # Keep the matrix job itself materialized so required checks still get the
+    # concrete matrix-expanded name even when path filtering decides the steps
+    # should no-op for this PR.
+    if: ${{ !cancelled() && needs.smoke.result == 'success' }}
 
     name: testing node@${{ matrix.node-version }}, redis@${{ matrix.redis-version }}
 
     env:
       allowed_coverage_change: -0.25
+      should_run: ${{ needs.changes.outputs.node == 'true' || needs.changes.outputs.lua == 'true' }}
 
     strategy:
       matrix:
@@ -137,29 +141,38 @@ jobs:
         redis-version: [7-alpine]
 
     steps:
+      - name: Skip when node/lua inputs are unchanged
+        if: env.should_run != 'true'
+        run: echo "No node/lua changes detected; skipping ioredis coverage job."
       - name: Checkout repository
+        if: env.should_run == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Use Node.js ${{ matrix.node-version }}
+        if: env.should_run == 'true'
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'yarn'
       - name: Start Redis
+        if: env.should_run == 'true'
         uses: supercharge/redis-github-action@bc274cb7238cd63a45029db04ee48c07a72609fd # 1.8.1
         with:
           redis-version: ${{ matrix.redis-version }}
-      - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
-      - run: yarn build
+      - if: env.should_run == 'true'
+        run: yarn install --ignore-engines --frozen-lockfile --non-interactive
+      - if: env.should_run == 'true'
+        run: yarn build
       - name: Run tests with coverage (default + ioredis-only suites)
+        if: env.should_run == 'true'
         run: yarn coverage
       - name: Upload LCOV to Coveralls
-        if: ${{ ( github.event_name == 'pull_request' && github.event.pull_request.head.fork == false ) || github.event_name == 'push' }}
+        if: ${{ env.should_run == 'true' && (( github.event_name == 'pull_request' && github.event.pull_request.head.fork == false ) || github.event_name == 'push') }}
         uses: coverallsapp/github-action@0a51d2e0b5417d06e4ecceb534aec87defc53926 # branch=master
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           fail-on-error: false
       - name: Check coverage change not below threshold
-        if: ${{ ( github.event_name == 'pull_request' && github.event.pull_request.head.fork == false ) || github.event_name == 'push' }}
+        if: ${{ env.should_run == 'true' && (( github.event_name == 'pull_request' && github.event.pull_request.head.fork == false ) || github.event_name == 'push') }}
         shell: bash
         run: |
           sleep 2
@@ -176,9 +189,12 @@ jobs:
   # multiple Node/Redis versions when the suite is already broken.
   ioredis-redis-extra:
     runs-on: ubuntu-latest
-    needs: ioredis-redis
+    needs: [changes, ioredis-redis]
 
     name: testing node@${{ matrix.node-version }}, redis@${{ matrix.redis-version }}
+
+    env:
+      should_run: ${{ needs.changes.outputs.node == 'true' || needs.changes.outputs.lua == 'true' }}
 
     strategy:
       fail-fast: false
@@ -190,27 +206,40 @@ jobs:
             redis-version: 6-alpine
 
     steps:
+      - name: Skip when node/lua inputs are unchanged
+        if: env.should_run != 'true'
+        run: echo "No node/lua changes detected; skipping extra ioredis matrix steps."
       - name: Checkout repository
+        if: env.should_run == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Use Node.js ${{ matrix.node-version }}
+        if: env.should_run == 'true'
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'yarn'
       - name: Start Redis
+        if: env.should_run == 'true'
         uses: supercharge/redis-github-action@bc274cb7238cd63a45029db04ee48c07a72609fd # 1.8.1
         with:
           redis-version: ${{ matrix.redis-version }}
-      - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
-      - run: yarn build
-      - run: yarn test
-      - run: yarn test:ioredis
+      - if: env.should_run == 'true'
+        run: yarn install --ignore-engines --frozen-lockfile --non-interactive
+      - if: env.should_run == 'true'
+        run: yarn build
+      - if: env.should_run == 'true'
+        run: yarn test
+      - if: env.should_run == 'true'
+        run: yarn test:ioredis
 
   node-redis:
     runs-on: ubuntu-latest
-    needs: ioredis-redis
+    needs: [changes, ioredis-redis]
 
     name: testing node-redis node@${{ matrix.node-version }}, redis@${{ matrix.redis-version }}
+
+    env:
+      should_run: ${{ needs.changes.outputs.node == 'true' || needs.changes.outputs.lua == 'true' }}
 
     strategy:
       matrix:
@@ -218,28 +247,39 @@ jobs:
         redis-version: [7-alpine]
 
     steps:
+      - name: Skip when node/lua inputs are unchanged
+        if: env.should_run != 'true'
+        run: echo "No node/lua changes detected; skipping node-redis test steps."
       - name: Checkout repository
+        if: env.should_run == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Use Node.js ${{ matrix.node-version }}
+        if: env.should_run == 'true'
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'yarn'
       - name: Start Redis
+        if: env.should_run == 'true'
         uses: supercharge/redis-github-action@bc274cb7238cd63a45029db04ee48c07a72609fd # 1.8.1
         with:
           redis-version: ${{ matrix.redis-version }}
-      - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
-      - run: yarn build
-      - run: yarn test:adapter-conformance
-      - run: yarn test:node-redis
+      - if: env.should_run == 'true'
+        run: yarn install --ignore-engines --frozen-lockfile --non-interactive
+      - if: env.should_run == 'true'
+        run: yarn build
+      - if: env.should_run == 'true'
+        run: yarn test:adapter-conformance
+      - if: env.should_run == 'true'
+        run: yarn test:node-redis
 
   node-valkey:
     runs-on: ubuntu-latest
-    needs: ioredis-redis
+    needs: [changes, ioredis-redis]
 
     env:
       node-version: lts/*
+      should_run: ${{ needs.changes.outputs.node == 'true' || needs.changes.outputs.lua == 'true' }}
 
     name: testing node@lts/*, valkey@8
 
@@ -250,23 +290,32 @@ jobs:
           - 6379:6379
 
     steps:
+      - name: Skip when node/lua inputs are unchanged
+        if: env.should_run != 'true'
+        run: echo "No node/lua changes detected; skipping valkey test steps."
       - name: Checkout repository
+        if: env.should_run == 'true'
         uses: actions/checkout@v6
       - name: Use Node.js ${{ env.node-version }}
+        if: env.should_run == 'true'
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: lts/*
           cache: 'yarn'
-      - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
-      - run: yarn build
-      - run: yarn test
+      - if: env.should_run == 'true'
+        run: yarn install --ignore-engines --frozen-lockfile --non-interactive
+      - if: env.should_run == 'true'
+        run: yarn build
+      - if: env.should_run == 'true'
+        run: yarn test
 
   node-dragonflydb:
     runs-on: ubuntu-latest
-    needs: ioredis-redis
+    needs: [changes, ioredis-redis]
 
     env:
       node-version: lts/*
+      should_run: ${{ needs.changes.outputs.node == 'true' || needs.changes.outputs.lua == 'true' }}
 
     name: testing node@lts/*, dragonflydb@latest
 
@@ -281,22 +330,33 @@ jobs:
           - 6379:6379
 
     steps:
+      - name: Skip when node/lua inputs are unchanged
+        if: env.should_run != 'true'
+        run: echo "No node/lua changes detected; skipping dragonflydb test steps."
       - name: Checkout repository
+        if: env.should_run == 'true'
         uses: actions/checkout@v6
       - name: Use Node.js ${{ env.node-version }}
+        if: env.should_run == 'true'
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: lts/*
           cache: 'yarn'
-      - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
-      - run: yarn build
-      - run: BULLMQ_TEST_PREFIX={b} yarn test
+      - if: env.should_run == 'true'
+        run: yarn install --ignore-engines --frozen-lockfile --non-interactive
+      - if: env.should_run == 'true'
+        run: yarn build
+      - if: env.should_run == 'true'
+        run: BULLMQ_TEST_PREFIX={b} yarn test
 
   bun-redis:
     runs-on: ubuntu-latest
-    needs: ioredis-redis
+    needs: [changes, ioredis-redis]
 
     name: testing bun@${{ matrix.bun-version }}, redis@${{ matrix.redis-version }}
+
+    env:
+      should_run: ${{ needs.changes.outputs.node == 'true' || needs.changes.outputs.lua == 'true' }}
 
     strategy:
       matrix:
@@ -304,25 +364,36 @@ jobs:
         redis-version: [7-alpine]
 
     steps:
+      - name: Skip when node/lua inputs are unchanged
+        if: env.should_run != 'true'
+        run: echo "No node/lua changes detected; skipping Bun test steps."
       - name: Checkout repository
+        if: env.should_run == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Setup Bun
+        if: env.should_run == 'true'
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ matrix.bun-version }}
       - name: Use Node.js for yarn
+        if: env.should_run == 'true'
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: lts/*
           cache: 'yarn'
       - name: Start Redis
+        if: env.should_run == 'true'
         uses: supercharge/redis-github-action@bc274cb7238cd63a45029db04ee48c07a72609fd # 1.8.1
         with:
           redis-version: ${{ matrix.redis-version }}
-      - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
-      - run: yarn build
-      - run: yarn test:bun:smoke
-      - run: yarn test:bun
+      - if: env.should_run == 'true'
+        run: yarn install --ignore-engines --frozen-lockfile --non-interactive
+      - if: env.should_run == 'true'
+        run: yarn build
+      - if: env.should_run == 'true'
+        run: yarn test:bun:smoke
+      - if: env.should_run == 'true'
+        run: yarn test:bun
 
   # node-upstash:
   #   runs-on: ubuntu-latest
@@ -354,15 +425,20 @@ jobs:
     # is skipped and we still run this job (a skipped dependency is allowed, a
     # failed one is not).
     needs: [changes, smoke, ioredis-redis]
+    # Keep failure/cancellation gating at the job level, but leave path gating
+    # to step-level no-op checks so the matrix-expanded required check name
+    # still materializes when Python/Lua files are unchanged.
     if: >-
       always() &&
       !cancelled() &&
-      (needs.changes.outputs.python == 'true' || needs.changes.outputs.lua == 'true') &&
       needs.smoke.result == 'success' &&
       needs.ioredis-redis.result != 'failure' &&
       needs.ioredis-redis.result != 'cancelled'
 
     name: testing python@${{ matrix.python-version }}, redis@${{ matrix.redis-version }}
+
+    env:
+      should_run: ${{ needs.changes.outputs.python == 'true' || needs.changes.outputs.lua == 'true' }}
 
     strategy:
       matrix:
@@ -371,39 +447,52 @@ jobs:
         python-version: ['3.13']
 
     steps:
+      - name: Skip when Python/Lua inputs are unchanged
+        if: env.should_run != 'true'
+        run: echo "No Python/Lua changes detected; skipping Python test steps."
       - name: Checkout repository
+        if: env.should_run == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Use Node.js ${{ matrix.node-version }}
+        if: env.should_run == 'true'
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'yarn'
       - name: Start Redis
+        if: env.should_run == 'true'
         uses: supercharge/redis-github-action@bc274cb7238cd63a45029db04ee48c07a72609fd # 1.8.1
         with:
           redis-version: ${{ matrix.redis-version }}
-      - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
-      - run: yarn build
-      - run: yarn copy:lua:python
+      - if: env.should_run == 'true'
+        run: yarn install --ignore-engines --frozen-lockfile --non-interactive
+      - if: env.should_run == 'true'
+        run: yarn build
+      - if: env.should_run == 'true'
+        run: yarn copy:lua:python
 
       - name: Set up Python ${{ matrix.python-version }}
+        if: env.should_run == 'true'
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
+        if: env.should_run == 'true'
         run: |
           python -m pip install --upgrade pip
           pip install flake8 mypy types-redis
           pip install -r python/requirements.txt
       - name: Lint with flake8
+        if: env.should_run == 'true'
         run: |
           # stop the build if there are Python syntax errors or undefined names
           flake8 ./python --count --select=E9,F63,F7,F82 --show-source --statistics
           # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
           flake8 ./python --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
       - name: Test with pytest
+        if: env.should_run == 'true'
         run: |
           cd python
           pytest -v
@@ -411,15 +500,20 @@ jobs:
   python-dragonflydb:
     runs-on: ubuntu-latest
     needs: [changes, smoke, ioredis-redis]
+    # Keep failure/cancellation gating at the job level, but leave path gating
+    # to step-level no-op checks so the matrix-expanded required check name
+    # still materializes when Python/Lua files are unchanged.
     if: >-
       always() &&
       !cancelled() &&
-      (needs.changes.outputs.python == 'true' || needs.changes.outputs.lua == 'true') &&
       needs.smoke.result == 'success' &&
       needs.ioredis-redis.result != 'failure' &&
       needs.ioredis-redis.result != 'cancelled'
 
     name: testing python@${{ matrix.python-version }}, dragonflydb@latest
+
+    env:
+      should_run: ${{ needs.changes.outputs.python == 'true' || needs.changes.outputs.lua == 'true' }}
 
     strategy:
       matrix:
@@ -437,35 +531,47 @@ jobs:
           - 6379:6379
 
     steps:
+      - name: Skip when Python/Lua inputs are unchanged
+        if: env.should_run != 'true'
+        run: echo "No Python/Lua changes detected; skipping Python Dragonfly steps."
       - name: Checkout repository
+        if: env.should_run == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Use Node.js ${{ matrix.node-version }}
+        if: env.should_run == 'true'
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'yarn'
-      - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
-      - run: yarn build
-      - run: yarn copy:lua:python
+      - if: env.should_run == 'true'
+        run: yarn install --ignore-engines --frozen-lockfile --non-interactive
+      - if: env.should_run == 'true'
+        run: yarn build
+      - if: env.should_run == 'true'
+        run: yarn copy:lua:python
 
       - name: Set up Python ${{ matrix.python-version }}
+        if: env.should_run == 'true'
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
+        if: env.should_run == 'true'
         run: |
           python -m pip install --upgrade pip
           pip install flake8 mypy types-redis
           pip install -r python/requirements.txt
       - name: Lint with flake8
+        if: env.should_run == 'true'
         run: |
           # stop the build if there are Python syntax errors or undefined names
           flake8 ./python --count --select=E9,F63,F7,F82 --show-source --statistics
           # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
           flake8 ./python --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
       - name: Test with pytest
+        if: env.should_run == 'true'
         run: |
           cd python
           export BULLMQ_TEST_PREFIX="{b}"
@@ -474,15 +580,20 @@ jobs:
   php:
     runs-on: ubuntu-latest
     needs: [changes, smoke, ioredis-redis]
+    # Keep failure/cancellation gating at the job level, but leave path gating
+    # to step-level no-op checks so the matrix-expanded required check name
+    # still materializes when PHP/Lua files are unchanged.
     if: >-
       always() &&
       !cancelled() &&
-      (needs.changes.outputs.php == 'true' || needs.changes.outputs.lua == 'true') &&
       needs.smoke.result == 'success' &&
       needs.ioredis-redis.result != 'failure' &&
       needs.ioredis-redis.result != 'cancelled'
 
     name: testing php@${{ matrix.php-version }}, redis@7
+
+    env:
+      should_run: ${{ needs.changes.outputs.php == 'true' || needs.changes.outputs.lua == 'true' }}
 
     strategy:
       matrix:
@@ -490,25 +601,35 @@ jobs:
         php-version: ['8.1', '8.2', '8.3']
 
     steps:
+      - name: Skip when PHP/Lua inputs are unchanged
+        if: env.should_run != 'true'
+        run: echo "No PHP/Lua changes detected; skipping PHP test steps."
       - name: Checkout repository
+        if: env.should_run == 'true'
         uses: actions/checkout@v6
 
       - name: Use Node.js ${{ matrix.node-version }}
+        if: env.should_run == 'true'
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'yarn'
 
       - name: Start Redis
+        if: env.should_run == 'true'
         uses: supercharge/redis-github-action@bc274cb7238cd63a45029db04ee48c07a72609fd # 1.8.1
         with:
           redis-version: 7-alpine
 
-      - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
-      - run: yarn build
-      - run: yarn copy:lua:php
+      - if: env.should_run == 'true'
+        run: yarn install --ignore-engines --frozen-lockfile --non-interactive
+      - if: env.should_run == 'true'
+        run: yarn build
+      - if: env.should_run == 'true'
+        run: yarn copy:lua:php
 
       - name: Setup PHP
+        if: env.should_run == 'true'
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php-version }}
@@ -516,11 +637,13 @@ jobs:
           tools: composer:v2
 
       - name: Get Composer Cache Directory
+        if: env.should_run == 'true'
         id: composer-cache
         working-directory: php
         run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
 
       - name: Cache Composer dependencies
+        if: env.should_run == 'true'
         uses: actions/cache@v5
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
@@ -529,13 +652,16 @@ jobs:
             ${{ runner.os }}-composer-${{ matrix.php-version }}-
 
       - name: Install PHP dependencies
+        if: env.should_run == 'true'
         working-directory: php
         run: composer install --prefer-dist --no-progress
 
       - name: Run PHPStan
+        if: env.should_run == 'true'
         working-directory: php
         run: ./vendor/bin/phpstan analyse src --level=6
 
       - name: Run tests
+        if: env.should_run == 'true'
         working-directory: php
         run: ./vendor/bin/phpunit

@@ -24,11 +24,11 @@ async fn test_stalled_jobs_moved_to_wait() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     for _ in 0..4 {
         queue
-            .add("test", serde_json::json!({"bar": "baz"}), None)
+            .add("test", serde_json::json!({"bar": "baz"}))
             .await
             .unwrap();
     }
@@ -49,7 +49,9 @@ async fn test_stalled_jobs_moved_to_wait() {
         stalled_interval: 100,
         ..Default::default()
     };
-    let worker1 = Worker::new(&name, processor1, worker1_opts).await.unwrap();
+    let worker1 = Worker::with_options(&name, processor1, worker1_opts)
+        .await
+        .unwrap();
 
     // Wait for all jobs to be active
     tokio::time::sleep(Duration::from_millis(300)).await;
@@ -74,7 +76,9 @@ async fn test_stalled_jobs_moved_to_wait() {
         stalled_interval: 100,
         ..Default::default()
     };
-    let worker2 = Worker::new(&name, processor2, worker2_opts).await.unwrap();
+    let worker2 = Worker::with_options(&name, processor2, worker2_opts)
+        .await
+        .unwrap();
 
     // All 4 stalled jobs should be processed by worker2
     let mut count = 0;
@@ -105,10 +109,10 @@ async fn test_stalled_event_emitted() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     queue
-        .add("test", serde_json::json!({"bar": "baz"}), None)
+        .add("test", serde_json::json!({"bar": "baz"}))
         .await
         .unwrap();
 
@@ -127,7 +131,9 @@ async fn test_stalled_event_emitted() {
         stalled_interval: 100,
         ..Default::default()
     };
-    let worker1 = Worker::new(&name, processor1, worker1_opts).await.unwrap();
+    let worker1 = Worker::with_options(&name, processor1, worker1_opts)
+        .await
+        .unwrap();
 
     // Wait for job to be active
     tokio::time::sleep(Duration::from_millis(200)).await;
@@ -144,7 +150,9 @@ async fn test_stalled_event_emitted() {
         stalled_interval: 100,
         ..Default::default()
     };
-    let worker2 = Worker::new(&name, processor2, worker2_opts).await.unwrap();
+    let worker2 = Worker::with_options(&name, processor2, worker2_opts)
+        .await
+        .unwrap();
 
     let got_stalled = tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -176,7 +184,7 @@ async fn test_worker_retries_with_fixed_backoff() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job_opts = JobOptions {
         attempts: Some(3),
@@ -184,7 +192,8 @@ async fn test_worker_retries_with_fixed_backoff() {
         ..Default::default()
     };
     queue
-        .add("test", serde_json::json!({"foo": "bar"}), Some(job_opts))
+        .add("test", serde_json::json!({"foo": "bar"}))
+        .options(job_opts)
         .await
         .unwrap();
 
@@ -209,7 +218,9 @@ async fn test_worker_retries_with_fixed_backoff() {
         drain_delay: 1,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
@@ -238,7 +249,7 @@ async fn test_worker_moves_to_failed_after_max_attempts() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let job_opts = JobOptions {
         attempts: Some(2),
@@ -246,7 +257,8 @@ async fn test_worker_moves_to_failed_after_max_attempts() {
         ..Default::default()
     };
     let job = queue
-        .add("test", serde_json::json!({}), Some(job_opts))
+        .add("test", serde_json::json!({}))
+        .options(job_opts)
         .await
         .unwrap();
     let job_id = job.id().to_string();
@@ -261,7 +273,9 @@ async fn test_worker_moves_to_failed_after_max_attempts() {
         drain_delay: 1,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for final failed event (after all attempts exhausted)
     let mut failed_count = 0;

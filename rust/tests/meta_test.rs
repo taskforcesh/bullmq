@@ -13,7 +13,7 @@ use std::time::Duration;
 use tokio::sync::Notify;
 
 async fn new_queue(name: &str) -> Queue {
-    Queue::new(
+    Queue::with_options(
         name,
         QueueOptions {
             connection: test_connection(),
@@ -98,10 +98,7 @@ async fn test_is_maxed() {
 
     // With a global concurrency of 1 and one job held active, the queue is maxed.
     queue.set_global_concurrency(1).await.unwrap();
-    queue
-        .add("hold", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("hold", serde_json::json!({})).await.unwrap();
 
     let release = Arc::new(Notify::new());
     let release_proc = release.clone();
@@ -112,7 +109,7 @@ async fn test_is_maxed() {
             Ok(serde_json::Value::Null)
         })
     });
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &name,
         processor,
         WorkerOptions {
