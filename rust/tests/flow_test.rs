@@ -3329,6 +3329,7 @@ async fn should_add_bulk_and_process_flows() {
         WorkerOptions {
             connection: test_connection(),
             prefix: prefix.to_string(),
+            autorun: false,
             ..Default::default()
         },
     )
@@ -3357,6 +3358,7 @@ async fn should_add_bulk_and_process_flows() {
         WorkerOptions {
             connection: test_connection(),
             prefix: prefix.to_string(),
+            autorun: false,
             ..Default::default()
         },
     )
@@ -3408,6 +3410,9 @@ async fn should_add_bulk_and_process_flows() {
     assert_eq!(state0, bullmq::JobState::WaitingChildren);
     let state1 = root_queue.get_job_state(trees[1].job.id()).await.unwrap();
     assert_eq!(state1, bullmq::JobState::WaitingChildren);
+
+    root_worker.run().await.unwrap();
+    child_worker.run().await.unwrap();
 
     // Wait for both roots to process
     let result = timeout(Duration::from_secs(10), barrier.wait()).await;
