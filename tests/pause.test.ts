@@ -359,6 +359,8 @@ describe('Pause', () => {
     const waitKey = queue.toKey('wait');
     const legacyJobs = ['legacy-1', 'legacy-2', 'legacy-3'];
 
+    // Use lpush so the setup works across adapters, reversing to preserve
+    // the same final list order as a right-push.
     await client.lpush(pausedKey, ...legacyJobs.slice().reverse());
 
     await queue.resume();
@@ -373,6 +375,7 @@ describe('Pause', () => {
     const waitKey = queue.toKey('wait');
     const eventsKey = queue.toKey('events');
     const legacyMigrationBatchSize = 7000;
+    const initialLegacySeedSize = legacyMigrationBatchSize / 2;
     // Exceed the per-call batch size so resume must drain the legacy list twice.
     const legacyJobs = Array.from(
       { length: legacyMigrationBatchSize + 5 },
@@ -380,8 +383,14 @@ describe('Pause', () => {
     );
 
     await client.lpush(waitKey, 'waiting-1');
-    await client.lpush(pausedKey, ...legacyJobs.slice(3500).reverse());
-    await client.lpush(pausedKey, ...legacyJobs.slice(0, 3500).reverse());
+    await client.lpush(
+      pausedKey,
+      ...legacyJobs.slice(initialLegacySeedSize).reverse(),
+    );
+    await client.lpush(
+      pausedKey,
+      ...legacyJobs.slice(0, initialLegacySeedSize).reverse(),
+    );
 
     await queue.resume();
 
