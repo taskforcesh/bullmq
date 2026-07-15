@@ -806,7 +806,7 @@ describe('Job Scheduler', () => {
         });
 
         const waitingCountAfter = await queue.getWaitingCount();
-        expect(waitingCountAfter).toEqual(0);
+        expect(waitingCountAfter).toEqual(1);
 
         const delayedCount = await queue.getDelayedCount();
         expect(delayedCount).toEqual(1);

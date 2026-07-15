@@ -81,6 +81,13 @@ if(maxCount <= 0) then
   return 1
 end
 
+local waitKey = baseKey .. 'wait'
+maxCount = removeListJobs(waitKey, true, baseKey, maxCount)
+if(maxCount <= 0) then
+  return 1
+end
+
+-- Backwards compatibility: older versions used a separate "paused" list.
 local pausedKey = baseKey .. 'paused'
 maxCount = removeListJobs(pausedKey, true, baseKey, maxCount)
 if(maxCount <= 0) then

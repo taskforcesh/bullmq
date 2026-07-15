@@ -1088,7 +1088,6 @@ describe('Telemetry', () => {
 
       const counts = await metricsQueue.recordJobCountsMetric('waiting');
       expect(counts).toEqual({
-        paused: 0,
         waiting: 3,
       });
 

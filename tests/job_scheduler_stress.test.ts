@@ -120,7 +120,6 @@ describe('Job Scheduler Stress', () => {
       completed: 0,
       delayed: 1,
       failed: 0,
-      paused: 0,
       prioritized: 0,
       waiting: 0,
       'waiting-children': 0,

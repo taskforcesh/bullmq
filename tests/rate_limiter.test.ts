@@ -362,7 +362,7 @@ describe('Rate Limiter', () => {
   });
 
   describe('when queue is paused between rate limit', () => {
-    it('should add active jobs to paused', async () => {
+    it('should add active jobs to wait', async () => {
       const numJobs = 4;
 
       const commontOpts = {
@@ -407,10 +407,9 @@ describe('Rate Limiter', () => {
 
       await delay(500);
 
-      const counts = await queue.getJobCounts('paused', 'completed', 'wait');
-      expect(counts).toHaveProperty('paused', numJobs - 1);
+      const counts = await queue.getJobCounts('completed', 'wait');
       expect(counts).toHaveProperty('completed', 1);
-      expect(counts).toHaveProperty('wait', 0);
+      expect(counts).toHaveProperty('wait', numJobs - 1);
 
       await worker1.close();
       await worker2.close();
@@ -1049,7 +1048,7 @@ describe('Rate Limiter', () => {
     });
 
     describe('when queue is paused', () => {
-      it('moves job to paused', async () => {
+      it('moves job to wait', async () => {
         const dynamicLimit = 250;
         const duration = 100;
 
@@ -1091,8 +1090,8 @@ describe('Rate Limiter', () => {
 
         await result;
 
-        const pausedCount = await queue.getJobCountByTypes('paused');
-        expect(pausedCount).toBe(1);
+        const waitingCount = await queue.getJobCountByTypes('wait');
+        expect(waitingCount).toBe(1);
 
         await worker.close();
       });

@@ -1346,8 +1346,8 @@ describe('Job', () => {
         await queue.pause();
         await delayedJob.promote();
 
-        const pausedJobsCount = await queue.getJobCountByTypes('paused');
-        expect(pausedJobsCount).toBe(2);
+        const waitingJobsCountWhilePaused = await queue.getWaitingCount();
+        expect(waitingJobsCountWhilePaused).toBe(2);
         await queue.resume();
 
         const waitingJobsCount = await queue.getWaitingCount();
@@ -1368,8 +1368,8 @@ describe('Job', () => {
         await queue.pause();
         await delayedJob.promote();
 
-        const pausedJobsCount = await queue.getJobCountByTypes('paused');
-        expect(pausedJobsCount).toBe(1);
+        const waitingJobsCountWhilePaused = await queue.getWaitingCount();
+        expect(waitingJobsCountWhilePaused).toBe(1);
         await queue.resume();
 
         const waitingJobsCount = await queue.getWaitingCount();

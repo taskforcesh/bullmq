@@ -2099,7 +2099,7 @@ describe('workers', () => {
   });
 
   describe('when queue is paused and retry a job', () => {
-    it('moves job to paused', async () => {
+    it('moves job to wait', async () => {
       const worker = new Worker(
         queueName,
         async () => {
@@ -2129,8 +2129,8 @@ describe('workers', () => {
       await queue.pause();
       await job.retry('completed');
 
-      const pausedJobsCount = await queue.getJobCountByTypes('paused');
-      expect(pausedJobsCount).toBe(1);
+      const waitingJobsCount = await queue.getWaitingCount();
+      expect(waitingJobsCount).toBe(1);
 
       await worker.close();
     });

@@ -704,7 +704,7 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
     return (await multi.exec()) as [Error | null, string | number][];
   }
 
-  protected pauseArgs(pause: boolean): (string | number)[] {
+  protected pauseArgs(pause: boolean, emitEvent = true): (string | number)[] {
     let src = 'wait',
       dst = 'paused';
     if (!pause) {
@@ -722,7 +722,7 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       this.queue.keys.marker,
     );
 
-    const args = [pause ? 'paused' : 'resumed'];
+    const args = [pause ? 'paused' : 'resumed', emitEvent ? '1' : '0'];
 
     return keys.concat(args);
   }
@@ -730,8 +730,24 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
   async pause(pause: boolean): Promise<void> {
     const client = await this.queue.client;
 
-    const args = this.pauseArgs(pause);
-    return this.execCommand(client, 'pause', args);
+    if (pause) {
+      const args = this.pauseArgs(true);
+      await this.execCommand(client, 'pause', args);
+      return;
+    }
+
+    let legacyPausedRemaining = 0;
+    let emitEvent = true;
+
+    do {
+      const args = this.pauseArgs(false, emitEvent);
+
+      legacyPausedRemaining = Number(
+        await this.execCommand(client, 'pause', args),
+      );
+
+      emitEvent = false;
+    } while (legacyPausedRemaining > 0);
   }
 
   /**
