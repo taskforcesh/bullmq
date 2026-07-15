@@ -5590,6 +5590,124 @@ describe('workers', () => {
         await worker.close();
       });
     });
+
+    describe('when a stalled job has exhausted its max stalled attempts', () => {
+      it(
+        'should move the job to failed automatically on the next getNextJob ' +
+          'call and return undefined when no other jobs are waiting',
+        async () => {
+          const worker = new Worker(queueName, null, {
+            autorun: false,
+            connection,
+            prefix,
+            lockDuration: 1000,
+            stalledInterval: 100,
+            maxStalledCount: 0,
+          });
+
+          const token = 'my-token';
+
+          await queue.add('test', { foo: 'bar' });
+
+          const firstJob = (await worker.getNextJob(token)) as Job;
+          expect(firstJob).toBeDefined();
+
+          const client = await worker.client;
+          await client.del(`${prefix}:${queueName}:${firstJob.id}:lock`);
+
+          const stalled = new Promise<string>(resolve => {
+            worker.on('stalled', resolve);
+          });
+
+          const failed = new Promise<{ job: Job | undefined; err: Error }>(
+            resolve => {
+              worker.on('failed', (job, err) => resolve({ job, err }));
+            },
+          );
+
+          await (worker as any).moveStalledJobsToWait();
+          await client.del(`${prefix}:${queueName}:stalled-check`);
+          await (worker as any).moveStalledJobsToWait();
+
+          const stalledJobId = await stalled;
+          expect(stalledJobId).toBe(firstJob.id);
+
+          const nextFetched = await worker.getNextJob(token, { block: false });
+          expect(nextFetched).toBeUndefined();
+
+          const { job: failedJob, err } = await failed;
+          expect(failedJob?.id).toBe(firstJob.id);
+          expect(err).toBeInstanceOf(UnrecoverableError);
+          expect(err.message).toBe('job stalled more than allowable limit');
+
+          const counts = await queue.getJobCounts('failed', 'wait', 'active');
+          expect(counts.failed).toBe(1);
+          expect(counts.wait).toBe(0);
+          expect(counts.active).toBe(0);
+
+          await worker.close();
+        },
+      );
+
+      it('should fail the deferred-failure job and return the next waiting job', async () => {
+        const worker = new Worker(queueName, null, {
+          autorun: false,
+          connection,
+          prefix,
+          lockDuration: 1000,
+          stalledInterval: 100,
+          maxStalledCount: 0,
+        });
+
+        const token = 'my-token';
+
+        await queue.add('stalled-job', { foo: 'bar' });
+
+        const firstJob = (await worker.getNextJob(token)) as Job;
+        expect(firstJob).toBeDefined();
+
+        const client = await worker.client;
+        await client.del(`${prefix}:${queueName}:${firstJob.id}:lock`);
+
+        const stalled = new Promise<string>(resolve => {
+          worker.on('stalled', resolve);
+        });
+
+        const failed = new Promise<{ job: Job | undefined; err: Error }>(
+          resolve => {
+            worker.on('failed', (job, err) => resolve({ job, err }));
+          },
+        );
+
+        await (worker as any).moveStalledJobsToWait();
+        await client.del(`${prefix}:${queueName}:stalled-check`);
+        await (worker as any).moveStalledJobsToWait();
+
+        const stalledJobId = await stalled;
+        expect(stalledJobId).toBe(firstJob.id);
+
+        const secondAdded = await queue.add('runnable-job', { foo: 'baz' });
+
+        const nextFetched = (await worker.getNextJob(token, {
+          block: false,
+        })) as Job;
+        expect(nextFetched).toBeDefined();
+        expect(nextFetched.id).toBe(secondAdded.id);
+
+        const { job: failedJob, err } = await failed;
+        expect(failedJob?.id).toBe(firstJob.id);
+        expect(err).toBeInstanceOf(UnrecoverableError);
+        expect(err.message).toBe('job stalled more than allowable limit');
+
+        const counts = await queue.getJobCounts('failed', 'wait', 'active');
+        expect(counts.failed).toBe(1);
+        expect(counts.wait).toBe(0);
+        expect(counts.active).toBe(1);
+
+        await nextFetched.moveToCompleted('done', token);
+        await worker.close();
+      });
+    });
   });
 
   describe('non-blocking', () => {
