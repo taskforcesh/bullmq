@@ -360,8 +360,8 @@ describe('Pause', () => {
     const legacyJobs = ['legacy-1', 'legacy-2', 'legacy-3'];
 
     // Use lpush so the setup works across adapters; slice() avoids mutating the
-    // source array before reversing to preserve the same final list order as a
-    // right-push.
+    // source array before reversing to preserve the same final list order that
+    // the legacy right-push setup produced.
     await client.lpush(pausedKey, ...legacyJobs.slice().reverse());
 
     await queue.resume();
@@ -384,6 +384,8 @@ describe('Pause', () => {
     );
 
     await client.lpush(waitKey, 'waiting-1');
+    // Seed the legacy paused list in two reversed chunks so resume has to
+    // migrate it in batches while preserving the original right-push order.
     await client.lpush(
       pausedKey,
       ...legacyJobs.slice(initialLegacySeedSize).reverse(),
