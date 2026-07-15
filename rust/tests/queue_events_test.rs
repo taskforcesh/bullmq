@@ -20,7 +20,7 @@ use std::time::Duration;
 /// Build QueueEvents that reads the full stream history (`"0"`), which removes
 /// the start-up race for freshly-created, uniquely-named test queues.
 async fn make_events(name: &str) -> QueueEvents {
-    QueueEvents::new(
+    QueueEvents::with_options(
         name,
         QueueEventsOptions {
             connection: test_connection(),
@@ -55,7 +55,7 @@ where
 #[tokio::test]
 async fn test_emits_added_event() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),
@@ -68,7 +68,7 @@ async fn test_emits_added_event() {
     let events = make_events(&name).await;
 
     let job = queue
-        .add("my-job", serde_json::json!({"foo": "bar"}), None)
+        .add("my-job", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
 
@@ -91,7 +91,7 @@ async fn test_emits_added_event() {
 #[tokio::test]
 async fn test_emits_waiting_event() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),
@@ -104,7 +104,7 @@ async fn test_emits_waiting_event() {
     let events = make_events(&name).await;
 
     let job = queue
-        .add("waiting-job", serde_json::json!({}), None)
+        .add("waiting-job", serde_json::json!({}))
         .await
         .unwrap();
 
@@ -120,7 +120,7 @@ async fn test_emits_waiting_event() {
 #[tokio::test]
 async fn test_run_throws_when_already_running() {
     let name = test_queue_name();
-    let events = QueueEvents::new(
+    let events = QueueEvents::with_options(
         &name,
         QueueEventsOptions {
             connection: test_connection(),
@@ -141,7 +141,7 @@ async fn test_run_throws_when_already_running() {
 #[tokio::test]
 async fn test_close_makes_next_event_return_none() {
     let name = test_queue_name();
-    let events = QueueEvents::new(
+    let events = QueueEvents::with_options(
         &name,
         QueueEventsOptions {
             connection: test_connection(),
@@ -164,7 +164,7 @@ async fn test_close_makes_next_event_return_none() {
 #[tokio::test]
 async fn test_run_after_close_resets_running() {
     let name = test_queue_name();
-    let events = QueueEvents::new(
+    let events = QueueEvents::with_options(
         &name,
         QueueEventsOptions {
             connection: test_connection(),
@@ -197,7 +197,7 @@ async fn test_run_after_close_resets_running() {
 #[tokio::test]
 async fn test_autorun_false_then_run() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),
@@ -207,7 +207,7 @@ async fn test_autorun_false_then_run() {
     .await
     .unwrap();
 
-    let events = QueueEvents::new(
+    let events = QueueEvents::with_options(
         &name,
         QueueEventsOptions {
             connection: test_connection(),
@@ -224,10 +224,7 @@ async fn test_autorun_false_then_run() {
     events.run().await.unwrap();
     assert!(events.is_running());
 
-    queue
-        .add("late-job", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("late-job", serde_json::json!({})).await.unwrap();
 
     wait_for(&events, 10, |e| matches!(e, QueueEvent::Added { .. })).await;
 
@@ -239,7 +236,7 @@ async fn test_autorun_false_then_run() {
 async fn test_emits_completed_event() {
     let name = test_queue_name();
     let conn = test_connection();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: conn.clone(),
@@ -252,14 +249,14 @@ async fn test_emits_completed_event() {
     let events = make_events(&name).await;
 
     queue
-        .add("done", serde_json::json!({"x": 1}), None)
+        .add("done", serde_json::json!({"x": 1}))
         .await
         .unwrap();
 
     let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {
         Box::pin(async move { Ok(serde_json::json!({"ok": true})) })
     });
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &name,
         processor,
         WorkerOptions {
@@ -289,7 +286,7 @@ async fn test_emits_completed_event() {
 async fn test_emits_failed_event() {
     let name = test_queue_name();
     let conn = test_connection();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: conn.clone(),
@@ -301,10 +298,7 @@ async fn test_emits_failed_event() {
 
     let events = make_events(&name).await;
 
-    queue
-        .add("boom", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("boom", serde_json::json!({})).await.unwrap();
 
     let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {
         Box::pin(async move {
@@ -313,7 +307,7 @@ async fn test_emits_failed_event() {
             ))
         })
     });
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &name,
         processor,
         WorkerOptions {
@@ -342,7 +336,7 @@ async fn test_emits_failed_event() {
 async fn test_emits_progress_event() {
     let name = test_queue_name();
     let conn = test_connection();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: conn.clone(),
@@ -355,7 +349,7 @@ async fn test_emits_progress_event() {
     let events = make_events(&name).await;
 
     queue
-        .add("progress-job", serde_json::json!({}), None)
+        .add("progress-job", serde_json::json!({}))
         .await
         .unwrap();
 
@@ -365,7 +359,7 @@ async fn test_emits_progress_event() {
             Ok(serde_json::Value::Null)
         })
     });
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &name,
         processor,
         WorkerOptions {
@@ -393,7 +387,7 @@ async fn test_emits_progress_event() {
 #[tokio::test]
 async fn test_emits_delayed_event() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),
@@ -406,14 +400,11 @@ async fn test_emits_delayed_event() {
     let events = make_events(&name).await;
 
     let job = queue
-        .add(
-            "delayed-job",
-            serde_json::json!({}),
-            Some(JobOptions {
-                delay: Some(60_000),
-                ..Default::default()
-            }),
-        )
+        .add("delayed-job", serde_json::json!({}))
+        .options(JobOptions {
+            delay: Some(60_000),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
@@ -431,7 +422,7 @@ async fn test_emits_delayed_event() {
 async fn test_emits_drained_event() {
     let name = test_queue_name();
     let conn = test_connection();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: conn.clone(),
@@ -443,15 +434,12 @@ async fn test_emits_drained_event() {
 
     let events = make_events(&name).await;
 
-    queue
-        .add("drain-me", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("drain-me", serde_json::json!({})).await.unwrap();
 
     let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {
         Box::pin(async move { Ok(serde_json::Value::Null) })
     });
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &name,
         processor,
         WorkerOptions {
@@ -473,7 +461,7 @@ async fn test_emits_drained_event() {
 #[tokio::test]
 async fn test_emits_removed_event() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),
@@ -485,10 +473,7 @@ async fn test_emits_removed_event() {
 
     let events = make_events(&name).await;
 
-    let job = queue
-        .add("remove-me", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    let job = queue.add("remove-me", serde_json::json!({})).await.unwrap();
 
     let removed = queue.remove(job.id()).await.unwrap();
     assert!(removed);
@@ -505,7 +490,7 @@ async fn test_emits_removed_event() {
 #[tokio::test]
 async fn test_resume_from_last_event_id() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),
@@ -517,10 +502,7 @@ async fn test_resume_from_last_event_id() {
 
     // First listener captures the 'added' event and records its stream id.
     let events = make_events(&name).await;
-    queue
-        .add("first", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("first", serde_json::json!({})).await.unwrap();
 
     let first_id = tokio::time::timeout(Duration::from_secs(10), async {
         loop {
@@ -536,7 +518,7 @@ async fn test_resume_from_last_event_id() {
     events.close().await;
 
     // Second listener resumes after the first event and should only see newer ones.
-    let resumed = QueueEvents::new(
+    let resumed = QueueEvents::with_options(
         &name,
         QueueEventsOptions {
             connection: test_connection(),
@@ -548,10 +530,7 @@ async fn test_resume_from_last_event_id() {
     .await
     .unwrap();
 
-    let job2 = queue
-        .add("second", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    let job2 = queue.add("second", serde_json::json!({})).await.unwrap();
 
     let event = wait_for(&resumed, 10, |e| matches!(e, QueueEvent::Added { .. })).await;
     if let QueueEvent::Added {
@@ -571,7 +550,7 @@ async fn test_resume_from_last_event_id() {
 async fn test_emits_active_event() {
     let name = test_queue_name();
     let conn = test_connection();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: conn.clone(),
@@ -583,12 +562,12 @@ async fn test_emits_active_event() {
 
     let events = make_events(&name).await;
 
-    let job = queue.add("act", serde_json::json!({}), None).await.unwrap();
+    let job = queue.add("act", serde_json::json!({})).await.unwrap();
 
     let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {
         Box::pin(async move { Ok(serde_json::Value::Null) })
     });
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &name,
         processor,
         WorkerOptions {
@@ -618,7 +597,7 @@ async fn test_emits_active_event() {
 #[tokio::test]
 async fn test_emits_duplicated_event() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),
@@ -636,11 +615,13 @@ async fn test_emits_duplicated_event() {
     };
     // The first add creates the job; the second with the same id is a duplicate.
     queue
-        .add("test", serde_json::json!({}), Some(opts()))
+        .add("test", serde_json::json!({}))
+        .options(opts())
         .await
         .unwrap();
     queue
-        .add("test", serde_json::json!({}), Some(opts()))
+        .add("test", serde_json::json!({}))
+        .options(opts())
         .await
         .unwrap();
 
@@ -657,7 +638,7 @@ async fn test_emits_duplicated_event() {
 async fn test_emits_cleaned_event() {
     let name = test_queue_name();
     let conn = test_connection();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: conn.clone(),
@@ -670,7 +651,7 @@ async fn test_emits_cleaned_event() {
     let num_jobs = 5u32;
     for i in 0..num_jobs {
         queue
-            .add("test", serde_json::json!({ "i": i }), None)
+            .add("test", serde_json::json!({ "i": i }))
             .await
             .unwrap();
     }
@@ -685,7 +666,7 @@ async fn test_emits_cleaned_event() {
             Ok(serde_json::Value::Null)
         })
     });
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &name,
         processor,
         WorkerOptions {
@@ -728,7 +709,7 @@ async fn test_emits_cleaned_event() {
 async fn test_emits_retries_exhausted_event() {
     let name = test_queue_name();
     let conn = test_connection();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: conn.clone(),
@@ -741,15 +722,12 @@ async fn test_emits_retries_exhausted_event() {
     let events = make_events(&name).await;
 
     // Default attempts (1): a single failure exhausts retries.
-    queue
-        .add("boom", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("boom", serde_json::json!({})).await.unwrap();
 
     let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {
         Box::pin(async move { Err(bullmq::Error::ProcessingError("nope".to_string())) })
     });
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &name,
         processor,
         WorkerOptions {
@@ -778,7 +756,7 @@ async fn test_emits_retries_exhausted_event() {
 async fn test_emits_waiting_children_event() {
     let name = test_queue_name();
     let conn = test_connection();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: conn.clone(),
@@ -827,7 +805,7 @@ async fn test_emits_waiting_children_event() {
 #[tokio::test]
 async fn test_no_removed_event_for_nonexistent_job() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),
@@ -844,10 +822,7 @@ async fn test_no_removed_event_for_nonexistent_job() {
 
     // Add a real job as a marker; we should observe its Added event without ever
     // seeing a Removed event for the missing id.
-    let marker = queue
-        .add("marker", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    let marker = queue.add("marker", serde_json::json!({})).await.unwrap();
 
     let saw_removed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let saw_removed_clone = saw_removed.clone();
@@ -882,7 +857,7 @@ async fn test_no_removed_event_for_nonexistent_job() {
 async fn test_drained_emitted_once_per_idle_batch() {
     let name = test_queue_name();
     let conn = test_connection();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: conn.clone(),
@@ -913,7 +888,7 @@ async fn test_drained_emitted_once_per_idle_batch() {
             Ok(serde_json::Value::Null)
         })
     });
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &name,
         processor,
         WorkerOptions {
@@ -927,13 +902,13 @@ async fn test_drained_emitted_once_per_idle_batch() {
     .unwrap();
 
     // First idle batch.
-    queue.add("a", serde_json::json!({}), None).await.unwrap();
-    queue.add("b", serde_json::json!({}), None).await.unwrap();
+    queue.add("a", serde_json::json!({})).await.unwrap();
+    queue.add("b", serde_json::json!({})).await.unwrap();
     tokio::time::sleep(Duration::from_millis(1200)).await;
 
     // Second idle batch.
-    queue.add("c", serde_json::json!({}), None).await.unwrap();
-    queue.add("d", serde_json::json!({}), None).await.unwrap();
+    queue.add("c", serde_json::json!({})).await.unwrap();
+    queue.add("d", serde_json::json!({})).await.unwrap();
     tokio::time::sleep(Duration::from_millis(1200)).await;
 
     let count = drained.load(Ordering::SeqCst);
@@ -951,7 +926,7 @@ async fn test_drained_emitted_once_per_idle_batch() {
 #[tokio::test]
 async fn test_event_entry_exposes_id_and_job_id() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),
@@ -962,7 +937,7 @@ async fn test_event_entry_exposes_id_and_job_id() {
     .unwrap();
 
     let events = make_events(&name).await;
-    let job = queue.add("idx", serde_json::json!({}), None).await.unwrap();
+    let job = queue.add("idx", serde_json::json!({})).await.unwrap();
 
     let entry = tokio::time::timeout(Duration::from_secs(10), async {
         loop {

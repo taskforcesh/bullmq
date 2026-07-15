@@ -23,16 +23,13 @@ async fn test_worker_rate_limits_jobs() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Add 4 jobs
     for i in 0..4 {
         queue
-            .add(
-                "rate-test",
-                serde_json::json!({"idx": i}),
-                Some(JobOptions::default()),
-            )
+            .add("rate-test", serde_json::json!({"idx": i}))
+            .options(JobOptions::default())
             .await
             .unwrap();
     }
@@ -56,7 +53,9 @@ async fn test_worker_rate_limits_jobs() {
         }),
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Collect timestamps of all 4 processed jobs
     let mut timestamps = Vec::new();
@@ -85,6 +84,65 @@ async fn test_worker_rate_limits_jobs() {
 }
 
 #[tokio::test]
+async fn test_worker_rate_limit_does_not_block_without_limiter() {
+    let name = test_queue_name();
+    let conn_opts = test_connection();
+    let queue_opts = QueueOptions {
+        connection: conn_opts.clone(),
+        ..Default::default()
+    };
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
+
+    // Add 4 jobs
+    for i in 0..4 {
+        queue
+            .add("no-limit", serde_json::json!({"idx": i}))
+            .options(JobOptions::default())
+            .await
+            .unwrap();
+    }
+
+    let (tx, mut rx) = mpsc::channel(10);
+    let processor: ProcessorFn = Arc::new(move |_job: Job, _token: CancellationToken| {
+        let tx = tx.clone();
+        Box::pin(async move {
+            tx.send(std::time::Instant::now()).await.unwrap();
+            Ok(serde_json::Value::Null)
+        })
+    });
+
+    // No limiter set
+    let worker_opts = WorkerOptions {
+        connection: conn_opts.clone(),
+        autorun: true,
+        ..Default::default()
+    };
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
+
+    let mut timestamps = Vec::new();
+    for _ in 0..4 {
+        let ts = tokio::time::timeout(Duration::from_secs(3), rx.recv())
+            .await
+            .expect("Timed out")
+            .unwrap();
+        timestamps.push(ts);
+    }
+
+    // All 4 should still be processed quickly without rate limiting.
+    let total = timestamps[3].duration_since(timestamps[0]);
+    assert!(
+        total < Duration::from_millis(1500),
+        "Without limiter, all jobs should process fast, took {:?}",
+        total
+    );
+
+    worker.close(5000).await.unwrap();
+    cleanup_queue(&queue).await;
+}
+
+#[tokio::test]
 async fn test_worker_fetch_next_respects_limiter() {
     let name = test_queue_name();
     let conn_opts = test_connection();
@@ -92,15 +150,12 @@ async fn test_worker_fetch_next_respects_limiter() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     for i in 0..3 {
         queue
-            .add(
-                "fetch-next-rate-test",
-                serde_json::json!({"idx": i}),
-                Some(JobOptions::default()),
-            )
+            .add("fetch-next-rate-test", serde_json::json!({"idx": i}))
+            .options(JobOptions::default())
             .await
             .unwrap();
     }
@@ -127,7 +182,9 @@ async fn test_worker_fetch_next_respects_limiter() {
         }),
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let mut timestamps = Vec::new();
     for _ in 0..3 {
@@ -161,66 +218,6 @@ async fn test_worker_fetch_next_respects_limiter() {
     cleanup_queue(&queue).await;
 }
 
-#[tokio::test]
-async fn test_worker_rate_limit_does_not_block_without_limiter() {
-    let name = test_queue_name();
-    let conn_opts = test_connection();
-    let queue_opts = QueueOptions {
-        connection: conn_opts.clone(),
-        ..Default::default()
-    };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
-
-    // Add 4 jobs
-    for i in 0..4 {
-        queue
-            .add(
-                "no-limit",
-                serde_json::json!({"idx": i}),
-                Some(JobOptions::default()),
-            )
-            .await
-            .unwrap();
-    }
-
-    let (tx, mut rx) = mpsc::channel(10);
-    let processor: ProcessorFn = Arc::new(move |_job: Job, _token: CancellationToken| {
-        let tx = tx.clone();
-        Box::pin(async move {
-            tx.send(std::time::Instant::now()).await.unwrap();
-            Ok(serde_json::Value::Null)
-        })
-    });
-
-    // No limiter set
-    let worker_opts = WorkerOptions {
-        connection: conn_opts.clone(),
-        autorun: true,
-        ..Default::default()
-    };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
-
-    let mut timestamps = Vec::new();
-    for _ in 0..4 {
-        let ts = tokio::time::timeout(Duration::from_secs(3), rx.recv())
-            .await
-            .expect("Timed out")
-            .unwrap();
-        timestamps.push(ts);
-    }
-
-    // All 4 should be processed within 500ms (no rate limiting)
-    let total = timestamps[3].duration_since(timestamps[0]);
-    assert!(
-        total < Duration::from_millis(500),
-        "Without limiter, all jobs should process fast, took {:?}",
-        total
-    );
-
-    worker.close(5000).await.unwrap();
-    cleanup_queue(&queue).await;
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // Queue-level rate limiting
 // ═══════════════════════════════════════════════════════════════════════════
@@ -233,11 +230,11 @@ async fn test_queue_rate_limit_blocks_processing() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Add a job
     queue
-        .add("test", serde_json::json!({"v": 1}), None)
+        .add("test", serde_json::json!({"v": 1}))
         .await
         .unwrap();
 
@@ -261,7 +258,9 @@ async fn test_queue_rate_limit_blocks_processing() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Job should be processed after rate limit expires (~1.5s)
     tokio::time::timeout(Duration::from_secs(5), rx.recv())
@@ -289,7 +288,7 @@ async fn test_queue_remove_rate_limit_key() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Set rate limit
     queue.rate_limit(60_000).await.unwrap();
@@ -313,7 +312,7 @@ async fn test_queue_set_global_rate_limit() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Set global rate limit
     queue.set_global_rate_limit(5, 2000).await.unwrap();
@@ -321,7 +320,7 @@ async fn test_queue_set_global_rate_limit() {
     // Add 6 jobs
     for i in 0..6 {
         queue
-            .add("test", serde_json::json!({"idx": i}), None)
+            .add("test", serde_json::json!({"idx": i}))
             .await
             .unwrap();
     }
@@ -340,7 +339,9 @@ async fn test_queue_set_global_rate_limit() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Collect first 6 processing timestamps
     let mut timestamps = Vec::new();

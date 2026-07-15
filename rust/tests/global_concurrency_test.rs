@@ -19,7 +19,7 @@ async fn test_global_concurrency_limits_active_jobs() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Set global concurrency to 1
     queue.set_global_concurrency(1).await.unwrap();
@@ -27,7 +27,7 @@ async fn test_global_concurrency_limits_active_jobs() {
     // Add 3 jobs
     for i in 0..3 {
         queue
-            .add("test", serde_json::json!({"n": i}), None)
+            .add("test", serde_json::json!({"n": i}))
             .await
             .unwrap();
     }
@@ -65,7 +65,9 @@ async fn test_global_concurrency_limits_active_jobs() {
         concurrency: 5,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for all 3 jobs to complete
     for _ in 0..3 {
@@ -95,7 +97,7 @@ async fn test_global_concurrency_allows_multiple_when_set_higher() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Set global concurrency to 3
     queue.set_global_concurrency(3).await.unwrap();
@@ -103,7 +105,7 @@ async fn test_global_concurrency_allows_multiple_when_set_higher() {
     // Add 5 jobs
     for i in 0..5 {
         queue
-            .add("test", serde_json::json!({"n": i}), None)
+            .add("test", serde_json::json!({"n": i}))
             .await
             .unwrap();
     }
@@ -139,7 +141,9 @@ async fn test_global_concurrency_allows_multiple_when_set_higher() {
         concurrency: 10,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for all 5 jobs
     for _ in 0..5 {
@@ -175,7 +179,7 @@ async fn test_remove_global_concurrency_restores_unlimited() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Set then remove global concurrency
     queue.set_global_concurrency(1).await.unwrap();
@@ -184,7 +188,7 @@ async fn test_remove_global_concurrency_restores_unlimited() {
     // Add 3 jobs
     for i in 0..3 {
         queue
-            .add("test", serde_json::json!({"n": i}), None)
+            .add("test", serde_json::json!({"n": i}))
             .await
             .unwrap();
     }
@@ -220,7 +224,9 @@ async fn test_remove_global_concurrency_restores_unlimited() {
         concurrency: 5,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     // Wait for all 3 jobs
     for _ in 0..3 {
