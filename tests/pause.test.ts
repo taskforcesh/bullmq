@@ -359,7 +359,7 @@ describe('Pause', () => {
     const waitKey = queue.toKey('wait');
     const legacyJobs = ['legacy-1', 'legacy-2', 'legacy-3'];
 
-    await client.rpush(pausedKey, ...legacyJobs);
+    await client.lpush(pausedKey, ...legacyJobs.slice().reverse());
 
     await queue.resume();
 
@@ -379,9 +379,9 @@ describe('Pause', () => {
       (_, index) => `legacy-${index}`,
     );
 
-    await client.rpush(waitKey, 'waiting-1');
-    await client.rpush(pausedKey, ...legacyJobs.slice(0, 3500));
-    await client.rpush(pausedKey, ...legacyJobs.slice(3500));
+    await client.lpush(waitKey, 'waiting-1');
+    await client.lpush(pausedKey, ...legacyJobs.slice(3500).reverse());
+    await client.lpush(pausedKey, ...legacyJobs.slice(0, 3500).reverse());
 
     await queue.resume();
 
