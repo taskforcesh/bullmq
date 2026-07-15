@@ -5592,6 +5592,31 @@ describe('workers', () => {
     });
 
     describe('when a stalled job has exhausted its max stalled attempts', () => {
+      const markJobForDeferredFailure = async (worker: Worker, job: Job) => {
+        const client = await worker.client;
+        await client.del(`${prefix}:${queueName}:${job.id}:lock`);
+
+        const stalled = new Promise<string>(resolve => {
+          worker.on('stalled', resolve);
+        });
+
+        const failed = new Promise<{ job: Job | undefined; err: Error }>(
+          resolve => {
+            worker.on('failed', (failedJob, err) =>
+              resolve({ job: failedJob, err }),
+            );
+          },
+        );
+
+        await (worker as any).moveStalledJobsToWait();
+        await client.del(`${prefix}:${queueName}:stalled-check`);
+        await (worker as any).moveStalledJobsToWait();
+
+        expect(await stalled).toBe(job.id);
+
+        return { failed };
+      };
+
       it(
         'should move the job to failed automatically on the next getNextJob ' +
           'call and return undefined when no other jobs are waiting',
@@ -5612,25 +5637,7 @@ describe('workers', () => {
           const firstJob = (await worker.getNextJob(token)) as Job;
           expect(firstJob).toBeDefined();
 
-          const client = await worker.client;
-          await client.del(`${prefix}:${queueName}:${firstJob.id}:lock`);
-
-          const stalled = new Promise<string>(resolve => {
-            worker.on('stalled', resolve);
-          });
-
-          const failed = new Promise<{ job: Job | undefined; err: Error }>(
-            resolve => {
-              worker.on('failed', (job, err) => resolve({ job, err }));
-            },
-          );
-
-          await (worker as any).moveStalledJobsToWait();
-          await client.del(`${prefix}:${queueName}:stalled-check`);
-          await (worker as any).moveStalledJobsToWait();
-
-          const stalledJobId = await stalled;
-          expect(stalledJobId).toBe(firstJob.id);
+          const { failed } = await markJobForDeferredFailure(worker, firstJob);
 
           const nextFetched = await worker.getNextJob(token, { block: false });
           expect(nextFetched).toBeUndefined();
@@ -5666,25 +5673,7 @@ describe('workers', () => {
         const firstJob = (await worker.getNextJob(token)) as Job;
         expect(firstJob).toBeDefined();
 
-        const client = await worker.client;
-        await client.del(`${prefix}:${queueName}:${firstJob.id}:lock`);
-
-        const stalled = new Promise<string>(resolve => {
-          worker.on('stalled', resolve);
-        });
-
-        const failed = new Promise<{ job: Job | undefined; err: Error }>(
-          resolve => {
-            worker.on('failed', (job, err) => resolve({ job, err }));
-          },
-        );
-
-        await (worker as any).moveStalledJobsToWait();
-        await client.del(`${prefix}:${queueName}:stalled-check`);
-        await (worker as any).moveStalledJobsToWait();
-
-        const stalledJobId = await stalled;
-        expect(stalledJobId).toBe(firstJob.id);
+        const { failed } = await markJobForDeferredFailure(worker, firstJob);
 
         const secondAdded = await queue.add('runnable-job', { foo: 'baz' });
 
