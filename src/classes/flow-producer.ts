@@ -223,8 +223,7 @@ export class FlowProducer extends EventEmitter {
         });
 
         const results = (await multi.exec()) as
-          | [null | Error, string | number][]
-          | null;
+          [null | Error, string | number][] | null;
         const [result] = results || [];
         if (result) {
           const [err, jobId] = result;
@@ -236,6 +235,8 @@ export class FlowProducer extends EventEmitter {
           }
           if (typeof jobId === 'string') {
             jobsTree.job.id = jobId;
+          } else if (typeof jobId === 'number') {
+            jobsTree.job.id = jobId.toString();
           }
         }
 
@@ -275,9 +276,8 @@ export class FlowProducer extends EventEmitter {
    * Whenever the children of a given parent are completed, the parent
    * will be processed, being able to access the children's result data.
    *
-   * All Jobs can be in different queues, either children or parents,
-   * however this call would be atomic, either it fails and no jobs will
-   * be added to the queues, or it succeeds and all jobs will be added.
+   * All Jobs can be in different queues, either children or parents.
+   * If a flow fails to be added, other flows in the batch may still be added.
    *
    * @param flows - an array of objects with a tree-like structure where children jobs
    * will be processed before their parents.
@@ -306,8 +306,7 @@ export class FlowProducer extends EventEmitter {
         const jobsTrees = await this.addNodes(multi, flows);
 
         const results = (await multi.exec()) as
-          | [null | Error, string | number][]
-          | null;
+          [null | Error, string | number][] | null;
         for (let index = 0; index < jobsTrees.length; ++index) {
           const result = results?.[index];
           if (!result) {
@@ -315,8 +314,19 @@ export class FlowProducer extends EventEmitter {
           }
 
           const [err, jobId] = result;
-          if (!err && typeof jobId === 'string') {
+          if (err) {
+            throw err;
+          }
+          if (typeof jobId === 'number' && jobId < 0) {
+            throw this.toFlowError(
+              jobId,
+              getParentKey(flows[index]?.opts?.parent),
+            );
+          }
+          if (typeof jobId === 'string') {
             jobsTrees[index].job.id = jobId;
+          } else if (typeof jobId === 'number') {
+            jobsTrees[index].job.id = jobId.toString();
           }
         }
 
