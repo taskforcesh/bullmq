@@ -157,6 +157,7 @@ jobs:
         uses: coverallsapp/github-action@0a51d2e0b5417d06e4ecceb534aec87defc53926 # branch=master
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          fail-on-error: false
       - name: Check coverage change not below threshold
         if: ${{ ( github.event_name == 'pull_request' && github.event.pull_request.head.fork == false ) || github.event_name == 'push' }}
         shell: bash
