@@ -1090,8 +1090,8 @@ describe('Rate Limiter', () => {
 
         await result;
 
-        const pausedCount = await queue.getJobCountByTypes('wait');
-        expect(pausedCount).toBe(1);
+        const waitingCount = await queue.getJobCountByTypes('wait');
+        expect(waitingCount).toBe(1);
 
         await worker.close();
       });
