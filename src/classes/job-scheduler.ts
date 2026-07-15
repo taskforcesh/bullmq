@@ -401,8 +401,10 @@ export class JobScheduler extends QueueBase {
     const jobSchedulersKey = this.keys.repeat;
 
     const result = asc
-      ? await client.zrange(jobSchedulersKey, start, end, 'WITHSCORES')
-      : await client.zrevrange(jobSchedulersKey, start, end, 'WITHSCORES');
+      ? await client.zrange(jobSchedulersKey, start, end, { WITHSCORES: true })
+      : await client.zrevrange(jobSchedulersKey, start, end, {
+          WITHSCORES: true,
+        });
 
     const jobs = [];
     for (let i = 0; i < result.length; i += 2) {
