@@ -131,6 +131,7 @@ function sandboxProcessTests(
           'init failed before fork',
         );
         expect(consoleErrorSpy).toHaveBeenCalledWith(initError);
+        expect(pool.getAllFree()).toHaveLength(0);
       } finally {
         initSpy.mockRestore();
         consoleErrorSpy.mockRestore();

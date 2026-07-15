@@ -245,7 +245,7 @@ describe('Sandbox error message handling', () => {
   // reason is never lost as an empty-message error. This guards the
   // `msg.value ?? msg.err` fix independently of the child lifecycle, since the
   // refusal path is otherwise hard to reach once init-failed children exit.
-  it('propagates the reason when ParentCommand.Error uses the `err` key', async () => {
+  it('preserves error message when child reports via ParentCommand.Error', async () => {
     const reason = 'cannot start a not idling child process';
 
     const fakeChild: any = new EventEmitter();
