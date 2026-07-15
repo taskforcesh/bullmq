@@ -130,6 +130,7 @@ function sandboxProcessTests(
         await expect(pool.retain(processor)).rejects.toThrow(
           'init failed before fork',
         );
+        expect(consoleErrorSpy).toHaveBeenCalledWith(initError);
       } finally {
         initSpy.mockRestore();
         consoleErrorSpy.mockRestore();

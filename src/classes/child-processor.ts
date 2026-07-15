@@ -65,7 +65,7 @@ export class ChildProcessor {
         // belt-and-braces measure: ChildPool also kills the child, but exiting
         // here guarantees termination even if the parent-side kill were to fail.
         // In a worker thread this stops only the current worker, not the process.
-        process.exit(process.exitCode || 0);
+        process.exit(process.exitCode ?? 1);
       }
     }
 
