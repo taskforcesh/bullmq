@@ -124,6 +124,9 @@ jobs:
   ioredis-redis:
     runs-on: ubuntu-latest
     needs: [changes, smoke]
+    # Keep the matrix job itself materialized so required checks still get the
+    # concrete matrix-expanded name even when path filtering decides the steps
+    # should no-op for this PR.
     if: ${{ !cancelled() && needs.smoke.result == 'success' }}
 
     name: testing node@${{ matrix.node-version }}, redis@${{ matrix.redis-version }}
@@ -185,7 +188,7 @@ jobs:
   # multiple Node/Redis versions when the suite is already broken.
   ioredis-redis-extra:
     runs-on: ubuntu-latest
-    needs: [changes, ioredis-redis]
+    needs: [changes, smoke, ioredis-redis]
 
     name: testing node@${{ matrix.node-version }}, redis@${{ matrix.redis-version }}
 
@@ -230,7 +233,7 @@ jobs:
 
   node-redis:
     runs-on: ubuntu-latest
-    needs: [changes, ioredis-redis]
+    needs: [changes, smoke, ioredis-redis]
 
     name: testing node-redis node@${{ matrix.node-version }}, redis@${{ matrix.redis-version }}
 
@@ -271,7 +274,7 @@ jobs:
 
   node-valkey:
     runs-on: ubuntu-latest
-    needs: [changes, ioredis-redis]
+    needs: [changes, smoke, ioredis-redis]
 
     env:
       node-version: lts/*
@@ -307,7 +310,7 @@ jobs:
 
   node-dragonflydb:
     runs-on: ubuntu-latest
-    needs: [changes, ioredis-redis]
+    needs: [changes, smoke, ioredis-redis]
 
     env:
       node-version: lts/*
@@ -347,7 +350,7 @@ jobs:
 
   bun-redis:
     runs-on: ubuntu-latest
-    needs: [changes, ioredis-redis]
+    needs: [changes, smoke, ioredis-redis]
 
     name: testing bun@${{ matrix.bun-version }}, redis@${{ matrix.redis-version }}
 
