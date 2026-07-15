@@ -352,6 +352,46 @@ describe('Pause', () => {
     expect(isResumedQueuePaused).toBe(false);
   });
 
+  it('should rename the legacy paused list into wait on resume', async () => {
+    const client = connection as any;
+    const pausedKey = queue.toKey('paused');
+    const waitKey = queue.toKey('wait');
+    const legacyJobs = ['legacy-1', 'legacy-2', 'legacy-3'];
+
+    await client.rpush(pausedKey, ...legacyJobs);
+
+    await queue.resume();
+
+    expect(await client.exists(pausedKey)).toBe(0);
+    expect(await client.lrange(waitKey, 0, -1)).toEqual(legacyJobs);
+  });
+
+  it('should fully migrate the legacy paused list in batches on resume', async () => {
+    const client = connection as any;
+    const pausedKey = queue.toKey('paused');
+    const waitKey = queue.toKey('wait');
+    const legacyJobs = Array.from(
+      { length: 7005 },
+      (_, index) => `legacy-${index}`,
+    );
+    let resumedEvents = 0;
+
+    queueEvents.on('resumed', () => {
+      resumedEvents++;
+    });
+
+    await client.rpush(waitKey, 'waiting-1');
+    await client.rpush(pausedKey, ...legacyJobs.slice(0, 3500));
+    await client.rpush(pausedKey, ...legacyJobs.slice(3500));
+
+    await queue.resume();
+    await delay(50);
+
+    expect(await client.exists(pausedKey)).toBe(0);
+    expect(await client.llen(waitKey)).toBe(legacyJobs.length + 1);
+    expect(resumedEvents).toBe(1);
+  });
+
   it('should pause and resume worker without error', async () => {
     const worker = new Worker(
       queueName,
