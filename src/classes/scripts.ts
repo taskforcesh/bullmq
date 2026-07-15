@@ -43,7 +43,7 @@ import {
   isRedisVersionLowerThan,
   objectToFlatArray,
 } from '../utils';
-import { ChainableCommander } from 'ioredis';
+import { IRedisTransaction } from '../interfaces';
 import { version as packageVersion } from '../version';
 import { UnrecoverableError } from './errors';
 export type JobData = [JobJsonRaw | number, string?];
@@ -74,15 +74,38 @@ export class Scripts {
     ];
   }
 
+  /**
+   * Executes a registered Lua script on the given Redis client, resolving the
+   * versioned command name (e.g. `addJob:<packageVersion>`) so the script
+   * belonging to the current BullMQ version is invoked.
+   *
+   * @param client - The Redis client or pipeline/transaction on which to run the command.
+   * @param commandName - The base name of the Lua script (without version suffix).
+   * @param args - Positional arguments forwarded to the Lua script (keys followed by argv).
+   * @returns The raw result produced by the Lua script.
+   *
+   * @private
+   */
   public execCommand(
-    client: RedisClient | ChainableCommander,
+    client: RedisClient | IRedisTransaction,
     commandName: string,
     args: any[],
-  ) {
+  ): any {
     const commandNameWithVersion = `${commandName}:${this.version}`;
-    return (<any>client)[commandNameWithVersion](args);
+    return client.runCommand(commandNameWithVersion, args);
   }
 
+  /**
+   * Checks whether a job with the given id is present in a Redis list
+   * (e.g. the wait or active list). Uses `LPOS` on Redis \>= 6.0.6, and
+   * falls back to a Lua script on older versions.
+   *
+   * @param listKey - The Redis list key to search.
+   * @param jobId - The job id to look up in the list.
+   * @returns `true` if the job is found in the list, `false` otherwise.
+   *
+   * @private
+   */
   async isJobInList(listKey: string, jobId: string): Promise<boolean> {
     const client = await this.queue.client;
     let result;
@@ -121,7 +144,7 @@ export class Scripts {
   }
 
   protected addDelayedJob(
-    client: RedisClient,
+    client: RedisClient | IRedisTransaction,
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
@@ -155,7 +178,7 @@ export class Scripts {
   }
 
   protected addPrioritizedJob(
-    client: RedisClient,
+    client: RedisClient | IRedisTransaction,
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
@@ -186,7 +209,7 @@ export class Scripts {
   }
 
   protected addParentJob(
-    client: RedisClient,
+    client: RedisClient | IRedisTransaction,
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
@@ -220,7 +243,7 @@ export class Scripts {
   }
 
   protected addStandardJob(
-    client: RedisClient,
+    client: RedisClient | IRedisTransaction,
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
@@ -231,7 +254,7 @@ export class Scripts {
   }
 
   async addJob(
-    client: RedisClient,
+    client: RedisClient | IRedisTransaction,
     job: JobJson,
     opts: RedisJobOptions,
     jobId: string,
@@ -350,6 +373,22 @@ export class Scripts {
     return keys.concat(args);
   }
 
+  /**
+   * Adds (or updates) a repeatable job entry in the repeat zset and stores
+   * its repeat options under the corresponding repeat hash. If a previous
+   * delayed iteration for this repeat key exists, it is cleaned up so the
+   * next iteration can be scheduled separately when the job is created.
+   *
+   * @param customKey - The current repeat key identifying this repeatable job.
+   * @param nextMillis - The timestamp (ms since epoch) for the next run.
+   * @param opts - Repeatable options (cron/every pattern, tz, limit, etc.).
+   * @param legacyCustomKey - The previous/legacy repeat key, used for migration and cleanup.
+   * @returns The repeatable job key that was stored (either `customKey` or,
+   * for backwards-compatible entries, `legacyCustomKey`). The actual delayed
+   * iteration is scheduled later when the job for `nextMillis` is created.
+   *
+   * @private
+   */
   async addRepeatableJob(
     customKey: string,
     nextMillis: number,
@@ -367,6 +406,18 @@ export class Scripts {
     return this.execCommand(client, 'addRepeatableJob', args);
   }
 
+  /**
+   * Removes a deduplication key from Redis so that a new job with the same
+   * deduplication id can be enqueued again. The key is only removed if it
+   * currently maps to the provided `jobId`, preventing races between
+   * producers and finishing jobs.
+   *
+   * @param deduplicationId - The deduplication id whose key should be cleared.
+   * @param jobId - The id of the job that currently owns the dedup key.
+   * @returns `1` if the key was removed, `0` otherwise.
+   *
+   * @private
+   */
   async removeDeduplicationKey(
     deduplicationId: string,
     jobId: string,
@@ -385,6 +436,24 @@ export class Scripts {
     );
   }
 
+  /**
+   * Registers a job scheduler and enqueues its next delayed iteration.
+   * The scheduler stores the template data/options so subsequent iterations
+   * can be produced automatically based on the repeat options.
+   *
+   * @param jobSchedulerId - The id that uniquely identifies this scheduler.
+   * @param nextMillis - Timestamp (ms since epoch) for the next iteration.
+   * @param templateData - Serialized template data reused for every iteration.
+   * @param templateOpts - Redis-encoded job options applied to every iteration.
+   * @param opts - Repeat options describing the scheduling pattern.
+   * @param delayedJobOpts - Options applied to the next delayed job that is produced.
+   * @param producerId - Optional id of the job that produced this iteration, used to prevent duplicates.
+   * @returns A tuple of `[jobId, delay]`, where `delay` is the computed delay in milliseconds
+   * for the next iteration. When `delay` is `0`, the job is enqueued immediately.
+   * @throws An error resolved from `finishedErrors` when the Lua script returns a negative status code.
+   *
+   * @private
+   */
   async addJobScheduler(
     jobSchedulerId: string,
     nextMillis: number,
@@ -596,7 +665,7 @@ export class Scripts {
     jobId: string,
     token: string,
     duration: number,
-    client?: RedisClient | ChainableCommander,
+    client?: RedisClient | IRedisTransaction,
   ): Promise<number> {
     client = client || (await this.queue.client);
     const args = [
@@ -1592,6 +1661,7 @@ export class Scripts {
       this.queue.keys.paused,
       this.queue.keys.marker,
       this.queue.keys.events,
+      this.queue.keys.repeat,
     ];
     const args = [
       opts.maxStalledCount,

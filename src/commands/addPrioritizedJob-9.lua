@@ -1,5 +1,5 @@
 --[[
-  Adds a priotitized job to the queue by doing the following:
+  Adds a prioritized job to the queue by doing the following:
     - Increases the job counter if needed.
     - Creates a new job key with the job data.
     - Adds the job to the "added" list so that workers gets notified.
@@ -78,7 +78,7 @@ local maxEvents = getOrSetMaxEvents(metaKey)
 local parentDependenciesKey = args[6]
 local timestamp = args[4]
 if args[2] == "" then
-    jobId = jobCounter
+    jobId = jobCounter .. "" -- convert to string
     jobIdKey = args[1] .. jobId
 else
     jobId = args[2]
@@ -115,4 +115,4 @@ if parentDependenciesKey ~= nil then
     rcall("SADD", parentDependenciesKey, jobIdKey)
 end
 
-return jobId .. "" -- convert to string
+return jobId

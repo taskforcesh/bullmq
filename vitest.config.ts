@@ -5,8 +5,30 @@ export default defineConfig({
     // Test files follow the pattern *.test.ts (new Vitest tests)
     include: ['tests/**/*.test.ts'],
 
-    // Exclude old mocha tests (test_*.ts pattern)
-    exclude: ['tests/test_*.ts', 'node_modules/**'],
+    // Exclude adapter-specific smoke tests, ioredis-specific tests, and legacy files.
+    // The adapter-agnostic suite must be identical for ioredis, node-redis, and bun.
+    // ioredis-specific tests (cluster, connection, sandboxed_process) run separately
+    // via test:ioredis.
+    exclude: [
+      // ioredis-specific tests (direct ioredis imports / cluster / connection internals)
+      'tests/cluster.test.ts',
+      'tests/connection.test.ts',
+      'tests/sandboxed_process.test.ts',
+
+      // Adapter-specific smoke tests (self-contained, not factory-based)
+      'tests/node-redis.test.ts',
+      'tests/adapter-conformance.test.ts',
+      'tests/bun-redis.test.ts',
+      'tests/bun-adapter-suite.test.ts',
+
+      // Old mocha-era files
+      'tests/test_*.ts',
+
+      // Debug/scratch files
+      'tests/debug-*.test.ts',
+
+      'node_modules/**',
+    ],
 
     // Global test timeout
     testTimeout: 10000,
@@ -26,7 +48,14 @@ export default defineConfig({
     // Reporter
     reporters: ['verbose'],
 
-    // Coverage configuration
+    // Coverage configuration.
+    //
+    // NOTE: `yarn coverage` uses `vitest.coverage.config.ts`, which runs the
+    // union of the default and ioredis-only suites so adapter-agnostic and
+    // ioredis-specific code paths (sandboxed_process, cluster, connection)
+    // are both included. The settings here only apply to ad-hoc invocations
+    // of `vitest --coverage` against this default config and intentionally
+    // exclude modules that have no coverage in this suite.
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],

@@ -22,6 +22,38 @@ import { randomUUID, removeAllQueueData } from '../src/utils';
 import * as sinon from 'sinon';
 
 describe('RedisConnection', () => {
+  function createMockClusterClient(overrides: Record<string, any> = {}) {
+    return {
+      // Mark as already-augmented IRedisClient so RedisConnection skips
+      // createIORedisClient() and uses the mock directly.
+      __bullmq_iredis: true,
+      isCluster: true,
+      status: 'ready',
+      options: { redisOptions: {} },
+      on: sinon.stub(),
+      once: sinon.stub(),
+      off: sinon.stub(),
+      removeListener: sinon.stub(),
+      getMaxListeners: sinon.stub().returns(10),
+      setMaxListeners: sinon.stub(),
+      connect: sinon.stub().resolves(),
+      disconnect: sinon.stub(),
+      duplicate: sinon.stub(),
+      quit: sinon.stub().resolves('OK'),
+      defineCommand: sinon.stub(),
+      info: sinon.stub().resolves('redis_version:7.0.0'),
+      nodes: sinon.stub().returns([{}]),
+      bzpopmin: sinon.stub().resolves(null),
+      pipeline: sinon.stub().returns({
+        exec: sinon.stub().resolves([]),
+      }),
+      multi: sinon.stub().returns({
+        exec: sinon.stub().resolves([]),
+      }),
+      ...overrides,
+    };
+  }
+
   describe('constructor', () => {
     it('initializes with default extraOptions when none provided', () => {
       const connection = new RedisConnection({});
@@ -30,6 +62,7 @@ describe('RedisConnection', () => {
         blocking: true,
         skipVersionCheck: false,
         skipWaitingForReady: false,
+        clusterReconnectTimeoutMs: 30_000,
       });
     });
 
@@ -68,6 +101,286 @@ describe('RedisConnection', () => {
         { blocking: false },
       );
       expect((connection as any).opts.maxRetriesPerRequest).toBe(10);
+    });
+
+    it('reconnects an ioredis cluster with an empty node pool before bzpopmin', async () => {
+      let hasNodes = false;
+      const bzpopmin = sinon.stub().resolves(['marker', '0', '1']);
+      const cluster = createMockClusterClient({
+        connect: sinon.stub().callsFake(async () => {
+          hasNodes = true;
+        }),
+        nodes: sinon.stub().callsFake(() => (hasNodes ? [{}] : [])),
+        bzpopmin,
+      });
+      const connection = new RedisConnection(cluster as any, {
+        blocking: true,
+        skipVersionCheck: true,
+        skipWaitingForReady: true,
+      });
+
+      const client = await connection.client;
+      const result = await (client as any).bzpopmin('marker', 1);
+
+      expect(cluster.disconnect.calledOnceWith(false)).toBe(true);
+      expect(cluster.connect.calledOnce).toBe(true);
+      expect(bzpopmin.calledOnceWith('marker', 1)).toBe(true);
+      expect(result).toEqual(['marker', '0', '1']);
+
+      await connection.close(true);
+    });
+
+    it('restores patched bzpopmin when a shared blocking cluster connection closes', async () => {
+      const bzpopmin = sinon.stub().resolves(['marker', '0', '1']);
+      const cluster = createMockClusterClient({ bzpopmin });
+      const originalBzpopmin = cluster.bzpopmin;
+      const connection = new RedisConnection(cluster as any, {
+        shared: true,
+        blocking: true,
+        skipVersionCheck: true,
+        skipWaitingForReady: true,
+      });
+
+      const client = await connection.client;
+      expect((client as any).bzpopmin).not.toBe(originalBzpopmin);
+
+      await connection.close();
+
+      expect(cluster.bzpopmin).toBe(originalBzpopmin);
+      await (cluster as any).bzpopmin('marker', 1);
+      expect(cluster.disconnect.called).toBe(false);
+      expect(cluster.connect.called).toBe(false);
+      expect(bzpopmin.calledOnceWith('marker', 1)).toBe(true);
+    });
+
+    it('keeps patched bzpopmin until all shared blocking cluster connections close', async () => {
+      const bzpopmin = sinon.stub().resolves(['marker', '0', '1']);
+      const cluster = createMockClusterClient({ bzpopmin });
+      const originalBzpopmin = cluster.bzpopmin;
+      const connectionA = new RedisConnection(cluster as any, {
+        shared: true,
+        blocking: true,
+        skipVersionCheck: true,
+        skipWaitingForReady: true,
+      });
+
+      await connectionA.client;
+      const patchedBzpopmin = cluster.bzpopmin;
+      expect(patchedBzpopmin).not.toBe(originalBzpopmin);
+
+      const connectionB = new RedisConnection(cluster as any, {
+        shared: true,
+        blocking: true,
+        skipVersionCheck: true,
+        skipWaitingForReady: true,
+      });
+
+      await connectionB.client;
+      expect(cluster.bzpopmin).toBe(patchedBzpopmin);
+
+      await connectionA.close();
+      expect(cluster.bzpopmin).toBe(patchedBzpopmin);
+
+      await (cluster as any).bzpopmin('marker', 1);
+      expect(bzpopmin.calledOnceWith('marker', 1)).toBe(true);
+
+      await connectionB.close();
+      expect(cluster.bzpopmin).toBe(originalBzpopmin);
+    });
+
+    it('does not reconnect an empty-node blocking cluster while the client is closing', async () => {
+      const bzpopmin = sinon.stub().resolves(['marker', '0', '1']);
+      const cluster = createMockClusterClient({
+        status: 'closing',
+        nodes: sinon.stub().returns([]),
+        bzpopmin,
+      });
+      const connection = new RedisConnection(cluster as any, {
+        blocking: true,
+        skipVersionCheck: true,
+        skipWaitingForReady: true,
+      });
+
+      const client = await connection.client;
+
+      const result = await (client as any).bzpopmin('marker', 1);
+
+      expect(cluster.disconnect.called).toBe(false);
+      expect(cluster.connect.called).toBe(false);
+      expect(bzpopmin.calledOnceWith('marker', 1)).toBe(true);
+      expect(result).toEqual(['marker', '0', '1']);
+
+      cluster.status = 'ready';
+      await connection.close(true);
+    });
+
+    it('reconnects an ioredis cluster after bzpopmin command timeout', async () => {
+      const error = new Error('Command timed out');
+      const bzpopmin = sinon.stub().rejects(error);
+      const cluster = createMockClusterClient({ bzpopmin });
+      const connection = new RedisConnection(cluster as any, {
+        blocking: true,
+        skipVersionCheck: true,
+        skipWaitingForReady: true,
+      });
+
+      const client = await connection.client;
+
+      await expect((client as any).bzpopmin('marker', 1)).rejects.toThrow(
+        'Command timed out',
+      );
+      expect(cluster.disconnect.calledOnceWith(false)).toBe(true);
+      expect(cluster.connect.calledOnce).toBe(true);
+      expect(bzpopmin.calledOnceWith('marker', 1)).toBe(true);
+
+      await connection.close(true);
+    });
+
+    it('does not reconnect after bzpopmin command timeout while closing', async () => {
+      const error = new Error('Command timed out');
+      const state: { connection?: RedisConnection } = {};
+      const bzpopmin = sinon.stub().callsFake(async () => {
+        await state.connection!.close(true);
+        throw error;
+      });
+      const cluster = createMockClusterClient({ bzpopmin });
+      const connection = new RedisConnection(cluster as any, {
+        blocking: true,
+        skipVersionCheck: true,
+        skipWaitingForReady: true,
+      });
+      state.connection = connection;
+
+      const client = await connection.client;
+
+      await expect((client as any).bzpopmin('marker', 1)).rejects.toThrow(
+        'Command timed out',
+      );
+      expect(cluster.disconnect.calledOnce).toBe(true);
+      expect(cluster.disconnect.calledWith(false)).toBe(false);
+      expect(cluster.connect.called).toBe(false);
+      expect(bzpopmin.calledOnceWith('marker', 1)).toBe(true);
+    });
+
+    it('preserves the bzpopmin error when reconnect after command timeout fails', async () => {
+      const commandError = new Error('Command timed out');
+      const bzpopmin = sinon.stub().rejects(commandError);
+      const cluster = createMockClusterClient({
+        bzpopmin,
+        connect: sinon.stub().rejects(new Error('Cluster reconnect failed')),
+      });
+      const connection = new RedisConnection(cluster as any, {
+        blocking: true,
+        skipVersionCheck: true,
+        skipWaitingForReady: true,
+      });
+
+      const client = await connection.client;
+      let thrownError: unknown;
+
+      try {
+        await (client as any).bzpopmin('marker', 1);
+      } catch (error) {
+        thrownError = error;
+      }
+
+      expect(thrownError).toBe(commandError);
+      expect(cluster.disconnect.calledOnceWith(false)).toBe(true);
+      expect(cluster.connect.calledOnce).toBe(true);
+      expect(bzpopmin.calledOnceWith('marker', 1)).toBe(true);
+
+      await connection.close(true);
+    });
+
+    it('reconnects an ioredis cluster after slots refresh timeout', async () => {
+      const error = Object.assign(new Error('Failed to refresh slots cache.'), {
+        lastNodeError: new Error('Command timed out'),
+      });
+      const bzpopmin = sinon.stub().rejects(error);
+      const cluster = createMockClusterClient({ bzpopmin });
+      const connection = new RedisConnection(cluster as any, {
+        blocking: true,
+        skipVersionCheck: true,
+        skipWaitingForReady: true,
+      });
+
+      const client = await connection.client;
+
+      await expect((client as any).bzpopmin('marker', 1)).rejects.toThrow(
+        'Failed to refresh slots cache.',
+      );
+      expect(cluster.disconnect.calledOnceWith(false)).toBe(true);
+      expect(cluster.connect.calledOnce).toBe(true);
+      expect(bzpopmin.calledOnceWith('marker', 1)).toBe(true);
+
+      await connection.close(true);
+    });
+
+    // Regression for a deadlock observed in production after upgrading to
+    // bullmq 5.76.6: when ioredis Cluster cannot recover (slot refresh keeps
+    // retrying internally) `client.connect()` never resolves, the cached
+    // `clusterReconnectPromise` stays pinned, and every subsequent bzpopmin
+    // call awaits the same dead promise — leaving the worker permanently
+    // wedged with `isRunning: true`.
+    it('throws a timeout error when cluster reconnect hangs longer than clusterReconnectTimeoutMs', async () => {
+      const bzpopmin = sinon.stub().resolves(['marker', '0', '1']);
+      const cluster = createMockClusterClient({
+        // connect() never resolves: simulates ioredis Cluster stuck retrying
+        // slot refresh internally.
+        connect: sinon.stub().returns(new Promise<void>(() => {})),
+        nodes: sinon.stub().returns([]), // empty pool triggers pre-call reconnect
+        bzpopmin,
+      });
+      const connection = new RedisConnection(cluster as any, {
+        blocking: true,
+        skipVersionCheck: true,
+        skipWaitingForReady: true,
+        clusterReconnectTimeoutMs: 50,
+      });
+
+      const client = await connection.client;
+
+      await expect((client as any).bzpopmin('marker', 1)).rejects.toThrow(
+        /cluster reconnect timed out after 50ms/i,
+      );
+      expect(cluster.disconnect.calledOnceWith(false)).toBe(true);
+      expect(cluster.connect.calledOnce).toBe(true);
+      // bzpopmin must NOT be invoked when the pre-call reconnect times out;
+      // otherwise it would block on the same dead cluster state.
+      expect(bzpopmin.called).toBe(false);
+
+      await connection.close(true);
+    });
+
+    it('clears the cached reconnect promise after a timeout so subsequent calls can retry', async () => {
+      const bzpopmin = sinon.stub().resolves(['marker', '0', '1']);
+      const cluster = createMockClusterClient({
+        connect: sinon.stub().returns(new Promise<void>(() => {})),
+        nodes: sinon.stub().returns([]),
+        bzpopmin,
+      });
+      const connection = new RedisConnection(cluster as any, {
+        blocking: true,
+        skipVersionCheck: true,
+        skipWaitingForReady: true,
+        clusterReconnectTimeoutMs: 50,
+      });
+
+      const client = await connection.client;
+
+      await expect((client as any).bzpopmin('marker', 1)).rejects.toThrow(
+        /cluster reconnect timed out/i,
+      );
+      await expect((client as any).bzpopmin('marker', 1)).rejects.toThrow(
+        /cluster reconnect timed out/i,
+      );
+
+      // The second bzpopmin must trigger a fresh disconnect + connect rather
+      // than awaiting the dead promise from the first attempt.
+      expect(cluster.disconnect.callCount).toBe(2);
+      expect(cluster.connect.callCount).toBe(2);
+
+      await connection.close(true);
     });
   });
 

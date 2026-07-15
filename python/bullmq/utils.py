@@ -6,6 +6,11 @@ import semver
 
 
 def isRedisVersionLowerThan(current_version, minimum_version):
+    # When the Redis server does not advertise a version (e.g. some hosted
+    # services) we treat it as "unknown, assume modern" rather than raising,
+    # so callers don't crash on a missing field.
+    if current_version is None:
+        return False
     return semver.Version.parse(current_version).compare(minimum_version) == -1
 
 
@@ -23,7 +28,7 @@ def get_parent_key(opts: dict[str, str]):
     if opts:
         return f"{opts.get('queue')}:{opts.get('id')}"
 
-def parse_json_string_values(input_dict: dict[str, str]) -> dict[str, dict]:
+def parse_json_string_values(input_dict: dict[str, str]) -> dict[str, Any]:
     return {key: json.loads(value) for key, value in input_dict.items()}
 
 def object_to_flat_array(obj: dict[str, Any]) -> list[Any]:
