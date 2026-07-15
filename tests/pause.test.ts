@@ -361,7 +361,7 @@ describe('Pause', () => {
 
     // Use lpush so the setup works across adapters; slice() avoids mutating the
     // source array before reversing to preserve the same final list order that
-    // the legacy right-push setup produced.
+    // the legacy rpush (right-push) setup produced.
     await client.lpush(pausedKey, ...legacyJobs.slice().reverse());
 
     await queue.resume();
