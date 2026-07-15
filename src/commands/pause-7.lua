@@ -11,7 +11,7 @@
     KEYS[7] 'marker'
 
     ARGV[1] 'paused' or 'resumed'
-    ARGV[2] emit event? '1' or '0'
+    ARGV[2] '1' to emit event, '0' to skip it
 
   Event:
     publish paused or resumed event.
@@ -40,6 +40,7 @@ else
             rcall("RENAME", KEYS[1], KEYS[2])
         else
             --move a maximum of 7000 per resumed call in order to not block
+            --(LRANGE 0..6999) while keeping each RPUSH argument list bounded
             --if users have more jobs in paused state, call resumed multiple times
             local jobs = rcall('LRANGE', KEYS[1], 0, 6999)
             rcall("RPUSH", KEYS[2], unpack(jobs))

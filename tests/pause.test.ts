@@ -12,6 +12,7 @@ import { Job, Queue, QueueEvents, Worker } from '../src/classes';
 import { delay, randomUUID } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
 import { cleanupQueue } from './utils/cleanup-queue';
+import { streamEntriesToEvents } from './utils/stream-events';
 import { IRedisClient } from '../src/interfaces';
 
 describe('Pause', () => {
@@ -370,26 +371,28 @@ describe('Pause', () => {
     const client = connection as any;
     const pausedKey = queue.toKey('paused');
     const waitKey = queue.toKey('wait');
+    const eventsKey = queue.toKey('events');
     const legacyJobs = Array.from(
       { length: 7005 },
       (_, index) => `legacy-${index}`,
     );
-    let resumedEvents = 0;
-
-    queueEvents.on('resumed', () => {
-      resumedEvents++;
-    });
 
     await client.rpush(waitKey, 'waiting-1');
     await client.rpush(pausedKey, ...legacyJobs.slice(0, 3500));
     await client.rpush(pausedKey, ...legacyJobs.slice(3500));
 
     await queue.resume();
-    await delay(50);
+
+    const events = await connection.xread([{ key: eventsKey, id: '0-0' }], {
+      COUNT: 100,
+    });
+    const resumedEvents = streamEntriesToEvents(events?.[0]?.[1] ?? []).filter(
+      event => event.event === 'resumed',
+    );
 
     expect(await client.exists(pausedKey)).toBe(0);
     expect(await client.llen(waitKey)).toBe(legacyJobs.length + 1);
-    expect(resumedEvents).toBe(1);
+    expect(resumedEvents).toHaveLength(1);
   });
 
   it('should pause and resume worker without error', async () => {
