@@ -1,3 +1,10 @@
+## [5.80.3](https://github.com/taskforcesh/bullmq/compare/v5.80.2...v5.80.3) (2026-07-15)
+
+
+### Bug Fixes
+
+* fix potential job id integer to string conversion ([#4262](https://github.com/taskforcesh/bullmq/issues/4262)) ([4e8b595](https://github.com/taskforcesh/bullmq/commit/4e8b59592d1f285f2e9e3860f8ece8bc60769fe5))
+
 ## [5.80.2](https://github.com/taskforcesh/bullmq/compare/v5.80.1...v5.80.2) (2026-07-11)
 
 
