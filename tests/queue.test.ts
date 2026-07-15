@@ -469,8 +469,8 @@ describe('queues', () => {
         await Promise.all(added);
         const count = await queue.count();
         expect(count).toEqual(maxJobs);
-        const count2 = await queue.getJobCounts('paused');
-        expect(count2.paused).toEqual(maxJobs);
+        const count2 = await queue.getJobCounts('wait');
+        expect(count2.wait).toEqual(maxJobs);
         await queue.drain();
         const countAfterEmpty = await queue.count();
         expect(countAfterEmpty).toEqual(0);
@@ -660,7 +660,7 @@ describe('queues', () => {
     });
 
     describe('when queue is paused', () => {
-      it('moves retried jobs to paused', async () => {
+      it('moves retried jobs to wait', async () => {
         await queue.waitUntilReady();
         const jobCount = 8;
 
@@ -707,8 +707,8 @@ describe('queues', () => {
         await queue.pause();
         await queue.retryJobs({ count: 2 });
 
-        const pausedCount = await queue.getJobCounts('paused');
-        expect(pausedCount.paused).toBe(jobCount);
+        const pausedCount = await queue.getJobCounts('wait');
+        expect(pausedCount.wait).toBe(jobCount);
 
         await worker.close();
       });

@@ -66,9 +66,8 @@ describe('Pause', () => {
     if (processed) {
       throw new Error('should not process delayed jobs in paused queue.');
     }
-    const counts2 = await queue.getJobCounts('waiting', 'paused', 'delayed');
-    expect(counts2).toHaveProperty('waiting', 0);
-    expect(counts2).toHaveProperty('paused', 1);
+    const counts2 = await queue.getJobCounts('waiting', 'delayed');
+    expect(counts2).toHaveProperty('waiting', 1);
     expect(counts2).toHaveProperty('delayed', 0);
 
     await worker.close();
@@ -402,7 +401,7 @@ describe('Pause', () => {
           try {
             if (prev) {
               expect(prev).toEqual('active');
-              const count = await queue.getJobCountByTypes('paused');
+              const count = await queue.getJobCountByTypes('wait');
               expect(count).toBe(1);
               await queue.resume();
               resolve();

@@ -7,10 +7,9 @@
 --- @include "addJobInTargetList"
 --- @include "addJobWithPriority"
 --- @include "isQueuePausedOrMaxed"
---- @include "getTargetQueueList"
+
 local function moveParentToWait(parentQueueKey, parentKey, parentId, timestamp)
     local parentWaitKey = parentQueueKey .. ":wait"
-    local parentPausedKey = parentQueueKey .. ":paused"
     local parentActiveKey = parentQueueKey .. ":active"
     local parentMetaKey = parentQueueKey .. ":meta"
 
@@ -30,9 +29,9 @@ local function moveParentToWait(parentQueueKey, parentKey, parentId, timestamp)
         addDelayMarkerIfNeeded(parentMarkerKey, parentDelayedKey)
     else
         if priority == 0 then
-            local parentTarget, isParentPausedOrMaxed = getTargetQueueList(parentMetaKey, parentActiveKey,
-                parentWaitKey, parentPausedKey)
-            addJobInTargetList(parentTarget, parentMarkerKey, "RPUSH", isParentPausedOrMaxed, parentId)
+            local isParentPausedOrMaxed =
+                isQueuePausedOrMaxed(parentMetaKey, parentActiveKey)
+            addJobInTargetList(parentWaitKey, parentMarkerKey, "RPUSH", isParentPausedOrMaxed, parentId)
         else
             local isPausedOrMaxed = isQueuePausedOrMaxed(parentMetaKey, parentActiveKey)
             addJobWithPriority(parentMarkerKey, parentQueueKey .. ":prioritized", priority, parentId,
