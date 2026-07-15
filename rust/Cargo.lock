@@ -77,8 +77,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "bullmq-rust"
-version = "0.1.0"
+name = "bullmq-official"
+version = "1.0.1"
 dependencies = [
  "async-trait",
  "chrono",

@@ -386,3 +386,91 @@ async fn test_dedup_key_removed_after_job_completes() {
     worker.close(5000).await.unwrap();
     cleanup_queue(&queue).await;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Deprecated debounce aliases
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[tokio::test]
+async fn test_get_debounce_job_id_alias() {
+    let name = test_queue_name();
+    let queue = Queue::new(
+        &name,
+        QueueOptions {
+            connection: test_connection(),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(queue.get_debounce_job_id("missing").await.unwrap(), None);
+
+    let job_id = queue
+        .add(
+            "job1",
+            serde_json::json!({"v": 1}),
+            Some(JobOptions {
+                deduplication: Some(DeduplicationOptions {
+                    id: "debounce-1".to_string(),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+        )
+        .await
+        .unwrap()
+        .id()
+        .to_string();
+
+    // The deprecated alias returns the same value as get_deduplication_job_id.
+    assert_eq!(
+        queue.get_debounce_job_id("debounce-1").await.unwrap(),
+        Some(job_id.clone())
+    );
+    assert_eq!(
+        queue.get_deduplication_job_id("debounce-1").await.unwrap(),
+        Some(job_id)
+    );
+
+    cleanup_queue(&queue).await;
+}
+
+#[tokio::test]
+async fn test_remove_debounce_key_alias() {
+    let name = test_queue_name();
+    let queue = Queue::new(
+        &name,
+        QueueOptions {
+            connection: test_connection(),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    queue
+        .add(
+            "job1",
+            serde_json::json!({"v": 1}),
+            Some(JobOptions {
+                deduplication: Some(DeduplicationOptions {
+                    id: "debounce-rm".to_string(),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+        )
+        .await
+        .unwrap();
+
+    // Plain DEL — returns 1 when the key existed, 0 afterwards.
+    assert_eq!(queue.remove_debounce_key("debounce-rm").await.unwrap(), 1);
+    assert_eq!(queue.remove_debounce_key("debounce-rm").await.unwrap(), 0);
+    assert_eq!(
+        queue.get_debounce_job_id("debounce-rm").await.unwrap(),
+        None
+    );
+
+    cleanup_queue(&queue).await;
+}
