@@ -707,8 +707,8 @@ describe('queues', () => {
         await queue.pause();
         await queue.retryJobs({ count: 2 });
 
-        const pausedCount = await queue.getJobCounts('wait');
-        expect(pausedCount.wait).toBe(jobCount);
+        const waitCount = await queue.getJobCounts('wait');
+        expect(waitCount.wait).toBe(jobCount);
 
         await worker.close();
       });
