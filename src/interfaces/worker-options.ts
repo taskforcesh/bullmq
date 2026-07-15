@@ -79,6 +79,10 @@ export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
    * You can provide an object specifying max
    * age and/or count to keep.
    * Default behavior is to keep the job in the completed set.
+   *
+   * Eviction is evaluated on a best-effort basis when a job finishes,
+   * so aged jobs are only removed once another job completes after
+   * their expiration.
    */
   removeOnComplete?: KeepJobs;
 
@@ -86,12 +90,16 @@ export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
    * You can provide an object specifying max
    * age and/or count to keep.
    * Default behavior is to keep the job in the failed set.
+   *
+   * Eviction is evaluated on a best-effort basis when a job fails, so
+   * aged jobs are only removed once another job fails after their
+   * expiration.
    */
   removeOnFail?: KeepJobs;
 
   /**
    *  Skip stalled check for this worker. Note that other workers could still
-   *  perform stalled checkd and move jobs back to wait for jobs being processed
+   *  perform stalled checks and move jobs back to wait for jobs being processed
    *  by this worker.
    *
    *  @defaultValue false
@@ -128,7 +136,7 @@ export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
    * The time in milliseconds before the lock is automatically renewed.
    *
    * It is not recommended to modify this value, which is by default set to
-   * halv the lockDuration value, which is optimal for most use cases.
+   * half the lockDuration value, which is optimal for most use cases.
    */
   lockRenewTime?: number;
 

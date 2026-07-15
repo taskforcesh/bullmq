@@ -1,4 +1,3 @@
-import { default as IORedis } from 'ioredis';
 import {
   describe,
   beforeEach,
@@ -9,19 +8,19 @@ import {
   expect,
 } from 'vitest';
 
-import { v4 } from 'uuid';
+import { randomUUID } from '../src/utils';
 import { LockManager, Queue, Worker } from '../src/classes';
-import { LockManagerWorkerContext } from '../src/interfaces';
+import { IRedisClient, LockManagerWorkerContext } from '../src/interfaces';
 import { delay, removeAllQueueData } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
 
 describe('LockManager', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
-  let connection: IORedis;
+  let connection: IRedisClient;
 
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   afterAll(async function () {
@@ -227,8 +226,6 @@ describe('LockManager', () => {
 
   describe('lock renewal', () => {
     it('should extend locks for tracked jobs', async () => {
-      // TODO: Move timeout to test options: { timeout: 10000 }
-
       let extendCallCount = 0;
       const extendedJobIds: string[][] = [];
 
@@ -266,11 +263,9 @@ describe('LockManager', () => {
       );
 
       await lockManager.close();
-    });
+    }, 10000);
 
     it('should emit error when lock extension fails', async () => {
-      // TODO: Move timeout to test options: { timeout: 5000 }
-
       const emittedErrors: Error[] = [];
 
       const mockWorkerContext: LockManagerWorkerContext = {
@@ -301,17 +296,15 @@ describe('LockManager', () => {
       // Wait for lock renewal
       await delay(300);
 
-      expect(emittedErrors).to.have.lengthOf.at.least(1);
+      expect(emittedErrors.length).toBeGreaterThanOrEqual(1);
       expect(emittedErrors[0].message).toContain(
         'could not renew lock for job job-1',
       );
 
       await lockManager.close();
-    });
+    }, 5000);
 
     it('should emit error when extendJobLocks throws', async () => {
-      // TODO: Move timeout to test options: { timeout: 5000 }
-
       const emittedErrors: Error[] = [];
       const testError = new Error('Redis connection failed');
 
@@ -343,15 +336,13 @@ describe('LockManager', () => {
       // Wait for lock renewal
       await delay(300);
 
-      expect(emittedErrors).to.have.lengthOf.at.least(1);
+      expect(emittedErrors.length).toBeGreaterThanOrEqual(1);
       expect(emittedErrors[0]).toBe(testError);
 
       await lockManager.close();
-    });
+    }, 5000);
 
     it('should not extend locks if no jobs need renewal', async () => {
-      // TODO: Move timeout to test options: { timeout: 5000 }
-
       let extendCallCount = 0;
 
       const mockWorkerContext: LockManagerWorkerContext = {
@@ -384,11 +375,9 @@ describe('LockManager', () => {
       expect(extendCallCount).toBe(0);
 
       await lockManager.close();
-    });
+    }, 5000);
 
     it('should update timestamps for jobs without initial timestamp', async () => {
-      // TODO: Move timeout to test options: { timeout: 5000 }
-
       const mockWorkerContext: LockManagerWorkerContext = {
         extendJobLocks: async () => [],
         emit: () => true,
@@ -413,7 +402,7 @@ describe('LockManager', () => {
       expect(lockManager.getActiveJobCount()).toBe(1);
 
       await lockManager.close();
-    });
+    }, 5000);
   });
 
   describe('integration with Worker', () => {
@@ -421,18 +410,16 @@ describe('LockManager', () => {
     let queueName: string;
 
     beforeEach(async () => {
-      queueName = `test-lock-manager-${v4()}`;
+      queueName = `test-lock-manager-${randomUUID()}`;
       queue = new Queue(queueName, { connection, prefix });
     });
 
     afterEach(async () => {
       await queue.close();
-      await removeAllQueueData(new IORedis(redisHost), queueName);
-    });
+      await removeAllQueueData(createTestConnection(), queueName);
+    }, 15000);
 
     it('should track jobs during processing', async () => {
-      // TODO: Move timeout to test options: { timeout: 10000 }
-
       let lockManagerInstance: any;
       let maxTrackedJobs = 0;
 
@@ -485,11 +472,9 @@ describe('LockManager', () => {
       expect(lockManagerInstance.getActiveJobCount()).toBe(0);
 
       await worker.close();
-    });
+    }, 10000);
 
     it('should untrack jobs on failure', async () => {
-      // TODO: Move timeout to test options: { timeout: 10000 }
-
       let lockManagerInstance: any;
 
       const worker = new Worker(
@@ -521,11 +506,9 @@ describe('LockManager', () => {
       expect(lockManagerInstance.getActiveJobCount()).toBe(0);
 
       await worker.close();
-    });
+    }, 10000);
 
     it('should continue renewing locks for long-running jobs', async () => {
-      // TODO: Move timeout to test options: { timeout: 15000 }
-
       let lockRenewalCount = 0;
       let lockManagerInstance: any;
 
@@ -564,14 +547,12 @@ describe('LockManager', () => {
       });
 
       // Lock should have been renewed multiple times during the 3-second job
-      expect(lockRenewalCount).to.be.gte(2);
+      expect(lockRenewalCount).toBeGreaterThanOrEqual(2);
 
       await worker.close();
-    });
+    }, 15000);
 
     it('should handle lock manager closure during worker shutdown', async () => {
-      // TODO: Move timeout to test options: { timeout: 10000 }
-
       const worker = new Worker(
         queueName,
         async job => {
@@ -594,13 +575,11 @@ describe('LockManager', () => {
 
       expect(lockManagerInstance.isRunning()).toBe(false);
       expect(lockManagerInstance.getActiveJobCount()).toBe(0);
-    });
+    }, 10000);
   });
 
   describe('telemetry', () => {
     it('should call trace when extending locks', async () => {
-      // TODO: Move timeout to test options: { timeout: 5000 }
-
       let traceCalled = false;
 
       const mockWorkerContext: LockManagerWorkerContext = {
@@ -632,6 +611,6 @@ describe('LockManager', () => {
       expect(traceCalled).toBe(true);
 
       await lockManager.close();
-    });
+    }, 5000);
   });
 });

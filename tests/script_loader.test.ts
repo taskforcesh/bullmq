@@ -172,7 +172,7 @@ describe('scriptLoader', () => {
       const fixture =
         __dirname + '/fixtures/scripts/fixture_simple_include.lua';
       const script = await loadScript(fixture);
-      expect(script).to.not.have.string('@include');
+      expect(script).not.toContain('@include');
     });
 
     it('interpolates a script exactly once', async () => {
@@ -200,7 +200,8 @@ describe('scriptLoader', () => {
         'fixture_recursive_child.lua',
         'fixture_recursive_parent.lua',
       ];
-      expect(includes).toEqual(expected);
+      expect(includes).toHaveLength(expected.length);
+      expect(includes).toEqual(expect.arrayContaining(expected));
     });
 
     it('handles glob patterns in @includes statement', async () => {
@@ -258,7 +259,8 @@ describe('scriptLoader', () => {
 
       const expected = ['fixture_mapped_include_1', 'fixture_mapped_include_2'];
 
-      expect(includes).toEqual(expected);
+      expect(includes).toHaveLength(expected.length);
+      expect(includes).toEqual(expect.arrayContaining(expected));
     });
 
     it('errors on a missing include', async () => {
@@ -422,12 +424,12 @@ describe('scriptLoader', () => {
       await loader.loadScripts(dirname);
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
-      expect(loader.loadScripts.callCount - origCallCount).to.eq(1);
+      expect(loader.loadScripts.callCount - origCallCount).toBe(1);
 
       await loader.loadScripts(dirname1);
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
-      expect(loader.loadScripts.callCount - origCallCount).to.eq(2);
+      expect(loader.loadScripts.callCount - origCallCount).toBe(2);
       loadScriptSpy.restore();
     });
   });

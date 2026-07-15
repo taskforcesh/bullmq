@@ -1,5 +1,3 @@
-import { default as IORedis } from 'ioredis';
-import { v4 } from 'uuid';
 import {
   describe,
   beforeEach,
@@ -11,10 +9,11 @@ import {
 } from 'vitest';
 
 import { Job, Queue, QueueEvents, Worker } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 describe('deduplication', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
   // TODO: Move timeout to test options: { timeout: 8000 }
@@ -22,23 +21,28 @@ describe('deduplication', () => {
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  let connection: IORedis;
+  let connection: IRedisClient;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
-    queueEvents = new QueueEvents(queueName, { connection, prefix });
+    queueEvents = new QueueEvents(queueName, {
+      connection,
+      prefix,
+      blockingTimeout: 500,
+    });
     await queue.waitUntilReady();
     await queueEvents.waitUntilReady();
+    await delay(50); // allow XREAD to start blocking before emitting events
   });
 
   afterEach(async () => {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async function () {
@@ -97,7 +101,7 @@ describe('deduplication', () => {
           { foo: 'bar' },
           { debounce: { id: 'a1', ttl: 2000 } },
         );
-        await delay(100);
+        await delay(500);
 
         expect(debouncedCounter).toBe(4);
       });
@@ -2092,6 +2096,80 @@ describe('deduplication', () => {
       expect(processedData).toHaveLength(2);
       expect(processedData[0]).toEqual({ seq: 1 });
       expect(processedData[1]).toEqual({ seq: 2 });
+
+      await worker.close();
+    });
+
+    it('should preserve custom jobId when requeuing proto-job', async () => {
+      const testName = 'test';
+      const deduplicationId = 'dedup-custom-id-1';
+      const processedJobs: { id: string | undefined; data: any }[] = [];
+
+      let resolveFirstProcessing: () => void;
+      const firstProcessingStarted = new Promise<void>(resolve => {
+        resolveFirstProcessing = resolve;
+      });
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          if (processedJobs.length === 0) {
+            resolveFirstProcessing();
+            await delay(500);
+          }
+          processedJobs.push({ id: job.id, data: job.data });
+        },
+        { autorun: false, connection, prefix },
+      );
+      await worker.waitUntilReady();
+
+      const allCompleted = new Promise<void>(resolve => {
+        let count = 0;
+        worker.on('completed', () => {
+          count++;
+          if (count === 2) {
+            resolve();
+          }
+        });
+      });
+
+      worker.run();
+
+      // Add first job with a custom jobId
+      await queue.add(
+        testName,
+        { seq: 1 },
+        {
+          jobId: 'my-custom-uuid-1',
+          deduplication: {
+            id: deduplicationId,
+            keepLastIfActive: true,
+          },
+        },
+      );
+
+      await firstProcessingStarted;
+
+      // Add second job with a different custom jobId while first is active
+      await queue.add(
+        testName,
+        { seq: 2 },
+        {
+          jobId: 'my-custom-uuid-2',
+          deduplication: {
+            id: deduplicationId,
+            keepLastIfActive: true,
+          },
+        },
+      );
+
+      await allCompleted;
+
+      expect(processedJobs).toHaveLength(2);
+      expect(processedJobs[0].id).toBe('my-custom-uuid-1');
+      expect(processedJobs[0].data).toEqual({ seq: 1 });
+      expect(processedJobs[1].id).toBe('my-custom-uuid-2');
+      expect(processedJobs[1].data).toEqual({ seq: 2 });
 
       await worker.close();
     });

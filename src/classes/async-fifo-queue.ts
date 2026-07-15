@@ -80,6 +80,13 @@ export class AsyncFifoQueue<T> {
     this.newPromise();
   }
 
+  /**
+   * Adds a promise to the queue. When it resolves, its value is enqueued
+   * and, if a consumer is waiting via {@link fetch}, the next pending
+   * promise is resolved with the value.
+   *
+   * @param promise - The asynchronous operation to add to the queue.
+   */
   public add(promise: Promise<T>): void {
     this.pending.add(promise);
 
@@ -102,18 +109,41 @@ export class AsyncFifoQueue<T> {
       });
   }
 
+  /**
+   * Waits for all currently pending promises to settle.
+   *
+   * @returns A promise that resolves once every in-flight promise has resolved.
+   */
   public async waitAll(): Promise<void> {
     await Promise.all(this.pending);
   }
 
+  /**
+   * Returns the total number of items currently tracked by the queue,
+   * including both pending (in-flight) promises and resolved items that
+   * have not yet been fetched.
+   *
+   * @returns The sum of pending and queued items.
+   */
   public numTotal(): number {
     return this.pending.size + this.queue.length;
   }
 
+  /**
+   * Returns the number of promises that are still pending (in-flight).
+   *
+   * @returns The number of unresolved promises currently in the queue.
+   */
   public numPending(): number {
     return this.pending.size;
   }
 
+  /**
+   * Returns the number of items that have already resolved but have not
+   * yet been fetched by a consumer.
+   *
+   * @returns The number of resolved items waiting to be consumed.
+   */
   public numQueued(): number {
     return this.queue.length;
   }
@@ -139,6 +169,14 @@ export class AsyncFifoQueue<T> {
     return this.nextPromise;
   }
 
+  /**
+   * Fetches the next resolved item from the queue in FIFO order. If no
+   * items are currently resolved but pending promises exist, it waits
+   * until the next one resolves.
+   *
+   * @returns The next resolved value, or `undefined` if there are no
+   * pending or queued items.
+   */
   public async fetch(): Promise<T | void> {
     if (this.pending.size === 0 && this.queue.length === 0) {
       return;

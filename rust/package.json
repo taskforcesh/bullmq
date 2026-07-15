@@ -1,0 +1,63 @@
+{
+  "name": "bullmq-official",
+  "description": "BullMQ Rust SDK - semantic release configuration",
+  "author": "Taskforce.sh Inc.",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "semantic-release": "semantic-release"
+  },
+  "devDependencies": {
+    "@semantic-release/changelog": "6.0.3",
+    "@semantic-release/commit-analyzer": "13.0.1",
+    "@semantic-release/exec": "7.1.0",
+    "@semantic-release/git": "10.0.1",
+    "@semantic-release/github": "12.0.9",
+    "@semantic-release/release-notes-generator": "14.1.1",
+    "semantic-release": "25.0.7"
+  },
+  "release": {
+    "tagFormat": "vrs${version}",
+    "plugins": [
+      [
+        "@semantic-release/commit-analyzer",
+        {
+          "releaseRules": [
+            {
+              "header": "!({*,**/*}\\(rust\\)*|{*,**/*}\\[rust\\]*)",
+              "release": false
+            }
+          ]
+        }
+      ],
+      [
+        "@semantic-release/release-notes-generator",
+        {
+          "preset": "angular",
+          "presetConfig": {
+            "ignoreCommits": "^(?![^]*\\(rust\\))(?![^]*\\[rust\\]).*$"
+          }
+        }
+      ],
+      [
+        "@semantic-release/changelog",
+        {
+          "changelogFile": "CHANGELOG.md"
+        }
+      ],
+      [
+        "@semantic-release/exec",
+        {
+          "prepareCmd": "sed -i 's/^version = \".*\"/version = \"${nextRelease.version}\"/' Cargo.toml"
+        }
+      ],
+      [
+        "@semantic-release/exec",
+        {
+          "publishCmd": "cargo publish --allow-dirty"
+        }
+      ],
+      "@semantic-release/github"
+    ]
+  }
+}

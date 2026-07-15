@@ -50,6 +50,26 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(job1.id, jobs[1].id)
         await queue.close()
 
+    async def test_get_waiting_returns_jobs_in_ascending_order(self):
+        # Exercises getRanges asc=True + lrange path (waiting -> wait -> lrange).
+        # Regression test for a bug where list.reverse() returned None and
+        # caused a TypeError in `results+=None`.
+        queue_name = f"__test_queue__{uuid4().hex}"
+        queue = Queue(queue_name, {"prefix": prefix})
+        job1 = await queue.add("test-job", {"foo": "bar"}, {})
+        job2 = await queue.add("test-job", {"foo": "baz"}, {})
+        job3 = await queue.add("test-job", {"foo": "qux"}, {})
+
+        waiting_jobs = await queue.getWaiting()
+
+        self.assertIsInstance(waiting_jobs, list)
+        self.assertEqual(len(waiting_jobs), 3)
+        # asc=True should return jobs in insertion order (oldest first).
+        self.assertEqual(waiting_jobs[0].id, job1.id)
+        self.assertEqual(waiting_jobs[1].id, job2.id)
+        self.assertEqual(waiting_jobs[2].id, job3.id)
+        await queue.close()
+
     async def test_get_job_state(self):
         queue = Queue(queueName, {"prefix": prefix})
         job = await queue.add("test-job", {"foo": "bar"}, {})
@@ -690,6 +710,48 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         count_after_drain = await queue.getJobCountByTypes("paused")
         self.assertEqual(count_after_drain, 0)
         
+        await queue.close()
+
+    async def test_get_failed_returns_only_failed_jobs(self):
+        """Regression test: getFailed() should return only failed jobs, not completed."""
+        queue_name_local = f"__test_queue__{uuid4().hex}"
+        queue = Queue(queue_name_local, {"prefix": prefix})
+
+        async def process(job: Job, token: str):
+            if job.data.get("shouldFail"):
+                raise Exception("intentional failure")
+            return "ok"
+
+        worker = Worker(queue_name_local, process, {"prefix": prefix})
+
+        finished_count = 0
+        done_future = Future()
+
+        def on_finished(job: Job, result):
+            nonlocal finished_count
+            finished_count += 1
+            if finished_count == 2 and not done_future.done():
+                done_future.set_result(None)
+
+        worker.on("completed", on_finished)
+        worker.on("failed", on_finished)
+
+        await queue.add("test", {"shouldFail": True}, {"attempts": 1})
+        await queue.add("test", {"shouldFail": False}, {})
+
+        await done_future
+
+        failed = await queue.getFailed()
+        self.assertEqual(len(failed), 1)
+        self.assertEqual(failed[0].data["shouldFail"], True)
+
+        completed = await queue.getCompleted()
+        self.assertEqual(len(completed), 1)
+        self.assertEqual(completed[0].data["shouldFail"], False)
+
+        await worker.close()
+        await queue.pause()
+        await queue.obliterate()
         await queue.close()
 
     async def test_default_job_options(self):

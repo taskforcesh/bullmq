@@ -1,4 +1,3 @@
-import { default as IORedis } from 'ioredis';
 import {
   describe,
   beforeEach,
@@ -11,26 +10,26 @@ import {
 
 import { after } from 'lodash';
 import * as sinon from 'sinon';
-import { v4 } from 'uuid';
 import { FlowProducer, Job, Queue, Worker } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID, removeAllQueueData } from '../src/utils';
 import { version as currentPackageVersion } from '../src/version';
+import { createTestConnection } from './utils/connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 describe('queues', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   const sandbox = sinon.createSandbox();
 
   let queue: Queue;
   let queueName: string;
 
-  let connection: IORedis;
+  let connection: IRedisClient;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     await queue.waitUntilReady();
   });
@@ -38,7 +37,7 @@ describe('queues', () => {
   afterEach(async () => {
     sandbox.restore();
     await queue.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async function () {
@@ -99,12 +98,12 @@ describe('queues', () => {
   });
 
   it('should return default library version when using skipMetasUpdate', async () => {
-    const exQueueName = `test-${v4()}`;
+    const exQueueName = `test-${randomUUID()}`;
     const queue = new Queue(exQueueName, { connection, skipMetasUpdate: true });
     const version = await queue.getVersion();
     expect(version).toBe(null);
     await queue.close();
-    await removeAllQueueData(new IORedis(redisHost), exQueueName);
+    await removeAllQueueData(createTestConnection(), exQueueName);
   });
 
   describe('.getMeta', () => {
@@ -168,6 +167,117 @@ describe('queues', () => {
         await expect(
           queue.add('test', { foo: 1 }, { jobId: '1:0' }),
         ).rejects.toThrow('Custom Id cannot contain :');
+      });
+    });
+
+    describe('when auto-generated job id counter reaches scientific notation threshold', () => {
+      // Redis Lua serializes the number 300000000 as "3e+8" when passed
+      // directly as a command argument, so we prime the counter just below it
+      // to force the next auto-generated id to be 300000000.
+      const primeCounter = async (client: IRedisClient, name: string) => {
+        await client.set(`${prefix}:${name}:id`, '299999999');
+      };
+
+      describe('addStandardJob', () => {
+        it('stores the job id consistently in decimal form (not 3e+8)', async () => {
+          const client = await queue.client;
+          await primeCounter(client, queue.name);
+
+          const job = await queue.add('test', { foo: 'bar' });
+
+          expect(job.id).toEqual('300000000');
+
+          // The job hash key and every internal reference must use the same
+          // decimal string representation.
+          const jobExists = await client.exists(
+            `${prefix}:${queue.name}:300000000`,
+          );
+          expect(jobExists).toEqual(1);
+
+          const waitingIds = await client.lrange(
+            `${prefix}:${queue.name}:wait`,
+            0,
+            -1,
+          );
+          expect(waitingIds).toContain('300000000');
+          expect(waitingIds).not.toContain('3e+8');
+
+          const storedJob = await queue.getJob('300000000');
+          expect(storedJob).toBeDefined();
+          expect(storedJob!.data).toEqual({ foo: 'bar' });
+        });
+      });
+
+      describe('addPrioritizedJob', () => {
+        it('stores the job id consistently in decimal form (not 3e+8)', async () => {
+          const client = await queue.client;
+          await primeCounter(client, queue.name);
+
+          const job = await queue.add('test', { foo: 'bar' }, { priority: 1 });
+
+          expect(job.id).toEqual('300000000');
+
+          const prioritizedIds = await client.zrange(
+            `${prefix}:${queue.name}:prioritized`,
+            0,
+            -1,
+          );
+          expect(prioritizedIds).toContain('300000000');
+          expect(prioritizedIds).not.toContain('3e+8');
+
+          const storedJob = await queue.getJob('300000000');
+          expect(storedJob).toBeDefined();
+          expect(storedJob!.data).toEqual({ foo: 'bar' });
+        });
+      });
+
+      describe('addDelayedJob', () => {
+        it('stores the job id consistently in decimal form (not 3e+8)', async () => {
+          const client = await queue.client;
+          await primeCounter(client, queue.name);
+
+          const job = await queue.add('test', { foo: 'bar' }, { delay: 10000 });
+
+          expect(job.id).toEqual('300000000');
+
+          const delayedIds = await client.zrange(
+            `${prefix}:${queue.name}:delayed`,
+            0,
+            -1,
+          );
+          expect(delayedIds).toContain('300000000');
+          expect(delayedIds).not.toContain('3e+8');
+
+          const storedJob = await queue.getJob('300000000');
+          expect(storedJob).toBeDefined();
+          expect(storedJob!.data).toEqual({ foo: 'bar' });
+        });
+      });
+
+      describe('addParentJob', () => {
+        it('stores the parent job id consistently in decimal form (not 3e+8)', async () => {
+          const client = await queue.client;
+          await primeCounter(client, queue.name);
+
+          const job = new Job(queue, 'parent-job', { foo: 'bar' });
+          job.id = await job.addJob(client, {
+            addToWaitingChildren: true,
+          });
+
+          expect(job.id).toEqual('300000000');
+
+          const waitingChildrenIds = await client.zrange(
+            `${prefix}:${queue.name}:waiting-children`,
+            0,
+            -1,
+          );
+          expect(waitingChildrenIds).toContain('300000000');
+          expect(waitingChildrenIds).not.toContain('3e+8');
+
+          const storedJob = await queue.getJob('300000000');
+          expect(storedJob).toBeDefined();
+          expect(storedJob!.data).toEqual({ foo: 'bar' });
+        });
       });
     });
   });
@@ -302,7 +412,7 @@ describe('queues', () => {
         describe('when parent has pending children in different queue', async () => {
           it('keeps parent in waiting-children', async () => {
             await queue.waitUntilReady();
-            const childrenQueueName = `test-${v4()}`;
+            const childrenQueueName = `test-${randomUUID()}`;
             const childrenQueue = new Queue(childrenQueueName, {
               connection,
               prefix,
@@ -347,7 +457,7 @@ describe('queues', () => {
         describe('when parent has more than 1 pending children', async () => {
           it('deletes each children until trying to move parent to wait', async () => {
             await queue.waitUntilReady();
-            const parentQueueName = `test-${v4()}`;
+            const parentQueueName = `test-${randomUUID()}`;
             const parentQueue = new Queue(parentQueueName, {
               connection,
               prefix,
@@ -393,14 +503,14 @@ describe('queues', () => {
             expect(parentWaitCount).toEqual(1);
             await parentQueue.close();
             await flow.close();
-            await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+            await removeAllQueueData(createTestConnection(), parentQueueName);
           });
         });
 
         describe('when parent has only 1 pending children', async () => {
           it('moves parent to wait to try to process it', async () => {
             await queue.waitUntilReady();
-            const parentQueueName = `test-${v4()}`;
+            const parentQueueName = `test-${randomUUID()}`;
             const parentQueue = new Queue(parentQueueName, {
               connection,
               prefix,
@@ -441,7 +551,7 @@ describe('queues', () => {
             expect(parentWaitCount).toEqual(1);
             await parentQueue.close();
             await flow.close();
-            await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+            await removeAllQueueData(createTestConnection(), parentQueueName);
           });
         });
       });
