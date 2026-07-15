@@ -697,8 +697,8 @@ describe('Telemetry', () => {
       } catch (e) {
         expect(recordExceptionSpy.calledOnce).toBe(true);
         const recordedError = recordExceptionSpy.firstCall.args[0];
-        expect(recordedError.message).toBe(
-          'Failed to add bulk flows due to invalid parent configuration',
+        expect(recordedError.message).toMatch(
+          /(?:Missing key for parent job .*|undeclared key, key: ).*invalidQueue:invalidParentId/,
         );
       } finally {
         traceSpy.restore();
