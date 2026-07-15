@@ -37,13 +37,15 @@ export class QueueEventsProducer extends QueueBase {
     const client = await this.client;
     const key = this.keys.events;
     const { eventName, ...restArgs } = argsObj;
-    const args: any[] = ['MAXLEN', '~', maxEvents, '*', 'event', eventName];
+    const fields: Record<string, string | number> = {
+      event: eventName,
+      ...restArgs,
+    };
 
-    for (const [key, value] of Object.entries(restArgs)) {
-      args.push(key, value);
-    }
-
-    await client.xadd(key, ...args);
+    await client.xadd(key, '*', fields, {
+      MAXLEN: maxEvents,
+      approximate: true,
+    });
   }
 
   /**

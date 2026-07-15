@@ -1,3 +1,38 @@
+## [2.25.3](https://github.com/taskforcesh/bullmq/compare/vpy2.25.2...vpy2.25.3) (2026-07-10)
+
+
+### Bug Fixes
+
+* **flow:** use correct data structure when retrying failed child using ignoreDependencyOnFailure fixes [#4235](https://github.com/taskforcesh/bullmq/issues/4235) ([#4236](https://github.com/taskforcesh/bullmq/issues/4236)) ([6f1b2e3](https://github.com/taskforcesh/bullmq/commit/6f1b2e33b01c9f97dee6ff96bab782a8399c7ae5))
+
+## [2.25.2](https://github.com/taskforcesh/bullmq/compare/vpy2.25.1...vpy2.25.2) (2026-05-10)
+
+
+### Bug Fixes
+
+* **worker:** [python] avoid tight error loop on Redis disconnect ([#4102](https://github.com/taskforcesh/bullmq/issues/4102)) ([51c935b](https://github.com/taskforcesh/bullmq/commit/51c935bdbf19744edccf1b39002585d81a014613))
+
+## [2.25.1](https://github.com/taskforcesh/bullmq/compare/vpy2.25.0...vpy2.25.1) (2026-05-04)
+
+
+### Bug Fixes
+
+* **connection:** deprecate skipWaitingForReady option as is not having any effect [python] ([#4140](https://github.com/taskforcesh/bullmq/issues/4140)) ([c9c0c0a](https://github.com/taskforcesh/bullmq/commit/c9c0c0a03218511deb73eac74c31ac50ba9c4f77))
+
+# [2.25.0](https://github.com/taskforcesh/bullmq/compare/vpy2.24.0...vpy2.25.0) (2026-04-29)
+
+
+### Features
+
+* **queue:** add skipVersionCheck and skipWaitingForReady to QueueBaseOptions [python] ([#4086](https://github.com/taskforcesh/bullmq/issues/4086)) ([54311e5](https://github.com/taskforcesh/bullmq/commit/54311e59445562f65065b772800b8449f7d99f83))
+
+# [2.24.0](https://github.com/taskforcesh/bullmq/compare/vpy2.23.1...vpy2.24.0) (2026-04-28)
+
+
+### Features
+
+* **connection:** add return type hints to RedisConnection methods [python] ([#4025](https://github.com/taskforcesh/bullmq/issues/4025)) ([4ca9c27](https://github.com/taskforcesh/bullmq/commit/4ca9c27ea68d303b86a80cbb24c8e390d87a5e8f))
+
 ## [2.23.1](https://github.com/taskforcesh/bullmq/compare/vpy2.23.0...vpy2.23.1) (2026-04-26)
 
 

@@ -68,6 +68,20 @@ end
 ```
 
 {% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Worker, WorkerOptions};
+use bullmq::types::RemoveOnFinish;
+
+let worker = Worker::new("myQueueName", processor, WorkerOptions {
+    remove_on_fail: Some(RemoveOnFinish::Count(0)),
+    ..Default::default()
+}).await?;
+```
+
+{% endtab %}
 {% endtabs %}
 
 {% hint style="warning" %}
@@ -138,6 +152,21 @@ end
   remove_on_complete: %{count: 1000},
   remove_on_fail: %{count: 5000}
 )
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Worker, WorkerOptions};
+use bullmq::types::RemoveOnFinish;
+
+let worker = Worker::new("myQueueName", processor, WorkerOptions {
+    remove_on_complete: Some(RemoveOnFinish::Count(1000)),
+    remove_on_fail: Some(RemoveOnFinish::Count(5000)),
+    ..Default::default()
+}).await?;
 ```
 
 {% endtab %}
@@ -228,6 +257,29 @@ end
     limit: 50        # remove up to 50 jobs per cleanup iteration
   }
 )
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Worker, WorkerOptions};
+use bullmq::types::{RemoveOnFinish, KeepJobs};
+
+let worker = Worker::new("myQueueName", processor, WorkerOptions {
+    remove_on_complete: Some(RemoveOnFinish::Options(KeepJobs {
+        age: Some(3600 * 1000),   // keep up to 1 hour (in milliseconds)
+        count: Some(1000), // keep up to 1000 jobs
+        limit: Some(100),  // remove up to 100 jobs per cleanup iteration
+    })),
+    remove_on_fail: Some(RemoveOnFinish::Options(KeepJobs {
+        age: Some(24 * 3600 * 1000), // keep up to 24 hours (in milliseconds)
+        count: None,
+        limit: Some(50),      // remove up to 50 jobs per cleanup iteration
+    })),
+    ..Default::default()
+}).await?;
 ```
 
 {% endtab %}

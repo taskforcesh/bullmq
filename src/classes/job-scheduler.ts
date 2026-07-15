@@ -88,7 +88,7 @@ export class JobScheduler extends QueueBase {
     const { immediately, ...filteredRepeatOpts } = repeatOpts;
 
     let nextMillis: number;
-    const newOffset: number | null = null;
+    const newOffset: number | null = every && offset ? offset : null;
 
     if (pattern) {
       nextMillis = await this.repeatStrategy(now, repeatOpts, jobName);
@@ -401,8 +401,10 @@ export class JobScheduler extends QueueBase {
     const jobSchedulersKey = this.keys.repeat;
 
     const result = asc
-      ? await client.zrange(jobSchedulersKey, start, end, 'WITHSCORES')
-      : await client.zrevrange(jobSchedulersKey, start, end, 'WITHSCORES');
+      ? await client.zrange(jobSchedulersKey, start, end, { WITHSCORES: true })
+      : await client.zrevrange(jobSchedulersKey, start, end, {
+          WITHSCORES: true,
+        });
 
     const jobs = [];
     for (let i = 0; i < result.length; i += 2) {

@@ -1,4 +1,3 @@
-import { default as IORedis } from 'ioredis';
 import {
   describe,
   beforeEach,
@@ -28,13 +27,14 @@ import {
 } from '../src/interfaces';
 import * as sinon from 'sinon';
 import { SpanKind, TelemetryAttributes, MetricNames } from '../src/enums';
+import { createTestConnection } from './utils/connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 describe('Telemetry', () => {
   type ExtendedException = Exception & {
     message: string;
   };
 
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
   class MockCounter implements Counter {
@@ -193,9 +193,9 @@ describe('Telemetry', () => {
   let queue: Queue;
   let queueName: string;
 
-  let connection: IORedis;
+  let connection: IRedisClient;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
@@ -211,7 +211,7 @@ describe('Telemetry', () => {
 
   afterEach(async () => {
     await queue.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async () => {
@@ -595,8 +595,13 @@ describe('Telemetry', () => {
       } catch (e) {
         expect(recordExceptionSpy.calledOnce).toBe(true);
         const recordedError = recordExceptionSpy.firstCall.args[0];
-        expect(recordedError.message).toBe(
-          'Failed to add flow due to invalid parent configuration',
+        // FlowProducer.toFlowError translates the Lua ParentJobNotExist numeric
+        // code into the friendly "Missing key for parent job ..." message on
+        // Redis. Dragonfly enforces script key declarations strictly and
+        // rejects access to the cross-queue parent first with an
+        // undeclared-key ERR before the code path is reached.
+        expect(recordedError.message).toMatch(
+          /(?:Missing key for parent job .*|undeclared key, key: ).*invalidQueue:invalidParentId/,
         );
       } finally {
         traceSpy.restore();
@@ -693,8 +698,8 @@ describe('Telemetry', () => {
       } catch (e) {
         expect(recordExceptionSpy.calledOnce).toBe(true);
         const recordedError = recordExceptionSpy.firstCall.args[0];
-        expect(recordedError.message).toBe(
-          'Failed to add bulk flows due to invalid parent configuration',
+        expect(recordedError.message).toMatch(
+          /(?:Missing key for parent job .*|undeclared key, key: ).*invalidQueue:invalidParentId/,
         );
       } finally {
         traceSpy.restore();
