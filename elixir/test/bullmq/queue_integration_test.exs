@@ -593,7 +593,7 @@ defmodule BullMQ.QueueIntegrationTest do
     end
 
     @tag :integration
-    test "paused queue shows jobs in wait count", %{
+    test "paused queue shows jobs in waiting count", %{
       conn: conn,
       queue_name: queue_name,
       prefix: prefix
@@ -616,7 +616,7 @@ defmodule BullMQ.QueueIntegrationTest do
           prefix: prefix
         )
 
-      assert counts[:wait] == 3
+      assert counts[:waiting] == 3
     end
   end
 
