@@ -1,6 +1,6 @@
 [package]
-name = "bullmq"
-version = "0.1.0"
+name = "bullmq-official"
+version = "1.0.1"
 edition = "2021"
 rust-version = "1.85"
 authors = ["Taskforce.sh Inc."]
@@ -8,14 +8,26 @@ description = "A powerful, fast, and robust job queue for Rust backed by Redis"
 license = "MIT"
 repository = "https://github.com/taskforcesh/bullmq"
 homepage = "https://bullmq.io"
-documentation = "https://docs.rs/bullmq"
+documentation = "https://docs.rs/bullmq-official"
 readme = "README.md"
 keywords = ["queue", "job", "redis", "worker", "background"]
 categories = ["asynchronous", "database"]
-exclude = ["tests/", "examples/benchmark.rs", "target/"]
+include = [
+  "src/**/*.rs",
+  "src/commands/*.lua",
+  "README.md",
+  "Cargo.toml",
+]
+
+# The published crate is `bullmq-official` (the `bullmq`, `bullmq-rust` and
+# `bullmq-rs` names on crates.io are taken by unrelated third-party crates).
+# The library itself is still imported as `bullmq` so user code (and our
+# tests/examples) can `use bullmq::...`.
+[lib]
+name = "bullmq"
 
 [dependencies]
-redis = { version = "0.27", features = ["tokio-comp", "connection-manager", "script"] }
+redis = { version = "0.27", features = ["tokio-comp", "connection-manager", "script", "tokio-rustls-comp", "tls-rustls-webpki-roots"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -29,6 +41,8 @@ rmp-serde = "1"
 async-trait = "0.1"
 tokio-stream = "0.1"
 futures = "0.3"
+croner = "3.0.1"
+chrono-tz = "0.10.4"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }

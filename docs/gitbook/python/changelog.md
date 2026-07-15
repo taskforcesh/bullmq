@@ -1,3 +1,10 @@
+## [2.25.3](https://github.com/taskforcesh/bullmq/compare/vpy2.25.2...vpy2.25.3) (2026-07-10)
+
+
+### Bug Fixes
+
+* **flow:** use correct data structure when retrying failed child using ignoreDependencyOnFailure fixes [#4235](https://github.com/taskforcesh/bullmq/issues/4235) ([#4236](https://github.com/taskforcesh/bullmq/issues/4236)) ([6f1b2e3](https://github.com/taskforcesh/bullmq/commit/6f1b2e33b01c9f97dee6ff96bab782a8399c7ae5))
+
 ## [2.25.2](https://github.com/taskforcesh/bullmq/compare/vpy2.25.1...vpy2.25.2) (2026-05-10)
 
 

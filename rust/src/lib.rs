@@ -36,14 +36,20 @@
 
 /// Error types for BullMQ operations.
 pub mod error;
+/// FlowProducer — atomically add trees of dependent jobs (flows).
+pub mod flow_producer;
 /// Job representation and lifecycle management.
 pub mod job;
+/// Job Scheduler — repeatable/cron-based job scheduling.
+pub mod job_scheduler;
 /// Redis key generation for queue data structures.
 pub mod keys;
 /// Configuration options for queues, workers, and jobs.
 pub mod options;
 /// Queue management and job submission.
 pub mod queue;
+/// Cross-process queue event listener (stream-based).
+pub mod queue_events;
 /// Redis connection handling.
 pub mod redis_connection;
 /// Lua script registry and execution.
@@ -54,11 +60,22 @@ pub mod types;
 pub mod worker;
 
 pub use error::Error;
+pub use flow_producer::{
+    FlowJob, FlowOpts, FlowProducer, FlowProducerOptions, FlowQueueOptions, GetFlowOpts, JobNode,
+};
 pub use job::Job;
 pub use keys::QueueKeys;
-pub use options::{BackoffStrategyFn, JobOptions, QueueOptions, WorkerOptions};
+pub use options::{
+    BackoffStrategyFn, DeduplicationOptions, JobOptions, MetricsOptions, ParentOpts, QueueOptions,
+    RateLimiterOptions, WorkerOptions,
+};
+pub use queue::JobCountRecorder;
 pub use queue::Queue;
-pub use types::{JobProgress, JobState, RetryOptions};
+pub use queue_events::{QueueEvent, QueueEventEntry, QueueEvents, QueueEventsOptions};
+pub use types::{
+    DependenciesCount, DependenciesResult, JobProgress, JobState, Metrics, MetricsMeta, QueueMeta,
+    RetryOptions,
+};
 pub use worker::Worker;
 
 /// Result type alias for BullMQ operations.

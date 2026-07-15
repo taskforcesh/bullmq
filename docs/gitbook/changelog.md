@@ -1,3 +1,77 @@
+## [5.80.4](https://github.com/taskforcesh/bullmq/compare/v5.80.3...v5.80.4) (2026-07-15)
+
+
+### Bug Fixes
+
+* **deps:** update dependency ioredis to v5.11.1 [security] ([#4282](https://github.com/taskforcesh/bullmq/issues/4282)) ([d978d72](https://github.com/taskforcesh/bullmq/commit/d978d721995aa4d40aa93980866e2a6b02bcfed1))
+
+## [5.80.3](https://github.com/taskforcesh/bullmq/compare/v5.80.2...v5.80.3) (2026-07-15)
+
+
+### Bug Fixes
+
+* fix potential job id integer to string conversion ([#4262](https://github.com/taskforcesh/bullmq/issues/4262)) ([4e8b595](https://github.com/taskforcesh/bullmq/commit/4e8b59592d1f285f2e9e3860f8ece8bc60769fe5))
+
+## [5.80.2](https://github.com/taskforcesh/bullmq/compare/v5.80.1...v5.80.2) (2026-07-11)
+
+
+### Bug Fixes
+
+* **job-scheduler:** respect offset option in upsertJobScheduler (elixir) (rust) ([#3993](https://github.com/taskforcesh/bullmq/issues/3993)) ([78bbb25](https://github.com/taskforcesh/bullmq/commit/78bbb253546b4c45f7e23ceccc31eb644651416c))
+
+## [5.80.1](https://github.com/taskforcesh/bullmq/compare/v5.80.0...v5.80.1) (2026-07-10)
+
+
+### Bug Fixes
+
+* **job:** enforce priority max of 2^21-1 to preserve FIFO at the boundary ([#4261](https://github.com/taskforcesh/bullmq/issues/4261)) ([418de1e](https://github.com/taskforcesh/bullmq/commit/418de1e51db09ffc8e95bac35015a1057d8a7271))
+
+# [5.80.0](https://github.com/taskforcesh/bullmq/compare/v5.79.4...v5.80.0) (2026-07-10)
+
+* Nothing changed, triggered by a rust version release
+
+## [5.79.4](https://github.com/taskforcesh/bullmq/compare/v5.79.3...v5.79.4) (2026-07-10)
+
+
+### Bug Fixes
+
+* **job-scheduler:** coerce string offset in Lua helper ([#4266](https://github.com/taskforcesh/bullmq/issues/4266)) (python) (elixir) ([5a88614](https://github.com/taskforcesh/bullmq/commit/5a88614312243a12bb9e56b525c4deb60d76cf12))
+
+## [5.79.3](https://github.com/taskforcesh/bullmq/compare/v5.79.2...v5.79.3) (2026-07-07)
+
+
+### Bug Fixes
+
+* **queue-events:** correct delay event number type and documentation ([#3989](https://github.com/taskforcesh/bullmq/issues/3989)) ([6ffd88a](https://github.com/taskforcesh/bullmq/commit/6ffd88a0070b3ab84b77539dca7c35266716425e))
+
+## [5.79.2](https://github.com/taskforcesh/bullmq/compare/v5.79.1...v5.79.2) (2026-06-27)
+
+
+### Bug Fixes
+
+* **flow:** use correct data structure when retrying failed child using ignoreDependencyOnFailure fixes [#4235](https://github.com/taskforcesh/bullmq/issues/4235) ([#4236](https://github.com/taskforcesh/bullmq/issues/4236)) ([6f1b2e3](https://github.com/taskforcesh/bullmq/commit/6f1b2e33b01c9f97dee6ff96bab782a8399c7ae5))
+
+## [5.79.1](https://github.com/taskforcesh/bullmq/compare/v5.79.0...v5.79.1) (2026-06-21)
+
+
+### Bug Fixes
+
+* **node-redis:** accept plain createClient result without cast ([#4201](https://github.com/taskforcesh/bullmq/issues/4201)) ([#4209](https://github.com/taskforcesh/bullmq/issues/4209)) ([1aefd5b](https://github.com/taskforcesh/bullmq/commit/1aefd5b80618a8a9080b98ca9e6e89463a98b713))
+
+# [5.79.0](https://github.com/taskforcesh/bullmq/compare/v5.78.1...v5.79.0) (2026-06-18)
+
+
+### Features
+
+* Nothing changed, triggered by a rust version release
+
+## [5.78.1](https://github.com/taskforcesh/bullmq/compare/v5.78.0...v5.78.1) (2026-06-13)
+
+
+### Bug Fixes
+
+* **scheduler:** fail stalled jobs if scheduler does not longer exist (elixir) (rust) ([#4222](https://github.com/taskforcesh/bullmq/issues/4222)) ([d1fcda5](https://github.com/taskforcesh/bullmq/commit/d1fcda5f9c4f53b56846a73421d6eb9a32603aa4))
+
 # [5.78.0](https://github.com/taskforcesh/bullmq/compare/v5.77.7...v5.78.0) (2026-06-02)
 
 

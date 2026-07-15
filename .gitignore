@@ -3,6 +3,7 @@ node_modules
 /dist
 /rawScripts
 /src/scripts
+/rust/src/commands
 # Log files
 npm-debug.log*
 yarn-debug.log*

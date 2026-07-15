@@ -29,7 +29,7 @@ SCRIPT_DEFINITIONS = {
     "getState": "getState-8.lua",
     "getStateV2": "getStateV2-8.lua",
     "isJobInList": "isJobInList-1.lua",
-    "moveStalledJobsToWait": "moveStalledJobsToWait-8.lua",
+    "moveStalledJobsToWait": "moveStalledJobsToWait-9.lua",
     "moveToActive": "moveToActive-11.lua",
     "moveToDelayed": "moveToDelayed-12.lua",
     "moveToFinished": "moveToFinished-14.lua",
