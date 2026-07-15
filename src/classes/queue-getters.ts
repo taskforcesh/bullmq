@@ -56,7 +56,6 @@ export class QueueGetters<
           return callback(key, count ? 'zcard' : 'zrange');
         case 'active':
         case 'wait':
-        case 'paused':
           return callback(key, count ? 'llen' : 'lrange');
       }
     });
@@ -68,10 +67,6 @@ export class QueueGetters<
     if (Array.isArray(currentTypes) && currentTypes.length > 0) {
       const sanitizedTypes = [...currentTypes];
 
-      if (sanitizedTypes.indexOf('waiting') !== -1) {
-        sanitizedTypes.push('paused');
-      }
-
       return [...new Set(sanitizedTypes)];
     }
 
@@ -80,7 +75,6 @@ export class QueueGetters<
       'completed',
       'delayed',
       'failed',
-      'paused',
       'prioritized',
       'waiting',
       'waiting-children',
@@ -94,7 +88,6 @@ export class QueueGetters<
   async count(): Promise<number> {
     const count = await this.getJobCountByTypes(
       'waiting',
-      'paused',
       'delayed',
       'prioritized',
       'waiting-children',
