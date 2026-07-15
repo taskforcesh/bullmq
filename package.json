@@ -1,6 +1,6 @@
 {
   "name": "bullmq",
-  "version": "5.80.3",
+  "version": "5.80.4",
   "description": "Queue for messages and jobs based on Redis",
   "homepage": "https://bullmq.io/",
   "main": "./dist/cjs/index.js",
@@ -70,7 +70,7 @@
   },
   "dependencies": {
     "cron-parser": "4.9.0",
-    "ioredis": "5.10.1",
+    "ioredis": "5.11.1",
     "msgpackr": "2.0.4",
     "node-abort-controller": "3.1.1",
     "semver": "7.8.5",
