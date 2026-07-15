@@ -25,10 +25,6 @@ describe('Pause', () => {
   let connection: IRedisClient;
   beforeAll(async () => {
     connection = createTestConnection();
-    connection.defineCommand('addToListForPauseTest', {
-      numberOfKeys: 1,
-      lua: 'return redis.call("RPUSH", KEYS[1], unpack(ARGV))',
-    });
   });
 
   beforeEach(async () => {
@@ -358,44 +354,46 @@ describe('Pause', () => {
   });
 
   it('should rename the legacy paused list into wait on resume', async () => {
+    const client = connection as any;
     const pausedKey = queue.toKey('paused');
     const waitKey = queue.toKey('wait');
     const legacyJobs = ['legacy-1', 'legacy-2', 'legacy-3'];
 
-    await connection.runCommand('addToListForPauseTest', [
-      pausedKey,
-      ...legacyJobs,
-    ]);
+    // Use lpush so the setup works across adapters; slice() avoids mutating the
+    // source array before reversing to preserve the same final list order that
+    // the legacy rpush (right-push) setup produced.
+    await client.lpush(pausedKey, ...legacyJobs.slice().reverse());
 
     await queue.resume();
 
-    expect(await connection.exists(pausedKey)).toBe(0);
-    expect(await connection.lrange(waitKey, 0, -1)).toEqual(legacyJobs);
+    expect(await client.exists(pausedKey)).toBe(0);
+    expect(await client.lrange(waitKey, 0, -1)).toEqual(legacyJobs);
   });
 
   it('should fully migrate the legacy paused list in batches on resume', async () => {
+    const client = connection as any;
     const pausedKey = queue.toKey('paused');
     const waitKey = queue.toKey('wait');
     const eventsKey = queue.toKey('events');
     const legacyMigrationBatchSize = 7000;
+    const initialLegacySeedSize = legacyMigrationBatchSize / 2;
     // Exceed the per-call batch size so resume must drain the legacy list twice.
     const legacyJobs = Array.from(
       { length: legacyMigrationBatchSize + 5 },
       (_, index) => `legacy-${index}`,
     );
 
-    await connection.runCommand('addToListForPauseTest', [
-      waitKey,
-      'waiting-1',
-    ]);
-    await connection.runCommand('addToListForPauseTest', [
+    await client.lpush(waitKey, 'waiting-1');
+    // Seed the legacy paused list in two reversed chunks so resume has to
+    // migrate it in batches while preserving the original right-push order.
+    await client.lpush(
       pausedKey,
-      ...legacyJobs.slice(0, 3500),
-    ]);
-    await connection.runCommand('addToListForPauseTest', [
+      ...legacyJobs.slice(initialLegacySeedSize).reverse(),
+    );
+    await client.lpush(
       pausedKey,
-      ...legacyJobs.slice(3500),
-    ]);
+      ...legacyJobs.slice(0, initialLegacySeedSize).reverse(),
+    );
 
     await queue.resume();
 
@@ -406,8 +404,8 @@ describe('Pause', () => {
       event => event.event === 'resumed',
     );
 
-    expect(await connection.exists(pausedKey)).toBe(0);
-    expect(await connection.llen(waitKey)).toBe(legacyJobs.length + 1);
+    expect(await client.exists(pausedKey)).toBe(0);
+    expect(await client.llen(waitKey)).toBe(legacyJobs.length + 1);
     expect(resumedEvents).toHaveLength(1);
   });
 
