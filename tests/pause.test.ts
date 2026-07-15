@@ -372,6 +372,7 @@ describe('Pause', () => {
     const pausedKey = queue.toKey('paused');
     const waitKey = queue.toKey('wait');
     const eventsKey = queue.toKey('events');
+    // 7005 forces more than one migration pass: 7000 jobs first, then 5 more.
     const legacyJobs = Array.from(
       { length: 7005 },
       (_, index) => `legacy-${index}`,
