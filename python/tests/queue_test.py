@@ -404,8 +404,8 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.pause()
         await queue.retryJobs({'count': 2})
 
-        paused_count = await queue.getJobCounts('waiting')
-        self.assertEqual(paused_count['waiting'], job_count)
+        waiting_count = await queue.getJobCounts('waiting')
+        self.assertEqual(waiting_count['waiting'], job_count)
 
         await queue.close()
         await worker.close()
@@ -685,14 +685,14 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_drain_paused_queue(self):
-        """Test drain removes paused jobs when queue is paused"""
+        """Test drain removes waiting jobs when queue is paused"""
         queue = Queue(queueName, {"prefix": prefix})
         max_jobs = 50
         
         # Pause the queue first
         await queue.pause()
         
-        # Add jobs (they will go to paused state)
+        # Add jobs (they will remain in the waiting list while the queue is paused)
         for i in range(1, max_jobs + 1):
             await queue.add("test", {"foo": "bar", "num": i}, {})
         
