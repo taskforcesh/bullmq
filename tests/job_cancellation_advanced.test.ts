@@ -559,6 +559,42 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       await worker.waitUntilReady();
 
+      // Register listeners before adding jobs to avoid missing fast events.
+      let activeCount = 0;
+      const allJobsActive = new Promise<void>(resolve => {
+        const onActive = () => {
+          activeCount++;
+          if (activeCount === concurrency) {
+            worker.off('active', onActive);
+            resolve();
+          }
+        };
+        worker.on('active', onActive);
+      });
+
+      let finishedCount = 0;
+      const allJobsFinished = new Promise<void>(resolve => {
+        const onFinished = () => {
+          finishedCount++;
+          if (finishedCount === concurrency) {
+            worker.off('completed', onCompleted);
+            worker.off('failed', onFailed);
+            resolve();
+          }
+        };
+
+        const onCompleted = () => {
+          onFinished();
+        };
+
+        const onFailed = () => {
+          onFinished();
+        };
+
+        worker.on('completed', onCompleted);
+        worker.on('failed', onFailed);
+      });
+
       // Add many jobs
       const jobs = await Promise.all(
         Array.from({ length: concurrency }, (_, i) =>
@@ -567,39 +603,14 @@ describe('Job Cancellation - Advanced Scenarios', () => {
       );
 
       // Wait for all to be active
-      let activeCount = 0;
-      await new Promise<void>(resolve => {
-        worker.on('active', () => {
-          activeCount++;
-          if (activeCount === concurrency) {
-            resolve();
-          }
-        });
-      });
+      await allJobsActive;
 
       // Cancel half of them rapidly
       const jobsToCancel = jobs.slice(0, 5);
       jobsToCancel.forEach(job => worker.cancelJob(job.id!));
 
       // Wait for all to finish (either completed or failed)
-      await new Promise<void>(resolve => {
-        let finishedCount = 0;
-        const checkDone = () => {
-          if (finishedCount === concurrency) {
-            resolve();
-          }
-        };
-
-        worker.on('completed', () => {
-          finishedCount++;
-          checkDone();
-        });
-
-        worker.on('failed', () => {
-          finishedCount++;
-          checkDone();
-        });
-      });
+      await allJobsFinished;
 
       expect(cancelledJobs.size).toBeGreaterThan(0);
 
