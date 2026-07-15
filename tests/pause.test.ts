@@ -359,8 +359,9 @@ describe('Pause', () => {
     const waitKey = queue.toKey('wait');
     const legacyJobs = ['legacy-1', 'legacy-2', 'legacy-3'];
 
-    // Use lpush so the setup works across adapters, reversing to preserve
-    // the same final list order as a right-push.
+    // Use lpush so the setup works across adapters; slice() avoids mutating the
+    // source array before reversing to preserve the same final list order as a
+    // right-push.
     await client.lpush(pausedKey, ...legacyJobs.slice().reverse());
 
     await queue.resume();
