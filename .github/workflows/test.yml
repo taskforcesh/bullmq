@@ -446,9 +446,9 @@ jobs:
         python-version: ['3.13']
 
     steps:
-      - name: Skip when python/lua inputs are unchanged
+      - name: Skip when Python/Lua inputs are unchanged
         if: env.should_run != 'true'
-        run: echo "No Python/lua changes detected; skipping Python test steps."
+        run: echo "No Python/Lua changes detected; skipping Python test steps."
       - name: Checkout repository
         if: env.should_run == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -530,9 +530,9 @@ jobs:
           - 6379:6379
 
     steps:
-      - name: Skip when python/lua inputs are unchanged
+      - name: Skip when Python/Lua inputs are unchanged
         if: env.should_run != 'true'
-        run: echo "No Python/lua changes detected; skipping Python Dragonfly steps."
+        run: echo "No Python/Lua changes detected; skipping Python Dragonfly steps."
       - name: Checkout repository
         if: env.should_run == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -600,9 +600,9 @@ jobs:
         php-version: ['8.1', '8.2', '8.3']
 
     steps:
-      - name: Skip when php/lua inputs are unchanged
+      - name: Skip when PHP/Lua inputs are unchanged
         if: env.should_run != 'true'
-        run: echo "No PHP/lua changes detected; skipping PHP test steps."
+        run: echo "No PHP/Lua changes detected; skipping PHP test steps."
       - name: Checkout repository
         if: env.should_run == 'true'
         uses: actions/checkout@v6
