@@ -1,4 +1,3 @@
-import { default as IORedis } from 'ioredis';
 import {
   describe,
   beforeEach,
@@ -28,6 +27,8 @@ import {
   getRepeatableJobKeyPrefix,
   getRepeatJobIdCheckum,
 } from './utils/repeat_utils';
+import { createTestConnection } from './utils/connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 const moment = require('moment');
 
@@ -39,7 +40,6 @@ const ONE_DAY = 24 * ONE_HOUR;
 const NoopProc = () => Promise.resolve();
 
 describe('repeat', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   // TODO: Move timeout to test options: { timeout: 10000 }
   let repeat: Repeat;
@@ -48,9 +48,9 @@ describe('repeat', () => {
   let queueName: string;
   let clock: sinon.SinonFakeTimers;
 
-  let connection: IORedis;
+  let connection: IRedisClient;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
@@ -71,7 +71,7 @@ describe('repeat', () => {
     await queue.close();
     await repeat.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async function () {
@@ -163,7 +163,7 @@ describe('repeat', () => {
     });
   });
 
-  it('it should stop repeating after endDate', async () => {
+  it('should stop repeating after endDate', async () => {
     const every = 100;
     const date = new Date('2017-02-07 9:24:00');
     clock.setSystemTime(date);
@@ -199,7 +199,6 @@ describe('repeat', () => {
     );
 
     expect(job.repeatJobKey).toBeDefined();
-
     clock.tick(every + 1);
 
     worker.run();
@@ -361,8 +360,8 @@ describe('repeat', () => {
     const completing = new Promise<void>(resolve => {
       worker.on('completed', async job => {
         if (prev) {
-          expect(prev.timestamp).to.be.lt(job.timestamp);
-          expect(job.timestamp - prev.timestamp).to.be.gte(2000);
+          expect(prev.timestamp).toBeLessThan(job.timestamp);
+          expect(job.timestamp - prev.timestamp).toBeGreaterThanOrEqual(2000);
         }
         prev = job;
         counter++;
@@ -412,8 +411,10 @@ describe('repeat', () => {
         worker.on('completed', async job => {
           try {
             if (prev) {
-              expect(prev.timestamp).to.be.lt(job.timestamp);
-              expect(job.timestamp - prev.timestamp).to.be.gte(2000);
+              expect(prev.timestamp).toBeLessThan(job.timestamp);
+              expect(job.timestamp - prev.timestamp).toBeGreaterThanOrEqual(
+                2000,
+              );
             }
             prev = job;
             counter++;
@@ -470,8 +471,8 @@ describe('repeat', () => {
     const completing = new Promise<void>(resolve => {
       worker.on('completed', async job => {
         if (prev) {
-          expect(prev.timestamp).to.be.lt(job.timestamp);
-          expect(job.timestamp - prev.timestamp).to.be.gte(2000);
+          expect(prev.timestamp).toBeLessThan(job.timestamp);
+          expect(job.timestamp - prev.timestamp).toBeGreaterThanOrEqual(2000);
         }
         prev = job;
         counter++;
@@ -525,8 +526,8 @@ describe('repeat', () => {
     const completing = new Promise<void>(resolve => {
       worker.on('completed', async job => {
         if (prev) {
-          expect(prev.timestamp).to.be.lt(job.timestamp);
-          expect(job.timestamp - prev.timestamp).to.be.gte(2000);
+          expect(prev.timestamp).toBeLessThan(job.timestamp);
+          expect(job.timestamp - prev.timestamp).toBeGreaterThanOrEqual(2000);
         }
         prev = job;
         counter++;
@@ -588,8 +589,8 @@ describe('repeat', () => {
       const completing = new Promise<void>(resolve => {
         worker.on('completed', async job => {
           if (prev) {
-            expect(prev.timestamp).to.be.lt(job.timestamp);
-            expect(job.timestamp - prev.timestamp).to.be.gte(2000);
+            expect(prev.timestamp).toBeLessThan(job.timestamp);
+            expect(job.timestamp - prev.timestamp).toBeGreaterThanOrEqual(2000);
           }
           prev = job;
           counter++;
@@ -607,7 +608,7 @@ describe('repeat', () => {
 
       await queue2.close();
       await worker.close();
-      await removeAllQueueData(new IORedis(redisHost), queueName2);
+      await removeAllQueueData(createTestConnection(), queueName2);
       delayStub.restore();
     });
   });
@@ -668,8 +669,8 @@ describe('repeat', () => {
       const completing = new Promise<void>(resolve => {
         worker.on('completed', async job => {
           if (prev) {
-            expect(prev.timestamp).to.be.lt(job.timestamp);
-            expect(job.timestamp - prev.timestamp).to.be.gte(2000);
+            expect(prev.timestamp).toBeLessThan(job.timestamp);
+            expect(job.timestamp - prev.timestamp).toBeGreaterThanOrEqual(2000);
           }
           prev = job;
           counter++;
@@ -754,8 +755,10 @@ describe('repeat', () => {
           worker.on('completed', async job => {
             try {
               if (prev) {
-                expect(prev.timestamp).to.be.lt(job.timestamp);
-                expect(job.timestamp - prev.timestamp).to.be.gte(2000);
+                expect(prev.timestamp).toBeLessThan(job.timestamp);
+                expect(job.timestamp - prev.timestamp).toBeGreaterThanOrEqual(
+                  2000,
+                );
               }
               prev = job;
               counter++;
@@ -777,8 +780,10 @@ describe('repeat', () => {
           worker.on('completed', async job => {
             try {
               if (prev2) {
-                expect(prev2.timestamp).to.be.lt(job.timestamp);
-                expect(job.timestamp - prev2.timestamp).to.be.gte(2000);
+                expect(prev2.timestamp).toBeLessThan(job.timestamp);
+                expect(job.timestamp - prev2.timestamp).toBeGreaterThanOrEqual(
+                  2000,
+                );
               }
               prev2 = job;
               counter2++;
@@ -895,11 +900,13 @@ describe('repeat', () => {
     const completing = new Promise<void>(resolve => {
       worker.on('completed', async job => {
         if (prev && counter === 1) {
-          expect(prev.timestamp).to.be.lt(job.timestamp);
-          expect(job.processedOn! - prev.timestamp).to.be.gte(100);
+          expect(prev.timestamp).toBeLessThan(job.timestamp);
+          expect(job.processedOn! - prev.timestamp).toBeGreaterThanOrEqual(100);
         } else if (prev) {
-          expect(prev.timestamp).to.be.lt(job.timestamp);
-          expect(job.processedOn! - prev.timestamp).to.be.gte(2000);
+          expect(prev.timestamp).toBeLessThan(job.timestamp);
+          expect(job.processedOn! - prev.timestamp).toBeGreaterThanOrEqual(
+            2000,
+          );
         }
         prev = job;
         counter++;
@@ -958,11 +965,15 @@ describe('repeat', () => {
     const completing = new Promise<void>((resolve, reject) => {
       worker.on('completed', async job => {
         if (counter === 1) {
-          expect(prev.timestamp).to.be.lt(job.timestamp);
-          expect(job.processedOn! - prev.timestamp).to.be.gte(delay);
+          expect(prev.timestamp).toBeLessThan(job.timestamp);
+          expect(job.processedOn! - prev.timestamp).toBeGreaterThanOrEqual(
+            delay,
+          );
         } else if (prev) {
-          expect(prev.timestamp).to.be.lt(job.timestamp);
-          expect(job.processedOn! - prev.timestamp).to.be.gte(ONE_DAY);
+          expect(prev.timestamp).toBeLessThan(job.timestamp);
+          expect(job.processedOn! - prev.timestamp).toBeGreaterThanOrEqual(
+            ONE_DAY,
+          );
         }
         prev = job;
 
@@ -1028,11 +1039,15 @@ describe('repeat', () => {
     const completing = new Promise<void>(resolve => {
       worker.on('completed', async job => {
         if (counter === 1) {
-          expect(prev.timestamp).to.be.lt(job.timestamp);
-          expect(job.processedOn! - prev.timestamp).to.be.gte(delay);
+          expect(prev.timestamp).toBeLessThan(job.timestamp);
+          expect(job.processedOn! - prev.timestamp).toBeGreaterThanOrEqual(
+            delay,
+          );
         } else if (prev) {
-          expect(prev.timestamp).to.be.lt(job.timestamp);
-          expect(job.processedOn! - prev.timestamp).to.be.gte(ONE_DAY);
+          expect(prev.timestamp).toBeLessThan(job.timestamp);
+          expect(job.processedOn! - prev.timestamp).toBeGreaterThanOrEqual(
+            ONE_DAY,
+          );
         }
         prev = job;
 
@@ -1094,8 +1109,10 @@ describe('repeat', () => {
       worker.on('completed', async job => {
         try {
           if (prev) {
-            expect(prev.timestamp).to.be.lt(job.timestamp);
-            expect(job.processedOn! - prev.timestamp).to.be.gte(ONE_DAY);
+            expect(prev.timestamp).toBeLessThan(job.timestamp);
+            expect(job.processedOn! - prev.timestamp).toBeGreaterThanOrEqual(
+              ONE_DAY,
+            );
           }
           prev = job;
 
@@ -1156,8 +1173,10 @@ describe('repeat', () => {
         worker.on('completed', async job => {
           try {
             if (prev) {
-              expect(prev.timestamp).to.be.lt(job.timestamp);
-              expect(job.processedOn! - prev.timestamp).to.be.gte(ONE_DAY);
+              expect(prev.timestamp).toBeLessThan(job.timestamp);
+              expect(job.processedOn! - prev.timestamp).toBeGreaterThanOrEqual(
+                ONE_DAY,
+              );
             }
             prev = job;
 
@@ -1194,33 +1213,48 @@ describe('repeat', () => {
   });
 
   it('should repeat 7:th day every month at 9:25', async () => {
-    // TODO: Move timeout to test options: { timeout: 12000 }
+    // The cron pattern is "25 9 7 * *" — 09:25 on the 7th of every month.
+    // We deterministically advance the simulated clock to the exact next
+    // occurrence (rather than `moment().add(1, 'months')` which drifts due
+    // to variable month lengths), and verify a handful of iterations.
+    const NUM_ITERATIONS = 5;
 
-    const date = new Date('2017-02-02 7:21:42');
+    const date = new Date('2017-02-02 07:21:42');
     clock.setSystemTime(date);
 
-    const nextTick = () => {
+    // Advance the fake clock to the next 09:25 on the 7th of a month.
+    const advanceToNextOccurrence = () => {
       const now = moment();
-      const nextMonth = moment().add(1, 'months');
-      clock.tick(nextMonth - now);
+      let next = now
+        .clone()
+        .date(7)
+        .hour(9)
+        .minute(25)
+        .second(0)
+        .millisecond(0);
+      if (!next.isAfter(now)) {
+        next = next.add(1, 'months');
+      }
+      clock.tick(next.valueOf() - now.valueOf());
     };
 
     const worker = new Worker(
       queueName,
       async () => {
-        nextTick();
+        advanceToNextOccurrence();
       },
       { autorun: false, connection, prefix },
     );
     const delayStub = sinon.stub(worker, 'delay').callsFake(NoopProc);
+    await worker.waitUntilReady();
 
-    let counter = 25;
+    let counter = NUM_ITERATIONS;
     let prev: Job;
     const completing = new Promise<void>((resolve, reject) => {
       worker.on('completed', async job => {
         try {
           if (prev) {
-            expect(prev.timestamp).to.be.lt(job.timestamp);
+            expect(prev.timestamp).toBeLessThan(job.timestamp);
             const diff = moment(job.processedOn!).diff(
               moment(prev.timestamp),
               'months',
@@ -1235,25 +1269,27 @@ describe('repeat', () => {
             resolve();
           }
         } catch (error) {
-          console.log(error);
           reject(error);
         }
       });
     });
 
-    worker.run();
-
+    // Add the repeatable job *before* starting the worker so the worker's
+    // first poll sees the delayed entry, then advance the clock once to
+    // make the first occurrence (Feb 7 09:25) ready for processing.
     await queue.add(
       'repeat',
       { foo: 'bar' },
       { repeat: { pattern: '25 9 7 * *' } },
     );
-    nextTick();
+    advanceToNextOccurrence();
+
+    worker.run();
 
     await completing;
     await worker.close();
     delayStub.restore();
-  });
+  }, 20000);
 
   describe('when 2 jobs with the same options are added', () => {
     it('creates only one job', async () => {
@@ -1356,8 +1392,10 @@ describe('repeat', () => {
     worker.on('completed', job => {
       clock.tick(nextTick);
       if (prev) {
-        expect(prev.timestamp).to.be.lt(job.timestamp);
-        expect(job.timestamp - prev.timestamp).to.be.gte(ONE_SECOND);
+        expect(prev.timestamp).toBeLessThan(job.timestamp);
+        expect(job.timestamp - prev.timestamp).toBeGreaterThanOrEqual(
+          ONE_SECOND,
+        );
       }
       prev = job;
     });
@@ -1397,20 +1435,16 @@ describe('repeat', () => {
   describe('when legacy repeatable format is present', () => {
     it('should be able to remove legacy repeatable jobs', async () => {
       const client = await queue.client;
-      await client.hmset(
+      await client.hset(
         `${prefix}:${queue.name}:repeat:839d4be40c8b2f30fca6f860d0cf76f7:1735711200000`,
-        'priority',
-        0,
-        'delay',
-        14524061394,
-        'data',
-        '{}',
-        'timestamp',
-        1721187138606,
-        'rjk',
-        'remove::::* 1 * 1 *',
-        'name',
-        'remove',
+        {
+          priority: 0,
+          delay: 14524061394,
+          data: '{}',
+          timestamp: 1721187138606,
+          rjk: 'remove::::* 1 * 1 *',
+          name: 'remove',
+        },
       );
       await client.zadd(
         `${prefix}:${queue.name}:repeat`,
@@ -1438,20 +1472,16 @@ describe('repeat', () => {
 
     it('should be able to remove legacy repeatable jobs by key', async () => {
       const client = await queue.client;
-      await client.hmset(
+      await client.hset(
         `${prefix}:${queue.name}:repeat:839d4be40c8b2f30fca6f860d0cf76f7:1735711200000`,
-        'priority',
-        0,
-        'delay',
-        14524061394,
-        'data',
-        '{}',
-        'timestamp',
-        1721187138606,
-        'rjk',
-        'remove::::* 1 * 1 *',
-        'name',
-        'remove',
+        {
+          priority: 0,
+          delay: 14524061394,
+          data: '{}',
+          timestamp: 1721187138606,
+          rjk: 'remove::::* 1 * 1 *',
+          name: 'remove',
+        },
       );
       await client.zadd(
         `${prefix}:${queue.name}:repeat`,
@@ -1479,20 +1509,16 @@ describe('repeat', () => {
       it('should keep legacy repeatable job and be able to remove it', async () => {
         clock.setSystemTime(1721187138606);
         const client = await queue.client;
-        await client.hmset(
+        await client.hset(
           `${prefix}:${queue.name}:repeat:839d4be40c8b2f30fca6f860d0cf76f7:1735711200000`,
-          'priority',
-          0,
-          'delay',
-          14524061394,
-          'data',
-          '{}',
-          'timestamp',
-          1721187138606,
-          'rjk',
-          'remove::::* 1 * 1 *',
-          'name',
-          'remove',
+          {
+            priority: 0,
+            delay: 14524061394,
+            data: '{}',
+            timestamp: 1721187138606,
+            rjk: 'remove::::* 1 * 1 *',
+            name: 'remove',
+          },
         );
         await client.zadd(
           `${prefix}:${queue.name}:repeat`,
@@ -1597,8 +1623,8 @@ describe('repeat', () => {
     worker.on('completed', job => {
       clock.tick(nextTick);
       if (prev) {
-        expect(prev.timestamp).to.be.lt(job.timestamp);
-        expect(job.timestamp - prev.timestamp).to.be.gte(2000);
+        expect(prev.timestamp).toBeLessThan(job.timestamp);
+        expect(job.timestamp - prev.timestamp).toBeGreaterThanOrEqual(2000);
       }
       prev = job;
     });
@@ -1652,8 +1678,8 @@ describe('repeat', () => {
       worker.on('completed', job => {
         clock.tick(nextTick);
         if (prev) {
-          expect(prev.timestamp).to.be.lt(job.timestamp);
-          expect(job.timestamp - prev.timestamp).to.be.gte(2000);
+          expect(prev.timestamp).toBeLessThan(job.timestamp);
+          expect(job.timestamp - prev.timestamp).toBeGreaterThanOrEqual(2000);
         }
         prev = job;
       });

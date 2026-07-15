@@ -1,14 +1,14 @@
 --[[
-  Pauses or resumes a queue globably.
+  Pauses or resumes a queue globally.
 
   Input:
-    KEYS[1] 'wait' or 'paused''
+    KEYS[1] 'wait' or 'paused'
     KEYS[2] 'paused' or 'wait'
     KEYS[3] 'meta'
     KEYS[4] 'prioritized'
     KEYS[5] events stream key
     KEYS[6] 'delayed'
-    KEYS|7] 'marker'
+    KEYS[7] 'marker'
 
     ARGV[1] 'paused' or 'resumed'
 

@@ -1396,7 +1396,9 @@ defmodule BullMQ.Scripts do
       Keys.stalled_check(ctx),
       Keys.meta(ctx),
       Keys.paused(ctx),
-      Keys.marker(ctx)
+      Keys.marker(ctx),
+      Keys.events(ctx),
+      Keys.repeat(ctx)
     ]
 
     timestamp = Keyword.get(opts, :timestamp, System.system_time(:millisecond))

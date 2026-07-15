@@ -1,6 +1,5 @@
 'use strict';
 
-import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
 import {
   describe,
@@ -20,16 +19,17 @@ import {
   randomUUID,
   removeAllQueueData,
 } from '../src/utils';
+import { createTestConnection } from './utils/connection-factory';
+import { IRedisClient } from '../src/interfaces';
 
 describe('Job', () => {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
   let queue: Queue;
   let queueName: string;
-  let connection: IORedis;
+  let connection: IRedisClient;
   beforeAll(async () => {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = createTestConnection();
   });
 
   beforeEach(async () => {
@@ -39,7 +39,7 @@ describe('Job', () => {
 
   afterEach(async () => {
     await queue.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(createTestConnection(), queueName);
   });
 
   afterAll(async function () {
@@ -91,7 +91,7 @@ describe('Job', () => {
       const data = { foo: 'bar' }; // 13 bytes
       const opts = { sizeLimit: 20 };
       const createdJob = await Job.create(queue, 'test', data, opts);
-      expect(createdJob).to.not.be.null;
+      expect(createdJob).not.toBeNull();
       expect(createdJob).toHaveProperty('opts');
       expect(createdJob.opts.sizeLimit).toBe(20);
     });
@@ -192,12 +192,12 @@ describe('Job', () => {
       });
     });
 
-    describe('when priority option is provided with a value greater than 2097152', () => {
+    describe('when priority option is provided with a value greater than 2097151', () => {
       it('throws an error', async () => {
         const data = { foo: 'bar' };
-        const opts = { priority: 2097153 };
+        const opts = { priority: 2097152 };
         await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
-          'Priority should be between 0 and 2097152',
+          'Priority should be between 0 and 2097151',
         );
       });
     });
@@ -279,7 +279,7 @@ describe('Job', () => {
       job.progress = 20;
       const json = JSON.stringify(job);
       const parsed = JSON.parse(json);
-      expect(parsed).to.have.deep.property('data', data);
+      expect(parsed).toHaveProperty('data', data);
       expect(parsed).toHaveProperty('name', 'test');
       expect(parsed).toHaveProperty('returnvalue', 1);
       expect(parsed).toHaveProperty('progress', 20);
@@ -298,7 +298,7 @@ describe('Job', () => {
       const job = await Job.create(queue, 'test', data);
       const json = JSON.stringify(job);
       const parsed = JSON.parse(json);
-      expect(parsed).to.have.deep.property('data', data);
+      expect(parsed).toHaveProperty('data', data);
 
       const newQueue = new Queue(queueName, { connection, prefix });
       let worker: Worker;
@@ -410,7 +410,7 @@ describe('Job', () => {
       await childrenWorker.close();
       await parentWorker.close();
       await parentQueue.close();
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
 
     it('removes 4000 jobs in time range of 4000ms', async () => {
@@ -782,7 +782,7 @@ describe('Job', () => {
       await childrenWorker.close();
       await parentWorker.close();
       await parentQueue.close();
-      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(createTestConnection(), parentQueueName);
     });
   });
 
@@ -797,7 +797,7 @@ describe('Job', () => {
       await job.moveToFailed(new Error('test error'), '0', true);
       const isFailed2 = await job.isFailed();
       expect(isFailed2).toBe(true);
-      expect(job.stacktrace).not.be.equal(null);
+      expect(job.stacktrace).not.toBe(null);
       expect(job.stacktrace.length).toBe(1);
       expect(job.stacktrace[0]).toContain('job.test.ts');
       await worker.close();
@@ -815,7 +815,7 @@ describe('Job', () => {
         await job.moveToFailed(new CustomError('test error'), '0', true);
         const isFailed2 = await job.isFailed();
         expect(isFailed2).toBe(true);
-        expect(job.stacktrace).not.be.equal(null);
+        expect(job.stacktrace).not.toBe(null);
         expect(job.stacktrace.length).toBe(1);
         expect(job.stacktrace[0]).toContain('job.test.ts');
         await worker.close();
@@ -844,7 +844,7 @@ describe('Job', () => {
 
       const isFailed2 = await job.isFailed();
       expect(isFailed2).toBe(false);
-      expect(job.stacktrace).not.be.equal(null);
+      expect(job.stacktrace).not.toBe(null);
       expect(job.stacktrace.length).toBe(1);
       const isWaiting = await job.isWaiting();
       expect(isWaiting).toBe(true);
@@ -920,7 +920,7 @@ describe('Job', () => {
 
         expect(isFailed2).toBe(true);
         expect(state).toBe('failed');
-        expect(job.stacktrace).not.be.equal(null);
+        expect(job.stacktrace).not.toBe(null);
         expect(job.stacktrace.length).toBe(1);
         await worker.close();
       });
@@ -946,7 +946,7 @@ describe('Job', () => {
         const isFailed2 = await job.isFailed();
 
         expect(isFailed2).toBe(false);
-        expect(job.stacktrace).not.be.equal(null);
+        expect(job.stacktrace).not.toBe(null);
         expect(job.stacktrace.length).toBe(1);
         const isDelayed = await job.isDelayed();
         expect(isDelayed).toBe(true);
@@ -1073,7 +1073,7 @@ describe('Job', () => {
       const isFailed1 = await job.isFailed();
       const stackTrace1 = job.stacktrace[0];
       expect(isFailed1).toBe(false);
-      expect(job.stacktrace).not.be.equal(null);
+      expect(job.stacktrace).not.toBe(null);
       expect(job.stacktrace.length).toBe(stackTraceLimit);
       // second time failed.
       const again = (await worker.getNextJob(token)) as Job;
@@ -1083,7 +1083,7 @@ describe('Job', () => {
       expect(isFailed2).toBe(true);
       expect(again.name).toBe(job.name);
       expect(again.stacktrace.length).toBe(stackTraceLimit);
-      expect(stackTrace1).not.be.equal(stackTrace2);
+      expect(stackTrace1).not.toBe(stackTrace2);
       await worker.close();
     });
 
@@ -1126,7 +1126,7 @@ describe('Job', () => {
       await job.moveToFailed(new Error('test error'), '0');
       const sameJob = await queue.getJob(id!);
       expect(sameJob).toBeTruthy();
-      expect(sameJob.stacktrace).to.be.not.empty;
+      expect(sameJob.stacktrace.length).toBeGreaterThan(0);
       await worker.close();
     });
   });
@@ -1161,7 +1161,7 @@ describe('Job', () => {
       const completing = new Promise<void>(resolve => {
         worker.on('completed', async () => {
           const timeDiff = new Date().getTime() - startTime;
-          expect(timeDiff).to.be.gte(2000);
+          expect(timeDiff).toBeGreaterThanOrEqual(2000);
           resolve();
         });
       });
@@ -1719,11 +1719,11 @@ describe('Job', () => {
         return job
           .isStuck()
           .then(isStuck => {
-            expect(isStuck).to.be(false);
+            expect(isStuck).toBe(false);
             return job.getState();
           })
           .then(state => {
-            expect(state).to.be('waiting');
+            expect(state).toBe('waiting');
             return scripts.moveToActive(queue).then(() => {
               return job.moveToCompleted();
             });
@@ -1732,11 +1732,11 @@ describe('Job', () => {
             return job.isCompleted();
           })
           .then(isCompleted => {
-            expect(isCompleted).to.be(true);
+            expect(isCompleted).toBe(true);
             return job.getState();
           })
           .then(state => {
-            expect(state).to.be('completed');
+            expect(state).toBe('completed');
             return client.zrem(queue.toKey('completed'), job.id);
           })
           .then(() => {
@@ -1746,11 +1746,11 @@ describe('Job', () => {
             return job.isDelayed();
           })
           .then(yes => {
-            expect(yes).to.be(true);
+            expect(yes).toBe(true);
             return job.getState();
           })
           .then(state => {
-            expect(state).to.be('delayed');
+            expect(state).toBe('delayed');
             return client.zrem(queue.toKey('delayed'), job.id);
           })
           .then(() => {
@@ -1760,19 +1760,19 @@ describe('Job', () => {
             return job.isFailed();
           })
           .then(isFailed => {
-            expect(isFailed).to.be(true);
+            expect(isFailed).toBe(true);
             return job.getState();
           })
           .then(state => {
-            expect(state).to.be('failed');
+            expect(state).toBe('failed');
             return client.zrem(queue.toKey('failed'), job.id);
           })
           .then(res => {
-            expect(res).to.be(1);
+            expect(res).toBe(1);
             return job.getState();
           })
           .then(state => {
-            expect(state).to.be('stuck');
+            expect(state).toBe('stuck');
             return client.rpop(queue.toKey('wait'));
           })
           .then(() => {
@@ -1782,11 +1782,11 @@ describe('Job', () => {
             return job.isPaused();
           })
           .then(isPaused => {
-            expect(isPaused).to.be(true);
+            expect(isPaused).toBe(true);
             return job.getState();
           })
           .then(state => {
-            expect(state).to.be('paused');
+            expect(state).toBe('paused');
             return client.rpop(queue.toKey('paused'));
           })
           .then(() => {
@@ -1796,11 +1796,11 @@ describe('Job', () => {
             return job.isWaiting();
           })
           .then(isWaiting => {
-            expect(isWaiting).to.be(true);
+            expect(isWaiting).toBe(true);
             return job.getState();
           })
           .then(state => {
-            expect(state).to.be('waiting');
+            expect(state).toBe('waiting');
           });
       })
       .then(() => {
@@ -1892,7 +1892,7 @@ describe('Job', () => {
       const result = await job.waitUntilFinished(queueEvents);
 
       expect(result).toBeTypeOf('object');
-      expect(result.resultFoo).equal('bar');
+      expect(result.resultFoo).toBe('bar');
 
       await worker.close();
     });
@@ -1912,7 +1912,7 @@ describe('Job', () => {
 
       const result = await job.waitUntilFinished(queueEvents);
       expect(result).toBeTypeOf('object');
-      expect(result.resultFoo).equal('bar');
+      expect(result.resultFoo).toBe('bar');
 
       await worker.close();
     });
@@ -1927,8 +1927,8 @@ describe('Job', () => {
 
       const result = await job.waitUntilFinished(queueEvents);
 
-      expect(result).to.be.an('string');
-      expect(result).equal('a string');
+      expect(typeof result).toBe('string');
+      expect(result).toBe('a string');
 
       await worker.close();
     });
@@ -1964,7 +1964,7 @@ describe('Job', () => {
       const result = await job.waitUntilFinished(queueEvents);
 
       expect(result).toBeTypeOf('object');
-      expect(result.resultFoo).equal('bar');
+      expect(result.resultFoo).toBe('bar');
 
       await worker.close();
     });
@@ -1985,7 +1985,7 @@ describe('Job', () => {
         await job.waitUntilFinished(queueEvents);
         throw new Error('should have been rejected');
       } catch (err) {
-        expect(err.message).equal('test error');
+        expect(err.message).toBe('test error');
       }
 
       await worker.close();
