@@ -192,12 +192,12 @@ describe('Job', () => {
       });
     });
 
-    describe('when priority option is provided with a value greater than 2097152', () => {
+    describe('when priority option is provided with a value greater than 2097151', () => {
       it('throws an error', async () => {
         const data = { foo: 'bar' };
-        const opts = { priority: 2097153 };
+        const opts = { priority: 2097152 };
         await expect(Job.create(queue, 'test', data, opts)).rejects.toThrow(
-          'Priority should be between 0 and 2097152',
+          'Priority should be between 0 and 2097151',
         );
       });
     });
