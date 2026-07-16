@@ -1,3 +1,10 @@
+## [5.80.5](https://github.com/taskforcesh/bullmq/compare/v5.80.4...v5.80.5) (2026-07-16)
+
+
+### Bug Fixes
+
+* **sandbox:** kill children that fail init and surface refusal errors fixes [#4283](https://github.com/taskforcesh/bullmq/issues/4283) ([#4284](https://github.com/taskforcesh/bullmq/issues/4284)) ([7dd064e](https://github.com/taskforcesh/bullmq/commit/7dd064ec794ff2f8f67a859caf11cd5554ad75e4))
+
 ## [5.80.4](https://github.com/taskforcesh/bullmq/compare/v5.80.3...v5.80.4) (2026-07-15)
 
 
