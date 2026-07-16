@@ -48,6 +48,14 @@ import { version as packageVersion } from '../version';
 import { UnrecoverableError } from './errors';
 export type JobData = [JobJsonRaw | number, string?];
 
+/**
+ * Upper bound on the number of forward backfill iterations the `getJobs` Lua
+ * script performs to replace skipped ids (missing job hashes) within a bounded
+ * range. It caps the work done per call so a range full of missing jobs cannot
+ * scan the whole state unboundedly.
+ */
+const GET_JOBS_MAX_BACKFILL_ITERATIONS = 5;
+
 export class Scripts {
   protected version = packageVersion;
 
@@ -972,13 +980,11 @@ export class Scripts {
 
     const keys: (string | number)[] = [queueKeys['']];
 
-    const maxIterations = 5;
-
     const args = [
       start,
       end,
       asc ? '1' : '0',
-      maxIterations,
+      GET_JOBS_MAX_BACKFILL_ITERATIONS,
       ...transformedTypes,
     ];
 
