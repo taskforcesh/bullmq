@@ -117,6 +117,7 @@ describe('Job Scheduler', () => {
   describe('when re-upserting a scheduler with stale completed jobs in adjacent slots', () => {
     it('skips past the stale slots and schedules a new job', async () => {
       const every = 60_000;
+      // Use a fixed wall-clock time so the expected skipped slots are deterministic.
       const date = new Date('2017-02-07 09:00:00');
       clock.setSystemTime(date);
 
