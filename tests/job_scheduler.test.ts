@@ -3332,7 +3332,7 @@ describe('Job Scheduler', () => {
       }
     });
 
-    it('should handle collision detection for every-based schedulers', async () => {
+    it('should skip busy slots for every-based schedulers', async () => {
       const date = new Date('2017-02-07T09:24:00.000+05:30');
       clock.setSystemTime(date);
 
@@ -3351,7 +3351,7 @@ describe('Job Scheduler', () => {
 
       try {
         // Try to create a job scheduler that would collide
-        await (queue as any).scripts.addJobScheduler(
+        const [jobId] = await (queue as any).scripts.addJobScheduler(
           'test-every-collision',
           now, // Same timestamp as existing job
           '{}',
@@ -3363,15 +3363,14 @@ describe('Job Scheduler', () => {
           {},
         );
 
-        expect.fail('Expected SchedulerJobSlotsBusy error but none was thrown');
-      } catch (error) {
-        expect(error.message).toContain(
-          'current and next time slots already have jobs',
-        );
+        expect(jobId).toBe(`repeat:test-every-collision:${now + every * 2}`);
       } finally {
         // Clean up
         await client.del(`${queue.keys['']}${testJobId}`);
         await client.del(`${queue.keys['']}${nextSlotJobId}`);
+        await client.del(
+          `${queue.keys['']}repeat:test-every-collision:${now + every * 2}`,
+        );
       }
     });
   });
