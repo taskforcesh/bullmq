@@ -306,20 +306,24 @@ describe('Jobs getters', () => {
   });
 
   it('should filter out missing jobs when ids remain in the waiting list', async () => {
-    const [a, b] = await Promise.all([
+    const [a, b, c] = await Promise.all([
       queue.add('test', { foo: 'bar' }),
       queue.add('test', { baz: 'qux' }),
+      queue.add('test', { bar: 'baz' }),
     ]);
     const client = await queue.client;
+    const waitingJobIds = (await queue.getJobs(['waiting'])).map(job => job.id);
 
-    await client.del(queue.toKey(a.id!));
+    await client.del(queue.toKey(b.id!));
 
     const jobs = await queue.getJobs(['waiting']);
 
     expect(jobs).toBeInstanceOf(Array);
-    expect(jobs).toHaveLength(1);
-    expect(jobs[0].id).toBe(b.id);
-    expect(jobs[0].data.baz).toBe('qux');
+    expect(jobs).toHaveLength(2);
+    expect(jobs.map(job => job.id)).toEqual(
+      waitingJobIds.filter(jobId => jobId !== b.id),
+    );
+    expect(jobs.map(job => job.data)).toEqual([c.data, a.data]);
   });
 
   it('should get paused jobs', async () => {
