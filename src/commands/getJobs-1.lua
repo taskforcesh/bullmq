@@ -1,12 +1,12 @@
 --[[
   Get jobs (id + data) for the provided states.
 
-  Job ids and their hashes are read in the same script so that a job hash that
-  disappears after its id is read (but before the job is loaded) never surfaces
-  as a missing entry. Ids without a job hash (for example the deprecated wait
-  list marker) are skipped. For bounded ranges the script iterates forward using
-  the range offset as a cursor to backfill skipped ids, preserving the requested
-  page size when possible.
+  Job ids and their hashes are read in the same script so that ids whose hash
+  disappears after the id is read (but before the job is loaded) do not appear
+  in the result set. Ids without a job hash (for example the deprecated wait
+  list marker entry stored in the list) are skipped. For bounded ranges the
+  script iterates forward using the range offset as a cursor to backfill
+  skipped ids, preserving the requested page size when possible.
 
     Input:
       KEYS[1]    'prefix'
@@ -34,16 +34,31 @@ local function isListType(stateType)
 end
 
 -- Fetch a slice of ids for the given state respecting the requested order.
-local function fetchIds(stateKey, stateType, sliceStart, sliceEnd)
+local function fetchIds(stateKey, stateType, sliceStart, sliceEnd, listLength)
   if isListType(stateType) then
     if asc then
+      local modifiedRangeStart
+      local modifiedRangeEnd
+      if sliceStart == -1 then
+        modifiedRangeStart = 0
+      else
+        modifiedRangeStart = -(sliceStart + 1)
+      end
+
+      if sliceEnd == -1 then
+        modifiedRangeEnd = 0
+      else
+        modifiedRangeEnd = -(sliceEnd + 1)
+      end
+
       -- Ascending list slices use negative indexes. When the whole window is
       -- beyond the list length Redis clamps both indexes to 0 and LRANGE would
       -- return the head element, so guard against out-of-range slices with LLEN.
-      if sliceStart >= 0 and sliceStart >= rcall("LLEN", stateKey) then
+      if listLength ~= nil and sliceStart >= 0 and sliceEnd >= 0 and sliceStart >= listLength then
         return {}
       end
-      local ids = rcall("LRANGE", stateKey, -(sliceEnd + 1), -(sliceStart + 1))
+
+      local ids = rcall("LRANGE", stateKey, modifiedRangeEnd, modifiedRangeStart)
       local reversed = {}
       for i = #ids, 1, -1 do
         reversed[#reversed + 1] = ids[i]
@@ -71,10 +86,15 @@ end
 
 local function collectJobs(stateKey, stateType)
   local entries = {}
+  local listLength
+
+  if asc and isListType(stateType) and rangeStart >= 0 and rangeEnd >= 0 then
+    listLength = rcall("LLEN", stateKey)
+  end
 
   -- Unbounded or negative ranges: fetch the exact window and skip missing ids.
   if rangeStart < 0 or rangeEnd < 0 then
-    local ids = fetchIds(stateKey, stateType, rangeStart, rangeEnd)
+    local ids = fetchIds(stateKey, stateType, rangeStart, rangeEnd, listLength)
     for i = 1, #ids do
       appendJob(entries, ids[i])
     end
@@ -86,7 +106,7 @@ local function collectJobs(stateKey, stateType)
   local cursor = rangeStart
   local iterations = 0
   while #entries < needed and iterations < maxIterations do
-    local ids = fetchIds(stateKey, stateType, cursor, cursor + needed - 1)
+    local ids = fetchIds(stateKey, stateType, cursor, cursor + needed - 1, listLength)
     if #ids == 0 then
       break
     end
