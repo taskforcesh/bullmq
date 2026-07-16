@@ -305,6 +305,23 @@ describe('Jobs getters', () => {
     expect(jobsWithoutProvidingRange[3].data.baz).toBe('xuq');
   });
 
+  it('should filter out missing jobs when ids remain in the waiting list', async () => {
+    const [a, b] = await Promise.all([
+      queue.add('test', { foo: 'bar' }),
+      queue.add('test', { baz: 'qux' }),
+    ]);
+    const client = await queue.client;
+
+    await client.del(queue.toKey(a.id!));
+
+    const jobs = await queue.getJobs(['waiting']);
+
+    expect(jobs).toBeInstanceOf(Array);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0].id).toBe(b.id);
+    expect(jobs[0].data.baz).toBe('qux');
+  });
+
   it('should get paused jobs', async () => {
     await queue.pause();
     await Promise.all([
