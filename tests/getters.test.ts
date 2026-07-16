@@ -311,11 +311,11 @@ describe('Jobs getters', () => {
       queue.add('test', { baz: 'qux' }),
       queue.add('test', { bar: 'baz' }),
     ]);
-    const client = await queue.client;
+    const queueClient = await queue.client;
     const waitingJobs = await queue.getJobs(['waiting']);
     const waitingJobIds = waitingJobs.map(job => job.id);
 
-    await client.del(queue.toKey(b.id!));
+    await queueClient.del(queue.toKey(b.id!));
 
     const jobs = await queue.getJobs(['waiting']);
 
