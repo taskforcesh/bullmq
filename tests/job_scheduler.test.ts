@@ -248,17 +248,12 @@ describe('Job Scheduler', () => {
       async () => {
         const date = new Date('2017-02-07 9:24:00');
         clock.setSystemTime(date);
-        const worker = new Worker(
-          queueName,
-          async () => {
-            await clock.tickAsync(1);
-          },
-          {
-            connection,
-            prefix,
-            concurrency: 1,
-          },
-        );
+        const worker = new Worker(queueName, async () => {}, {
+          connection,
+          prefix,
+          concurrency: 1,
+          autorun: false,
+        });
         await worker.waitUntilReady();
 
         const jobSchedulerId = 'test';
@@ -277,6 +272,7 @@ describe('Job Scheduler', () => {
         });
         const repeatableJobs = await queue.getJobSchedulers();
         expect(repeatableJobs.length).toEqual(1);
+        worker.run();
         await clock.tickAsync(ONE_MINUTE);
         const count = await queue.getJobCountByTypes('delayed', 'waiting');
         expect(count).toBe(1);
