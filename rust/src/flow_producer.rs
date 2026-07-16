@@ -3,6 +3,7 @@
 //! A flow is a tree-like structure where children jobs are processed before
 //! their parent. When all children complete, the parent becomes processable.
 
+use serde::Serialize;
 use std::collections::HashMap;
 use tracing::{debug, instrument};
 use uuid::Uuid;
@@ -32,9 +33,64 @@ pub struct FlowJob {
     pub children: Option<Vec<FlowJob>>,
 }
 
+impl FlowJob {
+    /// Create a flow job named `name` for `queue_name` with the given `data`.
+    ///
+    /// `data` may be any [`Serialize`] type (your own struct, a
+    /// [`serde_json::Value`], …); it is serialized to JSON internally. Use
+    /// [`FlowJob::options`] and [`FlowJob::add_child`] to configure it.
+    ///
+    /// ```
+    /// use bullmq::FlowJob;
+    ///
+    /// let flow = FlowJob::new("parent", "emails", serde_json::json!({}))?
+    ///     .add_child(FlowJob::new("child", "images", serde_json::json!({ "id": 1 }))?);
+    /// assert_eq!(flow.children.unwrap().len(), 1);
+    /// # Ok::<(), bullmq::Error>(())
+    /// ```
+    pub fn new<T: Serialize>(
+        name: impl Into<String>,
+        queue_name: impl Into<String>,
+        data: T,
+    ) -> Result<Self, Error> {
+        Ok(Self {
+            name: name.into(),
+            queue_name: queue_name.into(),
+            data: serde_json::to_value(data)?,
+            opts: None,
+            prefix: None,
+            children: None,
+        })
+    }
+
+    /// Set the job options.
+    pub fn options(mut self, opts: JobOptions) -> Self {
+        self.opts = Some(opts);
+        self
+    }
+
+    /// Override the key prefix for this job (defaults to the producer's prefix).
+    pub fn prefix(mut self, prefix: impl Into<String>) -> Self {
+        self.prefix = Some(prefix.into());
+        self
+    }
+
+    /// Append a child job that must complete before this job is processed.
+    pub fn add_child(mut self, child: FlowJob) -> Self {
+        self.children.get_or_insert_with(Vec::new).push(child);
+        self
+    }
+
+    /// Replace the child jobs.
+    pub fn children(mut self, children: Vec<FlowJob>) -> Self {
+        self.children = Some(children);
+        self
+    }
+}
+
 /// Options for retrieving a flow tree.
 #[derive(Debug, Clone)]
-pub struct GetFlowOpts {
+pub struct GetFlowOptions {
     /// Root job queue name.
     pub queue_name: String,
     /// Root job ID.
@@ -45,6 +101,37 @@ pub struct GetFlowOpts {
     pub depth: Option<usize>,
     /// Maximum number of children to retrieve per node (default: 20).
     pub max_children: Option<usize>,
+}
+
+impl GetFlowOptions {
+    /// Create options to fetch the flow rooted at `id` in `queue_name`.
+    pub fn new(queue_name: impl Into<String>, id: impl Into<String>) -> Self {
+        Self {
+            queue_name: queue_name.into(),
+            id: id.into(),
+            prefix: None,
+            depth: None,
+            max_children: None,
+        }
+    }
+
+    /// Override the key prefix (defaults to the producer's prefix).
+    pub fn prefix(mut self, prefix: impl Into<String>) -> Self {
+        self.prefix = Some(prefix.into());
+        self
+    }
+
+    /// Maximum tree depth to traverse (default: 10).
+    pub fn depth(mut self, depth: usize) -> Self {
+        self.depth = Some(depth);
+        self
+    }
+
+    /// Maximum number of children to retrieve per node (default: 20).
+    pub fn max_children(mut self, max_children: usize) -> Self {
+        self.max_children = Some(max_children);
+        self
+    }
 }
 
 /// A node in the returned flow tree, containing the job and its children.
@@ -64,11 +151,37 @@ pub struct FlowQueueOptions {
     pub default_job_options: Option<JobOptions>,
 }
 
+impl FlowQueueOptions {
+    /// Create empty per-queue flow options.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the default job options applied to jobs added to this queue.
+    pub fn default_job_options(mut self, options: JobOptions) -> Self {
+        self.default_job_options = Some(options);
+        self
+    }
+}
+
 /// Extra options for [`FlowProducer::add_with_opts`] / `add_bulk_with_opts`.
 #[derive(Debug, Clone, Default)]
-pub struct FlowOpts {
+pub struct FlowOptions {
     /// Per-queue options keyed by queue name.
     pub queues_options: HashMap<String, FlowQueueOptions>,
+}
+
+impl FlowOptions {
+    /// Create empty flow options.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the per-queue options for `queue_name`.
+    pub fn queue(mut self, queue_name: impl Into<String>, options: FlowQueueOptions) -> Self {
+        self.queues_options.insert(queue_name.into(), options);
+        self
+    }
 }
 
 /// Options for the FlowProducer.
@@ -78,6 +191,25 @@ pub struct FlowProducerOptions {
     pub connection: crate::options::RedisConnectionOptions,
     /// Key prefix (default: "bull").
     pub prefix: Option<String>,
+}
+
+impl FlowProducerOptions {
+    /// Create default flow producer options.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the Redis connection configuration.
+    pub fn connection(mut self, connection: crate::options::RedisConnectionOptions) -> Self {
+        self.connection = connection;
+        self
+    }
+
+    /// Set the key prefix for all queue keys.
+    pub fn prefix(mut self, prefix: impl Into<String>) -> Self {
+        self.prefix = Some(prefix.into());
+        self
+    }
 }
 
 /// Atomically adds trees of dependent jobs (flows) to queues.
@@ -91,8 +223,16 @@ pub struct FlowProducer {
 }
 
 impl FlowProducer {
-    /// Create a new FlowProducer.
-    pub async fn new(opts: FlowProducerOptions) -> Result<Self, Error> {
+    /// Create a new FlowProducer with default options.
+    ///
+    /// Uses a default Redis connection (`redis://127.0.0.1:6379`) and the `bull`
+    /// key prefix. Use [`FlowProducer::with_options`] to customize.
+    pub async fn new() -> Result<Self, Error> {
+        Self::with_options(FlowProducerOptions::default()).await
+    }
+
+    /// Create a new FlowProducer with explicit options.
+    pub async fn with_options(opts: FlowProducerOptions) -> Result<Self, Error> {
         let conn = RedisConnection::new(&opts.connection).await?;
         let prefix = opts.prefix.unwrap_or_else(|| "bull".to_string());
         if prefix.is_empty() || prefix.contains(':') {
@@ -138,7 +278,7 @@ impl FlowProducer {
     /// is missing), this returns an error.
     #[instrument(skip(self, flow), fields(root_name = %flow.name, root_queue = %flow.queue_name))]
     pub async fn add(&self, flow: FlowJob) -> Result<JobNode, Error> {
-        self.add_with_opts(flow, &FlowOpts::default()).await
+        self.add_with_opts(flow, &FlowOptions::default()).await
     }
 
     /// Atomically add a flow, applying per-queue default job options.
@@ -155,7 +295,7 @@ impl FlowProducer {
     pub async fn add_with_opts(
         &self,
         mut flow: FlowJob,
-        opts: &FlowOpts,
+        opts: &FlowOptions,
     ) -> Result<JobNode, Error> {
         apply_queue_defaults(&mut flow, opts);
         validate_flow_queue_names(&flow)?;
@@ -258,7 +398,7 @@ impl FlowProducer {
     pub async fn add_bulk_with_opts(
         &self,
         mut flows: Vec<FlowJob>,
-        opts: &FlowOpts,
+        opts: &FlowOptions,
     ) -> Result<Vec<JobNode>, Error> {
         for flow in &mut flows {
             apply_queue_defaults(flow, opts);
@@ -269,7 +409,7 @@ impl FlowProducer {
     /// Retrieve an existing flow tree from Redis.
     ///
     /// Reconstructs the parent-child tree by loading jobs and their dependencies.
-    pub async fn get_flow(&self, opts: GetFlowOpts) -> Result<JobNode, Error> {
+    pub async fn get_flow(&self, opts: GetFlowOptions) -> Result<JobNode, Error> {
         validate_queue_name(&opts.queue_name)?;
         let prefix = opts.prefix.as_deref().unwrap_or(&self.prefix);
         if prefix.is_empty() || prefix.contains(':') {
@@ -960,7 +1100,7 @@ struct ParentContext {
 /// Recursively merge per-queue `default_job_options` into every node of a flow.
 ///
 /// Job-level options always win; defaults only fill in fields left unset.
-fn apply_queue_defaults(flow: &mut FlowJob, opts: &FlowOpts) {
+fn apply_queue_defaults(flow: &mut FlowJob, opts: &FlowOptions) {
     if let Some(queue_opts) = opts.queues_options.get(&flow.queue_name) {
         if let Some(ref defaults) = queue_opts.default_job_options {
             let mut merged = defaults.clone();
@@ -1032,6 +1172,8 @@ fn merge_job_options(base: &mut JobOptions, over: JobOptions) {
 mod tests {
     use super::{FlowProducer, JobNode};
     use crate::job::Job;
+    use serde::ser::Error as _;
+    use serde::Serialize;
 
     fn leaf(name: &str) -> JobNode {
         JobNode {
@@ -1125,6 +1267,23 @@ mod tests {
         assert_eq!(FlowProducer::parse_child_key("bull:queue"), None);
         assert_eq!(FlowProducer::parse_child_key("bull::job-1"), None);
         assert_eq!(FlowProducer::parse_child_key("bull:queue:"), None);
+    }
+
+    #[test]
+    fn flow_job_new_returns_serialization_errors() {
+        struct FailingSerialize;
+
+        impl Serialize for FailingSerialize {
+            fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: serde::Serializer,
+            {
+                Err(S::Error::custom("boom"))
+            }
+        }
+
+        let result = super::FlowJob::new("job", "queue", FailingSerialize);
+        assert!(result.is_err(), "serialization failures should be returned");
     }
 
     #[test]

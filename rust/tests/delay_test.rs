@@ -18,7 +18,7 @@ async fn test_delayed_job_processed_after_delay() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let delay_ms = 500;
     let job_opts = JobOptions {
@@ -28,11 +28,8 @@ async fn test_delayed_job_processed_after_delay() {
 
     let start = std::time::Instant::now();
     queue
-        .add(
-            "delayed-test",
-            serde_json::json!({"delayed": "foobar"}),
-            Some(job_opts),
-        )
+        .add("delayed-test", serde_json::json!({"delayed": "foobar"}))
+        .options(job_opts)
         .await
         .unwrap();
 
@@ -50,7 +47,9 @@ async fn test_delayed_job_processed_after_delay() {
         drain_delay: 1,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -90,7 +89,7 @@ async fn test_delayed_job_correct_order() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Add jobs with different delays: 300ms, 100ms, 200ms
     // Should be processed in order: 100, 200, 300
@@ -100,7 +99,8 @@ async fn test_delayed_job_correct_order() {
             ..Default::default()
         };
         queue
-            .add("test", serde_json::json!({"idx": idx}), Some(job_opts))
+            .add("test", serde_json::json!({"idx": idx}))
+            .options(job_opts)
             .await
             .unwrap();
     }
@@ -121,7 +121,9 @@ async fn test_delayed_job_correct_order() {
         drain_delay: 1,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     let mut order = Vec::new();
     tokio::time::timeout(Duration::from_secs(5), async {

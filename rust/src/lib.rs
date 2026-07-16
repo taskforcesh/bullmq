@@ -16,19 +16,18 @@
 //! ## Example
 //!
 //! ```rust,no_run
-//! use bullmq::{Queue, Worker, Job, QueueOptions, WorkerOptions};
-//! use std::sync::Arc;
+//! use bullmq::{Queue, Worker, Job};
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), bullmq::Error> {
-//!     let queue = Queue::new("my-queue", QueueOptions::default()).await?;
+//!     let queue = Queue::new("my-queue").await?;
 //!
-//!     queue.add("my-job", serde_json::json!({"foo": "bar"}), None).await?;
+//!     queue.add("my-job", serde_json::json!({"foo": "bar"})).await?;
 //!
-//!     let worker = Worker::new("my-queue", Arc::new(|job: Job, _token| Box::pin(async move {
+//!     let worker = Worker::new("my-queue", |job: Job, _token| Box::pin(async move {
 //!         println!("Processing job: {}", job.id());
 //!         Ok(serde_json::Value::Null)
-//!     })), WorkerOptions::default()).await?;
+//!     })).await?;
 //!
 //!     Ok(())
 //! }
@@ -61,14 +60,17 @@ pub mod worker;
 
 pub use error::Error;
 pub use flow_producer::{
-    FlowJob, FlowOpts, FlowProducer, FlowProducerOptions, FlowQueueOptions, GetFlowOpts, JobNode,
+    FlowJob, FlowOptions, FlowProducer, FlowProducerOptions, FlowQueueOptions, GetFlowOptions,
+    JobNode,
 };
 pub use job::Job;
 pub use keys::QueueKeys;
 pub use options::{
-    BackoffStrategyFn, DeduplicationOptions, JobOptions, MetricsOptions, ParentOpts, QueueOptions,
-    RateLimiterOptions, WorkerOptions,
+    BackoffStrategyFn, DeduplicationOptions, JobOptions, MetricsOptions, ParentOptions,
+    QueueOptions, RateLimiterOptions, WorkerOptions,
 };
+pub use queue::AddJob;
+pub use queue::BulkJob;
 pub use queue::JobCountRecorder;
 pub use queue::Queue;
 pub use queue_events::{QueueEvent, QueueEventEntry, QueueEvents, QueueEventsOptions};
@@ -76,7 +78,7 @@ pub use types::{
     DependenciesCount, DependenciesResult, JobProgress, JobState, Metrics, MetricsMeta, QueueMeta,
     RetryOptions,
 };
-pub use worker::Worker;
+pub use worker::{IntoProcessor, Worker};
 
 /// Result type alias for BullMQ operations.
 pub type Result<T> = std::result::Result<T, Error>;
