@@ -2,11 +2,7 @@
 
 import { QueueBase } from './queue-base';
 import { Job } from './job';
-import {
-  array2obj,
-  clientCommandMessageReg,
-  QUEUE_EVENT_SUFFIX,
-} from '../utils';
+import { clientCommandMessageReg, QUEUE_EVENT_SUFFIX } from '../utils';
 import { JobState, JobType } from '../types';
 import { JobJsonRaw, Metrics, QueueMeta } from '../interfaces';
 import { IRedisClient } from '../interfaces/redis-client';
@@ -509,29 +505,19 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
   ): Promise<JobBase[]> {
     const currentTypes = this.sanitizeJobTypes(types);
 
-    const responses = await this.scripts.getJobs(currentTypes, start, end, asc);
+    const jobIds = await this.getRanges(currentTypes, start, end, asc);
 
-    const jobs: JobBase[] = [];
-    const seenIds = new Set<string>();
+    const jobs = await Promise.all(jobIds.map(jobId => this.getJob(jobId)));
 
-    for (const typeEntries of responses) {
-      for (const [jobId, rawJob] of typeEntries) {
-        if (seenIds.has(jobId)) {
-          continue;
-        }
-        seenIds.add(jobId);
+    const existingJobs: JobBase[] = [];
 
-        jobs.push(
-          this.Job.fromJSON(
-            this,
-            array2obj(rawJob) as unknown as JobJsonRaw,
-            jobId,
-          ) as JobBase,
-        );
+    for (const job of jobs) {
+      if (job !== undefined) {
+        existingJobs.push(job);
       }
     }
 
-    return jobs;
+    return existingJobs;
   }
 
   /**
