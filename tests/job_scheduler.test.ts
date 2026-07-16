@@ -144,6 +144,7 @@ describe('Job Scheduler', () => {
 
       // The new job must land beyond the stale slots.
       const expectedMinNext = date.getTime() + 3 * every;
+      // Scheduler job ids are formatted as repeat:schedulerId:timestamp.
       const newMillis = Number(job!.id!.split(':').pop());
       expect(newMillis).toBeGreaterThanOrEqual(expectedMinNext);
 
