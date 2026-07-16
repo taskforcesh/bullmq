@@ -959,6 +959,50 @@ export class Scripts {
     return await this.execCommand(client, 'getRanges', args);
   }
 
+  private getJobsArgs(
+    types: JobType[],
+    start: number,
+    end: number,
+    asc: boolean,
+  ): (string | number)[] {
+    const queueKeys = this.queue.keys;
+    const transformedTypes = types.map(type => {
+      return type === 'waiting' ? 'wait' : type;
+    });
+
+    const keys: (string | number)[] = [queueKeys['']];
+
+    const maxIterations = 5;
+
+    const args = [
+      start,
+      end,
+      asc ? '1' : '0',
+      maxIterations,
+      ...transformedTypes,
+    ];
+
+    return keys.concat(args);
+  }
+
+  /**
+   * Fetches job ids and their job hashes for the provided states in a single
+   * script, skipping ids whose job hash is missing (for example the deprecated
+   * wait list marker or jobs removed after their id was read). Each returned
+   * entry is a `[jobId, jobHashFields]` tuple grouped per requested type.
+   */
+  async getJobs(
+    types: JobType[],
+    start = 0,
+    end = -1,
+    asc = false,
+  ): Promise<[string, string[]][][]> {
+    const client = await this.queue.client;
+    const args = this.getJobsArgs(types, start, end, asc);
+
+    return await this.execCommand(client, 'getJobs', args);
+  }
+
   private getCountsArgs(types: JobType[]): (string | number)[] {
     const queueKeys = this.queue.keys;
     const transformedTypes = types.map(type => {
