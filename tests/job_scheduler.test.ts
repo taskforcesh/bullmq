@@ -128,12 +128,8 @@ describe('Job Scheduler', () => {
       for (let i = 0; i < 3; i++) {
         const millis = date.getTime() + i * every;
         const id = `repeat:stale-test:${millis}`;
-        await client.hset(`${prefix}:${queueName}:${id}`, 'name', 'stale');
-        await client.zadd(
-          `${prefix}:${queueName}:completed`,
-          millis,
-          id,
-        );
+        await client.hset(`${prefix}:${queueName}:${id}`, { name: 'stale' });
+        await client.zadd(`${prefix}:${queueName}:completed`, millis, id);
         planted.push(id);
       }
 
