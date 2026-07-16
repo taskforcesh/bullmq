@@ -37,6 +37,12 @@ end
 local function fetchIds(stateKey, stateType, sliceStart, sliceEnd)
   if isListType(stateType) then
     if asc then
+      -- Ascending list slices use negative indexes. When the whole window is
+      -- beyond the list length Redis clamps both indexes to 0 and LRANGE would
+      -- return the head element, so guard against out-of-range slices with LLEN.
+      if sliceStart >= 0 and sliceStart >= rcall("LLEN", stateKey) then
+        return {}
+      end
       local ids = rcall("LRANGE", stateKey, -(sliceEnd + 1), -(sliceStart + 1))
       local reversed = {}
       for i = #ids, 1, -1 do
