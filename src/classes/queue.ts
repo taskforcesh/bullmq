@@ -242,7 +242,7 @@ export class Queue<
   }
 
   get repeat(): Promise<Repeat> {
-    return new Promise<Repeat>(async resolve => {
+    return (async () => {
       if (!this._repeat) {
         this._repeat = new Repeat(this.name, {
           ...this.opts,
@@ -250,12 +250,12 @@ export class Queue<
         });
         this._repeat.on('error', this.emit.bind(this, 'error'));
       }
-      resolve(this._repeat);
-    });
+      return this._repeat;
+    })();
   }
 
   get jobScheduler(): Promise<JobScheduler> {
-    return new Promise<JobScheduler>(async resolve => {
+    return (async () => {
       if (!this._jobScheduler) {
         this._jobScheduler = new JobScheduler(this.name, {
           ...this.opts,
@@ -263,8 +263,8 @@ export class Queue<
         });
         this._jobScheduler.on('error', this.emit.bind(this, 'error'));
       }
-      resolve(this._jobScheduler);
-    });
+      return this._jobScheduler;
+    })();
   }
 
   /**
