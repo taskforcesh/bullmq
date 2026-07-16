@@ -79,11 +79,15 @@
     "tslib": "2.8.1"
   },
   "peerDependencies": {
+    "bullmq-otel": ">=2.0.0",
     "ioredis": ">=5.0.0",
     "pg": ">=8.0.0",
     "redis": ">=5.0.0"
   },
   "peerDependenciesMeta": {
+    "bullmq-otel": {
+      "optional": true
+    },
     "ioredis": {
       "optional": true
     },
