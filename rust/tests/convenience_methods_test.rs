@@ -24,7 +24,7 @@ fn noop_processor() -> ProcessorFn {
 }
 
 async fn new_queue(name: &str) -> Queue {
-    Queue::new(
+    Queue::with_options(
         name,
         QueueOptions {
             connection: test_connection(),
@@ -42,10 +42,7 @@ async fn test_update_job_progress_number() {
     let name = test_queue_name();
     let queue = new_queue(&name).await;
 
-    let job = queue
-        .add("test", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    let job = queue.add("test", serde_json::json!({})).await.unwrap();
     queue
         .update_job_progress(job.id(), JobProgress::Number(42.0))
         .await
@@ -65,10 +62,7 @@ async fn test_update_job_progress_object() {
     let name = test_queue_name();
     let queue = new_queue(&name).await;
 
-    let job = queue
-        .add("test", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    let job = queue.add("test", serde_json::json!({})).await.unwrap();
     queue
         .update_job_progress(
             job.id(),
@@ -91,7 +85,7 @@ async fn test_update_job_progress_emits_event() {
     let name = test_queue_name();
     let queue = new_queue(&name).await;
 
-    let events = QueueEvents::new(
+    let events = QueueEvents::with_options(
         &name,
         QueueEventsOptions {
             connection: test_connection(),
@@ -103,10 +97,7 @@ async fn test_update_job_progress_emits_event() {
     .await
     .unwrap();
 
-    let job = queue
-        .add("test", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    let job = queue.add("test", serde_json::json!({})).await.unwrap();
     queue
         .update_job_progress(job.id(), JobProgress::Number(75.0))
         .await
@@ -161,13 +152,10 @@ async fn test_move_to_wait_returns_active_job_to_wait() {
     let conn = test_connection();
     let queue = new_queue(&name).await;
 
-    queue
-        .add("test", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("test", serde_json::json!({})).await.unwrap();
 
     // A non-autorun worker lets us fetch the job manually and hold it active.
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &name,
         noop_processor(),
         WorkerOptions {
@@ -207,12 +195,9 @@ async fn test_move_to_wait_with_wrong_token_errors() {
     let conn = test_connection();
     let queue = new_queue(&name).await;
 
-    queue
-        .add("test", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("test", serde_json::json!({})).await.unwrap();
 
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &name,
         noop_processor(),
         WorkerOptions {
@@ -247,10 +232,7 @@ async fn test_record_job_counts_metric_returns_counts() {
     let queue = new_queue(&name).await;
 
     for _ in 0..3 {
-        queue
-            .add("test", serde_json::json!({}), None)
-            .await
-            .unwrap();
+        queue.add("test", serde_json::json!({})).await.unwrap();
     }
 
     let counts = queue
@@ -269,10 +251,7 @@ async fn test_record_job_counts_metric_invokes_recorder() {
     let queue = new_queue(&name).await;
 
     for _ in 0..2 {
-        queue
-            .add("test", serde_json::json!({}), None)
-            .await
-            .unwrap();
+        queue.add("test", serde_json::json!({})).await.unwrap();
     }
 
     let collected: Arc<Mutex<Vec<(String, u64)>>> = Arc::new(Mutex::new(Vec::new()));

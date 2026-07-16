@@ -4,7 +4,7 @@ mod common;
 
 use bullmq::types::JobState;
 use bullmq::worker::{CancellationToken, ProcessorFn};
-use bullmq::{Job, JobOptions, Queue, QueueOptions, Worker, WorkerOptions};
+use bullmq::{BulkJob, Job, JobOptions, Queue, QueueOptions, Worker, WorkerOptions};
 use common::{cleanup_queue, test_connection, test_queue_name};
 use std::sync::Arc;
 use std::time::Duration;
@@ -21,7 +21,7 @@ async fn test_queue_creation() {
         ..Default::default()
     };
 
-    let queue = Queue::new(&name, opts)
+    let queue = Queue::with_options(&name, opts)
         .await
         .expect("queue creation failed");
     assert_eq!(queue.name(), name);
@@ -35,7 +35,7 @@ async fn test_queue_name_cannot_contain_colon() {
         ..Default::default()
     };
 
-    let result = Queue::new("invalid:queue", opts).await;
+    let result = Queue::with_options("invalid:queue", opts).await;
     assert!(result.is_err());
     match result {
         Err(err) => assert!(
@@ -55,9 +55,9 @@ async fn test_add_job() {
         ..Default::default()
     };
 
-    let queue = Queue::new(&name, opts).await.unwrap();
+    let queue = Queue::with_options(&name, opts).await.unwrap();
     let job = queue
-        .add("test-job", serde_json::json!({"key": "value"}), None)
+        .add("test-job", serde_json::json!({"key": "value"}))
         .await
         .unwrap();
 
@@ -76,16 +76,13 @@ async fn test_add_job_with_custom_id() {
         ..Default::default()
     };
 
-    let queue = Queue::new(&name, opts).await.unwrap();
+    let queue = Queue::with_options(&name, opts).await.unwrap();
     let job = queue
-        .add(
-            "custom-id-job",
-            serde_json::json!({}),
-            Some(JobOptions {
-                job_id: Some("my-custom-id".to_string()),
-                ..Default::default()
-            }),
-        )
+        .add("custom-id-job", serde_json::json!({}))
+        .options(JobOptions {
+            job_id: Some("my-custom-id".to_string()),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
@@ -104,39 +101,35 @@ async fn test_add_job_with_parent_queue_name() {
         ..Default::default()
     };
 
-    let parent_queue = Queue::new(&parent_name, opts.clone()).await.unwrap();
-    let child_queue = Queue::new(&child_name, opts).await.unwrap();
+    let parent_queue = Queue::with_options(&parent_name, opts.clone())
+        .await
+        .unwrap();
+    let child_queue = Queue::with_options(&child_name, opts).await.unwrap();
 
     let parent = parent_queue
-        .add(
-            "parent",
-            serde_json::json!({}),
-            Some(JobOptions {
-                job_id: Some("parent-id".to_string()),
-                ..Default::default()
-            }),
-        )
+        .add("parent", serde_json::json!({}))
+        .options(JobOptions {
+            job_id: Some("parent-id".to_string()),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
     let child = child_queue
-        .add(
-            "child",
-            serde_json::json!({}),
-            Some(JobOptions {
-                parent: Some(bullmq::ParentOpts {
-                    // ParentOpts.queue is a queue name, not a qualified key.
-                    queue: parent_name.clone(),
-                    id: parent.id().to_string(),
-                    wait_children: None,
-                }),
-                fail_parent_on_failure: Some(true),
-                ignore_dependency_on_failure: Some(true),
-                remove_dependency_on_failure: Some(true),
-                continue_parent_on_failure: Some(true),
-                ..Default::default()
+        .add("child", serde_json::json!({}))
+        .options(JobOptions {
+            parent: Some(bullmq::ParentOptions {
+                // ParentOptions.queue is a queue name, not a qualified key.
+                queue: parent_name.clone(),
+                id: parent.id().to_string(),
+                wait_children: None,
             }),
-        )
+            fail_parent_on_failure: Some(true),
+            ignore_dependency_on_failure: Some(true),
+            remove_dependency_on_failure: Some(true),
+            continue_parent_on_failure: Some(true),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
@@ -175,12 +168,12 @@ async fn test_add_bulk_jobs() {
         ..Default::default()
     };
 
-    let queue = Queue::new(&name, opts).await.unwrap();
+    let queue = Queue::with_options(&name, opts).await.unwrap();
     let jobs = queue
         .add_bulk(vec![
-            ("job-1".to_string(), serde_json::json!({"n": 1}), None),
-            ("job-2".to_string(), serde_json::json!({"n": 2}), None),
-            ("job-3".to_string(), serde_json::json!({"n": 3}), None),
+            BulkJob::new("job-1", serde_json::json!({"n": 1})),
+            BulkJob::new("job-2", serde_json::json!({"n": 2})),
+            BulkJob::new("job-3", serde_json::json!({"n": 3})),
         ])
         .await
         .unwrap();
@@ -201,7 +194,7 @@ async fn test_add_bulk_empty() {
         ..Default::default()
     };
 
-    let queue = Queue::new(&name, opts).await.unwrap();
+    let queue = Queue::with_options(&name, opts).await.unwrap();
     let jobs = queue.add_bulk(vec![]).await.unwrap();
     assert_eq!(jobs.len(), 0);
 
@@ -216,26 +209,18 @@ async fn test_add_bulk_with_options() {
         ..Default::default()
     };
 
-    let queue = Queue::new(&name, opts).await.unwrap();
+    let queue = Queue::with_options(&name, opts).await.unwrap();
     let jobs = queue
         .add_bulk(vec![
-            ("normal".to_string(), serde_json::json!({}), None),
-            (
-                "delayed".to_string(),
-                serde_json::json!({}),
-                Some(JobOptions {
-                    delay: Some(60_000),
-                    ..Default::default()
-                }),
-            ),
-            (
-                "priority".to_string(),
-                serde_json::json!({}),
-                Some(JobOptions {
-                    priority: Some(5),
-                    ..Default::default()
-                }),
-            ),
+            BulkJob::new("normal", serde_json::json!({})),
+            BulkJob::new("delayed", serde_json::json!({})).options(JobOptions {
+                delay: Some(60_000),
+                ..Default::default()
+            }),
+            BulkJob::new("priority", serde_json::json!({})).options(JobOptions {
+                priority: Some(5),
+                ..Default::default()
+            }),
         ])
         .await
         .unwrap();
@@ -263,9 +248,9 @@ async fn test_get_job() {
         ..Default::default()
     };
 
-    let queue = Queue::new(&name, opts).await.unwrap();
+    let queue = Queue::with_options(&name, opts).await.unwrap();
     let added = queue
-        .add("fetch-test", serde_json::json!({"hello": "world"}), None)
+        .add("fetch-test", serde_json::json!({"hello": "world"}))
         .await
         .unwrap();
 
@@ -286,7 +271,7 @@ async fn test_get_job_not_found() {
         ..Default::default()
     };
 
-    let queue = Queue::new(&name, opts).await.unwrap();
+    let queue = Queue::with_options(&name, opts).await.unwrap();
     let result = queue.get_job("nonexistent-id").await.unwrap();
     assert!(result.is_none());
 
@@ -301,11 +286,8 @@ async fn test_remove_job() {
         ..Default::default()
     };
 
-    let queue = Queue::new(&name, opts).await.unwrap();
-    let job = queue
-        .add("to-remove", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    let queue = Queue::with_options(&name, opts).await.unwrap();
+    let job = queue.add("to-remove", serde_json::json!({})).await.unwrap();
 
     let removed = queue.remove(job.id()).await.unwrap();
     assert!(removed);
@@ -324,7 +306,7 @@ async fn test_remove_nonexistent_job() {
         ..Default::default()
     };
 
-    let queue = Queue::new(&name, opts).await.unwrap();
+    let queue = Queue::with_options(&name, opts).await.unwrap();
     let _removed = queue.remove("does-not-exist").await.unwrap();
 
     cleanup_queue(&queue).await;
@@ -342,7 +324,7 @@ async fn test_pause_resume() {
         ..Default::default()
     };
 
-    let queue = Queue::new(&name, opts).await.unwrap();
+    let queue = Queue::with_options(&name, opts).await.unwrap();
 
     assert!(!queue.is_paused().await.unwrap());
 
@@ -363,11 +345,11 @@ async fn test_drain() {
         ..Default::default()
     };
 
-    let queue = Queue::new(&name, opts).await.unwrap();
+    let queue = Queue::with_options(&name, opts).await.unwrap();
 
     for i in 0..5 {
         queue
-            .add(&format!("drain-job-{}", i), serde_json::json!({}), None)
+            .add(&format!("drain-job-{}", i), serde_json::json!({}))
             .await
             .unwrap();
     }
@@ -388,25 +370,22 @@ async fn test_drain_with_delayed_jobs() {
         ..Default::default()
     };
 
-    let queue = Queue::new(&name, opts).await.unwrap();
+    let queue = Queue::with_options(&name, opts).await.unwrap();
 
     for i in 0..3 {
         queue
-            .add(&format!("normal-{}", i), serde_json::json!({}), None)
+            .add(&format!("normal-{}", i), serde_json::json!({}))
             .await
             .unwrap();
     }
 
     for i in 0..2 {
         queue
-            .add(
-                &format!("delayed-{}", i),
-                serde_json::json!({}),
-                Some(JobOptions {
-                    delay: Some(60_000),
-                    ..Default::default()
-                }),
-            )
+            .add(&format!("delayed-{}", i), serde_json::json!({}))
+            .options(JobOptions {
+                delay: Some(60_000),
+                ..Default::default()
+            })
             .await
             .unwrap();
     }
@@ -431,11 +410,11 @@ async fn test_obliterate() {
         ..Default::default()
     };
 
-    let queue = Queue::new(&name, opts).await.unwrap();
+    let queue = Queue::with_options(&name, opts).await.unwrap();
 
     for i in 0..10 {
         queue
-            .add(&format!("obliterate-{}", i), serde_json::json!({}), None)
+            .add(&format!("obliterate-{}", i), serde_json::json!({}))
             .await
             .unwrap();
     }
@@ -454,7 +433,7 @@ async fn test_queue_close_is_idempotent() {
         ..Default::default()
     };
 
-    let queue = Queue::new(&name, opts).await.unwrap();
+    let queue = Queue::with_options(&name, opts).await.unwrap();
     queue.close().await;
     queue.close().await; // second close should not panic
 }
@@ -471,7 +450,7 @@ async fn test_job_data_types() {
         ..Default::default()
     };
 
-    let queue = Queue::new(&name, opts).await.unwrap();
+    let queue = Queue::with_options(&name, opts).await.unwrap();
 
     let data = serde_json::json!({
         "string": "hello",
@@ -483,7 +462,7 @@ async fn test_job_data_types() {
         "nested": {"key": "value"}
     });
 
-    let job = queue.add("complex-data", data.clone(), None).await.unwrap();
+    let job = queue.add("complex-data", data.clone()).await.unwrap();
     let fetched = queue.get_job(job.id()).await.unwrap().unwrap();
     assert_eq!(fetched.data(), &data);
 
@@ -498,16 +477,13 @@ async fn test_job_with_delay() {
         ..Default::default()
     };
 
-    let queue = Queue::new(&name, opts).await.unwrap();
+    let queue = Queue::with_options(&name, opts).await.unwrap();
     let job = queue
-        .add(
-            "delayed-job",
-            serde_json::json!({}),
-            Some(JobOptions {
-                delay: Some(5000),
-                ..Default::default()
-            }),
-        )
+        .add("delayed-job", serde_json::json!({}))
+        .options(JobOptions {
+            delay: Some(5000),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
@@ -524,16 +500,13 @@ async fn test_job_with_priority() {
         ..Default::default()
     };
 
-    let queue = Queue::new(&name, opts).await.unwrap();
+    let queue = Queue::with_options(&name, opts).await.unwrap();
     let job = queue
-        .add(
-            "priority-job",
-            serde_json::json!({}),
-            Some(JobOptions {
-                priority: Some(10),
-                ..Default::default()
-            }),
-        )
+        .add("priority-job", serde_json::json!({}))
+        .options(JobOptions {
+            priority: Some(10),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
@@ -550,16 +523,13 @@ async fn test_job_with_attempts() {
         ..Default::default()
     };
 
-    let queue = Queue::new(&name, opts).await.unwrap();
+    let queue = Queue::with_options(&name, opts).await.unwrap();
     let job = queue
-        .add(
-            "retry-job",
-            serde_json::json!({}),
-            Some(JobOptions {
-                attempts: Some(3),
-                ..Default::default()
-            }),
-        )
+        .add("retry-job", serde_json::json!({}))
+        .options(JobOptions {
+            attempts: Some(3),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
@@ -577,20 +547,17 @@ async fn test_add_job_lifo() {
         ..Default::default()
     };
 
-    let queue = Queue::new(&name, opts).await.unwrap();
+    let queue = Queue::with_options(&name, opts).await.unwrap();
 
     queue.pause().await.unwrap();
 
     for i in 0..4 {
         queue
-            .add(
-                &format!("lifo-{}", i),
-                serde_json::json!({"order": i}),
-                Some(JobOptions {
-                    lifo: Some(true),
-                    ..Default::default()
-                }),
-            )
+            .add(&format!("lifo-{}", i), serde_json::json!({"order": i}))
+            .options(JobOptions {
+                lifo: Some(true),
+                ..Default::default()
+            })
             .await
             .unwrap();
     }
@@ -613,9 +580,9 @@ async fn test_get_job_state_waiting() {
         ..Default::default()
     };
 
-    let queue = Queue::new(&name, opts).await.unwrap();
+    let queue = Queue::with_options(&name, opts).await.unwrap();
     let job = queue
-        .add("state-test", serde_json::json!({}), None)
+        .add("state-test", serde_json::json!({}))
         .await
         .unwrap();
 
@@ -633,16 +600,13 @@ async fn test_get_job_state_delayed() {
         ..Default::default()
     };
 
-    let queue = Queue::new(&name, opts).await.unwrap();
+    let queue = Queue::with_options(&name, opts).await.unwrap();
     let job = queue
-        .add(
-            "delayed-state",
-            serde_json::json!({}),
-            Some(JobOptions {
-                delay: Some(60_000),
-                ..Default::default()
-            }),
-        )
+        .add("delayed-state", serde_json::json!({}))
+        .options(JobOptions {
+            delay: Some(60_000),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
@@ -660,16 +624,13 @@ async fn test_get_job_state_prioritized() {
         ..Default::default()
     };
 
-    let queue = Queue::new(&name, opts).await.unwrap();
+    let queue = Queue::with_options(&name, opts).await.unwrap();
     let job = queue
-        .add(
-            "priority-state",
-            serde_json::json!({}),
-            Some(JobOptions {
-                priority: Some(5),
-                ..Default::default()
-            }),
-        )
+        .add("priority-state", serde_json::json!({}))
+        .options(JobOptions {
+            priority: Some(5),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
@@ -691,25 +652,22 @@ async fn test_get_job_counts_multiple_states() {
         ..Default::default()
     };
 
-    let queue = Queue::new(&name, opts).await.unwrap();
+    let queue = Queue::with_options(&name, opts).await.unwrap();
 
     for i in 0..3 {
         queue
-            .add(&format!("wait-{}", i), serde_json::json!({}), None)
+            .add(&format!("wait-{}", i), serde_json::json!({}))
             .await
             .unwrap();
     }
 
     for i in 0..2 {
         queue
-            .add(
-                &format!("delayed-{}", i),
-                serde_json::json!({}),
-                Some(JobOptions {
-                    delay: Some(60_000),
-                    ..Default::default()
-                }),
-            )
+            .add(&format!("delayed-{}", i), serde_json::json!({}))
+            .options(JobOptions {
+                delay: Some(60_000),
+                ..Default::default()
+            })
             .await
             .unwrap();
     }
@@ -786,7 +744,7 @@ fn test_job_state_display() {
 #[tokio::test]
 async fn test_get_waiting_jobs() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),
@@ -797,11 +755,11 @@ async fn test_get_waiting_jobs() {
     .unwrap();
 
     queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
     queue
-        .add("test", serde_json::json!({"baz": "qux"}), None)
+        .add("test", serde_json::json!({"baz": "qux"}))
         .await
         .unwrap();
 
@@ -817,7 +775,7 @@ async fn test_get_waiting_jobs() {
 #[tokio::test]
 async fn test_get_waiting_jobs_full_range() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),
@@ -828,19 +786,19 @@ async fn test_get_waiting_jobs_full_range() {
     .unwrap();
 
     queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
     queue
-        .add("test", serde_json::json!({"baz": "qux"}), None)
+        .add("test", serde_json::json!({"baz": "qux"}))
         .await
         .unwrap();
     queue
-        .add("test", serde_json::json!({"bar": "qux"}), None)
+        .add("test", serde_json::json!({"bar": "qux"}))
         .await
         .unwrap();
     queue
-        .add("test", serde_json::json!({"baz": "xuq"}), None)
+        .add("test", serde_json::json!({"baz": "xuq"}))
         .await
         .unwrap();
 
@@ -858,7 +816,7 @@ async fn test_get_waiting_jobs_full_range() {
 #[tokio::test]
 async fn test_get_paused_jobs_via_waiting() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),
@@ -870,11 +828,11 @@ async fn test_get_paused_jobs_via_waiting() {
 
     queue.pause().await.unwrap();
     queue
-        .add("test", serde_json::json!({"foo": "bar"}), None)
+        .add("test", serde_json::json!({"foo": "bar"}))
         .await
         .unwrap();
     queue
-        .add("test", serde_json::json!({"baz": "qux"}), None)
+        .add("test", serde_json::json!({"baz": "qux"}))
         .await
         .unwrap();
 
@@ -888,7 +846,7 @@ async fn test_get_paused_jobs_via_waiting() {
 #[tokio::test]
 async fn test_get_jobs_by_type_waiting() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),
@@ -900,7 +858,7 @@ async fn test_get_jobs_by_type_waiting() {
 
     for i in 0..5 {
         queue
-            .add("test", serde_json::json!({"idx": i}), None)
+            .add("test", serde_json::json!({"idx": i}))
             .await
             .unwrap();
     }
@@ -920,7 +878,7 @@ async fn test_get_jobs_by_type_waiting() {
 #[tokio::test]
 async fn test_get_ranges_waiting_includes_paused() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),
@@ -932,7 +890,7 @@ async fn test_get_ranges_waiting_includes_paused() {
 
     for i in 0..3 {
         queue
-            .add("test", serde_json::json!({"idx": i}), None)
+            .add("test", serde_json::json!({"idx": i}))
             .await
             .unwrap();
     }
@@ -954,7 +912,7 @@ async fn test_get_ranges_waiting_includes_paused() {
 #[tokio::test]
 async fn test_get_prioritized_jobs() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),
@@ -966,14 +924,11 @@ async fn test_get_prioritized_jobs() {
 
     for i in 1..=3 {
         queue
-            .add(
-                "test",
-                serde_json::json!({"idx": i}),
-                Some(JobOptions {
-                    priority: Some(i),
-                    ..Default::default()
-                }),
-            )
+            .add("test", serde_json::json!({"idx": i}))
+            .options(JobOptions {
+                priority: Some(i),
+                ..Default::default()
+            })
             .await
             .unwrap();
     }
@@ -990,7 +945,7 @@ async fn test_get_prioritized_jobs() {
 #[tokio::test]
 async fn test_get_delayed_jobs() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),
@@ -1002,14 +957,11 @@ async fn test_get_delayed_jobs() {
 
     for i in 0..3 {
         queue
-            .add(
-                "test",
-                serde_json::json!({"idx": i}),
-                Some(JobOptions {
-                    delay: Some(60_000),
-                    ..Default::default()
-                }),
-            )
+            .add("test", serde_json::json!({"idx": i}))
+            .options(JobOptions {
+                delay: Some(60_000),
+                ..Default::default()
+            })
             .await
             .unwrap();
     }
@@ -1025,7 +977,7 @@ async fn test_get_delayed_jobs() {
 #[tokio::test]
 async fn test_count_considering_prioritized() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),
@@ -1037,21 +989,15 @@ async fn test_count_considering_prioritized() {
 
     for i in 0..8 {
         queue
-            .add(
-                "test",
-                serde_json::json!({"idx": i}),
-                Some(JobOptions {
-                    priority: Some(i + 1),
-                    ..Default::default()
-                }),
-            )
+            .add("test", serde_json::json!({"idx": i}))
+            .options(JobOptions {
+                priority: Some(i + 1),
+                ..Default::default()
+            })
             .await
             .unwrap();
     }
-    queue
-        .add("test", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("test", serde_json::json!({})).await.unwrap();
 
     let count = queue.count().await.unwrap();
     assert_eq!(count, 9);
@@ -1063,7 +1009,7 @@ async fn test_count_considering_prioritized() {
 #[tokio::test]
 async fn test_get_counts_per_priority() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),
@@ -1075,14 +1021,11 @@ async fn test_get_counts_per_priority() {
 
     for i in 0..42u64 {
         queue
-            .add(
-                "test",
-                serde_json::json!({}),
-                Some(JobOptions {
-                    priority: Some((i % 4) as u32),
-                    ..Default::default()
-                }),
-            )
+            .add("test", serde_json::json!({}))
+            .options(JobOptions {
+                priority: Some((i % 4) as u32),
+                ..Default::default()
+            })
             .await
             .unwrap();
     }
@@ -1100,7 +1043,7 @@ async fn test_get_counts_per_priority() {
 #[tokio::test]
 async fn test_get_counts_per_priority_when_paused() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),
@@ -1113,14 +1056,11 @@ async fn test_get_counts_per_priority_when_paused() {
     queue.pause().await.unwrap();
     for i in 0..42u64 {
         queue
-            .add(
-                "test",
-                serde_json::json!({}),
-                Some(JobOptions {
-                    priority: Some((i % 4) as u32),
-                    ..Default::default()
-                }),
-            )
+            .add("test", serde_json::json!({}))
+            .options(JobOptions {
+                priority: Some((i % 4) as u32),
+                ..Default::default()
+            })
             .await
             .unwrap();
     }
@@ -1138,7 +1078,7 @@ async fn test_get_counts_per_priority_when_paused() {
 #[tokio::test]
 async fn test_get_job_counts_by_types() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),
@@ -1149,20 +1089,14 @@ async fn test_get_job_counts_by_types() {
     .unwrap();
 
     for _ in 0..3 {
-        queue
-            .add("test", serde_json::json!({}), None)
-            .await
-            .unwrap();
+        queue.add("test", serde_json::json!({})).await.unwrap();
     }
     queue
-        .add(
-            "test",
-            serde_json::json!({}),
-            Some(JobOptions {
-                delay: Some(60_000),
-                ..Default::default()
-            }),
-        )
+        .add("test", serde_json::json!({}))
+        .options(JobOptions {
+            delay: Some(60_000),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
@@ -1191,7 +1125,7 @@ async fn test_get_job_counts_by_types() {
 async fn test_get_completed_and_failed_jobs() {
     let name = test_queue_name();
     let conn = test_connection();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: conn.clone(),
@@ -1203,18 +1137,15 @@ async fn test_get_completed_and_failed_jobs() {
 
     // One job that completes, one that fails.
     queue
-        .add("ok", serde_json::json!({"ok": true}), None)
+        .add("ok", serde_json::json!({"ok": true}))
         .await
         .unwrap();
     queue
-        .add(
-            "fail",
-            serde_json::json!({"ok": false}),
-            Some(JobOptions {
-                attempts: Some(1),
-                ..Default::default()
-            }),
-        )
+        .add("fail", serde_json::json!({"ok": false}))
+        .options(JobOptions {
+            attempts: Some(1),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
@@ -1227,7 +1158,7 @@ async fn test_get_completed_and_failed_jobs() {
             }
         })
     });
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &name,
         processor,
         WorkerOptions {
@@ -1280,7 +1211,7 @@ async fn test_get_completed_and_failed_jobs() {
 #[tokio::test]
 async fn test_get_rate_limit_ttl() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),
@@ -1305,7 +1236,7 @@ async fn test_get_rate_limit_ttl() {
 #[tokio::test]
 async fn test_get_global_concurrency() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),
@@ -1329,7 +1260,7 @@ async fn test_get_global_concurrency() {
 #[tokio::test]
 async fn test_get_global_rate_limit() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),

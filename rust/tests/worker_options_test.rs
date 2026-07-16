@@ -24,7 +24,7 @@ fn now_ms() -> u64 {
 }
 
 async fn new_queue(name: &str) -> Queue {
-    Queue::new(
+    Queue::with_options(
         name,
         QueueOptions {
             connection: test_connection(),
@@ -56,10 +56,7 @@ async fn test_max_started_attempts_fails_after_limit() {
     let conn = test_connection();
     let queue = new_queue(&name).await;
 
-    queue
-        .add("test", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("test", serde_json::json!({})).await.unwrap();
 
     // The processor moves the job to delayed on its first run, so the worker
     // picks it up a second time. On the second pickup attemptsStarted == 2 which
@@ -71,7 +68,7 @@ async fn test_max_started_attempts_fails_after_limit() {
         })
     });
 
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &name,
         processor,
         WorkerOptions {
@@ -97,10 +94,7 @@ async fn test_max_started_attempts_zero_fails_on_first_pickup() {
     let conn = test_connection();
     let queue = new_queue(&name).await;
 
-    queue
-        .add("test", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("test", serde_json::json!({})).await.unwrap();
 
     // With a limit of 0, the very first pickup (attemptsStarted == 1) already
     // exceeds it, so the processor must never run.
@@ -114,7 +108,7 @@ async fn test_max_started_attempts_zero_fails_on_first_pickup() {
         })
     });
 
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &name,
         processor,
         WorkerOptions {
@@ -141,10 +135,7 @@ async fn test_max_started_attempts_runs_up_to_limit_then_fails() {
     let conn = test_connection();
     let queue = new_queue(&name).await;
 
-    queue
-        .add("test", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("test", serde_json::json!({})).await.unwrap();
 
     // With a limit of 2, the job may start twice (attemptsStarted 1 and 2). The
     // processor re-delays itself each run; the third pickup (attemptsStarted 3)
@@ -160,7 +151,7 @@ async fn test_max_started_attempts_runs_up_to_limit_then_fails() {
         })
     });
 
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &name,
         processor,
         WorkerOptions {
@@ -194,7 +185,7 @@ async fn test_skip_stalled_check_processes_all_jobs() {
     let concurrency = 4;
     for i in 0..concurrency {
         queue
-            .add("test", serde_json::json!({ "i": i }), None)
+            .add("test", serde_json::json!({ "i": i }))
             .await
             .unwrap();
     }
@@ -210,7 +201,7 @@ async fn test_skip_stalled_check_processes_all_jobs() {
         })
     });
 
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &name,
         processor,
         WorkerOptions {
@@ -247,10 +238,7 @@ async fn test_skip_lock_renewal_still_processes() {
     let conn = test_connection();
     let queue = new_queue(&name).await;
 
-    queue
-        .add("test", serde_json::json!({}), None)
-        .await
-        .unwrap();
+    queue.add("test", serde_json::json!({})).await.unwrap();
 
     let processor: ProcessorFn = Arc::new(move |_job: Job, _token: CancellationToken| {
         Box::pin(async move {
@@ -260,7 +248,7 @@ async fn test_skip_lock_renewal_still_processes() {
         })
     });
 
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &name,
         processor,
         WorkerOptions {
