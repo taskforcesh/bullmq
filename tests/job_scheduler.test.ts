@@ -118,7 +118,7 @@ describe('Job Scheduler', () => {
     it('skips past the stale slots and schedules a new job', async () => {
       const every = 60_000;
       // Use a fixed wall-clock time so the expected skipped slots are deterministic.
-      const date = new Date('2017-02-07 09:00:00');
+      const date = new Date('2017-02-07T09:00:00.000Z');
       clock.setSystemTime(date);
 
       // Plant stale completed-job hashes from a hypothetical prior
