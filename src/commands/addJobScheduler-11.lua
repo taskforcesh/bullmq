@@ -157,15 +157,15 @@ if rcall("EXISTS", jobKey) == 1 then
         -- enough. The scan is bounded so we don't spin if the
         -- scheduler is genuinely contested.
         local maxSlotScans = 32
-        local slotScanned = 0
+        local slotsScanned = 0
         local jobExists
         repeat
             nextMillis = nextMillis + every
             jobId = "repeat:" .. jobSchedulerId .. ":" .. nextMillis
             jobKey = prefixKey .. jobId
-            slotScanned = slotScanned + 1
+            slotsScanned = slotsScanned + 1
             jobExists = rcall("EXISTS", jobKey)
-        until jobExists == 0 or slotScanned >= maxSlotScans
+        until jobExists == 0 or slotsScanned >= maxSlotScans
 
         if jobExists == 1 then
             -- Every scanned slot still has a job, return error code
