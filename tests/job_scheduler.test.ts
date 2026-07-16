@@ -277,7 +277,11 @@ describe('Job Scheduler', () => {
         });
         const repeatableJobs = await queue.getJobSchedulers();
         expect(repeatableJobs.length).toEqual(1);
+        const completed = new Promise<void>(resolve => {
+          worker.once('completed', () => resolve());
+        });
         await clock.tickAsync(ONE_MINUTE);
+        await completed;
         const count = await queue.getJobCountByTypes('delayed', 'waiting');
         expect(count).toBe(1);
 
