@@ -4170,6 +4170,92 @@ describe('Job Scheduler', () => {
     await worker.close();
   });
 
+  it('preserves the completed job and advances to the next slot on re-upsert', async () => {
+    const date = new Date('2024-01-01 10:00:00');
+    clock.setSystemTime(date);
+
+    const jobSchedulerId = 'test';
+    const every = 3 * 60 * 1000; // 3 minutes
+
+    // Create scheduler - with 'every' the first job goes to waiting immediately
+    await queue.upsertJobScheduler(
+      jobSchedulerId,
+      { every },
+      { name: 'test-job', data: { foo: 'bar' } },
+    );
+
+    let waiting = await queue.getWaiting();
+    expect(waiting.length).toEqual(1);
+    const initialJobId = waiting[0].id!;
+
+    const worker = new Worker(queueName, async () => {}, {
+      autorun: false,
+      connection,
+      prefix,
+    });
+    await worker.waitUntilReady();
+    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+
+    // Attach a one-shot listener before the worker starts so we can't miss
+    // the completion event for our no-op processor.
+    const completing = new Promise<void>(resolve => {
+      worker.once('completed', () => {
+        resolve();
+      });
+    });
+
+    worker.run();
+
+    await completing;
+
+    // Verify the job is now completed and capture its id so we can prove
+    // the re-upsert below does NOT remove it.
+    const completed = await queue.getCompleted();
+    expect(completed.length).toBeGreaterThanOrEqual(1);
+    const completedIds = completed.map(j => j.id);
+    expect(completedIds).toContain(initialJobId);
+
+    // Remove the scheduler and assert it actually drained any pending
+    // waiting / delayed entries before we re-upsert (otherwise the final
+    // assertion below could pass even when removal silently failed).
+    await queue.removeJobScheduler(jobSchedulerId);
+    expect((await queue.getJobSchedulers()).length).toEqual(0);
+    expect(await queue.getWaitingCount()).toEqual(0);
+    expect(await queue.getDelayedCount()).toEqual(0);
+
+    // Re-upsert with the same params. Without the fix this would silently
+    // remove the completed job and create a new one with the colliding id.
+    // With the fix the completed job is preserved and the new job lands in
+    // the next slot.
+    const job = await queue.upsertJobScheduler(
+      jobSchedulerId,
+      { every },
+      { name: 'test-job', data: { foo: 'bar' } },
+    );
+
+    expect(job).toBeTruthy();
+
+    // The completed job from the prior run must still be intact.
+    const completedAfterUpsert = await queue.getCompleted();
+    expect(completedAfterUpsert.map(j => j.id)).toContain(initialJobId);
+
+    waiting = await queue.getWaiting();
+    const delayed = await queue.getDelayed();
+    expect(waiting.length + delayed.length).toBeGreaterThanOrEqual(1);
+
+    // The newly scheduled job must use a *different* id than the preserved
+    // completed one, since the original slot is still occupied.
+    const newJobId = (waiting[0] || delayed[0]).id;
+    expect(newJobId).not.toEqual(initialJobId);
+
+    // Verify the scheduler exists
+    const schedulers = await queue.getJobSchedulers();
+    expect(schedulers.length).toEqual(1);
+
+    await worker.close();
+    delayStub.restore();
+  });
+
   describe('when job scheduler id contains 5 or more colon segments', () => {
     it('should not create duplicate schedulers after a job completes (issue #3828)', async () => {
       const date = new Date('2017-02-07 9:24:00');
