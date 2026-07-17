@@ -657,7 +657,37 @@ export class Worker<
    * @param token - worker token to be assigned to retrieved job
    * @returns a Job or undefined if no job was available in the queue.
    */
-  async getNextJob(token: string, { block = true }: GetNextJobOptions = {}) {
+  async getNextJob(
+    token: string,
+    { block = true }: GetNextJobOptions = {},
+  ): Promise<Job<DataType, ResultType, NameType> | undefined> {
+    let nextJob = await this.getTracedNextJob(token, { block });
+
+    while (nextJob) {
+      const unrecoverableErrorMessage =
+        this.getUnrecoverableErrorMessage(nextJob);
+
+      if (!unrecoverableErrorMessage) {
+        break;
+      }
+
+      await this.handleFailed(
+        new UnrecoverableError(unrecoverableErrorMessage),
+        nextJob,
+        token,
+        () => false,
+      );
+
+      nextJob = await this.getTracedNextJob(token, { block });
+    }
+
+    return nextJob;
+  }
+
+  private async getTracedNextJob(
+    token: string,
+    { block = true }: GetNextJobOptions = {},
+  ): Promise<Job<DataType, ResultType, NameType> | undefined> {
     const nextJob = await this._getNextJob(
       await this.client,
       await this.blockingConnection.client,
