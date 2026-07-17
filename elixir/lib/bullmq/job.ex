@@ -57,7 +57,7 @@ defmodule BullMQ.Job do
       end
   """
 
-  alias BullMQ.{Keys, RedisConnection, Scripts, Types}
+  alias BullMQ.{Backend, Keys, Types}
 
   # Mapping for encoding option names to short keys (for Redis storage)
   # Elixir uses snake_case, which gets encoded to short keys for Node.js compatibility
@@ -305,9 +305,8 @@ defmodule BullMQ.Job do
   """
   @spec log(t(), String.t(), keyword()) :: {:ok, integer()} | {:error, term()}
   def log(%__MODULE__{} = job, message, opts \\ []) do
-    ctx = Keys.new(job.queue_name, prefix: job.prefix)
     keep_logs = Keyword.get(opts, :keep_logs)
-    Scripts.add_log(job.connection, ctx, job.id, message, keep_logs)
+    Backend.add_log(backend(job), job.id, message, keep_logs)
   end
 
   @doc """
@@ -595,8 +594,6 @@ defmodule BullMQ.Job do
   @spec move_to_completed(t(), term(), String.t(), keyword()) ::
           {:ok, nil | {list(), String.t()}} | {:error, term()}
   def move_to_completed(%__MODULE__{} = job, return_value, token, opts \\ []) do
-    ctx = Keys.new(job.queue_name, prefix: job.prefix)
-
     script_opts = [
       fetch_next: Keyword.get(opts, :fetch_next, true),
       lock_duration: Keyword.get(opts, :lock_duration, 30_000),
@@ -604,7 +601,7 @@ defmodule BullMQ.Job do
       attempts: job.attempts_made
     ]
 
-    case Scripts.move_to_completed(job.connection, ctx, job.id, token, return_value, script_opts) do
+    case Backend.move_to_completed(backend(job), job.id, token, return_value, script_opts) do
       {:ok, [job_data, job_id | _]} when is_list(job_data) and job_data != [] ->
         {:ok, {job_data, to_string(job_id)}}
 
@@ -648,8 +645,6 @@ defmodule BullMQ.Job do
   @spec move_to_failed(t(), term(), String.t(), keyword()) ::
           {:ok, nil | {list(), String.t()}} | {:error, term()}
   def move_to_failed(%__MODULE__{} = job, error, token, opts \\ []) do
-    ctx = Keys.new(job.queue_name, prefix: job.prefix)
-
     error_message =
       case error do
         %{message: msg} -> msg
@@ -664,7 +659,7 @@ defmodule BullMQ.Job do
       attempts: job.attempts_made
     ]
 
-    case Scripts.move_to_failed(job.connection, ctx, job.id, token, error_message, script_opts) do
+    case Backend.move_to_failed(backend(job), job.id, token, error_message, script_opts) do
       {:ok, [job_data, job_id | _]} when is_list(job_data) and job_data != [] ->
         {:ok, {job_data, to_string(job_id)}}
 
@@ -700,8 +695,7 @@ defmodule BullMQ.Job do
   """
   @spec move_to_wait(t(), String.t()) :: {:ok, non_neg_integer()} | {:error, term()}
   def move_to_wait(%__MODULE__{} = job, token \\ "0") do
-    ctx = Keys.new(job.queue_name, prefix: job.prefix)
-    Scripts.move_job_from_active_to_wait(job.connection, ctx, job.id, token)
+    Backend.move_job_from_active_to_wait(backend(job), job.id, token)
   end
 
   @doc """
@@ -742,8 +736,6 @@ defmodule BullMQ.Job do
   @spec retry(t(), atom(), keyword()) :: {:ok, t()} | {:error, term()}
   def retry(%__MODULE__{} = job, state \\ :failed, opts \\ [])
       when state in [:failed, :completed] do
-    ctx = Keys.new(job.queue_name, prefix: job.prefix)
-
     lifo =
       case Map.fetch(job.opts, :lifo) do
         {:ok, value} -> value
@@ -756,7 +748,7 @@ defmodule BullMQ.Job do
       reset_attempts_started: Keyword.get(opts, :reset_attempts_started, false)
     ]
 
-    case Scripts.reprocess_job(job.connection, ctx, job.id, state, script_opts) do
+    case Backend.reprocess_job(backend(job), job.id, state, script_opts) do
       {:ok, 1} ->
         updated_job = %{
           job
@@ -815,8 +807,7 @@ defmodule BullMQ.Job do
   """
   @spec extend_lock(t(), String.t(), non_neg_integer()) :: {:ok, term()} | {:error, term()}
   def extend_lock(%__MODULE__{} = job, token, duration) do
-    ctx = Keys.new(job.queue_name, prefix: job.prefix)
-    Scripts.extend_lock(job.connection, ctx, job.id, token, duration)
+    Backend.extend_lock(backend(job), job.id, token, duration)
   end
 
   # ============================================
@@ -850,10 +841,7 @@ defmodule BullMQ.Job do
   """
   @spec get_children_values(t()) :: {:ok, map()} | {:error, term()}
   def get_children_values(%__MODULE__{} = job) do
-    ctx = Keys.new(job.queue_name, prefix: job.prefix)
-    processed_key = Keys.job_processed(ctx, job.id)
-
-    case RedisConnection.command(job.connection, ["HGETALL", processed_key]) do
+    case Backend.get_processed_children_values(backend(job), job.id) do
       {:ok, []} ->
         {:ok, %{}}
 
@@ -888,10 +876,7 @@ defmodule BullMQ.Job do
   """
   @spec get_ignored_children_failures(t()) :: {:ok, map()} | {:error, term()}
   def get_ignored_children_failures(%__MODULE__{} = job) do
-    ctx = Keys.new(job.queue_name, prefix: job.prefix)
-    failed_key = Keys.job_failed(ctx, job.id)
-
-    case RedisConnection.command(job.connection, ["HGETALL", failed_key]) do
+    case Backend.get_ignored_children_failures(backend(job), job.id) do
       {:ok, []} ->
         {:ok, %{}}
 
@@ -925,13 +910,7 @@ defmodule BullMQ.Job do
   """
   @spec get_dependencies(t()) :: {:ok, [String.t()]} | {:error, term()}
   def get_dependencies(%__MODULE__{} = job) do
-    ctx = Keys.new(job.queue_name, prefix: job.prefix)
-    deps_key = Keys.job_dependencies(ctx, job.id)
-
-    case RedisConnection.command(job.connection, ["SMEMBERS", deps_key]) do
-      {:ok, deps} -> {:ok, deps}
-      {:error, _} = error -> error
-    end
+    Backend.get_dependencies(backend(job), job.id)
   end
 
   @doc """
@@ -953,13 +932,12 @@ defmodule BullMQ.Job do
   """
   @spec get_dependencies_count(t()) :: {:ok, non_neg_integer()} | {:error, term()}
   def get_dependencies_count(%__MODULE__{} = job) do
-    ctx = Keys.new(job.queue_name, prefix: job.prefix)
-    deps_key = Keys.job_dependencies(ctx, job.id)
+    Backend.get_dependencies_count(backend(job), job.id)
+  end
 
-    case RedisConnection.command(job.connection, ["SCARD", deps_key]) do
-      {:ok, count} -> {:ok, count}
-      {:error, _} = error -> error
-    end
+  # Builds the datastore backend for this job from its queue identity + connection.
+  defp backend(%__MODULE__{} = job) do
+    Backend.create(job.queue_name, connection: job.connection, prefix: job.prefix)
   end
 
   # Helper to parse HGETALL result into a map with JSON-decoded values

@@ -292,4 +292,23 @@ describe('PostgreSQL backend operations', () => {
       await backend.close();
     }
   });
+
+  it('removeOnComplete: -1 keeps the job (negative keep-count is not a LIMIT)', async () => {
+    const backend = newBackend();
+    try {
+      await backend.waitUntilReady();
+      const token = randomUUID();
+      const id = await backend.addJob(makeJob(), '');
+      await backend.moveToActive(token);
+
+      // A negative keep-count is the "keep everything" sentinel (-1). It must
+      // disable count-based trimming rather than produce a negative SQL LIMIT.
+      await backend.moveToCompleted({ id } as any, 1, -1, token, false);
+
+      expect(await backend.getState(id)).toBe('completed');
+      expect(await backend.getJobData(id)).toBeTruthy();
+    } finally {
+      await backend.close();
+    }
+  });
 });

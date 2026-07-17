@@ -277,6 +277,16 @@ defmodule BullMQ.RedisConnection do
     e -> {:error, e}
   end
 
+  # A bare Redix pid is a direct (non-pooled) connection: talk to it directly.
+  # This lets callers that hold a raw `Redix` connection (e.g. schedulers) use
+  # the same API as pooled connections.
+  def command(conn, command, opts) when is_pid(conn) do
+    timeout = Keyword.get(opts, :timeout, @default_timeout)
+    Redix.command(conn, command, timeout: timeout)
+  rescue
+    e -> {:error, e}
+  end
+
   def command(conn, command, opts) do
     timeout = Keyword.get(opts, :timeout, @default_timeout)
 
@@ -324,6 +334,14 @@ defmodule BullMQ.RedisConnection do
   def pipeline({:dedicated, redix_pid}, commands, opts) do
     timeout = Keyword.get(opts, :timeout, @default_timeout)
     Redix.pipeline(redix_pid, commands, timeout: timeout)
+  rescue
+    e -> {:error, e}
+  end
+
+  # A bare Redix pid is a direct (non-pooled) connection.
+  def pipeline(conn, commands, opts) when is_pid(conn) do
+    timeout = Keyword.get(opts, :timeout, @default_timeout)
+    Redix.pipeline(conn, commands, timeout: timeout)
   rescue
     e -> {:error, e}
   end

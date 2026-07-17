@@ -309,9 +309,11 @@ defmodule BullMQ.Types do
           | :cleaned
 
   @typedoc """
-  Redis connection specification.
+  Connection specification passed to the datastore backend. The concrete shape
+  is a backend concern (for the Redis backend it is a `BullMQ.RedisConnection`
+  reference or a raw client).
   """
-  @type redis_connection :: atom() | pid() | Redix.connection()
+  @type redis_connection :: atom() | pid() | {:via, module(), term()} | {atom(), node()}
 
   @typedoc """
   Error reason.

@@ -755,14 +755,17 @@ BEGIN
     RETURN;
   END IF;
 
-  IF p_keep_age IS NOT NULL THEN
+  IF p_keep_age IS NOT NULL AND p_keep_age >= 0 THEN
     DELETE FROM bullmq_job
      WHERE queue = p_queue
        AND state = p_state
        AND finished_at_ms <= p_now - p_keep_age * 1000;
   END IF;
 
-  IF p_keep_count IS NOT NULL THEN
+  -- A negative keep-count is the "keep everything" sentinel (mirrors Redis,
+  -- where -1 disables count-based trimming); skip it — a negative SQL LIMIT is
+  -- a hard error.
+  IF p_keep_count IS NOT NULL AND p_keep_count >= 0 THEN
     DELETE FROM bullmq_job
      WHERE queue = p_queue
        AND state = p_state

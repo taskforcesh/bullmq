@@ -16,7 +16,7 @@ defmodule BullMQ.LockManager do
   use GenServer
   require Logger
 
-  alias BullMQ.Scripts
+  alias BullMQ.Backend
 
   @type job_info :: %{
           token: String.t(),
@@ -223,7 +223,10 @@ defmodule BullMQ.LockManager do
     job_ids = Enum.map(jobs_to_extend, fn {id, _token} -> id end)
     tokens = Enum.map(jobs_to_extend, fn {_id, token} -> token end)
 
-    case Scripts.extend_locks(state.connection, state.keys, job_ids, tokens, state.lock_duration) do
+    backend =
+      Backend.create(state.keys.name, connection: state.connection, prefix: state.keys.prefix)
+
+    case Backend.extend_locks(backend, job_ids, tokens, state.lock_duration) do
       {:ok, failed_job_ids} when is_list(failed_job_ids) ->
         # Script returns a list of job IDs that failed (empty list = all succeeded)
         failed_ids = Enum.map(failed_job_ids, &to_string/1)

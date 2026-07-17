@@ -77,7 +77,7 @@ defmodule BullMQ.QueueEvents do
 
   use GenServer
 
-  alias BullMQ.{Keys, RedisConnection, Types}
+  alias BullMQ.{Backend, Keys, Types}
 
   require Logger
 
@@ -139,6 +139,7 @@ defmodule BullMQ.QueueEvents do
           closing: boolean(),
           last_event_id: String.t(),
           blocking_conn: pid() | nil,
+          backend: BullMQ.Backend.t() | nil,
           consumer_task: reference() | nil
         }
 
@@ -147,6 +148,7 @@ defmodule BullMQ.QueueEvents do
     :connection,
     :keys,
     :blocking_conn,
+    :backend,
     :handler,
     :consumer_task,
     prefix: "bull",
@@ -259,9 +261,16 @@ defmodule BullMQ.QueueEvents do
 
   @impl true
   def handle_info(:start, state) do
-    case RedisConnection.blocking_connection(state.connection) do
-      {:ok, blocking_conn} ->
-        new_state = %{state | running: true, blocking_conn: blocking_conn}
+    base =
+      Backend.create(state.keys.name,
+        connection: state.connection,
+        prefix: state.keys.prefix,
+        owns_connection: false
+      )
+
+    case Backend.reconnect_blocking(base) do
+      {:ok, backend} ->
+        new_state = %{state | running: true, backend: backend}
         # Start consuming in a separate task
         {:noreply, schedule_consume(new_state)}
 
@@ -351,20 +360,12 @@ defmodule BullMQ.QueueEvents do
   defp schedule_consume(%{consumer_task: ref} = state) when not is_nil(ref), do: state
 
   defp schedule_consume(state) do
-    events_key = Keys.events(state.keys)
-    blocking_conn = state.blocking_conn
+    backend = state.backend
     last_event_id = state.last_event_id
 
     task =
       Task.async(fn ->
-        Redix.command(blocking_conn, [
-          "XREAD",
-          "BLOCK",
-          @default_block_timeout,
-          "STREAMS",
-          events_key,
-          last_event_id
-        ])
+        Backend.read_events(backend, last_event_id, @default_block_timeout)
       end)
 
     %{state | consumer_task: task.ref}
@@ -430,8 +431,8 @@ defmodule BullMQ.QueueEvents do
   defp parse_event_type(other), do: String.to_atom(other)
 
   defp cleanup(state) do
-    if state.blocking_conn do
-      RedisConnection.close_blocking(state.connection, state.blocking_conn)
+    if state.backend do
+      Backend.close(state.backend)
     end
 
     :ok

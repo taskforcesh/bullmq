@@ -73,7 +73,7 @@ defmodule BullMQ.FlowProducer do
 
   """
 
-  alias BullMQ.{Job, Keys, Scripts}
+  alias BullMQ.{Backend, Job, Keys}
 
   require Logger
 
@@ -115,15 +115,13 @@ defmodule BullMQ.FlowProducer do
   def add(flow, opts \\ []) do
     conn = Keyword.fetch!(opts, :connection)
     prefix = Keyword.get(opts, :prefix, "bull")
-
-    # Ensure scripts are loaded before building commands
-    Scripts.ensure_scripts_loaded(conn, [:add_standard_job, :add_parent_job])
+    backend = Backend.create("", connection: conn, prefix: prefix)
 
     # Build all commands and job tree structure without executing
-    case build_flow_commands(flow, nil, prefix, []) do
+    case build_flow_commands(flow, nil, prefix, [], backend) do
       {:ok, commands, job_tree} ->
-        # Execute all commands atomically in a transaction
-        case Scripts.execute_transaction(conn, commands) do
+        # Execute the whole flow atomically through the backend
+        case Backend.add_flow(backend, commands) do
           {:ok, results} ->
             # Check for errors in results
             errors = Enum.filter(results, &match?({:error, _}, &1))
@@ -165,14 +163,12 @@ defmodule BullMQ.FlowProducer do
   def add_bulk(flows, opts \\ []) do
     conn = Keyword.fetch!(opts, :connection)
     prefix = Keyword.get(opts, :prefix, "bull")
-
-    # Ensure scripts are loaded before building commands
-    Scripts.ensure_scripts_loaded(conn, [:add_standard_job, :add_parent_job])
+    backend = Backend.create("", connection: conn, prefix: prefix)
 
     # Build all commands for all flows
     {all_commands, all_trees, errors} =
       Enum.reduce(flows, {[], [], []}, fn flow, {cmds_acc, trees_acc, errs_acc} ->
-        case build_flow_commands(flow, nil, prefix, []) do
+        case build_flow_commands(flow, nil, prefix, [], backend) do
           {:ok, commands, job_tree} ->
             {cmds_acc ++ commands, trees_acc ++ [job_tree], errs_acc}
 
@@ -184,8 +180,8 @@ defmodule BullMQ.FlowProducer do
     if not Enum.empty?(errors) do
       {:error, {:build_failed, errors}}
     else
-      # Execute all commands atomically in a single transaction
-      case Scripts.execute_transaction(conn, all_commands) do
+      # Execute all commands atomically through the backend
+      case Backend.add_flow(backend, all_commands) do
         {:ok, results} ->
           # Check for errors in results
           result_errors = Enum.filter(results, &match?({:error, _}, &1))
@@ -210,7 +206,7 @@ defmodule BullMQ.FlowProducer do
   # Builds all commands for a flow without executing them.
   # Returns {:ok, commands, job_tree_template} where job_tree_template
   # has placeholder IDs that will be populated after execution.
-  defp build_flow_commands(flow, parent_info, prefix, commands_acc) do
+  defp build_flow_commands(flow, parent_info, prefix, commands_acc, backend) do
     # Support both queue_name (preferred) and queue (for backward compat)
     queue_name = Map.get(flow, :queue_name) || Map.get(flow, :queue)
 
@@ -249,7 +245,8 @@ defmodule BullMQ.FlowProducer do
         timestamp,
         parent_info,
         prefix,
-        commands_acc
+        commands_acc,
+        backend
       )
     else
       # Parent node - add parent first, then children
@@ -265,7 +262,8 @@ defmodule BullMQ.FlowProducer do
         parent_info,
         prefix,
         children,
-        commands_acc
+        commands_acc,
+        backend
       )
     end
   catch
@@ -282,12 +280,14 @@ defmodule BullMQ.FlowProducer do
          timestamp,
          parent_info,
          prefix,
-         commands_acc
+         commands_acc,
+         backend
        ) do
     job = build_job_map(job_id, name, data, queue_name, opts, timestamp, parent_info)
     encoded_opts = encode_job_opts(opts)
 
-    {:ok, cmd} = Scripts.build_add_standard_job_command(ctx, job, encoded_opts)
+    node_backend = Backend.for_queue(backend, ctx.name, ctx.prefix)
+    {:ok, cmd} = Backend.build_add_standard_command(node_backend, job, encoded_opts)
 
     job_template = %{
       # Will be populated after execution
@@ -318,12 +318,14 @@ defmodule BullMQ.FlowProducer do
          parent_info,
          prefix,
          children,
-         commands_acc
+         commands_acc,
+         backend
        ) do
     job = build_job_map(job_id, name, data, queue_name, opts, timestamp, parent_info)
     encoded_opts = encode_job_opts(opts)
 
-    {:ok, cmd} = Scripts.build_add_parent_job_command(ctx, job, encoded_opts)
+    node_backend = Backend.for_queue(backend, ctx.name, ctx.prefix)
+    {:ok, cmd} = Backend.build_add_parent_command(node_backend, job, encoded_opts)
 
     # Build parent info for children
     parent_key = "#{queue_key}:#{job_id}"
@@ -339,7 +341,7 @@ defmodule BullMQ.FlowProducer do
     # Build commands for all children recursively
     {children_commands, children_templates} =
       Enum.reduce(children, {[], []}, fn child, {cmds, templates} ->
-        case build_flow_commands(child, parent_info_for_children, prefix, []) do
+        case build_flow_commands(child, parent_info_for_children, prefix, [], backend) do
           {:ok, child_cmds, child_template} ->
             {cmds ++ child_cmds, templates ++ [child_template]}
 

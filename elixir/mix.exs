@@ -67,6 +67,9 @@ defmodule BullMQ.MixProject do
       # Redis client
       {:redix, "~> 1.3"},
 
+      # PostgreSQL client (optional backend)
+      {:postgrex, "~> 0.19", optional: true},
+
       # Connection pooling
       {:nimble_pool, "~> 1.0"},
 

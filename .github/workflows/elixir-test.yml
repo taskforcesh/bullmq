@@ -27,6 +27,7 @@ jobs:
             elixir:
               - 'elixir/**'
               - 'src/commands/**'
+              - 'src/postgres/**'
               - '.github/workflows/elixir-test.yml'
 
   test:
@@ -109,3 +110,75 @@ jobs:
         if: needs.changes.outputs.should_run == 'true'
         working-directory: elixir
         run: mix format --check-formatted
+
+  postgres-test:
+    needs: changes
+    runs-on: ubuntu-latest
+
+    name: testing elixir postgres backend elixir@${{ matrix.elixir-version }}, otp@${{ matrix.otp-version }}, postgres@${{ matrix.postgres-version }}
+
+    strategy:
+      matrix:
+        elixir-version: ['1.17']
+        otp-version: ['27.x']
+        postgres-version: ['16']
+
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres-version }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: bullmq_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Skip when Elixir files are unchanged
+        if: needs.changes.outputs.should_run != 'true'
+        run: echo "No Elixir-related changes detected; skipping Elixir Postgres test steps."
+
+      - name: Checkout repository
+        if: needs.changes.outputs.should_run == 'true'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Set up Elixir
+        if: needs.changes.outputs.should_run == 'true'
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ matrix.elixir-version }}
+          otp-version: ${{ matrix.otp-version }}
+
+      - name: Restore dependencies cache
+        if: needs.changes.outputs.should_run == 'true'
+        uses: actions/cache@v5
+        with:
+          path: elixir/deps
+          key: ${{ runner.os }}-mix-deps-${{ matrix.elixir-version }}-${{ matrix.otp-version }}-${{ hashFiles('elixir/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-deps-${{ matrix.elixir-version }}-${{ matrix.otp-version }}-
+
+      - name: Install Elixir dependencies
+        if: needs.changes.outputs.should_run == 'true'
+        working-directory: elixir
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix deps.get
+
+      - name: Compile
+        if: needs.changes.outputs.should_run == 'true'
+        working-directory: elixir
+        run: mix compile --warnings-as-errors
+
+      - name: Run Postgres backend tests
+        if: needs.changes.outputs.should_run == 'true'
+        working-directory: elixir
+        env:
+          POSTGRES_URL: postgres://postgres:postgres@localhost:5432/bullmq_test
+        run: mix test test/bullmq/backends/postgres_test.exs test/bullmq/backends/postgres_integration_test.exs --include postgres
