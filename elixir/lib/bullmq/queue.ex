@@ -453,7 +453,16 @@ defmodule BullMQ.Queue do
   end
 
   def get_counts(queue, opts) when is_binary(queue) do
-    types = [:waiting, :active, :delayed, :prioritized, :completed, :failed, :paused, :waiting_children]
+    types = [
+      :waiting,
+      :active,
+      :delayed,
+      :prioritized,
+      :completed,
+      :failed,
+      :paused,
+      :waiting_children
+    ]
 
     case Backend.get_counts_by_types(Backend.create(queue, opts), types) do
       {:ok, [waiting, active, delayed, prioritized, completed, failed, paused, waiting_children]} ->

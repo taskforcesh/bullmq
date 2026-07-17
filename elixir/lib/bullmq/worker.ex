@@ -1449,16 +1449,12 @@ defmodule BullMQ.Worker do
         handle_job_result(job, {:error, error_msg, []}, ctx)
 
       {:delay, delay_ms} ->
-        Backend.move_to_delayed(ctx.backend, job.id, job.token, delay_ms,
-          skip_attempt: true
-        )
+        Backend.move_to_delayed(ctx.backend, job.id, job.token, delay_ms, skip_attempt: true)
 
         :stop
 
       {:rate_limit, delay_ms} ->
-        Backend.move_to_delayed(ctx.backend, job.id, job.token, delay_ms,
-          skip_attempt: true
-        )
+        Backend.move_to_delayed(ctx.backend, job.id, job.token, delay_ms, skip_attempt: true)
 
         :stop
 

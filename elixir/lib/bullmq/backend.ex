@@ -540,7 +540,17 @@ defmodule BullMQ.Backend do
   def build_add_parent_command(b, job, opts),
     do: dispatch(b, :build_add_parent_command, [job, opts])
 
-  @spec add_job_scheduler(t, String.t(), integer(), map(), String.t(), map(), map(), integer(), String.t() | nil) ::
+  @spec add_job_scheduler(
+          t,
+          String.t(),
+          integer(),
+          map(),
+          String.t(),
+          map(),
+          map(),
+          integer(),
+          String.t() | nil
+        ) ::
           {:ok, term()} | {:error, term()}
   def add_job_scheduler(
         b,
