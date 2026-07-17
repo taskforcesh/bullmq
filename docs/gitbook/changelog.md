@@ -1,3 +1,10 @@
+## [5.80.6](https://github.com/taskforcesh/bullmq/compare/v5.80.5...v5.80.6) (2026-07-17)
+
+
+### Bug Fixes
+
+* **sandbox:** preserve child_process exports in null-stdio ([#4301](https://github.com/taskforcesh/bullmq/issues/4301)) ([5044cf8](https://github.com/taskforcesh/bullmq/commit/5044cf8fc17f0842655eda581b9e26b27f6abfe8))
+
 ## [5.80.5](https://github.com/taskforcesh/bullmq/compare/v5.80.4...v5.80.5) (2026-07-16)
 
 
