@@ -275,15 +275,27 @@ defmodule BullMQ.Backends.Postgres do
   @impl true
   def add_jobs(%__MODULE__{} = b, jobs_with_opts, _opts) do
     # jobs_with_opts: list of {job, encoded_opts}. The whole batch is inserted
-    # in a single atomic `add_flow` statement so they all become visible
-    # together (FIFO/priority ordering otherwise breaks under concurrency).
-    # Returns per-job results (`{:ok, id} | {:error, code}`) in input order.
+    # atomically; results (`{:ok, id} | {:error, code}`) are returned in input
+    # order.
     entries =
       Enum.map(jobs_with_opts, fn {job, encoded} ->
         batch_entry(b.queue_name, job, encoded, false)
       end)
 
-    {:ok, Enum.map(run_add_flow(b, entries), &flow_result/1)}
+    # Fast path: when every job is independent (no parent, no deduplication),
+    # use the set-based `add_jobs_bulk` (one INSERT + one event INSERT) instead
+    # of the row-by-row flow engine. Flows/deduplicated batches fall back to
+    # `add_flow`, which handles dependency wiring and dedup.
+    if Enum.all?(entries, &independent_entry?/1) do
+      result = run(b, "add_jobs_bulk", [b.queue_name, entries])
+      {:ok, Enum.map(result.rows, fn [id] -> {:ok, to_string(id)} end)}
+    else
+      {:ok, Enum.map(run_add_flow(b, entries), &flow_result/1)}
+    end
+  end
+
+  defp independent_entry?(e) do
+    is_nil(e["parentId"]) and is_nil(e["parentQueue"]) and is_nil(e["dedupId"])
   end
 
   # ============================================================
