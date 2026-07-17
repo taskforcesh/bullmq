@@ -68,7 +68,7 @@ defmodule BullMQ.MixProject do
       {:redix, "~> 1.3"},
 
       # PostgreSQL client (optional backend)
-      {:postgrex, "~> 0.19", optional: true},
+      {:postgrex, "~> 0.22", optional: true},
 
       # Connection pooling
       {:nimble_pool, "~> 1.0"},

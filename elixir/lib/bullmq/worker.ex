@@ -669,7 +669,12 @@ defmodule BullMQ.Worker do
       drain_delay: Keyword.get(opts, :drain_delay, @default_drain_delay),
       limiter: Keyword.get(opts, :limiter),
       keys: Keys.new(queue_name, prefix: prefix),
-      backend: Backend.create(queue_name, connection: connection, prefix: prefix),
+      backend:
+        Backend.create(queue_name,
+          connection: connection,
+          prefix: prefix,
+          owns_connection: false
+        ),
       token: generate_token(),
       opts: Map.new(opts),
       telemetry: Keyword.get(opts, :telemetry),
