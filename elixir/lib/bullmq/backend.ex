@@ -114,7 +114,7 @@ defmodule BullMQ.Backend do
 
   @doc "Adds many jobs in a single efficient operation (pipeline / bulk)."
   @callback add_jobs(t, jobs_with_opts :: list(), opts :: keyword()) ::
-              {:ok, [job_id]} | {:error, term()}
+              {:ok, [{:ok, job_id} | {:error, term()}]} | {:error, term()}
 
   @doc """
   Atomically inserts a flow (tree) of jobs that may span multiple queues.
