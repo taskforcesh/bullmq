@@ -1,3 +1,10 @@
+## [5.80.7](https://github.com/taskforcesh/bullmq/compare/v5.80.6...v5.80.7) (2026-07-17)
+
+
+### Bug Fixes
+
+* **worker:** move stalled job to failed when fetched manually ([#4294](https://github.com/taskforcesh/bullmq/issues/4294)) ([c4a0a4a](https://github.com/taskforcesh/bullmq/commit/c4a0a4a90d48303b1b6b7c45f67898573a73c424))
+
 ## [5.80.6](https://github.com/taskforcesh/bullmq/compare/v5.80.5...v5.80.6) (2026-07-17)
 
 
