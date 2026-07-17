@@ -814,62 +814,44 @@ defmodule BullMQ.Queue do
     # Normalize states to always be a list
     state_list = if is_list(states), do: states, else: [states]
 
-    # Get job IDs from all requested states
-    job_ids_results =
-      Enum.map(state_list, fn state ->
-        case state do
-          :waiting ->
-            RedisConnection.command(conn, ["LRANGE", Keys.wait(ctx), start_idx, end_idx])
+    # For each requested state, read the ids and their job hashes in a single
+    # Lua script call. The script skips ids whose job hash is missing (deleted
+    # jobs, and the deprecated wait list marker as a side effect) and backfills
+    # skipped ids for bounded ranges, so the returned entries never reference a
+    # vanished job. The per-state `asc` flag preserves the historical ordering:
+    # list states keep their native head-to-tail order and sorted-set states are
+    # returned in ascending score order.
+    entries =
+      Enum.flat_map(state_list, fn state ->
+        case map_state_to_lua_type(state) do
+          nil ->
+            []
 
-          :active ->
-            RedisConnection.command(conn, ["LRANGE", Keys.active(ctx), start_idx, end_idx])
-
-          :delayed ->
-            RedisConnection.command(conn, ["ZRANGE", Keys.delayed(ctx), start_idx, end_idx])
-
-          :prioritized ->
-            RedisConnection.command(conn, ["ZRANGE", Keys.prioritized(ctx), start_idx, end_idx])
-
-          :completed ->
-            RedisConnection.command(conn, ["ZRANGE", Keys.completed(ctx), start_idx, end_idx])
-
-          :failed ->
-            RedisConnection.command(conn, ["ZRANGE", Keys.failed(ctx), start_idx, end_idx])
-
-          :paused ->
-            RedisConnection.command(conn, ["LRANGE", Keys.paused(ctx), start_idx, end_idx])
-
-          :wait ->
-            RedisConnection.command(conn, ["LRANGE", Keys.wait(ctx), start_idx, end_idx])
-
-          :waiting_children ->
-            RedisConnection.command(conn, ["ZRANGE", Keys.waiting_children(ctx), start_idx, end_idx])
-
-          _ ->
-            {:ok, []}
+          {lua_type, asc} ->
+            case Scripts.get_jobs(conn, ctx, [lua_type], start_idx, end_idx, asc) do
+              {:ok, [state_entries]} when is_list(state_entries) -> state_entries
+              _ -> []
+            end
         end
       end)
 
-    # Combine all job IDs
-    all_job_ids =
-      job_ids_results
-      |> Enum.flat_map(fn
-        {:ok, ids} when is_list(ids) -> ids
-        _ -> []
-      end)
-      |> Enum.uniq()
+    # Hydrate jobs, de-duplicating by id across states while preserving order.
+    {jobs, _seen} =
+      Enum.reduce(entries, {[], MapSet.new()}, fn
+        [job_id, fields], {acc, seen} when is_binary(job_id) and is_list(fields) ->
+          if MapSet.member?(seen, job_id) do
+            {acc, seen}
+          else
+            job_data = parse_hash_data(fields)
+            job = Job.from_redis(job_id, queue, job_data, prefix: prefix, connection: conn)
+            {[job | acc], MapSet.put(seen, job_id)}
+          end
 
-    # Fetch jobs
-    jobs =
-      Enum.map(all_job_ids, fn job_id ->
-        case get_job(queue, job_id, opts) do
-          {:ok, job} when not is_nil(job) -> job
-          _ -> nil
-        end
+        _, {acc, seen} ->
+          {acc, seen}
       end)
-      |> Enum.reject(&is_nil/1)
 
-    {:ok, jobs}
+    {:ok, Enum.reverse(jobs)}
   end
 
   # ---------------------------------------------------------------------------
@@ -2136,6 +2118,22 @@ defmodule BullMQ.Queue do
       types
     end
   end
+
+  # Map an Elixir job state to the Lua `getJobs` type string together with the
+  # `asc` flag that preserves the historical ordering for that state. List
+  # states (wait/active/paused) keep their native head-to-tail order (asc:
+  # false), while sorted-set states are returned in ascending score order
+  # (asc: true). Returns nil for unknown states.
+  defp map_state_to_lua_type(:waiting), do: {"wait", false}
+  defp map_state_to_lua_type(:wait), do: {"wait", false}
+  defp map_state_to_lua_type(:active), do: {"active", false}
+  defp map_state_to_lua_type(:paused), do: {"paused", false}
+  defp map_state_to_lua_type(:delayed), do: {"delayed", true}
+  defp map_state_to_lua_type(:prioritized), do: {"prioritized", true}
+  defp map_state_to_lua_type(:completed), do: {"completed", true}
+  defp map_state_to_lua_type(:failed), do: {"failed", true}
+  defp map_state_to_lua_type(:waiting_children), do: {"waiting-children", true}
+  defp map_state_to_lua_type(_), do: nil
 
   defp build_count_command(ctx, type) do
     case type do
