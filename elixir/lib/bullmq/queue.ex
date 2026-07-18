@@ -1799,7 +1799,7 @@ defmodule BullMQ.Queue do
     end
   end
 
-defp backend_opts(state, extra_opts \\ []) do
+  defp backend_opts(state, extra_opts \\ []) do
     Keyword.merge(
       [
         connection: state.connection,
