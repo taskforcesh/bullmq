@@ -55,7 +55,7 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         parent_worker = Worker(parent_queue_name, process2, {"prefix": prefix})
         children_worker = Worker(queue_name, process1, {"prefix": prefix})
 
-        flow = FlowProducer({}, {"prefix": prefix})
+        flow = FlowProducer({"prefix": prefix})
         await flow.add(
             {
                 "name": 'parent-job',
@@ -112,7 +112,7 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         parent_worker = Worker(parent_queue_name, process2, {"prefix": prefix})
         children_worker = Worker(queue_name, process1, {"prefix": prefix})
 
-        flow = FlowProducer({},{"prefix": prefix})
+        flow = FlowProducer({"prefix": prefix})
         await flow.addBulk([
             {
                 "name": 'parent-job-1',
@@ -173,7 +173,7 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         parent_worker = Worker(parent_queue_name, process2, {"prefix": prefix})
         children_worker = Worker(queue_name, process1, {"prefix": prefix})
 
-        flow = FlowProducer({},{"prefix": prefix})
+        flow = FlowProducer({"prefix": prefix})
         await flow.add(
             {
                 "name": 'parent-job',
@@ -233,7 +233,7 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         parent_worker = Worker(parent_queue_name, process_parent, {"prefix": prefix})
         child_worker = Worker(child_queue_name, process_child, {"prefix": prefix})
 
-        flow = FlowProducer({}, {"prefix": prefix})
+        flow = FlowProducer({"prefix": prefix})
         parent_tree = await flow.add(
             {
                 "name": 'parent-job',
