@@ -634,7 +634,11 @@ defmodule BullMQ.Worker do
 
   # Builds the datastore backend for a job from its identity + connection.
   defp job_backend(%Job{} = job) do
-    Backend.create(job.queue_name, connection: job.connection, prefix: job.prefix)
+    Backend.create(job.queue_name,
+      connection: job.connection,
+      prefix: job.prefix,
+      backend: job.backend
+    )
   end
 
   # GenServer callbacks
@@ -654,6 +658,8 @@ defmodule BullMQ.Worker do
 
     # Check processor arity once at init - skip cancellation overhead for arity-1 processors
     supports_cancellation = processor_supports_cancellation?(processor)
+    backend_module =
+      Keyword.get(opts, :backend, Application.get_env(:bullmq, :backend, BullMQ.Backends.Redis))
 
     state = %__MODULE__{
       name: Keyword.get(opts, :name),
@@ -672,6 +678,7 @@ defmodule BullMQ.Worker do
       backend:
         Backend.create(queue_name,
           connection: connection,
+          backend: backend_module,
           prefix: prefix,
           owns_connection: false
         ),
@@ -855,6 +862,7 @@ defmodule BullMQ.Worker do
     base_backend =
       Backend.create(state.queue_name,
         connection: state.connection,
+        backend: backend_module(state),
         prefix: state.prefix,
         client_name: worker_client_name(state),
         owns_connection: false
@@ -1338,6 +1346,7 @@ defmodule BullMQ.Worker do
             prefix: ctx.prefix,
             token: ctx.token,
             connection: ctx.connection,
+            backend: backend_module(ctx),
             worker: ctx.coordinator
           )
 
@@ -1495,6 +1504,7 @@ defmodule BullMQ.Worker do
                 prefix: ctx.prefix,
                 token: ctx.token,
                 connection: ctx.connection,
+                backend: backend_module(ctx),
                 worker: ctx.coordinator
               )
 
@@ -1537,6 +1547,7 @@ defmodule BullMQ.Worker do
               prefix: ctx.prefix,
               token: ctx.token,
               connection: ctx.connection,
+              backend: backend_module(ctx),
               worker: ctx.coordinator
             )
 
@@ -1562,6 +1573,7 @@ defmodule BullMQ.Worker do
               prefix: ctx.prefix,
               token: ctx.token,
               connection: ctx.connection,
+              backend: backend_module(ctx),
               worker: ctx.coordinator
             )
 
@@ -1628,6 +1640,7 @@ defmodule BullMQ.Worker do
             prefix: state.prefix,
             token: token,
             connection: state.connection,
+            backend: backend_module(state),
             worker: self()
           )
 
@@ -1931,6 +1944,7 @@ defmodule BullMQ.Worker do
         prefix: state.prefix,
         token: state.token,
         connection: state.connection,
+        backend: backend_module(state),
         worker: self()
       )
 
@@ -1980,6 +1994,7 @@ defmodule BullMQ.Worker do
                 prefix: state.prefix,
                 token: state.token,
                 connection: state.connection,
+                backend: backend_module(state),
                 worker: self()
               )
 
@@ -2087,6 +2102,7 @@ defmodule BullMQ.Worker do
     base_backend =
       Backend.create(state.queue_name,
         connection: state.connection,
+        backend: backend_module(state),
         prefix: state.prefix,
         client_name: worker_client_name(state),
         owns_connection: false
@@ -2094,9 +2110,13 @@ defmodule BullMQ.Worker do
 
     case Backend.reconnect_blocking(base_backend) do
       {:ok, backend} -> %{state | backend: backend, blocking_ready: true}
-      {:error, _} -> state
+      {:error, reason} ->
+        Logger.error("[BullMQ.Worker] Failed to create blocking connection: #{inspect(reason)}")
+        state
     end
   end
+
+  defp backend_module(%{backend: %mod{}}), do: mod
 
   # Calculate blocking timeout like Node.js does:
   # - If block_until is set (delayed job timestamp), wait until that time

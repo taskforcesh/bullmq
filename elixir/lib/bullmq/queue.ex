@@ -416,13 +416,19 @@ defmodule BullMQ.Queue do
   def get_job(queue, job_id, opts) when is_binary(queue) do
     conn = Keyword.fetch!(opts, :connection)
     prefix = Keyword.get(opts, :prefix, "bull")
+    backend = Backend.create(queue, opts)
 
-    case Backend.get_job_data(Backend.create(queue, opts), job_id) do
+    case Backend.get_job_data(backend, job_id) do
       {:ok, nil} ->
         {:ok, nil}
 
       {:ok, job_data} ->
-        {:ok, Job.from_redis(job_id, queue, job_data, prefix: prefix, connection: conn)}
+        {:ok,
+         Job.from_redis(job_id, queue, job_data,
+           prefix: prefix,
+           connection: conn,
+           backend: backend.__struct__
+         )}
 
       {:error, _} = error ->
         error
@@ -1778,7 +1784,7 @@ defmodule BullMQ.Queue do
   end
 
   defp add_job(conn, ctx, job) do
-    backend = Backend.create(ctx.name, connection: conn, prefix: ctx.prefix)
+    backend = Backend.create(ctx.name, connection: conn, prefix: ctx.prefix, backend: job.backend)
 
     case Backend.add_job(backend, job) do
       {:ok, job_id} ->

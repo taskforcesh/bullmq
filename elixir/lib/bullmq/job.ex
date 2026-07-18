@@ -111,6 +111,7 @@ defmodule BullMQ.Job do
           deferred_failure: String.t() | nil,
           token: Types.lock_token() | nil,
           connection: Types.redis_connection() | nil,
+          backend: module() | nil,
           worker: pid() | nil
         }
 
@@ -122,6 +123,7 @@ defmodule BullMQ.Job do
     :queue_name,
     :token,
     :connection,
+    :backend,
     :worker,
     :parent_key,
     :parent,
@@ -184,7 +186,8 @@ defmodule BullMQ.Job do
       priority: Map.get(opts, :priority, 0),
       parent: Map.get(opts, :parent),
       parent_key: build_parent_key(Map.get(opts, :parent)),
-      deduplication_id: get_in(opts, [:deduplication, :id])
+      deduplication_id: get_in(opts, [:deduplication, :id]),
+      backend: backend_module(opts)
     }
   end
 
@@ -228,6 +231,7 @@ defmodule BullMQ.Job do
       deferred_failure: Map.get(data, "defa"),
       token: Keyword.get(opts, :token),
       connection: Keyword.get(opts, :connection),
+      backend: backend_module(opts),
       worker: Keyword.get(opts, :worker)
     }
   end
@@ -937,7 +941,25 @@ defmodule BullMQ.Job do
 
   # Builds the datastore backend for this job from its queue identity + connection.
   defp backend(%__MODULE__{} = job) do
-    Backend.create(job.queue_name, connection: job.connection, prefix: job.prefix)
+    Backend.create(job.queue_name,
+      connection: job.connection,
+      prefix: job.prefix,
+      backend: job.backend
+    )
+  end
+
+  defp backend_module(opts) when is_map(opts) do
+    Map.get(opts, :backend) ||
+      Map.get(opts, "backend") ||
+      default_backend_module()
+  end
+
+  defp backend_module(opts) when is_list(opts) do
+    Keyword.get(opts, :backend, default_backend_module())
+  end
+
+  defp default_backend_module do
+    Application.get_env(:bullmq, :backend, BullMQ.Backends.Redis)
   end
 
   # Helper to parse HGETALL result into a map with JSON-decoded values

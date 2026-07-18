@@ -209,18 +209,18 @@ defmodule BullMQ.Backends.Postgres do
 
   @impl true
   def parse_node_key(%__MODULE__{}, key) do
-    idx = :binary.matches(key, ":") |> List.last()
+    case :binary.matches(key, ":") do
+      [] ->
+        %{prefix: "", queue_name: "", id: key}
 
-    case idx do
-      {pos, _} ->
+      matches ->
+        {pos, _} = List.last(matches)
+
         %{
           prefix: "",
           queue_name: binary_part(key, 0, pos),
           id: binary_part(key, pos + 1, byte_size(key) - pos - 1)
         }
-
-      nil ->
-        %{prefix: "", queue_name: "", id: key}
     end
   end
 

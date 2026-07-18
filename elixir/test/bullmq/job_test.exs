@@ -26,6 +26,12 @@ defmodule BullMQ.JobTest do
       assert job.id == "custom-123"
     end
 
+    test "preserves the selected backend module" do
+      job = Job.new("queue", "task", %{}, backend: BullMQ.Backends.Postgres)
+
+      assert job.backend == BullMQ.Backends.Postgres
+    end
+
     test "sets timestamp to current time" do
       before = System.system_time(:millisecond)
       job = Job.new("queue", "test", %{})
@@ -82,6 +88,18 @@ defmodule BullMQ.JobTest do
       assert job.progress == 0
       assert job.attempts_made == 0
       assert job.return_value == nil
+    end
+
+    test "preserves the selected backend module" do
+      job =
+        Job.from_redis(
+          "job-456",
+          "test-queue",
+          %{"name" => "simple", "data" => "{}", "opts" => "{}"},
+          backend: BullMQ.Backends.Postgres
+        )
+
+      assert job.backend == BullMQ.Backends.Postgres
     end
   end
 
