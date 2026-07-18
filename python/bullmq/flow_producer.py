@@ -31,11 +31,11 @@ class FlowProducer:
     Instantiate a FlowProducer object
     """
 
-    #TODO: pass only queueOpts, no need 2 parameters in next breaking change
-    def __init__(self, redisOpts: Union[dict, str] = {}, opts: QueueBaseOptions = {}):
+    def __init__(self, opts: QueueBaseOptions = {}):
         """
         Initialize a connection
         """
+        redisOpts = opts.get("connection", {})
         self.redisConnection = RedisConnection(
             redisOpts,
             skipVersionCheck=opts.get("skipVersionCheck", False)
