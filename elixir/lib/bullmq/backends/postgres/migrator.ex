@@ -181,9 +181,9 @@ defmodule BullMQ.Backends.Postgres.Migrator do
   @spec split_statements(String.t()) :: [String.t()]
   def split_statements(sql) do
     sql
-    |> split(:normal, "", [])
+    |> split(:normal, [], [])
     |> Enum.reverse()
-    |> Enum.map(&String.trim/1)
+    |> Enum.map(&(IO.iodata_to_binary(&1) |> String.trim()))
     |> Enum.reject(&(&1 == ""))
   end
 
@@ -192,64 +192,64 @@ defmodule BullMQ.Backends.Postgres.Migrator do
 
   # -- line comment --
   defp split(<<"\n", rest::binary>>, :line, acc, stmts),
-    do: split(rest, :normal, acc <> "\n", stmts)
+    do: split(rest, :normal, [acc, "\n"], stmts)
 
   defp split(<<c::utf8, rest::binary>>, :line, acc, stmts),
-    do: split(rest, :line, acc <> <<c::utf8>>, stmts)
+    do: split(rest, :line, [acc, <<c::utf8>>], stmts)
 
   # -- block comment --
   defp split(<<"*/", rest::binary>>, :block, acc, stmts),
-    do: split(rest, :normal, acc <> "*/", stmts)
+    do: split(rest, :normal, [acc, "*/"], stmts)
 
   defp split(<<c::utf8, rest::binary>>, :block, acc, stmts),
-    do: split(rest, :block, acc <> <<c::utf8>>, stmts)
+    do: split(rest, :block, [acc, <<c::utf8>>], stmts)
 
   # -- single-quoted string ('' is an escaped quote) --
   defp split(<<"''", rest::binary>>, :squote, acc, stmts),
-    do: split(rest, :squote, acc <> "''", stmts)
+    do: split(rest, :squote, [acc, "''"], stmts)
 
   defp split(<<"'", rest::binary>>, :squote, acc, stmts),
-    do: split(rest, :normal, acc <> "'", stmts)
+    do: split(rest, :normal, [acc, "'"], stmts)
 
   defp split(<<c::utf8, rest::binary>>, :squote, acc, stmts),
-    do: split(rest, :squote, acc <> <<c::utf8>>, stmts)
+    do: split(rest, :squote, [acc, <<c::utf8>>], stmts)
 
   # -- dollar-quoted string --
   defp split(bin, {:dollar, tag}, acc, stmts) do
     if String.starts_with?(bin, tag) do
       len = byte_size(tag)
       <<matched::binary-size(len), rest::binary>> = bin
-      split(rest, :normal, acc <> matched, stmts)
+      split(rest, :normal, [acc, matched], stmts)
     else
       case bin do
         <<>> -> [acc | stmts]
-        <<c::utf8, rest::binary>> -> split(rest, {:dollar, tag}, acc <> <<c::utf8>>, stmts)
+        <<c::utf8, rest::binary>> -> split(rest, {:dollar, tag}, [acc, <<c::utf8>>], stmts)
       end
     end
   end
 
   # -- normal --
   defp split(<<"--", rest::binary>>, :normal, acc, stmts),
-    do: split(rest, :line, acc <> "--", stmts)
+    do: split(rest, :line, [acc, "--"], stmts)
 
   defp split(<<"/*", rest::binary>>, :normal, acc, stmts),
-    do: split(rest, :block, acc <> "/*", stmts)
+    do: split(rest, :block, [acc, "/*"], stmts)
 
   defp split(<<"'", rest::binary>>, :normal, acc, stmts),
-    do: split(rest, :squote, acc <> "'", stmts)
+    do: split(rest, :squote, [acc, "'"], stmts)
 
   defp split(<<"$", rest::binary>>, :normal, acc, stmts) do
     case read_dollar_tag(rest) do
-      {:ok, tag, rest2} -> split(rest2, {:dollar, tag}, acc <> tag, stmts)
-      :error -> split(rest, :normal, acc <> "$", stmts)
+      {:ok, tag, rest2} -> split(rest2, {:dollar, tag}, [acc, tag], stmts)
+      :error -> split(rest, :normal, [acc, "$"], stmts)
     end
   end
 
   defp split(<<";", rest::binary>>, :normal, acc, stmts),
-    do: split(rest, :normal, "", [acc | stmts])
+    do: split(rest, :normal, [], [acc | stmts])
 
   defp split(<<c::utf8, rest::binary>>, :normal, acc, stmts),
-    do: split(rest, :normal, acc <> <<c::utf8>>, stmts)
+    do: split(rest, :normal, [acc, <<c::utf8>>], stmts)
 
   # `read_dollar_tag` is called with the input *after* the opening `$`.
   defp read_dollar_tag(<<"$", rest::binary>>), do: {:ok, "$$", rest}
