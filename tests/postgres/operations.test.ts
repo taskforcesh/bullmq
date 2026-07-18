@@ -311,4 +311,27 @@ describe('PostgreSQL backend operations', () => {
       await backend.close();
     }
   });
+
+  it('removeOnComplete: { age: -1 } keeps the job (negative keep-age disables age trimming)', async () => {
+    const backend = newBackend();
+    try {
+      await backend.waitUntilReady();
+      const token = randomUUID();
+      const id = await backend.addJob(makeJob(), '');
+      await backend.moveToActive(token);
+
+      await backend.moveToCompleted(
+        { id } as any,
+        1,
+        { age: -1 } as any,
+        token,
+        false,
+      );
+
+      expect(await backend.getState(id)).toBe('completed');
+      expect(await backend.getJobData(id)).toBeTruthy();
+    } finally {
+      await backend.close();
+    }
+  });
 });

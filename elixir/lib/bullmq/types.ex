@@ -313,7 +313,12 @@ defmodule BullMQ.Types do
   is a backend concern (for the Redis backend it is a `BullMQ.RedisConnection`
   reference or a raw client).
   """
-  @type redis_connection :: atom() | pid() | {:via, module(), term()} | {atom(), node()}
+  @type redis_connection ::
+          atom()
+          | pid()
+          | {:dedicated, pid()}
+          | {:via, module(), term()}
+          | {atom(), node()}
 
   @typedoc """
   Error reason.
