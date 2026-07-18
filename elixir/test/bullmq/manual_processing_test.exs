@@ -233,7 +233,7 @@ defmodule BullMQ.ManualProcessingTest do
       broken_conn = :"manual_broken_blocking_#{System.unique_integer([:positive])}"
       broken_conn_key = {BullMQ.RedisConnection, :redis_opts, broken_conn}
 
-      :persistent_term.put(broken_conn_key, [host: "127.0.0.1", port: 1, sync_connect: true])
+      :persistent_term.put(broken_conn_key, host: "127.0.0.1", port: 1, sync_connect: true)
 
       on_exit(fn ->
         :persistent_term.erase(broken_conn_key)
