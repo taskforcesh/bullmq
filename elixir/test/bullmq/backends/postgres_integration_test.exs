@@ -211,7 +211,7 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
 
     Process.sleep(200)
     assert {:ok, meta} = Queue.get_meta(queue_name)
-    assert meta["version"] == BullMQ.Version.full_version()
+    assert meta.version == BullMQ.Version.full_version()
   end
 
   test "JobScheduler.upsert registers and lists a scheduler", %{conn: conn, queue: queue} do
