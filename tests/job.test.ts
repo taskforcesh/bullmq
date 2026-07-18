@@ -608,21 +608,17 @@ describe('Job', () => {
 
     it('can log using a queue-like object without shared scripts', async () => {
       const firstLog = 'some log text 1';
-      const originalScripts = (queue as any).scripts;
+      const queueWithoutScripts = Object.create(queue, {
+        scripts: { value: undefined, configurable: true },
+      }) as Queue;
 
-      try {
-        (queue as any).scripts = undefined;
+      const job = await Job.create(queueWithoutScripts, 'test', { foo: 'bar' });
 
-        const job = await Job.create(queue, 'test', { foo: 'bar' });
+      await job.log(firstLog);
 
-        await job.log(firstLog);
+      const logs = await queue.getJobLogs(job.id!);
 
-        const logs = await queue.getJobLogs(job.id!);
-
-        expect(logs).toEqual({ logs: [firstLog], count: 1 });
-      } finally {
-        (queue as any).scripts = originalScripts;
-      }
+      expect(logs).toEqual({ logs: [firstLog], count: 1 });
     });
 
     describe('when job is removed', () => {

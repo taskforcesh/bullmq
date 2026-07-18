@@ -17,7 +17,12 @@ import { createScripts } from '../utils/create-scripts';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { RedisConnection } from './redis-connection';
+import type { Scripts } from './scripts';
 import { ErrorCode, SpanKind, TelemetryAttributes } from '../enums';
+
+type MutableMinimalQueue = Omit<MinimalQueue, 'scripts'> & {
+  scripts?: Scripts;
+};
 
 export interface AddNodeOpts {
   multi: IRedisTransaction;
@@ -591,7 +596,7 @@ export class FlowProducer extends EventEmitter {
     }
 
     const flowProducer = this;
-    const queue: MinimalQueue = {
+    const queue: MutableMinimalQueue = {
       client: this.connection.client,
       name: node.queueName,
       keys: queueKeys.getKeys(node.queueName),
@@ -617,7 +622,7 @@ export class FlowProducer extends EventEmitter {
     // Build the shared Scripts instance once per queue so that every job
     // created from this queue-like object reuses it instead of allocating
     // its own.
-    (queue as any).scripts = createScripts(queue);
+    queue.scripts = createScripts(queue);
     this.queues.set(cacheKey, queue);
 
     return queue;
