@@ -609,7 +609,7 @@ describe('Job', () => {
     it('can log using a queue-like object without shared scripts', async () => {
       const firstLog = 'some log text 1';
       const queueWithoutScripts = Object.create(queue, {
-        scripts: { value: undefined, configurable: true },
+        scripts: { value: undefined },
       }) as Queue;
 
       const job = await Job.create(queueWithoutScripts, 'test', { foo: 'bar' });

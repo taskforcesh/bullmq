@@ -20,6 +20,8 @@ import { RedisConnection } from './redis-connection';
 import type { Scripts } from './scripts';
 import { ErrorCode, SpanKind, TelemetryAttributes } from '../enums';
 
+// Internal queue-like objects need to populate scripts during construction even
+// though the public MinimalQueue contract exposes it as readonly.
 type MutableMinimalQueue = Omit<MinimalQueue, 'scripts'> & {
   scripts?: Scripts;
 };
