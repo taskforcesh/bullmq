@@ -10,9 +10,9 @@ export interface MinimalQueue extends ScriptQueueContext {
   /**
    * The long-lived Scripts instance shared by the queue. Jobs reuse this
    * instance instead of allocating their own, since it is bound to the same
-   * queue keys and connection. May be undefined for lightweight queue-like
-   * objects (e.g. the ones created by FlowProducer), in which case a Job
-   * falls back to creating its own Scripts instance.
+   * queue keys and connection. Optional only so that custom queue-like
+   * implementations remain valid; the built-in Queue, Worker and FlowProducer
+   * always provide one so no redundant Scripts is created per job.
    */
   scripts?: Scripts;
   /**

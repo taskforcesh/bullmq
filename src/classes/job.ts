@@ -450,10 +450,11 @@ export class Job<
   }
 
   protected createScripts() {
-    // Reuse the queue's long-lived Scripts instance when available. It is
-    // bound to the same queue keys and connection, so a per-Job instance is
-    // pure duplication. Falls back to creating one for lightweight queue-like
-    // objects that don't carry a Scripts instance (e.g. FlowProducer nodes).
+    // Reuse the queue's long-lived Scripts instance. It is bound to the same
+    // queue keys and connection, so a per-Job instance is pure duplication.
+    // The built-in Queue, Worker and FlowProducer always provide one; the
+    // fallback only covers custom queue-like objects that don't carry a
+    // Scripts instance.
     this.scripts = this.queue.scripts ?? createScripts(this.queue);
   }
 
