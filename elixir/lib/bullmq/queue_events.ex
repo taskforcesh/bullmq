@@ -92,7 +92,14 @@ defmodule BullMQ.QueueEvents do
                    doc: "The name of the queue to listen for events from."
                  ],
                  connection: [
-                   type: {:or, [:atom, :pid, {:tuple, [:atom, :atom]}]},
+                   type:
+                     {:or,
+                      [
+                        :atom,
+                        :pid,
+                        {:tuple, [:atom, :atom]},
+                        {:tuple, [:atom, :atom, :any]}
+                      ]},
                    required: true,
                    doc:
                      "The backend connection reference (atom name, pid, or `{:via, registry}` tuple)."

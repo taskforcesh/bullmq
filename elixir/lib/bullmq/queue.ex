@@ -84,7 +84,14 @@ defmodule BullMQ.Queue do
                    doc: "The name of the queue."
                  ],
                  connection: [
-                   type: {:or, [:atom, :pid, {:tuple, [:atom, :atom]}]},
+                   type:
+                     {:or,
+                      [
+                        :atom,
+                        :pid,
+                        {:tuple, [:atom, :atom]},
+                        {:tuple, [:atom, :atom, :any]}
+                      ]},
                    required: true,
                    doc:
                      "The backend connection (atom name, pid, or `{:via, registry}` tuple)."

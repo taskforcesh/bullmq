@@ -3440,20 +3440,27 @@ BEGIN
   SELECT * FROM ins;
 
   -- One set-based event flush ('added' then the state event per inserted job),
-  -- ordered by seq so the stream keeps FIFO order (mirrors bullmq_add_flow).
+  -- ordered by each inserted job's first input ordinality so stream ordering
+  -- matches caller payload order even when seq is negated by LIFO.
   INSERT INTO bullmq_event (queue, event, data, created_at_ms)
+  WITH inserted AS (
+    SELECT i.id, i.name, i.state, i.process_at_ms, MIN(r.ord) AS ord
+      FROM _bulk_inserted i
+      JOIN _bulk_result r USING (id)
+     GROUP BY i.id, i.name, i.state, i.process_at_ms
+  )
   SELECT p_queue, ev, dat, (extract(epoch FROM clock_timestamp()) * 1000)::bigint
     FROM (
-      SELECT seq * 2       AS o, 'added' AS ev,
+      SELECT ord * 2       AS o, 'added' AS ev,
              jsonb_build_object('jobId', id, 'name', name) AS dat
-        FROM _bulk_inserted
+        FROM inserted
       UNION ALL
-      SELECT seq * 2 + 1,
+      SELECT ord * 2 + 1,
              CASE WHEN state = 'waiting' THEN 'waiting' ELSE 'delayed' END,
              CASE WHEN state = 'waiting'
                   THEN jsonb_build_object('jobId', id)
                   ELSE jsonb_build_object('jobId', id, 'delay', process_at_ms) END
-        FROM _bulk_inserted
+        FROM inserted
     ) q
    ORDER BY o;
 

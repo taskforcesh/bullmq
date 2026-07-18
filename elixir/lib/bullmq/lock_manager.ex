@@ -24,7 +24,8 @@ defmodule BullMQ.LockManager do
         }
 
   @type state :: %{
-          connection: atom(),
+          connection: BullMQ.Types.redis_connection(),
+          backend_module: module() | nil,
           keys: map(),
           lock_duration: non_neg_integer(),
           lock_renew_time: non_neg_integer(),
@@ -43,6 +44,7 @@ defmodule BullMQ.LockManager do
   ## Options
 
     * `:connection` - The Redis connection name (required)
+    * `:backend` - Backend module (defaults to configured backend or Redis)
     * `:keys` - Queue keys context (required)
     * `:lock_duration` - Lock duration in milliseconds (default: 30000)
     * `:lock_renew_time` - Time between lock renewal checks (default: lock_duration / 2)
@@ -118,6 +120,7 @@ defmodule BullMQ.LockManager do
 
     state = %{
       connection: connection,
+      backend_module: Keyword.get(opts, :backend),
       keys: keys,
       lock_duration: lock_duration,
       lock_renew_time: lock_renew_time,
@@ -224,7 +227,11 @@ defmodule BullMQ.LockManager do
     tokens = Enum.map(jobs_to_extend, fn {_id, token} -> token end)
 
     backend =
-      Backend.create(state.keys.name, connection: state.connection, prefix: state.keys.prefix)
+      Backend.create(state.keys.name,
+        connection: state.connection,
+        backend: state.backend_module,
+        prefix: state.keys.prefix
+      )
 
     case Backend.extend_locks(backend, job_ids, tokens, state.lock_duration) do
       {:ok, failed_job_ids} when is_list(failed_job_ids) ->

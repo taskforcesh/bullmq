@@ -882,6 +882,7 @@ defmodule BullMQ.Worker do
         {:ok, lock_manager} =
           LockManager.start_link(
             connection: state.connection,
+            backend: backend_module(state),
             keys: state.keys,
             lock_duration: state.lock_duration,
             on_lock_renewal_failed: fn failed_job_ids ->
