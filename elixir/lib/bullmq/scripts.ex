@@ -55,7 +55,6 @@ defmodule BullMQ.Scripts do
     get_counts_per_priority: "getCountsPerPriority",
     get_dependency_counts: "getDependencyCounts",
     get_job_scheduler: "getJobScheduler",
-    get_jobs: "getJobs",
     get_metrics: "getMetrics",
     get_ranges: "getRanges",
     get_rate_limit_ttl: "getRateLimitTtl",
@@ -1526,49 +1525,6 @@ defmodule BullMQ.Scripts do
     ]
 
     execute(conn, :remove_job, keys, args)
-  end
-
-  # Upper bound on the number of forward backfill iterations the `getJobs` Lua
-  # script performs to replace skipped ids (missing job hashes) within a bounded
-  # range. It caps the work done per call so a range full of missing jobs cannot
-  # scan the whole state unboundedly. Mirrors the Node.js implementation.
-  @get_jobs_max_backfill_iterations 5
-
-  @doc """
-  Fetches job ids and their job hashes for the provided states in a single
-  script, skipping ids whose job hash is missing (for example the deprecated
-  wait list marker or jobs removed after their id was read).
-
-  `types` are the Lua state type strings (e.g. `"wait"`, `"active"`,
-  `"waiting-children"`). The result is one array per requested type; each entry
-  is a `[job_id, [field, value, ...]]` tuple where the field/value list is the
-  flattened job hash. For bounded ranges the script iterates forward using the
-  range offset as a cursor to backfill skipped ids.
-  """
-  @spec get_jobs(
-          atom(),
-          queue_context(),
-          [String.t()],
-          integer(),
-          integer(),
-          boolean(),
-          integer()
-        ) :: script_result()
-  def get_jobs(
-        conn,
-        ctx,
-        types,
-        start_idx \\ 0,
-        end_idx \\ -1,
-        asc \\ false,
-        max_iterations \\ @get_jobs_max_backfill_iterations
-      ) do
-    # KEYS[1] is the queue key prefix (with trailing colon); the script builds
-    # the state keys and job hash keys from it.
-    keys = [Keys.key_prefix(ctx)]
-    args = [start_idx, end_idx, asc, max_iterations | types]
-
-    execute(conn, :get_jobs, keys, args)
   end
 
   @doc """

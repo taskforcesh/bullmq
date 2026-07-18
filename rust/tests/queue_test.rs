@@ -873,46 +873,6 @@ async fn test_get_jobs_by_type_waiting() {
     cleanup_queue(&queue).await;
 }
 
-#[tokio::test]
-async fn test_get_jobs_skips_missing_hash_and_preserves_waiting_order() {
-    let name = test_queue_name();
-    let queue = Queue::with_options(
-        &name,
-        QueueOptions {
-            connection: test_connection(),
-            ..Default::default()
-        },
-    )
-    .await
-    .unwrap();
-
-    let first = queue
-        .add("first", serde_json::json!({"idx": 1}))
-        .await
-        .unwrap();
-    let missing = queue
-        .add("missing", serde_json::json!({"idx": 2}))
-        .await
-        .unwrap();
-    let third = queue
-        .add("third", serde_json::json!({"idx": 3}))
-        .await
-        .unwrap();
-
-    let mut conn = queue.connection().conn();
-    redis::cmd("DEL")
-        .arg(queue.keys().job_key(missing.id()))
-        .query_async::<()>(&mut conn)
-        .await
-        .unwrap();
-
-    let jobs = queue.get_jobs(&["waiting"], 0, 1, true).await.unwrap();
-    let ids: Vec<&str> = jobs.iter().map(|job| job.id()).collect();
-    assert_eq!(ids, vec![first.id(), third.id()]);
-
-    cleanup_queue(&queue).await;
-}
-
 // get_ranges sanitizes types: querying `waiting` must also include `paused`
 // jobs (where waiting jobs are parked while the queue is paused).
 #[tokio::test]

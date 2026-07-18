@@ -19,10 +19,6 @@ import json
 import msgpack
 
 
-# Caps bounded getJobs backfill when skipping ids whose job hash is missing.
-GET_JOBS_MAX_BACKFILL_ITERATIONS = 5
-
-
 class Scripts:
 
     def __init__(self, prefix: str, queueName: str, redisConnection: RedisConnection):
@@ -221,26 +217,6 @@ class Scripts:
         args = [start, end, "1" if asc else "0"] + transformed_types
 
         return (keys, args)
-
-    def getJobsArgs(self, types, start: int = 0, end: int = 1, asc: bool = False):
-        transformed_types = []
-        for type in types:
-            transformed_types.append("wait" if type == "waiting" else type)
-
-        keys = self.getKeys([''])
-        args = [
-            start,
-            end,
-            "1" if asc else "0",
-            GET_JOBS_MAX_BACKFILL_ITERATIONS,
-        ] + transformed_types
-
-        return (keys, args)
-
-    async def getJobs(self, types, start: int = 0, end: int = 1, asc: bool = False):
-        keys, args = self.getJobsArgs(types, start, end, asc)
-
-        return await self.commands["getJobs"](keys=keys, args=args)
 
     async def getRanges(self, types, start: int = 0, end: int = 1, asc: bool = False):
         commands = []

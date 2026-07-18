@@ -188,7 +188,6 @@ impl ScriptRegistry {
             ("getCounts", 1, include_str!("commands/getCounts-1.lua")),
             ("getState", 8, include_str!("commands/getState-8.lua")),
             ("getStateV2", 8, include_str!("commands/getStateV2-8.lua")),
-            ("getJobs", 1, include_str!("commands/getJobs-1.lua")),
             ("getRanges", 1, include_str!("commands/getRanges-1.lua")),
             (
                 "getRateLimitTtl",
