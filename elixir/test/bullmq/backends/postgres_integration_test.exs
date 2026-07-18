@@ -190,6 +190,30 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
     QueueEvents.close(events)
   end
 
+  test "Queue honors a per-instance backend override across later calls", %{conn: conn, queue: queue} do
+    previous = Application.get_env(:bullmq, :backend)
+    Application.put_env(:bullmq, :backend, Backends.Redis)
+
+    on_exit(fn ->
+      if previous do
+        Application.put_env(:bullmq, :backend, previous)
+      else
+        Application.delete_env(:bullmq, :backend)
+      end
+    end)
+
+    queue_name = :"pg_queue_#{System.unique_integer([:positive])}"
+    {:ok, server} = Queue.start_link(name: queue_name, queue: queue, connection: conn, backend: Backends.Postgres)
+    on_exit(fn -> GenServer.stop(server) end)
+
+    {:ok, job} = Queue.add(queue_name, "evented-explicit", %{foo: "bar"})
+    assert {:ok, "waiting"} = Queue.get_job_state(queue_name, job.id)
+
+    Process.sleep(200)
+    assert {:ok, meta} = Queue.get_meta(queue_name)
+    assert meta["version"] == BullMQ.Version.full_version()
+  end
+
   test "JobScheduler.upsert registers and lists a scheduler", %{conn: conn, queue: queue} do
     {:ok, _job} =
       JobScheduler.upsert(

@@ -432,6 +432,18 @@ defmodule BullMQ.Backends.PostgresTest do
     assert {:ok, nil} = Backend.get_deduplication_job_id(b, "dk1")
   end
 
+  test "remove_deduplication_key only removes the active owner", %{backend: b, queue: q} do
+    job = Job.new(q, "dd", %{}, deduplication: %{id: "dk1"})
+    {:ok, id} = Backend.add_job(b, job)
+
+    assert {:ok, ^id} = Backend.get_deduplication_job_id(b, "dk1")
+    assert {:ok, 0} = Backend.remove_deduplication_key(b, "dk1", "other-job")
+    assert {:ok, ^id} = Backend.get_deduplication_job_id(b, "dk1")
+
+    assert {:ok, 1} = Backend.remove_deduplication_key(b, "dk1", id)
+    assert {:ok, nil} = Backend.get_deduplication_job_id(b, "dk1")
+  end
+
   test "get_dependencies and processed children values via a flow", %{backend: b, queue: q} do
     now = System.system_time(:millisecond)
 

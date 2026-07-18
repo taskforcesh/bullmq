@@ -86,7 +86,13 @@ defmodule BullMQ.Queue do
                  connection: [
                    type: {:or, [:atom, :pid, {:tuple, [:atom, :atom]}]},
                    required: true,
-                   doc: "The Redis connection (atom name, pid, or `{:via, registry}` tuple)."
+                   doc:
+                     "The backend connection (atom name, pid, or `{:via, registry}` tuple)."
+                 ],
+                 backend: [
+                   type: :atom,
+                   doc:
+                     "Backend module implementing `BullMQ.Backend` (defaults to application config or Redis)."
                  ],
                  prefix: [
                    type: :string,
@@ -136,6 +142,7 @@ defmodule BullMQ.Queue do
           prefix: String.t(),
           default_job_opts: map(),
           keys: Keys.queue_context(),
+          backend_module: module(),
           telemetry: module() | nil
         }
 
@@ -143,6 +150,7 @@ defmodule BullMQ.Queue do
     :name,
     :connection,
     :keys,
+    :backend_module,
     :telemetry,
     prefix: "bull",
     default_job_opts: %{}
@@ -1515,7 +1523,8 @@ defmodule BullMQ.Queue do
 
     * `:name` - GenServer name (required)
     * `:queue` - Queue name in Redis (required)
-    * `:connection` - Redis connection (required)
+    * `:connection` - Backend connection (required)
+    * `:backend` - Backend module (defaults to configured backend or Redis)
     * `:prefix` - Queue prefix (default: "bull")
     * `:default_job_opts` - Default options for all jobs
 
@@ -1544,6 +1553,7 @@ defmodule BullMQ.Queue do
     telemetry = Keyword.get(opts, :telemetry)
     skip_meta_update = Keyword.get(opts, :skip_meta_update, false)
     streams = Keyword.get(opts, :streams, [])
+    backend = Backend.create(queue_name, Keyword.merge(opts, owns_connection: false))
 
     state = %__MODULE__{
       name: queue_name,
@@ -1551,13 +1561,14 @@ defmodule BullMQ.Queue do
       prefix: prefix,
       default_job_opts: default_job_opts,
       keys: Keys.new(queue_name, prefix: prefix),
+      backend_module: backend.__struct__,
       telemetry: telemetry
     }
 
     # Set meta values in Redis (version and maxLenEvents) unless skipped
     unless skip_meta_update do
       max_len_events = get_in(streams, [:events, :max_len]) || 10_000
-      set_meta_values(connection, state.keys, max_len_events)
+      set_meta_values(connection, state.keys, max_len_events, state.backend_module)
     end
 
     {:ok, state}
@@ -1569,6 +1580,7 @@ defmodule BullMQ.Queue do
       state.default_job_opts
       |> Map.merge(Map.new(opts))
       |> Map.put(:prefix, state.prefix)
+      |> Map.put(:backend, state.backend_module)
 
     # Add telemetry context propagation if telemetry is configured
     merged_opts = maybe_propagate_telemetry_context(merged_opts, state.telemetry)
@@ -1586,6 +1598,7 @@ defmodule BullMQ.Queue do
           |> Map.merge(Map.new(opts))
           |> Map.merge(Map.new(job_opts))
           |> Map.put(:prefix, state.prefix)
+          |> Map.put(:backend, state.backend_module)
 
         # Add telemetry context propagation if telemetry is configured
         merged_opts = maybe_propagate_telemetry_context(merged_opts, state.telemetry)
@@ -1607,72 +1620,68 @@ defmodule BullMQ.Queue do
   end
 
   def handle_call({:get_job, job_id}, _from, state) do
-    result = get_job(state.name, job_id, connection: state.connection, prefix: state.prefix)
+    result = get_job(state.name, job_id, backend_opts(state))
     {:reply, result, state}
   end
 
   def handle_call({:get_job_state, job_id}, _from, state) do
-    result =
-      Backend.get_state(
-        Backend.create(state.keys.name, connection: state.connection, prefix: state.keys.prefix),
-        job_id
-      )
+    result = Backend.get_state(Backend.create(state.keys.name, backend_opts(state)), job_id)
 
     {:reply, result, state}
   end
 
   def handle_call(:get_counts, _from, state) do
-    result = get_counts(state.name, connection: state.connection, prefix: state.prefix)
+    result = get_counts(state.name, backend_opts(state))
     {:reply, result, state}
   end
 
   def handle_call({:get_jobs, status, opts}, _from, state) do
-    merged_opts = Keyword.merge([connection: state.connection, prefix: state.prefix], opts)
+    merged_opts = backend_opts(state, opts)
     result = get_jobs(state.name, status, merged_opts)
     {:reply, result, state}
   end
 
   def handle_call(:pause, _from, state) do
-    result = pause(state.name, connection: state.connection, prefix: state.prefix)
+    result = pause(state.name, backend_opts(state))
     {:reply, result, state}
   end
 
   def handle_call(:resume, _from, state) do
-    result = resume(state.name, connection: state.connection, prefix: state.prefix)
+    result = resume(state.name, backend_opts(state))
     {:reply, result, state}
   end
 
   def handle_call(:paused?, _from, state) do
-    result = paused?(state.name, connection: state.connection, prefix: state.prefix)
+    result = paused?(state.name, backend_opts(state))
     {:reply, result, state}
   end
 
   def handle_call({:drain, opts}, _from, state) do
-    merged_opts = Keyword.merge([connection: state.connection, prefix: state.prefix], opts)
+    merged_opts = backend_opts(state, opts)
     result = drain(state.name, merged_opts)
     {:reply, result, state}
   end
 
   def handle_call({:obliterate, opts}, _from, state) do
-    merged_opts = Keyword.merge([connection: state.connection, prefix: state.prefix], opts)
+    merged_opts = backend_opts(state, opts)
     result = obliterate(state.name, merged_opts)
     {:reply, result, state}
   end
 
   def handle_call({:remove_job, job_id, opts}, _from, state) do
-    merged_opts = Keyword.merge([connection: state.connection, prefix: state.prefix], opts)
+    merged_opts = backend_opts(state, opts)
     result = remove_job(state.name, job_id, merged_opts)
     {:reply, result, state}
   end
 
   def handle_call({:retry_job, job_id, opts}, _from, state) do
-    merged_opts = Keyword.merge([connection: state.connection, prefix: state.prefix], opts)
+    merged_opts = backend_opts(state, opts)
     result = retry_job(state.name, job_id, merged_opts)
     {:reply, result, state}
   end
 
   def handle_call({:clean, status, grace, opts}, _from, state) do
-    merged_opts = Keyword.merge([connection: state.connection, prefix: state.prefix], opts)
+    merged_opts = backend_opts(state, opts)
     result = clean(state.name, status, grace, merged_opts)
     {:reply, result, state}
   end
@@ -1680,47 +1689,45 @@ defmodule BullMQ.Queue do
   # New getter handlers
 
   def handle_call(:count, _from, state) do
-    result = count(state.name, connection: state.connection, prefix: state.prefix)
+    result = count(state.name, backend_opts(state))
     {:reply, result, state}
   end
 
   def handle_call({:get_job_counts, types}, _from, state) do
-    result = get_job_counts(state.name, types, connection: state.connection, prefix: state.prefix)
+    result = get_job_counts(state.name, types, backend_opts(state))
     {:reply, result, state}
   end
 
   def handle_call({:get_job_count_by_types, types}, _from, state) do
-    result =
-      get_job_count_by_types(state.name, types, connection: state.connection, prefix: state.prefix)
+    result = get_job_count_by_types(state.name, types, backend_opts(state))
 
     {:reply, result, state}
   end
 
   def handle_call(:get_meta, _from, state) do
-    result = get_meta(state.name, connection: state.connection, prefix: state.prefix)
+    result = get_meta(state.name, backend_opts(state))
     {:reply, result, state}
   end
 
   def handle_call(:get_global_concurrency, _from, state) do
-    result = get_global_concurrency(state.name, connection: state.connection, prefix: state.prefix)
+    result = get_global_concurrency(state.name, backend_opts(state))
     {:reply, result, state}
   end
 
   def handle_call(:get_global_rate_limit, _from, state) do
-    result = get_global_rate_limit(state.name, connection: state.connection, prefix: state.prefix)
+    result = get_global_rate_limit(state.name, backend_opts(state))
     {:reply, result, state}
   end
 
   def handle_call(:get_rate_limit_ttl, _from, state) do
-    result = get_rate_limit_ttl(state.name, connection: state.connection, prefix: state.prefix)
+    result = get_rate_limit_ttl(state.name, backend_opts(state))
     {:reply, result, state}
   end
 
   def handle_call({:get_deduplication_job_id, dedup_id}, _from, state) do
     result =
       get_deduplication_job_id(state.name, dedup_id,
-        connection: state.connection,
-        prefix: state.prefix
+        backend_opts(state)
       )
 
     {:reply, result, state}
@@ -1729,47 +1736,52 @@ defmodule BullMQ.Queue do
   def handle_call({:remove_deduplication_key, dedup_id}, _from, state) do
     result =
       remove_deduplication_key(state.name, dedup_id,
-        connection: state.connection,
-        prefix: state.prefix
+        backend_opts(state)
       )
 
     {:reply, result, state}
   end
 
   def handle_call({:get_job_logs, job_id, opts}, _from, state) do
-    merged_opts = Keyword.merge([connection: state.connection, prefix: state.prefix], opts)
+    merged_opts = backend_opts(state, opts)
     result = get_job_logs(state.name, job_id, merged_opts)
     {:reply, result, state}
   end
 
   def handle_call({:get_metrics, type, opts}, _from, state) do
-    merged_opts = Keyword.merge([connection: state.connection, prefix: state.prefix], opts)
+    merged_opts = backend_opts(state, opts)
     result = get_metrics(state.name, type, merged_opts)
     {:reply, result, state}
   end
 
   def handle_call(:get_workers, _from, state) do
-    result = get_workers(state.name, connection: state.connection, prefix: state.prefix)
+    result = get_workers(state.name, backend_opts(state))
     {:reply, result, state}
   end
 
   def handle_call(:get_version, _from, state) do
-    result = get_version(state.name, connection: state.connection, prefix: state.prefix)
+    result = get_version(state.name, backend_opts(state))
     {:reply, result, state}
   end
 
   def handle_call({:export_prometheus_metrics, opts}, _from, state) do
-    merged_opts = Keyword.merge([connection: state.connection, prefix: state.prefix], opts)
+    merged_opts = backend_opts(state, opts)
     result = export_prometheus_metrics(state.name, merged_opts)
     {:reply, result, state}
   end
 
   # Private helpers
 
-  defp set_meta_values(conn, keys, max_len_events) do
+  defp set_meta_values(conn, keys, max_len_events, backend_module) do
     # Set version and maxLenEvents in the queue meta.
     # This is done asynchronously to not block init.
-    backend = Backend.create(keys.name, connection: conn, prefix: keys.prefix)
+    backend =
+      Backend.create(keys.name,
+        connection: conn,
+        prefix: keys.prefix,
+        backend: backend_module,
+        owns_connection: false
+      )
 
     Task.start(fn ->
       try do
@@ -1781,6 +1793,18 @@ defmodule BullMQ.Queue do
         _ -> :ok
       end
     end)
+  end
+
+  defp backend_opts(state, extra_opts \\ []) do
+    Keyword.merge(
+      extra_opts,
+      [
+        connection: state.connection,
+        prefix: state.prefix,
+        backend: state.backend_module,
+        owns_connection: false
+      ]
+    )
   end
 
   defp add_job(conn, ctx, job) do
