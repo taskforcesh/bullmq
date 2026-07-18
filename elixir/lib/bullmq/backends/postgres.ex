@@ -788,8 +788,9 @@ defmodule BullMQ.Backends.Postgres do
   end
 
   @impl true
-  def remove_deduplication_key(%__MODULE__{} = b, dedup_id, _job_id) do
-    delete_deduplication_key(b, dedup_id)
+  def remove_deduplication_key(%__MODULE__{} = b, dedup_id, job_id) do
+    result = run(b, "remove_deduplication_key", [b.queue_name, dedup_id, job_id, now_ms()])
+    {:ok, result.num_rows}
   end
 
   @impl true

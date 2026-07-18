@@ -58,6 +58,17 @@ defmodule BullMQ.Backends.PostgresTest do
     assert {:ok, nil} = Backend.get_job_data(b, id)
   end
 
+  test "remove_deduplication_key only deletes the matching job owner", %{backend: b, queue: q} do
+    job = Job.new(q, "dedup", %{}, deduplication: %{id: "dk1"})
+    assert {:ok, id} = Backend.add_job(b, job)
+
+    assert {:ok, 0} = Backend.remove_deduplication_key(b, "dk1", "other-job")
+    assert {:ok, ^id} = Backend.get_deduplication_job_id(b, "dk1")
+
+    assert {:ok, 1} = Backend.remove_deduplication_key(b, "dk1", id)
+    assert {:ok, nil} = Backend.get_deduplication_job_id(b, "dk1")
+  end
+
   test "queue metadata round-trips", %{backend: b} do
     assert {:ok, _} = Backend.set_queue_meta(b, %{"version" => "pg-1", "paused" => "1"})
     assert {:ok, "pg-1"} = Backend.get_queue_meta_field(b, "version")

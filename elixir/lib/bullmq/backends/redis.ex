@@ -427,8 +427,20 @@ defmodule BullMQ.Backends.Redis do
     do: Scripts.remove_job(conn, ctx, job_id, remove_children)
 
   @impl true
-  def remove_deduplication_key(%__MODULE__{connection: conn, context: ctx}, dedup_id, _job_id) do
-    RedisConnection.command(conn, ["DEL", "#{Keys.key(ctx)}:de:#{dedup_id}"])
+  def remove_deduplication_key(%__MODULE__{connection: conn, context: ctx}, dedup_id, job_id) do
+    RedisConnection.command(conn, [
+      "EVAL",
+      """
+      local currentJobId = redis.call('GET', KEYS[1])
+      if currentJobId and currentJobId == ARGV[1] then
+        return redis.call('DEL', KEYS[1])
+      end
+      return 0
+      """,
+      "1",
+      "#{Keys.key(ctx)}:de:#{dedup_id}",
+      job_id
+    ])
   end
 
   @impl true

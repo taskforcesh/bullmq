@@ -99,6 +99,22 @@ defmodule BullMQ.Backends.RedisTest do
     assert job_id in ids
   end
 
+  test "remove_deduplication_key only deletes the matching job owner", %{
+    backend: backend,
+    conn: conn,
+    queue_name: queue_name
+  } do
+    dedup_id = "dk-#{System.unique_integer([:positive])}"
+    key = "#{@test_prefix}:#{queue_name}:de:#{dedup_id}"
+
+    assert {:ok, "OK"} = RedisConnection.command(conn, ["SET", key, "job-1"])
+    assert {:ok, 0} = Backend.remove_deduplication_key(backend, dedup_id, "job-2")
+    assert {:ok, "job-1"} = Backend.get_deduplication_job_id(backend, dedup_id)
+
+    assert {:ok, 1} = Backend.remove_deduplication_key(backend, dedup_id, "job-1")
+    assert {:ok, nil} = Backend.get_deduplication_job_id(backend, dedup_id)
+  end
+
   test "for_queue returns a sibling backend that does not own the connection", %{backend: backend} do
     sibling = Backend.for_queue(backend, "other-queue")
     assert sibling.context.name == "other-queue"
