@@ -172,7 +172,7 @@ defmodule BullMQ.Backends.Redis do
   end
 
   @impl true
-def add_jobs(%__MODULE__{connection: conn, context: ctx}, jobs_with_opts, opts) do
+  def add_jobs(%__MODULE__{connection: conn, context: ctx}, jobs_with_opts, opts) do
     # jobs_with_opts: list of {job, encoded_opts}. Returns per-job command
     # results (`{:ok, id} | {:error, reason}`) in order, so callers can match
     # them back to their jobs. How the insert is batched (pipeline vs MULTI,
