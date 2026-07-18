@@ -93,10 +93,11 @@ Different metrics include different attributes for filtering and grouping:
 
 ### Job Metric Attributes (counters and histograms only)
 
-| Attribute          | Description                                                                       |
-| ------------------ | --------------------------------------------------------------------------------- |
-| `bullmq.job.name`  | Name of the job                                                                   |
-| `bullmq.job.state` | State of the job (completed, failed, delayed, retried, waiting, waiting-children) |
+| Attribute           | Description                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------ |
+| `bullmq.job.name`   | Name of the job                                                                                        |
+| `bullmq.job.status` | Deprecated legacy job state attribute (completed, failed, delayed, retried, waiting, waiting-children) |
+| `bullmq.job.state`  | Canonical job state attribute (completed, failed, delayed, retried, waiting, waiting-children)         |
 
 ### Gauge Attributes (`bullmq.queue.jobs` only)
 

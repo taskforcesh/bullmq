@@ -954,6 +954,7 @@ export class Job<
     const attributes = {
       [TelemetryAttributes.QueueName]: this.queue.name,
       [TelemetryAttributes.JobName]: this.name,
+      [TelemetryAttributes.JobStatus]: state,
       [TelemetryAttributes.JobState]: state,
     };
 

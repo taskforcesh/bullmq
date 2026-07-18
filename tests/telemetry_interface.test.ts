@@ -958,6 +958,7 @@ describe('Telemetry', () => {
       expect(completedCounter!.values[0].attributes).toMatchObject({
         [TelemetryAttributes.QueueName]: queueName,
         [TelemetryAttributes.JobName]: 'testJob',
+        [TelemetryAttributes.JobStatus]: 'completed',
         [TelemetryAttributes.JobState]: 'completed',
       });
 
@@ -995,6 +996,7 @@ describe('Telemetry', () => {
       expect(failedCounter!.values[0].attributes).toMatchObject({
         [TelemetryAttributes.QueueName]: queueName,
         [TelemetryAttributes.JobName]: 'testJob',
+        [TelemetryAttributes.JobStatus]: 'failed',
         [TelemetryAttributes.JobState]: 'failed',
       });
 
@@ -1040,6 +1042,7 @@ describe('Telemetry', () => {
       expect(delayedCounter!.values[0].attributes).toMatchObject({
         [TelemetryAttributes.QueueName]: queueName,
         [TelemetryAttributes.JobName]: 'testJob',
+        [TelemetryAttributes.JobStatus]: 'delayed',
         [TelemetryAttributes.JobState]: 'delayed',
       });
 
