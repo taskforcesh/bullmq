@@ -6,5 +6,6 @@ if Code.ensure_loaded?(Postgrex.Types) do
   Postgrex.Types.define(BullMQ.Backends.Postgres.PostgrexTypes, [], json: Jason)
 else
   defmodule BullMQ.Backends.Postgres.PostgrexTypes do
+    @moduledoc false
   end
 end
