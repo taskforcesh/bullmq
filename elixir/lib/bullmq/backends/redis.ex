@@ -144,7 +144,7 @@ defmodule BullMQ.Backends.Redis do
 
   @impl true
   def client_name(%__MODULE__{context: ctx}, suffix) do
-    "#{ctx.prefix}:#{Base.encode64(ctx.name)}#{suffix || ""}"
+    "#{ctx.prefix}:#{ctx.name}#{suffix || ""}"
   end
 
   # ============================================================

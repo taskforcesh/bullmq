@@ -45,7 +45,8 @@ defmodule BullMQ.Backends.RedisTest do
     assert Backend.qualified_name(backend) == "#{@test_prefix}:#{queue_name}"
     assert Backend.to_key(backend, "wait") == "#{@test_prefix}:#{queue_name}:wait"
     assert Backend.context(backend) == %{prefix: @test_prefix, name: queue_name}
-    assert is_binary(Backend.client_name(backend))
+    assert Backend.client_name(backend) == "#{@test_prefix}:#{queue_name}"
+    assert Backend.client_name(backend, ":w:1") == "#{@test_prefix}:#{queue_name}:w:1"
   end
 
   test "wait_until_ready pings the connection", %{backend: backend} do
