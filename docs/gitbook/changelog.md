@@ -1,3 +1,10 @@
+## [5.80.8](https://github.com/taskforcesh/bullmq/compare/v5.80.7...v5.80.8) (2026-07-18)
+
+
+### Bug Fixes
+
+* **scheduler:** walk past stale slots when re-upserting under same id ([#4299](https://github.com/taskforcesh/bullmq/issues/4299)) ([e8af563](https://github.com/taskforcesh/bullmq/commit/e8af56348a77677a4d802d2563e33b7313a79570))
+
 ## [5.80.7](https://github.com/taskforcesh/bullmq/compare/v5.80.6...v5.80.7) (2026-07-17)
 
 
