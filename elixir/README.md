@@ -5,11 +5,11 @@
 [![Documentation](https://img.shields.io/badge/docs-hexpm-blue.svg)](https://hexdocs.pm/bullmq)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/taskforcesh/bullmq/blob/master/LICENSE)
 
-A powerful, fast, and robust job queue for Elixir backed by Redis. This is an Elixir port of the popular [BullMQ](https://bullmq.io) library for Node.js, providing full compatibility with existing BullMQ queues.
+A powerful, fast, and robust job queue for Elixir with pluggable backends (Redis and PostgreSQL). This is an Elixir port of the popular [BullMQ](https://bullmq.io) library for Node.js, providing full compatibility with existing BullMQ queues.
 
 ## Features
 
-- ⚡ **High Performance** - Built on Redis for speed and reliability
+- ⚡ **High Performance** - Optimized backends for Redis and PostgreSQL
 - 🔄 **Automatic Retries** - Configurable retry strategies with exponential backoff
 - ⏰ **Job Scheduling** - Delay jobs or schedule them with cron expressions
 - 📊 **Priority Queues** - Process important jobs first
@@ -31,6 +31,79 @@ def deps do
     {:bullmq, "~> 1.0"}
   ]
 end
+```
+
+If you want to use the PostgreSQL backend, add `:postgrex` in your application too:
+
+```elixir
+def deps do
+  [
+    {:bullmq, "~> 1.0"},
+    {:postgrex, "~> 0.22"}
+  ]
+end
+```
+
+## Backend Refactoring: Pluggable Backends
+
+BullMQ Elixir now routes queue operations through a backend behaviour (`BullMQ.Backend`).  
+The high-level modules (`Queue`, `Worker`, `Job`, `QueueEvents`, `FlowProducer`, `JobScheduler`) are backend-agnostic.
+
+You can select a backend:
+
+- per call/process with `backend: ...`
+- globally with `config :bullmq, :backend, ...`
+
+```elixir
+# config/config.exs
+config :bullmq, :backend, BullMQ.Backends.Redis
+```
+
+```elixir
+# per-call override
+BullMQ.Queue.add("emails", "send", %{to: "user@example.com"},
+  connection: :my_pg,
+  backend: BullMQ.Backends.Postgres
+)
+```
+
+## PostgreSQL (SQL) Backend
+
+The PostgreSQL backend (`BullMQ.Backends.Postgres`) uses the same shared SQL artifacts
+as the Node.js implementation:
+
+- `src/postgres/migrations/*.sql`
+- `src/postgres/commands/*.sql`
+
+This keeps behavior aligned across runtimes while avoiding SQL forks.
+
+### PostgreSQL setup
+
+```elixir
+{:ok, _conn} =
+  BullMQ.Backends.Postgres.Connection.start_link(
+    name: :my_pg,
+    url: "postgres://localhost:5432/bullmq",
+    schema: "bullmq"
+  )
+```
+
+Then use the backend explicitly:
+
+```elixir
+{:ok, job} =
+  BullMQ.Queue.add("emails", "send-welcome", %{to: "user@example.com"},
+    connection: :my_pg,
+    backend: BullMQ.Backends.Postgres
+  )
+
+{:ok, worker} =
+  BullMQ.Worker.start_link(
+    queue: "emails",
+    connection: :my_pg,
+    backend: BullMQ.Backends.Postgres,
+    processor: &MyApp.EmailWorker.process/1
+  )
 ```
 
 ## Quick Start
@@ -285,11 +358,12 @@ Full documentation is available at [HexDocs](https://hexdocs.pm/bullmq).
 
 - Elixir 1.15+
 - Erlang/OTP 26+
-- Redis 6.0+
+- Redis 6.0+ (Redis backend)
+- PostgreSQL 14+ (PostgreSQL backend)
 
 ## Compatibility
 
-This library is fully compatible with the Node.js BullMQ library. Jobs can be added from Node.js and processed by Elixir workers, and vice versa. They share the same Redis data structures and Lua scripts.
+This library is fully compatible with the Node.js BullMQ library. Jobs can be added from Node.js and processed by Elixir workers, and vice versa. Redis users share the same data structures and Lua scripts; PostgreSQL users share the same SQL migrations and commands.
 
 ## License
 
