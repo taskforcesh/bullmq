@@ -1781,7 +1781,6 @@ defmodule BullMQ.Queue do
 
   defp set_meta_values(conn, keys, max_len_events, backend_module) do
     # Set version and maxLenEvents in the queue meta.
-    # This is done asynchronously to not block init.
     backend =
       Backend.create(keys.name,
         connection: conn,
@@ -1790,16 +1789,14 @@ defmodule BullMQ.Queue do
         owns_connection: false
       )
 
-    Task.start(fn ->
-      try do
-        Backend.set_queue_meta(backend, %{
-          "opts.maxLenEvents" => to_string(max_len_events),
-          "version" => Version.full_version()
-        })
-      rescue
-        _ -> :ok
-      end
-    end)
+    try do
+      Backend.set_queue_meta(backend, %{
+        "opts.maxLenEvents" => to_string(max_len_events),
+        "version" => Version.full_version()
+      })
+    rescue
+      _ -> :ok
+    end
   end
 
   defp backend_opts(state, extra_opts \\ []) do
