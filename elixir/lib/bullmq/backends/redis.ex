@@ -172,21 +172,26 @@ defmodule BullMQ.Backends.Redis do
   end
 
   @impl true
-  def add_jobs(%__MODULE__{connection: conn, context: ctx}, jobs_with_opts, opts) do
+def add_jobs(%__MODULE__{connection: conn, context: ctx}, jobs_with_opts, opts) do
     # jobs_with_opts: list of {job, encoded_opts}. Returns per-job command
     # results (`{:ok, id} | {:error, reason}`) in order, so callers can match
     # them back to their jobs. How the insert is batched (pipeline vs MULTI,
     # single connection vs a pool) is entirely a backend concern.
     Scripts.ensure_scripts_loaded(conn, [:add_standard_job])
 
-    {:ok, jobs_and_commands} = Scripts.build_bulk_add_commands(ctx, jobs_with_opts)
-    {_jobs, commands} = Enum.unzip(jobs_and_commands)
+    case Scripts.build_bulk_add_commands(ctx, jobs_with_opts) do
+      {:ok, jobs_and_commands} ->
+        {_jobs, commands} = Enum.unzip(jobs_and_commands)
 
-    max_pipeline = Keyword.get(opts, :max_pipeline_size, @max_bulk_pipeline_size)
-    connection_pool = Keyword.get(opts, :connection_pool)
-    atomic = Keyword.get(opts, :atomic, true)
+        max_pipeline = Keyword.get(opts, :max_pipeline_size, @max_bulk_pipeline_size)
+        connection_pool = Keyword.get(opts, :connection_pool)
+        atomic = Keyword.get(opts, :atomic, true)
 
-    {:ok, execute_bulk_commands(conn, commands, max_pipeline, connection_pool, atomic)}
+        {:ok, execute_bulk_commands(conn, commands, max_pipeline, connection_pool, atomic)}
+
+      {:error, _} = error ->
+        error
+    end
   end
 
   # Execute bulk add commands using either MULTI/EXEC (atomic) or plain pipeline,
