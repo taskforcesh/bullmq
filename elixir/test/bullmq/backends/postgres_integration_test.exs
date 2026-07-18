@@ -5,9 +5,8 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
   PostgreSQL backend, proving the adapter works through the same code paths the
   Redis backend uses.
 
-  The backend is selected globally via `config :bullmq, :backend` (the Worker /
-  QueueEvents processes resolve their backend from it), so this file must be run
-  on its own — never alongside the Redis suite:
+  This file sets the backend globally via `config :bullmq, :backend` for
+  convenience, so it must be run on its own — never alongside the Redis suite:
 
       POSTGRES_URL=postgres://localhost:5432/bullmq_test \
         mix test test/bullmq/backends/postgres_integration_test.exs --include postgres
@@ -156,6 +155,37 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
     assert_receive {:bullmq_event, :added, added}, 10_000
     assert added["jobId"] == job.id
     assert added["name"] == "evented"
+
+    QueueEvents.close(events)
+  end
+
+  test "QueueEvents honors a per-instance backend override", %{conn: conn, queue: queue} do
+    previous = Application.get_env(:bullmq, :backend)
+    Application.put_env(:bullmq, :backend, Backends.Redis)
+
+    on_exit(fn ->
+      if previous do
+        Application.put_env(:bullmq, :backend, previous)
+      else
+        Application.delete_env(:bullmq, :backend)
+      end
+    end)
+
+    {:ok, events} =
+      QueueEvents.start_link(queue: queue, connection: conn, backend: Backends.Postgres)
+
+    QueueEvents.subscribe(events)
+    Process.sleep(200)
+
+    {:ok, job} =
+      Queue.add(queue, "evented-explicit", %{foo: "bar"},
+        connection: conn,
+        backend: Backends.Postgres
+      )
+
+    assert_receive {:bullmq_event, :added, added}, 10_000
+    assert added["jobId"] == job.id
+    assert added["name"] == "evented-explicit"
 
     QueueEvents.close(events)
   end

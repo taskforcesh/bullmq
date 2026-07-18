@@ -30,12 +30,7 @@ defmodule BullMQ.Backends.RedisTest do
         _ -> :ok
       end
 
-      try do
-        sup = :"#{conn_name}_supervisor"
-        if Process.whereis(sup), do: Supervisor.stop(sup)
-      catch
-        :exit, _ -> :ok
-      end
+      RedisConnection.close(conn_name)
     end)
 
     {:ok, backend: backend, conn: conn_name, queue_name: queue_name}

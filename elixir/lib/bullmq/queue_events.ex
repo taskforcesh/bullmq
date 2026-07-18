@@ -96,6 +96,11 @@ defmodule BullMQ.QueueEvents do
                    required: true,
                    doc: "The Redis connection (atom name, pid, or `{:via, registry}` tuple)."
                  ],
+                 backend: [
+                   type: :atom,
+                   doc:
+                     "Backend module implementing `BullMQ.Backend` (defaults to application config or Redis)."
+                 ],
                  prefix: [
                    type: :string,
                    default: "bull",
@@ -132,6 +137,7 @@ defmodule BullMQ.QueueEvents do
           connection: Types.redis_connection(),
           prefix: String.t(),
           keys: Keys.queue_context(),
+          backend_module: module(),
           subscribers: [pid()],
           handler: module() | nil,
           handler_state: term(),
@@ -147,6 +153,7 @@ defmodule BullMQ.QueueEvents do
     :queue_name,
     :connection,
     :keys,
+    :backend_module,
     :blocking_conn,
     :backend,
     :handler,
@@ -168,6 +175,7 @@ defmodule BullMQ.QueueEvents do
 
     * `:queue` - Queue name (required)
     * `:connection` - Redis connection (required)
+    * `:backend` - Backend module (defaults to configured backend or Redis)
     * `:prefix` - Queue prefix (default: "bull")
     * `:handler` - Handler module (optional)
     * `:handler_state` - Initial handler state (optional)
@@ -228,6 +236,8 @@ defmodule BullMQ.QueueEvents do
       connection: connection,
       prefix: prefix,
       keys: Keys.new(queue_name, prefix: prefix),
+      backend_module:
+        Keyword.get(opts, :backend, Application.get_env(:bullmq, :backend, BullMQ.Backends.Redis)),
       handler: Keyword.get(opts, :handler),
       handler_state: Keyword.get(opts, :handler_state),
       last_event_id: Keyword.get(opts, :last_event_id, "$")
@@ -264,6 +274,7 @@ defmodule BullMQ.QueueEvents do
     base =
       Backend.create(state.keys.name,
         connection: state.connection,
+        backend: state.backend_module,
         prefix: state.keys.prefix,
         owns_connection: false
       )
