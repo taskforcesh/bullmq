@@ -392,11 +392,13 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       await worker.waitUntilReady();
 
+      const active = new Promise<void>(resolve => {
+        worker.once('active', () => resolve());
+      });
+
       const job = await queue.add('test', { foo: 'bar' });
 
-      await new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
-      });
+      await active;
 
       // Wait for some processing
       await delay(50);
@@ -438,11 +440,13 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       await worker.waitUntilReady();
 
+      const active = new Promise<void>(resolve => {
+        worker.once('active', () => resolve());
+      });
+
       const job = await queue.add('test', { foo: 'bar' });
 
-      await new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
-      });
+      await active;
 
       // Wait until almost complete
       await delay(85);
