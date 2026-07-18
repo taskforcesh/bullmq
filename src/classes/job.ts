@@ -529,7 +529,7 @@ export class Job<
     logRow: string,
     keepLogs?: number,
   ): Promise<number> {
-    const scripts = (queue as any).scripts as Scripts;
+    const scripts = queue.scripts ?? createScripts(queue);
 
     return scripts.addLog(jobId, logRow, keepLogs);
   }

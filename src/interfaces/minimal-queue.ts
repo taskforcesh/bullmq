@@ -14,7 +14,7 @@ export interface MinimalQueue extends ScriptQueueContext {
    * implementations remain valid; the built-in Queue, Worker and FlowProducer
    * always provide one so no redundant Scripts is created per job.
    */
-  scripts?: Scripts;
+  readonly scripts?: Scripts;
   /**
    * Emits an event. Normally used by subclasses to emit events.
    *

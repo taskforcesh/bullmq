@@ -233,8 +233,7 @@ export class FlowProducer extends EventEmitter {
         });
 
         const results = (await multi.exec()) as
-          | [null | Error, string | number][]
-          | null;
+          [null | Error, string | number][] | null;
         const [result] = results || [];
         if (result) {
           const [err, jobId] = result;
@@ -317,8 +316,7 @@ export class FlowProducer extends EventEmitter {
         const jobsTrees = await this.addNodes(multi, flows);
 
         const results = (await multi.exec()) as
-          | [null | Error, string | number][]
-          | null;
+          [null | Error, string | number][] | null;
         for (let index = 0; index < jobsTrees.length; ++index) {
           const result = results?.[index];
           if (!result) {
@@ -619,7 +617,8 @@ export class FlowProducer extends EventEmitter {
     // Build the shared Scripts instance once per queue so that every job
     // created from this queue-like object reuses it instead of allocating
     // its own.
-    queue.scripts = createScripts(queue);
+    (queue as { scripts?: MinimalQueue['scripts'] }).scripts =
+      createScripts(queue);
     this.queues.set(cacheKey, queue);
 
     return queue;
