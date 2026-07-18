@@ -2,10 +2,19 @@ import { RedisClient } from './connection';
 import { Span } from './telemetry';
 import { SpanKind } from '../enums/telemetry-attributes';
 import { ScriptQueueContext } from './script-queue-context';
+import type { Scripts } from '../classes/scripts';
 
 export interface MinimalQueue extends ScriptQueueContext {
   readonly name: string;
   readonly qualifiedName: string;
+  /**
+   * The long-lived Scripts instance shared by the queue. Jobs reuse this
+   * instance instead of allocating their own, since it is bound to the same
+   * queue keys and connection. May be undefined for lightweight queue-like
+   * objects (e.g. the ones created by FlowProducer), in which case a Job
+   * falls back to creating its own Scripts instance.
+   */
+  scripts?: Scripts;
   /**
    * Emits an event. Normally used by subclasses to emit events.
    *
