@@ -16,7 +16,7 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
   @moduletag :postgres
   @moduletag timeout: 30_000
 
-  alias BullMQ.{Backend, Backends, Queue, Worker, QueueEvents, FlowProducer, JobScheduler}
+  alias BullMQ.{Backend, Backends, Job, Queue, Worker, QueueEvents, FlowProducer, JobScheduler}
 
   @postgres_url System.get_env("POSTGRES_URL", "postgres://localhost:5432/bullmq_test")
 
@@ -143,6 +143,33 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
     assert Enum.sort(names) == ["child_a", "child_b", "parent"]
 
     Worker.close(worker)
+  end
+
+  test "FlowProducer honors a per-call backend override", %{conn: conn, queue: queue} do
+    previous = Application.get_env(:bullmq, :backend)
+    Application.put_env(:bullmq, :backend, Backends.Redis)
+
+    on_exit(fn ->
+      if previous do
+        Application.put_env(:bullmq, :backend, previous)
+      else
+        Application.delete_env(:bullmq, :backend)
+      end
+    end)
+
+    flow = %{
+      name: "parent",
+      queue_name: queue,
+      data: %{},
+      children: [
+        %{name: "child", queue_name: queue, data: %{}}
+      ]
+    }
+
+    {:ok, result} = FlowProducer.add(flow, connection: conn, backend: Backends.Postgres)
+
+    assert result.job.backend == Backends.Postgres
+    assert {:ok, 1} = Job.get_dependencies_count(result.job)
   end
 
   test "QueueEvents streams lifecycle events", %{conn: conn, queue: queue} do

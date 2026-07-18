@@ -115,7 +115,12 @@ defmodule BullMQ.FlowProducer do
   def add(flow, opts \\ []) do
     conn = Keyword.fetch!(opts, :connection)
     prefix = Keyword.get(opts, :prefix, "bull")
-    backend = Backend.create("", connection: conn, prefix: prefix)
+    backend =
+      Backend.create("",
+        connection: conn,
+        prefix: prefix,
+        backend: Keyword.get(opts, :backend)
+      )
 
     # Build all commands and job tree structure without executing
     case build_flow_commands(flow, nil, prefix, [], backend) do
@@ -129,7 +134,7 @@ defmodule BullMQ.FlowProducer do
             if Enum.empty?(errors) do
               # Extract job IDs from results and populate the job tree
               job_ids = Enum.map(results, fn {:ok, id} -> to_string(id) end)
-              populated_tree = populate_job_ids(job_tree, job_ids, conn, prefix)
+              populated_tree = populate_job_ids(job_tree, job_ids, conn, prefix, backend.__struct__)
               {:ok, populated_tree}
             else
               {:error, {:transaction_failed, errors}}
@@ -163,7 +168,12 @@ defmodule BullMQ.FlowProducer do
   def add_bulk(flows, opts \\ []) do
     conn = Keyword.fetch!(opts, :connection)
     prefix = Keyword.get(opts, :prefix, "bull")
-    backend = Backend.create("", connection: conn, prefix: prefix)
+    backend =
+      Backend.create("",
+        connection: conn,
+        prefix: prefix,
+        backend: Keyword.get(opts, :backend)
+      )
 
     # Build all commands for all flows
     {all_commands, all_trees, errors} =
@@ -189,7 +199,9 @@ defmodule BullMQ.FlowProducer do
           if Enum.empty?(result_errors) do
             # Extract job IDs and populate all trees
             job_ids = Enum.map(results, fn {:ok, id} -> to_string(id) end)
-            populated_trees = populate_multiple_trees(all_trees, job_ids, conn, prefix)
+            populated_trees =
+              populate_multiple_trees(all_trees, job_ids, conn, prefix, backend.__struct__)
+
             {:ok, populated_trees}
           else
             {:error, {:transaction_failed, result_errors}}
@@ -381,12 +393,14 @@ defmodule BullMQ.FlowProducer do
   end
 
   # Populates job IDs in the tree template after transaction execution
-  defp populate_job_ids(tree_template, job_ids, conn, prefix) do
-    {populated, _remaining_ids} = do_populate_job_ids(tree_template, job_ids, conn, prefix)
+  defp populate_job_ids(tree_template, job_ids, conn, prefix, backend_module) do
+    {populated, _remaining_ids} =
+      do_populate_job_ids(tree_template, job_ids, conn, prefix, backend_module)
+
     populated
   end
 
-  defp do_populate_job_ids(template, [job_id | rest_ids], conn, prefix) do
+  defp do_populate_job_ids(template, [job_id | rest_ids], conn, prefix, backend_module) do
     job = %Job{
       id: job_id,
       name: template.name,
@@ -396,6 +410,7 @@ defmodule BullMQ.FlowProducer do
       prefix: prefix,
       timestamp: template.timestamp,
       connection: conn,
+      backend: backend_module,
       parent: template.parent,
       parent_key: template.parent_key
     }
@@ -403,7 +418,9 @@ defmodule BullMQ.FlowProducer do
     # Populate children recursively
     {populated_children, remaining_ids} =
       Enum.reduce(template.children, {[], rest_ids}, fn child_template, {acc, ids} ->
-        {populated_child, new_ids} = do_populate_job_ids(child_template, ids, conn, prefix)
+        {populated_child, new_ids} =
+          do_populate_job_ids(child_template, ids, conn, prefix, backend_module)
+
         {acc ++ [populated_child], new_ids}
       end)
 
@@ -411,10 +428,10 @@ defmodule BullMQ.FlowProducer do
     {result, remaining_ids}
   end
 
-  defp populate_multiple_trees(trees, job_ids, conn, prefix) do
+  defp populate_multiple_trees(trees, job_ids, conn, prefix, backend_module) do
     {populated, _remaining} =
       Enum.reduce(trees, {[], job_ids}, fn tree, {acc, ids} ->
-        {populated, remaining} = do_populate_job_ids(tree, ids, conn, prefix)
+        {populated, remaining} = do_populate_job_ids(tree, ids, conn, prefix, backend_module)
         {acc ++ [populated], remaining}
       end)
 
