@@ -134,6 +134,7 @@ export class FlowProducer extends EventEmitter {
 
     this.connection.on('error', (error: Error) => this.emit('error', error));
     this.connection.on('close', () => {
+      this.queues.clear();
       if (!this.closing) {
         this.emit('ioredis:close');
       }
@@ -660,6 +661,7 @@ export class FlowProducer extends EventEmitter {
    */
   async close(): Promise<void> {
     if (!this.closing) {
+      this.queues.clear();
       this.closing = this.connection.close();
     }
     await this.closing;
