@@ -93,6 +93,12 @@ defmodule BullMQ.RedisConnection do
   @default_timeout 5000
   @minimum_redis_version {6, 2, 0}
 
+  @typedoc """
+  Redis connection reference.
+
+  Use an atom for a named pooled connection started via `start_link/1`.
+  Use `{:dedicated, pid}` for a direct Redix process (for example, blocking operations).
+  """
   @type connection :: atom() | {:dedicated, pid()}
   @type command :: [binary() | integer()]
   @type pipeline :: [command()]
