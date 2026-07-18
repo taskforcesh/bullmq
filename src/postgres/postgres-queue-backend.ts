@@ -587,6 +587,21 @@ export class PostgresQueueBackend
         entry.parentKeyOpts,
       ),
     );
+
+    // Fast path: when every job is independent (no parent, no deduplication),
+    // use the set-based `add_jobs_bulk` (one INSERT + one event INSERT) instead
+    // of the row-by-row flow engine — several times faster for plain addBulk.
+    const independent = payload.every(
+      e => e.parentId == null && e.parentQueue == null && e.dedupId == null,
+    );
+    if (independent) {
+      const { rows } = await this.run<{ id: string }>('add_jobs_bulk', [
+        this.queueName,
+        JSON.stringify(payload),
+      ]);
+      return rows.map(r => r.id);
+    }
+
     const { rows } = await this.run<{ id: string }>('add_flow', [
       JSON.stringify(payload),
     ]);

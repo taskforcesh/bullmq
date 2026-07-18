@@ -755,14 +755,17 @@ BEGIN
     RETURN;
   END IF;
 
-  IF p_keep_age IS NOT NULL THEN
+  IF p_keep_age IS NOT NULL AND p_keep_age >= 0 THEN
     DELETE FROM bullmq_job
      WHERE queue = p_queue
        AND state = p_state
        AND finished_at_ms <= p_now - p_keep_age * 1000;
   END IF;
 
-  IF p_keep_count IS NOT NULL THEN
+  -- A negative keep-count is the "keep everything" sentinel (mirrors Redis,
+  -- where -1 disables count-based trimming); skip it — a negative SQL LIMIT is
+  -- a hard error.
+  IF p_keep_count IS NOT NULL AND p_keep_count >= 0 THEN
     DELETE FROM bullmq_job
      WHERE queue = p_queue
        AND state = p_state
@@ -3350,5 +3353,121 @@ BEGIN
 
   RETURN QUERY SELECT * FROM bullmq_move_to_active(
     p_queue, p_token, p_lock_ms, p_now, p_name, p_limiter_max, p_limiter_duration);
+END;
+$$;
+
+-- ──────────────────────────────────────────────────────────────────────────
+-- add_jobs_bulk: fast set-based bulk insert for INDEPENDENT jobs (no parents,
+-- no deduplication). This is the common Queue.add_bulk case. Unlike
+-- bullmq_add_flow — which loops row-by-row to support flow trees, dedup and
+-- mixed states — this inserts the whole batch with a single set-based INSERT
+-- and emits the lifecycle events in one more set-based INSERT, so it is several
+-- times faster. Returns the job ids in input order. Callers must route flows or
+-- deduplicated jobs to bullmq_add_flow instead.
+CREATE FUNCTION bullmq_add_jobs_bulk(p_queue text, p_entries jsonb)
+RETURNS SETOF text
+LANGUAGE plpgsql
+SET search_path FROM CURRENT
+AS $$
+DECLARE
+  v_seq_name text := bullmq_job_id_seq_name(p_queue);
+BEGIN
+  -- Ensure the per-queue id sequence exists (mirrors bullmq_next_job_id).
+  IF to_regclass(v_seq_name) IS NULL THEN
+    PERFORM pg_advisory_xact_lock(hashtext('bullmq:jidseq:' || p_queue));
+    EXECUTE format('CREATE SEQUENCE IF NOT EXISTS %I', v_seq_name);
+  END IF;
+
+  DROP TABLE IF EXISTS pg_temp._bulk_inserted;
+  DROP TABLE IF EXISTS pg_temp._bulk_result;
+
+  CREATE TEMP TABLE _bulk_result ON COMMIT DROP AS
+  WITH elems AS (
+    SELECT value AS j, ord
+      FROM jsonb_array_elements(p_entries) WITH ORDINALITY AS e(value, ord)
+  ),
+  prepared AS (
+    SELECT
+      ord,
+      COALESCE(NULLIF(j->>'id', ''), nextval(v_seq_name::regclass)::text) AS id,
+      j->>'name'                                        AS name,
+      COALESCE((j->>'data')::jsonb, '{}'::jsonb)        AS data,
+      COALESCE(j->'opts', '{}'::jsonb)                  AS opts,
+      COALESCE((j->>'priority')::integer, 0)            AS priority,
+      COALESCE((j->>'delay')::bigint, 0)                AS delay,
+      COALESCE((j->>'timestamp')::bigint, 0)            AS ts,
+      COALESCE((j->>'attempts')::integer, 1)            AS attempts,
+      j->>'schedulerId'                                 AS scheduler_id,
+      COALESCE((j->>'lifo')::boolean, false)            AS lifo
+      FROM elems
+  ),
+  -- Reserve one global FIFO seq per row and pair the ord-th smallest reserved
+  -- value with the ord-th entry, so seq is strictly monotonic in input order
+  -- regardless of evaluation order.
+  reserved AS (
+    SELECT ord, nextval('bullmq_job_seq') AS s FROM prepared
+  ),
+  rr AS (SELECT s, row_number() OVER (ORDER BY s) AS rn FROM reserved),
+  rp AS (SELECT prepared.*, row_number() OVER (ORDER BY ord) AS rn FROM prepared),
+  final AS (
+    SELECT rp.ord, rp.id, rp.name, rp.data, rp.opts, rp.priority, rp.delay,
+           rp.ts, rp.attempts, rp.scheduler_id,
+           CASE WHEN rp.lifo THEN -rr.s ELSE rr.s END AS seq,
+           CASE WHEN rp.delay > 0 THEN 'delayed'::bullmq_job_state
+                ELSE 'waiting'::bullmq_job_state END   AS state,
+           CASE WHEN rp.delay > 0 THEN rp.ts + rp.delay ELSE NULL END AS process_at
+      FROM rp JOIN rr ON rp.rn = rr.rn
+  )
+  SELECT * FROM final ORDER BY ord;
+
+  -- Insert the batch, capturing ONLY the rows actually inserted: ON CONFLICT
+  -- skips ids that already exist and in-batch duplicate ids. Events and the
+  -- wakeup are driven from this set, so a batch that repeats or reuses an id
+  -- does not emit spurious added/waiting/delayed events or a bogus NOTIFY —
+  -- mirroring bullmq_add_flow's per-row `IF v_inserted` gating.
+  CREATE TEMP TABLE _bulk_inserted ON COMMIT DROP AS
+  WITH ins AS (
+    INSERT INTO bullmq_job (
+      queue, id, seq, name, state, data, opts, priority, delay_ms, max_attempts,
+      added_at_ms, process_at_ms, scheduler_id, pending_deps
+    )
+    SELECT p_queue, id, seq, name, state, data, opts, priority, delay, attempts,
+           ts, process_at, scheduler_id, 0
+      FROM _bulk_result
+    ON CONFLICT (queue, id) DO NOTHING
+    RETURNING id, seq, name, state, process_at_ms
+  )
+  SELECT * FROM ins;
+
+  -- One set-based event flush ('added' then the state event per inserted job),
+  -- ordered by each inserted job's first input ordinality so stream ordering
+  -- matches caller payload order even when seq is negated by LIFO.
+  INSERT INTO bullmq_event (queue, event, data, created_at_ms)
+  WITH inserted AS (
+    SELECT i.id, i.name, i.state, i.process_at_ms, MIN(r.ord) AS ord
+      FROM _bulk_inserted i
+      JOIN _bulk_result r USING (id)
+     GROUP BY i.id, i.name, i.state, i.process_at_ms
+  )
+  SELECT p_queue, ev, dat, (extract(epoch FROM clock_timestamp()) * 1000)::bigint
+    FROM (
+      SELECT ord * 2       AS o, 'added' AS ev,
+             jsonb_build_object('jobId', id, 'name', name) AS dat
+        FROM inserted
+      UNION ALL
+      SELECT ord * 2 + 1,
+             CASE WHEN state = 'waiting' THEN 'waiting' ELSE 'delayed' END,
+             CASE WHEN state = 'waiting'
+                  THEN jsonb_build_object('jobId', id)
+                  ELSE jsonb_build_object('jobId', id, 'delay', process_at_ms) END
+        FROM inserted
+    ) q
+   ORDER BY o;
+
+  IF EXISTS (SELECT 1 FROM _bulk_inserted) THEN
+    PERFORM pg_notify('bullmq_jobs', p_queue);
+  END IF;
+
+  RETURN QUERY SELECT id FROM _bulk_result ORDER BY ord;
 END;
 $$;

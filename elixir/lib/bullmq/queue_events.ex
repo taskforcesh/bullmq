@@ -77,7 +77,7 @@ defmodule BullMQ.QueueEvents do
 
   use GenServer
 
-  alias BullMQ.{Keys, RedisConnection, Types}
+  alias BullMQ.{Backend, Keys, Types}
 
   require Logger
 
@@ -92,9 +92,22 @@ defmodule BullMQ.QueueEvents do
                    doc: "The name of the queue to listen for events from."
                  ],
                  connection: [
-                   type: {:or, [:atom, :pid, {:tuple, [:atom, :atom]}]},
+                   type:
+                     {:or,
+                      [
+                        :atom,
+                        :pid,
+                        {:tuple, [:atom, :atom]},
+                        {:tuple, [:atom, :atom, :any]}
+                      ]},
                    required: true,
-                   doc: "The Redis connection (atom name, pid, or `{:via, registry}` tuple)."
+                   doc:
+                     "The backend connection reference (atom name, pid, or `{:via, registry}` tuple)."
+                 ],
+                 backend: [
+                   type: :atom,
+                   doc:
+                     "Backend module implementing `BullMQ.Backend` (defaults to application config or Redis)."
                  ],
                  prefix: [
                    type: :string,
@@ -132,6 +145,7 @@ defmodule BullMQ.QueueEvents do
           connection: Types.redis_connection(),
           prefix: String.t(),
           keys: Keys.queue_context(),
+          backend_module: module(),
           subscribers: [pid()],
           handler: module() | nil,
           handler_state: term(),
@@ -139,6 +153,7 @@ defmodule BullMQ.QueueEvents do
           closing: boolean(),
           last_event_id: String.t(),
           blocking_conn: pid() | nil,
+          backend: BullMQ.Backend.t() | nil,
           consumer_task: reference() | nil
         }
 
@@ -146,7 +161,9 @@ defmodule BullMQ.QueueEvents do
     :queue_name,
     :connection,
     :keys,
+    :backend_module,
     :blocking_conn,
+    :backend,
     :handler,
     :consumer_task,
     prefix: "bull",
@@ -166,6 +183,7 @@ defmodule BullMQ.QueueEvents do
 
     * `:queue` - Queue name (required)
     * `:connection` - Redis connection (required)
+    * `:backend` - Backend module (defaults to configured backend or Redis)
     * `:prefix` - Queue prefix (default: "bull")
     * `:handler` - Handler module (optional)
     * `:handler_state` - Initial handler state (optional)
@@ -226,6 +244,8 @@ defmodule BullMQ.QueueEvents do
       connection: connection,
       prefix: prefix,
       keys: Keys.new(queue_name, prefix: prefix),
+      backend_module:
+        Keyword.get(opts, :backend, Application.get_env(:bullmq, :backend, BullMQ.Backends.Redis)),
       handler: Keyword.get(opts, :handler),
       handler_state: Keyword.get(opts, :handler_state),
       last_event_id: Keyword.get(opts, :last_event_id, "$")
@@ -259,9 +279,17 @@ defmodule BullMQ.QueueEvents do
 
   @impl true
   def handle_info(:start, state) do
-    case RedisConnection.blocking_connection(state.connection) do
-      {:ok, blocking_conn} ->
-        new_state = %{state | running: true, blocking_conn: blocking_conn}
+    base =
+      Backend.create(state.keys.name,
+        connection: state.connection,
+        backend: state.backend_module,
+        prefix: state.keys.prefix,
+        owns_connection: false
+      )
+
+    case Backend.reconnect_blocking(base) do
+      {:ok, backend} ->
+        new_state = %{state | running: true, backend: backend}
         # Start consuming in a separate task
         {:noreply, schedule_consume(new_state)}
 
@@ -351,20 +379,12 @@ defmodule BullMQ.QueueEvents do
   defp schedule_consume(%{consumer_task: ref} = state) when not is_nil(ref), do: state
 
   defp schedule_consume(state) do
-    events_key = Keys.events(state.keys)
-    blocking_conn = state.blocking_conn
+    backend = state.backend
     last_event_id = state.last_event_id
 
     task =
       Task.async(fn ->
-        Redix.command(blocking_conn, [
-          "XREAD",
-          "BLOCK",
-          @default_block_timeout,
-          "STREAMS",
-          events_key,
-          last_event_id
-        ])
+        Backend.read_events(backend, last_event_id, @default_block_timeout)
       end)
 
     %{state | consumer_task: task.ref}
@@ -430,8 +450,8 @@ defmodule BullMQ.QueueEvents do
   defp parse_event_type(other), do: String.to_atom(other)
 
   defp cleanup(state) do
-    if state.blocking_conn do
-      RedisConnection.close_blocking(state.connection, state.blocking_conn)
+    if state.backend do
+      Backend.close(state.backend)
     end
 
     :ok

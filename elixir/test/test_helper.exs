@@ -4,7 +4,10 @@ ExUnit.start()
 ExUnit.configure(
   formatters: [ExUnit.CLIFormatter],
   capture_log: true,
-  exclude: [:integration, :slow]
+  # `:postgres` tests need a PostgreSQL server and only run in the dedicated
+  # workflow job (via `--include postgres`); they must stay excluded from the
+  # default (Redis-only) run so they don't try to connect where no server exists.
+  exclude: [:integration, :slow, :postgres]
 )
 
 # Test configuration helper
