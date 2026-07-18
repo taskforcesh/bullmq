@@ -76,6 +76,9 @@ as the Node.js implementation:
 - `src/postgres/commands/*.sql`
 
 This keeps behavior aligned across runtimes while avoiding SQL forks.
+In packaged builds, BullMQ reads these SQL files from `elixir/priv/postgres`; in
+repository development it falls back to `src/postgres`. Migrations are applied
+automatically by `BullMQ.Backends.Postgres.Connection.start_link/1`.
 
 ### PostgreSQL setup
 
@@ -83,7 +86,7 @@ This keeps behavior aligned across runtimes while avoiding SQL forks.
 {:ok, _conn} =
   BullMQ.Backends.Postgres.Connection.start_link(
     name: :my_pg,
-    url: "postgres://localhost:5432/bullmq",
+    url: "postgresql://localhost:5432/bullmq",
     schema: "bullmq"
   )
 ```
