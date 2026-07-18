@@ -233,7 +233,9 @@ defmodule BullMQ.Backends.PostgresTest do
 
     added_ids =
       entries
-      |> Enum.map(fn [_id, fields] -> fields |> Enum.chunk_every(2) |> Map.new(fn [k, v] -> {k, v} end) end)
+      |> Enum.map(fn [_id, fields] ->
+        fields |> Enum.chunk_every(2) |> Map.new(fn [k, v] -> {k, v} end)
+      end)
       |> Enum.filter(&(&1["event"] == "added"))
       |> Enum.map(& &1["jobId"])
       |> Enum.sort()
