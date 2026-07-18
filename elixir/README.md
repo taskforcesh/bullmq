@@ -363,7 +363,7 @@ Full documentation is available at [HexDocs](https://hexdocs.pm/bullmq).
 - Elixir 1.15+
 - Erlang/OTP 26+
 - Redis 6.0+ (Redis backend)
-- PostgreSQL 13+ (PostgreSQL backend; 14+ recommended)
+- PostgreSQL 13+ (PostgreSQL backend; 14+ recommended for best performance/stability)
 
 ## Compatibility
 
