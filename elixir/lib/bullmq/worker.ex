@@ -753,26 +753,30 @@ defmodule BullMQ.Worker do
           # No job available, wait for one via the backend's blocking primitive.
           # Ensure the backend's dedicated blocking connection exists (manual
           # processing may never have run the :start handler).
-          state = ensure_blocking(state)
+          case ensure_blocking(state) do
+            {:ok, state} ->
+              case wait_for_job(state, timeout) do
+                :job_available ->
+                  # A job became available, try to fetch it
+                  result = fetch_next_job_with_token(state, token)
 
-          case wait_for_job(state, timeout) do
-            :job_available ->
-              # A job became available, try to fetch it
-              result = fetch_next_job_with_token(state, token)
+                  case result do
+                    {:ok, %Job{} = job} -> emit_event(state.on_active, [job])
+                    _ -> :ok
+                  end
 
-              case result do
-                {:ok, %Job{} = job} -> emit_event(state.on_active, [job])
-                _ -> :ok
+                  {:reply, result, state}
+
+                :timeout ->
+                  # Timed out waiting, return nil
+                  {:reply, {:ok, nil}, state}
+
+                {:error, _} = error ->
+                  {:reply, error, state}
               end
 
-              {:reply, result, state}
-
-            :timeout ->
-              # Timed out waiting, return nil
-              {:reply, {:ok, nil}, state}
-
-            {:error, _} = error ->
-              {:reply, error, state}
+            {:error, reason} ->
+              {:reply, {:error, reason}, state}
           end
 
         {:ok, %Job{} = job} = result ->
@@ -2098,7 +2102,7 @@ defmodule BullMQ.Worker do
   # Ensures the backend's dedicated blocking connection is established. In
   # autorun mode this happens in the :start handler; in manual processing mode
   # (no :start) it is established lazily on the first blocking fetch.
-  defp ensure_blocking(%{blocking_ready: true} = state), do: state
+  defp ensure_blocking(%{blocking_ready: true} = state), do: {:ok, state}
 
   defp ensure_blocking(state) do
     base_backend =
@@ -2112,11 +2116,11 @@ defmodule BullMQ.Worker do
 
     case Backend.reconnect_blocking(base_backend) do
       {:ok, backend} ->
-        %{state | backend: backend, blocking_ready: true}
+        {:ok, %{state | backend: backend, blocking_ready: true}}
 
       {:error, reason} ->
         Logger.error("[BullMQ.Worker] Failed to create blocking connection: #{inspect(reason)}")
-        state
+        {:error, reason}
     end
   end
 

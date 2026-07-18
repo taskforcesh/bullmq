@@ -3378,8 +3378,8 @@ BEGIN
     EXECUTE format('CREATE SEQUENCE IF NOT EXISTS %I', v_seq_name);
   END IF;
 
-  DROP TABLE IF EXISTS _bulk_inserted;
-  DROP TABLE IF EXISTS _bulk_result;
+  DROP TABLE IF EXISTS pg_temp._bulk_inserted;
+  DROP TABLE IF EXISTS pg_temp._bulk_result;
 
   CREATE TEMP TABLE _bulk_result ON COMMIT DROP AS
   WITH elems AS (
