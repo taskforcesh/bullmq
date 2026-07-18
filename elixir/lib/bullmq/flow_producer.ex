@@ -115,6 +115,7 @@ defmodule BullMQ.FlowProducer do
   def add(flow, opts \\ []) do
     conn = Keyword.fetch!(opts, :connection)
     prefix = Keyword.get(opts, :prefix, "bull")
+
     backend =
       Backend.create("",
         connection: conn,
@@ -168,6 +169,7 @@ defmodule BullMQ.FlowProducer do
   def add_bulk(flows, opts \\ []) do
     conn = Keyword.fetch!(opts, :connection)
     prefix = Keyword.get(opts, :prefix, "bull")
+
     backend =
       Backend.create("",
         connection: conn,
@@ -199,6 +201,7 @@ defmodule BullMQ.FlowProducer do
           if Enum.empty?(result_errors) do
             # Extract job IDs and populate all trees
             job_ids = Enum.map(results, fn {:ok, id} -> to_string(id) end)
+
             populated_trees =
               populate_multiple_trees(all_trees, job_ids, conn, prefix, backend.__struct__)
 

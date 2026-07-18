@@ -93,8 +93,7 @@ defmodule BullMQ.Queue do
                         {:tuple, [:atom, :atom, :any]}
                       ]},
                    required: true,
-                   doc:
-                     "The backend connection (atom name, pid, or `{:via, registry}` tuple)."
+                   doc: "The backend connection (atom name, pid, or `{:via, registry}` tuple)."
                  ],
                  backend: [
                    type: :atom,
@@ -1733,18 +1732,14 @@ defmodule BullMQ.Queue do
 
   def handle_call({:get_deduplication_job_id, dedup_id}, _from, state) do
     result =
-      get_deduplication_job_id(state.name, dedup_id,
-        backend_opts(state)
-      )
+      get_deduplication_job_id(state.name, dedup_id, backend_opts(state))
 
     {:reply, result, state}
   end
 
   def handle_call({:remove_deduplication_key, dedup_id}, _from, state) do
     result =
-      remove_deduplication_key(state.name, dedup_id,
-        backend_opts(state)
-      )
+      remove_deduplication_key(state.name, dedup_id, backend_opts(state))
 
     {:reply, result, state}
   end

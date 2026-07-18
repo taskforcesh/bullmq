@@ -217,7 +217,10 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
     QueueEvents.close(events)
   end
 
-  test "Queue honors a per-instance backend override across later calls", %{conn: conn, queue: queue} do
+  test "Queue honors a per-instance backend override across later calls", %{
+    conn: conn,
+    queue: queue
+  } do
     previous = Application.get_env(:bullmq, :backend)
     Application.put_env(:bullmq, :backend, Backends.Redis)
 
@@ -230,7 +233,10 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
     end)
 
     queue_name = :"pg_queue_#{System.unique_integer([:positive])}"
-    {:ok, server} = Queue.start_link(name: queue_name, queue: queue, connection: conn, backend: Backends.Postgres)
+
+    {:ok, server} =
+      Queue.start_link(name: queue_name, queue: queue, connection: conn, backend: Backends.Postgres)
+
     on_exit(fn ->
       if Process.alive?(server) do
         GenServer.stop(server)
