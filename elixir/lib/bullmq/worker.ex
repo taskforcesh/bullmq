@@ -658,6 +658,7 @@ defmodule BullMQ.Worker do
 
     # Check processor arity once at init - skip cancellation overhead for arity-1 processors
     supports_cancellation = processor_supports_cancellation?(processor)
+
     backend_module =
       Keyword.get(opts, :backend, Application.get_env(:bullmq, :backend, BullMQ.Backends.Redis))
 
@@ -2109,7 +2110,9 @@ defmodule BullMQ.Worker do
       )
 
     case Backend.reconnect_blocking(base_backend) do
-      {:ok, backend} -> %{state | backend: backend, blocking_ready: true}
+      {:ok, backend} ->
+        %{state | backend: backend, blocking_ready: true}
+
       {:error, reason} ->
         Logger.error("[BullMQ.Worker] Failed to create blocking connection: #{inspect(reason)}")
         state
