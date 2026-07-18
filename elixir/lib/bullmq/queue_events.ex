@@ -94,7 +94,8 @@ defmodule BullMQ.QueueEvents do
                  connection: [
                    type: {:or, [:atom, :pid, {:tuple, [:atom, :atom]}]},
                    required: true,
-                   doc: "The Redis connection (atom name, pid, or `{:via, registry}` tuple)."
+                   doc:
+                     "The backend connection reference (atom name, pid, or `{:via, registry}` tuple)."
                  ],
                  backend: [
                    type: :atom,
