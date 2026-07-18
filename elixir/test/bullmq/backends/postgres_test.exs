@@ -210,6 +210,37 @@ defmodule BullMQ.Backends.PostgresTest do
     assert {:ok, [3, 0, 0]} = Backend.get_counts_by_types(b, [:waiting, :active, :completed])
   end
 
+  test "add_jobs does not double-emit events for existing or duplicate ids", %{backend: b, queue: q} do
+    # A job that already exists, added on its own first.
+    {:ok, "x1"} = Backend.add_job(b, Job.new(q, "a", %{}, job_id: "x1"))
+    assert {:ok, [1, 0, 0]} = Backend.get_counts_by_types(b, [:waiting, :active, :completed])
+
+    # Bulk add: reuse x1 (conflict), a brand-new x2, and x2 again (in-batch dup).
+    jobs = [
+      {Job.new(q, "a", %{}, job_id: "x1"), %{}},
+      {Job.new(q, "b", %{}, job_id: "x2"), %{}},
+      {Job.new(q, "b", %{}, job_id: "x2"), %{}}
+    ]
+
+    assert {:ok, [{:ok, "x1"}, {:ok, "x2"}, {:ok, "x2"}]} = Backend.add_jobs(b, jobs, [])
+
+    # Only x2 is genuinely new: waiting count is 2, not 4.
+    assert {:ok, [2, 0, 0]} = Backend.get_counts_by_types(b, [:waiting, :active, :completed])
+
+    # The event stream carries exactly one 'added' per distinct job (x1 from the
+    # first add, x2 from the bulk) — no spurious duplicates from conflicts.
+    assert {:ok, [["events", entries]]} = Backend.read_events(b, "0", 50)
+
+    added_ids =
+      entries
+      |> Enum.map(fn [_id, fields] -> fields |> Enum.chunk_every(2) |> Map.new(fn [k, v] -> {k, v} end) end)
+      |> Enum.filter(&(&1["event"] == "added"))
+      |> Enum.map(& &1["jobId"])
+      |> Enum.sort()
+
+    assert added_ids == ["x1", "x2"]
+  end
+
   test "add_flow links a parent and its children", %{backend: b, queue: q} do
     now = System.system_time(:millisecond)
 

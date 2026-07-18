@@ -3371,7 +3371,6 @@ SET search_path FROM CURRENT
 AS $$
 DECLARE
   v_seq_name text := bullmq_job_id_seq_name(p_queue);
-  v_inserted integer;
 BEGIN
   -- Ensure the per-queue id sequence exists (mirrors bullmq_next_job_id).
   IF to_regclass(v_seq_name) IS NULL THEN
@@ -3418,35 +3417,44 @@ BEGIN
   )
   SELECT * FROM final ORDER BY ord;
 
-  INSERT INTO bullmq_job (
-    queue, id, seq, name, state, data, opts, priority, delay_ms, max_attempts,
-    added_at_ms, process_at_ms, scheduler_id, pending_deps
+  -- Insert the batch, capturing ONLY the rows actually inserted: ON CONFLICT
+  -- skips ids that already exist and in-batch duplicate ids. Events and the
+  -- wakeup are driven from this set, so a batch that repeats or reuses an id
+  -- does not emit spurious added/waiting/delayed events or a bogus NOTIFY —
+  -- mirroring bullmq_add_flow's per-row `IF v_inserted` gating.
+  CREATE TEMP TABLE _bulk_inserted ON COMMIT DROP AS
+  WITH ins AS (
+    INSERT INTO bullmq_job (
+      queue, id, seq, name, state, data, opts, priority, delay_ms, max_attempts,
+      added_at_ms, process_at_ms, scheduler_id, pending_deps
+    )
+    SELECT p_queue, id, seq, name, state, data, opts, priority, delay, attempts,
+           ts, process_at, scheduler_id, 0
+      FROM _bulk_result
+    ON CONFLICT (queue, id) DO NOTHING
+    RETURNING id, seq, name, state, process_at_ms
   )
-  SELECT p_queue, id, seq, name, state, data, opts, priority, delay, attempts,
-         ts, process_at, scheduler_id, 0
-    FROM _bulk_result
-  ON CONFLICT (queue, id) DO NOTHING;
-  GET DIAGNOSTICS v_inserted = ROW_COUNT;
+  SELECT * FROM ins;
 
-  -- One set-based event flush ('added' then the state event per job), ordered
-  -- by seq so the stream keeps FIFO order (mirrors bullmq_add_flow's flush).
+  -- One set-based event flush ('added' then the state event per inserted job),
+  -- ordered by seq so the stream keeps FIFO order (mirrors bullmq_add_flow).
   INSERT INTO bullmq_event (queue, event, data, created_at_ms)
   SELECT p_queue, ev, dat, (extract(epoch FROM clock_timestamp()) * 1000)::bigint
     FROM (
       SELECT seq * 2       AS o, 'added' AS ev,
              jsonb_build_object('jobId', id, 'name', name) AS dat
-        FROM _bulk_result
+        FROM _bulk_inserted
       UNION ALL
       SELECT seq * 2 + 1,
              CASE WHEN state = 'waiting' THEN 'waiting' ELSE 'delayed' END,
              CASE WHEN state = 'waiting'
                   THEN jsonb_build_object('jobId', id)
-                  ELSE jsonb_build_object('jobId', id, 'delay', process_at) END
-        FROM _bulk_result
+                  ELSE jsonb_build_object('jobId', id, 'delay', process_at_ms) END
+        FROM _bulk_inserted
     ) q
    ORDER BY o;
 
-  IF v_inserted > 0 THEN
+  IF EXISTS (SELECT 1 FROM _bulk_inserted) THEN
     PERFORM pg_notify('bullmq_jobs', p_queue);
   END IF;
 

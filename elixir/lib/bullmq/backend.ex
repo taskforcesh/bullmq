@@ -526,7 +526,8 @@ defmodule BullMQ.Backend do
   @spec add_job(t, struct(), keyword()) :: {:ok, job_id} | {:error, term()}
   def add_job(b, job, opts \\ []), do: dispatch(b, :add_job, [job, opts])
 
-  @spec add_jobs(t, list(), keyword()) :: {:ok, [job_id]} | {:error, term()}
+  @spec add_jobs(t, list(), keyword()) ::
+          {:ok, [{:ok, job_id} | {:error, term()}]} | {:error, term()}
   def add_jobs(b, jobs_with_opts, opts \\ []), do: dispatch(b, :add_jobs, [jobs_with_opts, opts])
 
   @spec add_flow(t, list(), keyword()) :: {:ok, term()} | {:error, term()}
