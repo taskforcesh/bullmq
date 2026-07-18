@@ -113,6 +113,7 @@ jobs:
 
   postgres-test:
     needs: changes
+    if: needs.changes.outputs.should_run == 'true'
     runs-on: ubuntu-latest
 
     name: testing elixir postgres backend elixir@${{ matrix.elixir-version }}, otp@${{ matrix.otp-version }}, postgres@${{ matrix.postgres-version }}
@@ -139,23 +140,16 @@ jobs:
           --health-retries 5
 
     steps:
-      - name: Skip when Elixir files are unchanged
-        if: needs.changes.outputs.should_run != 'true'
-        run: echo "No Elixir-related changes detected; skipping Elixir Postgres test steps."
-
       - name: Checkout repository
-        if: needs.changes.outputs.should_run == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Set up Elixir
-        if: needs.changes.outputs.should_run == 'true'
         uses: erlef/setup-beam@v1
         with:
           elixir-version: ${{ matrix.elixir-version }}
           otp-version: ${{ matrix.otp-version }}
 
       - name: Restore dependencies cache
-        if: needs.changes.outputs.should_run == 'true'
         uses: actions/cache@v5
         with:
           path: elixir/deps
@@ -164,7 +158,6 @@ jobs:
             ${{ runner.os }}-mix-deps-${{ matrix.elixir-version }}-${{ matrix.otp-version }}-
 
       - name: Install Elixir dependencies
-        if: needs.changes.outputs.should_run == 'true'
         working-directory: elixir
         run: |
           mix local.hex --force
@@ -172,12 +165,10 @@ jobs:
           mix deps.get
 
       - name: Compile
-        if: needs.changes.outputs.should_run == 'true'
         working-directory: elixir
         run: mix compile --warnings-as-errors
 
       - name: Run Postgres backend tests
-        if: needs.changes.outputs.should_run == 'true'
         working-directory: elixir
         env:
           POSTGRES_URL: postgres://postgres:postgres@localhost:5432/bullmq_test
