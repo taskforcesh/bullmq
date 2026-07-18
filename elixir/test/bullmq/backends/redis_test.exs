@@ -30,7 +30,8 @@ defmodule BullMQ.Backends.RedisTest do
         _ -> :ok
       end
 
-      RedisConnection.close(conn_name)
+      assert :ok = RedisConnection.close(conn_name)
+      refute Process.whereis(BullMQ.RedisConnection.Pool.supervisor_name(conn_name))
     end)
 
     {:ok, backend: backend, conn: conn_name, queue_name: queue_name}
