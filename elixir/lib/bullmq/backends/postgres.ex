@@ -215,12 +215,14 @@ defmodule BullMQ.Backends.Postgres do
 
       matches ->
         {pos, _} = List.last(matches)
+        queue_name = binary_part(key, 0, pos)
+        id = binary_part(key, pos + 1, byte_size(key) - pos - 1)
 
-        %{
-          prefix: "",
-          queue_name: binary_part(key, 0, pos),
-          id: binary_part(key, pos + 1, byte_size(key) - pos - 1)
-        }
+        if queue_name == "" or id == "" do
+          %{prefix: "", queue_name: "", id: key}
+        else
+          %{prefix: "", queue_name: queue_name, id: id}
+        end
     end
   end
 

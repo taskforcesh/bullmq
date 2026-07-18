@@ -503,6 +503,7 @@ defmodule BullMQ.Backends.PostgresTest do
     assert Backends.Postgres.client_name(b, ":w:1") == "#{q}:w:1"
     assert %{queue_name: "myq", id: "abc"} = Backends.Postgres.parse_node_key(b, "myq:abc")
     assert %{queue_name: "", id: "invalid"} = Backends.Postgres.parse_node_key(b, "invalid")
+    assert %{queue_name: "", id: "myq:"} = Backends.Postgres.parse_node_key(b, "myq:")
     assert Backend.set_name(b, "test-app") == :ok
   end
 end
