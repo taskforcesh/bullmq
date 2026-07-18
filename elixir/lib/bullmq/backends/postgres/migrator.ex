@@ -13,6 +13,8 @@ defmodule BullMQ.Backends.Postgres.Migrator do
 
   require Logger
 
+  @compile {:no_warn_undefined, Postgrex}
+
   @default_schema "bullmq"
 
   # Stable advisory-lock key; the integer spells `BULL` (0x42554c4c). Shared

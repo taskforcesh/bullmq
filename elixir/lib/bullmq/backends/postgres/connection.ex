@@ -26,6 +26,9 @@ defmodule BullMQ.Backends.Postgres.Connection do
 
   alias BullMQ.Backends.Postgres.Migrator
 
+  @compile {:no_warn_undefined, Postgrex}
+  @compile {:no_warn_undefined, Postgrex.Notifications}
+
   @default_pool_size 10
 
   @spec start_link(keyword()) :: Supervisor.on_start()
