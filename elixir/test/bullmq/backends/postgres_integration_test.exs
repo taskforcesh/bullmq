@@ -204,7 +204,11 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
 
     queue_name = :"pg_queue_#{System.unique_integer([:positive])}"
     {:ok, server} = Queue.start_link(name: queue_name, queue: queue, connection: conn, backend: Backends.Postgres)
-    on_exit(fn -> GenServer.stop(server) end)
+    on_exit(fn ->
+      if Process.alive?(server) do
+        GenServer.stop(server)
+      end
+    end)
 
     {:ok, job} = Queue.add(queue_name, "evented-explicit", %{foo: "bar"})
     assert {:ok, "waiting"} = Queue.get_job_state(queue_name, job.id)
