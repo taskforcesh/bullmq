@@ -22,7 +22,7 @@ jobs:
   #   - Any Lua script change (the shared core used by every runtime), or a
   #     change under `scripts/**` used by pretest/build generation, runs ALL
   #     runtime suites.
-  #   - A change scoped to a single runtime (node/python/php) runs only that
+  #   - A change scoped to a single runtime (node/php) runs only that
   #     runtime's suite.
   #   - Documentation-only changes only run this change-detection job and a
   #     no-op `smoke` job (to satisfy required checks).
@@ -40,7 +40,6 @@ jobs:
     outputs:
       lua: ${{ steps.filter.outputs.lua }}
       node: ${{ steps.filter.outputs.node }}
-      python: ${{ steps.filter.outputs.python }}
       php: ${{ steps.filter.outputs.php }}
 
     steps:
@@ -68,8 +67,6 @@ jobs:
               - 'mocha.setup.ts'
               - '.mocharc.js'
               - 'eslint.config.mjs'
-            python:
-              - 'python/**'
             php:
               - 'php/**'
 
@@ -417,167 +414,6 @@ jobs:
   #     - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
   #     - run: yarn build
   #     - run: yarn test
-
-  python:
-    runs-on: ubuntu-latest
-    # Depend on the primary node suite (which also runs coverage) so a Node
-    # test failure aborts the cross-language jobs before they consume runner
-    # time. `ioredis-redis` itself depends on `smoke` and only runs when Node
-    # or shared Lua inputs changed. When only Python changed, `ioredis-redis`
-    # is skipped and we still run this job (a skipped dependency is allowed, a
-    # failed one is not).
-    needs: [changes, smoke, ioredis-redis]
-    # Keep failure/cancellation gating at the job level, but leave path gating
-    # to step-level no-op checks so the matrix-expanded required check name
-    # still materializes when Python/Lua files are unchanged.
-    if: >-
-      always() &&
-      !cancelled() &&
-      needs.smoke.result == 'success' &&
-      needs.ioredis-redis.result != 'failure' &&
-      needs.ioredis-redis.result != 'cancelled'
-
-    name: testing python@${{ matrix.python-version }}, redis@${{ matrix.redis-version }}
-
-    env:
-      should_run: ${{ needs.changes.outputs.python == 'true' || needs.changes.outputs.lua == 'true' }}
-
-    strategy:
-      matrix:
-        node-version: [lts/*]
-        redis-version: [7-alpine]
-        python-version: ['3.13']
-
-    steps:
-      - name: Skip when Python/Lua inputs are unchanged
-        if: env.should_run != 'true'
-        run: echo "No Python/Lua changes detected; skipping Python test steps."
-      - name: Checkout repository
-        if: env.should_run == 'true'
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - name: Use Node.js ${{ matrix.node-version }}
-        if: env.should_run == 'true'
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'yarn'
-      - name: Start Redis
-        if: env.should_run == 'true'
-        uses: supercharge/redis-github-action@bc274cb7238cd63a45029db04ee48c07a72609fd # 1.8.1
-        with:
-          redis-version: ${{ matrix.redis-version }}
-      - if: env.should_run == 'true'
-        run: yarn install --ignore-engines --frozen-lockfile --non-interactive
-      - if: env.should_run == 'true'
-        run: yarn build
-      - if: env.should_run == 'true'
-        run: yarn copy:lua:python
-
-      - name: Set up Python ${{ matrix.python-version }}
-        if: env.should_run == 'true'
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install dependencies
-        if: env.should_run == 'true'
-        run: |
-          python -m pip install --upgrade pip
-          pip install flake8 mypy types-redis
-          pip install -r python/requirements.txt
-      - name: Lint with flake8
-        if: env.should_run == 'true'
-        run: |
-          # stop the build if there are Python syntax errors or undefined names
-          flake8 ./python --count --select=E9,F63,F7,F82 --show-source --statistics
-          # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-          flake8 ./python --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-      - name: Test with pytest
-        if: env.should_run == 'true'
-        run: |
-          cd python
-          pytest -v
-
-  python-dragonflydb:
-    runs-on: ubuntu-latest
-    needs: [changes, smoke, ioredis-redis]
-    # Keep failure/cancellation gating at the job level, but leave path gating
-    # to step-level no-op checks so the matrix-expanded required check name
-    # still materializes when Python/Lua files are unchanged.
-    if: >-
-      always() &&
-      !cancelled() &&
-      needs.smoke.result == 'success' &&
-      needs.ioredis-redis.result != 'failure' &&
-      needs.ioredis-redis.result != 'cancelled'
-
-    name: testing python@${{ matrix.python-version }}, dragonflydb@latest
-
-    env:
-      should_run: ${{ needs.changes.outputs.python == 'true' || needs.changes.outputs.lua == 'true' }}
-
-    strategy:
-      matrix:
-        node-version: [lts/*]
-        python-version: ['3.13']
-
-    services:
-      dragonflydb:
-        image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
-        env:
-          DFLY_cluster_mode: emulated
-          DFLY_lock_on_hashtags: true
-          HEALTHCHECK_PORT: 6379
-        ports:
-          - 6379:6379
-
-    steps:
-      - name: Skip when Python/Lua inputs are unchanged
-        if: env.should_run != 'true'
-        run: echo "No Python/Lua changes detected; skipping Python Dragonfly steps."
-      - name: Checkout repository
-        if: env.should_run == 'true'
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - name: Use Node.js ${{ matrix.node-version }}
-        if: env.should_run == 'true'
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'yarn'
-      - if: env.should_run == 'true'
-        run: yarn install --ignore-engines --frozen-lockfile --non-interactive
-      - if: env.should_run == 'true'
-        run: yarn build
-      - if: env.should_run == 'true'
-        run: yarn copy:lua:python
-
-      - name: Set up Python ${{ matrix.python-version }}
-        if: env.should_run == 'true'
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install dependencies
-        if: env.should_run == 'true'
-        run: |
-          python -m pip install --upgrade pip
-          pip install flake8 mypy types-redis
-          pip install -r python/requirements.txt
-      - name: Lint with flake8
-        if: env.should_run == 'true'
-        run: |
-          # stop the build if there are Python syntax errors or undefined names
-          flake8 ./python --count --select=E9,F63,F7,F82 --show-source --statistics
-          # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-          flake8 ./python --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-      - name: Test with pytest
-        if: env.should_run == 'true'
-        run: |
-          cd python
-          export BULLMQ_TEST_PREFIX="{b}"
-          pytest -v
 
   php:
     runs-on: ubuntu-latest
