@@ -760,9 +760,9 @@ def create_postgres_backend(
 def _return_value(value: Any) -> Any:
     """Normalize a completed job's return value for jsonb storage.
 
-    :class:`~bullmq.job.Job` pre-serializes it to a JSON string; the worker path
-    passes the raw object. Decode a JSON string back so it is stored as real
-    jsonb rather than a quoted string literal.
+    Most call paths now pass raw Python objects, but older/legacy callers may
+    still pass a JSON string. Decode JSON strings so values are stored as real
+    jsonb rather than quoted string literals.
     """
     if isinstance(value, str):
         try:
