@@ -1,3 +1,10 @@
+## [5.80.9](https://github.com/taskforcesh/bullmq/compare/v5.80.8...v5.80.9) (2026-07-18)
+
+
+### Performance Improvements
+
+* **flow-producer:** reuse queue's shared Scripts instance in jobs fixes [#4263](https://github.com/taskforcesh/bullmq/issues/4263) ([#4308](https://github.com/taskforcesh/bullmq/issues/4308)) ([4f4b574](https://github.com/taskforcesh/bullmq/commit/4f4b574de507e56e1e3a7f359565eb359463710f))
+
 ## [5.80.8](https://github.com/taskforcesh/bullmq/compare/v5.80.7...v5.80.8) (2026-07-18)
 
 
