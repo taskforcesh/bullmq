@@ -29,7 +29,14 @@ dependencies = [
 dev = [
     "pre-commit==4.5.1",
     "build==1.4.2",
-    "types-redis==4.6.0.20241004"
+    "types-redis==4.6.0.20241004",
+    "pipenv==2026.5.1",
+    "virtualenv==21.2.0",
+    "virtualenv-clone==0.5.7"
+]
+test = [
+    "pytest==9.0.3",
+    "pytest-timeout==2.4.0"
 ]
 
 [project.urls]
