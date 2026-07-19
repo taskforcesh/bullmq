@@ -245,7 +245,11 @@ describe('RedisConnection', () => {
       const error = new Error('Command timed out');
       const state: { connection?: RedisConnection } = {};
       const bzpopmin = sinon.stub().callsFake(async () => {
-        await state.connection!.close(true);
+        if (!state.connection) {
+          throw new Error('Connection not initialized');
+        }
+
+        await state.connection.close(true);
         throw error;
       });
       const cluster = createMockClusterClient({ bzpopmin });
