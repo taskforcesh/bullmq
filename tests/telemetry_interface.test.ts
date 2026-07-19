@@ -376,6 +376,74 @@ describe('Telemetry', () => {
     });
   });
 
+  describe('Worker.getNextJob', () => {
+    it('should trace each fetched job with its propagation metadata', async () => {
+      const worker = new Worker(queueName, null, {
+        autorun: false,
+        connection,
+        telemetry: telemetryClient,
+        prefix,
+        lockDuration: 1000,
+        stalledInterval: 100,
+        maxStalledCount: 0,
+      });
+
+      const token = 'some-token';
+      const firstMetadata = JSON.stringify({
+        getMetadata_trace: 'stalled-parent',
+      });
+      const secondMetadata = JSON.stringify({
+        getMetadata_trace: 'runnable-parent',
+      });
+
+      const traceSpy = sinon.spy(worker, 'trace');
+
+      await queue.add(
+        'stalled-job',
+        { foo: 'bar' },
+        { telemetry: { metadata: firstMetadata } },
+      );
+
+      const firstJob = await worker.getNextJob(token);
+      expect(firstJob).toBeDefined();
+      traceSpy.resetHistory();
+
+      const client = await worker.client;
+      await client.del(`${prefix}:${queueName}:${firstJob!.id}:lock`);
+
+      const failed = new Promise<void>(resolve => {
+        worker.on('failed', () => resolve());
+      });
+
+      await (worker as any).moveStalledJobsToWait();
+      await client.del(`${prefix}:${queueName}:stalled-check`);
+      await (worker as any).moveStalledJobsToWait();
+
+      const secondAdded = await queue.add(
+        'runnable-job',
+        { foo: 'baz' },
+        { telemetry: { metadata: secondMetadata } },
+      );
+
+      const nextJob = await worker.getNextJob(token, { block: false });
+
+      expect(nextJob?.id).toBe(secondAdded.id);
+      const getNextJobCalls = traceSpy
+        .getCalls()
+        .filter(call => call.args[1] === 'getNextJob');
+      expect(getNextJobCalls.length).toBe(2);
+      expect(getNextJobCalls[0].args[4]).toBe(
+        firstJob?.opts?.telemetry?.metadata,
+      );
+      expect(getNextJobCalls[1].args[4]).toBe(
+        nextJob?.opts?.telemetry?.metadata,
+      );
+
+      await failed;
+      await worker.close();
+    });
+  });
+
   describe('Worker.processJob', async () => {
     it('should correctly interact with telemetry when processing a job', async () => {
       const job = await queue.add('testJob', { foo: 'bar' });
@@ -713,8 +781,8 @@ describe('Telemetry', () => {
       } catch (e) {
         expect(recordExceptionSpy.calledOnce).toBe(true);
         const recordedError = recordExceptionSpy.firstCall.args[0];
-        expect(recordedError.message).toBe(
-          'Failed to add bulk flows due to invalid parent configuration',
+        expect(recordedError.message).toMatch(
+          /(?:Missing key for parent job .*|undeclared key, key: ).*invalidQueue:invalidParentId/,
         );
       } finally {
         traceSpy.restore();

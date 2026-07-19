@@ -11,7 +11,7 @@
 
 use bullmq::options::RedisConnectionOptions;
 use bullmq::worker::{CancellationToken, ProcessorFn};
-use bullmq::{Job, JobOptions, Queue, QueueOptions, Worker, WorkerOptions};
+use bullmq::{BulkJob, Job, Queue, QueueOptions, Worker, WorkerOptions};
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::Notify;
@@ -45,7 +45,7 @@ fn format_number(n: f64) -> String {
 /// Benchmark: Adding jobs one by one (sequential).
 async fn benchmark_add_jobs(count: usize) -> (f64, f64) {
     let queue_name = format!("bench-add-{}", uuid::Uuid::new_v4().simple());
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &queue_name,
         QueueOptions {
             connection: connection_opts(),
@@ -60,7 +60,7 @@ async fn benchmark_add_jobs(count: usize) -> (f64, f64) {
     let start = Instant::now();
     for i in 0..count {
         let d = serde_json::json!({"index": i, "payload": "x".repeat(100)});
-        queue.add("test-job", d, None).await.unwrap();
+        queue.add("test-job", d).await.unwrap();
     }
     let duration_ms = start.elapsed().as_secs_f64() * 1000.0;
     let jobs_per_sec = (count as f64 / duration_ms) * 1000.0;
@@ -74,7 +74,7 @@ async fn benchmark_add_jobs(count: usize) -> (f64, f64) {
 async fn benchmark_add_jobs_parallel(count: usize, batch_size: usize) -> (f64, f64) {
     let queue_name = format!("bench-add-par-{}", uuid::Uuid::new_v4().simple());
     let queue = Arc::new(
-        Queue::new(
+        Queue::with_options(
             &queue_name,
             QueueOptions {
                 connection: connection_opts(),
@@ -96,7 +96,7 @@ async fn benchmark_add_jobs_parallel(count: usize, batch_size: usize) -> (f64, f
             let idx = batch_start + j;
             handles.push(tokio::spawn(async move {
                 let data = serde_json::json!({"index": idx, "payload": "x".repeat(100)});
-                q.add("test-job", data, None).await.unwrap();
+                q.add("test-job", data).await.unwrap();
             }));
         }
 
@@ -115,7 +115,7 @@ async fn benchmark_add_jobs_parallel(count: usize, batch_size: usize) -> (f64, f
 /// Benchmark: Bulk adding jobs.
 async fn benchmark_bulk_add(count: usize) -> (f64, f64) {
     let queue_name = format!("bench-bulk-{}", uuid::Uuid::new_v4().simple());
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &queue_name,
         QueueOptions {
             connection: connection_opts(),
@@ -125,12 +125,11 @@ async fn benchmark_bulk_add(count: usize) -> (f64, f64) {
     .await
     .unwrap();
 
-    let jobs: Vec<(String, serde_json::Value, Option<JobOptions>)> = (0..count)
+    let jobs: Vec<BulkJob> = (0..count)
         .map(|i| {
-            (
-                "test-job".to_string(),
+            BulkJob::new(
+                "test-job",
                 serde_json::json!({"index": i, "payload": "x".repeat(100)}),
-                None,
             )
         })
         .collect();
@@ -149,7 +148,7 @@ async fn benchmark_processing(count: usize, concurrency: usize) -> (f64, f64) {
     let queue_name = format!("bench-proc-{}", uuid::Uuid::new_v4().simple());
     let conn_opts = connection_opts();
 
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &queue_name,
         QueueOptions {
             connection: conn_opts.clone(),
@@ -160,14 +159,8 @@ async fn benchmark_processing(count: usize, concurrency: usize) -> (f64, f64) {
     .unwrap();
 
     // Add all jobs first using bulk
-    let jobs: Vec<(String, serde_json::Value, Option<JobOptions>)> = (0..count)
-        .map(|i| {
-            (
-                "test-job".to_string(),
-                serde_json::json!({"index": i}),
-                None,
-            )
-        })
+    let jobs: Vec<BulkJob> = (0..count)
+        .map(|i| BulkJob::new("test-job", serde_json::json!({"index": i})))
         .collect();
     queue.add_bulk(jobs).await.unwrap();
 
@@ -193,7 +186,7 @@ async fn benchmark_processing(count: usize, concurrency: usize) -> (f64, f64) {
     // Start timer and create worker at the same time
     let start = Instant::now();
 
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &queue_name,
         processor,
         WorkerOptions {

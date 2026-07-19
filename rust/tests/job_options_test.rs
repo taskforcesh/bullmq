@@ -8,14 +8,14 @@ mod common;
 
 use bullmq::types::{KeepJobs, RemoveOnFinish};
 use bullmq::worker::{CancellationToken, ProcessorFn};
-use bullmq::{Job, JobOptions, Queue, QueueOptions, Worker, WorkerOptions};
+use bullmq::{BulkJob, Job, JobOptions, Queue, QueueOptions, Worker, WorkerOptions};
 use common::{cleanup_queue, test_connection, test_queue_name};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
 async fn new_queue(name: &str) -> Queue {
-    Queue::new(
+    Queue::with_options(
         name,
         QueueOptions {
             connection: test_connection(),
@@ -33,14 +33,11 @@ async fn test_size_limit_allows_small_payload() {
 
     // {"foo":"bar"} is 13 bytes; limit 20 → accepted.
     let job = queue
-        .add(
-            "test",
-            serde_json::json!({"foo": "bar"}),
-            Some(JobOptions {
-                size_limit: Some(20),
-                ..Default::default()
-            }),
-        )
+        .add("test", serde_json::json!({"foo": "bar"}))
+        .options(JobOptions {
+            size_limit: Some(20),
+            ..Default::default()
+        })
         .await
         .unwrap();
     assert!(!job.id().is_empty());
@@ -55,14 +52,11 @@ async fn test_size_limit_rejects_large_payload() {
 
     // {"foo":"bar"} is 13 bytes; limit 12 → rejected.
     let err = queue
-        .add(
-            "test",
-            serde_json::json!({"foo": "bar"}),
-            Some(JobOptions {
-                size_limit: Some(12),
-                ..Default::default()
-            }),
-        )
+        .add("test", serde_json::json!({"foo": "bar"}))
+        .options(JobOptions {
+            size_limit: Some(12),
+            ..Default::default()
+        })
         .await
         .unwrap_err();
     assert_eq!(
@@ -80,14 +74,11 @@ async fn test_size_limit_counts_utf8_bytes() {
 
     // {"foo":"βÅ®"} is 16 UTF-8 bytes; limit 15 → rejected.
     let err = queue
-        .add(
-            "test",
-            serde_json::json!({"foo": "βÅ®"}),
-            Some(JobOptions {
-                size_limit: Some(15),
-                ..Default::default()
-            }),
-        )
+        .add("test", serde_json::json!({"foo": "βÅ®"}))
+        .options(JobOptions {
+            size_limit: Some(15),
+            ..Default::default()
+        })
         .await
         .unwrap_err();
     assert!(err
@@ -103,15 +94,12 @@ async fn test_size_limit_rejects_even_with_custom_job_id() {
     let queue = new_queue(&name).await;
 
     let err = queue
-        .add(
-            "test",
-            serde_json::json!({"foo": "bar"}),
-            Some(JobOptions {
-                size_limit: Some(12),
-                job_id: Some("customJobId".to_string()),
-                ..Default::default()
-            }),
-        )
+        .add("test", serde_json::json!({"foo": "bar"}))
+        .options(JobOptions {
+            size_limit: Some(12),
+            job_id: Some("customJobId".to_string()),
+            ..Default::default()
+        })
         .await
         .unwrap_err();
     assert!(err
@@ -132,22 +120,14 @@ async fn test_size_limit_enforced_in_add_bulk() {
     // One job fits (limit 20), one is too large (limit 12) → add_bulk fails.
     let err = queue
         .add_bulk(vec![
-            (
-                "small".to_string(),
-                serde_json::json!({"foo": "bar"}),
-                Some(JobOptions {
-                    size_limit: Some(20),
-                    ..Default::default()
-                }),
-            ),
-            (
-                "big".to_string(),
-                serde_json::json!({"foo": "bar"}),
-                Some(JobOptions {
-                    size_limit: Some(12),
-                    ..Default::default()
-                }),
-            ),
+            BulkJob::new("small", serde_json::json!({"foo": "bar"})).options(JobOptions {
+                size_limit: Some(20),
+                ..Default::default()
+            }),
+            BulkJob::new("big", serde_json::json!({"foo": "bar"})).options(JobOptions {
+                size_limit: Some(12),
+                ..Default::default()
+            }),
         ])
         .await
         .unwrap_err();
@@ -168,7 +148,7 @@ async fn test_keep_jobs_limit_is_accepted_and_trims() {
     let num_jobs = 5u32;
     for i in 0..num_jobs {
         queue
-            .add("test", serde_json::json!({ "i": i }), None)
+            .add("test", serde_json::json!({ "i": i }))
             .await
             .unwrap();
     }
@@ -184,7 +164,7 @@ async fn test_keep_jobs_limit_is_accepted_and_trims() {
     });
 
     // Keep at most 1 completed job, removing up to 10 excess jobs per finish.
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &name,
         processor,
         WorkerOptions {

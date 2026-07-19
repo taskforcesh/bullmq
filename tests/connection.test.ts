@@ -243,17 +243,18 @@ describe('RedisConnection', () => {
 
     it('does not reconnect after bzpopmin command timeout while closing', async () => {
       const error = new Error('Command timed out');
-      let connection!: RedisConnection;
+      const state: { connection?: RedisConnection } = {};
       const bzpopmin = sinon.stub().callsFake(async () => {
-        await connection.close(true);
+        await state.connection!.close(true);
         throw error;
       });
       const cluster = createMockClusterClient({ bzpopmin });
-      connection = new RedisConnection(cluster as any, {
+      const connection = new RedisConnection(cluster as any, {
         blocking: true,
         skipVersionCheck: true,
         skipWaitingForReady: true,
       });
+      state.connection = connection;
 
       const client = await connection.client;
 

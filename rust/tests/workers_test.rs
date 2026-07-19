@@ -21,7 +21,7 @@ fn noop_processor() -> ProcessorFn {
 async fn test_get_workers_for_queue_only() {
     let name = test_queue_name();
     let conn = test_connection();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: conn.clone(),
@@ -33,7 +33,7 @@ async fn test_get_workers_for_queue_only() {
 
     assert_eq!(queue.get_workers_count().await.unwrap(), 0);
 
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &name,
         noop_processor(),
         WorkerOptions {
@@ -48,7 +48,7 @@ async fn test_get_workers_for_queue_only() {
     let workers = queue.get_workers().await.unwrap();
     assert_eq!(workers.len(), 1);
 
-    let worker2 = Worker::new(
+    let worker2 = Worker::with_options(
         &name,
         noop_processor(),
         WorkerOptions {
@@ -79,7 +79,7 @@ async fn test_get_workers_for_queue_only() {
 async fn test_get_workers_including_their_names() {
     let name = test_queue_name();
     let conn = test_connection();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: conn.clone(),
@@ -89,7 +89,7 @@ async fn test_get_workers_including_their_names() {
     .await
     .unwrap();
 
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &name,
         noop_processor(),
         WorkerOptions {
@@ -105,7 +105,7 @@ async fn test_get_workers_including_their_names() {
     assert_eq!(queue.get_workers().await.unwrap().len(), 1);
     assert_eq!(queue.get_workers_count().await.unwrap(), 1);
 
-    let worker2 = Worker::new(
+    let worker2 = Worker::with_options(
         &name,
         noop_processor(),
         WorkerOptions {
@@ -143,7 +143,7 @@ async fn test_get_workers_isolated_between_queues() {
     let name_b = test_queue_name();
     let conn = test_connection();
 
-    let queue_a = Queue::new(
+    let queue_a = Queue::with_options(
         &name_a,
         QueueOptions {
             connection: conn.clone(),
@@ -152,7 +152,7 @@ async fn test_get_workers_isolated_between_queues() {
     )
     .await
     .unwrap();
-    let queue_b = Queue::new(
+    let queue_b = Queue::with_options(
         &name_b,
         QueueOptions {
             connection: conn.clone(),
@@ -163,7 +163,7 @@ async fn test_get_workers_isolated_between_queues() {
     .unwrap();
 
     // One worker on each queue.
-    let worker_a = Worker::new(
+    let worker_a = Worker::with_options(
         &name_a,
         noop_processor(),
         WorkerOptions {
@@ -174,7 +174,7 @@ async fn test_get_workers_isolated_between_queues() {
     )
     .await
     .unwrap();
-    let worker_b = Worker::new(
+    let worker_b = Worker::with_options(
         &name_b,
         noop_processor(),
         WorkerOptions {
