@@ -39,8 +39,5 @@ def __getattr__(name):
             create_postgres_backend,
         )
 
-        return {
-            "PostgresBackend": PostgresBackend,
-            "create_postgres_backend": create_postgres_backend,
-        }[name]
+        return PostgresBackend if name == "PostgresBackend" else create_postgres_backend
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
