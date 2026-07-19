@@ -22,7 +22,7 @@ pub(crate) fn validate_queue_name(name: &str) -> Result<(), Error> {
     Ok(())
 }
 
-/// Resolve `ParentOpts.queue` into a qualified queue key.
+/// Resolve `ParentOptions.queue` into a qualified queue key.
 ///
 /// Accepts either an unqualified queue name (`queue`) or a pre-qualified key
 /// using the current prefix (`prefix:queue`). The queue-name portion is always

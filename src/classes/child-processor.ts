@@ -52,10 +52,21 @@ export class ChildProcessor {
       }
     } catch (err) {
       this.status = ChildStatus.Errored;
-      return this.send({
-        cmd: ParentCommand.InitFailed,
-        err: errorToJSON(err),
-      });
+      try {
+        await this.send({
+          cmd: ParentCommand.InitFailed,
+          err: errorToJSON(err),
+        });
+      } finally {
+        // A child that failed to initialize cannot recover, and because the open
+        // IPC channel keeps its event loop alive it would never exit on its own.
+        // Exit explicitly (after attempting to send InitFailed) so the parent
+        // can never reuse a half-initialized "zombie" child. This is a
+        // belt-and-braces measure: ChildPool also kills the child, but exiting
+        // here guarantees termination even if the parent-side kill were to fail.
+        // In a worker thread this stops only the current worker, not the process.
+        process.exit(process.exitCode ?? 1);
+      }
     }
 
     const origProcessor = processor;

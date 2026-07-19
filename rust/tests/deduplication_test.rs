@@ -22,7 +22,7 @@ async fn test_dedup_prevents_duplicate_jobs() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Add two jobs with the same deduplication ID
     let opts1 = JobOptions {
@@ -41,13 +41,15 @@ async fn test_dedup_prevents_duplicate_jobs() {
     };
 
     let id1 = queue
-        .add("job1", serde_json::json!({"first": true}), Some(opts1))
+        .add("job1", serde_json::json!({"first": true}))
+        .options(opts1)
         .await
         .unwrap()
         .id()
         .to_string();
     let id2 = queue
-        .add("job2", serde_json::json!({"second": true}), Some(opts2))
+        .add("job2", serde_json::json!({"second": true}))
+        .options(opts2)
         .await
         .unwrap()
         .id()
@@ -71,7 +73,7 @@ async fn test_dedup_different_ids_create_separate_jobs() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     let opts1 = JobOptions {
         deduplication: Some(DeduplicationOptions {
@@ -89,13 +91,15 @@ async fn test_dedup_different_ids_create_separate_jobs() {
     };
 
     let id1 = queue
-        .add("job1", serde_json::json!({"a": 1}), Some(opts1))
+        .add("job1", serde_json::json!({"a": 1}))
+        .options(opts1)
         .await
         .unwrap()
         .id()
         .to_string();
     let id2 = queue
-        .add("job2", serde_json::json!({"b": 2}), Some(opts2))
+        .add("job2", serde_json::json!({"b": 2}))
+        .options(opts2)
         .await
         .unwrap()
         .id()
@@ -122,7 +126,7 @@ async fn test_dedup_with_ttl_allows_after_expiry() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // First job with 500ms TTL
     let opts1 = JobOptions {
@@ -134,7 +138,8 @@ async fn test_dedup_with_ttl_allows_after_expiry() {
         ..Default::default()
     };
     queue
-        .add("job1", serde_json::json!({"first": true}), Some(opts1))
+        .add("job1", serde_json::json!({"first": true}))
+        .options(opts1)
         .await
         .unwrap();
 
@@ -148,7 +153,8 @@ async fn test_dedup_with_ttl_allows_after_expiry() {
         ..Default::default()
     };
     queue
-        .add("job2", serde_json::json!({"second": true}), Some(opts2))
+        .add("job2", serde_json::json!({"second": true}))
+        .options(opts2)
         .await
         .unwrap();
 
@@ -168,7 +174,8 @@ async fn test_dedup_with_ttl_allows_after_expiry() {
         ..Default::default()
     };
     queue
-        .add("job3", serde_json::json!({"third": true}), Some(opts3))
+        .add("job3", serde_json::json!({"third": true}))
+        .options(opts3)
         .await
         .unwrap();
 
@@ -193,7 +200,7 @@ async fn test_dedup_replace_updates_delayed_job() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // First job delayed with dedup
     let opts1 = JobOptions {
@@ -205,7 +212,8 @@ async fn test_dedup_replace_updates_delayed_job() {
         ..Default::default()
     };
     let id1 = queue
-        .add("job1", serde_json::json!({"v": 1}), Some(opts1))
+        .add("job1", serde_json::json!({"v": 1}))
+        .options(opts1)
         .await
         .unwrap()
         .id()
@@ -222,7 +230,8 @@ async fn test_dedup_replace_updates_delayed_job() {
         ..Default::default()
     };
     let id2 = queue
-        .add("job2", serde_json::json!({"v": 2}), Some(opts2))
+        .add("job2", serde_json::json!({"v": 2}))
+        .options(opts2)
         .await
         .unwrap()
         .id()
@@ -254,7 +263,7 @@ async fn test_remove_deduplication_key() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Add a job with dedup (no TTL → key persists indefinitely)
     let opts = JobOptions {
@@ -265,7 +274,8 @@ async fn test_remove_deduplication_key() {
         ..Default::default()
     };
     let job_id = queue
-        .add("job1", serde_json::json!({"v": 1}), Some(opts))
+        .add("job1", serde_json::json!({"v": 1}))
+        .options(opts)
         .await
         .unwrap()
         .id()
@@ -280,7 +290,8 @@ async fn test_remove_deduplication_key() {
         ..Default::default()
     };
     let id2 = queue
-        .add("job2", serde_json::json!({"v": 2}), Some(opts2))
+        .add("job2", serde_json::json!({"v": 2}))
+        .options(opts2)
         .await
         .unwrap()
         .id()
@@ -303,7 +314,8 @@ async fn test_remove_deduplication_key() {
         ..Default::default()
     };
     let id3 = queue
-        .add("job3", serde_json::json!({"v": 3}), Some(opts3))
+        .add("job3", serde_json::json!({"v": 3}))
+        .options(opts3)
         .await
         .unwrap()
         .id()
@@ -325,7 +337,7 @@ async fn test_dedup_key_removed_after_job_completes() {
         connection: conn_opts.clone(),
         ..Default::default()
     };
-    let queue = Queue::new(&name, queue_opts).await.unwrap();
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
 
     // Add job with dedup (no TTL → cleaned up on completion by Lua moveToFinished)
     let opts = JobOptions {
@@ -336,7 +348,8 @@ async fn test_dedup_key_removed_after_job_completes() {
         ..Default::default()
     };
     queue
-        .add("job1", serde_json::json!({"v": 1}), Some(opts))
+        .add("job1", serde_json::json!({"v": 1}))
+        .options(opts)
         .await
         .unwrap();
 
@@ -355,7 +368,9 @@ async fn test_dedup_key_removed_after_job_completes() {
         autorun: true,
         ..Default::default()
     };
-    let worker = Worker::new(&name, processor, worker_opts).await.unwrap();
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(3), rx.recv())
         .await
@@ -371,7 +386,8 @@ async fn test_dedup_key_removed_after_job_completes() {
         ..Default::default()
     };
     let _id2 = queue
-        .add("job2", serde_json::json!({"v": 2}), Some(opts2))
+        .add("job2", serde_json::json!({"v": 2}))
+        .options(opts2)
         .await
         .unwrap();
 
@@ -394,7 +410,7 @@ async fn test_dedup_key_removed_after_job_completes() {
 #[tokio::test]
 async fn test_get_debounce_job_id_alias() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),
@@ -407,17 +423,14 @@ async fn test_get_debounce_job_id_alias() {
     assert_eq!(queue.get_debounce_job_id("missing").await.unwrap(), None);
 
     let job_id = queue
-        .add(
-            "job1",
-            serde_json::json!({"v": 1}),
-            Some(JobOptions {
-                deduplication: Some(DeduplicationOptions {
-                    id: "debounce-1".to_string(),
-                    ..Default::default()
-                }),
+        .add("job1", serde_json::json!({"v": 1}))
+        .options(JobOptions {
+            deduplication: Some(DeduplicationOptions {
+                id: "debounce-1".to_string(),
                 ..Default::default()
             }),
-        )
+            ..Default::default()
+        })
         .await
         .unwrap()
         .id()
@@ -439,7 +452,7 @@ async fn test_get_debounce_job_id_alias() {
 #[tokio::test]
 async fn test_remove_debounce_key_alias() {
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: test_connection(),
@@ -450,17 +463,14 @@ async fn test_remove_debounce_key_alias() {
     .unwrap();
 
     queue
-        .add(
-            "job1",
-            serde_json::json!({"v": 1}),
-            Some(JobOptions {
-                deduplication: Some(DeduplicationOptions {
-                    id: "debounce-rm".to_string(),
-                    ..Default::default()
-                }),
+        .add("job1", serde_json::json!({"v": 1}))
+        .options(JobOptions {
+            deduplication: Some(DeduplicationOptions {
+                id: "debounce-rm".to_string(),
                 ..Default::default()
             }),
-        )
+            ..Default::default()
+        })
         .await
         .unwrap();
 

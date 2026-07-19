@@ -33,7 +33,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
 
   protected closed = false;
   protected hasBlockingConnection = false;
-  protected scripts: Scripts;
+  scripts: Scripts;
   protected connection: RedisConnection;
   public readonly qualifiedName: string;
 

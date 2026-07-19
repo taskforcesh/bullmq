@@ -5,6 +5,7 @@ import {
   FlowOpts,
   IoredisListener,
   IRedisTransaction,
+  MinimalQueue,
   ParentOptions,
   QueueBaseOptions,
   RedisClient,
@@ -12,10 +13,18 @@ import {
   ContextManager,
 } from '../interfaces';
 import { getParentKey, isRedisInstance, randomUUID, trace } from '../utils';
+import { createScripts } from '../utils/create-scripts';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { RedisConnection } from './redis-connection';
+import type { Scripts } from './scripts';
 import { ErrorCode, SpanKind, TelemetryAttributes } from '../enums';
+
+// Internal queue-like objects need to populate scripts during construction even
+// though the public MinimalQueue contract exposes it as readonly.
+type MutableMinimalQueue = Omit<MinimalQueue, 'scripts'> & {
+  scripts?: Scripts;
+};
 
 export interface AddNodeOpts {
   multi: IRedisTransaction;
@@ -97,6 +106,14 @@ export class FlowProducer extends EventEmitter {
     contextManager: ContextManager | undefined;
   };
 
+  /**
+   * Cache of lightweight queue-like objects keyed by `${prefix}:${queueName}`.
+   * Each entry carries a single shared Scripts instance that is reused by all
+   * jobs added to that queue during the FlowProducer's lifetime, avoiding a
+   * redundant Scripts allocation per node/job.
+   */
+  private queues: Map<string, MinimalQueue> = new Map();
+
   constructor(
     public opts: QueueBaseOptions = { connection: {} },
     Connection: typeof RedisConnection = RedisConnection,
@@ -117,6 +134,7 @@ export class FlowProducer extends EventEmitter {
 
     this.connection.on('error', (error: Error) => this.emit('error', error));
     this.connection.on('close', () => {
+      this.queues.clear();
       if (!this.closing) {
         this.emit('ioredis:close');
       }
@@ -575,23 +593,44 @@ export class FlowProducer extends EventEmitter {
     node: Omit<NodeOpts, 'id' | 'depth' | 'maxChildren'>,
     queueKeys: QueueKeys,
     prefix: string,
-  ) {
-    return {
+  ): MinimalQueue {
+    const cacheKey = `${prefix}:${node.queueName}`;
+    const cached = this.queues.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const flowProducer = this;
+    const queue: MutableMinimalQueue = {
       client: this.connection.client,
       name: node.queueName,
       keys: queueKeys.getKeys(node.queueName),
       toKey: (type: string) => queueKeys.toKey(node.queueName, type),
       opts: { prefix, connection: {} },
       qualifiedName: queueKeys.getQueueQualifiedName(node.queueName),
-      closing: this.closing,
+      get closing() {
+        return flowProducer.closing;
+      },
       waitUntilReady: async () => this.connection.client,
       removeListener: this.removeListener.bind(this) as any,
       emit: this.emit.bind(this) as any,
       on: this.on.bind(this) as any,
-      redisVersion: this.connection.redisVersion,
-      databaseType: this.connection.databaseType,
+      get redisVersion() {
+        return flowProducer.connection.redisVersion;
+      },
+      get databaseType() {
+        return flowProducer.connection.databaseType;
+      },
       trace: async (): Promise<any> => {},
     };
+
+    // Build the shared Scripts instance once per queue so that every job
+    // created from this queue-like object reuses it instead of allocating
+    // its own.
+    queue.scripts = createScripts(queue);
+    this.queues.set(cacheKey, queue);
+
+    return queue;
   }
 
   /**
@@ -624,6 +663,7 @@ export class FlowProducer extends EventEmitter {
    */
   async close(): Promise<void> {
     if (!this.closing) {
+      this.queues.clear();
       this.closing = this.connection.close();
     }
     await this.closing;

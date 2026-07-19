@@ -42,7 +42,7 @@
       [
         "@semantic-release/changelog",
         {
-          "changelogFile": "CHANGELOG.md"
+          "changelogFile": "../docs/gitbook/rust/changelog.md"
         }
       ],
       [

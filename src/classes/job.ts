@@ -205,6 +205,18 @@ export class Job<
 
     /**
      * The payload for this job.
+     *
+     * Note: The `DataType` type parameter describes the *shape* of the
+     * payload, not its runtime class. Job data is serialized with
+     * `JSON.stringify` before being stored in Redis and deserialized with
+     * `JSON.parse` when read back, so when a worker picks up the job
+     * `job.data` will contain a JSON-compatible value such as an object,
+     * array, string, number, boolean, or `null`. Class instances passed as
+     * `data` lose their prototype (and therefore any methods,
+     * getters/setters, or non-enumerable properties) on the worker side.
+     * If you need methods, store the data as a plain object and
+     * re-instantiate the class inside your processor, or rely on
+     * `JSON.stringify`'s built-in `toJSON()` hook to control serialization.
      */
     public data: DataType,
 
@@ -271,7 +283,11 @@ export class Job<
    *
    * @param queue - the queue where to add the job.
    * @param name - the name of the job.
-   * @param data - the payload of the job.
+   * @param data - the payload of the job. It will be serialized with
+   * `JSON.stringify` before being stored in Redis, so it must be
+   * JSON-serializable. Class instances are flattened to plain objects and
+   * lose their prototype methods on the worker side; see the
+   * {@link Job} class for details.
    * @param opts - the options bag for this job.
    * @returns The created Job instance
    */
@@ -434,7 +450,12 @@ export class Job<
   }
 
   protected createScripts() {
-    this.scripts = createScripts(this.queue);
+    // Reuse the queue's long-lived Scripts instance. It is bound to the same
+    // queue keys and connection, so a per-Job instance is pure duplication.
+    // The built-in Queue, Worker and FlowProducer always provide one; the
+    // fallback only covers custom queue-like objects that don't carry a
+    // Scripts instance.
+    this.scripts = this.queue.scripts ?? createScripts(this.queue);
   }
 
   static optsFromJSON(
@@ -508,7 +529,7 @@ export class Job<
     logRow: string,
     keepLogs?: number,
   ): Promise<number> {
-    const scripts = (queue as any).scripts as Scripts;
+    const scripts = queue.scripts ?? createScripts(queue);
 
     return scripts.addLog(jobId, logRow, keepLogs);
   }
