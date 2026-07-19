@@ -1,5 +1,4 @@
 from bullmq.backends.redis_backend import RedisBackend, create_redis_backend
-from bullmq.backends.postgres_backend import PostgresBackend, create_postgres_backend
 
 __all__ = [
     "RedisBackend",
@@ -23,9 +22,25 @@ def create_backend(
     they depend only on the :class:`~bullmq.backend.Backend` abstraction.
     """
     if opts.get("backend") == "postgres":
+        from bullmq.backends.postgres_backend import create_postgres_backend
+
         return create_postgres_backend(
             name, opts, blocking=blocking, with_blocking_connection=with_blocking_connection
         )
     return create_redis_backend(
         name, opts, blocking=blocking, with_blocking_connection=with_blocking_connection
     )
+
+
+def __getattr__(name):
+    if name in {"PostgresBackend", "create_postgres_backend"}:
+        from bullmq.backends.postgres_backend import (
+            PostgresBackend,
+            create_postgres_backend,
+        )
+
+        return {
+            "PostgresBackend": PostgresBackend,
+            "create_postgres_backend": create_postgres_backend,
+        }[name]
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
