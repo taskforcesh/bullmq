@@ -20,7 +20,7 @@ classifiers=[
 ]
 keywords = ["python", "bullmq", "queues"]
 dependencies = [
-    "redis ==6.4.0",
+    "redis ==7.4.0",
     "msgpack ==1.2.1",
     "semver ==3.0.4"
 ]
@@ -29,7 +29,14 @@ dependencies = [
 dev = [
     "pre-commit==4.5.1",
     "build==1.4.2",
-    "types-redis==4.6.0.20241004"
+    "types-redis==4.6.0.20241004",
+    "pipenv==2026.5.1",
+    "virtualenv==21.2.0",
+    "virtualenv-clone==0.5.7"
+]
+test = [
+    "pytest==9.0.3",
+    "pytest-timeout==2.4.0"
 ]
 postgres = [
     "psycopg[binary] >=3.2"
