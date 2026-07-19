@@ -2,7 +2,7 @@
 
 Owns:
 
-* an async connection **pool** for regular, short-lived queries, and
+* an async connection used for regular queries (serialized behind a lock), and
 * a dedicated, long-lived ``LISTEN`` connection used by the blocking
   "wait for job" primitive (lazily established).
 

@@ -192,7 +192,7 @@ class Job:
         self.returnvalue = return_value or None
 
         move_result = await self.backend.moveToCompleted(
-                    self, stringified_return_value, self.opts.get("removeOnFail", False),
+                    self, stringified_return_value, self.opts.get("removeOnComplete", False),
                     token, fetchNext
                 )
         self.finishedOn = move_result["finishedOn"]
