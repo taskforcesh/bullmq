@@ -30,6 +30,9 @@ jobs:
             python:
               - 'python/**'
               - 'src/commands/**'
+              - 'scripts/**'
+              - 'package.json'
+              - 'yarn.lock'
               - '.github/workflows/python-test.yml'
 
   python:
