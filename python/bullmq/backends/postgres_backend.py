@@ -731,14 +731,17 @@ class PostgresBackend(Backend):
             if remaining <= 0:
                 return None
             wait = min(poll, remaining)
+            checked_waiting_job = False
             try:
                 async for notify in listen_conn.notifies(timeout=wait, stop_after=1):
                     payload = notify.payload
-                    if payload == self.queue_name and await self._has_waiting_job():
-                        return marker
+                    if payload == self.queue_name:
+                        checked_waiting_job = True
+                        if await self._has_waiting_job():
+                            return marker
             except psycopg.Error:
                 pass
-            if await self._has_waiting_job():
+            if not checked_waiting_job and await self._has_waiting_job():
                 return marker
 
 
