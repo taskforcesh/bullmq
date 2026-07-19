@@ -188,11 +188,10 @@ class Job:
         return await self.backend.isJobInState(list_name, self.id)
 
     async def moveToCompleted(self, return_value, token:str, fetchNext:bool = False):
-        stringified_return_value = json.dumps(return_value, separators=(',', ':'), allow_nan=False)
         self.returnvalue = return_value or None
 
         move_result = await self.backend.moveToCompleted(
-                    self, stringified_return_value, self.opts.get("removeOnComplete", False),
+                    self, return_value, self.opts.get("removeOnComplete", False),
                     token, fetchNext
                 )
         self.finishedOn = move_result["finishedOn"]
