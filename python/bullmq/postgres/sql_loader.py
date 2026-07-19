@@ -47,7 +47,11 @@ def load_command(name: str) -> str:
     """Load a runtime command's SQL by name (without the ``.sql`` extension)."""
     sql = _command_cache.get(name)
     if sql is None:
-        with open(os.path.join(_COMMANDS_DIR, f"{name}.sql"), "r") as file:
+        with open(
+            os.path.join(_COMMANDS_DIR, f"{name}.sql"),
+            "r",
+            encoding="utf-8",
+        ) as file:
             sql = file.read()
         _command_cache[name] = sql
     return sql
@@ -57,7 +61,11 @@ def load_migration(file: str) -> str:
     """Load a migration's SQL from its ``.sql`` file."""
     sql = _migration_cache.get(file)
     if sql is None:
-        with open(os.path.join(_MIGRATIONS_DIR, file), "r") as handle:
+        with open(
+            os.path.join(_MIGRATIONS_DIR, file),
+            "r",
+            encoding="utf-8",
+        ) as handle:
             sql = handle.read()
         _migration_cache[file] = sql
     return sql

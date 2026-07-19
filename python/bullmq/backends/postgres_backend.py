@@ -46,6 +46,14 @@ _CAPABILITIES = {"canBlockFor1Ms": True, "canDoubleTimeout": True}
 _BULLMQ_SQLSTATE = "BM001"
 
 
+def _validate_prefix(prefix: Optional[str]) -> None:
+    if prefix not in (None, "bull"):
+        raise ValueError(
+            "BullMQ: the PostgreSQL backend does not support opts['prefix']; "
+            "use opts['schema'] to namespace queues instead."
+        )
+
+
 def _bm_error(code: int, command: str, job_id=None, parent_key=None, state=None):
     """Build the exception matching the Redis backend's error for ``code``."""
     if code == -1:
@@ -203,6 +211,7 @@ class PostgresBackend(Backend):
         await self.connection.set_application_name(name)
 
     def forQueue(self, queue_name: str, prefix: Optional[str] = None) -> "PostgresBackend":
+        _validate_prefix(prefix)
         return PostgresBackend(queue_name, self.connection, owns_connection=False)
 
     @property
@@ -726,7 +735,7 @@ class PostgresBackend(Backend):
                 async for notify in listen_conn.notifies(timeout=wait, stop_after=1):
                     if notify.payload == self.queue_name:
                         return marker
-            except Exception:
+            except psycopg.Error:
                 pass
             if await self._has_waiting_job():
                 return marker
@@ -739,6 +748,7 @@ def create_postgres_backend(
     with_blocking_connection: bool = False,
 ) -> PostgresBackend:
     """Backend factory: build a :class:`PostgresBackend` for ``name``."""
+    _validate_prefix(opts.get("prefix"))
     connection = PostgresConnection(opts)
     return PostgresBackend(name, connection)
 

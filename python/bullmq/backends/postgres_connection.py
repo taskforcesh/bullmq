@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import asyncio
 import re
-import warnings
 from typing import Any, Optional
 
 import psycopg
@@ -143,7 +142,7 @@ async def run_migrations(
 
 
 class PostgresConnection:
-    """Owns a Postgres pool + a lazily-established dedicated LISTEN connection."""
+    """Owns a Postgres connection + a lazily-established dedicated LISTEN connection."""
 
     def __init__(self, opts: dict = {}):
         connection = opts.get("connection", {})
