@@ -734,7 +734,7 @@ class PostgresBackend(Backend):
             try:
                 async for notify in listen_conn.notifies(timeout=wait, stop_after=1):
                     payload = notify.payload
-                    if payload in (self.queue_name, f"{self.schema}:{self.queue_name}") and await self._has_waiting_job():
+                    if payload == self.queue_name and await self._has_waiting_job():
                         return marker
             except psycopg.Error:
                 pass
