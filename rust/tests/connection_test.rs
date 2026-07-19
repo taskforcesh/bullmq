@@ -166,7 +166,7 @@ async fn test_connect_via_typed_options() {
     let password = conn_info.redis.password;
 
     let name = test_queue_name();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: RedisConnectionOptions {
@@ -186,7 +186,7 @@ async fn test_connect_via_typed_options() {
 
     // Sanity: add a job and read it back.
     let job = queue
-        .add("typed", serde_json::json!({"ok": true}), None)
+        .add("typed", serde_json::json!({"ok": true}))
         .await
         .unwrap();
     assert!(!job.id().is_empty());

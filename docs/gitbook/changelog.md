@@ -1,3 +1,52 @@
+## [5.80.9](https://github.com/taskforcesh/bullmq/compare/v5.80.8...v5.80.9) (2026-07-18)
+
+
+### Performance Improvements
+
+* **flow-producer:** reuse queue's shared Scripts instance in jobs fixes [#4263](https://github.com/taskforcesh/bullmq/issues/4263) ([#4308](https://github.com/taskforcesh/bullmq/issues/4308)) ([4f4b574](https://github.com/taskforcesh/bullmq/commit/4f4b574de507e56e1e3a7f359565eb359463710f))
+
+## [5.80.8](https://github.com/taskforcesh/bullmq/compare/v5.80.7...v5.80.8) (2026-07-18)
+
+
+### Bug Fixes
+
+* **scheduler:** walk past stale slots when re-upserting under same id ([#4299](https://github.com/taskforcesh/bullmq/issues/4299)) ([e8af563](https://github.com/taskforcesh/bullmq/commit/e8af56348a77677a4d802d2563e33b7313a79570))
+
+## [5.80.7](https://github.com/taskforcesh/bullmq/compare/v5.80.6...v5.80.7) (2026-07-17)
+
+
+### Bug Fixes
+
+* **worker:** move stalled job to failed when fetched manually ([#4294](https://github.com/taskforcesh/bullmq/issues/4294)) ([c4a0a4a](https://github.com/taskforcesh/bullmq/commit/c4a0a4a90d48303b1b6b7c45f67898573a73c424))
+
+## [5.80.6](https://github.com/taskforcesh/bullmq/compare/v5.80.5...v5.80.6) (2026-07-17)
+
+
+### Bug Fixes
+
+* **sandbox:** preserve child_process exports in null-stdio ([#4301](https://github.com/taskforcesh/bullmq/issues/4301)) ([5044cf8](https://github.com/taskforcesh/bullmq/commit/5044cf8fc17f0842655eda581b9e26b27f6abfe8))
+
+## [5.80.5](https://github.com/taskforcesh/bullmq/compare/v5.80.4...v5.80.5) (2026-07-16)
+
+
+### Bug Fixes
+
+* **sandbox:** kill children that fail init and surface refusal errors fixes [#4283](https://github.com/taskforcesh/bullmq/issues/4283) ([#4284](https://github.com/taskforcesh/bullmq/issues/4284)) ([7dd064e](https://github.com/taskforcesh/bullmq/commit/7dd064ec794ff2f8f67a859caf11cd5554ad75e4))
+
+## [5.80.4](https://github.com/taskforcesh/bullmq/compare/v5.80.3...v5.80.4) (2026-07-15)
+
+
+### Bug Fixes
+
+* **deps:** update dependency ioredis to v5.11.1 [security] ([#4282](https://github.com/taskforcesh/bullmq/issues/4282)) ([d978d72](https://github.com/taskforcesh/bullmq/commit/d978d721995aa4d40aa93980866e2a6b02bcfed1))
+
+## [5.80.3](https://github.com/taskforcesh/bullmq/compare/v5.80.2...v5.80.3) (2026-07-15)
+
+
+### Bug Fixes
+
+* fix potential job id integer to string conversion ([#4262](https://github.com/taskforcesh/bullmq/issues/4262)) ([4e8b595](https://github.com/taskforcesh/bullmq/commit/4e8b59592d1f285f2e9e3860f8ece8bc60769fe5))
+
 ## [5.80.2](https://github.com/taskforcesh/bullmq/compare/v5.80.1...v5.80.2) (2026-07-11)
 
 

@@ -13,7 +13,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 async fn new_queue(name: &str) -> Queue {
-    Queue::new(
+    Queue::with_options(
         name,
         QueueOptions {
             connection: test_connection(),
@@ -31,17 +31,14 @@ async fn test_exports_job_states_in_gauge_format() {
 
     // 3 waiting, 1 delayed.
     for _ in 0..3 {
-        queue.add("w", serde_json::json!({}), None).await.unwrap();
+        queue.add("w", serde_json::json!({})).await.unwrap();
     }
     queue
-        .add(
-            "d",
-            serde_json::json!({}),
-            Some(JobOptions {
-                delay: Some(60_000),
-                ..Default::default()
-            }),
-        )
+        .add("d", serde_json::json!({}))
+        .options(JobOptions {
+            delay: Some(60_000),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
@@ -67,7 +64,7 @@ async fn test_exports_with_global_labels() {
     let name = test_queue_name();
     let queue = new_queue(&name).await;
 
-    queue.add("w", serde_json::json!({}), None).await.unwrap();
+    queue.add("w", serde_json::json!({})).await.unwrap();
 
     let metrics = queue
         .export_prometheus_metrics(&[("env", "Production"), ("server", "1")])
@@ -117,9 +114,9 @@ async fn test_completed_and_failed_totals_reflect_metrics() {
 
     // 2 completed, 1 failed.
     for _ in 0..2 {
-        queue.add("ok", serde_json::json!({}), None).await.unwrap();
+        queue.add("ok", serde_json::json!({})).await.unwrap();
     }
-    queue.add("bad", serde_json::json!({}), None).await.unwrap();
+    queue.add("bad", serde_json::json!({})).await.unwrap();
 
     let done = Arc::new(AtomicU32::new(0));
     let done_proc = done.clone();
@@ -135,7 +132,7 @@ async fn test_completed_and_failed_totals_reflect_metrics() {
         })
     });
     // metrics option enables the time-series counters that back the totals.
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &name,
         processor,
         WorkerOptions {
@@ -173,7 +170,7 @@ async fn test_label_values_are_escaped() {
     let name = test_queue_name();
     let queue = new_queue(&name).await;
 
-    queue.add("w", serde_json::json!({}), None).await.unwrap();
+    queue.add("w", serde_json::json!({})).await.unwrap();
 
     // A label value containing a quote, backslash and newline must be escaped.
     let metrics = queue

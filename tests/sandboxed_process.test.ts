@@ -1,6 +1,7 @@
 import { pathToFileURL } from 'url';
 import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
+import { EventEmitter } from 'events';
 import {
   describe,
   beforeEach,
@@ -20,8 +21,16 @@ import {
   UNRECOVERABLE_ERROR,
   Worker,
 } from '../src/classes';
+import sandbox from '../src/classes/sandbox';
+import { ParentCommand } from '../src/enums';
 
-import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import {
+  delay,
+  errorToJSON,
+  randomUUID,
+  removeAllQueueData,
+} from '../src/utils';
+import { existsSync, unlinkSync, writeFileSync } from 'fs';
 const { stdout, stderr } = require('test-console');
 
 describe('Sandboxed process using child processes', () => {
@@ -225,6 +234,45 @@ describe('Sandboxed process using worker threads', () => {
 
       await worker.close();
     });
+  });
+});
+
+describe('Sandbox error message handling', () => {
+  // A child that refuses a Start (e.g. 'cannot start a not idling child
+  // process') reports the reason via ParentCommand.Error, whose payload is
+  // carried under the `err` key — unlike ParentCommand.Failed which uses
+  // `value`. The sandbox message handler must read from either key so the
+  // reason is never lost as an empty-message error. This guards the
+  // `msg.value ?? msg.err` fix independently of the child lifecycle, since the
+  // refusal path is otherwise hard to reach once init-failed children exit.
+  it('preserves error message when child reports via ParentCommand.Error', async () => {
+    const reason = 'cannot start a not idling child process';
+
+    const fakeChild: any = new EventEmitter();
+    fakeChild.exitCode = null;
+    fakeChild.signalCode = null;
+    fakeChild.processFile = 'fake-process-file';
+    fakeChild.pid = 1;
+    fakeChild.send = () => {
+      // Simulate the child refusing the Start command and reporting the reason
+      // under `err` (ParentCommand.Error), not `value` (ParentCommand.Failed).
+      queueMicrotask(() => {
+        fakeChild.emit('message', {
+          cmd: ParentCommand.Error,
+          err: errorToJSON(new Error(reason)),
+        });
+      });
+    };
+
+    const fakeChildPool: any = {
+      retain: async () => fakeChild,
+      release: () => {},
+    };
+
+    const processFn = sandbox('fake-process-file', fakeChildPool);
+    const fakeJob: any = { asJSONSandbox: () => ({}) };
+
+    await expect(processFn(fakeJob)).rejects.toThrow(reason);
   });
 });
 
@@ -1770,6 +1818,67 @@ function sandboxProcessTests(
 
       await failing;
       await worker.close();
+    });
+
+    describe('when a child fails to initialize once (transient error)', () => {
+      it('does not reuse the broken child and recovers on the next job', async () => {
+        const processFile =
+          __dirname + '/fixtures/fixture_processor_fail_init_once.js';
+        const flagFile = __dirname + '/fixtures/fail-init-once.flag';
+
+        // Arm the transient failure: the first import of the processor file
+        // will throw and then remove this flag.
+        writeFileSync(flagFile, '1');
+
+        const worker = new Worker(queueName, processFile, {
+          connection,
+          prefix,
+          concurrency: 1,
+          drainDelay: 1,
+          useWorkerThreads,
+        });
+
+        try {
+          await worker.waitUntilReady();
+
+          // First job: the child fails during init with the transient error.
+          const failedReason = await new Promise<string>((resolve, reject) => {
+            worker.once('failed', (_job, error) => {
+              try {
+                resolve(error.message);
+              } catch (err) {
+                reject(err);
+              }
+            });
+            queue.add('test', { i: 0 }, { attempts: 1 }).catch(reject);
+          });
+
+          expect(failedReason).toBe('transient module load failure');
+
+          // The broken child must not be released back into the free pool.
+          expect(worker['childPool'].getAllFree()).toHaveLength(0);
+
+          // Second job: a fresh child is forked and processes the job normally.
+          const completedValue = await new Promise<any>((resolve, reject) => {
+            worker.once('completed', (_job, value) => resolve(value));
+            worker.once('failed', (_job, error) =>
+              reject(
+                new Error(
+                  `expected job to complete but it failed with: "${error.message}"`,
+                ),
+              ),
+            );
+            queue.add('test', { i: 1 }, { attempts: 1 }).catch(reject);
+          });
+
+          expect(completedValue).toBe('ok');
+        } finally {
+          if (existsSync(flagFile)) {
+            unlinkSync(flagFile);
+          }
+          await worker.close();
+        }
+      });
     });
 
     describe('when child process a job and its killed direcly after completing', () => {

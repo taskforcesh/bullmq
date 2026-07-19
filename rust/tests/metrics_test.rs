@@ -14,7 +14,7 @@ use std::time::Duration;
 async fn test_gather_metrics_for_completed_jobs() {
     let name = test_queue_name();
     let conn = test_connection();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: conn.clone(),
@@ -27,7 +27,7 @@ async fn test_gather_metrics_for_completed_jobs() {
     let num_jobs = 5u64;
     for i in 0..num_jobs {
         queue
-            .add("test", serde_json::json!({"index": i}), None)
+            .add("test", serde_json::json!({"index": i}))
             .await
             .unwrap();
     }
@@ -35,7 +35,7 @@ async fn test_gather_metrics_for_completed_jobs() {
     let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {
         Box::pin(async move { Ok(serde_json::Value::Null) })
     });
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &name,
         processor,
         WorkerOptions {
@@ -78,7 +78,7 @@ async fn test_gather_metrics_for_completed_jobs() {
 async fn test_no_metrics_when_disabled() {
     let name = test_queue_name();
     let conn = test_connection();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: conn.clone(),
@@ -90,7 +90,7 @@ async fn test_no_metrics_when_disabled() {
 
     for i in 0..3 {
         queue
-            .add("test", serde_json::json!({"index": i}), None)
+            .add("test", serde_json::json!({"index": i}))
             .await
             .unwrap();
     }
@@ -98,7 +98,7 @@ async fn test_no_metrics_when_disabled() {
     let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {
         Box::pin(async move { Ok(serde_json::Value::Null) })
     });
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &name,
         processor,
         WorkerOptions {
@@ -137,7 +137,7 @@ async fn test_no_metrics_when_disabled() {
 async fn test_gather_metrics_for_failed_jobs() {
     let name = test_queue_name();
     let conn = test_connection();
-    let queue = Queue::new(
+    let queue = Queue::with_options(
         &name,
         QueueOptions {
             connection: conn.clone(),
@@ -150,14 +150,11 @@ async fn test_gather_metrics_for_failed_jobs() {
     let num_jobs = 4u64;
     for i in 0..num_jobs {
         queue
-            .add(
-                "test",
-                serde_json::json!({"index": i}),
-                Some(bullmq::JobOptions {
-                    attempts: Some(1),
-                    ..Default::default()
-                }),
-            )
+            .add("test", serde_json::json!({"index": i}))
+            .options(bullmq::JobOptions {
+                attempts: Some(1),
+                ..Default::default()
+            })
             .await
             .unwrap();
     }
@@ -165,7 +162,7 @@ async fn test_gather_metrics_for_failed_jobs() {
     let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {
         Box::pin(async move { Err(bullmq::Error::ProcessingError("boom".to_string())) })
     });
-    let worker = Worker::new(
+    let worker = Worker::with_options(
         &name,
         processor,
         WorkerOptions {
