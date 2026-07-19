@@ -232,8 +232,7 @@ class TestWaitForJobBacksOff(unittest.IsolatedAsyncioTestCase):
     async def test_waitForJob_delays_before_raising_connection_error(self):
         # Replace the blocking command with one that raises immediately.
         boom = redis.exceptions.ConnectionError("redis down")
-        self.worker.bclient = MagicMock()
-        self.worker.bclient.bzpopmin = AsyncMock(side_effect=boom)
+        self.worker.backend.waitForJob = AsyncMock(side_effect=boom)
 
         started = time.monotonic()
         with self.assertRaises(redis.exceptions.ConnectionError):
@@ -255,8 +254,7 @@ class TestWaitForJobBacksOff(unittest.IsolatedAsyncioTestCase):
         # would silently throttle real bugs at 1-per-100ms, making them
         # much harder to diagnose in production logs.
         boom = ValueError("not a connection error")
-        self.worker.bclient = MagicMock()
-        self.worker.bclient.bzpopmin = AsyncMock(side_effect=boom)
+        self.worker.backend.waitForJob = AsyncMock(side_effect=boom)
 
         started = time.monotonic()
         with self.assertRaises(ValueError):
@@ -274,8 +272,7 @@ class TestWaitForJobBacksOff(unittest.IsolatedAsyncioTestCase):
         # asyncio.CancelledError implements cooperative cancellation;
         # delaying its propagation would defeat the cancel signal and
         # could keep run() alive past close(force=True).
-        self.worker.bclient = MagicMock()
-        self.worker.bclient.bzpopmin = AsyncMock(side_effect=asyncio.CancelledError())
+        self.worker.backend.waitForJob = AsyncMock(side_effect=asyncio.CancelledError())
 
         started = time.monotonic()
         with self.assertRaises(asyncio.CancelledError):
@@ -291,8 +288,7 @@ class TestWaitForJobBacksOff(unittest.IsolatedAsyncioTestCase):
         emitted = []
         self.worker.on("error", lambda err: emitted.append(err))
 
-        self.worker.bclient = MagicMock()
-        self.worker.bclient.bzpopmin = AsyncMock(
+        self.worker.backend.waitForJob = AsyncMock(
             side_effect=ValueError("not a connection error")
         )
 
@@ -304,8 +300,7 @@ class TestWaitForJobBacksOff(unittest.IsolatedAsyncioTestCase):
     async def test_worker_can_be_closed_after_disconnect_errors(self):
         # After a burst of connection errors the worker must still be
         # closeable without hanging the event loop.
-        self.worker.bclient = MagicMock()
-        self.worker.bclient.bzpopmin = AsyncMock(
+        self.worker.backend.waitForJob = AsyncMock(
             side_effect=redis.exceptions.ConnectionError("redis down")
         )
 

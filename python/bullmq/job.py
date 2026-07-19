@@ -91,16 +91,16 @@ class Job:
         # Extract deduplication ID from options
         deduplication = opts.get("deduplication")
         self.deduplication_id = deduplication.get("id") if deduplication and isinstance(deduplication, dict) else None
-        # Reuse the queue's Scripts instance instead of creating a new one
-        self.scripts = queue.scripts
+        # Route all datastore operations through the queue's backend.
+        self.backend = queue.backend
         self.queueQualifiedName = queue.qualifiedName
 
     def updateData(self, data):
         self.data = data
-        return self.scripts.updateData(self.id, data)
+        return self.backend.updateData(self.id, data)
 
     async def promote(self):
-        await self.scripts.promote(self.id)
+        await self.backend.promote(self.id)
         self.delay = 0
 
     async def retry(self, state: str = "failed", opts: dict = {}):
@@ -119,7 +119,7 @@ class Job:
         Raises:
             Exception: If the job does not exist, is locked, or is not in the expected state.
         """            
-        await self.scripts.reprocessJob(self, state, opts)
+        await self.backend.reprocessJob(self, state, opts)
 
         self.failedReason = None
         self.finishedOn = None
@@ -133,17 +133,17 @@ class Job:
             self.attemptsStarted = 0
 
     def getState(self):
-        return self.scripts.getState(self.id)
+        return self.backend.getState(self.id)
 
     def changePriority(self, opts: dict):
-        return self.scripts.changePriority(self.id, opts.get("priority", 0), opts.get("lifo", False))
+        return self.backend.changePriority(self.id, opts.get("priority", 0), opts.get("lifo", False))
 
     def updateProgress(self, progress):
         self.progress = progress
-        return self.scripts.updateProgress(self.id, progress)
+        return self.backend.updateProgress(self.id, progress)
 
     async def remove(self, opts: dict = {}):
-        removed = await self.scripts.remove(self.id, opts.get("removeChildren", True))
+        removed = await self.backend.remove(self.id, opts.get("removeChildren", True))
 
         if not removed:
             raise Exception(f"Job {self.id} could not be removed because it is locked by another worker")
@@ -182,28 +182,23 @@ class Job:
         return ( await self.isInList('wait') or await self.isInList('paused'))
 
     async def isInZSet(self, set: str):
-        score = await self.queue.client.zscore(self.scripts.toKey(set), self.id)
-
-        return score is not None
+        return await self.backend.isJobInState(set, self.id)
 
     async def isInList(self, list_name: str) -> bool:
-        return await self.scripts.isJobInList(self.scripts.toKey(list_name), self.id)
+        return await self.backend.isJobInState(list_name, self.id)
 
     async def moveToCompleted(self, return_value, token:str, fetchNext:bool = False):
         stringified_return_value = json.dumps(return_value, separators=(',', ':'), allow_nan=False)
         self.returnvalue = return_value or None
 
-        keys, args = self.scripts.moveToCompletedArgs(
+        move_result = await self.backend.moveToCompleted(
                     self, stringified_return_value, self.opts.get("removeOnFail", False),
                     token, fetchNext
                 )
-
-        result = await self.scripts.moveToFinished(
-                    self.id, keys, args)
-        self.finishedOn = args[1]
+        self.finishedOn = move_result["finishedOn"]
         self.attemptsMade = self.attemptsMade + 1
 
-        return result
+        return move_result["result"]
 
     async def moveToFailed(self, err, token:str, fetchNext:bool = False):
         error_message = str(err)
@@ -228,7 +223,7 @@ class Job:
             if delay == -1:
                 move_to_failed = True
             elif delay:
-                result = await self.scripts.moveToDelayed(
+                result = await self.backend.moveToDelayed(
                     self.id,
                     round(time.time() * 1000),
                     delay,
@@ -240,7 +235,7 @@ class Job:
                     }
                 )
             else:
-                result = await self.scripts.retryJob(
+                result = await self.backend.retryJob(
                     self.id,
                     self.opts.get("lifo", False),
                     token,
@@ -252,12 +247,12 @@ class Job:
             move_to_failed = True
 
         if move_to_failed:
-            keys, args = self.scripts.moveToFailedArgs(
+            move_result = await self.backend.moveToFailed(
                 self, error_message, self.opts.get("removeOnFail", False),
                 token, fetchNext, fields_to_update
             )
-            result = await self.scripts.moveToFinished(self.id, keys, args)
-            finished_on = args[1]
+            result = move_result["result"]
+            finished_on = move_result["finishedOn"]
 
         if finished_on and type(finished_on) == int:
             self.finishedOn = finished_on
@@ -284,10 +279,10 @@ class Job:
                 self.stacktrace = self.stacktrace[-(stackTraceLimit-1):stackTraceLimit]
 
     async def moveToWaitingChildren(self, token, opts:dict) -> bool | None:
-        return await self.scripts.moveToWaitingChildren(self.id, token, opts)
+        return await self.backend.moveToWaitingChildren(self.id, token, opts)
 
     async def getChildrenValues(self) -> dict[str, Any]:
-        results = await self.queue.client.hgetall(f"{self.queue.prefix}:{self.queue.name}:{self.id}:processed")
+        results = await self.backend.getProcessedChildrenValues(self.id)
         return parse_json_string_values(results)
 
     @staticmethod
@@ -347,24 +342,13 @@ class Job:
 
     @staticmethod
     async def fromId(queue: Queue, jobId: str) -> Job | None:
-        key = f"{queue.prefix}:{queue.name}:{jobId}"
-        raw_data = await queue.client.hgetall(key)
-        if len(raw_data):
+        raw_data = await queue.backend.getJobData(jobId)
+        if raw_data:
             return Job.fromJSON(queue, raw_data, jobId)
 
     @staticmethod
     async def addJobLog(queue: Queue, jobId: str, logRow: str, keepLogs: int = 0) -> int:
-        logs_key = f"{queue.prefix}:{queue.name}:{jobId}:logs"
-        multi = await queue.client.pipeline()
-
-        multi.rpush(logs_key, logRow)
-
-        if keepLogs:
-            multi.ltrim(logs_key, -keepLogs, -1)
-
-        result = await multi.execute()
-
-        return min(keepLogs, result[0]) if keepLogs else result[0]
+        return await queue.backend.addLog(jobId, logRow, keepLogs)
 
 def optsFromJSON(rawOpts: dict) -> dict:
     # opts = json.loads(rawOpts)

@@ -31,6 +31,9 @@ dev = [
     "build==1.4.2",
     "types-redis==4.6.0.20241004"
 ]
+postgres = [
+    "psycopg[binary] >=3.2"
+]
 
 [project.urls]
 "Homepage" = "https://bullmq.io"
@@ -40,4 +43,4 @@ dev = [
 exclude = ["tests*"]
 
 [tool.setuptools.package-data]
-bullmq = ["commands/*.lua", "types/*"]
+bullmq = ["commands/*.lua", "types/*", "postgres/commands/*.sql", "postgres/migrations/*.sql"]
