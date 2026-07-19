@@ -450,7 +450,12 @@ export class Job<
   }
 
   protected createScripts() {
-    this.scripts = createScripts(this.queue);
+    // Reuse the queue's long-lived Scripts instance. It is bound to the same
+    // queue keys and connection, so a per-Job instance is pure duplication.
+    // The built-in Queue, Worker and FlowProducer always provide one; the
+    // fallback only covers custom queue-like objects that don't carry a
+    // Scripts instance.
+    this.scripts = this.queue.scripts ?? createScripts(this.queue);
   }
 
   static optsFromJSON(
@@ -524,7 +529,7 @@ export class Job<
     logRow: string,
     keepLogs?: number,
   ): Promise<number> {
-    const scripts = (queue as any).scripts as Scripts;
+    const scripts = queue.scripts ?? createScripts(queue);
 
     return scripts.addLog(jobId, logRow, keepLogs);
   }

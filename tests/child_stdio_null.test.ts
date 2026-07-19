@@ -18,14 +18,15 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
 // Mock `child_process` so that `fork()` returns a fake child with null stdio.
-// We keep `spawn`/`exec`/etc. untouched in case they get pulled in by other
-// transitive imports.
+// Other exports are preserved from the real module in case they get pulled in
+// by other transitive imports.
 //
 // IMPORTANT: `vi.mock` factory functions are hoisted above all imports, so we
 // cannot reference any module-scope import inside the factory. The
-// `ChildCommand.Init` and `ParentCommand.InitCompleted` enum string values are
-// inlined below to avoid hoisting issues.
-vi.mock('child_process', () => {
+// `ChildCommand.Init` and `ParentCommand.InitCompleted` numeric enum ordinals
+// are inlined below to avoid hoisting issues.
+vi.mock('child_process', async importOriginal => {
+  const actual = await importOriginal<typeof import('child_process')>();
   // Mirror enum values from ../src/enums (kept in sync manually because the
   // mock factory is hoisted above imports). These are numeric enums:
   //   ChildCommand.Init        === 0
@@ -75,28 +76,8 @@ vi.mock('child_process', () => {
   }
 
   return {
+    ...actual,
     fork: () => new FakeChild() as any,
-    // The other named exports are not used by `Child`, but provide stubs so
-    // any other consumer transitively pulled in by the test does not blow up.
-    spawn: () => {
-      throw new Error('spawn is not mocked in this test');
-    },
-    exec: () => {
-      throw new Error('exec is not mocked in this test');
-    },
-    execFile: () => {
-      throw new Error('execFile is not mocked in this test');
-    },
-    execSync: () => {
-      throw new Error('execSync is not mocked in this test');
-    },
-    spawnSync: () => {
-      throw new Error('spawnSync is not mocked in this test');
-    },
-    execFileSync: () => {
-      throw new Error('execFileSync is not mocked in this test');
-    },
-    default: {},
   };
 });
 
