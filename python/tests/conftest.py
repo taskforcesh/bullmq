@@ -42,6 +42,7 @@ collect_ignore = _REDIS_ONLY_FILES if PG_ENABLED else _POSTGRES_ONLY_FILES
 # ``XLEN``, key enumeration) — the underlying operations are covered by other,
 # backend-agnostic tests, so these are skipped on the Postgres backend.
 _REDIS_ONLY_TESTS = {
+    "test_is_paused_with_custom_prefix",
     "test_trim_events_manually",
     "test_trim_events_manually_with_custom_prefix",
     "test_drain_count_added_unprocessed_jobs",
