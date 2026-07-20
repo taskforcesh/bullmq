@@ -29,9 +29,6 @@ DEFAULT_SCHEMA = "bullmq"
 # The integer spells `BULL` (0x42554c4c); every runtime uses the exact same key.
 MIGRATION_ADVISORY_LOCK_KEY = 0x42554C4C  # 1112493644
 
-# Highest schema version this build understands (0001_schema, 0002_functions).
-LATEST_SCHEMA_VERSION = 2
-
 # Lowest supported PostgreSQL major version.
 MINIMUM_POSTGRES_VERSION = 13
 
@@ -97,7 +94,7 @@ def quote_schema_name(schema: str) -> str:
 async def run_migrations(
     conn: "psycopg.AsyncConnection", schema: str = DEFAULT_SCHEMA, skip_version_check: bool = False
 ) -> int:
-    """Bring the database schema up to :data:`LATEST_SCHEMA_VERSION`.
+    """Bring the database schema up to the latest bundled migration.
 
     Runs inside a single transaction guarded by a per-schema advisory lock so
     concurrent starters migrate exactly once. ``conn`` must not be autocommit.
@@ -235,6 +232,16 @@ class PostgresConnection:
             await conn.execute("LISTEN bullmq_jobs")
             self._job_channel_listening = True
         return conn
+
+    async def reset_job_channel(self) -> None:
+        """Drop the LISTEN connection so the next wait re-establishes it."""
+        if self._listen_conn is not None:
+            try:
+                await self._listen_conn.close()
+            except Exception:
+                pass
+        self._listen_conn = None
+        self._job_channel_listening = False
 
     async def set_application_name(self, name: str) -> None:
         if not name:

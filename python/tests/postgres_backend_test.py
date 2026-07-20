@@ -2,7 +2,10 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+import psycopg
+
 from bullmq.backends.postgres_backend import _row_to_job_map
+from bullmq.backends.postgres_backend import PostgresBackend
 from bullmq.backends.postgres_connection import PostgresConnection, run_migrations
 from bullmq.job import Job
 
@@ -130,3 +133,68 @@ class TestPostgresConnection(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(connect.await_count, 2)
         first_conn.execute.assert_awaited_once_with("LISTEN bullmq_jobs")
         second_conn.execute.assert_awaited_once_with("LISTEN bullmq_jobs")
+
+    async def test_reset_job_channel_forces_new_listen_connection(self):
+        first_conn = SimpleNamespace(closed=False, execute=AsyncMock(), close=AsyncMock())
+        second_conn = SimpleNamespace(closed=False, execute=AsyncMock())
+        connect = AsyncMock(side_effect=[first_conn, second_conn])
+        connection = PostgresConnection()
+
+        with patch(
+            "bullmq.backends.postgres_connection.psycopg.AsyncConnection.connect",
+            connect,
+        ):
+            await connection.ensure_job_channel()
+            await connection.reset_job_channel()
+            await connection.ensure_job_channel()
+
+        first_conn.close.assert_awaited_once()
+        self.assertEqual(connect.await_count, 2)
+        second_conn.execute.assert_awaited_once_with("LISTEN bullmq_jobs")
+
+
+class _FailingNotifiesConnection:
+    def __init__(self):
+        self.closed = False
+
+    def notifies(self, timeout=None, stop_after=None):
+        async def _iter():
+            raise psycopg.OperationalError("listen connection dropped")
+            yield
+
+        return _iter()
+
+
+class _IdleNotifiesConnection:
+    def __init__(self):
+        self.closed = False
+
+    def notifies(self, timeout=None, stop_after=None):
+        async def _iter():
+            if False:
+                yield
+
+        return _iter()
+
+
+class _FakeWaitConnection:
+    def __init__(self):
+        self.schema = "bullmq"
+        self.ensure_job_channel = AsyncMock(
+            side_effect=[_FailingNotifiesConnection(), _IdleNotifiesConnection()]
+        )
+        self.reset_job_channel = AsyncMock()
+
+
+class TestPostgresBackendWaitForJob(unittest.IsolatedAsyncioTestCase):
+    async def test_wait_for_job_reconnects_listen_channel_after_psycopg_error(self):
+        connection = _FakeWaitConnection()
+        backend = PostgresBackend("queue", connection)
+        backend._has_waiting_job = AsyncMock(side_effect=[False, False, True])
+        backend._next_delay_ms = AsyncMock(return_value=None)
+
+        marker = await backend.waitForJob(0.2)
+
+        self.assertEqual(marker, ["bullmq_jobs", "queue", 0])
+        connection.reset_job_channel.assert_awaited_once()
+        self.assertEqual(connection.ensure_job_channel.await_count, 2)

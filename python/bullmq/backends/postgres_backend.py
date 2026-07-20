@@ -737,7 +737,8 @@ class PostgresBackend(Backend):
                         if await self._has_waiting_job():
                             return marker
             except psycopg.Error:
-                pass
+                await self.connection.reset_job_channel()
+                listen_conn = await self.connection.ensure_job_channel()
             if not checked_waiting_job and await self._has_waiting_job():
                 return marker
 
