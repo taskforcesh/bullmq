@@ -188,7 +188,7 @@ class Job:
         return await self.backend.isJobInState(list_name, self.id)
 
     async def moveToCompleted(self, return_value, token:str, fetchNext:bool = False):
-        self.returnvalue = return_value or None
+        self.returnvalue = return_value
 
         move_result = await self.backend.moveToCompleted(
                     self, return_value, self.opts.get("removeOnComplete", False),
