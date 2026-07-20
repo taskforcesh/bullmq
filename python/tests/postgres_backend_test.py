@@ -158,11 +158,14 @@ class _FailingNotifiesConnection:
         self.closed = False
 
     def notifies(self, timeout=None, stop_after=None):
-        async def _iter():
-            raise psycopg.OperationalError("listen connection dropped")
-            yield
+        class _Iter:
+            def __aiter__(self):
+                return self
 
-        return _iter()
+            async def __anext__(self):
+                raise psycopg.OperationalError("listen connection dropped")
+
+        return _Iter()
 
 
 class _IdleNotifiesConnection:
