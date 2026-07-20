@@ -98,7 +98,7 @@ async def bench_process(backend: str, n: int, concurrency: int) -> float:
         ]
         await queue.addBulk(jobs)
 
-    done = asyncio.get_event_loop().create_future()
+    done = asyncio.get_running_loop().create_future()
     processed = [0]
 
     async def process(job: Job, token: str):

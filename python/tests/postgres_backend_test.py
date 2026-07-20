@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from bullmq.backends.postgres_backend import _row_to_job_map
-from bullmq.backends.postgres_connection import run_migrations
+from bullmq.backends.postgres_connection import PostgresConnection, run_migrations
 from bullmq.job import Job
 
 
@@ -96,3 +96,37 @@ class TestRunMigrations(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(version, 4)
         conn.commit.assert_awaited_once()
+
+
+class TestPostgresConnection(unittest.IsolatedAsyncioTestCase):
+    async def test_ensure_job_channel_listens_once_per_connection(self):
+        listen_conn = SimpleNamespace(closed=False, execute=AsyncMock())
+        connection = PostgresConnection()
+
+        with patch(
+            "bullmq.backends.postgres_connection.psycopg.AsyncConnection.connect",
+            AsyncMock(return_value=listen_conn),
+        ):
+            first = await connection.ensure_job_channel()
+            second = await connection.ensure_job_channel()
+
+        self.assertIs(first, second)
+        listen_conn.execute.assert_awaited_once_with("LISTEN bullmq_jobs")
+
+    async def test_ensure_job_channel_relistens_after_reconnect(self):
+        first_conn = SimpleNamespace(closed=False, execute=AsyncMock())
+        second_conn = SimpleNamespace(closed=False, execute=AsyncMock())
+        connect = AsyncMock(side_effect=[first_conn, second_conn])
+        connection = PostgresConnection()
+
+        with patch(
+            "bullmq.backends.postgres_connection.psycopg.AsyncConnection.connect",
+            connect,
+        ):
+            await connection.ensure_job_channel()
+            first_conn.closed = True
+            await connection.ensure_job_channel()
+
+        self.assertEqual(connect.await_count, 2)
+        first_conn.execute.assert_awaited_once_with("LISTEN bullmq_jobs")
+        second_conn.execute.assert_awaited_once_with("LISTEN bullmq_jobs")

@@ -705,8 +705,7 @@ class PostgresBackend(Backend):
         return None if nxt is None else _to_int(nxt) - _now_ms()
 
     async def waitForJob(self, block_timeout: float) -> Any:
-        listen_conn = await self.connection.listen_connection()
-        await listen_conn.execute("LISTEN bullmq_jobs")
+        listen_conn = await self.connection.ensure_job_channel()
 
         marker = ["bullmq_jobs", self.queue_name, 0]
         if await self._has_waiting_job():

@@ -175,6 +175,7 @@ class PostgresConnection:
         self._ready = False
         self._ready_lock = asyncio.Lock()
         self._listen_conn: Optional[psycopg.AsyncConnection] = None
+        self._job_channel_listening = False
 
     async def wait_until_ready(self) -> None:
         if self._ready:
@@ -224,7 +225,16 @@ class PostgresConnection:
             self._listen_conn = await psycopg.AsyncConnection.connect(
                 self.conninfo, autocommit=True, options=self._options
             )
+            self._job_channel_listening = False
         return self._listen_conn
+
+    async def ensure_job_channel(self) -> "psycopg.AsyncConnection":
+        """Return the LISTEN connection after subscribing to ``bullmq_jobs`` once."""
+        conn = await self.listen_connection()
+        if not self._job_channel_listening:
+            await conn.execute("LISTEN bullmq_jobs")
+            self._job_channel_listening = True
+        return conn
 
     async def set_application_name(self, name: str) -> None:
         if not name:
@@ -243,6 +253,7 @@ class PostgresConnection:
             except Exception:
                 pass
             self._listen_conn = None
+            self._job_channel_listening = False
         if self._conn is not None:
             try:
                 await self._conn.close()
