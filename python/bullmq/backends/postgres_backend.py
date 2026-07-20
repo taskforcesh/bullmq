@@ -93,8 +93,6 @@ def _jsonb(value: Any) -> str:
 def _json(value: Any) -> str:
     if value is None:
         return "null"
-    if isinstance(value, str):
-        return value
     return json.dumps(value, separators=(",", ":"), allow_nan=False)
 
 

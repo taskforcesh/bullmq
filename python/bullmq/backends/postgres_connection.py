@@ -136,9 +136,10 @@ async def run_migrations(
                     "INSERT INTO bullmq_migration (version, name) VALUES (%s, %s)",
                     (version, filename),
                 )
+                current = version
 
     await conn.commit()
-    return max(current, LATEST_SCHEMA_VERSION)
+    return current
 
 
 class PostgresConnection:
