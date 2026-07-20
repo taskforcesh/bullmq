@@ -32,7 +32,11 @@ _REDIS_ONLY_FILES = [
     "worker_disconnect_test.py",
 ]
 
-collect_ignore = _REDIS_ONLY_FILES if PG_ENABLED else []
+_POSTGRES_ONLY_FILES = [
+    "postgres_backend_test.py",
+]
+
+collect_ignore = _REDIS_ONLY_FILES if PG_ENABLED else _POSTGRES_ONLY_FILES
 
 # Individual tests that assert against the raw Redis client (event-stream
 # ``XLEN``, key enumeration) — the underlying operations are covered by other,
