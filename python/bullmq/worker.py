@@ -396,6 +396,16 @@ class Worker(EventEmitter):
         ):
             return True
 
+        if self.opts.get("backend") == "postgres":
+            try:
+                from psycopg import InterfaceError as PostgresInterfaceError
+                from psycopg import OperationalError as PostgresOperationalError
+            except ImportError:
+                pass
+            else:
+                if isinstance(error, (PostgresInterfaceError, PostgresOperationalError)):
+                    return True
+
         # DNS or socket failures raised before the redis client has a
         # chance to wrap them surface as a plain OSError. Match either
         # error.errno, any [Errno N] embedded in the message string, or

@@ -6,7 +6,11 @@ import psycopg
 
 from bullmq.backends.postgres_backend import _row_to_job_map
 from bullmq.backends.postgres_backend import PostgresBackend
-from bullmq.backends.postgres_connection import PostgresConnection, run_migrations
+from bullmq.backends.postgres_connection import (
+    PostgresConnection,
+    quote_schema_name,
+    run_migrations,
+)
 from bullmq.job import Job
 
 
@@ -102,6 +106,13 @@ class TestRunMigrations(unittest.IsolatedAsyncioTestCase):
 
 
 class TestPostgresConnection(unittest.IsolatedAsyncioTestCase):
+    def test_quote_schema_name_error_message_mentions_dollar_signs(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            r"letters, digits, underscores, or \$",
+        ):
+            quote_schema_name("bad-name")
+
     async def test_ensure_job_channel_listens_once_per_connection(self):
         listen_conn = SimpleNamespace(closed=False, execute=AsyncMock())
         connection = PostgresConnection()

@@ -86,7 +86,8 @@ def quote_schema_name(schema: str) -> str:
     if not re.match(r"^[A-Za-z_][A-Za-z0-9_$]*$", schema) or len(schema) > 63:
         raise ValueError(
             f"BullMQ: invalid PostgreSQL schema name {schema!r}. "
-            "Use a simple identifier (letters, digits, underscores; max 63 chars)."
+            "Use a simple identifier starting with a letter or underscore and "
+            "containing only letters, digits, underscores, or $ (max 63 chars)."
         )
     return f'"{schema}"'
 

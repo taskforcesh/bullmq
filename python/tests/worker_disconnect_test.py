@@ -23,8 +23,10 @@ running Redis instance.
 import asyncio
 import errno
 import socket
+import sys
 import time
 import unittest
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import redis.exceptions
@@ -96,6 +98,34 @@ class TestIsConnectionError(unittest.TestCase):
 
     def test_asyncio_timeout_is_transient(self):
         self.assertTrue(self.worker.isConnectionError(asyncio.TimeoutError()))
+
+    def test_postgres_disconnect_errors_are_transient_when_postgres_backend_is_enabled(self):
+        class FakeOperationalError(Exception):
+            pass
+
+        class FakeInterfaceError(Exception):
+            pass
+
+        fake_psycopg = SimpleNamespace(
+            OperationalError=FakeOperationalError,
+            InterfaceError=FakeInterfaceError,
+        )
+        worker = Worker(
+            "issue_3103_queue",
+            None,
+            {
+                "backend": "postgres",
+                "connection": {"host": "127.0.0.1", "port": _find_closed_port()},
+                "autorun": False,
+            },
+        )
+
+        try:
+            with unittest.mock.patch.dict(sys.modules, {"psycopg": fake_psycopg}):
+                self.assertTrue(worker.isConnectionError(FakeOperationalError("db down")))
+                self.assertTrue(worker.isConnectionError(FakeInterfaceError("db closed")))
+        finally:
+            asyncio.run(worker.close(force=True))
 
     def test_os_error_with_aggregated_errno_message_is_transient(self):
         # Mirrors the bare OSError asyncio raises when every connect()
