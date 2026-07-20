@@ -440,9 +440,9 @@ class Worker(EventEmitter):
                 tokens.append(token)
             result = await self.backend.extendLocks(job_ids, tokens, self.opts.get("lockDuration"))
 
-            # result includes an object with locks that may not have been renewed.
+            # result includes job IDs with locks that may not have been renewed.
             # We should emit an error for each of those jobs.
-            #    for jobId, err in result.items():
+            #    for jobId in result:
             #    self.emit("error", "could not renew lock for job " + jobId)
 
         except Exception as e:
