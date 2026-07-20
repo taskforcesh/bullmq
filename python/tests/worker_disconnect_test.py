@@ -32,6 +32,7 @@ from unittest.mock import AsyncMock, MagicMock
 import redis.exceptions
 
 from bullmq import Worker
+from bullmq.worker import _postgres_connection_error_types
 
 
 def _find_closed_port():
@@ -121,10 +122,12 @@ class TestIsConnectionError(unittest.TestCase):
         )
 
         try:
+            _postgres_connection_error_types.cache_clear()
             with unittest.mock.patch.dict(sys.modules, {"psycopg": fake_psycopg}):
                 self.assertTrue(worker.isConnectionError(FakeOperationalError("db down")))
                 self.assertTrue(worker.isConnectionError(FakeInterfaceError("db closed")))
         finally:
+            _postgres_connection_error_types.cache_clear()
             asyncio.run(worker.close(force=True))
 
     def test_os_error_with_aggregated_errno_message_is_transient(self):

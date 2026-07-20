@@ -15,6 +15,7 @@ from bullmq.utils import extract_result
 
 import asyncio
 import errno
+import functools
 import re
 import traceback
 import time
@@ -64,6 +65,16 @@ _TRANSIENT_MESSAGE_FRAGMENTS = (
     "No route to host",
     "Broken pipe",
 )
+
+
+@functools.lru_cache(maxsize=1)
+def _postgres_connection_error_types():
+    try:
+        from psycopg import InterfaceError as PostgresInterfaceError
+        from psycopg import OperationalError as PostgresOperationalError
+    except ImportError:
+        return ()
+    return (PostgresInterfaceError, PostgresOperationalError)
 
 
 class Worker(EventEmitter):
@@ -396,15 +407,10 @@ class Worker(EventEmitter):
         ):
             return True
 
-        if self.opts.get("backend") == "postgres":
-            try:
-                from psycopg import InterfaceError as PostgresInterfaceError
-                from psycopg import OperationalError as PostgresOperationalError
-            except ImportError:
-                pass
-            else:
-                if isinstance(error, (PostgresInterfaceError, PostgresOperationalError)):
-                    return True
+        if self.opts.get("backend") == "postgres" and isinstance(
+            error, _postgres_connection_error_types()
+        ):
+            return True
 
         # DNS or socket failures raised before the redis client has a
         # chance to wrap them surface as a plain OSError. Match either
