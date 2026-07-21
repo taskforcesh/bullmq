@@ -2227,10 +2227,10 @@ coveralls-next@6.0.2:
     js-yaml "4.2.0"
     lcov-parse "1.0.0"
 
-cpx2@8.0.2:
-  version "8.0.2"
-  resolved "https://registry.npmjs.org/cpx2/-/cpx2-8.0.2.tgz"
-  integrity sha512-exLFEIh8XgWthEtrEq8hs+S6jxM5ZHpjQnRH6D7VU+2uAYS3amLSVOUSuirfx3HeN7WBCq+xFygHpt7l+gQtUA==
+cpx2@9.0.0:
+  version "9.0.0"
+  resolved "https://registry.yarnpkg.com/cpx2/-/cpx2-9.0.0.tgz#ffb7c3c05b6f8c2fbef6933c6fcee2a3963a7d55"
+  integrity sha512-KRZGQCmHrM10xfLjrCBTQHpEIJgKtZyOOO5fygu9KE00IjQOL76FHjeON62R5PWS/W2J5ofgRJKF8rpUlEuLPQ==
   dependencies:
     debounce "^3.0.0"
     glob "^13.0.0"
@@ -2238,7 +2238,6 @@ cpx2@8.0.2:
     ignore "^7.0.5"
     minimatch "^10.0.1"
     p-map "^7.0.0"
-    resolve "^1.12.0"
     shell-quote "^1.8.0"
     subarg "^1.0.0"
 
@@ -5012,7 +5011,7 @@ resolve-from@^5.0.0:
   resolved "https://registry.npmjs.org/resolve-from/-/resolve-from-5.0.0.tgz"
   integrity sha512-qYg9KP24dD5qka9J47d0aVky0N+b4fTU89LN9iDnjB5waksiC49rvMB0PrUJQGoTmH50XPiqOvAjDfaijGxYZw==
 
-resolve@^1.12.0, resolve@^1.22.12, resolve@~1.22.2:
+resolve@^1.22.12, resolve@~1.22.2:
   version "1.22.12"
   resolved "https://registry.npmjs.org/resolve/-/resolve-1.22.12.tgz"
   integrity sha512-TyeJ1zif53BPfHootBGwPRYT1RUt6oGWsaQr8UyZW/eAm9bKoijtvruSDEmZHm92CwS9nj7/fWttqPCgzep8CA==
