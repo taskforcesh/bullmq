@@ -26,6 +26,8 @@ jobs:
           if [ -f osv-scanner.toml ]; then
             cp osv-scanner.toml "$RUNNER_TEMP/osv-scanner.toml"
             echo "config_args=--config=$RUNNER_TEMP/osv-scanner.toml" >> "$GITHUB_OUTPUT"
+          else
+            echo "config_args=" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Checkout target branch
@@ -74,6 +76,10 @@ jobs:
         id: export
         run: |
           DELIMITER="EOF_$(tr -dc 'a-zA-Z0-9' < /dev/urandom 2>/dev/null | head -c 16)"
+          if [ -z "$DELIMITER" ]; then
+            echo "::error::Failed to generate GitHub output delimiter"
+            exit 1
+          fi
           if [ -f old-results.json ]; then
             echo "old-results<<${DELIMITER}" >> "${GITHUB_OUTPUT}"
             cat old-results.json >> "${GITHUB_OUTPUT}"
