@@ -26,6 +26,7 @@ jobs:
           if [ -f osv-scanner.toml ]; then
             cp osv-scanner.toml "$RUNNER_TEMP/osv-scanner.toml"
             echo "has_config=true" >> "$GITHUB_OUTPUT"
+            echo "config_path=$RUNNER_TEMP/osv-scanner.toml" >> "$GITHUB_OUTPUT"
           else
             echo "has_config=false" >> "$GITHUB_OUTPUT"
           fi
@@ -50,7 +51,7 @@ jobs:
           scan-args: |-
             --format=json
             --output=old-results.json
-            --config=${{ runner.temp }}/osv-scanner.toml
+            --config=${{ steps.preserve-config.outputs.config_path }}
             -r
             ./
 
@@ -78,7 +79,7 @@ jobs:
           scan-args: |-
             --format=json
             --output=new-results.json
-            --config=${{ runner.temp }}/osv-scanner.toml
+            --config=${{ steps.preserve-config.outputs.config_path }}
             -r
             ./
 
@@ -94,13 +95,13 @@ jobs:
             ./
 
       - name: Run osv-scanner-reporter
+        # Enable GitHub annotations so vulnerabilities are surfaced directly in the PR UI.
         uses: google/osv-scanner-action/osv-reporter-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
         with:
           scan-args: |-
             --output=results.sarif
             --old=old-results.json
             --new=new-results.json
-            # Enable GitHub annotations so vulnerabilities are surfaced directly in the PR UI.
             --gh-annotations=true
             --fail-on-vuln=true
 
