@@ -75,7 +75,7 @@ jobs:
       - name: Export results
         id: export
         run: |
-          DELIMITER="EOF_$(tr -dc 'a-zA-Z0-9' < /dev/urandom 2>/dev/null | head -c 16)"
+          DELIMITER="EOF_$(tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 16)"
           if [ -z "$DELIMITER" ]; then
             echo "::error::Failed to generate GitHub output delimiter"
             exit 1
