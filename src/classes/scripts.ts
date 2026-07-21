@@ -48,6 +48,14 @@ import { version as packageVersion } from '../version';
 import { UnrecoverableError } from './errors';
 export type JobData = [JobJsonRaw | number, string?];
 
+/**
+ * Upper bound on the number of forward backfill iterations the `getJobs` Lua
+ * script performs to replace skipped ids (missing job hashes) within a bounded
+ * range. It caps the work done per call so a range full of missing jobs cannot
+ * scan the whole state unboundedly.
+ */
+const GET_JOBS_MAX_BACKFILL_ITERATIONS = 5;
+
 export class Scripts {
   protected version = packageVersion;
 
@@ -957,6 +965,48 @@ export class Scripts {
     const args = this.getRangesArgs(types, start, end, asc);
 
     return await this.execCommand(client, 'getRanges', args);
+  }
+
+  private getJobsArgs(
+    types: JobType[],
+    start: number,
+    end: number,
+    asc: boolean,
+  ): (string | number)[] {
+    const queueKeys = this.queue.keys;
+    const transformedTypes = types.map(type => {
+      return type === 'waiting' ? 'wait' : type;
+    });
+
+    const keys: (string | number)[] = [queueKeys['']];
+
+    const args = [
+      start,
+      end,
+      asc ? '1' : '0',
+      GET_JOBS_MAX_BACKFILL_ITERATIONS,
+      ...transformedTypes,
+    ];
+
+    return keys.concat(args);
+  }
+
+  /**
+   * Fetches job ids and their job hashes for the provided states in a single
+   * script, skipping ids whose job hash is missing (for example the deprecated
+   * wait list marker or jobs removed after their id was read). Each returned
+   * entry is a `[jobId, jobHashFields]` tuple grouped per requested type.
+   */
+  async getJobs(
+    types: JobType[],
+    start = 0,
+    end = -1,
+    asc = false,
+  ): Promise<[string, string[]][][]> {
+    const client = await this.queue.client;
+    const args = this.getJobsArgs(types, start, end, asc);
+
+    return await this.execCommand(client, 'getJobs', args);
   }
 
   private getCountsArgs(types: JobType[]): (string | number)[] {

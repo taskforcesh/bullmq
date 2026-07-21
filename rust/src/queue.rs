@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::future::{Future, IntoFuture};
 use std::pin::Pin;
 use std::time::Duration;
@@ -17,6 +17,10 @@ use crate::types::{
 
 /// The version string stored in queue metadata for compatibility tracking.
 const BULLMQ_VERSION: &str = "bullmq-official:0.1.0";
+
+/// Maximum forward backfill iterations performed by the `getJobs` Lua script
+/// to replace skipped ids whose job hashes are missing in bounded ranges.
+const GET_JOBS_MAX_BACKFILL_ITERATIONS: usize = 5;
 
 /// A callback invoked once per `(state, count)` pair by
 /// [`Queue::record_job_counts_metric`]. This is the integration point for
@@ -919,20 +923,113 @@ impl Queue {
         end: i64,
         asc: bool,
     ) -> Result<Vec<Job>, Error> {
-        // `get_ranges` sanitizes the requested types (expanding `waiting` to
-        // also include `paused` and de-duplicating), so pass them through.
-        let ids = self.get_ranges(types, start, end, asc).await?;
+        let script = self
+            .conn
+            .scripts()
+            .get("getJobs")
+            .ok_or_else(|| Error::InvalidConfig("getJobs script not found".to_string()))?
+            .clone();
 
-        // Fetch jobs concurrently over the multiplexed Redis connection.
-        let fetches = ids.iter().map(|id| self.get_job(id));
-        let results = futures::future::join_all(fetches).await;
+        let keys = vec![self.keys.key_prefix()];
 
-        let mut jobs = Vec::with_capacity(ids.len());
-        for result in results {
-            if let Some(job) = result? {
-                jobs.push(job);
+        let start_s = start.to_string();
+        let end_s = end.to_string();
+        let asc_s = if asc { "1" } else { "0" };
+        let max_iterations_s = GET_JOBS_MAX_BACKFILL_ITERATIONS.to_string();
+        let sanitized = Self::sanitize_job_types(types);
+        let transformed: Vec<String> = sanitized
+            .iter()
+            .map(|t| {
+                if t == "waiting" {
+                    "wait".to_string()
+                } else {
+                    t.clone()
+                }
+            })
+            .collect();
+
+        let mut args: Vec<&[u8]> = vec![
+            start_s.as_bytes(),
+            end_s.as_bytes(),
+            asc_s.as_bytes(),
+            max_iterations_s.as_bytes(),
+        ];
+        for t in &transformed {
+            args.push(t.as_bytes());
+        }
+
+        let mut conn = self.conn.conn();
+        let result = script.execute(&mut conn, &keys, &args).await?;
+
+        let redis_value_to_string = |value: redis::Value| -> Option<String> {
+            match value {
+                redis::Value::BulkString(bytes) => {
+                    Some(String::from_utf8_lossy(&bytes).to_string())
+                }
+                redis::Value::SimpleString(s) => Some(s),
+                redis::Value::Int(n) => Some(n.to_string()),
+                _ => None,
+            }
+        };
+
+        let redis_hash_to_map = |value: redis::Value| -> Option<HashMap<String, String>> {
+            let redis::Value::Array(items) = value else {
+                return None;
+            };
+
+            let mut fields = HashMap::new();
+            let mut iter = items.into_iter();
+            while let Some(field) = iter.next() {
+                let Some(value) = iter.next() else {
+                    break;
+                };
+                if let (Some(field), Some(value)) =
+                    (redis_value_to_string(field), redis_value_to_string(value))
+                {
+                    fields.insert(field, value);
+                }
+            }
+            Some(fields)
+        };
+
+        let parse_job_entry = |value: redis::Value| -> Option<(String, HashMap<String, String>)> {
+            let redis::Value::Array(entry) = value else {
+                return None;
+            };
+
+            let mut iter = entry.into_iter();
+            let job_id = redis_value_to_string(iter.next()?)?;
+            let fields = redis_hash_to_map(iter.next()?)?;
+            if fields.is_empty() {
+                return None;
+            }
+
+            Some((job_id, fields))
+        };
+
+        let mut jobs = Vec::new();
+        let mut seen: HashSet<String> = HashSet::new();
+
+        if let redis::Value::Array(groups) = result {
+            for group in groups {
+                let redis::Value::Array(entries) = group else {
+                    continue;
+                };
+
+                for entry in entries {
+                    let Some((job_id, fields)) = parse_job_entry(entry) else {
+                        continue;
+                    };
+
+                    if seen.insert(job_id.clone()) {
+                        let mut job = Job::from_redis_hash(&job_id, &fields)?;
+                        job.set_context(self.make_script_context());
+                        jobs.push(job);
+                    }
+                }
             }
         }
+
         Ok(jobs)
     }
 
