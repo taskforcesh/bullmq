@@ -555,12 +555,11 @@ class PostgresBackend(Backend):
 
     async def extendLocks(self, job_ids: list[str], tokens: list[str], duration: int) -> list:
         now = _now_ms()
-        failed = []
-        for job_id, token in zip(job_ids, tokens):
-            row = (await self._run("extend_lock", [self.queue_name, job_id, token, duration, now])).first_map() or {}
-            if _to_int(row.get("n")) <= 0:
-                failed.append(job_id)
-        return failed
+        result = await self._run(
+            "extend_locks",
+            [self.queue_name, job_ids, tokens, duration, now],
+        )
+        return [str(row["id"]) for row in result.maps()]
 
     # ============================================================
     # Job mutations

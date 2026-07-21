@@ -313,3 +313,24 @@ class TestPostgresBackendWaitForJob(unittest.IsolatedAsyncioTestCase):
         self.assertGreaterEqual(marker[2], expected_min)
         self.assertLessEqual(marker[2], expected_max)
         self.assertEqual(backend._next_delay_ms.await_count, 2)
+
+
+class TestPostgresBackendLockExtension(unittest.IsolatedAsyncioTestCase):
+    async def test_extend_locks_batches_jobs_in_one_command(self):
+        backend = PostgresBackend("queue", SimpleNamespace(schema="bullmq"))
+        backend._run = AsyncMock(
+            return_value=SimpleNamespace(maps=lambda: [{"id": "job-2"}])
+        )
+
+        with patch("bullmq.backends.postgres_backend._now_ms", return_value=123):
+            failed = await backend.extendLocks(
+                ["job-1", "job-2"],
+                ["token-1", "token-2"],
+                5000,
+            )
+
+        self.assertEqual(failed, ["job-2"])
+        backend._run.assert_awaited_once_with(
+            "extend_locks",
+            ["queue", ["job-1", "job-2"], ["token-1", "token-2"], 5000, 123],
+        )
