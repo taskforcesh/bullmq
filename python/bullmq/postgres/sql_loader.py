@@ -18,12 +18,15 @@ from __future__ import annotations
 import os
 
 _MODULE_DIR = os.path.dirname(os.path.realpath(__file__))
+_MAX_ANCESTOR_DEPTH = 8
 
 
 def _resolve_sql_root() -> str:
     # Prefer the single source of truth in the repo (walk up to <repo>/src/postgres).
+    # The module lives at python/bullmq/postgres, so reaching the repo root only
+    # requires a few parents; 8 keeps the scan bounded with ample slack.
     directory = _MODULE_DIR
-    for _ in range(8):
+    for _ in range(_MAX_ANCESTOR_DEPTH):
         candidate = os.path.join(directory, "src", "postgres")
         if (
             os.path.isdir(os.path.join(candidate, "commands"))
