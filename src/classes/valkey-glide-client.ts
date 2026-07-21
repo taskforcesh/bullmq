@@ -259,7 +259,9 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
       return this.raw;
     }
     if (!this.rawPromise) {
-      throw new Error('BullMQ: missing Valkey Glide client instance');
+      throw new Error(
+        'BullMQ: Valkey Glide client not initialized. Ensure the client promise resolves before use.',
+      );
     }
     this.raw = await this.rawPromise;
     return this.raw;
@@ -348,8 +350,8 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
 
       if (!createClient || !config) {
         throw new Error(
-          'BullMQ: Valkey Glide duplicate() requires a client created via ' +
-            'GlideClient.createClient()/GlideClusterClient.createClient().',
+          'BullMQ: Cannot duplicate Valkey Glide client: missing createClient() or config. ' +
+            'Ensure the client was created via GlideClient.createClient()/GlideClusterClient.createClient().',
         );
       }
 
@@ -374,7 +376,9 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
   async runCommand(name: string, args: any[]): Promise<any> {
     const script = this.scripts.get(name);
     if (!script) {
-      throw new Error(`BullMQ: unknown command "${name}"`);
+      throw new Error(
+        `BullMQ: command "${name}" is not defined. Use defineCommand() before runCommand().`,
+      );
     }
 
     const normalizedArgs = normalizeScriptArgs(args);
@@ -844,7 +848,9 @@ class ValkeyGlideTransaction implements IRedisTransaction {
   runCommand(name: string, args: any[]): this {
     const script = this.scripts.get(name);
     if (!script) {
-      throw new Error(`BullMQ: unknown command "${name}" in transaction`);
+      throw new Error(
+        `BullMQ: command "${name}" is not defined. Use defineCommand() before adding it to transactions.`,
+      );
     }
 
     const normalizedArgs = normalizeScriptArgs(args);
