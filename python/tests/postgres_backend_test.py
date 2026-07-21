@@ -1,4 +1,5 @@
 import unittest
+import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -212,3 +213,25 @@ class TestPostgresBackendWaitForJob(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(marker, ["bullmq_jobs", "queue", 0])
         connection.reset_job_channel.assert_awaited_once()
         self.assertEqual(connection.ensure_job_channel.await_count, 2)
+
+    async def test_wait_for_job_returns_future_marker_when_only_delayed_jobs_exist(self):
+        connection = SimpleNamespace(
+            schema="bullmq",
+            ensure_job_channel=AsyncMock(return_value=_IdleNotifiesConnection()),
+            reset_job_channel=AsyncMock(),
+        )
+        backend = PostgresBackend("queue", connection)
+        backend._has_waiting_job = AsyncMock(return_value=False)
+        backend._next_delay_ms = AsyncMock(side_effect=[500, 500])
+
+        before = int(time.time() * 1000)
+        marker = await backend.waitForJob(0.001)
+        after = int(time.time() * 1000)
+        expected_min = before + 400
+        expected_max = after + 600
+
+        self.assertEqual(marker[0], "bullmq_jobs")
+        self.assertEqual(marker[1], "queue")
+        self.assertGreaterEqual(marker[2], expected_min)
+        self.assertLessEqual(marker[2], expected_max)
+        self.assertEqual(backend._next_delay_ms.await_count, 2)

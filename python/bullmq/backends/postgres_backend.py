@@ -705,6 +705,13 @@ class PostgresBackend(Backend):
         return None if nxt is None else _to_int(nxt) - _now_ms()
 
     async def waitForJob(self, block_timeout: float) -> Any:
+        """Wait for claimable work and return a Redis-like marker tuple.
+
+        Returns ``["bullmq_jobs", queue_name, 0]`` when work is immediately
+        claimable. When only delayed jobs exist and the local wait window
+        expires first, returns the same marker with a future score timestamp
+        so ``Worker`` can keep sleeping until the next due time.
+        """
         listen_conn = await self.connection.ensure_job_channel()
 
         marker = ["bullmq_jobs", self.queue_name, 0]
@@ -726,6 +733,11 @@ class PostgresBackend(Backend):
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
+                due_in = await self._next_delay_ms()
+                if due_in is not None:
+                    if due_in <= 0:
+                        return marker
+                    return ["bullmq_jobs", self.queue_name, _now_ms() + due_in]
                 return None
             wait = min(poll, remaining)
             checked_waiting_job = False
