@@ -25,25 +25,43 @@ jobs:
         run: |
           if [ -f osv-scanner.toml ]; then
             cp osv-scanner.toml "$RUNNER_TEMP/osv-scanner.toml"
-            echo "config_args=--config=$RUNNER_TEMP/osv-scanner.toml" >> "$GITHUB_OUTPUT"
+            echo "has_config=true" >> "$GITHUB_OUTPUT"
           else
-            echo "config_args=" >> "$GITHUB_OUTPUT"
+            echo "has_config=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Checkout target branch
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          git fetch origin "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF"
-          git checkout "origin/$GITHUB_BASE_REF"
+          if [ -z "$BASE_REF" ]; then
+            echo "::error::Unable to determine the base ref for the OSV scan."
+            exit 1
+          fi
+          git fetch origin "$BASE_REF:refs/remotes/origin/$BASE_REF"
+          git checkout "origin/$BASE_REF"
           git submodule update --recursive
 
-      - name: Run scanner on existing code
+      - name: Run scanner on existing code with config
+        if: ${{ steps.preserve-config.outputs.has_config == 'true' }}
         uses: google/osv-scanner-action/osv-scanner-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
         continue-on-error: true
         with:
           scan-args: |-
             --format=json
             --output=old-results.json
-            ${{ steps.preserve-config.outputs.config_args }}
+            --config=${{ runner.temp }}/osv-scanner.toml
+            -r
+            ./
+
+      - name: Run scanner on existing code without config
+        if: ${{ steps.preserve-config.outputs.has_config != 'true' }}
+        uses: google/osv-scanner-action/osv-scanner-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
+        continue-on-error: true
+        with:
+          scan-args: |-
+            --format=json
+            --output=old-results.json
             -r
             ./
 
@@ -52,14 +70,26 @@ jobs:
           git checkout "$GITHUB_SHA"
           git submodule update --recursive
 
-      - name: Run scanner on new code
+      - name: Run scanner on new code with config
+        if: ${{ steps.preserve-config.outputs.has_config == 'true' }}
         uses: google/osv-scanner-action/osv-scanner-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
         continue-on-error: true
         with:
           scan-args: |-
             --format=json
             --output=new-results.json
-            ${{ steps.preserve-config.outputs.config_args }}
+            --config=${{ runner.temp }}/osv-scanner.toml
+            -r
+            ./
+
+      - name: Run scanner on new code without config
+        if: ${{ steps.preserve-config.outputs.has_config != 'true' }}
+        uses: google/osv-scanner-action/osv-scanner-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
+        continue-on-error: true
+        with:
+          scan-args: |-
+            --format=json
+            --output=new-results.json
             -r
             ./
 
@@ -70,6 +100,7 @@ jobs:
             --output=results.sarif
             --old=old-results.json
             --new=new-results.json
+            # Enable GitHub annotations so vulnerabilities are surfaced directly in the PR UI.
             --gh-annotations=true
             --fail-on-vuln=true
 
