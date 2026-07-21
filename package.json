@@ -99,7 +99,7 @@
     "@types/msgpack": "0.0.34",
     "@types/node": "24.13.3",
     "@types/semver": "7.7.1",
-    "@types/sinon": "21.0.1",
+    "@types/sinon": "22.0.0",
     "@typescript-eslint/eslint-plugin": "8.64.0",
     "@typescript-eslint/parser": "8.64.0",
     "@vitest/coverage-v8": "4.1.10",
