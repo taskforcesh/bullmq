@@ -1161,15 +1161,14 @@ export class PostgresQueueBackend
     tokens: string[],
     duration: number,
   ): Promise<string[]> {
-    // Returns the ids whose lock could NOT be extended.
-    const failed: string[] = [];
-    for (let i = 0; i < jobIds.length; i++) {
-      const ok = await this.extendLock(jobIds[i], tokens[i], duration);
-      if (!ok) {
-        failed.push(jobIds[i]);
-      }
-    }
-    return failed;
+    const { rows } = await this.run<{ id: string }>('extend_locks', [
+      this.queueName,
+      jobIds,
+      tokens,
+      duration,
+      Date.now(),
+    ]);
+    return rows.map(({ id }) => id);
   }
 
   // ============================================================
