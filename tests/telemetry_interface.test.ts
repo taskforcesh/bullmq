@@ -8,7 +8,13 @@ import {
   expect,
 } from 'vitest';
 
-import { FlowProducer, JobScheduler, Queue, Worker } from '../src/classes';
+import {
+  FlowProducer,
+  JobScheduler,
+  Queue,
+  Worker,
+  UnrecoverableError,
+} from '../src/classes';
 import { randomUUID } from '../src/utils';
 import {
   Telemetry,
@@ -29,6 +35,7 @@ import * as sinon from 'sinon';
 import { SpanKind, TelemetryAttributes, MetricNames } from '../src/enums';
 import { createTestConnection } from './utils/connection-factory';
 import { cleanupQueue } from './utils/cleanup-queue';
+import { getRedisClient } from './utils/get-redis-client';
 import { IRedisClient } from '../src/interfaces';
 
 describe('Telemetry', () => {
@@ -408,12 +415,8 @@ describe('Telemetry', () => {
       expect(firstJob).toBeDefined();
       traceSpy.resetHistory();
 
-      const client = await worker.client;
+      const client = await getRedisClient(worker);
       await client.del(`${prefix}:${queueName}:${firstJob!.id}:lock`);
-
-      const failed = new Promise<void>(resolve => {
-        worker.on('failed', () => resolve());
-      });
 
       await (worker as any).moveStalledJobsToWait();
       await client.del(`${prefix}:${queueName}:stalled-check`);
@@ -423,6 +426,16 @@ describe('Telemetry', () => {
         'runnable-job',
         { foo: 'baz' },
         { telemetry: { metadata: secondMetadata } },
+      );
+
+      const deferredJob = await worker.getNextJob(token, { block: false });
+      expect(deferredJob?.id).toBe(firstJob.id);
+      expect(deferredJob?.deferredFailure).toBe(
+        'job stalled more than allowable limit',
+      );
+      await deferredJob!.moveToFailed(
+        new UnrecoverableError(deferredJob!.deferredFailure),
+        token,
       );
 
       const nextJob = await worker.getNextJob(token, { block: false });
@@ -439,7 +452,6 @@ describe('Telemetry', () => {
         nextJob?.opts?.telemetry?.metadata,
       );
 
-      await failed;
       await worker.close();
     });
   });

@@ -1,4 +1,8 @@
-import { getRedisVersion, getDatabaseType } from './utils/get-redis-client';
+import {
+  getRedisVersion,
+  getDatabaseType,
+  getRedisClient,
+} from './utils/get-redis-client';
 import { after, times } from 'lodash';
 import {
   describe,
@@ -4661,28 +4665,18 @@ describe('workers', () => {
 
     describe('when a stalled job has exhausted its max stalled attempts', () => {
       const markJobForDeferredFailure = async (worker: Worker, job: Job) => {
-        const client = await worker.client;
+        const client = await getRedisClient(worker);
         await client.del(`${prefix}:${queueName}:${job.id}:lock`);
 
         const stalled = new Promise<string>(resolve => {
           worker.on('stalled', resolve);
         });
 
-        const failed = new Promise<{ job: Job | undefined; err: Error }>(
-          resolve => {
-            worker.on('failed', (failedJob, err) =>
-              resolve({ job: failedJob, err }),
-            );
-          },
-        );
-
         await (worker as any).moveStalledJobsToWait();
         await client.del(`${prefix}:${queueName}:stalled-check`);
         await (worker as any).moveStalledJobsToWait();
 
         expect(await stalled).toBe(job.id);
-
-        return { failed };
       };
 
       it(
@@ -4705,15 +4699,22 @@ describe('workers', () => {
           const firstJob = (await worker.getNextJob(token)) as Job;
           expect(firstJob).toBeDefined();
 
-          const { failed } = await markJobForDeferredFailure(worker, firstJob);
+          await markJobForDeferredFailure(worker, firstJob);
+
+          const deferredJob = (await worker.getNextJob(token, {
+            block: false,
+          })) as Job;
+          expect(deferredJob.id).toBe(firstJob.id);
+          expect(deferredJob.deferredFailure).toBe(
+            'job stalled more than allowable limit',
+          );
+          await deferredJob.moveToFailed(
+            new UnrecoverableError(deferredJob.deferredFailure),
+            token,
+          );
 
           const nextFetched = await worker.getNextJob(token, { block: false });
           expect(nextFetched).toBeUndefined();
-
-          const { job: failedJob, err } = await failed;
-          expect(failedJob?.id).toBe(firstJob.id);
-          expect(err).toBeInstanceOf(UnrecoverableError);
-          expect(err.message).toBe('job stalled more than allowable limit');
 
           const counts = await queue.getJobCounts('failed', 'wait', 'active');
           expect(counts.failed).toBe(1);
@@ -4741,20 +4742,27 @@ describe('workers', () => {
         const firstJob = (await worker.getNextJob(token)) as Job;
         expect(firstJob).toBeDefined();
 
-        const { failed } = await markJobForDeferredFailure(worker, firstJob);
+        await markJobForDeferredFailure(worker, firstJob);
 
         const secondAdded = await queue.add('runnable-job', { foo: 'baz' });
+
+        const deferredJob = (await worker.getNextJob(token, {
+          block: false,
+        })) as Job;
+        expect(deferredJob.id).toBe(firstJob.id);
+        expect(deferredJob.deferredFailure).toBe(
+          'job stalled more than allowable limit',
+        );
+        await deferredJob.moveToFailed(
+          new UnrecoverableError(deferredJob.deferredFailure),
+          token,
+        );
 
         const nextFetched = (await worker.getNextJob(token, {
           block: false,
         })) as Job;
         expect(nextFetched).toBeDefined();
         expect(nextFetched.id).toBe(secondAdded.id);
-
-        const { job: failedJob, err } = await failed;
-        expect(failedJob?.id).toBe(firstJob.id);
-        expect(err).toBeInstanceOf(UnrecoverableError);
-        expect(err.message).toBe('job stalled more than allowable limit');
 
         const counts = await queue.getJobCounts('failed', 'wait', 'active');
         expect(counts.failed).toBe(1);

@@ -541,7 +541,7 @@ describe('Job Scheduler (redis-only)', () => {
       }
     });
 
-    it('should handle collision detection for every-based schedulers', async () => {
+    it('should report busy when every-based scheduler collisions exhaust scanned slots', async () => {
       const date = new Date('2017-02-07T09:24:00.000+05:30');
       clock.setSystemTime(date);
 
@@ -549,14 +549,18 @@ describe('Job Scheduler (redis-only)', () => {
       const client = await getRedisClient(queue);
       const now = Date.now();
       const every = 1000; // 1 second
-      const testJobId = `repeat:test-every-collision:${now}`;
-      const nextSlotJobId = `repeat:test-every-collision:${now + every}`;
+      const busySlots = 33;
+      const occupiedJobIds = Array.from(
+        { length: busySlots },
+        (_, index) => `repeat:test-every-collision:${now + index * every}`,
+      );
 
-      // Simulate existing jobs in both current and next slots
-      await client.hset(`${queue.keys['']}${testJobId}`, { id: testJobId });
-      await client.hset(`${queue.keys['']}${nextSlotJobId}`, {
-        id: nextSlotJobId,
-      });
+      // Simulate existing jobs in current slot + all scanned next slots.
+      await Promise.all(
+        occupiedJobIds.map(jobId =>
+          client.hset(`${queue.keys['']}${jobId}`, { id: jobId }),
+        ),
+      );
 
       try {
         // Try to create a job scheduler that would collide
@@ -579,8 +583,9 @@ describe('Job Scheduler (redis-only)', () => {
         );
       } finally {
         // Clean up
-        await client.del(`${queue.keys['']}${testJobId}`);
-        await client.del(`${queue.keys['']}${nextSlotJobId}`);
+        await Promise.all(
+          occupiedJobIds.map(jobId => client.del(`${queue.keys['']}${jobId}`)),
+        );
       }
     });
   });
