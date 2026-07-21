@@ -32,7 +32,7 @@ jobs:
 
       - name: Checkout target branch
         run: |
-          git checkout "$GITHUB_BASE_REF"
+          git checkout "origin/$GITHUB_BASE_REF"
           git submodule update --recursive
 
       - name: Run scanner on existing code
@@ -97,7 +97,7 @@ jobs:
           retention-days: 5
 
       - name: Upload to code-scanning
-        id: upload_artifact
+        id: upload_sarif
         if: ${{ !cancelled() }}
         uses: github/codeql-action/upload-sarif@cdefb33c0f6224e58673d9004f47f7cb3e328b89 # v4.31.10
         with:
@@ -110,6 +110,6 @@ jobs:
           echo "${{ github.server_url }}/${{ github.repository }}/security/code-scanning?query=pr%3A${{ github.event.pull_request.number }}"
 
       - name: Error troubleshooter
-        if: ${{ always() && steps.upload_artifact.outcome == 'failure' }}
+        if: ${{ always() && steps.upload_sarif.outcome == 'failure' }}
         run: |
           echo "::error::Artifact upload failed. This is most likely caused by a error during scanning earlier in the workflow."
