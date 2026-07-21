@@ -95,6 +95,17 @@ class _FakeConnection:
         return self._cursor
 
 
+class _CursorContext:
+    def __init__(self, cursor):
+        self._cursor = cursor
+
+    async def __aenter__(self):
+        return self._cursor
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+
 class TestRunMigrations(unittest.IsolatedAsyncioTestCase):
     async def test_returns_last_applied_migration_version(self):
         cursor = _FakeCursor(current_version=1)
@@ -170,6 +181,60 @@ class TestPostgresConnection(unittest.IsolatedAsyncioTestCase):
         first_conn.close.assert_awaited_once()
         self.assertEqual(connect.await_count, 2)
         second_conn.execute.assert_awaited_once_with("LISTEN bullmq_jobs")
+
+    async def test_listen_connection_applies_last_application_name_when_created(self):
+        main_cursor = SimpleNamespace(execute=AsyncMock())
+        main_conn = SimpleNamespace(
+            closed=False,
+            cursor=lambda: _CursorContext(main_cursor),
+        )
+        listen_conn = SimpleNamespace(closed=False, execute=AsyncMock())
+        connect = AsyncMock(side_effect=[main_conn, listen_conn])
+        connection = PostgresConnection()
+        connection._ready = True
+
+        with patch(
+            "bullmq.backends.postgres_connection.psycopg.AsyncConnection.connect",
+            connect,
+        ):
+            await connection.set_application_name("tenant_a:queue:w:1")
+            await connection.listen_connection()
+
+        main_cursor.execute.assert_awaited_once_with(
+            "SELECT set_config('application_name', %s, false)",
+            ("tenant_a:queue:w:1",),
+        )
+        listen_conn.execute.assert_awaited_once_with(
+            "SELECT set_config('application_name', %s, false)",
+            ("tenant_a:queue:w:1",),
+        )
+
+    async def test_set_application_name_updates_existing_listen_connection(self):
+        main_cursor = SimpleNamespace(execute=AsyncMock())
+        main_conn = SimpleNamespace(
+            closed=False,
+            cursor=lambda: _CursorContext(main_cursor),
+        )
+        listen_conn = SimpleNamespace(closed=False, execute=AsyncMock())
+        connect = AsyncMock(side_effect=[listen_conn, main_conn])
+        connection = PostgresConnection()
+        connection._ready = True
+
+        with patch(
+            "bullmq.backends.postgres_connection.psycopg.AsyncConnection.connect",
+            connect,
+        ):
+            await connection.listen_connection()
+            await connection.set_application_name("tenant_a:queue:w:2")
+
+        main_cursor.execute.assert_awaited_once_with(
+            "SELECT set_config('application_name', %s, false)",
+            ("tenant_a:queue:w:2",),
+        )
+        listen_conn.execute.assert_awaited_once_with(
+            "SELECT set_config('application_name', %s, false)",
+            ("tenant_a:queue:w:2",),
+        )
 
 
 class _FailingNotifiesConnection:

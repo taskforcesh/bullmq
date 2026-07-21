@@ -174,6 +174,7 @@ class PostgresConnection:
         self._ready_lock = asyncio.Lock()
         self._listen_conn: Optional[psycopg.AsyncConnection] = None
         self._job_channel_listening = False
+        self._application_name: Optional[str] = None
 
     async def wait_until_ready(self) -> None:
         if self._ready:
@@ -223,6 +224,11 @@ class PostgresConnection:
             self._listen_conn = await psycopg.AsyncConnection.connect(
                 self.conninfo, autocommit=True, options=self._options
             )
+            if self._application_name:
+                await self._listen_conn.execute(
+                    "SELECT set_config('application_name', %s, false)",
+                    (self._application_name,),
+                )
             self._job_channel_listening = False
         return self._listen_conn
 
@@ -247,12 +253,18 @@ class PostgresConnection:
     async def set_application_name(self, name: str) -> None:
         if not name:
             return
+        self._application_name = name
         if not self._ready:
             await self.wait_until_ready()
         async with self._conn_lock:
             conn = await self._get_conn()
             async with conn.cursor() as cur:
                 await cur.execute("SELECT set_config('application_name', %s, false)", (name,))
+        if self._listen_conn is not None and not self._listen_conn.closed:
+            await self._listen_conn.execute(
+                "SELECT set_config('application_name', %s, false)",
+                (name,),
+            )
 
     async def close(self) -> None:
         if self._listen_conn is not None:
