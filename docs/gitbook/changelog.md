@@ -1,3 +1,10 @@
+## [5.80.10](https://github.com/taskforcesh/bullmq/compare/v5.80.9...v5.80.10) (2026-07-21)
+
+
+### Bug Fixes
+
+* **ci:** remove stale OSV ignore ([#4320](https://github.com/taskforcesh/bullmq/issues/4320)) ([88730b0](https://github.com/taskforcesh/bullmq/commit/88730b08ecc18cd243dfeddaa80bd8b2d3a5151a))
+
 ## [5.80.9](https://github.com/taskforcesh/bullmq/compare/v5.80.8...v5.80.9) (2026-07-18)
 
 
