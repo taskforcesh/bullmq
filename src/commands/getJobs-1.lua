@@ -84,12 +84,31 @@ local function appendJob(entries, jobId)
   end
 end
 
+local function cleanupDeprecatedMarker(stateKey, stateType)
+  if stateType == "wait" or stateType == "paused" then
+    local marker = rcall("LINDEX", stateKey, -1)
+    if marker and string.sub(marker, 1, 2) == "0:" then
+      local count = rcall("LLEN", stateKey)
+      if count > 1 then
+        rcall("RPOP", stateKey)
+        return count - 1
+      end
+      return 0
+    end
+  end
+end
+
 local function collectJobs(stateKey, stateType)
   local entries = {}
   local listLength
+  local cleanedListLength = cleanupDeprecatedMarker(stateKey, stateType)
 
   if asc and isListType(stateType) and rangeStart >= 0 and rangeEnd >= 0 then
-    listLength = rcall("LLEN", stateKey)
+    if cleanedListLength ~= nil then
+      listLength = cleanedListLength
+    else
+      listLength = rcall("LLEN", stateKey)
+    end
   end
 
   -- Unbounded or negative ranges: fetch the exact window and skip missing ids.

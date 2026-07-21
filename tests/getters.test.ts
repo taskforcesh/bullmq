@@ -788,13 +788,16 @@ describe('Jobs getters', () => {
     describe('when there are delayed jobs and waiting jobs', () => {
       it('filters jobIds different than marker', async () => {
         await queue.add('test1', { foo: 3 }, { delay: 2000 });
-        await queue.add('test2', { foo: 2 });
+        const waitingJob = await queue.add('test2', { foo: 2 });
 
         const jobs = await queue.getJobs(['waiting']);
+        const client = await queue.client;
+        const waitingIds = await client.lrange(queue.toKey('wait'), 0, -1);
 
         expect(jobs).toBeInstanceOf(Array);
         expect(jobs).toHaveLength(1);
         expect(jobs[0].name).toBe('test2');
+        expect(waitingIds).toEqual([waitingJob.id]);
       });
     });
 

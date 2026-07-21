@@ -809,6 +809,7 @@ defmodule BullMQ.Queue do
     prefix = Keyword.get(opts, :prefix, "bull")
     start_idx = Keyword.get(opts, :start, 0)
     end_idx = Keyword.get(opts, :end, -1)
+    asc_override = Keyword.get(opts, :asc)
     ctx = Keys.new(queue, prefix: prefix)
 
     # Normalize states to always be a list
@@ -827,7 +828,9 @@ defmodule BullMQ.Queue do
           nil ->
             []
 
-          {lua_type, asc} ->
+          {lua_type, default_asc} ->
+            asc = if is_boolean(asc_override), do: asc_override, else: default_asc
+
             case Scripts.get_jobs(conn, ctx, [lua_type], start_idx, end_idx, asc) do
               {:ok, [state_entries]} when is_list(state_entries) -> state_entries
               _ -> []
