@@ -293,7 +293,7 @@ describe('Jobs getters', () => {
     // Simulate the race: delete one job's hash directly while leaving
     // its id in the waiting list.
     const client = await queue.client;
-    await client.del(`${prefix}:${queueName}:${a.id}`);
+    await client.del(queue.toKey(a.id!));
 
     const jobs = await queue.getWaiting();
     expect(jobs).not.toContain(undefined);

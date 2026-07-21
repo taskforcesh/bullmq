@@ -513,7 +513,7 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
     // public type promises `JobBase[]`, so filter the gaps out instead
     // of leaking `undefined` entries to user code (issue #3767).
     const jobs = await Promise.all(
-      jobIds.map(jobId => this.Job.fromId(this, jobId) as Promise<JobBase>),
+      jobIds.map(jobId => this.getJob(jobId)),
     );
     return jobs.filter((job): job is JobBase => job !== undefined);
   }
