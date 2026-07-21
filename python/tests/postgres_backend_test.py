@@ -198,6 +198,7 @@ class TestPostgresConnection(unittest.IsolatedAsyncioTestCase):
             connect,
         ):
             await connection.set_application_name("tenant_a:queue:w:1")
+            self.assertIsNone(connection._listen_conn)
             await connection.listen_connection()
 
         main_cursor.execute.assert_awaited_once_with(
@@ -225,6 +226,7 @@ class TestPostgresConnection(unittest.IsolatedAsyncioTestCase):
             connect,
         ):
             await connection.listen_connection()
+            listen_conn.execute.assert_not_awaited()
             await connection.set_application_name("tenant_a:queue:w:2")
 
         main_cursor.execute.assert_awaited_once_with(
