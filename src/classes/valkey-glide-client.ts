@@ -206,7 +206,7 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
   private connecting?: Promise<void>;
   private readyEmitted = false;
   private closed = false;
-  private queue: Promise<void> = Promise.resolve();
+  private operationChain: Promise<void> = Promise.resolve();
 
   constructor(
     rawOrPromise: ValkeyGlideRawClient | Promise<ValkeyGlideRawClient>,
@@ -268,10 +268,10 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
   private async runSerialized<T>(
     fn: (raw: ValkeyGlideRawClient) => Promise<T>,
   ): Promise<T> {
-    const previous = this.queue;
+    const previous = this.operationChain;
     let release: () => void;
 
-    this.queue = new Promise<void>(resolve => {
+    this.operationChain = new Promise<void>(resolve => {
       release = resolve;
     });
 
