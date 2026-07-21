@@ -76,14 +76,29 @@ class RedisBackend(Backend):
         return await self.connection.conn.ping()
 
     async def close(self, force: bool = False) -> None:
+        blocking_error = None
+        main_error = None
+
         if self.blocking_connection is not None:
             try:
                 await self.blocking_connection.close()
-            except Exception:
-                if not force:
-                    raise
+            except Exception as err:
+                blocking_error = err
+
         if self.owns_connection:
-            await self.connection.close()
+            try:
+                await self.connection.close()
+            except Exception as err:
+                main_error = err
+
+        if force:
+            return
+
+        if blocking_error is not None:
+            raise blocking_error
+
+        if main_error is not None:
+            raise main_error
 
     async def disconnect(self) -> None:
         await self.close(force=True)

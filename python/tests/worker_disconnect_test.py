@@ -27,7 +27,7 @@ import sys
 import time
 import unittest
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import redis.exceptions
 
