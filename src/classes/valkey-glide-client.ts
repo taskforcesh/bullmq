@@ -397,7 +397,7 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
     } catch (err: any) {
       if (
         typeof err?.message === 'string' &&
-        err.message.includes('NOSCRIPT')
+        err.message.toLowerCase().includes('noscript')
       ) {
         return this.runRawCommand([
           'EVAL',

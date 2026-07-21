@@ -274,6 +274,43 @@ describe('valkey glide adapter', () => {
     expect(evalCalls.length).toBe(1);
   });
 
+  it('falls back from EVALSHA to EVAL on NoScriptError', async () => {
+    const raw = new MockGlideClient();
+    const client = createValkeyGlideClient(raw as any);
+    const originalCustomCommand = raw.customCommand.bind(raw);
+    let shouldFailEvalSha = true;
+
+    raw.customCommand = async (command: any[]) => {
+      if (command[0] === 'EVALSHA' && shouldFailEvalSha) {
+        shouldFailEvalSha = false;
+        raw.commands.push(
+          command.map(token =>
+            Buffer.isBuffer(token) ? token.toString() : String(token),
+          ),
+        );
+        throw new Error(
+          'An error was signalled by the server: - NoScriptError: No matching script.',
+        );
+      }
+      return originalCustomCommand(command);
+    };
+
+    client.defineCommand('myScript', {
+      numberOfKeys: 1,
+      lua: 'return ARGV[1]',
+    });
+
+    expect(await client.runCommand('myScript', ['k1', 'v1'])).toBe(
+      'script-result',
+    );
+
+    const evalShaCalls = raw.commands.filter(cmd => cmd[0] === 'EVALSHA');
+    const evalCalls = raw.commands.filter(cmd => cmd[0] === 'EVAL');
+
+    expect(evalShaCalls.length).toBe(1);
+    expect(evalCalls.length).toBe(1);
+  });
+
   it('duplicates client via createClient and applies connectionName', async () => {
     MockGlideClient.instances.splice(0);
 
