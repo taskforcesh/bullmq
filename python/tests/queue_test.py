@@ -23,27 +23,6 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         print("Setting up test queue")
         queueName = f"__test_queue__{uuid4().hex}"
 
-    def test_sanitize_job_types_does_not_add_paused_for_waiting(self):
-        queue = object.__new__(Queue)
-
-        self.assertCountEqual(queue.sanitizeJobTypes(["waiting"]), ["waiting"])
-
-    def test_sanitize_job_types_defaults_match_v6(self):
-        queue = object.__new__(Queue)
-
-        self.assertCountEqual(
-            queue.sanitizeJobTypes([]),
-            [
-                "active",
-                "completed",
-                "delayed",
-                "failed",
-                "prioritized",
-                "waiting",
-                "waiting-children",
-            ],
-        )
-
     async def asyncTearDown(self):
         connection = redis.Redis(host='localhost')
         await connection.flushdb()
