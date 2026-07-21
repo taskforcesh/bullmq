@@ -169,13 +169,11 @@ class RedisBackend(Backend):
         async with self.connection.conn.pipeline(transaction=True) as pipe:
             for entry in entries:
                 job = entry["job"]
-                # A single Scripts instance is reused across the flow's queues,
-                # so re-scope its keys to each node's queue before adding.
-                self.scripts.resetQueueKeys(job.queue.name)
+                scripts = getattr(getattr(job.queue, "backend", None), "scripts", self.scripts)
                 if entry.get("is_parent"):
-                    await self.scripts.addParentJob(job, pipe)
+                    await scripts.addParentJob(job, pipe)
                 else:
-                    await self.scripts.addJob(job, pipe)
+                    await scripts.addJob(job, pipe)
             results = await pipe.execute()
         for index, job_id in enumerate(results):
             entries[index]["job"].id = job_id
