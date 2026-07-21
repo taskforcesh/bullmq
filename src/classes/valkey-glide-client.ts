@@ -228,7 +228,7 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
     if (this.closed) {
       return 'end';
     }
-    if (this.raw) {
+    if (this.readyEmitted) {
       return 'ready';
     }
     return 'wait';
@@ -308,10 +308,8 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
       await this.applyConnectionNameIfNeeded();
       this.closed = false;
       this.statusOverride = undefined;
-      if (!this.readyEmitted) {
-        this.readyEmitted = true;
-        this.emit('ready');
-      }
+      this.readyEmitted = true;
+      this.emit('ready');
     })().finally(() => {
       this.connecting = undefined;
     });
@@ -321,6 +319,7 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
 
   disconnect(): void {
     this.closed = true;
+    this.readyEmitted = false;
     this.statusOverride = 'end';
 
     if (this.raw) {

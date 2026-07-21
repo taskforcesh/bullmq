@@ -312,4 +312,29 @@ describe('valkey glide adapter', () => {
       [null, ['0', ['a', 'b']]],
     ]);
   });
+
+  it('reports wait status until connect is called', async () => {
+    const raw = new MockGlideClient();
+    const client = createValkeyGlideClient(raw as any);
+
+    expect(client.status).toBe('wait');
+    await client.connect();
+    expect(client.status).toBe('ready');
+  });
+
+  it('emits ready again after disconnect and reconnect', async () => {
+    const raw = new MockGlideClient();
+    const client = createValkeyGlideClient(raw as any);
+    let readyCount = 0;
+
+    client.on('ready', () => {
+      readyCount++;
+    });
+
+    await client.connect();
+    client.disconnect();
+    await client.connect();
+
+    expect(readyCount).toBe(2);
+  });
 });
