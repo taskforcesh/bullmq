@@ -113,4 +113,4 @@ jobs:
       - name: Error troubleshooter
         if: ${{ always() && steps.upload_sarif.outcome == 'failure' }}
         run: |
-          echo "::error::Artifact upload failed. This is most likely caused by a error during scanning earlier in the workflow."
+          echo "::error::Artifact upload failed. This is most likely caused by an error during scanning earlier in the workflow."
