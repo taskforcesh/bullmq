@@ -27,7 +27,6 @@ describe('PostgresQueueBackend', () => {
       30_000,
       expect.any(Number),
     ]);
-    expect(failed).not.toContain('job-1');
     expect(failed).toEqual(['job-2', 'job-3']);
   });
 });
