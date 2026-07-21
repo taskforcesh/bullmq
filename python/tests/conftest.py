@@ -29,7 +29,6 @@ _REDIS_ONLY_FILES = [
     "redis_connection_test.py",
     "redis_connection_cluster_test.py",
     "queue_getters_cluster_test.py",
-    "worker_disconnect_test.py",
 ]
 
 _POSTGRES_ONLY_FILES = [
