@@ -709,9 +709,24 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
   }
 
   async execQueuedCommands(
-    commands: { args: GlideArg[]; transform?: (value: unknown) => unknown }[],
+    commands: {
+      args: GlideArg[];
+      transform?: (value: unknown) => unknown;
+      script?: LuaScript;
+    }[],
   ): Promise<[Error | null, any][] | null> {
     return this.runSerialized(async raw => {
+      const scriptsToLoad = new Map<string, LuaScript>();
+      for (const command of commands) {
+        if (command.script) {
+          scriptsToLoad.set(command.script.sha, command.script);
+        }
+      }
+
+      for (const script of scriptsToLoad.values()) {
+        await raw.customCommand(['SCRIPT', 'LOAD', script.lua]);
+      }
+
       await raw.customCommand(['MULTI']);
 
       try {
@@ -754,6 +769,7 @@ class ValkeyGlideTransaction implements IRedisTransaction {
   private readonly commands: {
     args: GlideArg[];
     transform?: (value: unknown) => unknown;
+    script?: LuaScript;
   }[] = [];
 
   constructor(
@@ -764,8 +780,9 @@ class ValkeyGlideTransaction implements IRedisTransaction {
   private queueCommand(
     args: GlideArg[],
     transform?: (value: unknown) => unknown,
+    script?: LuaScript,
   ): this {
-    this.commands.push({ args, transform });
+    this.commands.push({ args, transform, script });
     return this;
   }
 
@@ -857,13 +874,11 @@ class ValkeyGlideTransaction implements IRedisTransaction {
     const keys = normalizedArgs.slice(0, script.numberOfKeys).map(toGlideArg);
     const argv = normalizedArgs.slice(script.numberOfKeys).map(toGlideArg);
 
-    return this.queueCommand([
-      'EVALSHA',
-      script.sha,
-      String(script.numberOfKeys),
-      ...keys,
-      ...argv,
-    ]);
+    return this.queueCommand(
+      ['EVALSHA', script.sha, String(script.numberOfKeys), ...keys, ...argv],
+      undefined,
+      script,
+    );
   }
 
   exec(): Promise<[Error | null, any][] | null> {

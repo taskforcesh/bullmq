@@ -222,6 +222,13 @@ class MockGlideClient {
       return 'script-result';
     }
 
+    if (cmd === 'SCRIPT' && tokens[1]?.toUpperCase() === 'LOAD') {
+      const script = tokens[2];
+      const sha = createHash('sha1').update(script).digest('hex');
+      this.scripts.add(sha);
+      return sha;
+    }
+
     if (cmd === 'INFO') {
       return 'redis_version:7.2.0';
     }
@@ -311,5 +318,28 @@ describe('valkey glide adapter', () => {
       [null, ['0', ['field', 'value']]],
       [null, ['0', ['a', 'b']]],
     ]);
+  });
+
+  it('loads scripts before executing transaction commands', async () => {
+    const raw = new MockGlideClient();
+    const client = createValkeyGlideClient(raw as any);
+
+    client.defineCommand('myScript', {
+      numberOfKeys: 1,
+      lua: 'return ARGV[1]',
+    });
+
+    const tx = client.multi();
+    tx.runCommand('myScript', ['k1', 'v1']);
+
+    await expect(tx.exec()).resolves.toEqual([[null, 'script-result']]);
+
+    const scriptLoadIndex = raw.commands.findIndex(
+      cmd => cmd[0] === 'SCRIPT' && cmd[1] === 'LOAD',
+    );
+    const multiIndex = raw.commands.findIndex(cmd => cmd[0] === 'MULTI');
+
+    expect(scriptLoadIndex).toBeGreaterThanOrEqual(0);
+    expect(scriptLoadIndex).toBeLessThan(multiIndex);
   });
 });
