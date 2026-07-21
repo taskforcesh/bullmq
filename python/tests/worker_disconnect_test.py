@@ -27,7 +27,7 @@ import sys
 import time
 import unittest
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import redis.exceptions
 
@@ -116,7 +116,7 @@ class TestIsConnectionError(unittest.TestCase):
 
         try:
             _postgres_connection_error_types.cache_clear()
-            with unittest.mock.patch.dict(sys.modules, {"psycopg": fake_psycopg}):
+            with patch.dict(sys.modules, {"psycopg": fake_psycopg}):
                 self.assertTrue(worker.isConnectionError(FakeOperationalError("db down")))
                 self.assertTrue(worker.isConnectionError(FakeInterfaceError("db closed")))
         finally:
@@ -162,6 +162,17 @@ class TestIsConnectionError(unittest.TestCase):
     def test_plain_value_error_is_not_transient(self):
         # Programmer errors must still bubble up so users can fix them.
         self.assertFalse(self.worker.isConnectionError(ValueError("bug")))
+
+
+class TestWorkerInitialization(unittest.TestCase):
+    def test_worker_accepts_none_opts(self):
+        worker = Worker("issue_3103_queue", None, None)
+
+        try:
+            self.assertEqual(worker.prefix, "bull")
+            self.assertIsNone(worker.workerName)
+        finally:
+            asyncio.run(worker.close(force=True))
 
 
 class TestRetryIfFailedDoesNotBusyLoop(unittest.IsolatedAsyncioTestCase):

@@ -80,6 +80,7 @@ def _postgres_connection_error_types():
 class Worker(EventEmitter):
     def __init__(self, name: str, processor: Callable[[Job, str], asyncio.Future], opts: WorkerOptions = {}):
         super().__init__()
+        opts = opts or {}
         self.name = name
         self.processor = processor
         final_opts = {
@@ -90,7 +91,7 @@ class Worker(EventEmitter):
             "stalledInterval": 30000,
             "runRetryDelay": 15000,
         }
-        final_opts.update(opts or {})
+        final_opts.update(opts)
         self.opts = final_opts
         self.backend = create_backend(name, opts, with_blocking_connection=True)
         # Compatibility handles for callers/tests that read the raw connections
