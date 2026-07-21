@@ -382,7 +382,9 @@ defmodule BullMQ.Backends.PostgresTest do
     assert {:ok, true} = Backend.has_job_lock?(b, id)
 
     assert {:ok, []} = Backend.extend_locks(b, [id, id2], ["t", "t2"], 60_000)
-    assert {:ok, [^id2]} = Backend.extend_locks(b, [id, id2], ["t", "wrong-token"], 60_000)
+    assert {:ok, failed} = Backend.extend_locks(b, [id, id2], ["t", "wrong-token"], 60_000)
+    assert failed == [id2]
+    refute id in failed
   end
 
   test "reprocess_job moves a failed job back to waiting", %{backend: b, queue: q} do
