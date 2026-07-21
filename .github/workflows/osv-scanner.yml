@@ -75,7 +75,11 @@ jobs:
       - name: Export results
         id: export
         run: |
-          DELIMITER="EOF_$(tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 16)"
+          DELIMITER="$(python - <<'PY'
+          import secrets
+          print(f"EOF_{secrets.token_hex(8)}")
+          PY
+          )"
           if [ -z "$DELIMITER" ]; then
             echo "::error::Failed to generate GitHub output delimiter"
             exit 1
