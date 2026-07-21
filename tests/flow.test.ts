@@ -6333,7 +6333,7 @@ describe('flows', () => {
       const flow = new FlowProducer({ connection, prefix });
       await flow.waitUntilReady();
 
-      const client = (await (flow as any).connection.client) as IORedis;
+      const client = (await flow.client) as IORedis;
       const realMulti = client.multi.bind(client);
       const multiSpy = vi
         .spyOn(client, 'multi')
@@ -6359,7 +6359,7 @@ describe('flows', () => {
       const flow = new FlowProducer({ connection, prefix });
       await flow.waitUntilReady();
 
-      const client = (await (flow as any).connection.client) as IORedis;
+      const client = (await flow.client) as IORedis;
       const realMulti = client.multi.bind(client);
       const multiSpy = vi
         .spyOn(client, 'multi')

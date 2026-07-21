@@ -231,7 +231,7 @@ export class FlowProducer extends EventEmitter {
         // ioredis returns `null` from exec() when the multi was
         // aborted (READONLY replica, WATCH conflict, pipeline error)
         // and `[err, value]` per command otherwise.
-        if (!results) {
+        if (results === null) {
           throw new Error(
             'Flow could not be added: Redis transaction was aborted',
           );
@@ -324,7 +324,7 @@ export class FlowProducer extends EventEmitter {
         // can detect partially-failed roots via the returned tree's
         // missing job id (and there is an existing test that relies
         // on that semantics for addBulk).
-        if (!results) {
+        if (results === null) {
           throw new Error(
             'Flows could not be added: Redis transaction was aborted',
           );
