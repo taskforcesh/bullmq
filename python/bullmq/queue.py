@@ -3,7 +3,7 @@ from typing import Union
 from bullmq.event_emitter import EventEmitter
 from bullmq.types import QueueBaseOptions, RetryJobsOptions, JobOptions, PromoteJobsOptions
 from bullmq.utils import extract_result
-from bullmq.backends import create_backend
+from bullmq.backends import RedisBackend, create_backend
 from bullmq.job import Job
 
 
@@ -24,7 +24,9 @@ class Queue(EventEmitter):
         # Compatibility handles for tests / callers that read the raw client
         # or connection directly (Redis backend only). All queue operations go
         # through `backend`.
-        self.redisConnection = getattr(self.backend, "connection", None)
+        self.redisConnection = (
+            self.backend.connection if isinstance(self.backend, RedisBackend) else None
+        )
         self.client = getattr(self.backend, "conn", None)
         self.keys = self.backend.keys
         self.qualifiedName = self.backend.qualifiedName

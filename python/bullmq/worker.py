@@ -6,7 +6,7 @@ from redis.exceptions import (
     TimeoutError as RedisTimeoutError,
 )
 from bullmq.custom_errors import UnrecoverableError, WaitingChildrenError
-from bullmq.backends import create_backend
+from bullmq.backends import RedisBackend, create_backend
 from bullmq.event_emitter import EventEmitter
 from bullmq.job import Job
 from bullmq.timer import Timer
@@ -96,8 +96,12 @@ class Worker(EventEmitter):
         self.backend = create_backend(name, opts, with_blocking_connection=True)
         # Compatibility handles for callers/tests that read the raw connections
         # (Redis backend only). All datastore operations go through `backend`.
-        self.redisConnection = getattr(self.backend, "connection", None)
-        self.blockingRedisConnection = getattr(self.backend, "blocking_connection", None)
+        self.redisConnection = (
+            self.backend.connection if isinstance(self.backend, RedisBackend) else None
+        )
+        self.blockingRedisConnection = (
+            self.backend.blocking_connection if isinstance(self.backend, RedisBackend) else None
+        )
         self.client = getattr(self.backend, "conn", None)
         self.bclient = getattr(self.backend, "bclient", None)
         self.prefix = opts.get("prefix", "bull")

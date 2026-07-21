@@ -31,7 +31,7 @@ from unittest.mock import AsyncMock, patch
 
 import redis.exceptions
 
-from bullmq import Worker
+from bullmq import Queue, Worker
 from bullmq.worker import _postgres_connection_error_types
 
 
@@ -193,6 +193,44 @@ class TestWorkerInitialization(unittest.TestCase):
             self.assertEqual(worker.clientName, "tenant_a:test-queue:w:worker-1")
         finally:
             asyncio.run(worker.close(force=True))
+
+    def test_worker_redis_compatibility_handles_are_none_for_non_redis_backends(self):
+        backend = SimpleNamespace(
+            qualifiedName="test-queue",
+            clientName=lambda suffix=None: f"tenant_a:test-queue{suffix or ''}",
+            connection=object(),
+            blocking_connection=object(),
+            close=AsyncMock(),
+            capabilities={"canBlockFor1Ms": True},
+        )
+
+        with patch("bullmq.worker.create_backend", return_value=backend):
+            worker = Worker(
+                "test-queue",
+                None,
+                {"name": "worker-1", "backend": "postgres", "autorun": False},
+            )
+
+        try:
+            self.assertIsNone(worker.redisConnection)
+            self.assertIsNone(worker.blockingRedisConnection)
+        finally:
+            asyncio.run(worker.close(force=True))
+
+
+class TestQueueInitialization(unittest.TestCase):
+    def test_queue_redis_compatibility_handle_is_none_for_non_redis_backends(self):
+        backend = SimpleNamespace(
+            qualifiedName="test-queue",
+            connection=object(),
+            keys={},
+            close=AsyncMock(),
+        )
+
+        with patch("bullmq.queue.create_backend", return_value=backend):
+            queue = Queue("test-queue", {"backend": "postgres"})
+
+        self.assertIsNone(queue.redisConnection)
 
 
 class TestRetryIfFailedDoesNotBusyLoop(unittest.IsolatedAsyncioTestCase):
