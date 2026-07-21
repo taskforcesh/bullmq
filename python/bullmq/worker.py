@@ -299,7 +299,7 @@ class Worker(EventEmitter):
 
     @property
     def minimumBlockTimeout(self):
-        return minimum_block_timeout if self.backend.capabilities.get("canBlockFor1Ms", True) else 0.002
+        return self.backend.minimumBlockTimeout
 
     async def processJob(self, job: Job, token: str):
         try:

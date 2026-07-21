@@ -217,6 +217,27 @@ class TestWorkerInitialization(unittest.TestCase):
         finally:
             asyncio.run(worker.close(force=True))
 
+    def test_worker_uses_backend_minimum_block_timeout(self):
+        backend = SimpleNamespace(
+            qualifiedName="test-queue",
+            clientName=lambda suffix=None: f"tenant_a:test-queue{suffix or ''}",
+            close=AsyncMock(),
+            capabilities={"canBlockFor1Ms": False},
+            minimumBlockTimeout=0.001,
+        )
+
+        with patch("bullmq.worker.create_backend", return_value=backend):
+            worker = Worker(
+                "test-queue",
+                None,
+                {"backend": "postgres", "autorun": False},
+            )
+
+        try:
+            self.assertEqual(worker.minimumBlockTimeout, 0.001)
+        finally:
+            asyncio.run(worker.close(force=True))
+
 
 class TestQueueInitialization(unittest.TestCase):
     def test_queue_redis_compatibility_handle_is_none_for_non_redis_backends(self):
