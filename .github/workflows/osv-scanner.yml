@@ -32,6 +32,7 @@ jobs:
 
       - name: Checkout target branch
         run: |
+          git fetch origin "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF"
           git checkout "origin/$GITHUB_BASE_REF"
           git submodule update --recursive
 
@@ -48,7 +49,7 @@ jobs:
 
       - name: Checkout current branch
         run: |
-          git checkout -f "$GITHUB_SHA"
+          git checkout "$GITHUB_SHA"
           git submodule update --recursive
 
       - name: Run scanner on new code
