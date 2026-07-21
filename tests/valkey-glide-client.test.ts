@@ -275,7 +275,7 @@ describe('valkey glide adapter', () => {
   });
 
   it('duplicates client via createClient and applies connectionName', async () => {
-    MockGlideClient.instances.length = 0;
+    MockGlideClient.instances.splice(0);
 
     const raw = new MockGlideClient({
       addresses: [{ host: 'localhost', port: 6379 }],
