@@ -361,14 +361,7 @@ class Queue(EventEmitter):
         current_types = list(types)
 
         if len(types) > 0:
-            sanitized_types = current_types.copy()
-
-            try:
-                sanitized_types.index('waiting')
-                sanitized_types.append('paused')
-            except ValueError:
-                pass
-            set_res = set(sanitized_types)
+            set_res = set(current_types)
             list_res = (list(set_res))
 
             return list_res
@@ -377,7 +370,7 @@ class Queue(EventEmitter):
             'completed',
             'delayed',
             'failed',
-            'paused',
+            'prioritized',
             'waiting',
             'waiting-children'
         ]
