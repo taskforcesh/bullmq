@@ -61,6 +61,20 @@ class TestQueueClusterGetters(unittest.IsolatedAsyncioTestCase):
 
         await queue.close()
 
+    async def test_get_workers_uses_backend_client_name_prefix(self):
+        queue = Queue("test-queue", {"prefix": "bull"})
+        queue.backend.clientName = lambda suffix=None: f"tenant-a:test-queue{suffix or ''}"
+
+        client_list = "id=1 addr=127.0.0.1:6379 name=tenant-a:test-queue:w:w1 age=10\n"
+        client = SimpleNamespace(client_list=AsyncMock(return_value=client_list))
+        _install_client(queue, client)
+
+        workers = await queue.get_workers()
+        self.assertEqual(len(workers), 1)
+        self.assertEqual(workers[0]["rawname"], "tenant-a:test-queue:w:w1")
+
+        await queue.close()
+
     async def test_get_workers_count_cluster(self):
         queue = Queue("test-queue", {"prefix": "bull"})
 

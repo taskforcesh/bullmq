@@ -107,7 +107,7 @@ class Queue(EventEmitter):
         workers that are available to process jobs for this queue.
         Note: Some Redis providers do not support CLIENT LIST.
         """
-        client_name_prefix = self.qualifiedName
+        client_name_prefix = self.backend.clientName()
 
         def matcher(name: str):
             return name == client_name_prefix or name.startswith(f"{client_name_prefix}:w:")

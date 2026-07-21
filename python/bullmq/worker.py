@@ -115,7 +115,9 @@ class Worker(EventEmitter):
         self.drained = False
         self.qualifiedName = self.backend.qualifiedName
         self.workerName = opts.get("name")
-        self.clientName = self.qualifiedName + (f":w:{self.workerName}" if self.workerName else "")
+        self.clientName = self.backend.clientName(
+            f":w:{self.workerName}" if self.workerName else ""
+        )
         self._client_name_set = False
 
         if processor:

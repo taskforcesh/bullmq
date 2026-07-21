@@ -174,6 +174,26 @@ class TestWorkerInitialization(unittest.TestCase):
         finally:
             asyncio.run(worker.close(force=True))
 
+    def test_worker_uses_backend_client_name_convention(self):
+        backend = SimpleNamespace(
+            qualifiedName="bull:test-queue",
+            clientName=lambda suffix=None: f"tenant_a:test-queue{suffix or ''}",
+            close=AsyncMock(),
+            capabilities={"canBlockFor1Ms": True},
+        )
+
+        with patch("bullmq.worker.create_backend", return_value=backend):
+            worker = Worker(
+                "test-queue",
+                None,
+                {"name": "worker-1", "autorun": False},
+            )
+
+        try:
+            self.assertEqual(worker.clientName, "tenant_a:test-queue:w:worker-1")
+        finally:
+            asyncio.run(worker.close(force=True))
+
 
 class TestRetryIfFailedDoesNotBusyLoop(unittest.IsolatedAsyncioTestCase):
     """``retryIfFailed`` must not tight-loop on either error class."""

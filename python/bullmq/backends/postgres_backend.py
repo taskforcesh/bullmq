@@ -236,7 +236,7 @@ class PostgresBackend(Backend):
         return f"{self.queue_name}:{type}"
 
     def clientName(self, suffix: Optional[str] = None) -> str:
-        return f"{self.queue_name}{suffix or ''}"
+        return f"{self.schema}:{self.queue_name}{suffix or ''}"
 
     # ============================================================
     # Adding jobs

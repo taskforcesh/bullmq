@@ -60,6 +60,13 @@ class TestPostgresBackendJobMapping(unittest.TestCase):
         self.assertEqual(job.progress, "baz")
         self.assertEqual(job.returnvalue, "done")
 
+    def test_client_name_includes_schema_namespace(self):
+        connection = SimpleNamespace(schema="tenant_a")
+        backend = PostgresBackend("queue", connection)
+
+        self.assertEqual(backend.clientName(), "tenant_a:queue")
+        self.assertEqual(backend.clientName(":w:worker"), "tenant_a:queue:w:worker")
+
 
 class _FakeCursor:
     def __init__(self, current_version):
