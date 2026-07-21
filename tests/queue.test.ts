@@ -182,7 +182,7 @@ describe('queues', () => {
 
       describe('addStandardJob', () => {
         it('stores the job id consistently in decimal form (not 3e+8)', async () => {
-          const client = await queue.client;
+          const client = await getRedisClient(queue);
           await primeCounter(client, queue.name);
 
           const job = await queue.add('test', { foo: 'bar' });
@@ -212,7 +212,7 @@ describe('queues', () => {
 
       describe('addPrioritizedJob', () => {
         it('stores the job id consistently in decimal form (not 3e+8)', async () => {
-          const client = await queue.client;
+          const client = await getRedisClient(queue);
           await primeCounter(client, queue.name);
 
           const job = await queue.add('test', { foo: 'bar' }, { priority: 1 });
@@ -235,7 +235,7 @@ describe('queues', () => {
 
       describe('addDelayedJob', () => {
         it('stores the job id consistently in decimal form (not 3e+8)', async () => {
-          const client = await queue.client;
+          const client = await getRedisClient(queue);
           await primeCounter(client, queue.name);
 
           const job = await queue.add('test', { foo: 'bar' }, { delay: 10000 });
@@ -258,7 +258,7 @@ describe('queues', () => {
 
       describe('addParentJob', () => {
         it('stores the parent job id consistently in decimal form (not 3e+8)', async () => {
-          const client = await queue.client;
+          const client = await getRedisClient(queue);
           await primeCounter(client, queue.name);
 
           const job = new Job(queue, 'parent-job', { foo: 'bar' });
