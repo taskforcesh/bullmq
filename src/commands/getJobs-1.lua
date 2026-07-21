@@ -26,7 +26,7 @@ local prefix = KEYS[1]
 local rangeStart = tonumber(ARGV[1])
 local rangeEnd = tonumber(ARGV[2])
 local asc = ARGV[3] == "1"
-local maxIterations = tonumber(ARGV[4])
+local max_iterations = tonumber(ARGV[4])
 local results = {}
 
 local function isListType(stateType)
@@ -105,7 +105,7 @@ local function collectJobs(stateKey, stateType)
   local needed = rangeEnd - rangeStart + 1
   local cursor = rangeStart
   local iterations = 0
-  while #entries < needed and iterations < maxIterations do
+  while #entries < needed and iterations < max_iterations do
     local ids = fetchIds(stateKey, stateType, cursor, cursor + needed - 1, listLength)
     if #ids == 0 then
       break

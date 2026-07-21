@@ -1566,7 +1566,7 @@ defmodule BullMQ.Scripts do
     # KEYS[1] is the queue key prefix (with trailing colon); the script builds
     # the state keys and job hash keys from it.
     keys = [Keys.key_prefix(ctx)]
-    args = [start_idx, end_idx, asc, max_iterations | types]
+    args = [start_idx, end_idx, if(asc, do: 1, else: 0), max_iterations | types]
 
     execute(conn, :get_jobs, keys, args)
   end
