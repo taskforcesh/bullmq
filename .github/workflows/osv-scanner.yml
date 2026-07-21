@@ -72,29 +72,6 @@ jobs:
             --gh-annotations=true
             --fail-on-vuln=true
 
-      - name: Export results
-        id: export
-        run: |
-          DELIMITER="$(python - <<'PY'
-          import secrets
-          print(f"EOF_{secrets.token_hex(8)}")
-          PY
-          )"
-          if [ -z "$DELIMITER" ]; then
-            echo "::error::Failed to generate GitHub output delimiter"
-            exit 1
-          fi
-          if [ -f old-results.json ]; then
-            echo "old-results<<${DELIMITER}" >> "${GITHUB_OUTPUT}"
-            cat old-results.json >> "${GITHUB_OUTPUT}"
-            echo "${DELIMITER}" >> "${GITHUB_OUTPUT}"
-          fi
-          if [ -f new-results.json ]; then
-            echo "new-results<<${DELIMITER}" >> "${GITHUB_OUTPUT}"
-            cat new-results.json >> "${GITHUB_OUTPUT}"
-            echo "${DELIMITER}" >> "${GITHUB_OUTPUT}"
-          fi
-
       - name: Upload artifact
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
