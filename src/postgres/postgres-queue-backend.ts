@@ -1168,6 +1168,7 @@ export class PostgresQueueBackend
       duration,
       Date.now(),
     ]);
+    // The SQL command returns the ids whose locks could not be renewed.
     return rows.map(({ id }) => id);
   }
 
