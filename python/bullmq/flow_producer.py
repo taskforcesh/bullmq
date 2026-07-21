@@ -66,7 +66,7 @@ class FlowProducer:
         queue_name = node.get("queueName")
         queue_opts = queues_opts and queues_opts.get(queue_name)
 
-        jobs_opts = queue_opts.get('defaultJobOptions', {}) if queue_opts else {}
+        jobs_opts = dict((queue_opts.get('defaultJobOptions') or {}) if queue_opts else {})
         jobs_opts.update(node.get("opts") or {})
         job_id = (node.get("opts") or {}).get("jobId") or uuid4().hex
         parent_opts = parent.get("parentOpts")

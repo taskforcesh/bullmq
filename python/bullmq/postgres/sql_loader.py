@@ -25,7 +25,11 @@ def _resolve_sql_root() -> str:
     directory = _MODULE_DIR
     for _ in range(8):
         candidate = os.path.join(directory, "src", "postgres")
-        if os.path.isdir(os.path.join(candidate, "commands")):
+        if (
+            os.path.isdir(os.path.join(candidate, "commands"))
+            and os.path.isdir(os.path.join(candidate, "migrations"))
+            and os.path.isdir(os.path.join(directory, "python", "bullmq"))
+        ):
             return candidate
         parent = os.path.dirname(directory)
         if parent == directory:
