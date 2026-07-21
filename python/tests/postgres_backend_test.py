@@ -191,7 +191,7 @@ class TestPostgresConnection(unittest.IsolatedAsyncioTestCase):
         listen_conn = SimpleNamespace(closed=False, execute=AsyncMock())
         connect = AsyncMock(side_effect=[main_conn, listen_conn])
         connection = PostgresConnection()
-        connection._ready = True
+        connection.wait_until_ready = AsyncMock()
 
         with patch(
             "bullmq.backends.postgres_connection.psycopg.AsyncConnection.connect",
@@ -205,6 +205,7 @@ class TestPostgresConnection(unittest.IsolatedAsyncioTestCase):
             "SELECT set_config('application_name', %s, false)",
             ("tenant_a:queue:w:1",),
         )
+        connection.wait_until_ready.assert_awaited_once()
         listen_conn.execute.assert_awaited_once_with(
             "SELECT set_config('application_name', %s, false)",
             ("tenant_a:queue:w:1",),
@@ -219,7 +220,7 @@ class TestPostgresConnection(unittest.IsolatedAsyncioTestCase):
         listen_conn = SimpleNamespace(closed=False, execute=AsyncMock())
         connect = AsyncMock(side_effect=[listen_conn, main_conn])
         connection = PostgresConnection()
-        connection._ready = True
+        connection.wait_until_ready = AsyncMock()
 
         with patch(
             "bullmq.backends.postgres_connection.psycopg.AsyncConnection.connect",
@@ -233,6 +234,7 @@ class TestPostgresConnection(unittest.IsolatedAsyncioTestCase):
             "SELECT set_config('application_name', %s, false)",
             ("tenant_a:queue:w:2",),
         )
+        connection.wait_until_ready.assert_awaited_once()
         listen_conn.execute.assert_awaited_once_with(
             "SELECT set_config('application_name', %s, false)",
             ("tenant_a:queue:w:2",),
