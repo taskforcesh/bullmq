@@ -686,10 +686,38 @@ describe('ValkeyGlideAdapter', () => {
   it('uses native batch execution when available', async () => {
     const raw = new MockGlideClient();
     const client = createValkeyGlideClient(raw as any);
+    const module = require('module') as typeof import('module') & {
+      _load: (...args: any[]) => any;
+    };
+    const originalLoad = module._load;
     let execCalls = 0;
+    let executedBatch: { commands: GlideArg[][] } | undefined;
 
-    (raw as any).exec = async () => {
+    class MockBatch {
+      commands: GlideArg[][] = [];
+
+      constructor(_isAtomic: boolean) {}
+
+      customCommand(args: GlideArg[]) {
+        this.commands.push(args);
+      }
+    }
+
+    module._load = function (
+      request: string,
+      parent: NodeModule | null,
+      isMain: boolean,
+    ) {
+      if (request === '@valkey/valkey-glide') {
+        return { Batch: MockBatch };
+      }
+
+      return originalLoad.call(this, request, parent, isMain);
+    };
+
+    (raw as any).exec = async (batch: MockBatch) => {
       execCalls++;
+      executedBatch = batch;
       return [1, { field: 'value' }];
     };
 
@@ -703,15 +731,24 @@ describe('ValkeyGlideAdapter', () => {
       return 'OK';
     };
 
-    const tx = client.multi();
-    tx.hset('hash', { field: 'value' });
-    tx.hgetall('hash');
+    try {
+      const tx = client.multi();
+      tx.hset('hash', { field: 'value' });
+      tx.hgetall('hash');
 
-    await expect(tx.exec()).resolves.toEqual([
-      [null, 1],
-      [null, { field: 'value' }],
-    ]);
+      await expect(tx.exec()).resolves.toEqual([
+        [null, 1],
+        [null, { field: 'value' }],
+      ]);
+    } finally {
+      module._load = originalLoad;
+    }
+
     expect(execCalls).toBe(1);
+    expect(executedBatch?.commands).toEqual([
+      ['HSET', 'hash', 'field', 'value'],
+      ['HGETALL', 'hash'],
+    ]);
   });
 
   it('reports wait status until connect is called', async () => {
