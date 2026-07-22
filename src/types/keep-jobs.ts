@@ -22,10 +22,17 @@ export type KeepJobs =
     }
   | {
       /**
-       * Maximum age in seconds for job to be kept. The cleanup is only
-       * evaluated when a new job of the same kind (completed or failed)
-       * finishes, so a job will only be removed after another job
-       * finishes past its expiration time.
+       * Maximum age **in seconds** for the job to be kept (NOT
+       * milliseconds). For example, to keep jobs for 7 days, use
+       * `7 * 24 * 60 * 60` (= 604800), not `7 * 24 * 60 * 60 * 1000`.
+       *
+       * The cleanup is only evaluated when a new job of the same kind
+       * (completed or failed) finishes, so a job will only be removed
+       * after another job finishes past its expiration time.
+       *
+       * Values larger than 10 years will trigger a runtime warning,
+       * since they almost always indicate a millisecond/second unit
+       * mix-up (see issue #3540).
        */
       age: number;
 

@@ -21,6 +21,7 @@ import {
   isNotConnectionError,
   isRedisInstance,
   randomUUID,
+  validateKeepJobsAge,
 } from '../utils';
 import { QueueBase } from './queue-base';
 import { Repeat } from './repeat';
@@ -263,6 +264,15 @@ export class Worker<
     if (typeof this.opts.drainDelay !== 'number' || this.opts.drainDelay <= 0) {
       throw new Error('drainDelay must be greater than 0');
     }
+
+    validateKeepJobsAge(
+      this.opts.removeOnComplete,
+      `Worker('${name}').removeOnComplete`,
+    );
+    validateKeepJobsAge(
+      this.opts.removeOnFail,
+      `Worker('${name}').removeOnFail`,
+    );
 
     this.concurrency = this.opts.concurrency;
 
