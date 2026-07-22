@@ -195,12 +195,45 @@ function normalizeScanReply(reply: unknown): [string, string[]] {
   return ['0', []];
 }
 
+function normalizeXRangeReply(reply: unknown): any[] {
+  if (!reply) {
+    return [];
+  }
+
+  if (
+    Array.isArray(reply) &&
+    reply.every(
+      entry =>
+        Array.isArray(entry) &&
+        entry.length === 2 &&
+        typeof entry[0] !== 'undefined' &&
+        Array.isArray(entry[1]),
+    )
+  ) {
+    return reply.map(([id, fields]: [unknown, unknown[]]) => [
+      toStringValue(id),
+      fields.map((field: unknown) => toStringValue(field)),
+    ]);
+  }
+
+  if (!isKeyValueArray(reply)) {
+    return [];
+  }
+
+  return reply.map(entry => [
+    toStringValue(entry.key),
+    flattenFieldPairs(entry.value),
+  ]);
+}
+
 export function createValkeyGlideClient(client: unknown): IRedisClient {
   return new ValkeyGlideAdapter(client as ValkeyGlideRawClient);
 }
 
 class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
   private scripts = new Map<string, LuaScript>();
+  private readonly scriptsBySha = new Map<string, LuaScript>();
+  private readonly scriptLoadPromises = new Map<string, Promise<void>>();
   private raw?: ValkeyGlideRawClient;
   private readonly rawPromise?: Promise<ValkeyGlideRawClient>;
   private statusOverride: string | undefined;
@@ -315,6 +348,23 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
     return this.runSerialized(async raw => raw.customCommand(args));
   }
 
+  private ensureScriptLoaded(script: LuaScript): Promise<void> {
+    let pendingLoad = this.scriptLoadPromises.get(script.sha);
+
+    if (!pendingLoad) {
+      pendingLoad = this.runRawCommand(['SCRIPT', 'LOAD', script.lua])
+        .then((): void => undefined)
+        .catch((): void => {
+          // Ignore script preload errors here – runCommand has NOSCRIPT fallback
+          // for non-transactional usage, and transactional callers will surface
+          // the underlying Redis error if the script still is not available.
+        });
+      this.scriptLoadPromises.set(script.sha, pendingLoad);
+    }
+
+    return pendingLoad;
+  }
+
   private async applyConnectionNameIfNeeded(): Promise<void> {
     if (!this.connectionName) {
       return;
@@ -387,7 +437,8 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
 
     const duplicated = (async () => {
       const raw = await this.ensureRaw();
-      const createClient = raw.constructor?.createClient;
+      const clientConstructor = raw.constructor;
+      const createClient = clientConstructor?.createClient;
       const config = raw.config ?? raw.options;
 
       if (!createClient || !config) {
@@ -397,7 +448,7 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
         );
       }
 
-      return createClient(config);
+      return clientConstructor.createClient(config);
     })();
 
     return new ValkeyGlideAdapter(duplicated, options.connectionName);
@@ -408,11 +459,16 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
     definition: { numberOfKeys: number; lua: string; readOnly?: boolean },
   ): void {
     const sha = createHash('sha1').update(definition.lua).digest('hex');
-    this.scripts.set(name, {
+    const script = {
       sha,
       lua: definition.lua,
       numberOfKeys: definition.numberOfKeys,
-    });
+    };
+
+    this.scripts.set(name, script);
+    this.scriptsBySha.set(sha, script);
+    (this as any)[name] = (...args: any[]) => this.runCommand(name, args);
+    void this.ensureScriptLoaded(script);
   }
 
   async runCommand(name: string, args: any[]): Promise<any> {
@@ -750,9 +806,104 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
     return stream;
   }
 
+  async keys(pattern: string): Promise<string[]> {
+    const result = await this.runRawCommand(['KEYS', pattern]);
+    return Array.isArray(result) ? result.map(toStringValue) : [];
+  }
+
+  async exists(...keys: string[]): Promise<number> {
+    if (keys.length === 0) {
+      return 0;
+    }
+    const result = await this.runRawCommand(['EXISTS', ...keys]);
+    if (typeof result === 'boolean') {
+      return result ? 1 : 0;
+    }
+    return Number(result);
+  }
+
+  async zadd(key: string, ...args: any[]): Promise<number> {
+    const commandArgs: GlideArg[] = ['ZADD', key];
+    for (let i = 0; i < args.length; i += 2) {
+      commandArgs.push(toGlideArg(args[i]), toGlideArg(args[i + 1]));
+    }
+    return Number(await this.runRawCommand(commandArgs));
+  }
+
+  async zrem(key: string, ...members: string[]): Promise<number> {
+    return Number(await this.runRawCommand(['ZREM', key, ...members]));
+  }
+
+  async xlen(key: string): Promise<number> {
+    return Number(await this.runRawCommand(['XLEN', key]));
+  }
+
+  async xrevrange(
+    key: string,
+    end: string,
+    start: string,
+    ...rest: any[]
+  ): Promise<any[]> {
+    const args: GlideArg[] = ['XREVRANGE', key, end, start];
+    if (rest[0] === 'COUNT') {
+      args.push('COUNT', toGlideArg(rest[1]));
+    }
+    return normalizeXRangeReply(await this.runRawCommand(args));
+  }
+
+  async sadd(key: string, ...members: (string | number)[]): Promise<number> {
+    return Number(
+      await this.runRawCommand([
+        'SADD',
+        key,
+        ...members.map(member => toGlideArg(member)),
+      ]),
+    );
+  }
+
+  async scard(key: string): Promise<number> {
+    return Number(await this.runRawCommand(['SCARD', key]));
+  }
+
+  async lpush(key: string, ...values: string[]): Promise<number> {
+    return Number(await this.runRawCommand(['LPUSH', key, ...values]));
+  }
+
+  async rpop(key: string): Promise<string | null> {
+    const result = await this.runRawCommand(['RPOP', key]);
+    return result == null ? null : toStringValue(result);
+  }
+
+  async incr(key: string): Promise<number> {
+    return Number(await this.runRawCommand(['INCR', key]));
+  }
+
+  async incrby(key: string, increment: number): Promise<number> {
+    return Number(await this.runRawCommand(['INCRBY', key, String(increment)]));
+  }
+
+  async flushall(): Promise<string> {
+    const result = await this.runRawCommand(['FLUSHALL']);
+    return result == null ? 'OK' : toStringValue(result);
+  }
+
   async execQueuedCommands(
     commands: { args: GlideArg[]; transform?: (value: unknown) => unknown }[],
   ): Promise<[Error | null, any][] | null> {
+    const requiredScripts = commands
+      .map(command =>
+        String(command.args[0]).toUpperCase() === 'EVALSHA'
+          ? this.scriptsBySha.get(toStringValue(command.args[1]))
+          : undefined,
+      )
+      .filter((script): script is LuaScript => Boolean(script));
+
+    if (requiredScripts.length > 0) {
+      await Promise.all(
+        requiredScripts.map(script => this.ensureScriptLoaded(script)),
+      );
+    }
+
     return this.runSerialized(async raw => {
       await raw.customCommand(['MULTI']);
 

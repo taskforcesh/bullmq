@@ -15,6 +15,12 @@ class MockGlideClient {
   private readonly values = new Map<string, string>();
   private readonly hashes = new Map<string, Record<string, string>>();
   private readonly sets = new Map<string, Set<string>>();
+  private readonly zsets = new Map<string, Map<string, string>>();
+  private readonly lists = new Map<string, string[]>();
+  private readonly streams = new Map<
+    string,
+    Array<{ id: string; fields: string[] }>
+  >();
   private readonly scripts = new Set<string>();
 
   constructor(config: Record<string, any> = {}) {
@@ -80,6 +86,12 @@ class MockGlideClient {
       return 'id=1 name=mock';
     }
 
+    if (cmd === 'SCRIPT' && tokens[1]?.toUpperCase() === 'LOAD') {
+      const sha = createHash('sha1').update(tokens[2]).digest('hex');
+      this.scripts.add(sha);
+      return sha;
+    }
+
     if (cmd === 'SET') {
       this.values.set(tokens[1], tokens[2]);
       return 'OK';
@@ -92,7 +104,14 @@ class MockGlideClient {
     if (cmd === 'DEL') {
       let deleted = 0;
       for (let i = 1; i < tokens.length; i++) {
-        if (this.values.delete(tokens[i]) || this.hashes.delete(tokens[i])) {
+        if (
+          this.values.delete(tokens[i]) ||
+          this.hashes.delete(tokens[i]) ||
+          this.sets.delete(tokens[i]) ||
+          this.zsets.delete(tokens[i]) ||
+          this.lists.delete(tokens[i]) ||
+          this.streams.delete(tokens[i])
+        ) {
           deleted++;
         }
       }
@@ -149,12 +168,29 @@ class MockGlideClient {
       return Array.from(this.sets.get(tokens[1]) ?? []);
     }
 
+    if (cmd === 'SADD') {
+      const set = this.sets.get(tokens[1]) ?? new Set<string>();
+      let added = 0;
+      for (const member of tokens.slice(2)) {
+        if (!set.has(member)) {
+          added++;
+        }
+        set.add(member);
+      }
+      this.sets.set(tokens[1], set);
+      return added;
+    }
+
+    if (cmd === 'SCARD') {
+      return (this.sets.get(tokens[1]) ?? new Set()).size;
+    }
+
     if (cmd === 'LLEN') {
-      return 0;
+      return (this.lists.get(tokens[1]) ?? []).length;
     }
 
     if (cmd === 'LRANGE') {
-      return [];
+      return [...(this.lists.get(tokens[1]) ?? [])];
     }
 
     if (cmd === 'LPOS') {
@@ -165,20 +201,68 @@ class MockGlideClient {
       return 'OK';
     }
 
+    if (cmd === 'LPUSH') {
+      const list = this.lists.get(tokens[1]) ?? [];
+      for (const value of tokens.slice(2)) {
+        list.unshift(value);
+      }
+      this.lists.set(tokens[1], list);
+      return list.length;
+    }
+
+    if (cmd === 'RPOP') {
+      const list = this.lists.get(tokens[1]) ?? [];
+      return list.pop() ?? null;
+    }
+
     if (cmd === 'ZRANGE' || cmd === 'ZREVRANGE') {
-      return [];
+      const entries = Array.from(
+        this.zsets.get(tokens[1])?.entries() ?? [],
+      ).sort((a, b) => Number(a[1]) - Number(b[1]));
+      return entries.map(([member]) => member);
     }
 
     if (cmd === 'ZCARD') {
-      return 0;
+      return (this.zsets.get(tokens[1]) ?? new Map()).size;
     }
 
     if (cmd === 'ZSCORE') {
-      return null;
+      return this.zsets.get(tokens[1])?.get(tokens[2]) ?? null;
+    }
+
+    if (cmd === 'ZADD') {
+      const zset = this.zsets.get(tokens[1]) ?? new Map<string, string>();
+      let added = 0;
+      for (let i = 2; i < tokens.length; i += 2) {
+        const score = tokens[i];
+        const member = tokens[i + 1];
+        if (!zset.has(member)) {
+          added++;
+        }
+        zset.set(member, score);
+      }
+      this.zsets.set(tokens[1], zset);
+      return added;
+    }
+
+    if (cmd === 'ZREM') {
+      const zset = this.zsets.get(tokens[1]) ?? new Map<string, string>();
+      let removed = 0;
+      for (const member of tokens.slice(2)) {
+        if (zset.delete(member)) {
+          removed++;
+        }
+      }
+      this.zsets.set(tokens[1], zset);
+      return removed;
     }
 
     if (cmd === 'XADD') {
-      return '1-0';
+      const stream = this.streams.get(tokens[1]) ?? [];
+      const id = tokens[2] === '*' ? `${stream.length + 1}-0` : tokens[2];
+      stream.push({ id, fields: tokens.slice(3) });
+      this.streams.set(tokens[1], stream);
+      return id;
     }
 
     if (cmd === 'XREAD') {
@@ -194,12 +278,75 @@ class MockGlideClient {
       return 1;
     }
 
+    if (cmd === 'XLEN') {
+      return (this.streams.get(tokens[1]) ?? []).length;
+    }
+
+    if (cmd === 'XREVRANGE') {
+      const stream = [...(this.streams.get(tokens[1]) ?? [])].reverse();
+      const countIndex = tokens.findIndex(
+        token => token.toUpperCase() === 'COUNT',
+      );
+      const limited =
+        countIndex >= 0
+          ? stream.slice(0, Number(tokens[countIndex + 1]))
+          : stream;
+      return limited.map(entry => ({
+        key: entry.id,
+        value: entry.fields
+          .map((field, index) =>
+            index % 2 === 0
+              ? { key: field, value: entry.fields[index + 1] }
+              : null,
+          )
+          .filter(Boolean),
+      }));
+    }
+
     if (cmd === 'BZPOPMIN') {
       return ['queue', 'job1', '10'];
     }
 
     if (cmd === 'SCAN') {
-      return ['0', [...this.values.keys(), ...this.hashes.keys()]];
+      return [
+        '0',
+        [
+          ...this.values.keys(),
+          ...this.hashes.keys(),
+          ...this.sets.keys(),
+          ...this.zsets.keys(),
+          ...this.lists.keys(),
+          ...this.streams.keys(),
+        ],
+      ];
+    }
+
+    if (cmd === 'KEYS') {
+      const pattern = new RegExp(
+        `^${tokens[1].replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')}$`,
+      );
+      return [
+        ...this.values.keys(),
+        ...this.hashes.keys(),
+        ...this.sets.keys(),
+        ...this.zsets.keys(),
+        ...this.lists.keys(),
+        ...this.streams.keys(),
+      ].filter(key => pattern.test(key));
+    }
+
+    if (cmd === 'EXISTS') {
+      return tokens
+        .slice(1)
+        .filter(
+          key =>
+            this.values.has(key) ||
+            this.hashes.has(key) ||
+            this.sets.has(key) ||
+            this.zsets.has(key) ||
+            this.lists.has(key) ||
+            this.streams.has(key),
+        ).length;
     }
 
     if (cmd === 'HSCAN') {
@@ -228,11 +375,55 @@ class MockGlideClient {
       return 'redis_version:7.2.0';
     }
 
+    if (cmd === 'INCR') {
+      const value = Number(this.values.get(tokens[1]) ?? '0') + 1;
+      this.values.set(tokens[1], String(value));
+      return value;
+    }
+
+    if (cmd === 'INCRBY') {
+      const value =
+        Number(this.values.get(tokens[1]) ?? '0') + Number(tokens[2]);
+      this.values.set(tokens[1], String(value));
+      return value;
+    }
+
+    if (cmd === 'FLUSHALL') {
+      this.values.clear();
+      this.hashes.clear();
+      this.sets.clear();
+      this.zsets.clear();
+      this.lists.clear();
+      this.streams.clear();
+      return 'OK';
+    }
+
     return null;
   }
 }
 
 describe('valkey glide adapter', () => {
+  it('preserves the raw constructor context when duplicating clients', async () => {
+    class ContextAwareGlideClient extends MockGlideClient {
+      static async createClient(config: Record<string, any>) {
+        if (this !== ContextAwareGlideClient) {
+          throw new Error('lost createClient context');
+        }
+
+        return new ContextAwareGlideClient(config);
+      }
+    }
+
+    const raw = new ContextAwareGlideClient({
+      addresses: [{ host: 'localhost', port: 6379 }],
+    });
+    const client = createValkeyGlideClient(raw as any);
+
+    const duplicate = client.duplicate({ connectionName: 'worker' });
+
+    await expect(duplicate.connect()).resolves.toBeUndefined();
+  });
+
   it('maps core commands and normalizes responses', async () => {
     const raw = new MockGlideClient({
       addresses: [{ host: 'localhost', port: 6379 }],
@@ -256,9 +447,52 @@ describe('valkey glide adapter', () => {
     expect(raw.commands).toContainEqual(['SET', 'foo', 'bar', 'PX', '500']);
   });
 
+  it('supports ioredis-compatible helper commands used by the test suite', async () => {
+    const raw = new MockGlideClient();
+    const client = createValkeyGlideClient(raw as any) as any;
+
+    await client.sadd('set', 'a', 'b');
+    await client.zadd('sorted', 1, 'job-1', 2, 'job-2');
+    await client.lpush('list', 'a', 'b');
+    await client.xadd('events', '*', { event: 'completed', jobId: '1' });
+    await client.incrby('counter', 4);
+
+    expect(await client.keys('*')).toEqual(
+      expect.arrayContaining(['set', 'sorted', 'list', 'events', 'counter']),
+    );
+    expect(await client.exists('set', 'missing')).toBe(1);
+    expect(await client.scard('set')).toBe(2);
+    expect(await client.zcard('sorted')).toBe(2);
+    expect(await client.zrem('sorted', 'job-1')).toBe(1);
+    expect(await client.xlen('events')).toBe(1);
+    expect(await client.xrevrange('events', '+', '-', 'COUNT', 1)).toEqual([
+      ['1-0', ['event', 'completed', 'jobId', '1']],
+    ]);
+    expect(await client.rpop('list')).toBe('a');
+    expect(await client.incr('counter')).toBe(5);
+    expect(await client.flushall()).toBe('OK');
+    expect(
+      await client.exists('set', 'sorted', 'list', 'events', 'counter'),
+    ).toBe(0);
+  });
+
   it('falls back from EVALSHA to EVAL on NOSCRIPT', async () => {
     const raw = new MockGlideClient();
     const client = createValkeyGlideClient(raw as any);
+    const originalCustomCommand = raw.customCommand.bind(raw);
+
+    raw.customCommand = async (command: any[]) => {
+      if (command[0] === 'SCRIPT' && command[1] === 'LOAD') {
+        raw.commands.push(
+          command.map(token =>
+            Buffer.isBuffer(token) ? token.toString() : String(token),
+          ),
+        );
+        return null;
+      }
+
+      return originalCustomCommand(command);
+    };
 
     client.defineCommand('myScript', {
       numberOfKeys: 1,
