@@ -312,7 +312,7 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
     }
     if (!this.rawPromise) {
       throw new Error(
-        'BullMQ: Valkey Glide client not initialized. This is an internal error; ensure the client promise resolves before use or report it as a bug if it persists.',
+        'BullMQ: Valkey Glide client not initialized. Please report this as a bug.',
       );
     }
     this.raw = await this.rawPromise;
@@ -444,8 +444,7 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
 
       if (!createClient || !config) {
         throw new Error(
-          'BullMQ: Cannot duplicate Valkey Glide client: missing createClient() or config. ' +
-            'Ensure the client was created via GlideClient.createClient()/GlideClusterClient.createClient().',
+          `BullMQ: Cannot duplicate Valkey Glide client: missing createClient() or config. Ensure the client was created via GlideClient.createClient()/GlideClusterClient.createClient().`,
         );
       }
 
