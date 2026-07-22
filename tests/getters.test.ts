@@ -1215,4 +1215,23 @@ describe('Jobs getters', () => {
       }
     });
   });
+
+  describe('.getJobs', () => {
+    it('atomically returns jobs for the requested range', async () => {
+      await queue.add('test', { foo: 1 });
+      await queue.add('test', { foo: 2 });
+      await queue.add('test', { foo: 3 });
+
+      const jobs = await queue.getJobs(['waiting'], 0, -1, true);
+
+      expect(jobs).toBeInstanceOf(Array);
+      expect(jobs).toHaveLength(3);
+      expect(jobs.map(j => j.data.foo)).toEqual([1, 2, 3]);
+      for (const job of jobs) {
+        expect(job).toBeDefined();
+        expect(job.id).toBeDefined();
+        expect(job.name).toEqual('test');
+      }
+    });
+  });
 });
