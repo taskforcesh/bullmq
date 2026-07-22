@@ -13,9 +13,136 @@ permissions:
 
 jobs:
   scan-pr:
-    uses: 'google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@v2.3.8'
-    with:
-      scan-args: |-
-        --config=osv-scanner.toml
-        -r
-        ./
+    name: osv-scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Preserve current scan config
+        id: preserve-config
+        run: |
+          if [ -f osv-scanner.toml ]; then
+            cp osv-scanner.toml "$RUNNER_TEMP/osv-scanner.toml"
+            echo "has_config=true" >> "$GITHUB_OUTPUT"
+            echo "config_path=$RUNNER_TEMP/osv-scanner.toml" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_config=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout target branch
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ -z "$BASE_REF" ]; then
+            echo "::error::Unable to determine the base ref for the OSV scan."
+            exit 1
+          fi
+          git fetch origin "$BASE_REF:refs/remotes/origin/$BASE_REF"
+          git checkout "origin/$BASE_REF"
+          git submodule update --recursive
+
+      - name: Run scanner on existing code with config
+        if: ${{ steps.preserve-config.outputs.has_config == 'true' }}
+        uses: google/osv-scanner-action/osv-scanner-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
+        continue-on-error: true
+        with:
+          scan-args: |-
+            --format=json
+            --output=old-results.json
+            --config=${{ steps.preserve-config.outputs.config_path }}
+            -r
+            ./
+
+      - name: Run scanner on existing code without config
+        if: ${{ steps.preserve-config.outputs.has_config != 'true' }}
+        uses: google/osv-scanner-action/osv-scanner-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
+        continue-on-error: true
+        with:
+          scan-args: |-
+            --format=json
+            --output=old-results.json
+            -r
+            ./
+
+      - name: Checkout current branch
+        run: |
+          git checkout "$GITHUB_SHA"
+          git submodule update --recursive
+
+      - name: Run scanner on new code with config
+        if: ${{ steps.preserve-config.outputs.has_config == 'true' }}
+        uses: google/osv-scanner-action/osv-scanner-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
+        continue-on-error: true
+        with:
+          scan-args: |-
+            --format=json
+            --output=new-results.json
+            --config=${{ steps.preserve-config.outputs.config_path }}
+            -r
+            ./
+
+      - name: Run scanner on new code without config
+        if: ${{ steps.preserve-config.outputs.has_config != 'true' }}
+        uses: google/osv-scanner-action/osv-scanner-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
+        continue-on-error: true
+        with:
+          scan-args: |-
+            --format=json
+            --output=new-results.json
+            -r
+            ./
+
+      - name: Run osv-scanner-reporter
+        # Enable GitHub annotations so vulnerabilities are surfaced directly in the PR UI.
+        uses: google/osv-scanner-action/osv-reporter-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
+        with:
+          scan-args: |-
+            --output=results.sarif
+            --old=old-results.json
+            --new=new-results.json
+            --gh-annotations=true
+            --fail-on-vuln=true
+
+      - name: Upload artifact
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: OSV Scanner SARIF file
+          path: results.sarif
+          retention-days: 5
+
+      - name: Upload old scan json results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: old-json-results
+          path: old-results.json
+          retention-days: 5
+
+      - name: Upload new scan json results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: new-json-results
+          path: new-results.json
+          retention-days: 5
+
+      - name: Upload to code-scanning
+        id: upload_sarif
+        if: ${{ !cancelled() }}
+        uses: github/codeql-action/upload-sarif@cdefb33c0f6224e58673d9004f47f7cb3e328b89 # v4.31.10
+        with:
+          sarif_file: results.sarif
+
+      - name: Print Code Scanning PR URL
+        if: ${{ !cancelled() }}
+        run: |
+          echo "View the OSV-Scanner results for this PR in the 'Security' tab, using the following link:"
+          echo "${{ github.server_url }}/${{ github.repository }}/security/code-scanning?query=pr%3A${{ github.event.pull_request.number }}"
+
+      - name: Error troubleshooter
+        if: ${{ always() && steps.upload_sarif.outcome == 'failure' }}
+        run: |
+          echo "::error::Artifact upload failed. This is most likely caused by an error during scanning earlier in the workflow."

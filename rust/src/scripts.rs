@@ -311,7 +311,11 @@ impl Default for ScriptRegistry {
 fn compute_sha1(content: &str) -> String {
     let mut hasher = Sha1::new();
     hasher.update(content.as_bytes());
-    format!("{:x}", hasher.finalize())
+    hasher
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 #[cfg(test)]
