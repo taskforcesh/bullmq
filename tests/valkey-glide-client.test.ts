@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createHash } from 'crypto';
 import { createValkeyGlideClient } from '../src/classes/valkey-glide-client';
+import { ConnectionClosedError } from '../src/classes/errors/connection-closed-error';
 
 type GlideArg = string | Buffer;
 
@@ -9,6 +10,7 @@ class MockGlideClient {
 
   readonly config: Record<string, any>;
   readonly commands: string[][] = [];
+  closeCalls = 0;
   private transactionQueue: GlideArg[][] | null = null;
   private readonly values = new Map<string, string>();
   private readonly hashes = new Map<string, Record<string, string>>();
@@ -25,7 +27,7 @@ class MockGlideClient {
   }
 
   close(): void {
-    // no-op
+    this.closeCalls++;
   }
 
   async customCommand(args: GlideArg[]): Promise<any> {
@@ -373,5 +375,48 @@ describe('valkey glide adapter', () => {
     await client.connect();
 
     expect(readyCount).toBe(2);
+  });
+
+  it('waits for in-flight commands before closing the raw client', async () => {
+    let resolveInfo: () => void;
+    const infoStarted = new Promise<void>(resolve => {
+      resolveInfo = resolve;
+    });
+
+    const raw = new MockGlideClient();
+    const originalCustomCommand = raw.customCommand.bind(raw);
+
+    raw.customCommand = async (command: GlideArg[]) => {
+      if (String(command[0]).toUpperCase() === 'INFO') {
+        raw.commands.push(command.map(arg => String(arg)));
+        resolveInfo!();
+        await new Promise<void>(resolve => setTimeout(resolve, 0));
+        return 'redis_version:7.2.0';
+      }
+
+      return originalCustomCommand(command);
+    };
+
+    const client = createValkeyGlideClient(raw as any);
+
+    const infoPromise = client.info();
+    await infoStarted;
+
+    client.disconnect();
+    expect(raw.closeCalls).toBe(0);
+
+    await expect(infoPromise).resolves.toBe('redis_version:7.2.0');
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(raw.closeCalls).toBe(1);
+  });
+
+  it('throws ConnectionClosedError for commands issued after disconnect', async () => {
+    const raw = new MockGlideClient();
+    const client = createValkeyGlideClient(raw as any);
+
+    client.disconnect();
+
+    await expect(client.info()).rejects.toBeInstanceOf(ConnectionClosedError);
   });
 });

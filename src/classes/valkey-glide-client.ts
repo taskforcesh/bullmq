@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import { EventEmitter } from 'events';
 import { Readable } from 'stream';
 import { IRedisClient, IRedisTransaction } from '../interfaces/redis-client';
+import { ConnectionClosedError } from './errors/connection-closed-error';
 
 interface LuaScript {
   sha: string;
@@ -207,6 +208,7 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
   private readyEmitted = false;
   private closed = false;
   private operationChain: Promise<void> = Promise.resolve();
+  private closingPromise?: Promise<void>;
 
   constructor(
     rawOrPromise: ValkeyGlideRawClient | Promise<ValkeyGlideRawClient>,
@@ -254,6 +256,23 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
     // no-op
   }
 
+  private ensureOpen(): void {
+    if (this.closed) {
+      throw new ConnectionClosedError();
+    }
+  }
+
+  private normalizeError(error: unknown): never {
+    if (
+      error instanceof ConnectionClosedError ||
+      (error instanceof Error && error.name === 'ClosingError')
+    ) {
+      throw new ConnectionClosedError((error as Error).message, error as Error);
+    }
+
+    throw error;
+  }
+
   private async ensureRaw(): Promise<ValkeyGlideRawClient> {
     if (this.raw) {
       return this.raw;
@@ -270,6 +289,7 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
   private async runSerialized<T>(
     fn: (raw: ValkeyGlideRawClient) => Promise<T>,
   ): Promise<T> {
+    this.ensureOpen();
     const previous = this.operationChain;
     let release: () => void;
 
@@ -278,10 +298,14 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
     });
 
     await previous;
+    this.ensureOpen();
 
     try {
       const raw = await this.ensureRaw();
+      this.ensureOpen();
       return await fn(raw);
+    } catch (error) {
+      this.normalizeError(error);
     } finally {
       release!();
     }
@@ -317,18 +341,37 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
     return this.connecting;
   }
 
+  private closeRawWhenIdle(): Promise<void> {
+    if (!this.closingPromise) {
+      this.closingPromise = this.operationChain
+        .catch(() => {
+          // ignore
+        })
+        .then(() => {
+          if (!this.closed || !this.raw) {
+            return;
+          }
+
+          try {
+            this.raw.close();
+          } catch {
+            // ignore
+          }
+        });
+    }
+
+    return this.closingPromise;
+  }
+
   disconnect(): void {
+    if (this.closed) {
+      return;
+    }
+
     this.closed = true;
     this.readyEmitted = false;
     this.statusOverride = 'end';
-
-    if (this.raw) {
-      try {
-        this.raw.close();
-      } catch {
-        // ignore
-      }
-    }
+    void this.closeRawWhenIdle();
 
     this.emit('close');
     this.emit('end');
