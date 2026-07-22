@@ -9,7 +9,7 @@ WITH input AS (
 ),
 updated AS (
   UPDATE bullmq_job
-     SET locked_until_ms = $5 + $4
+     SET locked_until_ms = $5::bigint + $4::bigint
     FROM input
    WHERE queue = $1
      AND id = input.job_id
