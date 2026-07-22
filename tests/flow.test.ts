@@ -6578,6 +6578,53 @@ describe('flows', () => {
       await flow.close();
     });
 
+    it('rejects add() when a nested child uses deduplication or debounce', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+
+      // FlowChildJob omits these options, so a cast is needed to reproduce
+      // what a JavaScript caller can pass at runtime.
+      await expect(
+        flow.add({
+          name: 'parent',
+          data: {},
+          queueName,
+          children: [
+            {
+              name: 'child',
+              data: {},
+              queueName,
+              children: [
+                {
+                  name: 'grandchild',
+                  data: {},
+                  queueName,
+                  opts: { deduplication: { id: 'dedup-id' } },
+                } as any,
+              ],
+            },
+          ],
+        }),
+      ).rejects.toThrow(/Deduplication and debounce are not supported in flows/);
+
+      await expect(
+        flow.add({
+          name: 'parent',
+          data: {},
+          queueName,
+          children: [
+            {
+              name: 'child',
+              data: {},
+              queueName,
+              opts: { debounce: { id: 'debounce-id' } },
+            } as any,
+          ],
+        }),
+      ).rejects.toThrow(/Deduplication and debounce are not supported in flows/);
+
+      await flow.close();
+    });
+
     it('rejects addBulk() if any flow uses deduplication', async () => {
       const flow = new FlowProducer({ connection, prefix });
 
@@ -6589,6 +6636,24 @@ describe('flows', () => {
             data: {},
             queueName,
             opts: { deduplication: { id: 'dedup-id' } },
+          },
+        ]),
+      ).rejects.toThrow(/Deduplication and debounce are not supported in flows/);
+
+      await flow.close();
+    });
+
+    it('rejects addBulk() if any flow uses debounce', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+
+      await expect(
+        flow.addBulk([
+          { name: 'first', data: {}, queueName, opts: {} },
+          {
+            name: 'second',
+            data: {},
+            queueName,
+            opts: { debounce: { id: 'debounce-id' } },
           },
         ]),
       ).rejects.toThrow(/Deduplication and debounce are not supported in flows/);
