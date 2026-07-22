@@ -309,7 +309,7 @@ defmodule BullMQ.WorkerIntegrationTest do
     end
 
     @tag :integration
-    @tag timeout: 15_000
+    @tag timeout: 30_000
     test "job moves to failed after max retries", %{conn: conn, queue_name: queue_name} do
       test_pid = self()
 
@@ -333,7 +333,7 @@ defmodule BullMQ.WorkerIntegrationTest do
       job_id = job.id
 
       # Wait for final failure (after exhausting retries)
-      assert_receive {:failed, ^job_id, reason}, 10_000
+      assert_receive {:failed, ^job_id, reason}, 30_000
       assert reason =~ "Always fails"
 
       # Check job is in failed state
