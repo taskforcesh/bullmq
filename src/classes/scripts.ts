@@ -974,9 +974,9 @@ export class Scripts {
     asc: boolean,
   ): (string | number)[] {
     const queueKeys = this.queue.keys;
-    const transformedTypes = types.map(type => {
-      return type === 'waiting' ? 'wait' : type;
-    });
+    const transformedTypes = [
+      ...new Set(types.map(type => (type === 'waiting' ? 'wait' : type))),
+    ];
 
     const keys: (string | number)[] = [queueKeys['']];
 

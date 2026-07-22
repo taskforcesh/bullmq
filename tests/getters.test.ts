@@ -815,10 +815,14 @@ describe('Jobs getters', () => {
 
   it('should return deduplicated jobs for duplicates types', async () => {
     await queue.add('test', { foo: 1 });
+    await queue.add('test', { foo: 2 });
+
+    const expectedJobs = await queue.getJobs(['wait']);
     const jobs = await queue.getJobs(['wait', 'waiting', 'waiting']);
 
     expect(jobs).toBeInstanceOf(Array);
-    expect(jobs).toHaveLength(1);
+    expect(jobs).toHaveLength(2);
+    expect(jobs.map(job => job.id)).toEqual(expectedJobs.map(job => job.id));
   });
 
   it('should return jobs for all types', async () => {

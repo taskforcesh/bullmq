@@ -514,19 +514,15 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
       end,
       asc,
     );
-    const seenJobIds = new Set<string>();
     return jobDataByType.reduce<JobBase[]>((jobs, jobData) => {
       for (const [jobId, jobHashFields] of jobData || []) {
-        if (!seenJobIds.has(jobId)) {
-          jobs.push(
-            this.Job.fromJSON(
-              this,
-              array2obj(jobHashFields) as unknown as JobJsonRaw,
-              jobId,
-            ) as JobBase,
-          );
-          seenJobIds.add(jobId);
-        }
+        jobs.push(
+          this.Job.fromJSON(
+            this,
+            array2obj(jobHashFields) as unknown as JobJsonRaw,
+            jobId,
+          ) as JobBase,
+        );
       }
 
       return jobs;
