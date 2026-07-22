@@ -312,7 +312,7 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
     }
     if (!this.rawPromise) {
       throw new Error(
-        'BullMQ: Valkey Glide client not initialized. Ensure the client promise resolves before use.',
+        'BullMQ: Valkey Glide client not initialized. This is an internal error; ensure the client promise resolves before use or report it as a bug if it persists.',
       );
     }
     this.raw = await this.rawPromise;
