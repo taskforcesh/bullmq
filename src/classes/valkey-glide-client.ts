@@ -444,8 +444,8 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
 
       if (!createClient || !config) {
         throw new Error(
-          'BullMQ: Cannot duplicate Valkey Glide client: missing createClient() or config. ' +
-            'Ensure the client was created via GlideClient.createClient()/' +
+          'BullMQ: Cannot duplicate Valkey Glide client: missing createClient() or ' +
+            'config. Ensure the client was created via GlideClient.createClient()/' +
             'GlideClusterClient.createClient().',
         );
       }
