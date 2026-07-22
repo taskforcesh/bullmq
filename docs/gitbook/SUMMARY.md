@@ -81,6 +81,7 @@
 - [Migrations](guide/migrations/migration-to-newer-versions.md)
   - [Bull to BullMQ](guide/migrations/bull-to-bullmq.md)
 - [Troubleshooting](guide/troubleshooting.md)
+- [Testing](guide/testing.md)
 
 ## Patterns
 
