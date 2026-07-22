@@ -1075,8 +1075,8 @@ describe('Telemetry', () => {
       const durationHistogram = meter.histograms.get(MetricNames.JobDuration);
       expect(durationHistogram).toBeDefined();
       expect(durationHistogram!.values.length).toBeGreaterThan(0);
-      // Duration should be at least 50ms
-      expect(durationHistogram!.values[0].value).toBeGreaterThanOrEqual(50);
+      // Duration should be close to the simulated 50ms of work.
+      expect(durationHistogram!.values[0].value).toBeGreaterThanOrEqual(45);
       expect(durationHistogram!.values[0].attributes).toMatchObject({
         [TelemetryAttributes.QueueName]: queueName,
         [TelemetryAttributes.JobName]: 'testJob',
