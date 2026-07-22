@@ -10,6 +10,35 @@ type GlideCommandOptions = {
 
 const GLIDE_STRING_DECODER = 1;
 
+async function withMockedRuntimeModule<T>(
+  requestToMock: string,
+  exports: Record<string, unknown>,
+  callback: () => Promise<T>,
+): Promise<T> {
+  const module = require('module') as typeof import('module') & {
+    _load: (...args: any[]) => any;
+  };
+  const originalLoad = module._load;
+
+  module._load = function (
+    request: string,
+    parent: NodeModule | null,
+    isMain: boolean,
+  ) {
+    if (request === requestToMock) {
+      return exports;
+    }
+
+    return originalLoad.call(this, request, parent, isMain);
+  };
+
+  try {
+    return await callback();
+  } finally {
+    module._load = originalLoad;
+  }
+}
+
 class MockGlideClient {
   static instances: MockGlideClient[] = [];
 
@@ -686,10 +715,6 @@ describe('ValkeyGlideAdapter', () => {
   it('uses native batch execution when available', async () => {
     const raw = new MockGlideClient();
     const client = createValkeyGlideClient(raw as any);
-    const module = require('module') as typeof import('module') & {
-      _load: (...args: any[]) => any;
-    };
-    const originalLoad = module._load;
     let execCalls = 0;
     let executedBatch: { commands: GlideArg[][] } | undefined;
 
@@ -702,18 +727,6 @@ describe('ValkeyGlideAdapter', () => {
         this.commands.push(args);
       }
     }
-
-    module._load = function (
-      request: string,
-      parent: NodeModule | null,
-      isMain: boolean,
-    ) {
-      if (request === '@valkey/valkey-glide') {
-        return { Batch: MockBatch };
-      }
-
-      return originalLoad.call(this, request, parent, isMain);
-    };
 
     (raw as any).exec = async (batch: MockBatch) => {
       execCalls++;
@@ -731,18 +744,20 @@ describe('ValkeyGlideAdapter', () => {
       return 'OK';
     };
 
-    try {
-      const tx = client.multi();
-      tx.hset('hash', { field: 'value' });
-      tx.hgetall('hash');
+    await withMockedRuntimeModule(
+      '@valkey/valkey-glide',
+      { Batch: MockBatch },
+      async () => {
+        const tx = client.multi();
+        tx.hset('hash', { field: 'value' });
+        tx.hgetall('hash');
 
-      await expect(tx.exec()).resolves.toEqual([
-        [null, 1],
-        [null, { field: 'value' }],
-      ]);
-    } finally {
-      module._load = originalLoad;
-    }
+        await expect(tx.exec()).resolves.toEqual([
+          [null, 1],
+          [null, { field: 'value' }],
+        ]);
+      },
+    );
 
     expect(execCalls).toBe(1);
     expect(executedBatch?.commands).toEqual([
