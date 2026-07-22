@@ -967,6 +967,9 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
 
       try {
         for (const command of commands) {
+          // During MULTI queueing Redis replies with "QUEUED". For commands such
+          // as HGETALL, Glide's default decoder expects a structured reply and
+          // throws if it receives this simple string, so force string decoding.
           await raw.customCommand(command.args, {
             decoder: GLIDE_STRING_DECODER,
           });
