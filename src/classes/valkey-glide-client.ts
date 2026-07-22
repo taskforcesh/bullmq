@@ -438,7 +438,8 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
     const duplicated = (async () => {
       const raw = await this.ensureRaw();
       const clientConstructor = raw.constructor;
-      const createClient = clientConstructor?.createClient;
+      const createClient =
+        clientConstructor?.createClient?.bind(clientConstructor);
       const config = raw.config ?? raw.options;
 
       if (!createClient || !config) {
@@ -448,7 +449,7 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
         );
       }
 
-      return clientConstructor.createClient(config);
+      return createClient(config);
     })();
 
     return new ValkeyGlideAdapter(duplicated, options.connectionName);
