@@ -410,7 +410,7 @@ class MockGlideClient {
   }
 }
 
-describe('valkey glide adapter', () => {
+describe('ValkeyGlideAdapter', () => {
   it('preserves the raw constructor context when duplicating clients', async () => {
     class ContextAwareGlideClient extends MockGlideClient {
       static async createClient(config: Record<string, any>) {

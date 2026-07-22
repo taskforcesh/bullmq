@@ -399,6 +399,8 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
     }
 
     this.raw = await createClient(config);
+    // Glide closes clients permanently, so a recreated raw connection starts
+    // with an empty server-side script cache.
     this.scriptLoadPromises.clear();
   }
 
