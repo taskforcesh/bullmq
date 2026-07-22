@@ -353,8 +353,8 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
 
     if (!pendingLoad) {
       pendingLoad = this.runRawCommand(['SCRIPT', 'LOAD', script.lua])
-        .then((): void => undefined)
-        .catch((): void => {
+        .then(() => {})
+        .catch(() => {
           // Ignore script preload errors here – runCommand has NOSCRIPT fallback
           // for non-transactional usage, and transactional callers will surface
           // the underlying Redis error if the script still is not available.
