@@ -967,7 +967,9 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
 
       try {
         for (const command of commands) {
-          await raw.customCommand(command.args);
+          await raw.customCommand(command.args, {
+            decoder: GLIDE_STRING_DECODER,
+          });
         }
 
         const execResult = await raw.customCommand(['EXEC']);

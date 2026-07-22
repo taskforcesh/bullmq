@@ -650,6 +650,39 @@ describe('ValkeyGlideAdapter', () => {
     ]);
   });
 
+  it('uses string decoder while queueing MULTI commands', async () => {
+    const raw = new MockGlideClient();
+    const client = createValkeyGlideClient(raw as any);
+    const originalCustomCommand = raw.customCommand.bind(raw);
+    let multiStarted = false;
+
+    raw.customCommand = async (
+      args: GlideArg[],
+      options?: GlideCommandOptions,
+    ) => {
+      const cmd = String(args[0]).toUpperCase();
+      if (cmd === 'MULTI') {
+        multiStarted = true;
+      } else if (cmd === 'EXEC' || cmd === 'DISCARD') {
+        multiStarted = false;
+      } else if (multiStarted && cmd === 'HGETALL' && options?.decoder !== 1) {
+        throw new Error(
+          `Response couldn't be converted to map - TypeError: (response was "SimpleString")`,
+        );
+      }
+      return originalCustomCommand(args, options);
+    };
+
+    const tx = client.multi();
+    tx.hset('hash', { field: 'value' });
+    tx.hgetall('hash');
+
+    await expect(tx.exec()).resolves.toEqual([
+      [null, 1],
+      [null, { field: 'value' }],
+    ]);
+  });
+
   it('reports wait status until connect is called', async () => {
     const raw = new MockGlideClient();
     const client = createValkeyGlideClient(raw as any);
