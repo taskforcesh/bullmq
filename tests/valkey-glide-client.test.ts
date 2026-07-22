@@ -256,7 +256,18 @@ class MockGlideClient {
       const entries = Array.from(
         this.zsets.get(tokens[1])?.entries() ?? [],
       ).sort((a, b) => Number(a[1]) - Number(b[1]));
-      return entries.map(([member]) => member);
+      const orderedEntries = cmd === 'ZREVRANGE' ? entries.reverse() : entries;
+
+      if (tokens.includes('WITHSCORES')) {
+        return cmd === 'ZRANGE'
+          ? orderedEntries.map(([member, score]) => ({
+              key: member,
+              value: Number(score),
+            }))
+          : orderedEntries.map(([member, score]) => [member, Number(score)]);
+      }
+
+      return orderedEntries.map(([member]) => member);
     }
 
     if (cmd === 'ZCARD') {
@@ -477,6 +488,16 @@ describe('ValkeyGlideAdapter', () => {
       '0',
       ['foo', 'hash'],
     ]);
+    await client.zadd('scores', 1, 'job-1', 2, 'job-2');
+    expect(await client.zrange('scores', 0, -1, { WITHSCORES: true })).toEqual([
+      'job-1',
+      '1',
+      'job-2',
+      '2',
+    ]);
+    expect(
+      await client.zrevrange('scores', 0, -1, { WITHSCORES: true }),
+    ).toEqual(['job-2', '2', 'job-1', '1']);
     expect(await client.xread([{ key: 'stream', id: '0-0' }])).toEqual([
       ['stream', [['1-0', ['field', 'value']]]],
     ]);
@@ -823,6 +844,49 @@ describe('ValkeyGlideAdapter', () => {
     await new Promise(resolve => setTimeout(resolve, 0));
 
     expect(raw.closeCalls).toBe(1);
+  });
+
+  it('closes the raw client immediately for blocking commands', async () => {
+    class ClosingError extends Error {
+      constructor() {
+        super('');
+        this.name = 'ClosingError';
+      }
+    }
+
+    let rejectXread: ((error: Error) => void) | undefined;
+    const raw = new MockGlideClient();
+    const originalCustomCommand = raw.customCommand.bind(raw);
+
+    raw.customCommand = async (command: GlideArg[]) => {
+      if (String(command[0]).toUpperCase() === 'XREAD') {
+        return await new Promise((_resolve, reject) => {
+          rejectXread = reject;
+        });
+      }
+
+      return originalCustomCommand(command);
+    };
+
+    raw.close = () => {
+      raw.closeCalls++;
+      rejectXread?.(new ClosingError());
+    };
+
+    const client = createValkeyGlideClient(raw as any);
+    const blockedRead = expect(
+      client.xread([{ key: 'stream', id: '$' }], {
+        BLOCK: 0,
+      }),
+    ).rejects.toBeInstanceOf(ConnectionClosedError);
+
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    client.disconnect();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(raw.closeCalls).toBe(1);
+    await blockedRead;
   });
 
   it('throws ConnectionClosedError for commands issued after disconnect', async () => {

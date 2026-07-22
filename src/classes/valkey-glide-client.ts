@@ -263,6 +263,57 @@ function normalizeXRangeReply(reply: unknown): any[] {
   ]);
 }
 
+function normalizeSortedSetReply(reply: unknown, withScores = false): string[] {
+  if (!Array.isArray(reply)) {
+    return [];
+  }
+
+  if (!withScores) {
+    return reply.map(item => toStringValue(item));
+  }
+
+  if (isKeyValueArray(reply)) {
+    return reply.flatMap(entry => [
+      toStringValue(entry.key),
+      toStringValue(entry.value),
+    ]);
+  }
+
+  if (
+    reply.every(
+      item => Array.isArray(item) && item.length >= 2 && item[0] !== undefined,
+    )
+  ) {
+    return reply.flatMap(item => [
+      toStringValue((item as unknown[])[0]),
+      toStringValue((item as unknown[])[1]),
+    ]);
+  }
+
+  return reply.map(item => toStringValue(item));
+}
+
+function isBlockingCommand(args: GlideArg[]): boolean {
+  const [command, ...rest] = args;
+  const name = toStringValue(command).toUpperCase();
+
+  if (name === 'BZPOPMIN') {
+    return true;
+  }
+
+  if (name !== 'XREAD') {
+    return false;
+  }
+
+  for (let i = 0; i < rest.length; i += 2) {
+    if (toStringValue(rest[i]).toUpperCase() === 'BLOCK') {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export function createValkeyGlideClient(client: unknown): IRedisClient {
   return new ValkeyGlideAdapter(client as ValkeyGlideRawClient);
 }
@@ -279,6 +330,7 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
   private closed = false;
   private operationChain: Promise<void> = Promise.resolve();
   private closingPromise?: Promise<void>;
+  private activeBlockingCommands = 0;
 
   constructor(
     rawOrPromise: ValkeyGlideRawClient | Promise<ValkeyGlideRawClient>,
@@ -288,6 +340,7 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
 
     if (rawOrPromise instanceof Promise) {
       this.rawPromise = rawOrPromise;
+      void this.connect().catch(error => this.emit('error', error as Error));
     } else {
       this.raw = rawOrPromise;
     }
@@ -386,7 +439,21 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
     args: GlideArg[],
     options?: GlideCommandOptions,
   ): Promise<any> {
-    return this.runSerialized(async raw => raw.customCommand(args, options));
+    const blockingCommand = isBlockingCommand(args);
+
+    return this.runSerialized(async raw => {
+      if (blockingCommand) {
+        this.activeBlockingCommands++;
+      }
+
+      try {
+        return await raw.customCommand(args, options);
+      } finally {
+        if (blockingCommand) {
+          this.activeBlockingCommands--;
+        }
+      }
+    });
   }
 
   private ensureScriptLoaded(script: LuaScript): Promise<void> {
@@ -413,6 +480,22 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
     await this.runRawCommand(['CLIENT', 'SETNAME', this.connectionName], {
       decoder: GLIDE_STRING_DECODER,
     });
+  }
+
+  private async clearConnectionNameIfNeeded(
+    raw: ValkeyGlideRawClient,
+  ): Promise<void> {
+    if (!this.connectionName) {
+      return;
+    }
+
+    try {
+      await raw.customCommand(['CLIENT', 'SETNAME', ''], {
+        decoder: GLIDE_STRING_DECODER,
+      });
+    } catch {
+      // ignore
+    }
   }
 
   private async recreateRaw(): Promise<void> {
@@ -449,7 +532,17 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
       this.closed = false;
       this.statusOverride = undefined;
       await this.ensureRaw();
-      await this.applyConnectionNameIfNeeded();
+      try {
+        await this.applyConnectionNameIfNeeded();
+      } catch (error) {
+        if (this.closed && error instanceof ConnectionClosedError) {
+          return;
+        }
+        throw error;
+      }
+      if (this.closed) {
+        return;
+      }
       this.readyEmitted = true;
       this.emit('ready');
     })().finally(() => {
@@ -459,26 +552,40 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
     return this.connecting;
   }
 
-  private closeRawWhenIdle(): Promise<void> {
+  private closeRaw(): Promise<void> {
     if (!this.closingPromise) {
-      this.closingPromise = this.operationChain
-        .catch(() => {
-          // ignore
-        })
-        .then(() => {
-          if (!this.closed || !this.raw) {
-            return;
-          }
+      const closeRaw = () => {
+        if (!this.raw) {
+          return;
+        }
 
-          try {
-            this.raw.close();
-          } catch {
-            // ignore
-          }
-        })
-        .finally(() => {
-          this.closingPromise = undefined;
-        });
+        try {
+          this.raw.close();
+        } catch {
+          // ignore
+        }
+      };
+
+      this.closingPromise = (
+        this.activeBlockingCommands > 0
+          ? Promise.resolve().then(closeRaw)
+          : this.operationChain
+              .catch(() => {
+                // ignore
+              })
+              .then(async () => {
+                if (!this.closed) {
+                  return;
+                }
+
+                if (this.raw) {
+                  await this.clearConnectionNameIfNeeded(this.raw);
+                }
+                closeRaw();
+              })
+      ).finally(() => {
+        this.closingPromise = undefined;
+      });
     }
 
     return this.closingPromise;
@@ -496,7 +603,7 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
     this.emit('close');
 
     if (reconnect) {
-      void this.closeRawWhenIdle()
+      void this.closeRaw()
         .then(() => {
           this.emit('reconnecting');
           return this.connect();
@@ -505,12 +612,27 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
       return;
     }
 
-    void this.closeRawWhenIdle();
+    void this.closeRaw();
     this.emit('end');
   }
 
   async quit(): Promise<string> {
-    this.disconnect();
+    if (this.closed) {
+      setImmediate(() => {
+        this.emit('end');
+        this.emit('close');
+      });
+      return 'OK';
+    }
+
+    this.closed = true;
+    this.readyEmitted = false;
+    this.statusOverride = 'end';
+    void this.closeRaw();
+    setImmediate(() => {
+      this.emit('end');
+      this.emit('close');
+    });
     return 'OK';
   }
 
@@ -679,7 +801,7 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
       args.push('WITHSCORES');
     }
     const result = await this.runRawCommand(args);
-    return Array.isArray(result) ? result.map(toStringValue) : [];
+    return normalizeSortedSetReply(result, options?.WITHSCORES);
   }
 
   async zrevrange(
@@ -693,7 +815,7 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
       args.push('WITHSCORES');
     }
     const result = await this.runRawCommand(args);
-    return Array.isArray(result) ? result.map(toStringValue) : [];
+    return normalizeSortedSetReply(result, options?.WITHSCORES);
   }
 
   async zcard(key: string): Promise<number> {
