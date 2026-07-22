@@ -11,6 +11,11 @@ interface LuaScript {
 }
 
 type GlideArg = string | Buffer;
+type GlideCommandOptions = {
+  decoder?: number;
+};
+
+const GLIDE_STRING_DECODER = 1;
 
 type GlideRecordEntry<T = unknown> = {
   key: string | Buffer;
@@ -18,7 +23,7 @@ type GlideRecordEntry<T = unknown> = {
 };
 
 interface ValkeyGlideRawClient {
-  customCommand(args: GlideArg[]): Promise<any>;
+  customCommand(args: GlideArg[], options?: GlideCommandOptions): Promise<any>;
   close(): void;
   constructor?: {
     createClient?: (
@@ -344,8 +349,11 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
     }
   }
 
-  private async runRawCommand(args: GlideArg[]): Promise<any> {
-    return this.runSerialized(async raw => raw.customCommand(args));
+  private async runRawCommand(
+    args: GlideArg[],
+    options?: GlideCommandOptions,
+  ): Promise<any> {
+    return this.runSerialized(async raw => raw.customCommand(args, options));
   }
 
   private ensureScriptLoaded(script: LuaScript): Promise<void> {
@@ -369,7 +377,28 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
     if (!this.connectionName) {
       return;
     }
-    await this.runRawCommand(['CLIENT', 'SETNAME', this.connectionName]);
+    await this.runRawCommand(['CLIENT', 'SETNAME', this.connectionName], {
+      decoder: GLIDE_STRING_DECODER,
+    });
+  }
+
+  private async recreateRaw(): Promise<void> {
+    const raw = await this.ensureRaw();
+    const clientConstructor = raw.constructor;
+    const createClient =
+      clientConstructor?.createClient?.bind(clientConstructor);
+    const config = raw.config ?? raw.options;
+
+    if (!createClient || !config) {
+      throw new Error(
+        'BullMQ: Cannot recreate Valkey Glide client: missing createClient() or ' +
+          'config. Ensure the client was created via GlideClient.createClient()/' +
+          'GlideClusterClient.createClient().',
+      );
+    }
+
+    this.raw = await createClient(config);
+    this.scriptLoadPromises.clear();
   }
 
   async connect(): Promise<void> {
@@ -378,10 +407,14 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
     }
 
     this.connecting = (async () => {
-      await this.ensureRaw();
-      await this.applyConnectionNameIfNeeded();
+      if (this.closed && this.raw) {
+        await this.recreateRaw();
+      }
+
       this.closed = false;
       this.statusOverride = undefined;
+      await this.ensureRaw();
+      await this.applyConnectionNameIfNeeded();
       this.readyEmitted = true;
       this.emit('ready');
     })().finally(() => {
@@ -407,23 +440,37 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
           } catch {
             // ignore
           }
+        })
+        .finally(() => {
+          this.closingPromise = undefined;
         });
     }
 
     return this.closingPromise;
   }
 
-  disconnect(): void {
-    if (this.closed) {
+  disconnect(reconnect = false): void {
+    if (this.closed && !reconnect) {
       return;
     }
 
     this.closed = true;
     this.readyEmitted = false;
-    this.statusOverride = 'end';
-    void this.closeRawWhenIdle();
+    this.statusOverride = reconnect ? undefined : 'end';
 
     this.emit('close');
+
+    if (reconnect) {
+      void this.closeRawWhenIdle()
+        .then(() => {
+          this.emit('reconnecting');
+          return this.connect();
+        })
+        .catch(error => this.emit('error', error as Error));
+      return;
+    }
+
+    void this.closeRawWhenIdle();
     this.emit('end');
   }
 
@@ -746,11 +793,17 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
   }
 
   async clientSetName(name: string): Promise<any> {
-    return this.runRawCommand(['CLIENT', 'SETNAME', name]);
+    return this.runRawCommand(['CLIENT', 'SETNAME', name], {
+      decoder: GLIDE_STRING_DECODER,
+    });
   }
 
   async clientList(): Promise<string> {
-    return toStringValue(await this.runRawCommand(['CLIENT', 'LIST']));
+    return toStringValue(
+      await this.runRawCommand(['CLIENT', 'LIST'], {
+        decoder: GLIDE_STRING_DECODER,
+      }),
+    );
   }
 
   async scan(

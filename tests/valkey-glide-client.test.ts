@@ -4,6 +4,11 @@ import { createValkeyGlideClient } from '../src/classes/valkey-glide-client';
 import { ConnectionClosedError } from '../src/classes/errors/connection-closed-error';
 
 type GlideArg = string | Buffer;
+type GlideCommandOptions = {
+  decoder?: number;
+};
+
+const GLIDE_STRING_DECODER = 1;
 
 class MockGlideClient {
   static instances: MockGlideClient[] = [];
@@ -36,7 +41,10 @@ class MockGlideClient {
     this.closeCalls++;
   }
 
-  async customCommand(args: GlideArg[]): Promise<any> {
+  async customCommand(
+    args: GlideArg[],
+    _options?: GlideCommandOptions,
+  ): Promise<any> {
     if (this.transactionQueue && !this.isTransactionControl(args)) {
       this.transactionQueue.push(args);
       return 'QUEUED';
@@ -563,6 +571,62 @@ describe('valkey glide adapter', () => {
       'CLIENT',
       'SETNAME',
       'worker',
+    ]);
+  });
+
+  it('reconnects duplicated clients after disconnecting', async () => {
+    MockGlideClient.instances.splice(0);
+
+    const raw = new MockGlideClient({
+      addresses: [{ host: 'localhost', port: 6379 }],
+    });
+    const client = createValkeyGlideClient(raw as any);
+
+    const duplicate = client.duplicate({ connectionName: 'worker' });
+    await duplicate.connect();
+
+    duplicate.disconnect();
+    await duplicate.connect();
+
+    expect(MockGlideClient.instances.length).toBe(3);
+    expect(MockGlideClient.instances[2].commands).toContainEqual([
+      'CLIENT',
+      'SETNAME',
+      'worker',
+    ]);
+  });
+
+  it('uses the string decoder for CLIENT commands', async () => {
+    const raw = new MockGlideClient();
+    const client = createValkeyGlideClient(raw as any) as any;
+    const calls: Array<{ args: string[]; options?: GlideCommandOptions }> = [];
+    const originalCustomCommand = raw.customCommand.bind(raw);
+
+    raw.customCommand = async (
+      args: GlideArg[],
+      options?: GlideCommandOptions,
+    ) => {
+      calls.push({
+        args: args.map(arg =>
+          Buffer.isBuffer(arg) ? arg.toString() : String(arg),
+        ),
+        options,
+      });
+      return originalCustomCommand(args, options);
+    };
+
+    await client.clientSetName('worker');
+    await client.clientList();
+
+    expect(calls).toEqual([
+      {
+        args: ['CLIENT', 'SETNAME', 'worker'],
+        options: { decoder: GLIDE_STRING_DECODER },
+      },
+      {
+        args: ['CLIENT', 'LIST'],
+        options: { decoder: GLIDE_STRING_DECODER },
+      },
     ]);
   });
 
