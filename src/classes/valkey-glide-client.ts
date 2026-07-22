@@ -24,6 +24,11 @@ type GlideRecordEntry<T = unknown> = {
 
 interface ValkeyGlideRawClient {
   customCommand(args: GlideArg[], options?: GlideCommandOptions): Promise<any>;
+  exec?(
+    batch: ValkeyGlideBatch,
+    raiseOnError: boolean,
+    options?: GlideCommandOptions,
+  ): Promise<any[] | null>;
   close(): void;
   constructor?: {
     createClient?: (
@@ -33,6 +38,22 @@ interface ValkeyGlideRawClient {
   };
   config?: Record<string, any>;
   options?: Record<string, any>;
+}
+
+interface ValkeyGlideBatch {
+  customCommand(args: GlideArg[]): void;
+}
+
+function createGlideBatch(isAtomic: boolean): ValkeyGlideBatch | null {
+  try {
+    const { Batch } = require('@valkey/valkey-glide') as {
+      Batch?: new (isAtomic: boolean) => ValkeyGlideBatch;
+    };
+
+    return typeof Batch === 'function' ? new Batch(isAtomic) : null;
+  } catch {
+    return null;
+  }
 }
 
 function isBuffer(value: unknown): value is Buffer {
@@ -963,6 +984,34 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
     }
 
     return this.runSerialized(async raw => {
+      if (typeof raw.exec === 'function') {
+        const batch = createGlideBatch(true);
+
+        if (batch) {
+          for (const command of commands) {
+            batch.customCommand(command.args);
+          }
+
+          const execResult = await raw.exec(batch, false);
+
+          if (!execResult) {
+            return null;
+          }
+
+          return execResult.map((value, index) => {
+            if (value instanceof Error) {
+              return [value, null] as [Error | null, any];
+            }
+
+            const transform = commands[index]?.transform;
+            return [null, transform ? transform(value) : value] as [
+              Error | null,
+              any,
+            ];
+          });
+        }
+      }
+
       await raw.customCommand(['MULTI']);
 
       try {

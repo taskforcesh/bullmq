@@ -683,6 +683,37 @@ describe('ValkeyGlideAdapter', () => {
     ]);
   });
 
+  it('uses native batch execution when available', async () => {
+    const raw = new MockGlideClient();
+    const client = createValkeyGlideClient(raw as any);
+    let execCalls = 0;
+
+    (raw as any).exec = async () => {
+      execCalls++;
+      return [1, { field: 'value' }];
+    };
+
+    raw.customCommand = async (args: GlideArg[]) => {
+      const cmd = String(args[0]).toUpperCase();
+
+      if (cmd === 'MULTI' || cmd === 'EXEC' || cmd === 'DISCARD') {
+        throw new Error('manual transaction path should not be used');
+      }
+
+      return 'OK';
+    };
+
+    const tx = client.multi();
+    tx.hset('hash', { field: 'value' });
+    tx.hgetall('hash');
+
+    await expect(tx.exec()).resolves.toEqual([
+      [null, 1],
+      [null, { field: 'value' }],
+    ]);
+    expect(execCalls).toBe(1);
+  });
+
   it('reports wait status until connect is called', async () => {
     const raw = new MockGlideClient();
     const client = createValkeyGlideClient(raw as any);
