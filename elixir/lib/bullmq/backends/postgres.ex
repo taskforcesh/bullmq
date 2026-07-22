@@ -731,17 +731,8 @@ defmodule BullMQ.Backends.Postgres do
 
   @impl true
   def extend_locks(%__MODULE__{} = b, job_ids, tokens, duration) do
-    # Best-effort per-job extension; returns the ids that failed to extend.
-    now = now_ms()
-
-    failed =
-      job_ids
-      |> Enum.zip(tokens)
-      |> Enum.filter(fn {id, token} ->
-        %{"n" => n} = first_map(run(b, "extend_lock", [b.queue_name, id, token, duration, now]))
-        to_int(n) <= 0
-      end)
-      |> Enum.map(fn {id, _} -> id end)
+    result = run(b, "extend_locks", [b.queue_name, job_ids, tokens, duration, now_ms()])
+    failed = Enum.map(maps(result), &to_string(&1["id"]))
 
     {:ok, failed}
   end
