@@ -332,7 +332,9 @@ defmodule BullMQ.WorkerIntegrationTest do
 
       job_id = job.id
 
-      # Wait for final failure (after exhausting retries)
+      # Wait for final failure (after exhausting retries). This path can take
+      # longer in CI because the job must be retried before the final on_failed
+      # callback fires.
       assert_receive {:failed, ^job_id, reason}, 30_000
       assert reason =~ "Always fails"
 
