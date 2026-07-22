@@ -44,6 +44,17 @@ interface ValkeyGlideBatch {
   customCommand(args: GlideArg[]): void;
 }
 
+function createCompatibilityBatch(): ValkeyGlideBatch & {
+  commands: GlideArg[][];
+} {
+  return {
+    commands: [],
+    customCommand(args: GlideArg[]) {
+      this.commands.push(args);
+    },
+  };
+}
+
 function createGlideBatch(isAtomic: boolean): ValkeyGlideBatch | null {
   try {
     const { Batch } = require('@valkey/valkey-glide') as {
@@ -985,30 +996,41 @@ class ValkeyGlideAdapter extends EventEmitter implements IRedisClient {
 
     return this.runSerialized(async raw => {
       if (typeof raw.exec === 'function') {
-        const batch = createGlideBatch(true);
+        const nativeBatch = createGlideBatch(true);
+        const batch = nativeBatch ?? createCompatibilityBatch();
 
         if (batch) {
           for (const command of commands) {
             batch.customCommand(command.args);
           }
 
-          const execResult = await raw.exec(batch, false);
-
-          if (!execResult) {
-            return null;
+          let execResult: any[] | null;
+          try {
+            execResult = await raw.exec(batch, false);
+          } catch (err) {
+            if (nativeBatch) {
+              throw err;
+            }
+            execResult = null;
           }
 
-          return execResult.map((value, index) => {
-            if (value instanceof Error) {
-              return [value, null] as [Error | null, any];
+          if (!execResult) {
+            if (nativeBatch) {
+              return null;
             }
+          } else {
+            return execResult.map((value, index) => {
+              if (value instanceof Error) {
+                return [value, null] as [Error | null, any];
+              }
 
-            const transform = commands[index]?.transform;
-            return [null, transform ? transform(value) : value] as [
-              Error | null,
-              any,
-            ];
-          });
+              const transform = commands[index]?.transform;
+              return [null, transform ? transform(value) : value] as [
+                Error | null,
+                any,
+              ];
+            });
+          }
         }
       }
 
