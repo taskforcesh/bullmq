@@ -552,14 +552,17 @@ describe('RedisConnection', () => {
       create: () => { close: () => Promise<void> },
     ): Promise<void> {
       const leaked: any[] = [];
+      const unexpected: any[] = [];
       // A failed init that is not forwarded to a listener surfaces either as an
       // 'unhandledRejection' (from the RedisConnection init catch) or as an
       // 'uncaughtException' (from the synchronous client 'error' forwarding).
-      // Only count errors originating from our dedicated failing port so that
-      // unrelated connection errors from other tests are ignored.
+      // Only classify errors from our dedicated failing port as leaked. Any
+      // other unhandled error during this window must still fail the test.
       const onUnhandled = (reason: any) => {
         if (reason && reason.port === failingPort) {
           leaked.push(reason);
+        } else {
+          unexpected.push(reason);
         }
       };
       process.on('unhandledRejection', onUnhandled);
@@ -580,6 +583,7 @@ describe('RedisConnection', () => {
       }
 
       expect(leaked).toHaveLength(0);
+      expect(unexpected).toHaveLength(0);
     }
 
     it('does not leak an unhandled error for a Worker', async () => {
