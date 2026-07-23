@@ -746,10 +746,6 @@ export class Worker<
       }
     }
 
-    if (job) {
-      this.emit('active', job, 'waiting');
-    }
-
     return job;
   }
 
@@ -986,6 +982,9 @@ will never work with more accuracy than 1ms. */
         // Return undefined to indicate no next job is available
         return undefined;
       }
+
+      this.emit('active', job, 'waiting');
+
       return job;
     }
   }
