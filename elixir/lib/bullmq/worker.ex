@@ -1433,9 +1433,9 @@ defmodule BullMQ.Worker do
 
   # Jobs carrying a deferred failure (set by a child with fail_parent_on_failure)
   # must fail immediately instead of running the processor or retrying.
-  defp run_processor_sync(%Job{deferred_failure: defa}, _ctx, _cancel_token)
-       when is_binary(defa) and defa != "" do
-    {:unrecoverable_error, defa}
+  defp run_processor_sync(%Job{deferred_failure: deferred_failure}, _ctx, _cancel_token)
+       when is_binary(deferred_failure) and deferred_failure != "" do
+    {:unrecoverable_error, deferred_failure}
   end
 
   # Run processor synchronously (called within worker process)
