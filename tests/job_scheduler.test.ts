@@ -209,13 +209,13 @@ describe('Job Scheduler', () => {
           autorun: false,
         });
         await worker.waitUntilReady();
-        const token = 'test-token';
+        const workerToken = 'test-token';
 
         const jobSchedulerId = 'test';
         await queue.upsertJobScheduler(jobSchedulerId, {
           every: ONE_MINUTE * 5,
         });
-        const firstJob = await worker.getNextJob(token, { block: false });
+        const firstJob = await worker.getNextJob(workerToken, { block: false });
         expect(firstJob).toBeDefined();
         await queue.upsertJobScheduler(jobSchedulerId, {
           every: ONE_MINUTE * 5,
@@ -228,7 +228,7 @@ describe('Job Scheduler', () => {
         });
         const repeatableJobs = await queue.getJobSchedulers();
         expect(repeatableJobs.length).toEqual(1);
-        await firstJob!.moveToCompleted(null, token);
+        await firstJob!.moveToCompleted(null, workerToken);
         const count = await queue.getJobCountByTypes('delayed', 'waiting');
         expect(count).toBe(1);
 

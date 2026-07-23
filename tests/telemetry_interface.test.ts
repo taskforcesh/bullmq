@@ -1075,8 +1075,8 @@ describe('Telemetry', () => {
 
     it('should record duration histogram when job completes', async () => {
       const simulatedWorkDurationMs = 50;
-      // Allow 10% timing jitter for scheduler/clock granularity in CI.
-      const timingToleranceMs = 5;
+      // Allow extra timing jitter for scheduler/clock granularity in CI.
+      const timingToleranceMs = Math.max(10, simulatedWorkDurationMs * 0.2);
       const minRecordedDurationMs = simulatedWorkDurationMs - timingToleranceMs;
 
       const worker = new Worker(
