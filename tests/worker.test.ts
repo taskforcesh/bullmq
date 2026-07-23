@@ -1935,9 +1935,26 @@ describe('workers', () => {
       );
       await worker.waitUntilReady();
 
+      let now = 0;
+      let completing2: Promise<void>;
+
       // after this event, worker should be drained
       const completing = new Promise<void>(resolve => {
         worker.once('completed', async () => {
+          now = Date.now();
+          completing2 = new Promise<void>(resolve => {
+            worker.on(
+              'completed',
+              after(2, job => {
+                const timeDiff = Date.now() - now;
+                expect(timeDiff).toBeGreaterThanOrEqual(4000);
+                expect(timeDiff).toBeLessThan(4500);
+                expect(job.delay).toBe(0);
+                resolve();
+              }),
+            );
+          });
+
           await queue.addBulk([
             { name: 'test1', data: { idx: 0, foo: 'bar' } },
             {
@@ -1954,21 +1971,6 @@ describe('workers', () => {
       await Job.create(queue, 'test1', { foo: 'bar' });
 
       await completing;
-
-      const now = Date.now();
-      const completing2 = new Promise<void>(resolve => {
-        worker.on(
-          'completed',
-          after(2, job => {
-            const timeDiff = Date.now() - now;
-            expect(timeDiff).toBeGreaterThanOrEqual(4000);
-            expect(timeDiff).toBeLessThan(4500);
-            expect(job.delay).toBe(0);
-            resolve();
-          }),
-        );
-      });
-
       await completing2;
       await worker.close();
     });
