@@ -175,7 +175,14 @@ jobs:
         shell: bash
         run: |
           sleep 2
-          COVERAGE_CHANGE=$(curl -s https://coveralls.io/builds/${{ github.sha }}.json | jq '.coverage_change')
+          COVERALLS_RESPONSE=$(curl -fsSL https://coveralls.io/builds/${{ github.sha }}.json || true)
+          COVERAGE_CHANGE=$(echo "${COVERALLS_RESPONSE}" | jq -er '.coverage_change | select(type == "number")' 2>/dev/null || true)
+
+          if [[ -z "${COVERAGE_CHANGE}" ]]; then
+            echo "::warning::Skipping coverage threshold check because Coveralls did not return a numeric coverage_change."
+            exit 0
+          fi
+
           echo coverage changed by ${COVERAGE_CHANGE}%
 
           if [[ -z "$(echo ${COVERAGE_CHANGE} ${{ env.allowed_coverage_change }} | awk '$1 >= $2')" ]]; then
