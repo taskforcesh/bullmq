@@ -179,7 +179,7 @@ jobs:
           COVERAGE_CHANGE=$(echo "${COVERALLS_RESPONSE}" | jq -er '.coverage_change | select(type == "number")' 2>/dev/null || true)
 
           if [[ -z "${COVERAGE_CHANGE}" ]]; then
-            echo "::warning::Skipping coverage threshold check because Coveralls did not return a numeric coverage_change."
+            echo "::warning::Skipping coverage threshold check because Coveralls was unavailable or did not return a numeric coverage_change."
             exit 0
           fi
 
