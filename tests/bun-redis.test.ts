@@ -285,7 +285,8 @@ describe('bun redis adapter', () => {
         await sharedConnection.quit();
 
         // Give any deferred rejections a chance to surface.
-        await new Promise(resolve => setTimeout(resolve, 200));
+        const rejectionSettleMs = 200;
+        await new Promise(resolve => setTimeout(resolve, rejectionSettleMs));
 
         expect(connectionClosedErrors).toHaveLength(0);
       } finally {
