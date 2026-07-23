@@ -2,7 +2,7 @@
 
 mod common;
 
-use bullmq::options::RedisConnectionOptions;
+use bullmq::options::{RedisConnectionOptions, TlsCerts};
 use bullmq::{Queue, QueueOptions};
 use common::{cleanup_queue, test_queue_name};
 use redis::{ConnectionAddr, IntoConnectionInfo};
@@ -137,9 +137,40 @@ fn test_debug_redacts_typed_credentials() {
     assert!(!debug.contains("secret"));
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// End-to-end: connect using typed host/port options
-// ═══════════════════════════════════════════════════════════════════════════
+#[test]
+fn test_effective_url_tls_certs_imply_rediss_scheme() {
+    let opts = RedisConnectionOptions {
+        host: Some("secure.redis".to_string()),
+        port: Some(6380),
+        tls_certs: Some(TlsCerts {
+            root_cert: Some(b"-----BEGIN CERTIFICATE-----".to_vec()),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    assert_eq!(opts.effective_url(), "rediss://secure.redis:6380");
+}
+
+#[test]
+fn test_debug_redacts_tls_certs() {
+    let opts = RedisConnectionOptions {
+        host: Some("secure.redis".to_string()),
+        tls_certs: Some(TlsCerts {
+            root_cert: Some(b"root-ca-pem".to_vec()),
+            client_cert: Some(b"client-cert-pem".to_vec()),
+            client_key: Some(b"client-key-pem".to_vec()),
+        }),
+        ..Default::default()
+    };
+
+    let debug = format!("{opts:?}");
+    assert!(debug.contains("root_cert: Some(\"***\")"));
+    assert!(debug.contains("client_cert: Some(\"***\")"));
+    assert!(debug.contains("client_key: Some(\"***\")"));
+    assert!(!debug.contains("root-ca-pem"));
+    assert!(!debug.contains("client-cert-pem"));
+    assert!(!debug.contains("client-key-pem"));
+}
 
 #[tokio::test]
 async fn test_connect_via_typed_options() {
