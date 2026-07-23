@@ -592,6 +592,15 @@ describe('RedisConnection', () => {
       );
     });
 
+    it('does not leak an unhandled error for a Queue', async () => {
+      await expectNoUnhandledError(
+        () =>
+          new Queue('test-connection-init-failure', {
+            connection: failingConnection,
+          }),
+      );
+    });
+
     it('does not leak an unhandled error for a FlowProducer', async () => {
       await expectNoUnhandledError(
         () =>
