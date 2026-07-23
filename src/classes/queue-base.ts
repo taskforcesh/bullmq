@@ -9,6 +9,7 @@ import {
 import {
   delay,
   DELAY_TIME_5,
+  forwardConnectionError,
   isNotConnectionError,
   isRedisInstance,
   trace,
@@ -73,15 +74,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
       skipWaitingForReady: opts.skipWaitingForReady,
     });
 
-    this.connection.on('error', (error: Error) => {
-      // Only forward connection errors when a consumer is listening. Emitting
-      // 'error' on an EventEmitter with no listeners throws, which would turn a
-      // transient connection error (e.g. a failed init handshake before the
-      // consumer attached its listener) into an unhandled rejection.
-      if (this.listenerCount('error') > 0) {
-        this.emit('error', error);
-      }
-    });
+    forwardConnectionError(this, this.connection);
     this.connection.on('close', () => {
       if (!this.closing) {
         this.emit('ioredis:close');
