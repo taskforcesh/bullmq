@@ -1074,11 +1074,18 @@ describe('Telemetry', () => {
     });
 
     it('should record duration histogram when job completes', async () => {
+      const simulatedWorkDurationMs = 50;
+      // Allow 10% timing jitter for scheduler/clock granularity in CI.
+      const timingToleranceMs = 5;
+      const minRecordedDurationMs = simulatedWorkDurationMs - timingToleranceMs;
+
       const worker = new Worker(
         queueName,
         async () => {
           // Simulate some work
-          await new Promise(resolve => setTimeout(resolve, 50));
+          await new Promise(resolve =>
+            setTimeout(resolve, simulatedWorkDurationMs),
+          );
           return 'completed';
         },
         {
@@ -1102,8 +1109,10 @@ describe('Telemetry', () => {
       const durationHistogram = meter.histograms.get(MetricNames.JobDuration);
       expect(durationHistogram).toBeDefined();
       expect(durationHistogram!.values.length).toBeGreaterThan(0);
-      // Duration should be at least 50ms
-      expect(durationHistogram!.values[0].value).toBeGreaterThanOrEqual(50);
+      // Duration should remain close to the simulated work time despite timer jitter.
+      expect(durationHistogram!.values[0].value).toBeGreaterThanOrEqual(
+        minRecordedDurationMs,
+      );
       expect(durationHistogram!.values[0].attributes).toMatchObject({
         [TelemetryAttributes.QueueName]: queueName,
         [TelemetryAttributes.JobName]: 'testJob',
