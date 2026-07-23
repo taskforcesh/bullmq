@@ -74,9 +74,14 @@ export type RedisCommandArgument = string | Buffer;
 export interface BunRedisRawClient {
   connected: boolean;
   url?: string;
-  onconnect?: () => void;
-  onclose?: (error?: Error) => void;
-  onerror?: (error?: Error) => void;
+  // Bun's RedisClient types these callbacks as nullable (`... | null`) and
+  // passes a bound `this`, so we accept `((...args: any[]) => void) | null`
+  // to stay assignable from Bun's actual `RedisClient` type. Using a stricter
+  // signature (e.g. `(() => void) | undefined`) breaks the
+  // `TClient extends BunRedisRawClient` constraint under `strictNullChecks`.
+  onconnect?: ((...args: any[]) => void) | null;
+  onclose?: ((...args: any[]) => void) | null;
+  onerror?: ((...args: any[]) => void) | null;
 
   connect(): Promise<void>;
   close(): void;
@@ -536,12 +541,17 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     // are written contiguously without any other command interleaving.
     return (this.raw.send<T>(command, args) as Promise<T>).catch((err: any) => {
       if (isBunConnectionClosedError(err)) {
-        return Promise.reject<T>(
-          new ConnectionClosedError(
-            this.closing || this.closed ? 'Connection is closed' : err.message,
-            err,
-          ),
-        );
+        // During an intentional teardown (quit()/disconnect()) resolve to
+        // null instead of rejecting. Bun's close() abruptly rejects every
+        // in-flight command, so without this a shared client shut down at app
+        // exit floods dozens of unhandled ConnectionClosedError rejections.
+        // This mirrors the node-redis adapter, which swallows connection-closed
+        // errors while destroying. Unexpected drops still reject so BullMQ can
+        // react (reconnect / retry).
+        if (this.closing || this.closed) {
+          return null as unknown as T;
+        }
+        return Promise.reject<T>(new ConnectionClosedError(err.message, err));
       }
       throw err;
     });
