@@ -1935,7 +1935,7 @@ describe('workers', () => {
       );
       await worker.waitUntilReady();
 
-      let now = 0;
+      let now: number;
       let completing2: Promise<void>;
 
       // after this event, worker should be drained
