@@ -229,4 +229,69 @@ describe('bun redis adapter', () => {
       await cleanQueue(childQueueName);
     });
   });
+
+  describe('shared connection teardown via bun adapter', () => {
+    it('should not flood ConnectionClosedError when the shared connection is closed via the adapter', async () => {
+      const queueName = `test-bun-shared-${randomUUID()}`;
+
+      const sharedRaw = createRawClient();
+      const sharedConnection = createBunRedisClient(sharedRaw);
+      await sharedConnection.connect();
+
+      const connectionClosedErrors: unknown[] = [];
+      const onUnhandled = (err: unknown) => {
+        if ((err as any)?.name === 'ConnectionClosedError') {
+          connectionClosedErrors.push(err);
+        }
+      };
+      process.on('unhandledRejection', onUnhandled);
+
+      try {
+        const queue = new Queue(queueName, {
+          connection: sharedConnection,
+          prefix,
+        });
+        const worker = new Worker(
+          queueName,
+          async (job: Job) => ({ result: job.data.input * 2 }),
+          { connection: sharedConnection, prefix, autorun: false },
+        );
+
+        await queue.add('double', { input: 21 });
+        worker.run();
+
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(
+            () => reject(new Error('Timed out waiting for job completion')),
+            10000,
+          );
+          worker.on('completed', () => {
+            clearTimeout(timeout);
+            resolve();
+          });
+          worker.on('failed', (_, err) => {
+            clearTimeout(timeout);
+            reject(err);
+          });
+        });
+
+        await worker.close();
+        await queue.close();
+        await cleanQueue(queueName);
+
+        // Close the shared connection through the adapter (the documented
+        // graceful shutdown). This must not surface ConnectionClosedError
+        // rejections from commands that were still in flight.
+        await sharedConnection.quit();
+
+        // Give any deferred rejections a chance to surface.
+        const rejectionSettleMs = 200;
+        await new Promise(resolve => setTimeout(resolve, rejectionSettleMs));
+
+        expect(connectionClosedErrors).toHaveLength(0);
+      } finally {
+        process.removeListener('unhandledRejection', onUnhandled);
+      }
+    });
+  });
 });
