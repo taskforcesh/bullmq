@@ -1726,6 +1726,156 @@ defmodule BullMQ.WorkerIntegrationTest do
     end
   end
 
+  # ---------------------------------------------------------------------------
+  # Child failure propagation to parent (fpof / idof)
+  #
+  # These verify the fix for a parent job getting stuck in the
+  # "waiting-children" state: the dependency flags (fpof/idof/...) must be
+  # stored in the child's parent payload so that when a child finishes or
+  # fails, moveToFinished can release the parent from waiting-children.
+  # ---------------------------------------------------------------------------
+
+  describe "child failure propagation to parent" do
+    @tag :integration
+    @tag timeout: 20_000
+    test "fail_parent_on_failure child moves parent out of waiting-children and fails it", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      test_pid = self()
+
+      alias BullMQ.FlowProducer
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            case job.name do
+              "parent" ->
+                # Parent should never actually run its processor: the deferred
+                # failure guard must fail it before this returns.
+                send(test_pid, {:parent_processing, job.id})
+                :waiting_children
+
+              "child" ->
+                raise "child boom"
+            end
+          end,
+          on_completed: fn job, _result ->
+            send(test_pid, {:completed, job.name, job.id})
+          end,
+          on_failed: fn job, reason ->
+            send(test_pid, {:failed, job.name, job.id, reason})
+          end
+        )
+
+      flow = %{
+        name: "parent",
+        queue_name: queue_name,
+        data: %{},
+        children: [
+          %{
+            name: "child",
+            queue_name: queue_name,
+            data: %{},
+            opts: %{fail_parent_on_failure: true}
+          }
+        ]
+      }
+
+      {:ok, result} = FlowProducer.add(flow, connection: conn, prefix: @test_prefix)
+      parent_id = result.job.id
+      child_id = hd(result.children).job.id
+
+      # Child fails
+      assert_receive {:failed, "child", ^child_id, child_reason}, 10_000
+      assert child_reason =~ "child boom"
+
+      # Parent must NOT complete and must be moved to failed with the deferred reason
+      assert_receive {:failed, "parent", ^parent_id, parent_reason}, 10_000
+      assert parent_reason =~ "failed"
+
+      refute_receive {:completed, "parent", _}, 1_000
+
+      # Parent is no longer stuck in waiting-children; both jobs are failed.
+      {:ok, counts} = Queue.get_counts(queue_name, connection: conn, prefix: @test_prefix)
+      assert counts.waiting_children == 0
+      assert counts.failed == 2
+
+      Worker.close(worker)
+    end
+
+    @tag :integration
+    @tag timeout: 20_000
+    test "ignore_dependency_on_failure child lets parent complete", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      test_pid = self()
+
+      alias BullMQ.FlowProducer
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            case job.name do
+              "parent" ->
+                send(test_pid, {:parent_processing, job.id})
+                {:ok, :parent_done}
+
+              "child" ->
+                raise "child boom"
+            end
+          end,
+          on_completed: fn job, result ->
+            send(test_pid, {:completed, job.name, job.id, result})
+          end,
+          on_failed: fn job, reason ->
+            send(test_pid, {:failed, job.name, job.id, reason})
+          end
+        )
+
+      flow = %{
+        name: "parent",
+        queue_name: queue_name,
+        data: %{},
+        children: [
+          %{
+            name: "child",
+            queue_name: queue_name,
+            data: %{},
+            opts: %{ignore_dependency_on_failure: true}
+          }
+        ]
+      }
+
+      {:ok, result} = FlowProducer.add(flow, connection: conn, prefix: @test_prefix)
+      parent_id = result.job.id
+      child_id = hd(result.children).job.id
+
+      # Child fails, but the dependency is ignored
+      assert_receive {:failed, "child", ^child_id, _reason}, 10_000
+
+      # Parent is released from waiting-children and completes normally
+      assert_receive {:parent_processing, ^parent_id}, 10_000
+      assert_receive {:completed, "parent", ^parent_id, :parent_done}, 10_000
+
+      refute_receive {:failed, "parent", _, _}, 1_000
+
+      {:ok, counts} = Queue.get_counts(queue_name, connection: conn, prefix: @test_prefix)
+      assert counts.waiting_children == 0
+      assert counts.completed == 1
+      assert counts.failed == 1
+
+      Worker.close(worker)
+    end
+  end
+
   # Worker Lifecycle Tests
   # ---------------------------------------------------------------------------
 
