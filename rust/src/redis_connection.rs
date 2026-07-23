@@ -23,7 +23,13 @@ fn build_client(opts: &RedisConnectionOptions, url: &str) -> Result<Client, Erro
             client_cert: client_cert.clone(),
             client_key: client_key.clone(),
         }),
-        _ => None,
+        (None, None) => None,
+        _ => {
+            return Err(Error::InvalidConfig(
+                "tls_certs requires both client_cert and client_key for mutual TLS (mTLS)"
+                    .to_string(),
+            ))
+        }
     };
 
     let tls_certs = TlsCertificates {
