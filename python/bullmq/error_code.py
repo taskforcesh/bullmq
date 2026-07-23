@@ -10,3 +10,5 @@ class ErrorCode(Enum):
     JobLockMismatch = -6
     ParentJobCannotBeReplaced = -7
     JobHasFailedChildren = -9
+    SchedulerJobIdCollision = -10
+    SchedulerJobSlotsBusy = -11

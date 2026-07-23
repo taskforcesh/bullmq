@@ -370,6 +370,113 @@ class Scripts:
                     })
         return None
 
+    async def addJobScheduler(
+        self,
+        job_scheduler_id: str,
+        next_millis: int,
+        template_data: str,
+        template_opts: dict,
+        scheduler_opts: dict,
+        delayed_job_opts: dict,
+        producer_id: str = None,
+    ):
+        """
+        Register or override a job scheduler and queue its next iteration.
+
+        Returns a `[jobId, delay]` pair. Raises if the script returns a
+        negative status code (collision / slots busy).
+        """
+        keys = [
+            self.keys["repeat"],
+            self.keys["delayed"],
+            self.keys["wait"],
+            self.keys["paused"],
+            self.keys["meta"],
+            self.keys["prioritized"],
+            self.keys["marker"],
+            self.keys["id"],
+            self.keys["events"],
+            self.keys["pc"],
+            self.keys["active"],
+        ]
+        args = [
+            next_millis,
+            msgpack.packb(scheduler_opts, use_bin_type=True),
+            job_scheduler_id,
+            template_data,
+            msgpack.packb(self.encodeOpts(template_opts or {}), use_bin_type=True),
+            msgpack.packb(self.encodeOpts(delayed_job_opts or {}), use_bin_type=True),
+            round(time.time() * 1000),
+            self.keys[""],
+            self.toKey(producer_id) if producer_id else "",
+        ]
+
+        result = await self.commands["addJobScheduler"](keys=keys, args=args)
+
+        if isinstance(result, int) and result < 0:
+            raise self.finishedErrors({
+                "code": result,
+                "command": "addJobScheduler",
+            })
+        return result
+
+    async def updateJobSchedulerNextMillis(
+        self,
+        job_scheduler_id: str,
+        next_millis: int,
+        template_data: str,
+        delayed_job_opts: dict,
+        producer_id: str = None,
+    ):
+        """
+        Advance a registered job scheduler to its next iteration. Returns the
+        new delayed job id, or None if no iteration was produced (e.g. the
+        scheduler is gone or the producer doesn't match).
+        """
+        keys = [
+            self.keys["repeat"],
+            self.keys["delayed"],
+            self.keys["wait"],
+            self.keys["paused"],
+            self.keys["meta"],
+            self.keys["prioritized"],
+            self.keys["marker"],
+            self.keys["id"],
+            self.keys["events"],
+            self.keys["pc"],
+            self.toKey(producer_id) if producer_id else "",
+            self.keys["active"],
+        ]
+        args = [
+            next_millis,
+            job_scheduler_id,
+            template_data,
+            msgpack.packb(self.encodeOpts(delayed_job_opts or {}), use_bin_type=True),
+            round(time.time() * 1000),
+            self.keys[""],
+            producer_id or "",
+        ]
+        return await self.commands["updateJobScheduler"](keys=keys, args=args)
+
+    async def removeJobScheduler(self, job_scheduler_id: str) -> int:
+        """
+        Remove a job scheduler and any pending next-iteration job.
+        Returns 0 if the scheduler was removed, 1 if it did not exist.
+        """
+        keys = [self.keys["repeat"], self.keys["delayed"], self.keys["events"]]
+        args = [job_scheduler_id, self.keys[""]]
+        return await self.commands["removeJobScheduler"](keys=keys, args=args)
+
+    async def getJobScheduler(self, job_scheduler_id: str):
+        """
+        Fetch a scheduler hash. Returns a `[raw_fields, score]` tuple where
+        `raw_fields` is the flat HGETALL result (or None) and `score` is the
+        next-iteration timestamp (or None).
+        """
+        keys = [self.keys["repeat"]]
+        args = [job_scheduler_id]
+        return await self.commands["getJobScheduler"](keys=keys, args=args)
+
     def remove(self, job_id: str, remove_children: bool):
         keys = [self.toKey(job_id),
                 self.keys['repeat']]
@@ -677,6 +784,23 @@ class Scripts:
         args = [token, duration, jobId]
         return self.commands["extendLock"](keys, args, client)
 
+    def extendJobLocks(self, job_ids: list, tokens: list, duration: int):
+        """
+        Extend locks for many jobs atomically in a single Lua call.
+
+        Returns the list of job ids whose lock could not be renewed
+        (because the token did not match, the lock was already released,
+        or the SET failed). An empty list means every lock was renewed.
+        """
+        keys = [self.keys['stalled']]
+        args = [
+            self.keys[''],
+            msgpack.packb(tokens, use_bin_type=True),
+            msgpack.packb(job_ids, use_bin_type=True),
+            duration,
+        ]
+        return self.commands["extendLocks"](keys=keys, args=args)
+
     def moveStalledJobsToWait(self, maxStalledCount: int, stalledInterval: int):
         keys = self.getKeys(['stalled', 'wait', 'active',
                             'stalled-check', 'meta', 'paused', 'marker', 'events', 'repeat'])
@@ -702,6 +826,14 @@ class Scripts:
             return TypeError(f"The parent job {opts.get('jobId')} cannot be replaced. {opts.get('command')}")
         elif code == ErrorCode.JobHasFailedChildren.value:
             return UnrecoverableError(f"Cannot complete job {opts.get('jobId')} because it has at least one failed child. {opts.get('command')}")
+        elif code == ErrorCode.SchedulerJobIdCollision.value:
+            return TypeError(
+                f"Cannot create job scheduler iteration - job ID already exists. {opts.get('command')}"
+            )
+        elif code == ErrorCode.SchedulerJobSlotsBusy.value:
+            return TypeError(
+                f"Cannot create job scheduler iteration - current and next time slots already have jobs. {opts.get('command')}"
+            )
         else:
             return TypeError(f"Unknown code {str(code)} error for {opts.get('jobId')}. {opts.get('command')}")
 

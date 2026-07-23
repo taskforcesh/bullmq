@@ -31,6 +31,7 @@ class Queue(EventEmitter):
             self.prefix, name, self.redisConnection)
         self.keys = self.scripts.queue_keys.getKeys(name)
         self.qualifiedName = self.scripts.queue_keys.getQueueQualifiedName(name)
+        self._job_scheduler = None
 
     def toKey(self, type: str):
         return self.scripts.queue_keys.toKey(self.name, type)
@@ -120,6 +121,86 @@ class Queue(EventEmitter):
         Returns the time to live for a rate limited key in milliseconds.
         """
         return self.client.pttl(self.keys["limiter"])
+
+    async def rateLimit(self, expire_time_ms: int) -> None:
+        """
+        Overrides the rate limit to be active for the next jobs by writing
+        the limiter key with a large value that expires after
+        `expire_time_ms` milliseconds. Mirrors `Queue.rateLimit` in Node.
+        """
+        # 2^53 - 1, equivalent to Number.MAX_SAFE_INTEGER on the Node side.
+        await self.client.set(
+            self.keys["limiter"], 9007199254740991, px=expire_time_ms
+        )
+
+    async def removeRateLimitKey(self) -> int:
+        """
+        Removes the rate limit key. Returns the number of keys removed (0 or 1).
+        """
+        return await self.client.delete(self.keys["limiter"])
+
+    async def setGlobalConcurrency(self, concurrency: int) -> int:
+        """
+        Set the maximum number of jobs that all workers attached to this
+        queue can process in parallel. A value of 1 effectively serializes
+        the queue. Mirrors `Queue.setGlobalConcurrency` in Node.
+        """
+        return await self.client.hset(
+            self.keys["meta"], "concurrency", concurrency
+        )
+
+    async def getGlobalConcurrency(self):
+        """
+        Returns the configured global concurrency value, or None if not set.
+        """
+        value = await self.client.hget(self.keys["meta"], "concurrency")
+        if value is None:
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    async def removeGlobalConcurrency(self) -> int:
+        """
+        Clear the global concurrency cap. Returns the number of fields removed.
+        """
+        return await self.client.hdel(self.keys["meta"], "concurrency")
+
+    async def setGlobalRateLimit(self, max_jobs: int, duration_ms: int) -> int:
+        """
+        Configure a global rate limit: at most `max_jobs` jobs across all
+        workers within a rolling `duration_ms` window. Mirrors
+        `Queue.setGlobalRateLimit` in Node.
+        """
+        return await self.client.hset(
+            self.keys["meta"], mapping={"max": max_jobs, "duration": duration_ms}
+        )
+
+    async def getGlobalRateLimit(self):
+        """
+        Returns `{"max": int, "duration": int}` if a global rate limit is
+        configured, otherwise None.
+        """
+        max_jobs, duration_ms = await self.client.hmget(
+            self.keys["meta"], "max", "duration"
+        )
+        if max_jobs is None or duration_ms is None:
+            return None
+        try:
+            return {"max": int(max_jobs), "duration": int(duration_ms)}
+        except (TypeError, ValueError):
+            return None
+
+    async def removeGlobalRateLimit(self) -> int:
+        """
+        Clear the global rate limit by removing both `max` and `duration`
+        from the queue's meta hash. Mirrors `Queue.removeGlobalRateLimit`
+        in Node and is the counterpart to `setGlobalRateLimit`.
+
+        Returns the number of fields actually removed (0, 1, or 2).
+        """
+        return await self.client.hdel(self.keys["meta"], "max", "duration")
 
     async def get_workers(self):
         """
@@ -434,3 +515,57 @@ class Queue(EventEmitter):
 
     def remove(self, job_id: str, opts: dict = {}):
         return self.scripts.remove(job_id, opts.get("removeChildren", True))
+
+    @property
+    def jobScheduler(self):
+        """
+        Lazily-instantiated JobScheduler bound to this queue. Created
+        on first use so that queues which never schedule pay no cost.
+        """
+        if self._job_scheduler is None:
+            from bullmq.job_scheduler import JobScheduler
+            self._job_scheduler = JobScheduler(self)
+        return self._job_scheduler
+
+    async def upsertJobScheduler(
+        self,
+        job_scheduler_id: str,
+        repeat_opts: dict,
+        job_name: str = None,
+        job_data=None,
+        opts: dict = None,
+        override: bool = True,
+        producer_id: str = None,
+    ):
+        """
+        Create or update a job scheduler. See JobScheduler.upsertJobScheduler.
+        """
+        return await self.jobScheduler.upsertJobScheduler(
+            job_scheduler_id,
+            repeat_opts,
+            job_name or job_scheduler_id,
+            job_data,
+            opts,
+            override=override,
+            producer_id=producer_id,
+        )
+
+    async def removeJobScheduler(self, job_scheduler_id: str) -> int:
+        """Remove a job scheduler. Returns 0 on success, 1 if absent."""
+        return await self.jobScheduler.removeJobScheduler(job_scheduler_id)
+
+    async def isJobScheduler(self, job_scheduler_id: str) -> bool:
+        """Return True if `job_scheduler_id` is a registered scheduler."""
+        return await self.jobScheduler.isJobScheduler(job_scheduler_id)
+
+    async def getJobScheduler(self, job_scheduler_id: str):
+        """Return the JSON-shaped scheduler record, or None."""
+        return await self.jobScheduler.getScheduler(job_scheduler_id)
+
+    async def getJobSchedulers(self, start: int = 0, end: int = -1, asc: bool = False):
+        """Page through registered schedulers."""
+        return await self.jobScheduler.getJobSchedulers(start, end, asc)
+
+    async def getJobSchedulersCount(self) -> int:
+        """Number of registered schedulers."""
+        return await self.jobScheduler.getSchedulersCount()
