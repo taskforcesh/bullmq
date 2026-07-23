@@ -38,7 +38,8 @@ export enum TelemetryAttributes {
   JobFailedReason = 'bullmq.job.failed.reason',
   FlowName = 'bullmq.flow.name',
   JobSchedulerId = 'bullmq.job.scheduler.id',
-  JobStatus = 'bullmq.job.status', // TODO: rename it to 'bullmq.job.state' for consistency
+  JobStatus = 'bullmq.job.status', // TODO: remove it in next breaking change
+  JobState = 'bullmq.job.state',
 }
 
 /**

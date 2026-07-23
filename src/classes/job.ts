@@ -955,6 +955,7 @@ export class Job<
       [TelemetryAttributes.QueueName]: this.queue.name,
       [TelemetryAttributes.JobName]: this.name,
       [TelemetryAttributes.JobStatus]: status,
+      [TelemetryAttributes.JobState]: status,
     };
 
     // Record counter metric based on status
