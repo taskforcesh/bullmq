@@ -185,7 +185,57 @@ impl BlockingRedisConnection {
 
 #[cfg(test)]
 mod tests {
-    use crate::options::redact_url_userinfo;
+    use super::build_client;
+    use crate::error::Error;
+    use crate::options::{redact_url_userinfo, RedisConnectionOptions, TlsCerts};
+
+    fn opts_with_certs(certs: TlsCerts) -> RedisConnectionOptions {
+        RedisConnectionOptions {
+            tls_certs: Some(certs),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn build_client_without_tls_certs_succeeds() {
+        let opts = RedisConnectionOptions::default();
+        assert!(build_client(&opts, "redis://127.0.0.1:6379").is_ok());
+    }
+
+    #[test]
+    fn build_client_with_root_cert_only_succeeds() {
+        let opts = opts_with_certs(TlsCerts {
+            root_cert: Some(b"cert".to_vec()),
+            ..Default::default()
+        });
+        assert!(build_client(&opts, "rediss://127.0.0.1:6379").is_ok());
+    }
+
+    #[test]
+    fn build_client_with_client_cert_without_key_errors() {
+        let opts = opts_with_certs(TlsCerts {
+            client_cert: Some(b"cert".to_vec()),
+            client_key: None,
+            ..Default::default()
+        });
+        assert!(matches!(
+            build_client(&opts, "rediss://127.0.0.1:6379"),
+            Err(Error::InvalidConfig(_))
+        ));
+    }
+
+    #[test]
+    fn build_client_with_client_key_without_cert_errors() {
+        let opts = opts_with_certs(TlsCerts {
+            client_cert: None,
+            client_key: Some(b"key".to_vec()),
+            ..Default::default()
+        });
+        assert!(matches!(
+            build_client(&opts, "rediss://127.0.0.1:6379"),
+            Err(Error::InvalidConfig(_))
+        ));
+    }
 
     #[test]
     fn redacts_username_password() {
