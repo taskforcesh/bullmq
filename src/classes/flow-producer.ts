@@ -132,7 +132,15 @@ export class FlowProducer extends EventEmitter {
       skipWaitingForReady: opts.skipWaitingForReady,
     });
 
-    this.connection.on('error', (error: Error) => this.emit('error', error));
+    this.connection.on('error', (error: Error) => {
+      // Only forward connection errors when a consumer is listening. Emitting
+      // 'error' on an EventEmitter with no listeners throws, which would turn a
+      // transient connection error (e.g. a failed init handshake before the
+      // consumer attached its listener) into an unhandled rejection.
+      if (this.listenerCount('error') > 0) {
+        this.emit('error', error);
+      }
+    });
     this.connection.on('close', () => {
       this.queues.clear();
       if (!this.closing) {

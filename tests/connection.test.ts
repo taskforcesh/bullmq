@@ -533,6 +533,67 @@ describe('RedisConnection', () => {
       connection.disconnect();
     });
   });
+
+  describe('when init fails before an error listener is attached', () => {
+    const failingConnection = {
+      host: '127.0.0.1',
+      // Use a port where nothing is listening so init rejects quickly.
+      port: 59999,
+      maxRetriesPerRequest: null,
+      enableOfflineQueue: false,
+      // Give up immediately instead of retrying so init() rejects fast.
+      retryStrategy: () => null,
+    };
+
+    async function expectNoUnhandledError(
+      create: () => { close: () => Promise<void> },
+    ): Promise<void> {
+      const leaked: unknown[] = [];
+      // A failed init that is not forwarded to a listener surfaces either as an
+      // 'unhandledRejection' (from the RedisConnection init catch) or as an
+      // 'uncaughtException' (from the synchronous client 'error' forwarding).
+      const onUnhandled = (reason: unknown) => {
+        leaked.push(reason);
+      };
+      process.on('unhandledRejection', onUnhandled);
+      process.on('uncaughtException', onUnhandled);
+
+      let instance: { close: () => Promise<void> } | undefined;
+      try {
+        instance = create();
+        // Wait long enough for init() to reject during the window before any
+        // 'error' listener is attached.
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } finally {
+        if (instance) {
+          await instance.close().catch(() => undefined);
+        }
+        process.removeListener('unhandledRejection', onUnhandled);
+        process.removeListener('uncaughtException', onUnhandled);
+      }
+
+      expect(leaked).toHaveLength(0);
+    }
+
+    it('does not leak an unhandled error for a Worker', async () => {
+      await expectNoUnhandledError(
+        () =>
+          new Worker('test-connection-init-failure', async () => {}, {
+            connection: failingConnection,
+            autorun: false,
+          }),
+      );
+    });
+
+    it('does not leak an unhandled error for a FlowProducer', async () => {
+      await expectNoUnhandledError(
+        () =>
+          new FlowProducer({
+            connection: failingConnection,
+          }),
+      );
+    });
+  });
 });
 
 describe('connection', () => {
