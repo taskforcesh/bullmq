@@ -1,6 +1,6 @@
 {
   "name": "bullmq",
-  "version": "5.80.12",
+  "version": "5.81.0",
   "description": "Queue for messages and jobs based on Redis",
   "homepage": "https://bullmq.io/",
   "main": "./dist/cjs/index.js",
@@ -60,6 +60,7 @@
     "test:vitest:ui": "vitest --ui",
     "test:ioredis": "vitest run --no-file-parallelism --config vitest.ioredis.config.ts",
     "test:node-redis": "vitest run --no-file-parallelism --config vitest.node-redis.config.ts",
+    "test:valkey-glide": "vitest run --no-file-parallelism --config vitest.valkey-glide.config.ts",
     "test:adapter-conformance": "vitest run --no-file-parallelism --config vitest.adapter-conformance.config.ts",
     "test:bun": "bun node_modules/vitest/dist/cli.js run --no-file-parallelism --config vitest.bun.config.ts",
     "test:bun:smoke": "bun test --timeout 20000 tests/bun-redis.test.ts tests/bun-adapter-suite.test.ts",

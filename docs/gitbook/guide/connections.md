@@ -113,6 +113,24 @@ connection.disconnect(); // or: await connection.quit();
 The `RedisClient` class is provided by Bun runtime. Run this code in Bun (`bun run ...`), not plain Node.js.
 {% endhint %}
 
+### Using Valkey Glide
+
+Valkey Glide has a different API than ioredis/node-redis. Wrap the Glide client with `createValkeyGlideClient` before passing it to BullMQ.
+
+```typescript
+import { GlideClusterClient } from '@valkey/valkey-glide';
+import { Queue, Worker, createValkeyGlideClient } from 'bullmq';
+
+const rawClient = await GlideClusterClient.createClient({
+  addresses: [{ host: 'localhost', port: 6379 }],
+});
+
+const connection = createValkeyGlideClient(rawClient);
+
+const myQueue = new Queue('myqueue', { connection });
+const myWorker = new Worker('myqueue', async job => {}, { connection });
+```
+
 ### Creating clients globally
 
 If you want BullMQ to create a non-ioredis client whenever it needs a new Redis connection, set `RedisConnection.clientFactory` during application startup. The factory receives the merged connection options and must return an `IRedisClient`.
@@ -174,6 +192,7 @@ For most applications, prefer one of the built-in adapters:
 - `createIORedisClient` for ioredis `Redis` and `Cluster` instances.
 - `createNodeRedisClient` for node-redis clients.
 - `createBunRedisClient` for Bun's built-in Redis client.
+- `createValkeyGlideClient` for Valkey Glide clients.
 
 #### `maxRetriesPerRequest`
 

@@ -1,3 +1,10 @@
+# [5.81.0](https://github.com/taskforcesh/bullmq/compare/v5.80.12...v5.81.0) (2026-07-23)
+
+
+### Features
+
+* **connection:** add Valkey Glide client adapter ([#4321](https://github.com/taskforcesh/bullmq/issues/4321)) ([e2b89f7](https://github.com/taskforcesh/bullmq/commit/e2b89f7a4a64c60551f1fa4463ec62d8072c4731))
+
 ## [5.80.12](https://github.com/taskforcesh/bullmq/compare/v5.80.11...v5.80.12) (2026-07-23)
 
 
