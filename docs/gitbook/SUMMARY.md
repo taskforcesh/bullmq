@@ -153,6 +153,12 @@
 ## Python
 
 - [Introduction](python/introduction.md)
+- [Flow Producer](python/flow-producer.md)
+- [Job Scheduler](python/job-scheduler.md)
+- [Lock Manager](python/lock-manager.md)
+- [Global Concurrency and Rate Limit](python/global-concurrency-and-rate-limit.md)
+- [Job Cancellation](python/job-cancellation.md)
+- [Queue Events](python/queue-events.md)
 - [Changelogs](python/changelog.md)
   - [v1](python/changelogs/changelog-v1.md)
   - [v0](python/changelogs/changelog-v0.md)
