@@ -351,7 +351,15 @@ export class Worker<
         skipVersionCheck: opts.skipVersionCheck,
       },
     );
-    this.blockingConnection.on('error', error => this.emit('error', error));
+    this.blockingConnection.on('error', error => {
+      // Only forward connection errors when a consumer is listening. Emitting
+      // 'error' on an EventEmitter with no listeners throws, which would turn a
+      // transient connection error (e.g. a failed init handshake before the
+      // consumer attached its listener) into an unhandled rejection.
+      if (this.listenerCount('error') > 0) {
+        this.emit('error', error);
+      }
+    });
     this.blockingConnection.on('ready', () =>
       setTimeout(() => this.emit('ready'), 0),
     );
