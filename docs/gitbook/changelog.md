@@ -1,3 +1,17 @@
+## [5.80.11](https://github.com/taskforcesh/bullmq/compare/v5.80.10...v5.80.11) (2026-07-23)
+
+
+### Bug Fixes
+
+* **worker:** emit active event for all jobs moved to active fixes [#3911](https://github.com/taskforcesh/bullmq/issues/3911) ([#4326](https://github.com/taskforcesh/bullmq/issues/4326)) ([b002d48](https://github.com/taskforcesh/bullmq/commit/b002d4836f7819b995378112e0c40fbbbe694e4d))
+
+## [5.80.10](https://github.com/taskforcesh/bullmq/compare/v5.80.9...v5.80.10) (2026-07-21)
+
+
+### Bug Fixes
+
+* **ci:** remove stale OSV ignore ([#4320](https://github.com/taskforcesh/bullmq/issues/4320)) ([88730b0](https://github.com/taskforcesh/bullmq/commit/88730b08ecc18cd243dfeddaa80bd8b2d3a5151a))
+
 ## [5.80.9](https://github.com/taskforcesh/bullmq/compare/v5.80.8...v5.80.9) (2026-07-18)
 
 
