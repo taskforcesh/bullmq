@@ -19,14 +19,13 @@ local function requeueDeduplicatedJob(prefix, deduplicationId, eventStreamKey,
     local nextData = rcall("HMGET", deduplicationNextKey,
         "name", "data", "opts", "pk", "pd", "pdk", "rjk", "jid")
 
-    -- Always increment the counter to keep it monotonic
-    local nextId = rcall("INCR", prefix .. "id") .. ""
-    local storedJobId = nextData[8] -- index 8 = "jid" (8th field in the HMGET call above)
+    local customJobId = nextData[8]
+    local jobCounter = rcall("INCR", prefix .. "id")
     local newJobId
-    if storedJobId then
-      newJobId = storedJobId
+    if customJobId and customJobId ~= "" and customJobId ~= false then
+      newJobId = customJobId
     else
-      newJobId = nextId
+      newJobId = jobCounter .. ""
     end
     local newJobIdKey = prefix .. newJobId
     local newOpts = cjson.decode(nextData[3])
