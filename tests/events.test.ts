@@ -438,6 +438,47 @@ describe('events', () => {
     await worker.close();
   });
 
+  it('should emit an active event for every processed job', async () => {
+    const numJobs = 20;
+
+    let activeCount = 0;
+    let completedCount = 0;
+
+    const worker = new Worker(queueName, async () => {}, {
+      connection,
+      prefix,
+    });
+
+    worker.on('active', () => {
+      activeCount++;
+    });
+
+    const completed = new Promise<void>((resolve, reject) => {
+      worker.on('completed', () => {
+        completedCount++;
+        if (completedCount === numJobs) {
+          resolve();
+        }
+      });
+      worker.on('error', reject);
+    });
+
+    await queue.addBulk(
+      Array.from({ length: numJobs }, (_, i) => ({
+        name: 'test',
+        data: { index: i },
+      })),
+    );
+
+    await completed;
+
+    // The active event must fire once per processed job, including jobs that
+    // are fetched atomically when the previous job is moved to completed.
+    expect(activeCount).toBe(numJobs);
+
+    await worker.close();
+  });
+
   describe('when one job is a parent', () => {
     it('emits waiting-children and waiting event', async () => {
       const worker = new Worker(queueName, async () => {}, {
