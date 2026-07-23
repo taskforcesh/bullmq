@@ -1,3 +1,17 @@
+## [5.80.12](https://github.com/taskforcesh/bullmq/compare/v5.80.11...v5.80.12) (2026-07-23)
+
+
+### Bug Fixes
+
+* **bun:** match Bun RedisClient callback types and suppress teardown ConnectionClosedError ([#4329](https://github.com/taskforcesh/bullmq/issues/4329)) fixes [#4212](https://github.com/taskforcesh/bullmq/issues/4212) ([c7bd217](https://github.com/taskforcesh/bullmq/commit/c7bd217ab0496fbdcbacd486b85cca8a825aa4d4))
+
+## [5.80.11](https://github.com/taskforcesh/bullmq/compare/v5.80.10...v5.80.11) (2026-07-23)
+
+
+### Bug Fixes
+
+* **worker:** emit active event for all jobs moved to active fixes [#3911](https://github.com/taskforcesh/bullmq/issues/3911) ([#4326](https://github.com/taskforcesh/bullmq/issues/4326)) ([b002d48](https://github.com/taskforcesh/bullmq/commit/b002d4836f7819b995378112e0c40fbbbe694e4d))
+
 ## [5.80.10](https://github.com/taskforcesh/bullmq/compare/v5.80.9...v5.80.10) (2026-07-21)
 
 

@@ -695,10 +695,6 @@ export class Worker<
       }
     }
 
-    if (job) {
-      this.emit('active', job, 'waiting');
-    }
-
     return job;
   }
 
@@ -905,6 +901,9 @@ export class Worker<
         // Return undefined to indicate no next job is available
         return undefined;
       }
+
+      this.emit('active', job, 'waiting');
+
       return job;
     }
   }
