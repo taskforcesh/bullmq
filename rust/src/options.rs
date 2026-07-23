@@ -53,6 +53,35 @@ pub type BackoffStrategyFn = Arc<
         + Sync,
 >;
 
+/// TLS certificates used to connect to Redis over TLS.
+///
+/// Provide a [`RedisConnectionOptions::tls_certs`] value to supply a custom
+/// root CA (for example a self-signed certificate) and/or a client certificate
+/// and key for mutual TLS (mTLS). All certificates and keys are expected in PEM
+/// format. Supplying `tls_certs` implies a TLS (`rediss://`) connection.
+#[derive(Clone, Default)]
+pub struct TlsCerts {
+    /// Root CA certificate in PEM format, used when the CA is not present in the
+    /// local truststore (e.g. a self-signed certificate).
+    pub root_cert: Option<Vec<u8>>,
+    /// Client certificate in PEM format, used together with
+    /// [`client_key`](Self::client_key) for mutual TLS (mTLS).
+    pub client_cert: Option<Vec<u8>>,
+    /// Client private key in PEM format, used together with
+    /// [`client_cert`](Self::client_cert) for mutual TLS (mTLS).
+    pub client_key: Option<Vec<u8>>,
+}
+
+impl std::fmt::Debug for TlsCerts {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TlsCerts")
+            .field("root_cert", &self.root_cert.as_ref().map(|_| "***"))
+            .field("client_cert", &self.client_cert.as_ref().map(|_| "***"))
+            .field("client_key", &self.client_key.as_ref().map(|_| "***"))
+            .finish()
+    }
+}
+
 /// Options for connecting to Redis.
 #[derive(Clone)]
 pub struct RedisConnectionOptions {
@@ -76,7 +105,14 @@ pub struct RedisConnectionOptions {
     /// Database index to select.
     pub db: Option<u8>,
     /// Whether to connect over TLS (uses the `rediss://` scheme).
+    ///
+    /// This is also implied when [`tls_certs`](Self::tls_certs) is set.
     pub tls: bool,
+    /// Custom TLS certificates (root CA and/or client certificate for mTLS).
+    ///
+    /// When set, the connection uses TLS (`rediss://`) and is built with these
+    /// certificates instead of relying only on the system/webpki truststore.
+    pub tls_certs: Option<TlsCerts>,
 }
 
 pub(crate) fn redact_url_userinfo(url: &str) -> String {
@@ -107,6 +143,7 @@ impl Default for RedisConnectionOptions {
             password: None,
             db: None,
             tls: false,
+            tls_certs: None,
         }
     }
 }
@@ -122,7 +159,11 @@ impl RedisConnectionOptions {
             return self.url.clone();
         };
 
-        let scheme = if self.tls { "rediss" } else { "redis" };
+        let scheme = if self.tls || self.tls_certs.is_some() {
+            "rediss"
+        } else {
+            "redis"
+        };
         let encoded_username = self
             .username
             .as_deref()
@@ -198,6 +239,7 @@ impl std::fmt::Debug for RedisConnectionOptions {
             .field("password", &redacted_password)
             .field("db", &self.db)
             .field("tls", &self.tls)
+            .field("tls_certs", &self.tls_certs)
             .finish()
     }
 }

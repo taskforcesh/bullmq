@@ -1,5 +1,5 @@
 use redis::aio::MultiplexedConnection;
-use redis::Client;
+use redis::{Client, ClientTlsConfig, TlsCertificates};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::debug;
@@ -7,6 +7,32 @@ use tracing::debug;
 use crate::error::Error;
 use crate::options::{redact_url_userinfo, RedisConnectionOptions};
 use crate::scripts::ScriptRegistry;
+
+/// Build a Redis [`Client`] from connection options.
+///
+/// When [`RedisConnectionOptions::tls_certs`] is set, the client is built with
+/// the supplied TLS certificates (custom root CA and/or client certificate for
+/// mTLS); otherwise a plain client is opened from the URL.
+fn build_client(opts: &RedisConnectionOptions, url: &str) -> Result<Client, Error> {
+    let Some(certs) = &opts.tls_certs else {
+        return Ok(Client::open(url)?);
+    };
+
+    let client_tls = match (&certs.client_cert, &certs.client_key) {
+        (Some(client_cert), Some(client_key)) => Some(ClientTlsConfig {
+            client_cert: client_cert.clone(),
+            client_key: client_key.clone(),
+        }),
+        _ => None,
+    };
+
+    let tls_certs = TlsCertificates {
+        client_tls,
+        root_cert: certs.root_cert.clone(),
+    };
+
+    Ok(Client::build_with_tls(url, tls_certs)?)
+}
 
 /// A managed Redis connection that handles reconnection and script loading.
 ///
@@ -28,7 +54,7 @@ impl RedisConnection {
     /// Create a new connection from options.
     pub async fn new(opts: &RedisConnectionOptions) -> Result<Self, Error> {
         let url = opts.effective_url();
-        let client = Client::open(url.as_str())?;
+        let client = build_client(opts, &url)?;
         let scripts = ScriptRegistry::new();
         let mut conn = client.get_multiplexed_async_connection().await?;
         scripts.load_all(&mut conn).await?;
