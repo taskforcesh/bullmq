@@ -535,10 +535,13 @@ describe('RedisConnection', () => {
   });
 
   describe('when init fails before an error listener is attached', () => {
+    // Use a port where nothing is listening so init rejects quickly. A unique
+    // port also lets the assertion ignore unrelated connection errors that may
+    // be emitted by other tests running against the default Redis port.
+    const failingPort = 59999;
     const failingConnection = {
       host: '127.0.0.1',
-      // Use a port where nothing is listening so init rejects quickly.
-      port: 59999,
+      port: failingPort,
       maxRetriesPerRequest: null,
       enableOfflineQueue: false,
       // Give up immediately instead of retrying so init() rejects fast.
@@ -548,12 +551,16 @@ describe('RedisConnection', () => {
     async function expectNoUnhandledError(
       create: () => { close: () => Promise<void> },
     ): Promise<void> {
-      const leaked: unknown[] = [];
+      const leaked: any[] = [];
       // A failed init that is not forwarded to a listener surfaces either as an
       // 'unhandledRejection' (from the RedisConnection init catch) or as an
       // 'uncaughtException' (from the synchronous client 'error' forwarding).
-      const onUnhandled = (reason: unknown) => {
-        leaked.push(reason);
+      // Only count errors originating from our dedicated failing port so that
+      // unrelated connection errors from other tests are ignored.
+      const onUnhandled = (reason: any) => {
+        if (reason && reason.port === failingPort) {
+          leaked.push(reason);
+        }
       };
       process.on('unhandledRejection', onUnhandled);
       process.on('uncaughtException', onUnhandled);
