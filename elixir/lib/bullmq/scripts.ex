@@ -2039,25 +2039,38 @@ defmodule BullMQ.Scripts do
     %{"id" => parent_id, "queueKey" => queue_key}
     |> maybe_add_opt(
       "fpof",
-      Map.get(job_opts, :fail_parent_on_failure) || Map.get(job_opts, "fail_parent_on_failure"),
+      Map.get(job_opts, :fail_parent_on_failure) ||
+        Map.get(job_opts, "fail_parent_on_failure") ||
+        Map.get(job_opts, "failParentOnFailure") ||
+        Map.get(job_opts, :fpof) ||
+        Map.get(job_opts, "fpof"),
       nil
     )
     |> maybe_add_opt(
       "cpof",
       Map.get(job_opts, :continue_parent_on_failure) ||
-        Map.get(job_opts, "continue_parent_on_failure"),
+        Map.get(job_opts, "continue_parent_on_failure") ||
+        Map.get(job_opts, "continueParentOnFailure") ||
+        Map.get(job_opts, :cpof) ||
+        Map.get(job_opts, "cpof"),
       nil
     )
     |> maybe_add_opt(
       "idof",
       Map.get(job_opts, :ignore_dependency_on_failure) ||
-        Map.get(job_opts, "ignore_dependency_on_failure"),
+        Map.get(job_opts, "ignore_dependency_on_failure") ||
+        Map.get(job_opts, "ignoreDependencyOnFailure") ||
+        Map.get(job_opts, :idof) ||
+        Map.get(job_opts, "idof"),
       nil
     )
     |> maybe_add_opt(
       "rdof",
       Map.get(job_opts, :remove_dependency_on_failure) ||
-        Map.get(job_opts, "remove_dependency_on_failure"),
+        Map.get(job_opts, "remove_dependency_on_failure") ||
+        Map.get(job_opts, "removeDependencyOnFailure") ||
+        Map.get(job_opts, :rdof) ||
+        Map.get(job_opts, "rdof"),
       nil
     )
   end
