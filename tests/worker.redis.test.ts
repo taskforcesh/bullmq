@@ -183,7 +183,7 @@ describe('workers (redis-only)', () => {
         expect(job.data.foo).toBe('bar');
         await delay(250);
       },
-      { connection, prefix, concurrency: 100 },
+      { connection, prefix, concurrency: 100, autorun: false },
     );
 
     // Add spy to worker.moveToActive
@@ -196,7 +196,7 @@ describe('workers (redis-only)', () => {
 
     expect(bclientSpy.callCount).toBe(0);
 
-    await new Promise<void>(resolve => {
+    const processing = new Promise<void>(resolve => {
       worker.on('completed', () => {
         completedJobs++;
         if (completedJobs == numJobs) {
@@ -204,6 +204,10 @@ describe('workers (redis-only)', () => {
         }
       });
     });
+
+    worker.run();
+
+    await processing;
 
     expect(completedJobs).toBe(numJobs);
     expect(bclientSpy.callCount).toBe(2);
