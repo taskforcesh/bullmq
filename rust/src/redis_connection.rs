@@ -12,7 +12,7 @@ use crate::scripts::ScriptRegistry;
 ///
 /// When [`RedisConnectionOptions::tls_certs`] is set, the client is built with
 /// the supplied TLS certificates (custom root CA and/or client certificate for
-/// mTLS); otherwise a plain client is opened from the URL.
+/// mTLS); otherwise the client is opened directly from the URL scheme.
 fn build_client(opts: &RedisConnectionOptions, url: &str) -> Result<Client, Error> {
     let Some(certs) = &opts.tls_certs else {
         return Ok(Client::open(url)?);

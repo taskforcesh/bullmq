@@ -111,7 +111,7 @@ pub struct RedisConnectionOptions {
     /// Custom TLS certificates (root CA and/or client certificate for mTLS).
     ///
     /// When set, the connection uses TLS (`rediss://`) and is built with these
-    /// certificates instead of relying only on the system/webpki truststore.
+    /// certificates instead of relying only on the default WebPKI root store.
     pub tls_certs: Option<TlsCerts>,
 }
 

@@ -224,7 +224,7 @@ let conn = RedisConnectionOptions {
     host: Some("redis.example.com".to_string()),
     port: Some(6380),
     tls_certs: Some(TlsCerts {
-        // Custom CA certificate (omit to use the system/webpki truststore).
+        // Custom CA certificate (omit to use the default WebPKI root store).
         root_cert: Some(std::fs::read("ca.pem")?),
         // Client certificate and key for mutual TLS (mTLS).
         client_cert: Some(std::fs::read("client-cert.pem")?),
