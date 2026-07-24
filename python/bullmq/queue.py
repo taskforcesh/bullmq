@@ -1,3 +1,4 @@
+import asyncio
 from typing import Union
 
 from bullmq.event_emitter import EventEmitter
