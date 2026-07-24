@@ -1,6 +1,9 @@
 'use strict';
 
-import { getBlockingRedisClient } from './utils/get-redis-client';
+import {
+  getBlockingRedisClient,
+  getRedisClient,
+} from './utils/get-redis-client';
 import { after } from 'lodash';
 import {
   describe,
@@ -281,7 +284,7 @@ describe('Jobs getters', () => {
       queue.add('test', { baz: 'qux' }),
       queue.add('test', { bar: 'baz' }),
     ]);
-    const queueClient = await queue.client;
+    const queueClient = await getRedisClient(queue);
     const waitingJobs = await queue.getJobs(['waiting']);
     const waitingJobIds = waitingJobs.map(job => job.id);
 
@@ -306,7 +309,7 @@ describe('Jobs getters', () => {
       addedJobs.push(await queue.add('test', { foo: i }));
     }
 
-    const queueClient = await queue.client;
+    const queueClient = await getRedisClient(queue);
     // Remove the hash of the job at index 1 within the requested window while
     // its id remains in the waiting list.
     await queueClient.del(queue.toKey(addedJobs[1].id!));
@@ -761,7 +764,7 @@ describe('Jobs getters', () => {
         const waitingJob = await queue.add('test2', { foo: 2 });
 
         const jobs = await queue.getJobs(['waiting']);
-        const client = await queue.client;
+        const client = await getRedisClient(queue);
         const waitingIds = await client.lrange(queue.toKey('wait'), 0, -1);
 
         expect(jobs).toBeInstanceOf(Array);
