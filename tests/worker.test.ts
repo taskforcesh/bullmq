@@ -1744,7 +1744,6 @@ describe('workers', () => {
       await Job.create(queue, 'test1', { foo: 'bar' });
 
       await completing;
-
       await completing2;
       await worker.close();
     });
