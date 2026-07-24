@@ -44,7 +44,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           fetch-depth: 0
       - name: Detect changed paths
@@ -91,10 +91,10 @@ jobs:
         run: echo "No node/lua changes detected; skipping smoke steps."
       - name: Checkout repository
         if: ${{ needs.changes.outputs.node == 'true' || needs.changes.outputs.lua == 'true' }}
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       - name: Use Node.js
         if: ${{ needs.changes.outputs.node == 'true' || needs.changes.outputs.lua == 'true' }}
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: ${{ env.node-version }}
           cache: 'yarn'
@@ -145,10 +145,10 @@ jobs:
         run: echo "No node/lua changes detected; skipping ioredis coverage job."
       - name: Checkout repository
         if: env.should_run == 'true'
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       - name: Use Node.js ${{ matrix.node-version }}
         if: env.should_run == 'true'
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'yarn'
@@ -217,10 +217,10 @@ jobs:
         run: echo "No node/lua changes detected; skipping extra ioredis matrix steps."
       - name: Checkout repository
         if: env.should_run == 'true'
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       - name: Use Node.js ${{ matrix.node-version }}
         if: env.should_run == 'true'
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'yarn'
@@ -258,10 +258,10 @@ jobs:
         run: echo "No node/lua changes detected; skipping node-redis test steps."
       - name: Checkout repository
         if: env.should_run == 'true'
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       - name: Use Node.js ${{ matrix.node-version }}
         if: env.should_run == 'true'
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'yarn'
@@ -301,10 +301,10 @@ jobs:
         run: echo "No node/lua changes detected; skipping valkey test steps."
       - name: Checkout repository
         if: env.should_run == 'true'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.1.0
       - name: Use Node.js ${{ env.node-version }}
         if: env.should_run == 'true'
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: lts/*
           cache: 'yarn'
@@ -341,10 +341,10 @@ jobs:
         run: echo "No node/lua changes detected; skipping dragonflydb test steps."
       - name: Checkout repository
         if: env.should_run == 'true'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.1.0
       - name: Use Node.js ${{ env.node-version }}
         if: env.should_run == 'true'
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: lts/*
           cache: 'yarn'
@@ -375,15 +375,15 @@ jobs:
         run: echo "No node/lua changes detected; skipping Bun test steps."
       - name: Checkout repository
         if: env.should_run == 'true'
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       - name: Setup Bun
         if: env.should_run == 'true'
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@v2.2.0
         with:
           bun-version: ${{ matrix.bun-version }}
       - name: Use Node.js for yarn
         if: env.should_run == 'true'
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: lts/*
           cache: 'yarn'
@@ -451,11 +451,11 @@ jobs:
         run: echo "No PHP/Lua changes detected; skipping PHP test steps."
       - name: Checkout repository
         if: env.should_run == 'true'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.1.0
 
       - name: Use Node.js ${{ matrix.node-version }}
         if: env.should_run == 'true'
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'yarn'
@@ -475,7 +475,7 @@ jobs:
 
       - name: Setup PHP
         if: env.should_run == 'true'
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@2.37.2
         with:
           php-version: ${{ matrix.php-version }}
           extensions: redis, msgpack
@@ -489,7 +489,7 @@ jobs:
 
       - name: Cache Composer dependencies
         if: env.should_run == 'true'
-        uses: actions/cache@v5
+        uses: actions/cache@v5.1.0
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
           key: ${{ runner.os }}-composer-${{ matrix.php-version }}-${{ hashFiles('php/composer.lock') }}

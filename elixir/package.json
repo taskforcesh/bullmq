@@ -75,6 +75,6 @@
   "packageManager": "yarn@1.22.22",
   "resolutions": {
     "ajv": "8.18.0",
-    "picomatch": ">=2.3.2"
+    "picomatch": "4.0.4"
   }
 }
