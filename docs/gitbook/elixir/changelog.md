@@ -1,3 +1,15 @@
+## [1.3.6](https://github.com/taskforcesh/bullmq/compare/vex1.3.5...vex1.3.6) (2026-07-24)
+
+
+### Bug Fixes
+
+* **queue:** retrieve jobs in same transaction under getJobs ([#4300](https://github.com/taskforcesh/bullmq/issues/4300)) (python) (elixir) (php) (rust) ([8571503](https://github.com/taskforcesh/bullmq/commit/8571503034a43c6d5882e290051957215fd20fee))
+
+
+### Features
+
+* idiomatic builder-based ergonomics across the public API [rust] ([#4288](https://github.com/taskforcesh/bullmq/issues/4288)) ([bbf0844](https://github.com/taskforcesh/bullmq/commit/bbf0844a250d08d6bfafacb43360f26a57cb9c87))
+
 ## [1.3.5](https://github.com/taskforcesh/bullmq/compare/vex1.3.4...vex1.3.5) (2026-07-11)
 
 
