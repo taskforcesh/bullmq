@@ -1,3 +1,10 @@
+## [5.81.1](https://github.com/taskforcesh/bullmq/compare/v5.81.0...v5.81.1) (2026-07-24)
+
+
+### Bug Fixes
+
+* **queue:** retrieve jobs in same transaction under getJobs ([#4300](https://github.com/taskforcesh/bullmq/issues/4300)) (python) (elixir) (php) (rust) ([8571503](https://github.com/taskforcesh/bullmq/commit/8571503034a43c6d5882e290051957215fd20fee))
+
 # [5.81.0](https://github.com/taskforcesh/bullmq/compare/v5.80.12...v5.81.0) (2026-07-23)
 
 
