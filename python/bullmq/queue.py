@@ -1,5 +1,5 @@
-import asyncio
 from typing import Union
+
 from bullmq.event_emitter import EventEmitter
 from bullmq.types import QueueBaseOptions, RetryJobsOptions, JobOptions, PromoteJobsOptions
 from bullmq.utils import extract_result
@@ -336,26 +336,26 @@ class Queue(EventEmitter):
 
     async def getJobs(self, types, start=0, end=-1, asc:bool=False):
         current_types = self.sanitizeJobTypes(types)
+        if isinstance(self.backend, RedisBackend):
+            raw_jobs = await self.backend.scripts.getJobs(current_types, start, end, asc)
+            jobs = []
+            seen = set()
+
+            for jobs_by_type in raw_jobs:
+                for job_id, job_data in jobs_by_type:
+                    if job_id in seen:
+                        continue
+                    seen.add(job_id)
+
+                    raw_data = dict(zip(job_data[::2], job_data[1::2]))
+                    jobs.append(Job.fromJSON(self, raw_data, job_id))
+
+            return jobs
+
         job_ids = await self.backend.getRanges(current_types, start, end, asc)
         tasks = [asyncio.create_task(Job.fromId(self, i)) for i in job_ids]
         job_set, _ = await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
-        jobs = [extract_result(job_task, self.emit) for job_task in job_set]
-        jobs_len = len(jobs)
-
-        # we filter `None` out to remove:
-        jobs = list(filter(lambda j: j is not None, jobs))
-
-        for index, job_id in enumerate(job_ids):
-            pivot_job = jobs[index]
-
-            for i in range(index,jobs_len):
-                current_job = jobs[i]
-                if current_job and current_job.id == job_id:
-                    jobs[index] = current_job
-                    jobs[i] = pivot_job
-                    continue
-
-        return jobs
+        return [extract_result(job_task, self.emit) for job_task in job_set]
 
     def sanitizeJobTypes(self, types):
         current_types = list(types)

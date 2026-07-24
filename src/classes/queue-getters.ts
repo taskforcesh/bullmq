@@ -7,6 +7,7 @@ import { JobState, JobType } from '../types';
 import { IQueueBackend, JobJson, Metrics, QueueMeta } from '../interfaces';
 import { IRedisClient } from '../interfaces/redis-client';
 import { MetricNames, TelemetryAttributes } from '../enums';
+import { RedisQueueBackend } from './redis-queue-backend';
 
 interface ClusterNodeWithClientCommand extends IRedisClient {
   client(command: 'LIST'): Promise<string>;
@@ -492,12 +493,35 @@ export class QueueGetters<
     asc = false,
   ): Promise<JobBase[]> {
     const currentTypes = this.sanitizeJobTypes(types);
+    let jobIds: string[];
+    const backend = this.getBackend();
 
-    const jobIds = await this.getRanges(currentTypes, start, end, asc);
+    if (backend instanceof RedisQueueBackend) {
+      const jobDataByType = await backend.getJobs(
+        currentTypes,
+        start,
+        end,
+        asc,
+      );
+      const seen = new Set<string>();
 
-    return Promise.all(
-      jobIds.map(jobId => this.Job.fromId(this, jobId) as Promise<JobBase>),
-    );
+      jobIds = jobDataByType.reduce<string[]>((ids, jobData) => {
+        for (const [jobId] of jobData || []) {
+          if (!seen.has(jobId)) {
+            seen.add(jobId);
+            ids.push(jobId);
+          }
+        }
+
+        return ids;
+      }, []);
+    } else {
+      jobIds = await this.getRanges(currentTypes, start, end, asc);
+    }
+
+    const jobs = await Promise.all(jobIds.map(jobId => this.getJob(jobId)));
+
+    return jobs.filter(Boolean) as JobBase[];
   }
 
   /**
