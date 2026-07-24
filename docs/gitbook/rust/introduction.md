@@ -209,6 +209,31 @@ let conn = RedisConnectionOptions {
 };
 ```
 
+### Custom TLS certificates
+
+To connect over TLS with a custom root CA (for example a self-signed
+certificate) or a client certificate and key for mutual TLS (mTLS), provide a
+`tls_certs` value. All certificates and keys must be in PEM format. Setting
+`tls_certs` implies a TLS (`rediss://`) connection, so `tls: true` is not
+required:
+
+```rust
+use bullmq::options::{RedisConnectionOptions, TlsCerts};
+
+let conn = RedisConnectionOptions {
+    host: Some("redis.example.com".to_string()),
+    port: Some(6380),
+    tls_certs: Some(TlsCerts {
+        // Custom CA certificate (omit to use the system/webpki truststore).
+        root_cert: Some(std::fs::read("ca.pem")?),
+        // Client certificate and key for mutual TLS (mTLS).
+        client_cert: Some(std::fs::read("client-cert.pem")?),
+        client_key: Some(std::fs::read("client-key.pem")?),
+    }),
+    ..Default::default()
+};
+```
+
 ## Key Differences from Node.js
 
 | Aspect         | Node.js                            | Rust                                                   |
