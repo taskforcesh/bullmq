@@ -18,6 +18,7 @@ import { Processor } from '../types/processor';
 import {
   delay,
   DELAY_TIME_1,
+  forwardConnectionError,
   isNotConnectionError,
   isRedisInstance,
   randomUUID,
@@ -351,7 +352,7 @@ export class Worker<
         skipVersionCheck: opts.skipVersionCheck,
       },
     );
-    this.blockingConnection.on('error', error => this.emit('error', error));
+    forwardConnectionError(this, this.blockingConnection);
     this.blockingConnection.on('ready', () =>
       setTimeout(() => this.emit('ready'), 0),
     );

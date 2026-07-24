@@ -12,7 +12,13 @@ import {
   Tracer,
   ContextManager,
 } from '../interfaces';
-import { getParentKey, isRedisInstance, randomUUID, trace } from '../utils';
+import {
+  forwardConnectionError,
+  getParentKey,
+  isRedisInstance,
+  randomUUID,
+  trace,
+} from '../utils';
 import { createScripts } from '../utils/create-scripts';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
@@ -132,7 +138,7 @@ export class FlowProducer extends EventEmitter {
       skipWaitingForReady: opts.skipWaitingForReady,
     });
 
-    this.connection.on('error', (error: Error) => this.emit('error', error));
+    forwardConnectionError(this, this.connection);
     this.connection.on('close', () => {
       this.queues.clear();
       if (!this.closing) {
