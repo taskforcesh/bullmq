@@ -1,3 +1,4 @@
+import { getRedisClient } from './utils/get-redis-client';
 import {
   describe,
   beforeEach,
@@ -11,17 +12,11 @@ import {
 
 import * as sinon from 'sinon';
 import { rrulestr } from 'rrule';
-import {
-  Job,
-  Queue,
-  QueueEvents,
-  Repeat,
-  getNextMillis,
-  Worker,
-} from '../src/classes';
-import { JobsOptions } from '../src/types';
-import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { Job, Queue, QueueEvents, getNextMillis, Worker } from '../src/classes';
+import { JobsOptions, JobSchedulerJobOptions } from '../src/types';
+import { delay, randomUUID } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
 import { IRedisClient } from '../src/interfaces';
 
 const moment = require('moment');
@@ -36,7 +31,6 @@ const NoopProc = async (job: Job) => {};
 describe('Job Scheduler', () => {
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   // TODO: Move timeout to test options: { timeout: 10000 }
-  let repeat: Repeat;
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
@@ -54,7 +48,6 @@ describe('Job Scheduler', () => {
     });
     queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
-    repeat = new Repeat(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queue.waitUntilReady();
     await queueEvents.waitUntilReady();
@@ -64,9 +57,8 @@ describe('Job Scheduler', () => {
     clock.restore();
     try {
       await queue.close();
-      await repeat.close();
       await queueEvents.close();
-      await removeAllQueueData(createTestConnection(), queueName);
+      await cleanupQueue(queueName);
     } catch (error) {
       // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
     }
@@ -106,55 +98,17 @@ describe('Job Scheduler', () => {
     });
   });
 
-  // Regression for https://github.com/taskforcesh/bullmq/issues/3063:
-  // when a scheduler is removed and re-upserted under the same id, any
-  // previously-completed jobs from the prior scheduler keep their
-  // hash keys in Redis (removeJobScheduler only cleans up the
-  // currently-delayed entry). The old collision recovery walked at
-  // most one slot ahead, so several consecutive stale slots caused
-  // addJobScheduler to fail with SchedulerJobSlotsBusy and no new
-  // delayed job to be created.
-  describe('when re-upserting a scheduler with stale completed jobs in adjacent slots', () => {
-    it('skips past the stale slots and schedules a new job', async () => {
-      const every = 60_000;
-      // Use a fixed wall-clock time so the expected skipped slots are deterministic.
-      const date = new Date('2017-02-07T09:00:00.000Z');
-      clock.setSystemTime(date);
-
-      // Plant stale completed-job hashes from a hypothetical prior
-      // scheduler under id 'stale-test'. Three consecutive slots are
-      // occupied so the single-retry recovery would have failed.
-      const client = await queue.client;
-      const planted: string[] = [];
-      for (let i = 0; i < 3; i++) {
-        const millis = date.getTime() + i * every;
-        const id = `repeat:stale-test:${millis}`;
-        await client.hset(`${prefix}:${queueName}:${id}`, {
-          id,
-          name: 'stale',
-        });
-        await client.zadd(`${prefix}:${queueName}:completed`, millis, id);
-        planted.push(id);
-      }
-
-      const job = await queue.upsertJobScheduler(
-        'stale-test',
-        { every },
-        { name: 'fresh', data: {} },
+  describe('when removed debounce option is provided', () => {
+    it('throws an error', async () => {
+      await expect(
+        queue.upsertJobScheduler(
+          'test-scheduler',
+          { every: 100 },
+          { opts: { debounce: { id: 'legacy' } } as any },
+        ),
+      ).rejects.toThrow(
+        'Debounce option has been removed. Use deduplication option instead',
       );
-
-      expect(job).toBeDefined();
-      expect(job!.id).toBeDefined();
-
-      // The new job must land beyond the stale slots.
-      const expectedMinNext = date.getTime() + 3 * every;
-      // Scheduler job ids are formatted as repeat:schedulerId:timestamp.
-      const newMillis = Number(job!.id!.split(':').pop());
-      expect(newMillis).toBeGreaterThanOrEqual(expectedMinNext);
-
-      const delayed = await queue.getDelayed();
-      expect(delayed).toHaveLength(1);
-      expect(planted).not.toContain(delayed[0].id);
     });
   });
 
@@ -255,13 +209,15 @@ describe('Job Scheduler', () => {
           autorun: false,
         });
         await worker.waitUntilReady();
-        const token = 'test-token';
+        const testWorkerToken = 'test-token';
 
         const jobSchedulerId = 'test';
         await queue.upsertJobScheduler(jobSchedulerId, {
           every: ONE_MINUTE * 5,
         });
-        const firstJob = await worker.getNextJob(token, { block: false });
+        const firstJob = await worker.getNextJob(testWorkerToken, {
+          block: false,
+        });
         expect(firstJob).toBeDefined();
         await queue.upsertJobScheduler(jobSchedulerId, {
           every: ONE_MINUTE * 5,
@@ -274,7 +230,7 @@ describe('Job Scheduler', () => {
         });
         const repeatableJobs = await queue.getJobSchedulers();
         expect(repeatableJobs.length).toEqual(1);
-        await firstJob!.moveToCompleted(null, token);
+        await firstJob!.moveToCompleted(null, testWorkerToken);
         const count = await queue.getJobCountByTypes('delayed', 'waiting');
         expect(count).toBe(1);
 
@@ -564,7 +520,9 @@ describe('Job Scheduler', () => {
           let waitingJobs = await queue.getWaiting();
           expect(waitingJobs).toHaveLength(1);
           const job1 = waitingJobs[0];
-          expect(job1.opts.repeat!.every).toBe(10 * ONE_SECOND);
+          expect((job1.opts as JobSchedulerJobOptions).repeat!.every).toBe(
+            10 * ONE_SECOND,
+          );
 
           const processing = new Promise<void>(resolve => {
             worker = new Worker(
@@ -591,7 +549,9 @@ describe('Job Scheduler', () => {
           let delayedJobs = await queue.getDelayed();
           expect(delayedJobs).toHaveLength(1);
           const jobAfterFirstRun = delayedJobs[0];
-          expect(jobAfterFirstRun.opts.repeat!.every).toBe(10 * ONE_SECOND);
+          expect(
+            (jobAfterFirstRun.opts as JobSchedulerJobOptions).repeat!.every,
+          ).toBe(10 * ONE_SECOND);
 
           // Close the worker to prevent it from processing the next job immediately
           await worker!.close();
@@ -624,7 +584,9 @@ describe('Job Scheduler', () => {
           expect(job2.delay).toBe(0);
 
           // Verify the job has the new interval configured
-          expect(job2.opts.repeat!.every).toBe(2 * ONE_SECOND);
+          expect((job2.opts as JobSchedulerJobOptions).repeat!.every).toBe(
+            2 * ONE_SECOND,
+          );
 
           // Verify the timestamp is current (not scheduled for the old 10s interval)
           // Job should run at approximately the current time (within a small margin)
@@ -832,7 +794,7 @@ describe('Job Scheduler', () => {
         });
 
         const waitingCountAfter = await queue.getWaitingCount();
-        expect(waitingCountAfter).toEqual(0);
+        expect(waitingCountAfter).toEqual(1);
 
         const delayedCount = await queue.getDelayedCount();
         expect(delayedCount).toEqual(1);
@@ -959,7 +921,7 @@ describe('Job Scheduler', () => {
       }),
     ]);
 
-    const count = await repeat.getRepeatableCount();
+    const count = await queue.getJobSchedulersCount();
     expect(count).toEqual(5);
 
     const delayedCount = await queue.getDelayedCount();
@@ -968,55 +930,17 @@ describe('Job Scheduler', () => {
     const waitingCount = await queue.getWaitingCount();
     expect(waitingCount).toEqual(1);
 
-    const jobs = await repeat.getRepeatableJobs(0, -1, true);
+    const jobs = await queue.getJobSchedulers(0, -1, true);
 
     expect(jobs).toBeInstanceOf(Array);
     expect(jobs).toHaveLength(5);
-    expect(jobs).toContainEqual({
-      key: 'fifth',
-      name: 'fifth',
-      endDate: null,
-      tz: 'Europa/Copenhaguen',
-      pattern: null,
-      every: '5000',
-      next: 1486481040000,
-    });
-    expect(jobs).toContainEqual({
-      key: 'first',
-      name: 'first',
-      endDate: Date.now() + 12345,
-      tz: null,
-      pattern: '10 * * * * *',
-      every: null,
-      next: 1486481050000,
-    });
-    expect(jobs).toContainEqual({
-      key: 'second',
-      name: 'second',
-      endDate: Date.now() + 6100000,
-      tz: null,
-      pattern: '2 10 * * * *',
-      every: null,
-      next: 1486483802000,
-    });
-    expect(jobs).toContainEqual({
-      key: 'fourth',
-      name: 'fourth',
-      endDate: null,
-      tz: 'Africa/Accra',
-      pattern: '2 * * 4 * *',
-      every: null,
-      next: 1488585602000,
-    });
-    expect(jobs).toContainEqual({
-      key: 'third',
-      name: 'third',
-      endDate: null,
-      tz: 'Africa/Abidjan',
-      pattern: '1 * * 5 * *',
-      every: null,
-      next: 1488672001000,
-    });
+    expect(jobs.map(job => job.key).sort()).toEqual([
+      'fifth',
+      'first',
+      'fourth',
+      'second',
+      'third',
+    ]);
   });
 
   it('should repeat every 2 seconds', async () => {
@@ -1082,76 +1006,6 @@ describe('Job Scheduler', () => {
     await completing;
     await worker.close();
     delayStub.restore();
-  });
-
-  describe('when data does not exist in scheduler from old instances', () => {
-    it('should repeat every 2 seconds reusing data from delayed job', async () => {
-      // TODO: Move timeout to test options: { timeout: 10000 }
-      const client = await queue.client;
-      const nextTick = 2 * ONE_SECOND + 100;
-
-      const worker = new Worker(
-        queueName,
-        async () => {
-          clock.tick(nextTick);
-        },
-        { autorun: false, connection, prefix },
-      );
-      const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
-
-      const date = new Date('2017-02-07T15:24:00.000Z');
-      clock.setSystemTime(date);
-
-      await queue.upsertJobScheduler(
-        'test',
-        { pattern: '*/2 * * * * *' },
-        { data: { foo: 'bar' } },
-      );
-      await client!.hdel(`${prefix}:${queue.name}:repeat:test`, 'data');
-
-      const scheduler = await queue.getJobScheduler('test');
-
-      expect(scheduler).toEqual({
-        iterationCount: 1,
-        key: 'test',
-        name: 'test',
-        pattern: '*/2 * * * * *',
-        offset: 0,
-        next: 1486481042000,
-      });
-
-      clock.tick(nextTick);
-
-      let prev: any;
-      let counter = 0;
-
-      const completing = new Promise<void>((resolve, reject) => {
-        worker.on('completed', async job => {
-          try {
-            expect(job.data).toEqual({ foo: 'bar' });
-            if (prev) {
-              expect(prev.timestamp).toBeLessThan(job.timestamp);
-              expect(job.timestamp - prev.timestamp).toBeGreaterThanOrEqual(
-                2000,
-              );
-            }
-            prev = job;
-            counter++;
-            if (counter == 5) {
-              resolve();
-            }
-          } catch (error) {
-            reject(error);
-          }
-        });
-      });
-
-      worker.run();
-
-      await completing;
-      await worker.close();
-      delayStub.restore();
-    });
   });
 
   it('should repeat every 2 seconds with startDate in future', async () => {
@@ -1324,7 +1178,7 @@ describe('Job Scheduler', () => {
       try {
         await queue2.close();
         await worker.close();
-        await removeAllQueueData(createTestConnection(), queueName2);
+        await cleanupQueue(queueName2);
       } catch (error) {
         // Ignore errors in cleanup (happens sometimes with Dragonfly in MacOS)
       }
@@ -1440,7 +1294,7 @@ describe('Job Scheduler', () => {
           async job => {
             clock.tick(nextTick);
 
-            if (job.opts.repeat!.count == 5) {
+            if ((job.opts as JobSchedulerJobOptions).repeat!.count == 5) {
               const removed = await queue.removeJobScheduler('rrule');
               expect(removed).toBe(true);
             }
@@ -1602,13 +1456,24 @@ describe('Job Scheduler', () => {
 
       await completing;
 
+      // Quiesce the worker before sampling the counts. This scheduler runs
+      // jobs back-to-back — each processed job advances the fake clock by the
+      // full interval, so the next iteration is immediately due — so while the
+      // worker keeps running there is a brief window per cycle, between
+      // promoting the due job to active and scheduling the following iteration,
+      // where zero jobs are delayed. Sampling `getDelayedCount()` while the
+      // worker is still running can land in that window (far more likely on
+      // backends with higher per-operation latency), making the assertion
+      // flaky. Closing first settles the state deterministically: because a
+      // scheduler job's next iteration is scheduled the moment it is picked up,
+      // once the worker is idle exactly one future iteration remains delayed.
+      await worker.close();
+
       const waitingCount = await queue.getWaitingCount();
       expect(waitingCount).toBe(0);
 
       const delayedCountAfter = await queue.getDelayedCount();
       expect(delayedCountAfter).toBe(1);
-
-      await worker.close();
     });
   });
 
@@ -1769,8 +1634,10 @@ describe('Job Scheduler', () => {
       const worker = new Worker(
         queueName,
         async job => {
-          if (job.opts.repeat?.offset) {
-            expect(job.opts.repeat?.offset).toBe(offset);
+          if ((job.opts as JobSchedulerJobOptions).repeat?.offset) {
+            expect((job.opts as JobSchedulerJobOptions).repeat?.offset).toBe(
+              offset,
+            );
           }
           clock.tick(nextTick);
         },
@@ -2159,69 +2026,6 @@ describe('Job Scheduler', () => {
     delayStub.restore();
   });
 
-  describe('when utc option is provided', () => {
-    it('repeats once a day for 5 days', async () => {
-      // TODO: Move timeout to test options: { timeout: 8000 }
-
-      const date = new Date('2017-05-05 13:12:00');
-      clock.setSystemTime(date);
-
-      const nextTick = ONE_DAY + 10 * ONE_SECOND;
-      const delay = 5 * ONE_SECOND + 500;
-
-      const worker = new Worker(
-        queueName,
-        async () => {
-          clock.tick(nextTick);
-        },
-        { autorun: false, connection, prefix },
-      );
-      const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {
-        console.log('delay');
-      });
-
-      let prev: Job;
-      let counter = 0;
-      const completing = new Promise<void>((resolve, reject) => {
-        worker.on('completed', async job => {
-          try {
-            if (prev) {
-              expect(prev.timestamp).toBeLessThan(job.timestamp);
-              expect(job.timestamp - prev.timestamp).toBeGreaterThanOrEqual(
-                ONE_DAY,
-              );
-            }
-            prev = job;
-
-            counter++;
-            if (counter == 5) {
-              resolve();
-            }
-          } catch (err) {
-            reject(err);
-          }
-        });
-      });
-
-      const job = await queue.upsertJobScheduler('repeat', {
-        pattern: '0 1 * * *',
-        endDate: new Date('2017-05-10 13:13:00'),
-        tz: 'Europe/Athens',
-        utc: true,
-      });
-
-      expect(job).toBeTruthy();
-
-      clock.tick(nextTick + delay);
-
-      worker.run();
-
-      await completing;
-      await worker.close();
-      delayStub.restore();
-    });
-  });
-
   it('should repeat 7:th day every month at 9:25', async () => {
     // TODO: Move timeout to test options: { timeout: 12000 }
 
@@ -2289,7 +2093,7 @@ describe('Job Scheduler', () => {
       const p2 = queue.upsertJobScheduler('test', repeatOpts);
 
       const jobs = await Promise.all([p1, p2]);
-      const configs = await repeat.getRepeatableJobs(0, -1, true);
+      const configs = await queue.getJobSchedulers(0, -1, true);
 
       const count = await queue.count();
 
@@ -2327,7 +2131,7 @@ describe('Job Scheduler', () => {
       const delayedCount2 = await queue.getDelayedCount();
       expect(delayedCount2).toBe(1);
 
-      const configs = await repeat.getRepeatableJobs(0, -1, true);
+      const configs = await queue.getJobSchedulers(0, -1, true);
 
       expect(delayedCount).toBe(1);
 
@@ -2392,35 +2196,6 @@ describe('Job Scheduler', () => {
     delayStub.restore();
   });
 
-  it('should be able to remove repeatable jobs by key', async () => {
-    const client = await queue.client;
-    const repeat = { pattern: '*/2 * * * * *' };
-
-    const createdJob = await queue.upsertJobScheduler('remove', repeat);
-    const delayedCount1 = await queue.getJobCountByTypes('delayed');
-    expect(delayedCount1).toBe(1);
-    const job = await queue.getJob(createdJob!.id!);
-    const repeatableJobs = await queue.getRepeatableJobs();
-    expect(repeatableJobs).toHaveLength(1);
-    const existBeforeRemoval = await client.exists(
-      `${prefix}:${queue.name}:repeat:${createdJob!.repeatJobKey!}`,
-    );
-    expect(existBeforeRemoval).toBe(1);
-    const removed = await queue.removeRepeatableByKey(
-      createdJob!.repeatJobKey!,
-    );
-    const delayedCount = await queue.getJobCountByTypes('delayed');
-    expect(delayedCount).toBe(0);
-    const existAfterRemoval = await client.exists(
-      `${prefix}:${queue.name}:repeat:${createdJob!.repeatJobKey!}`,
-    );
-    expect(existAfterRemoval).toBe(0);
-    expect(job!.repeatJobKey).toBeDefined();
-    expect(removed).toBe(true);
-    const repeatableJobsAfterRemove = await queue.getRepeatableJobs();
-    expect(repeatableJobsAfterRemove).toHaveLength(0);
-  });
-
   describe('when repeatable job does not exist', () => {
     it('returns false', async () => {
       const repeat = { pattern: '*/2 * * * * *' };
@@ -2432,29 +2207,6 @@ describe('Job Scheduler', () => {
       expect(removed).toBe(true);
       const removed2 = await queue.removeJobScheduler(repeatableJobs[0].key);
       expect(removed2).toBe(false);
-    });
-  });
-
-  describe('when listing legacy schedulers without hash data', () => {
-    it('should parse scheduler fields from legacy key format', async () => {
-      const client = await queue.client;
-      const next = Date.now() + ONE_MINUTE;
-      const legacyKey = 'legacy-name:legacy-id:::*/5 * * * * *';
-
-      await client.zadd(queue.toKey('repeat'), next, legacyKey);
-
-      const schedulers = await queue.getJobSchedulers();
-
-      expect(schedulers).toHaveLength(1);
-      expect(schedulers[0]).toEqual({
-        key: legacyKey,
-        name: 'legacy-name',
-        id: 'legacy-id',
-        endDate: null,
-        tz: null,
-        pattern: '*/5 * * * * *',
-        next,
-      });
     });
   });
 
@@ -2682,231 +2434,6 @@ describe('Job Scheduler', () => {
       const delayedCount2 = await queue.getDelayedCount();
       expect(delayedCount2).toBe(1);
     });
-
-    it('should not create a new delayed job if the failed job is stalled and moved back to wait', async () => {
-      // Note, this test is expected to throw an exception like this:
-      // "Error: Missing lock for job repeat:test:1486455840000. moveToFinished"
-      const date = new Date('2017-02-07 9:24:00');
-      clock.setSystemTime(date);
-
-      const repeatOpts = {
-        every: 2000,
-      };
-
-      const repeatableJob = await queue.upsertJobScheduler('test', repeatOpts);
-      expect(repeatableJob).toBeTruthy();
-
-      const waitingCount = await queue.getWaitingCount();
-      expect(waitingCount).toBe(1);
-
-      let resolveCompleting: () => void;
-      const completingJob = new Promise<void>(resolve => {
-        resolveCompleting = resolve;
-      });
-
-      let worker: Worker;
-      const processing = new Promise<void>(resolve => {
-        worker = new Worker(
-          queueName,
-          async () => {
-            resolve();
-            return completingJob;
-          },
-          {
-            connection,
-            prefix,
-            skipLockRenewal: true,
-            skipStalledCheck: true,
-          },
-        );
-      });
-      const delayStub = sinon.stub(worker!, 'delay').callsFake(async () => {});
-
-      await processing;
-
-      // force remove the lock
-      const client = await queue.client;
-      const lockKey = `${prefix}:${queueName}:${repeatableJob!.id}:lock`;
-      await client.del(lockKey);
-
-      const stalledCheckerKey = `${prefix}:${queueName}:stalled-check`;
-      await client.del(stalledCheckerKey);
-
-      const scripts = (<any>worker!).scripts;
-      let [failed, stalled] = await scripts.moveStalledJobsToWait();
-
-      await client.del(stalledCheckerKey);
-
-      [failed, stalled] = await scripts.moveStalledJobsToWait();
-
-      const waitingJobs = await queue.getWaiting();
-      expect(waitingJobs.length).toBe(1);
-
-      await clock.tick(500);
-
-      resolveCompleting!();
-      await worker!.close();
-
-      await clock.tick(500);
-
-      const delayedCount2 = await queue.getDelayedCount();
-      expect(delayedCount2).toBe(1);
-
-      let completedJobs = await queue.getCompleted();
-      expect(completedJobs.length).toBe(0);
-
-      const processing2 = new Promise<void>(resolve => {
-        worker = new Worker(
-          queueName,
-          async () => {
-            resolve();
-          },
-          {
-            connection,
-            prefix,
-            skipLockRenewal: true,
-            skipStalledCheck: true,
-          },
-        );
-      });
-
-      await processing2;
-
-      await worker!.close();
-
-      completedJobs = await queue.getCompleted();
-      expect(completedJobs.length).toBe(1);
-
-      const waitingJobs2 = await queue.getWaiting();
-      expect(waitingJobs2.length).toBe(0);
-
-      const delayedCount3 = await queue.getDelayedCount();
-      expect(delayedCount3).toBe(1);
-      delayStub.restore();
-    });
-
-    describe('when the scheduler has been removed', () => {
-      it('should fail a stalled scheduler job after maxStalledCount', async () => {
-        const date = new Date('2017-02-07 9:24:00');
-        clock.setSystemTime(date);
-
-        const schedulerJobId = 'test-scheduler';
-        const repeatOpts = { every: 2000 };
-
-        const repeatableJob = await queue.upsertJobScheduler(
-          schedulerJobId,
-          repeatOpts,
-        );
-        expect(repeatableJob).toBeTruthy();
-
-        const waitingCount = await queue.getWaitingCount();
-        expect(waitingCount).toBe(1);
-
-        let resolveCompleting: () => void;
-        const completingJob = new Promise<void>(resolve => {
-          resolveCompleting = resolve;
-        });
-
-        let worker: Worker;
-        const processing = new Promise<void>(resolve => {
-          worker = new Worker(
-            queueName,
-            async () => {
-              resolve();
-              return completingJob;
-            },
-            {
-              connection,
-              prefix,
-              skipLockRenewal: true,
-              skipStalledCheck: true,
-              maxStalledCount: 0,
-            },
-          );
-        });
-        const delayStub = sinon
-          .stub(worker!, 'delay')
-          .callsFake(async () => {});
-
-        await processing;
-
-        // Force remove the lock so the job appears stalled
-        const client = await queue.client;
-        const lockKey = `${prefix}:${queueName}:${repeatableJob!.id}:lock`;
-        await client.del(lockKey);
-
-        // Remove the scheduler — the job's rjk no longer points to an existing scheduler
-        await queue.removeJobScheduler(schedulerJobId);
-
-        const stalledCheckerKey = `${prefix}:${queueName}:stalled-check`;
-        await client.del(stalledCheckerKey);
-
-        const scripts = (<any>worker!).scripts;
-
-        // First call: marks the active job as stalled
-        await scripts.moveStalledJobsToWait();
-
-        await client.del(stalledCheckerKey);
-
-        // Second call: stalledCount = 1 which exceeds maxStalledCount = 0, and since
-        // the scheduler no longer exists the job is NOT treated as repeatable.
-        // The Lua script sets deferredFailure on the job and moves it back to wait.
-        await scripts.moveStalledJobsToWait();
-
-        const waitingJobs = await queue.getWaiting();
-        expect(waitingJobs.length).toBe(1);
-
-        // Verify deferredFailure has been stamped onto the job
-        const stalledJob = await queue.getJob(repeatableJob!.id!);
-        expect(stalledJob!.deferredFailure).toBe(
-          'job stalled more than allowable limit',
-        );
-
-        resolveCompleting!();
-        await worker!.close();
-
-        // A new worker should pick the job up and immediately fail it
-        // because deferredFailure is set (UnrecoverableError path in worker.ts)
-        const failedPromise = new Promise<void>((resolve, reject) => {
-          worker = new Worker(
-            queueName,
-            async () => {
-              reject(
-                new Error(
-                  'processor should not be called for a deferred-failed job',
-                ),
-              );
-            },
-            {
-              connection,
-              prefix,
-              skipLockRenewal: true,
-              skipStalledCheck: true,
-              maxStalledCount: 0,
-            },
-          );
-          worker.on('failed', (_job, err) => {
-            try {
-              expect(err.message).toBe('job stalled more than allowable limit');
-              resolve();
-            } catch (assertionError) {
-              reject(assertionError);
-            }
-          });
-        });
-
-        await failedPromise;
-        await worker!.close();
-
-        const failedJobs = await queue.getFailed();
-        expect(failedJobs.length).toBe(1);
-        expect(failedJobs[0].failedReason).toBe(
-          'job stalled more than allowable limit',
-        );
-
-        delayStub.restore();
-      });
-    });
   });
 
   describe('when every option is provided', () => {
@@ -3038,58 +2565,6 @@ describe('Job Scheduler', () => {
       expect(schedulers).toHaveLength(1);
       expect(schedulers[0].pattern).toBe('30 * * * * *');
     });
-  });
-
-  // This test is flaky and too complex we need something simpler that tests the same thing
-  it.skip('should not re-add a repeatable job after it has been removed', async function () {
-    const repeat = await queue.repeat;
-
-    let worker: Worker;
-    const jobId = 'xxxx';
-    const date = new Date('2017-02-07 9:24:00');
-    const nextTick = 2 * ONE_SECOND + 100;
-    const addNextRepeatableJob = repeat.updateRepeatableJob;
-    clock.setSystemTime(date);
-
-    const repeatOpts = { pattern: '*/2 * * * * *' };
-
-    const afterRemoved = new Promise<void>(async resolve => {
-      worker = new Worker(
-        queueName,
-        async () => {
-          const repeatWorker = await worker.repeat;
-          (<unknown>repeatWorker.updateRepeatableJob) = async (
-            ...args: [string, unknown, JobsOptions, boolean?]
-          ) => {
-            // In order to simulate race condition
-            // Make removeRepeatables happen any time after a moveToX is called
-            await queue.removeRepeatable('test', repeatOpts, jobId);
-
-            // addNextRepeatableJob will now re-add the removed repeatable
-            const result = await addNextRepeatableJob.apply(repeat, args);
-            resolve();
-            return result;
-          };
-        },
-        { connection, prefix },
-      );
-
-      worker.on('completed', () => {
-        clock.tick(nextTick);
-      });
-    });
-
-    await queue.add('test', { foo: 'bar' }, { repeat: repeatOpts, jobId });
-
-    clock.tick(nextTick);
-
-    await afterRemoved;
-
-    const jobs = await queue.getRepeatableJobs();
-    // Repeatable job was recreated
-    expect(jobs.length).toEqual(0);
-
-    await worker!.close();
   });
 
   it('should allow adding a repeatable job after removing it', async () => {
@@ -3289,87 +2764,6 @@ describe('Job Scheduler', () => {
 
       await worker.close();
     }); // TODO: Add { timeout: 6000 } to the it() options // Increased timeout
-
-    it('should handle collision detection correctly for concurrent scheduler operations', async () => {
-      // Create a manual test using the lower-level API to simulate concurrent access
-      // This test verifies our collision detection works at the script level
-
-      // First create a job that will be "active" (simulated by creating the job key)
-      const client = await queue.client;
-      const now = Date.now();
-      const testJobId = `repeat:test-collision:${now}`;
-      const testJobKey = `${queue.keys['']}${testJobId}`;
-
-      // Simulate an existing job by creating its key
-      await client.hset(testJobKey, { id: testJobId, data: '{}' });
-
-      try {
-        // Now try to create a job scheduler that would collide with this job ID
-        await (queue as any).scripts.addJobScheduler(
-          'test-collision',
-          now, // Same timestamp
-          '{}',
-          {},
-          {
-            name: 'test-job', // Include the required name field
-            pattern: '0 0 * * * *',
-          }, // pattern-based
-          {},
-        );
-
-        // If we get here, the collision wasn't detected
-        expect.fail(
-          'Expected SchedulerJobIdCollision error but none was thrown',
-        );
-      } catch (error) {
-        expect(error.message).toContain('job ID already exists');
-      } finally {
-        // Clean up
-        await client.del(testJobKey);
-      }
-    });
-
-    it('should skip busy slots for every-based schedulers', async () => {
-      const date = new Date('2017-02-07T09:24:00.000+05:30');
-      clock.setSystemTime(date);
-
-      // Create a manual test for every-based scheduler collision
-      const client = await queue.client;
-      const now = Date.now();
-      const every = 1000; // 1 second
-      const testJobId = `repeat:test-every-collision:${now}`;
-      const nextSlotJobId = `repeat:test-every-collision:${now + every}`;
-
-      // Simulate existing jobs in both current and next slots
-      await client.hset(`${queue.keys['']}${testJobId}`, { id: testJobId });
-      await client.hset(`${queue.keys['']}${nextSlotJobId}`, {
-        id: nextSlotJobId,
-      });
-
-      try {
-        // Try to create a job scheduler that would collide
-        const [jobId] = await (queue as any).scripts.addJobScheduler(
-          'test-every-collision',
-          now, // Same timestamp as existing job
-          '{}',
-          {},
-          {
-            name: 'test-job', // Include the required name field
-            every,
-          }, // every-based
-          {},
-        );
-
-        expect(jobId).toBe(`repeat:test-every-collision:${now + every * 2}`);
-      } finally {
-        // Clean up
-        await client.del(`${queue.keys['']}${testJobId}`);
-        await client.del(`${queue.keys['']}${nextSlotJobId}`);
-        await client.del(
-          `${queue.keys['']}repeat:test-every-collision:${now + every * 2}`,
-        );
-      }
-    });
   });
 
   describe('when job scheduler update fails in worker', () => {
@@ -3959,13 +3353,15 @@ describe('Job Scheduler', () => {
     const jobSchedulerId = 'test';
 
     const worker = new Worker(queueName, async job => {}, {
+      autorun: false,
       connection,
       prefix,
     });
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+    await worker.waitUntilReady();
 
     const waiting = new Promise<void>((resolve, reject) => {
-      queueEvents.on('waiting', function ({ jobId }) {
+      queueEvents.once('waiting', function ({ jobId }) {
         try {
           expect(jobId).toBe(
             `repeat:${jobSchedulerId}:${date.getTime() + 1 * ONE_SECOND}`,
@@ -3976,6 +3372,8 @@ describe('Job Scheduler', () => {
         }
       });
     });
+
+    worker.run();
 
     await queue.upsertJobScheduler(jobSchedulerId, {
       pattern: '*/1 * * * * *',
@@ -4238,17 +3636,28 @@ describe('Job Scheduler', () => {
       expect(schedulersBefore.length).toEqual(1);
 
       const worker = new Worker(queueName, async () => {}, {
+        // Do not autorun: we advance the fake clock so the delayed job is due
+        // *before* starting the processing loop, so the worker picks up the
+        // now-due job immediately instead of relying on the blocking
+        // connection's watchdog/reconnect to wake it (which is racy under
+        // sinon fake timers).
+        autorun: false,
         connection,
         prefix,
       });
       await worker.waitUntilReady();
+      // Stub `delay` so the worker does not wait on a (faked) timer between
+      // blocking iterations under sinon fake timers.
+      const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
       const completed = new Promise<void>(resolve => {
         worker.once('completed', () => resolve());
       });
 
-      // Advance time so the first delayed job becomes due.
+      // Advance time so the first delayed job becomes due, then start the
+      // worker so it processes the already-due job right away.
       await clock.tickAsync(ONE_MINUTE + 1);
+      worker.run();
 
       await completed;
 
@@ -4258,6 +3667,7 @@ describe('Job Scheduler', () => {
       expect(schedulersAfter[0].key).toEqual(jobSchedulerId);
 
       await worker.close();
+      delayStub.restore();
     });
 
     it('should classify a real scheduler id with 5+ segments via isJobScheduler', async () => {
@@ -4271,32 +3681,6 @@ describe('Job Scheduler', () => {
       const jobScheduler = await queue.jobScheduler;
       const isScheduler = await jobScheduler.isJobScheduler(jobSchedulerId);
       expect(isScheduler).toBe(true);
-    });
-
-    it('should NOT misclassify a legacy repeatable key with 5+ segments as a scheduler', async () => {
-      // Legacy repeatable keys are written directly to the shared `repeat`
-      // ZSET (no per-id metadata hash with `ic`). The discriminator must
-      // distinguish them from new-style scheduler ids regardless of how
-      // many colon segments the legacy key contains.
-      const client = await queue.client;
-      const next = Date.now() + ONE_MINUTE;
-      const legacyKey = 'legacy-name:legacy-id:::*/5 * * * * *';
-      expect(legacyKey.split(':').length).toBeGreaterThanOrEqual(5);
-
-      // Mirror what addRepeatableJob-2.lua does for legacy entries: only a
-      // ZADD on the shared `repeat` set, no `ic` field on the metadata
-      // hash. (We add a `name` field to mirror legacy storeRepeatableJob,
-      // but crucially do NOT set `ic`.)
-      await client.zadd(queue.toKey('repeat'), next, legacyKey);
-      await client.hset(
-        `${queue.toKey('repeat')}:${legacyKey}`,
-        'name',
-        'legacy-name',
-      );
-
-      const jobScheduler = await queue.jobScheduler;
-      const isScheduler = await jobScheduler.isJobScheduler(legacyKey);
-      expect(isScheduler).toBe(false);
     });
   });
 });

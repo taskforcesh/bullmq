@@ -6,4 +6,7 @@ export * from './utils';
 
 // to prevent circular references
 export * from './types/processor';
-export * from './utils/create-scripts';
+export * from './utils/create-backend';
+
+// PostgreSQL backend (optional; requires the `pg` peer dependency at runtime).
+export * from './postgres';

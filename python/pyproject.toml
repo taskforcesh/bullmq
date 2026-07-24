@@ -38,6 +38,9 @@ test = [
     "pytest==9.0.3",
     "pytest-timeout==2.4.0"
 ]
+postgres = [
+    "psycopg[binary] >=3.2"
+]
 
 [project.urls]
 "Homepage" = "https://bullmq.io"
@@ -47,4 +50,4 @@ test = [
 exclude = ["tests*"]
 
 [tool.setuptools.package-data]
-bullmq = ["commands/*.lua", "types/*"]
+bullmq = ["commands/*.lua", "types/*", "postgres/commands/*.sql", "postgres/migrations/*.sql"]

@@ -564,7 +564,8 @@ defmodule BullMQ.QueueGettersTest do
       Process.sleep(50)
 
       state = :sys.get_state(worker)
-      blocking_conn = state.blocking_conn
+      # The backend owns the dedicated blocking connection.
+      blocking_conn = state.backend.blocking_conn
 
       expected = "#{prefix}:#{queue_name}:w:worker_reconnect_test"
 

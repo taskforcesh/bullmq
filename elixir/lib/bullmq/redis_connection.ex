@@ -93,7 +93,13 @@ defmodule BullMQ.RedisConnection do
   @default_timeout 5000
   @minimum_redis_version {6, 2, 0}
 
-  @type connection :: atom() | pid()
+  @typedoc """
+  Redis connection reference.
+
+  Use an atom for a named pooled connection started via `start_link/1`.
+  Use a bare `pid()` or `{:dedicated, pid()}` for a direct Redix process.
+  """
+  @type connection :: atom() | pid() | {:dedicated, pid()}
   @type command :: [binary() | integer()]
   @type pipeline :: [command()]
 
@@ -271,13 +277,14 @@ defmodule BullMQ.RedisConnection do
   def command(conn, command, opts \\ [])
 
   def command({:dedicated, redix_pid}, command, opts) do
-    timeout = Keyword.get(opts, :timeout, @default_timeout)
-    Redix.command(redix_pid, command, timeout: timeout)
-  rescue
-    e -> {:error, e}
+    direct_command(redix_pid, command, opts)
   end
 
-  def command(conn, command, opts) do
+  def command(redix_pid, command, opts) when is_pid(redix_pid) do
+    direct_command(redix_pid, command, opts)
+  end
+
+  def command(conn, command, opts) when is_atom(conn) do
     timeout = Keyword.get(opts, :timeout, @default_timeout)
 
     NimblePool.checkout!(
@@ -322,13 +329,18 @@ defmodule BullMQ.RedisConnection do
   def pipeline(conn, commands, opts \\ [])
 
   def pipeline({:dedicated, redix_pid}, commands, opts) do
-    timeout = Keyword.get(opts, :timeout, @default_timeout)
-    Redix.pipeline(redix_pid, commands, timeout: timeout)
+    direct_pipeline(redix_pid, commands, opts)
   rescue
     e -> {:error, e}
   end
 
-  def pipeline(conn, commands, opts) do
+  def pipeline(redix_pid, commands, opts) when is_pid(redix_pid) do
+    direct_pipeline(redix_pid, commands, opts)
+  rescue
+    e -> {:error, e}
+  end
+
+  def pipeline(conn, commands, opts) when is_atom(conn) do
     timeout = Keyword.get(opts, :timeout, @default_timeout)
 
     NimblePool.checkout!(
@@ -374,7 +386,17 @@ defmodule BullMQ.RedisConnection do
       #=> {:ok, ["OK", "OK", "value1"]}
   """
   @spec transaction(connection(), pipeline(), keyword()) :: {:ok, [term()]} | {:error, term()}
-  def transaction(conn, commands, opts \\ []) do
+  def transaction(conn, commands, opts \\ [])
+
+  def transaction({:dedicated, redix_pid}, commands, opts) do
+    direct_transaction(redix_pid, commands, opts)
+  end
+
+  def transaction(redix_pid, commands, opts) when is_pid(redix_pid) do
+    direct_transaction(redix_pid, commands, opts)
+  end
+
+  def transaction(conn, commands, opts) when is_atom(conn) do
     timeout = Keyword.get(opts, :timeout, @default_timeout)
 
     # Wrap commands in MULTI/EXEC
@@ -389,32 +411,7 @@ defmodule BullMQ.RedisConnection do
       end,
       timeout
     )
-    |> case do
-      {:ok, results} ->
-        # Results are: ["OK" (MULTI), "QUEUED", "QUEUED", ..., [actual_results] (EXEC)]
-        # The last element is the EXEC result which contains all the actual results
-        case List.last(results) do
-          nil ->
-            # Transaction was aborted (e.g., WATCH failed)
-            {:error, :transaction_aborted}
-
-          exec_results when is_list(exec_results) ->
-            # Check for errors in results
-            errors = Enum.filter(exec_results, &match?(%Redix.Error{}, &1))
-
-            if Enum.empty?(errors) do
-              {:ok, exec_results}
-            else
-              {:error, {:transaction_errors, exec_results}}
-            end
-
-          %Redix.Error{} = error ->
-            {:error, error}
-        end
-
-      {:error, reason} ->
-        {:error, reason}
-    end
+    |> normalize_transaction_result()
   rescue
     e -> {:error, e}
   catch
@@ -431,7 +428,21 @@ defmodule BullMQ.RedisConnection do
   """
   @spec eval(connection(), String.t(), [String.t()], [term()], keyword()) ::
           {:ok, term()} | {:error, term()}
-  def eval(conn, script, keys, args, opts \\ []) do
+  def eval(conn, script, keys, args, opts \\ [])
+
+  def eval({:dedicated, redix_pid}, script, keys, args, opts) do
+    direct_eval(redix_pid, script, keys, args, opts)
+  rescue
+    e -> {:error, e}
+  end
+
+  def eval(redix_pid, script, keys, args, opts) when is_pid(redix_pid) do
+    direct_eval(redix_pid, script, keys, args, opts)
+  rescue
+    e -> {:error, e}
+  end
+
+  def eval(conn, script, keys, args, opts) when is_atom(conn) do
     timeout = Keyword.get(opts, :timeout, @default_timeout)
     num_keys = length(keys)
     command = ["EVAL", script, num_keys | keys ++ stringify_args(args)]
@@ -457,7 +468,21 @@ defmodule BullMQ.RedisConnection do
   """
   @spec evalsha(connection(), String.t(), String.t(), [String.t()], [term()], keyword()) ::
           {:ok, term()} | {:error, term()}
-  def evalsha(conn, sha, script, keys, args, opts \\ []) do
+  def evalsha(conn, sha, script, keys, args, opts \\ [])
+
+  def evalsha({:dedicated, redix_pid}, sha, script, keys, args, opts) do
+    direct_evalsha(redix_pid, sha, script, keys, args, opts)
+  rescue
+    e -> {:error, e}
+  end
+
+  def evalsha(redix_pid, sha, script, keys, args, opts) when is_pid(redix_pid) do
+    direct_evalsha(redix_pid, sha, script, keys, args, opts)
+  rescue
+    e -> {:error, e}
+  end
+
+  def evalsha(conn, sha, script, keys, args, opts) when is_atom(conn) do
     timeout = Keyword.get(opts, :timeout, @default_timeout)
     num_keys = length(keys)
     command = ["EVALSHA", sha, num_keys | keys ++ stringify_args(args)]
@@ -573,6 +598,69 @@ defmodule BullMQ.RedisConnection do
   end
 
   # Private helpers
+
+  defp direct_command(redix_pid, command, opts) do
+    timeout = Keyword.get(opts, :timeout, @default_timeout)
+    Redix.command(redix_pid, command, timeout: timeout)
+  end
+
+  defp direct_pipeline(redix_pid, commands, opts) do
+    timeout = Keyword.get(opts, :timeout, @default_timeout)
+    Redix.pipeline(redix_pid, commands, timeout: timeout)
+  end
+
+  defp direct_transaction(redix_pid, commands, opts) do
+    # Wrap commands in MULTI/EXEC
+    transaction_commands = [["MULTI"]] ++ commands ++ [["EXEC"]]
+
+    redix_pid
+    |> direct_pipeline(transaction_commands, opts)
+    |> normalize_transaction_result()
+  rescue
+    e -> {:error, e}
+  end
+
+  defp direct_eval(redix_pid, script, keys, args, opts) do
+    num_keys = length(keys)
+    command = ["EVAL", script, num_keys | keys ++ stringify_args(args)]
+    direct_command(redix_pid, command, opts)
+  end
+
+  defp direct_evalsha(redix_pid, sha, script, keys, args, opts) do
+    timeout = Keyword.get(opts, :timeout, @default_timeout)
+    num_keys = length(keys)
+    command = ["EVALSHA", sha, num_keys | keys ++ stringify_args(args)]
+
+    case Redix.command(redix_pid, command, timeout: timeout) do
+      {:error, %Redix.Error{message: "NOSCRIPT" <> _}} ->
+        eval_command = ["EVAL", script, num_keys | keys ++ stringify_args(args)]
+        Redix.command(redix_pid, eval_command, timeout: timeout)
+
+      result ->
+        result
+    end
+  end
+
+  defp normalize_transaction_result({:ok, results}) do
+    case List.last(results) do
+      nil ->
+        {:error, :transaction_aborted}
+
+      exec_results when is_list(exec_results) ->
+        errors = Enum.filter(exec_results, &match?(%Redix.Error{}, &1))
+
+        if Enum.empty?(errors) do
+          {:ok, exec_results}
+        else
+          {:error, {:transaction_errors, exec_results}}
+        end
+
+      %Redix.Error{} = error ->
+        {:error, error}
+    end
+  end
+
+  defp normalize_transaction_result({:error, reason}), do: {:error, reason}
 
   defp build_redis_opts(opts) do
     base_opts =

@@ -13,6 +13,7 @@
 
 - [Introduction](guide/introduction.md)
 - [Connections](guide/connections.md)
+- [PostgreSQL backend](guide/postgresql.md)
 - [Queues](guide/queues/README.md)
   - [Auto-removal of jobs](guide/queues/auto-removal-of-jobs.md)
   - [Adding jobs in bulk](guide/queues/adding-bulks.md)
@@ -80,6 +81,7 @@
 - [Going to production](guide/going-to-production.md)
 - [Migrations](guide/migrations/migration-to-newer-versions.md)
   - [Bull to BullMQ](guide/migrations/bull-to-bullmq.md)
+  - [Migrate from v5 to v6](guide/migrations/migrate-from-v5-to-v6.md)
 - [Troubleshooting](guide/troubleshooting.md)
 
 ## Patterns

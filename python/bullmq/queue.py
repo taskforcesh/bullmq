@@ -1,10 +1,9 @@
 from typing import Union
 
 from bullmq.event_emitter import EventEmitter
-from bullmq.redis_connection import RedisConnection
 from bullmq.types import QueueBaseOptions, RetryJobsOptions, JobOptions, PromoteJobsOptions
-from bullmq.utils import is_redis_cluster, get_cluster_nodes, get_node_client
-from bullmq.scripts import Scripts
+from bullmq.utils import extract_result
+from bullmq.backends import RedisBackend, create_backend
 from bullmq.job import Job
 
 
@@ -18,22 +17,22 @@ class Queue(EventEmitter):
         Initialize a connection
         """
         self.name = name
-        redisOpts = opts.get("connection", {})
-        self.redisConnection = RedisConnection(
-            redisOpts,
-            skipVersionCheck=opts.get("skipVersionCheck", False)
-        )
-        self.client = self.redisConnection.conn
         self.opts = opts
         self.jobsOpts = opts.get("defaultJobOptions", {})
         self.prefix = opts.get("prefix", "bull")
-        self.scripts = Scripts(
-            self.prefix, name, self.redisConnection)
-        self.keys = self.scripts.queue_keys.getKeys(name)
-        self.qualifiedName = self.scripts.queue_keys.getQueueQualifiedName(name)
+        self.backend = create_backend(name, opts)
+        # Compatibility handles for tests / callers that read the raw client
+        # or connection directly (Redis backend only). All queue operations go
+        # through `backend`.
+        self.redisConnection = (
+            self.backend.connection if isinstance(self.backend, RedisBackend) else None
+        )
+        self.client = getattr(self.backend, "conn", None)
+        self.keys = self.backend.keys
+        self.qualifiedName = self.backend.qualifiedName
 
     def toKey(self, type: str):
-        return self.scripts.queue_keys.toKey(self.name, type)
+        return self.backend.toKey(type)
 
     async def add(self, name: str, data, opts: JobOptions = {}):
         """
@@ -46,7 +45,7 @@ class Queue(EventEmitter):
         merged_opts = {**self.jobsOpts, **(opts or {})}
 
         job = Job(self, name, data, merged_opts)
-        job_id = await self.scripts.addJob(job)
+        job_id = await self.backend.addJob(job)
         job.id = job_id
         return job
 
@@ -55,35 +54,19 @@ class Queue(EventEmitter):
         Adds an array of jobs to the queue. This method may be faster than adding
         one job at a time in a sequence
         """
-        jobs_data = []
+        job_instances = []
         for job in jobs:
-            opts = {**self.jobsOpts, **(job.get("opts") or {})}
+            current_job_opts = {**self.jobsOpts, **(job.get("opts") or {})}
+            job_instances.append(Job(
+                queue=self,
+                name=job.get("name"),
+                data=job.get("data"),
+                opts=current_job_opts,
+                job_id=current_job_opts.get("jobId")
+            ))
 
-            jobs_data.append({
-                "name": job.get("name"),
-                "data": job.get("data"),
-                "opts": opts
-            })
-
-        result = []
-        async with self.redisConnection.conn.pipeline(transaction=True) as pipe:
-            for job_data in jobs_data:
-                current_job_opts = job_data.get("opts", {})
-                job = Job(
-                    queue=self,
-                    name=job_data.get("name"),
-                    data=job_data.get("data"),
-                    opts=current_job_opts,
-                    job_id=current_job_opts.get("jobId")
-                    )
-                job_id = await self.scripts.addJob(job, pipe)
-                job.id = job_id
-                result.append(job)
-            job_ids = await pipe.execute()
-            for index, job_id in enumerate(job_ids):
-                result[index].id = job_id
-
-        return result
+        await self.backend.addJobs(job_instances)
+        return job_instances
 
     def pause(self):
         """
@@ -97,7 +80,7 @@ class Queue(EventEmitter):
         Adding jobs requires a LUA script to check first if the paused list exist
         and in that case it will add it there instead of the wait list.
         """
-        return self.scripts.pause(True)
+        return self.backend.pause(True)
 
     def resume(self):
         """
@@ -106,20 +89,19 @@ class Queue(EventEmitter):
         The method reverses the pause operation by resuming the processing of the
         queue.
         """
-        return self.scripts.pause(False)
+        return self.backend.pause(False)
 
     async def isPaused(self):
         """
         Returns true if the queue is currently paused.
         """
-        paused_key_exists = await self.client.hexists(self.keys["meta"], "paused")
-        return paused_key_exists == 1
+        return await self.backend.isPaused()
 
     def getRateLimitTtl(self):
         """
         Returns the time to live for a rate limited key in milliseconds.
         """
-        return self.client.pttl(self.keys["limiter"])
+        return self.backend.getRateLimitTtl()
 
     async def get_workers(self):
         """
@@ -127,45 +109,33 @@ class Queue(EventEmitter):
         workers that are available to process jobs for this queue.
         Note: Some Redis providers do not support CLIENT LIST.
         """
-        client_name_prefix = self.qualifiedName
+        client_name_prefix = self.backend.clientName()
 
         def matcher(name: str):
             return name == client_name_prefix or name.startswith(f"{client_name_prefix}:w:")
 
-        return await self._base_get_clients(matcher)
-
-    async def get_workers_count(self):
-        workers = await self.get_workers()
-        return len(workers)
-
-    async def _base_get_clients(self, matcher):
-        client = self.client
         try:
-            if is_redis_cluster(client):
-                nodes = get_cluster_nodes(client)
-                clients_per_node = []
-                for node in nodes:
-                    node_client = get_node_client(node)
-                    client_list = await self._get_client_list(node_client)
-                    clients_per_node.append(self._parse_client_list(client_list, matcher))
-
-                if not clients_per_node:
-                    return []
-
-                return max(clients_per_node, key=len)
-
-            client_list = await self._get_client_list(client)
-            return self._parse_client_list(client_list, matcher)
+            client_lists = await self.backend.getClientList()
         except Exception as err:
             message = str(err)
             if "unknown command" in message and "CLIENT" in message:
                 return [{"name": "CLIENT LIST not supported"}]
             raise
 
-    async def _get_client_list(self, client):
-        if hasattr(client, "client_list"):
-            return await client.client_list()
-        return await client.execute_command("CLIENT", "LIST")
+        clients_per_source = [
+            self._parse_client_list(client_list, matcher) for client_list in client_lists
+        ]
+
+        if not clients_per_source:
+            return []
+
+        # For clustered datastores each node returns its own client list; the
+        # node with the most matches has the most complete picture.
+        return max(clients_per_source, key=len)
+
+    async def get_workers_count(self):
+        workers = await self.get_workers()
+        return len(workers)
 
     def _parse_client_list(self, client_list, matcher):
         if isinstance(client_list, bytes):
@@ -211,21 +181,7 @@ class Queue(EventEmitter):
         @param end: Zero based index where to stop returning jobs.
         @param asc: If true, the jobs will be returned in ascending order.
         """
-
-        logs_key = self.toKey(job_id + ":logs")
-        pipe = self.redisConnection.conn.pipeline(transaction=True)
-        if asc:
-            pipe.lrange(logs_key, start, end)
-        else:
-            pipe.lrange(logs_key, -(end+1), -(start+1))
-        pipe.llen(logs_key)
-        result = await pipe.execute()
-        if not asc:
-            result[0].reverse()
-        return {
-            "logs": result[0],
-            "count": result[1]
-        }
+        return await self.backend.getJobLogs(job_id, start, end, asc)
    
     async def obliterate(self, force: bool = False):
         """
@@ -241,7 +197,7 @@ class Queue(EventEmitter):
         """
         await self.pause()
         while True:
-            cursor = await self.scripts.obliterate(1000, force)
+            cursor = await self.backend.obliterate(1000, force)
             if cursor is None or cursor == 0 or cursor == "0":
                 break
 
@@ -252,14 +208,14 @@ class Queue(EventEmitter):
         
         @param delayed: Pass True if it should also clean the delayed jobs.
         """
-        await self.scripts.drain(delayed)
+        await self.backend.drain(delayed)
 
     async def retryJobs(self, opts: RetryJobsOptions = {}):
         """
         Retry all the failed or completed jobs.
         """
         while True:
-            cursor = await self.scripts.retryJobs(
+            cursor = await self.backend.retryJobs(
                 opts.get("state"),
                 opts.get("count"),
                 opts.get("timestamp")
@@ -272,7 +228,7 @@ class Queue(EventEmitter):
         Retry all the delayed jobs.
         """
         while True:
-            cursor = await self.scripts.promoteJobs(
+            cursor = await self.backend.promoteJobs(
                 opts.get("count")
             )
             if cursor is None or cursor == 0 or cursor == "0":
@@ -284,13 +240,13 @@ class Queue(EventEmitter):
 
         @param maxLength:
         """
-        return self.client.xtrim(self.keys["events"], maxlen=maxLength, approximate="~")
+        return self.backend.trimEvents(maxLength)
 
     def removeDeprecatedPriorityKey(self):
         """
         Delete old priority helper key.
         """
-        return self.client.delete(self.toKey("priority"))
+        return self.backend.removeDeprecatedPriorityKey()
 
     async def getJobCountByTypes(self, *types):
         result = await self.getJobCounts(*types)
@@ -307,7 +263,7 @@ class Queue(EventEmitter):
         """
         current_types = self.sanitizeJobTypes(types)
 
-        responses = await self.scripts.getCounts(current_types)
+        responses = await self.backend.getCounts(current_types)
         counts = {}
 
         for index, val in enumerate(responses):
@@ -323,7 +279,7 @@ class Queue(EventEmitter):
         set_priorities = set(priorities)
         unique_priorities = (list(set_priorities))
 
-        responses = await self.scripts.getCountsPerPriority(unique_priorities)
+        responses = await self.backend.getCountsPerPriority(unique_priorities)
 
         counts = {}
 
@@ -338,12 +294,12 @@ class Queue(EventEmitter):
         
         * @returns: Id jobs from the deleted records
         """
-        jobs = await self.scripts.cleanJobsInSet(type, grace, limit)
+        jobs = await self.backend.cleanJobsInSet(type, grace, limit)
 
         return jobs
 
     def getJobState(self, job_id: str):
-        return self.scripts.getState(job_id)
+        return self.backend.getState(job_id)
 
     def getCompletedCount(self):
         return self.getJobCountByTypes('completed')
@@ -380,33 +336,32 @@ class Queue(EventEmitter):
 
     async def getJobs(self, types, start=0, end=-1, asc:bool=False):
         current_types = self.sanitizeJobTypes(types)
-        raw_jobs = await self.scripts.getJobs(current_types, start, end, asc)
-        jobs = []
-        seen = set()
+        if isinstance(self.backend, RedisBackend):
+            raw_jobs = await self.backend.scripts.getJobs(current_types, start, end, asc)
+            jobs = []
+            seen = set()
 
-        for jobs_by_type in raw_jobs:
-            for job_id, job_data in jobs_by_type:
-                if job_id in seen:
-                    continue
-                seen.add(job_id)
+            for jobs_by_type in raw_jobs:
+                for job_id, job_data in jobs_by_type:
+                    if job_id in seen:
+                        continue
+                    seen.add(job_id)
 
-                raw_data = dict(zip(job_data[::2], job_data[1::2]))
-                jobs.append(Job.fromJSON(self, raw_data, job_id))
+                    raw_data = dict(zip(job_data[::2], job_data[1::2]))
+                    jobs.append(Job.fromJSON(self, raw_data, job_id))
 
-        return jobs
+            return jobs
+
+        job_ids = await self.backend.getRanges(current_types, start, end, asc)
+        tasks = [asyncio.create_task(Job.fromId(self, i)) for i in job_ids]
+        job_set, _ = await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
+        return [extract_result(job_task, self.emit) for job_task in job_set]
 
     def sanitizeJobTypes(self, types):
         current_types = list(types)
 
         if len(types) > 0:
-            sanitized_types = current_types.copy()
-
-            try:
-                sanitized_types.index('waiting')
-                sanitized_types.append('paused')
-            except ValueError:
-                pass
-            set_res = set(sanitized_types)
+            set_res = set(current_types)
             list_res = (list(set_res))
 
             return list_res
@@ -415,7 +370,7 @@ class Queue(EventEmitter):
             'completed',
             'delayed',
             'failed',
-            'paused',
+            'prioritized',
             'waiting',
             'waiting-children'
         ]
@@ -424,7 +379,7 @@ class Queue(EventEmitter):
         """
         Close the queue instance.
         """
-        return await self.redisConnection.close()
+        return await self.backend.close()
 
     def remove(self, job_id: str, opts: dict = {}):
-        return self.scripts.remove(job_id, opts.get("removeChildren", True))
+        return self.backend.remove(job_id, opts.get("removeChildren", True))

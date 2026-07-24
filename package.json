@@ -20,16 +20,17 @@
     "dist"
   ],
   "engines": {
-    "node": ">=12.22.0"
+    "node": ">=14.17.0"
   },
   "scripts": {
-    "build": "npm run clean:dist && npm run pretest && npm run tsc:all && npm run copy:main:type && npm run clean:temp:files && npm run copy:lua && npm run copy:includes:lua",
+    "build": "npm run clean:dist && npm run pretest && npm run tsc:all && npm run copy:main:type && npm run clean:temp:files && npm run copy:lua && npm run copy:includes:lua && npm run copy:sql",
     "circular:references": "madge --circular --extensions ts ./src",
     "clean:dist": "rimraf dist",
     "clean:scripts": "rimraf rawScripts src/scripts",
     "clean:temp:files": "rimraf dist/cjs/bullmq.d.ts dist/esm/bullmq.d.ts dist/tsdoc-metadata.json",
     "copy:includes:lua": "cpx \"./src/commands/includes/*.lua\" ./dist/cjs/commands/includes && cpx \"./src/commands/includes/*.lua\" ./dist/esm/commands/includes",
     "copy:lua": "cpx \"./src/commands/*.lua\" ./dist/cjs/commands && cpx \"./src/commands/*.lua\" ./dist/esm/commands",
+    "copy:sql": "cpx \"./src/postgres/migrations/*.sql\" ./dist/cjs/postgres/migrations && cpx \"./src/postgres/migrations/*.sql\" ./dist/esm/postgres/migrations && cpx \"./src/postgres/commands/*.sql\" ./dist/cjs/postgres/commands && cpx \"./src/postgres/commands/*.sql\" ./dist/esm/postgres/commands",
     "copy:lua:python": "cpx \"./rawScripts/*.lua\" ./python/bullmq/commands",
     "copy:lua:elixir": "cpx \"./rawScripts/*.lua\" ./elixir/priv/scripts",
     "copy:lua:php": "cpx \"./rawScripts/*.lua\" ./php/src/commands",
@@ -60,6 +61,8 @@
     "test:vitest:ui": "vitest --ui",
     "test:ioredis": "vitest run --no-file-parallelism --config vitest.ioredis.config.ts",
     "test:node-redis": "vitest run --no-file-parallelism --config vitest.node-redis.config.ts",
+    "test:postgres": "vitest run --config vitest.postgres.config.ts",
+    "test:postgres:smoke": "vitest run --no-file-parallelism --config vitest.postgres.smoke.config.ts",
     "test:valkey-glide": "vitest run --no-file-parallelism --config vitest.valkey-glide.config.ts",
     "test:adapter-conformance": "vitest run --no-file-parallelism --config vitest.adapter-conformance.config.ts",
     "test:bun": "bun node_modules/vitest/dist/cli.js run --no-file-parallelism --config vitest.bun.config.ts",
@@ -70,17 +73,28 @@
     "tsc:all": "tsc && tsc -p tsconfig-cjs.json"
   },
   "dependencies": {
-    "cron-parser": "4.9.0",
-    "ioredis": "5.11.1",
+    "cron-parser": "5.6.1",
     "msgpackr": "2.0.4",
     "node-abort-controller": "3.1.1",
     "semver": "7.8.5",
     "tslib": "2.8.1"
   },
   "peerDependencies": {
+    "bullmq-otel": ">=2.0.0",
+    "ioredis": ">=5.0.0",
+    "pg": ">=8.0.0",
     "redis": ">=5.0.0"
   },
   "peerDependenciesMeta": {
+    "bullmq-otel": {
+      "optional": true
+    },
+    "ioredis": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    },
     "redis": {
       "optional": true
     }
@@ -99,6 +113,7 @@
     "@types/lodash.isarguments": "3.1.9",
     "@types/msgpack": "0.0.34",
     "@types/node": "24.13.3",
+    "@types/pg": "8.15.6",
     "@types/semver": "7.7.1",
     "@types/sinon": "22.0.0",
     "@typescript-eslint/eslint-plugin": "8.64.0",
@@ -114,10 +129,12 @@
     "fast-glob": "3.3.3",
     "globals": "17.7.0",
     "husky": "9.1.7",
+    "ioredis": "5.10.1",
     "lint-staged": "17.1.0",
     "madge": "8.0.0",
     "minimatch": "10.2.5",
     "moment": "2.30.1",
+    "pg": "8.16.3",
     "prettier": "3.9.5",
     "pretty-quick": "4.2.2",
     "progress": "2.0.3",

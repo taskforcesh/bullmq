@@ -21,7 +21,6 @@ export * from './queue-getters';
 export * from './queue-keys';
 export * from './queue';
 export * from './redis-connection';
-export * from './repeat';
 export * from './sandbox';
-export * from './scripts';
+export * from './redis-queue-backend';
 export * from './worker';

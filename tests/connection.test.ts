@@ -1,3 +1,8 @@
+import {
+  getRedisClient,
+  getRedisConnection,
+  getBlockingRedisConnection,
+} from './utils/get-redis-client';
 import { default as IORedis, RedisOptions } from 'ioredis';
 import {
   describe,
@@ -240,7 +245,11 @@ describe('RedisConnection', () => {
       const error = new Error('Command timed out');
       const state: { connection?: RedisConnection } = {};
       const bzpopmin = sinon.stub().callsFake(async () => {
-        await state.connection!.close(true);
+        if (!state.connection) {
+          throw new Error('Connection not initialized');
+        }
+
+        await state.connection.close(true);
         throw error;
       });
       const cluster = createMockClusterClient({ bzpopmin });
@@ -464,13 +473,13 @@ describe('RedisConnection', () => {
         skipWaitingForReady: true,
         connection: {},
       });
-      expect((<any>queue).connection.extraOptions.skipWaitingForReady).to.be
+      expect(getRedisConnection(queue).extraOptions.skipWaitingForReady).to.be
         .true;
     });
 
     it('uses non-blocking connection by default', () => {
       const queue = new Queue('test');
-      expect((<any>queue).connection.extraOptions.blocking).toBe(false);
+      expect(getRedisConnection(queue).extraOptions.blocking).toBe(false);
     });
 
     it('uses shared connection if provided Redis instance', () => {
@@ -479,7 +488,7 @@ describe('RedisConnection', () => {
       const queue = new Queue('test', {
         connection,
       });
-      expect((<any>queue).connection.extraOptions.shared).toBe(true);
+      expect(getRedisConnection(queue).extraOptions.shared).toBe(true);
 
       connection.disconnect();
     });
@@ -488,7 +497,9 @@ describe('RedisConnection', () => {
   describe('Worker', () => {
     it('initializes blockingConnection with blocking: true', async () => {
       const worker = new Worker('test', async () => {}, { connection: {} });
-      expect((<any>worker).blockingConnection.extraOptions.blocking).toBe(true);
+      expect(getBlockingRedisConnection(worker).extraOptions.blocking).toBe(
+        true,
+      );
       await worker.close();
     });
 
@@ -496,7 +507,9 @@ describe('RedisConnection', () => {
       const connection = new IORedis({ maxRetriesPerRequest: null });
 
       const worker = new Worker('test', async () => {}, { connection });
-      expect((<any>worker).blockingConnection.extraOptions.shared).toBe(false);
+      expect(getBlockingRedisConnection(worker).extraOptions.shared).toBe(
+        false,
+      );
 
       await worker.close();
       connection.disconnect();
@@ -507,8 +520,10 @@ describe('RedisConnection', () => {
 
       const worker = new Worker('test', async () => {}, { connection });
 
-      expect((<any>worker).connection.extraOptions.blocking).toBe(false);
-      expect((<any>worker).blockingConnection.extraOptions.blocking).toBe(true);
+      expect(getRedisConnection(worker).extraOptions.blocking).toBe(false);
+      expect(getBlockingRedisConnection(worker).extraOptions.blocking).toBe(
+        true,
+      );
 
       await worker.close();
       connection.disconnect();
@@ -518,7 +533,9 @@ describe('RedisConnection', () => {
   describe('FlowProducer', () => {
     it('uses non-blocking connection', async () => {
       const flowProducer = new FlowProducer();
-      expect((<any>flowProducer).connection.extraOptions.blocking).toBe(false);
+      expect(getRedisConnection(flowProducer).extraOptions.blocking).toBe(
+        false,
+      );
       await flowProducer.close();
     });
 
@@ -528,7 +545,7 @@ describe('RedisConnection', () => {
       const flowProducer = new FlowProducer({
         connection,
       });
-      expect((<any>flowProducer).connection.extraOptions.shared).toBe(true);
+      expect(getRedisConnection(flowProducer).extraOptions.shared).toBe(true);
 
       connection.disconnect();
     });
@@ -570,7 +587,7 @@ describe('connection', () => {
         },
       });
 
-      const client = await queue.waitUntilReady();
+      const client = await getRedisClient(queue);
       expect(client.status).toEqual('ready');
 
       await queue.close();
@@ -603,7 +620,7 @@ describe('connection', () => {
         },
       });
 
-      const client = await queue.waitUntilReady();
+      const client = await getRedisClient(queue);
       expect(client.status).toEqual('ready');
 
       await queue.close();
@@ -682,7 +699,7 @@ describe('connection', () => {
         connection: connection2,
       });
 
-      const options = <RedisOptions>(await queue.client).options;
+      const options = <RedisOptions>(await getRedisClient(queue)).options;
 
       expect(options.maxRetriesPerRequest).toBe(20);
 
@@ -699,13 +716,13 @@ describe('connection', () => {
         },
       };
 
-      const queue = new QueueBase(queueName, opts);
-      const client = await queue.client;
+      const queue = new Queue(queueName, opts);
+      const client = await getRedisClient(queue);
       await client.config('SET', 'maxmemory-policy', 'volatile-lru');
 
-      const queue2 = new QueueBase(`${queueName}2`, opts);
+      const queue2 = new Queue(`${queueName}2`, opts);
 
-      await expect(queue2.client).to.be.eventually.rejectedWith(
+      await expect(getRedisClient(queue2)).to.be.eventually.rejectedWith(
         'Eviction policy is volatile-lru. It should be "noeviction"',
       );
       await client.config('SET', 'maxmemory-policy', 'noeviction');
@@ -743,7 +760,7 @@ describe('connection', () => {
       },
     });
 
-    const client = queue['connection']['_client'];
+    const client = getRedisConnection(queue)['_client'];
     await queue.close();
 
     expect(client.status).toEqual('end');
@@ -769,8 +786,8 @@ describe('connection', () => {
       // error event has to be observed or the exception will bubble up
     });
 
-    const workerClient = await worker.client;
-    const queueClient = await queue.client;
+    const workerClient = await getRedisClient(worker);
+    const queueClient = await getRedisClient(queue);
 
     // Simulate disconnect
     (<any>queueClient).stream.end();
@@ -819,8 +836,8 @@ describe('connection', () => {
 
     worker.on('completed', async () => {
       if (count === 1) {
-        const workerClient = await worker.client;
-        const queueClient = await queue.client;
+        const workerClient = await getRedisClient(worker);
+        const queueClient = await getRedisClient(queue);
 
         (<any>queueClient).stream.end();
         queueClient.emit('error', new Error('ECONNRESET'));

@@ -1,20 +1,25 @@
-import { RedisClient } from './connection';
 import { Span } from './telemetry';
 import { SpanKind } from '../enums/telemetry-attributes';
-import { ScriptQueueContext } from './script-queue-context';
-import type { Scripts } from '../classes/scripts';
+import { KeysMap } from '../classes/queue-keys';
+import { QueueBaseOptions } from './queue-options';
+import { IQueueBackend } from './queue-backend';
 
-export interface MinimalQueue extends ScriptQueueContext {
+/**
+ * The minimal, datastore-agnostic surface that {@link Job} and other helpers
+ * need from a queue. Redis specifics (client, version, …) live behind the
+ * {@link IQueueBackend} the queue owns.
+ */
+export interface MinimalQueue {
   readonly name: string;
   readonly qualifiedName: string;
+  keys: KeysMap;
+  toKey: (type: string) => string;
+  opts: QueueBaseOptions;
+  closing: Promise<void> | undefined;
   /**
-   * The long-lived Scripts instance shared by the queue. Jobs reuse this
-   * instance instead of allocating their own, since it is bound to the same
-   * queue keys and connection. Optional only so that custom queue-like
-   * implementations remain valid; the built-in Queue, Worker and FlowProducer
-   * always provide one so no redundant Scripts is created per job.
+   * The datastore backend the queue operates through.
    */
-  readonly scripts?: Scripts;
+  backend: IQueueBackend;
   /**
    * Emits an event. Normally used by subclasses to emit events.
    *
@@ -28,7 +33,7 @@ export interface MinimalQueue extends ScriptQueueContext {
     event: string | symbol,
     listener: (...args: any[]) => void,
   ): this;
-  waitUntilReady(): Promise<RedisClient>;
+  waitUntilReady(): Promise<void>;
   /**
    * Wraps the code with telemetry and provides a span for configuration.
    *

@@ -15,11 +15,12 @@ import {
   Worker,
   RateLimitError,
 } from '../src/classes';
-import { delay, removeAllQueueData, randomUUID } from '../src/utils';
+import { delay, randomUUID } from '../src/utils';
 
 import ProgressBar from 'progress';
 import { after } from 'lodash';
 import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
 import { IRedisClient } from '../src/interfaces';
 
 describe('Concurrency', () => {
@@ -36,7 +37,7 @@ describe('Concurrency', () => {
   });
 
   afterEach(async () => {
-    await removeAllQueueData(createTestConnection(), queueName);
+    await cleanupQueue(queueName);
   });
 
   afterAll(async function () {
@@ -508,6 +509,10 @@ describe('Concurrency', () => {
 
     const allActive = new Promise(resolve => {
       worker.on('active', after(globalConcurrency, resolve));
+    });
+
+    worker.on('error', () => {
+      // suppress expected connection errors during force close
     });
 
     worker.run();

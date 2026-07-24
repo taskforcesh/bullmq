@@ -1,3 +1,4 @@
+import { getRedisConnection } from './utils/get-redis-client';
 import { default as IORedis, Cluster, Redis } from 'ioredis';
 import {
   describe,
@@ -231,7 +232,7 @@ describe('Cluster support', () => {
 
         // Stub the queue's client to return our mock cluster
         sandbox
-          .stub(queue, 'client')
+          .stub(getRedisConnection(queue), 'client')
           .get(() => Promise.resolve(mockClusterClient));
 
         const workers = await queue.getWorkers();
@@ -292,7 +293,7 @@ describe('Cluster support', () => {
         };
 
         sandbox
-          .stub(queue, 'client')
+          .stub(getRedisConnection(queue), 'client')
           .get(() => Promise.resolve(mockClusterClient));
 
         const workers = await queue.getWorkers();
@@ -332,7 +333,7 @@ describe('Cluster support', () => {
         };
 
         sandbox
-          .stub(queue, 'client')
+          .stub(getRedisConnection(queue), 'client')
           .get(() => Promise.resolve(mockClusterClient));
 
         const workers = await queue.getWorkers();
@@ -403,7 +404,7 @@ describe('Cluster support', () => {
       };
 
       sandbox
-        .stub(queue, 'client')
+        .stub(getRedisConnection(queue), 'client')
         .get(() => Promise.resolve(mockClusterClient));
 
       const queueEvents = await queue.getQueueEvents();
@@ -452,7 +453,7 @@ describe('Cluster support', () => {
       };
 
       sandbox
-        .stub(queue, 'client')
+        .stub(getRedisConnection(queue), 'client')
         .get(() => Promise.resolve(mockClusterClient));
 
       const workersCount = await queue.getWorkersCount();
@@ -491,7 +492,7 @@ describe('Cluster support', () => {
         };
 
         sandbox
-          .stub(queue, 'client')
+          .stub(getRedisConnection(queue), 'client')
           .get(() => Promise.resolve(mockClusterClient));
 
         const workers = await queue.getWorkers();
@@ -545,7 +546,7 @@ describe('Cluster support', () => {
         };
 
         sandbox
-          .stub(queue, 'client')
+          .stub(getRedisConnection(queue), 'client')
           .get(() => Promise.resolve(mockClusterClient));
 
         const workers = await queue.getWorkers();
@@ -596,7 +597,7 @@ describe('Cluster support', () => {
         };
 
         sandbox
-          .stub(queue, 'client')
+          .stub(getRedisConnection(queue), 'client')
           .get(() => Promise.resolve(mockClusterClient));
 
         const workers = await queue.getWorkers();
@@ -621,7 +622,7 @@ describe('Cluster support', () => {
         };
 
         sandbox
-          .stub(queue, 'client')
+          .stub(getRedisConnection(queue), 'client')
           .get(() => Promise.resolve(mockClusterClient));
 
         const workers = await queue.getWorkers();

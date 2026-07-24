@@ -8,8 +8,14 @@ import {
   expect,
 } from 'vitest';
 
-import { FlowProducer, JobScheduler, Queue, Worker } from '../src/classes';
-import { randomUUID, removeAllQueueData } from '../src/utils';
+import {
+  FlowProducer,
+  JobScheduler,
+  Queue,
+  Worker,
+  UnrecoverableError,
+} from '../src/classes';
+import { randomUUID } from '../src/utils';
 import {
   Telemetry,
   ContextManager,
@@ -28,6 +34,8 @@ import {
 import * as sinon from 'sinon';
 import { SpanKind, TelemetryAttributes, MetricNames } from '../src/enums';
 import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
+import { getRedisClient } from './utils/get-redis-client';
 import { IRedisClient } from '../src/interfaces';
 
 describe('Telemetry', () => {
@@ -211,7 +219,7 @@ describe('Telemetry', () => {
 
   afterEach(async () => {
     await queue.close();
-    await removeAllQueueData(createTestConnection(), queueName);
+    await cleanupQueue(queueName);
   });
 
   afterAll(async () => {
@@ -233,9 +241,7 @@ describe('Telemetry', () => {
 
     it('should correctly handle errors and record them in telemetry', async () => {
       const opts = {
-        repeat: {
-          endDate: 1,
-        },
+        jobId: '0',
       };
 
       const recordExceptionSpy = sinon.spy(
@@ -249,7 +255,7 @@ describe('Telemetry', () => {
         expect(recordExceptionSpy.calledOnce).toBe(true);
         const recordedError = recordExceptionSpy.firstCall.args[0];
         expect(recordedError.message).toBe(
-          'End date must be greater than current timestamp',
+          "JobId cannot be '0' or start with '0:'",
         );
       } finally {
         recordExceptionSpy.restore();
@@ -299,6 +305,25 @@ describe('Telemetry', () => {
       } finally {
         recordExceptionSpy.restore();
       }
+    });
+  });
+
+  describe('Queue.clean', () => {
+    it('should report the count of cleaned jobs to telemetry without the id array', async () => {
+      await queue.addBulk([
+        { name: 'job1', data: { foo: 'bar' } },
+        { name: 'job2', data: { baz: 'qux' } },
+      ]);
+
+      const cleaned = await queue.clean(0, 0, 'wait');
+      expect(cleaned).toHaveLength(2);
+
+      const activeContext = telemetryClient.contextManager.active();
+      const span = activeContext.getSpan?.() as MockSpan;
+      expect(span).toBeInstanceOf(MockSpan);
+      expect(span.name).toBe(`clean ${queueName}`);
+      expect(span.attributes[TelemetryAttributes.QueueCleanCount]).toBe(2);
+      expect(span.attributes[TelemetryAttributes.JobIds]).toBeUndefined();
     });
   });
 
@@ -390,12 +415,8 @@ describe('Telemetry', () => {
       expect(firstJob).toBeDefined();
       traceSpy.resetHistory();
 
-      const client = await worker.client;
+      const client = await getRedisClient(worker);
       await client.del(`${prefix}:${queueName}:${firstJob!.id}:lock`);
-
-      const failed = new Promise<void>(resolve => {
-        worker.on('failed', () => resolve());
-      });
 
       await (worker as any).moveStalledJobsToWait();
       await client.del(`${prefix}:${queueName}:stalled-check`);
@@ -405,6 +426,16 @@ describe('Telemetry', () => {
         'runnable-job',
         { foo: 'baz' },
         { telemetry: { metadata: secondMetadata } },
+      );
+
+      const deferredJob = await worker.getNextJob(token, { block: false });
+      expect(deferredJob?.id).toBe(firstJob.id);
+      expect(deferredJob?.deferredFailure).toBe(
+        'job stalled more than allowable limit',
+      );
+      await deferredJob!.moveToFailed(
+        new UnrecoverableError(deferredJob!.deferredFailure),
+        token,
       );
 
       const nextJob = await worker.getNextJob(token, { block: false });
@@ -421,7 +452,6 @@ describe('Telemetry', () => {
         nextJob?.opts?.telemetry?.metadata,
       );
 
-      await failed;
       await worker.close();
     });
   });
@@ -505,20 +535,17 @@ describe('Telemetry', () => {
 
       // Verify timestamp attributes are set in the finally block
       expect(
-        span.attributes[TelemetryAttributes.JobFinishedTimestamp],
-      ).toBeDefined();
-      expect(
         span.attributes[TelemetryAttributes.JobAttemptFinishedTimestamp],
       ).toBeDefined();
       expect(
         span.attributes[TelemetryAttributes.JobProcessedTimestamp],
       ).toBeDefined();
 
-      // JobFinishedTimestamp should be a recent timestamp
-      const jobFinishedTimestamp =
-        span.attributes[TelemetryAttributes.JobFinishedTimestamp];
-      expect(typeof jobFinishedTimestamp).toBe('number');
-      expect(jobFinishedTimestamp).toBeGreaterThan(Date.now() - 10000);
+      // JobAttemptFinishedTimestamp should be a recent timestamp
+      const jobAttemptFinishedTimestamp =
+        span.attributes[TelemetryAttributes.JobAttemptFinishedTimestamp];
+      expect(typeof jobAttemptFinishedTimestamp).toBe('number');
+      expect(jobAttemptFinishedTimestamp).toBeGreaterThan(Date.now() - 10000);
 
       startSpanSpy.restore();
       moveToCompletedStub.restore();
@@ -958,7 +985,7 @@ describe('Telemetry', () => {
       expect(completedCounter!.values[0].attributes).toMatchObject({
         [TelemetryAttributes.QueueName]: queueName,
         [TelemetryAttributes.JobName]: 'testJob',
-        [TelemetryAttributes.JobStatus]: 'completed',
+        [TelemetryAttributes.JobState]: 'completed',
       });
 
       await worker.close();
@@ -995,7 +1022,7 @@ describe('Telemetry', () => {
       expect(failedCounter!.values[0].attributes).toMatchObject({
         [TelemetryAttributes.QueueName]: queueName,
         [TelemetryAttributes.JobName]: 'testJob',
-        [TelemetryAttributes.JobStatus]: 'failed',
+        [TelemetryAttributes.JobState]: 'failed',
       });
 
       await worker.close();
@@ -1040,16 +1067,21 @@ describe('Telemetry', () => {
       expect(delayedCounter!.values[0].attributes).toMatchObject({
         [TelemetryAttributes.QueueName]: queueName,
         [TelemetryAttributes.JobName]: 'testJob',
-        [TelemetryAttributes.JobStatus]: 'delayed',
+        [TelemetryAttributes.JobState]: 'delayed',
       });
 
       await worker.close();
     });
 
     it('should record duration histogram when job completes', async () => {
+      const minTimingToleranceMs = 10;
+      const timingJitterFactor = 0.2;
       const simulatedWorkDurationMs = 50;
-      // Allow 10% timing jitter for scheduler/clock granularity in CI.
-      const timingToleranceMs = 5;
+      // Allow extra timing jitter for scheduler/clock granularity in CI.
+      const timingToleranceMs = Math.max(
+        minTimingToleranceMs,
+        simulatedWorkDurationMs * timingJitterFactor,
+      );
       const minRecordedDurationMs = simulatedWorkDurationMs - timingToleranceMs;
 
       const worker = new Worker(
@@ -1150,7 +1182,6 @@ describe('Telemetry', () => {
 
       const counts = await metricsQueue.recordJobCountsMetric('waiting');
       expect(counts).toEqual({
-        paused: 0,
         waiting: 3,
       });
 

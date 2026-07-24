@@ -563,7 +563,7 @@ async fn test_add_job_lifo() {
     }
 
     let counts = queue.get_job_counts().await.unwrap();
-    assert_eq!(counts.paused, 4);
+    assert_eq!(counts.waiting, 4);
 
     cleanup_queue(&queue).await;
 }

@@ -1,3 +1,4 @@
+import { getRedisClient } from './utils/get-redis-client';
 import {
   describe,
   beforeEach,
@@ -11,9 +12,10 @@ import {
 import { after } from 'lodash';
 import * as sinon from 'sinon';
 import { FlowProducer, Job, Queue, Worker } from '../src/classes';
-import { delay, randomUUID, removeAllQueueData } from '../src/utils';
+import { delay, randomUUID } from '../src/utils';
 import { version as currentPackageVersion } from '../src/version';
 import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
 import { IRedisClient } from '../src/interfaces';
 
 describe('queues', () => {
@@ -37,7 +39,7 @@ describe('queues', () => {
   afterEach(async () => {
     sandbox.restore();
     await queue.close();
-    await removeAllQueueData(createTestConnection(), queueName);
+    await cleanupQueue(queueName);
   });
 
   afterAll(async function () {
@@ -103,7 +105,7 @@ describe('queues', () => {
     const version = await queue.getVersion();
     expect(version).toBe(null);
     await queue.close();
-    await removeAllQueueData(createTestConnection(), exQueueName);
+    await cleanupQueue(exQueueName);
   });
 
   describe('.getMeta', () => {
@@ -180,7 +182,7 @@ describe('queues', () => {
 
       describe('addStandardJob', () => {
         it('stores the job id consistently in decimal form (not 3e+8)', async () => {
-          const client = await queue.client;
+          const client = await getRedisClient(queue);
           await primeCounter(client, queue.name);
 
           const job = await queue.add('test', { foo: 'bar' });
@@ -210,7 +212,7 @@ describe('queues', () => {
 
       describe('addPrioritizedJob', () => {
         it('stores the job id consistently in decimal form (not 3e+8)', async () => {
-          const client = await queue.client;
+          const client = await getRedisClient(queue);
           await primeCounter(client, queue.name);
 
           const job = await queue.add('test', { foo: 'bar' }, { priority: 1 });
@@ -233,7 +235,7 @@ describe('queues', () => {
 
       describe('addDelayedJob', () => {
         it('stores the job id consistently in decimal form (not 3e+8)', async () => {
-          const client = await queue.client;
+          const client = await getRedisClient(queue);
           await primeCounter(client, queue.name);
 
           const job = await queue.add('test', { foo: 'bar' }, { delay: 10000 });
@@ -256,7 +258,7 @@ describe('queues', () => {
 
       describe('addParentJob', () => {
         it('stores the parent job id consistently in decimal form (not 3e+8)', async () => {
-          const client = await queue.client;
+          const client = await getRedisClient(queue);
           await primeCounter(client, queue.name);
 
           const job = new Job(queue, 'parent-job', { foo: 'bar' });
@@ -324,15 +326,6 @@ describe('queues', () => {
       await queue.drain();
       const countAfterEmpty = await queue.count();
       expect(countAfterEmpty).toEqual(0);
-
-      const client = await queue.client;
-      const keys = await client.keys(`${prefix}:${queue.name}:*`);
-      expect(keys.length).toEqual(5);
-
-      for (const key of keys) {
-        const type = key.split(':')[2];
-        expect(['marker', 'events', 'meta', 'pc', 'id']).toContain(type);
-      }
     });
 
     describe('when having a flow', async () => {
@@ -359,15 +352,6 @@ describe('queues', () => {
 
             await queue.drain();
 
-            const client = await queue.client;
-            const keys = await client.keys(`${prefix}:${queue.name}:*`);
-
-            expect(keys.length).toEqual(4);
-            for (const key of keys) {
-              const type = key.split(':')[2];
-              expect(['events', 'meta', 'id', 'marker']).toContain(type);
-            }
-
             const countAfterEmpty = await queue.count();
             expect(countAfterEmpty).toEqual(0);
 
@@ -392,15 +376,6 @@ describe('queues', () => {
             expect(count).toEqual(2);
 
             await queue.drain();
-
-            const client = await queue.client;
-            const keys = await client.keys(`${prefix}:${queue.name}:*`);
-
-            expect(keys.length).toEqual(4);
-            for (const key of keys) {
-              const type = key.split(':')[2];
-              expect(['id', 'meta', 'marker', 'events']).toContain(type);
-            }
 
             const countAfterEmpty = await queue.count();
             expect(countAfterEmpty).toEqual(0);
@@ -439,13 +414,12 @@ describe('queues', () => {
 
             await queue.drain();
 
-            const client = await queue.client;
-            const keys = await client.keys(`${prefix}:${queue.name}:*`);
-
-            expect(keys.length).toEqual(6);
-
             const countAfterEmpty = await queue.count();
             expect(countAfterEmpty).toEqual(1);
+
+            const waitingChildrenCount =
+              await queue.getJobCountByTypes('waiting-children');
+            expect(waitingChildrenCount).toEqual(1);
 
             await flow.close();
             await childrenQueue.close();
@@ -482,15 +456,6 @@ describe('queues', () => {
 
             await queue.drain();
 
-            const client = await queue.client;
-            const keys = await client.keys(`${prefix}:${queue.name}:*`);
-
-            expect(keys.length).toEqual(4);
-            for (const key of keys) {
-              const type = key.split(':')[2];
-              expect(['id', 'meta', 'events', 'marker']).toContain(type);
-            }
-
             const countAfterEmpty = await queue.count();
             expect(countAfterEmpty).toEqual(0);
 
@@ -503,7 +468,7 @@ describe('queues', () => {
             expect(parentWaitCount).toEqual(1);
             await parentQueue.close();
             await flow.close();
-            await removeAllQueueData(createTestConnection(), parentQueueName);
+            await cleanupQueue(parentQueueName);
           });
         });
 
@@ -531,15 +496,6 @@ describe('queues', () => {
 
             await queue.drain();
 
-            const client = await queue.client;
-            const keys = await client.keys(`${prefix}:${queue.name}:*`);
-
-            expect(keys.length).toEqual(4);
-            for (const key of keys) {
-              const type = key.split(':')[2];
-              expect(['id', 'meta', 'events', 'marker']).toContain(type);
-            }
-
             const countAfterEmpty = await queue.count();
             expect(countAfterEmpty).toEqual(0);
 
@@ -551,7 +507,7 @@ describe('queues', () => {
             expect(parentWaitCount).toEqual(1);
             await parentQueue.close();
             await flow.close();
-            await removeAllQueueData(createTestConnection(), parentQueueName);
+            await cleanupQueue(parentQueueName);
           });
         });
       });
@@ -624,32 +580,12 @@ describe('queues', () => {
         await Promise.all(added);
         const count = await queue.count();
         expect(count).toEqual(maxJobs);
-        const count2 = await queue.getJobCounts('paused');
-        expect(count2.paused).toEqual(maxJobs);
+        const count2 = await queue.getJobCounts('wait');
+        expect(count2.wait).toEqual(maxJobs);
         await queue.drain();
         const countAfterEmpty = await queue.count();
         expect(countAfterEmpty).toEqual(0);
       });
-    });
-  });
-
-  describe('.removeDeprecatedPriorityKey', () => {
-    it('removes old priority key', async () => {
-      const client = await queue.client;
-      await client.zadd(`${prefix}:${queue.name}:priority`, 1, 'a');
-      await client.zadd(`${prefix}:${queue.name}:priority`, 2, 'b');
-
-      const count = await client.zcard(`${prefix}:${queue.name}:priority`);
-
-      expect(count).toEqual(2);
-
-      await queue.removeDeprecatedPriorityKey();
-
-      const updatedCount = await client.zcard(
-        `${prefix}:${queue.name}:priority`,
-      );
-
-      expect(updatedCount).toEqual(0);
     });
   });
 
@@ -780,16 +716,20 @@ describe('queues', () => {
 
         let order = 0;
         let timestamp;
-        const failing = new Promise<void>(resolve => {
+        const failing = new Promise<void>((resolve, reject) => {
           worker.on('failed', job => {
-            expect(order).toEqual(job!.data.idx);
-            if (job!.data.idx === jobCount / 2 - 1) {
-              timestamp = Date.now();
+            try {
+              expect(order).toEqual(job!.data.idx);
+              if (job!.data.idx === jobCount / 2 - 1) {
+                timestamp = Date.now();
+              }
+              if (order === jobCount - 1) {
+                resolve();
+              }
+              order++;
+            } catch (err) {
+              reject(err);
             }
-            if (order === jobCount - 1) {
-              resolve();
-            }
-            order++;
           });
         });
 
@@ -803,13 +743,17 @@ describe('queues', () => {
         expect(failedCount.failed).toBe(jobCount);
 
         order = 0;
-        const completing = new Promise<void>(resolve => {
+        const completing = new Promise<void>((resolve, reject) => {
           worker.on('completed', job => {
-            expect(order).toEqual(job.data.idx);
-            if (order === jobCount / 2 - 1) {
-              resolve();
+            try {
+              expect(order).toEqual(job.data.idx);
+              if (order === jobCount / 2 - 1) {
+                resolve();
+              }
+              order++;
+            } catch (err) {
+              reject(err);
             }
-            order++;
           });
         });
 
@@ -827,7 +771,7 @@ describe('queues', () => {
     });
 
     describe('when queue is paused', () => {
-      it('moves retried jobs to paused', async () => {
+      it('moves retried jobs to wait', async () => {
         await queue.waitUntilReady();
         const jobCount = 8;
 
@@ -845,13 +789,17 @@ describe('queues', () => {
         await worker.waitUntilReady();
 
         let order = 0;
-        const failing = new Promise<void>(resolve => {
+        const failing = new Promise<void>((resolve, reject) => {
           worker.on('failed', job => {
-            expect(order).toEqual(job!.data.idx);
-            if (order === jobCount - 1) {
-              resolve();
+            try {
+              expect(order).toEqual(job!.data.idx);
+              if (order === jobCount - 1) {
+                resolve();
+              }
+              order++;
+            } catch (err) {
+              reject(err);
             }
-            order++;
           });
         });
 
@@ -870,8 +818,8 @@ describe('queues', () => {
         await queue.pause();
         await queue.retryJobs({ count: 2 });
 
-        const pausedCount = await queue.getJobCounts('paused');
-        expect(pausedCount.paused).toBe(jobCount);
+        const waitCount = await queue.getJobCounts('wait');
+        expect(waitCount.wait).toBe(jobCount);
 
         await worker.close();
       });

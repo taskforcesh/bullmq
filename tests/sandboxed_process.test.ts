@@ -287,6 +287,16 @@ function sandboxProcessTests(
     let queueName: string;
 
     let connection: IORedis;
+
+    // Backend-agnostic qualified queue name: `bull:<name>` on Redis, bare
+    // `<name>` on PostgreSQL. Derived from the child queue's own qualifiedName
+    // so job/parent key assertions hold on any backend.
+    const qualify = (name: string): string =>
+      `${queue.qualifiedName.slice(
+        0,
+        queue.qualifiedName.length - queue.name.length,
+      )}${name}`;
+
     beforeAll(async () => {
       connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
     });
@@ -877,7 +887,7 @@ function sandboxProcessTests(
         parentWorker.on('completed', async (job: Job, value: any) => {
           try {
             expect(value).toEqual({
-              [`${prefix}:${queueName}:${childJobId}`]: { childResult: 'bar' },
+              [`${qualify(queueName)}:${childJobId}`]: { childResult: 'bar' },
             });
             resolve();
           } catch (err) {
@@ -999,7 +1009,7 @@ function sandboxProcessTests(
         parentWorker.on('completed', async (job: Job, value: any) => {
           try {
             expect(value).toEqual({
-              [`${prefix}:${queueName}:${childJobId}`]: 'child error',
+              [`${qualify(queueName)}:${childJobId}`]: 'child error',
             });
             resolve();
           } catch (err) {
@@ -1381,81 +1391,91 @@ function sandboxProcessTests(
       await worker.close();
     });
 
-    it('should process and move to wait for children', async () => {
-      const processFile =
-        __dirname + '/fixtures/fixture_processor_move_to_wait_for_children.js';
+    // This fixture's child process spawns its own raw Redis-backed Queue to add
+    // the child job (see fixture_processor_move_to_wait_for_children.js), so it
+    // is inherently Redis-specific. The moveToWaitingChildren step flow itself
+    // is covered backend-agnostically by the flow suite.
+    const itUnlessPostgres =
+      process.env.BULLMQ_TEST_BACKEND === 'postgres' ? it.skip : it;
+    itUnlessPostgres(
+      'should process and move to wait for children',
+      async () => {
+        const processFile =
+          __dirname +
+          '/fixtures/fixture_processor_move_to_wait_for_children.js';
 
-      const childQueueName = `test-${randomUUID()}`;
+        const childQueueName = `test-${randomUUID()}`;
 
-      const parentWorker = new Worker(queueName, processFile, {
-        autorun: false,
-        connection,
-        prefix,
-        drainDelay: 1,
-        useWorkerThreads,
-      });
-
-      const childWorker = new Worker(
-        childQueueName,
-        () => {
-          return delay(250);
-        },
-        {
+        const parentWorker = new Worker(queueName, processFile, {
           autorun: false,
           connection,
           prefix,
           drainDelay: 1,
-        },
-      );
-      const childQueue = new Queue(childQueueName, { connection, prefix });
+          useWorkerThreads,
+        });
 
-      const waitingParent = new Promise<void>((resolve, reject) => {
-        queueEvents.on('waiting-children', async ({ jobId }) => {
-          try {
-            if (jobId) {
-              expect(jobId).toBe('parent-job-id');
-              resolve();
+        const childWorker = new Worker(
+          childQueueName,
+          () => {
+            return delay(250);
+          },
+          {
+            autorun: false,
+            connection,
+            prefix,
+            drainDelay: 1,
+          },
+        );
+        const childQueue = new Queue(childQueueName, { connection, prefix });
+
+        const waitingParent = new Promise<void>((resolve, reject) => {
+          queueEvents.on('waiting-children', async ({ jobId }) => {
+            try {
+              if (jobId) {
+                expect(jobId).toBe('parent-job-id');
+                resolve();
+              }
+            } catch (err) {
+              console.log(err);
+              reject(err);
             }
-          } catch (err) {
-            console.log(err);
-            reject(err);
-          }
+          });
         });
-      });
 
-      const completingParent = new Promise<void>((resolve, reject) => {
-        parentWorker.on('completed', async (job: Job) => {
-          expect(job.data.queueName).toBe(childQueueName);
-          expect(job.data.step).toBe('finish');
-          expect(job.returnvalue).toBe('finished');
-          resolve();
+        const completingParent = new Promise<void>((resolve, reject) => {
+          parentWorker.on('completed', async (job: Job) => {
+            expect(job.data.queueName).toBe(childQueueName);
+            expect(job.data.step).toBe('finish');
+            expect(job.returnvalue).toBe('finished');
+            resolve();
+          });
         });
-      });
 
-      const completingChild = new Promise<void>((resolve, reject) => {
-        childWorker.on('completed', async (job: Job) => {
-          expect(job.data.foo).toBe('bar');
-          resolve();
+        const completingChild = new Promise<void>((resolve, reject) => {
+          childWorker.on('completed', async (job: Job) => {
+            expect(job.data.foo).toBe('bar');
+            resolve();
+          });
         });
-      });
 
-      await queue.add(
-        'test',
-        { redisHost, queueName: childQueueName },
-        { jobId: 'parent-job-id' },
-      );
+        await queue.add(
+          'test',
+          { redisHost, queueName: childQueueName },
+          { jobId: 'parent-job-id' },
+        );
 
-      parentWorker.run();
-      childWorker.run();
+        parentWorker.run();
+        childWorker.run();
 
-      await waitingParent;
-      await completingChild;
-      await completingParent;
-      await parentWorker.close();
-      await childWorker.close();
-      await childQueue.close();
-      await removeAllQueueData(new IORedis(redisHost), childQueueName);
-    });
+        await waitingParent;
+        await completingChild;
+        await completingParent;
+        await parentWorker.close();
+        await childWorker.close();
+        await childQueue.close();
+        await removeAllQueueData(new IORedis(redisHost), childQueueName);
+      },
+    );
 
     describe('when env variables are provided', () => {
       it('shares env variables', async () => {
@@ -1541,7 +1561,7 @@ function sandboxProcessTests(
             expect(job.data).toEqual({ foo: 'bar' });
             expect(value).toEqual({
               id: 'job-id',
-              queueKey: `${prefix}:${parentQueueName}`,
+              queueKey: qualify(parentQueueName),
             });
             expect(Object.keys(worker['childPool'].retained)).toHaveLength(0);
             expect(worker['childPool'].free[processFile]).toHaveLength(1);

@@ -44,19 +44,19 @@ local delayedKey = KEYS[7]
 local opts = cmsgpack.unpack(ARGV[3])
 
 -- Includes
+--- @include "includes/getQueueMetadata"
 --- @include "includes/getNextDelayedTimestamp"
 --- @include "includes/getRateLimitTTL"
---- @include "includes/getTargetQueueList"
 --- @include "includes/moveJobFromPrioritizedToActive"
 --- @include "includes/prepareJobForProcessing"
 --- @include "includes/promoteDelayedJobs"
 
-local target, isPausedOrMaxed, rateLimitMax, rateLimitDuration = getTargetQueueList(KEYS[9],
-    activeKey, waitKey, KEYS[8])
+local isPausedOrMaxed, rateLimitMax, rateLimitDuration =
+    getQueueMetadata(KEYS[9], activeKey, waitKey)
 
 -- Check if there are delayed jobs that we can move to wait.
 local markerKey = KEYS[11]
-promoteDelayedJobs(delayedKey, markerKey, target, KEYS[3], eventStreamKey, ARGV[1],
+promoteDelayedJobs(delayedKey, markerKey, waitKey, KEYS[3], eventStreamKey, ARGV[1],
                    ARGV[2], KEYS[10], isPausedOrMaxed)
 
 local maxJobs = tonumber(rateLimitMax or (opts['limiter'] and opts['limiter']['max']))

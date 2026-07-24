@@ -28,7 +28,7 @@ local jobId = ARGV[2]
 -- Includes
 --- @include "includes/addJobInTargetList"
 --- @include "includes/addJobWithPriority"
---- @include "includes/getTargetQueueList"
+--- @include "includes/isQueuePausedOrMaxed"
 
 if rcall("ZREM", KEYS[1], jobId) == 1 then
     local jobKey = ARGV[1] .. jobId
@@ -39,13 +39,13 @@ if rcall("ZREM", KEYS[1], jobId) == 1 then
     -- Remove delayed "marker" from the wait list if there is any.
     -- Since we are adding a job we do not need the marker anymore.
     -- Markers in waitlist DEPRECATED in v5: Remove in v6.
-    local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[6], KEYS[2], KEYS[3])
-    local marker = rcall("LINDEX", target, 0)
-    if marker and string.sub(marker, 1, 2) == "0:" then rcall("LPOP", target) end
+    local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, KEYS[6])
+    local marker = rcall("LINDEX", KEYS[2], 0)
+    if marker and string.sub(marker, 1, 2) == "0:" then rcall("LPOP", KEYS[2]) end
 
     if priority == 0 then
         -- LIFO or FIFO
-        addJobInTargetList(target, markerKey, "LPUSH", isPausedOrMaxed, jobId)
+        addJobInTargetList(KEYS[2], markerKey, "LPUSH", isPausedOrMaxed, jobId)
     else
         addJobWithPriority(markerKey, KEYS[5], priority, jobId, KEYS[7], isPausedOrMaxed)
     end
