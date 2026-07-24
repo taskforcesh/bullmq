@@ -1431,6 +1431,13 @@ defmodule BullMQ.Worker do
     end
   end
 
+  # Jobs carrying a deferred failure (set by a child with fail_parent_on_failure)
+  # must fail immediately instead of running the processor or retrying.
+  defp run_processor_sync(%Job{deferred_failure: deferred_failure}, _ctx, _cancel_token)
+       when is_binary(deferred_failure) and deferred_failure != "" do
+    {:unrecoverable_error, deferred_failure}
+  end
+
   # Run processor synchronously (called within worker process)
   # The cancel_token parameter allows passing a pre-created token
   # (used by autonomous workers who need to register the token before processing)
@@ -1533,6 +1540,12 @@ defmodule BullMQ.Worker do
     end
   end
 
+  # A deferred/unrecoverable failure must move the job straight to failed,
+  # bypassing the retry logic.
+  defp handle_job_result(job, {:unrecoverable_error, error_msg}, ctx) do
+    move_job_to_failed(job, error_msg, [], ctx)
+  end
+
   defp handle_job_result(job, {:error, error_msg, stacktrace}, ctx) do
     if Job.should_retry?(job) do
       backoff_delay = Job.calculate_backoff(job)
@@ -1571,33 +1584,38 @@ defmodule BullMQ.Worker do
           :retry
       end
     else
-      move_opts = build_worker_move_opts(ctx, job) ++ [stacktrace: format_stacktrace(stacktrace)]
+      move_job_to_failed(job, error_msg, stacktrace, ctx)
+    end
+  end
 
-      case Scripts.move_to_failed(ctx.connection, ctx.keys, job.id, job.token, error_msg, move_opts) do
-        {:ok, [job_data, job_id, _limit_delay, _delay_until]}
-        when is_list(job_data) and job_data != [] ->
-          # Emit on_failed callback with failed_reason set
-          updated_job = %{job | attempts_made: job.attempts_made + 1, failed_reason: error_msg}
-          emit_event(ctx.on_failed, [updated_job, error_msg])
+  # Move a job to the failed set and fetch the next job (no retry).
+  defp move_job_to_failed(job, error_msg, stacktrace, ctx) do
+    move_opts = build_worker_move_opts(ctx, job) ++ [stacktrace: format_stacktrace(stacktrace)]
 
-          job_map = list_to_job_map(job_data)
+    case Scripts.move_to_failed(ctx.connection, ctx.keys, job.id, job.token, error_msg, move_opts) do
+      {:ok, [job_data, job_id, _limit_delay, _delay_until]}
+      when is_list(job_data) and job_data != [] ->
+        # Emit on_failed callback with failed_reason set
+        updated_job = %{job | attempts_made: job.attempts_made + 1, failed_reason: error_msg}
+        emit_event(ctx.on_failed, [updated_job, error_msg])
 
-          next_job =
-            Job.from_redis(to_string(job_id), ctx.queue_name, job_map,
-              prefix: ctx.prefix,
-              token: ctx.token,
-              connection: ctx.connection,
-              worker: ctx.coordinator
-            )
+        job_map = list_to_job_map(job_data)
 
-          {:continue, next_job}
+        next_job =
+          Job.from_redis(to_string(job_id), ctx.queue_name, job_map,
+            prefix: ctx.prefix,
+            token: ctx.token,
+            connection: ctx.connection,
+            worker: ctx.coordinator
+          )
 
-        _ ->
-          # Emit on_failed callback even when no next job
-          updated_job = %{job | attempts_made: job.attempts_made + 1, failed_reason: error_msg}
-          emit_event(ctx.on_failed, [updated_job, error_msg])
-          :stop
-      end
+        {:continue, next_job}
+
+      _ ->
+        # Emit on_failed callback even when no next job
+        updated_job = %{job | attempts_made: job.attempts_made + 1, failed_reason: error_msg}
+        emit_event(ctx.on_failed, [updated_job, error_msg])
+        :stop
     end
   end
 
@@ -1618,10 +1636,14 @@ defmodule BullMQ.Worker do
       limiter: ctx.limiter,
       remove_on_complete: ctx.remove_on_complete,
       remove_on_fail: ctx.remove_on_fail,
-      fail_parent_on_failure: false,
-      continue_parent_on_failure: false,
-      ignore_dependency_on_failure: false,
-      remove_dependency_on_failure: false
+      fail_parent_on_failure:
+        get_job_opt(job, :fail_parent_on_failure, "fail_parent_on_failure", false),
+      continue_parent_on_failure:
+        get_job_opt(job, :continue_parent_on_failure, "continue_parent_on_failure", false),
+      ignore_dependency_on_failure:
+        get_job_opt(job, :ignore_dependency_on_failure, "ignore_dependency_on_failure", false),
+      remove_dependency_on_failure:
+        get_job_opt(job, :remove_dependency_on_failure, "remove_dependency_on_failure", false)
     ]
   end
 
@@ -2237,10 +2259,14 @@ defmodule BullMQ.Worker do
       limiter: state.limiter,
       remove_on_complete: state.remove_on_complete || %{"count" => -1},
       remove_on_fail: state.remove_on_fail || %{"count" => -1},
-      fail_parent_on_failure: false,
-      continue_parent_on_failure: false,
-      ignore_dependency_on_failure: false,
-      remove_dependency_on_failure: false
+      fail_parent_on_failure:
+        get_job_opt(job, :fail_parent_on_failure, "fail_parent_on_failure", false),
+      continue_parent_on_failure:
+        get_job_opt(job, :continue_parent_on_failure, "continue_parent_on_failure", false),
+      ignore_dependency_on_failure:
+        get_job_opt(job, :ignore_dependency_on_failure, "ignore_dependency_on_failure", false),
+      remove_dependency_on_failure:
+        get_job_opt(job, :remove_dependency_on_failure, "remove_dependency_on_failure", false)
     ]
   end
 
