@@ -70,7 +70,7 @@
     "tsc:all": "tsc && tsc -p tsconfig-cjs.json"
   },
   "dependencies": {
-    "cron-parser": "4.9.0",
+    "cron-parser": "5.6.2",
     "ioredis": "5.11.1",
     "msgpackr": "2.0.4",
     "node-abort-controller": "3.1.1",
