@@ -9,6 +9,7 @@ import {
 import {
   delay,
   DELAY_TIME_5,
+  forwardConnectionError,
   isNotConnectionError,
   isRedisInstance,
   trace,
@@ -73,7 +74,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
       skipWaitingForReady: opts.skipWaitingForReady,
     });
 
-    this.connection.on('error', (error: Error) => this.emit('error', error));
+    forwardConnectionError(this, this.connection);
     this.connection.on('close', () => {
       if (!this.closing) {
         this.emit('ioredis:close');

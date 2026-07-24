@@ -533,6 +533,87 @@ describe('RedisConnection', () => {
       connection.disconnect();
     });
   });
+
+  describe('when init fails before an error listener is attached', () => {
+    // Use a port where nothing is listening so init rejects quickly. A unique
+    // port also lets the assertion ignore unrelated connection errors that may
+    // be emitted by other tests running against the default Redis port.
+    const failingPort = 59999;
+    const failingConnection = {
+      host: '127.0.0.1',
+      port: failingPort,
+      maxRetriesPerRequest: null,
+      enableOfflineQueue: false,
+      // Give up immediately instead of retrying so init() rejects fast.
+      retryStrategy: () => null,
+    };
+
+    async function expectNoUnhandledError(
+      create: () => { close: () => Promise<void> },
+    ): Promise<void> {
+      const leaked: any[] = [];
+      const unexpected: any[] = [];
+      // A failed init that is not forwarded to a listener surfaces either as an
+      // 'unhandledRejection' (from the RedisConnection init catch) or as an
+      // 'uncaughtException' (from the synchronous client 'error' forwarding).
+      // Only classify errors from our dedicated failing port as leaked. Any
+      // other unhandled error during this window must still fail the test.
+      const onUnhandled = (reason: any) => {
+        if (reason && reason.port === failingPort) {
+          leaked.push(reason);
+        } else {
+          unexpected.push(reason);
+        }
+      };
+      process.on('unhandledRejection', onUnhandled);
+      process.on('uncaughtException', onUnhandled);
+
+      let instance: { close: () => Promise<void> } | undefined;
+      try {
+        instance = create();
+        // Wait long enough for init() to reject during the window before any
+        // 'error' listener is attached.
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } finally {
+        if (instance) {
+          await instance.close().catch(() => undefined);
+        }
+        process.removeListener('unhandledRejection', onUnhandled);
+        process.removeListener('uncaughtException', onUnhandled);
+      }
+
+      expect(leaked).toHaveLength(0);
+      expect(unexpected).toHaveLength(0);
+    }
+
+    it('does not leak an unhandled error for a Worker', async () => {
+      await expectNoUnhandledError(
+        () =>
+          new Worker('test-connection-init-failure', async () => {}, {
+            connection: failingConnection,
+            autorun: false,
+          }),
+      );
+    });
+
+    it('does not leak an unhandled error for a Queue', async () => {
+      await expectNoUnhandledError(
+        () =>
+          new Queue('test-connection-init-failure', {
+            connection: failingConnection,
+          }),
+      );
+    });
+
+    it('does not leak an unhandled error for a FlowProducer', async () => {
+      await expectNoUnhandledError(
+        () =>
+          new FlowProducer({
+            connection: failingConnection,
+          }),
+      );
+    });
+  });
 });
 
 describe('connection', () => {
