@@ -1921,31 +1921,12 @@ defmodule BullMQ.Queue do
   defp map_state_to_lua_type(:waiting_children), do: {"waiting-children", true}
   defp map_state_to_lua_type(_), do: nil
 
-  defp build_count_command(ctx, type) do
-    case type do
-      :waiting -> ["LLEN", Keys.wait(ctx)]
-      :wait -> ["LLEN", Keys.wait(ctx)]
-      :active -> ["LLEN", Keys.active(ctx)]
-      :paused -> ["LLEN", Keys.paused(ctx)]
-      :delayed -> ["ZCARD", Keys.delayed(ctx)]
-      :prioritized -> ["ZCARD", Keys.prioritized(ctx)]
-      :completed -> ["ZCARD", Keys.completed(ctx)]
-      :failed -> ["ZCARD", Keys.failed(ctx)]
-      :waiting_children -> ["ZCARD", Keys.waiting_children(ctx)]
-      _ -> ["LLEN", "nonexistent_key"]
-    end
+  defp parse_hash_data(data) do
+    data
+    |> Enum.chunk_every(2)
+    |> Enum.into(%{}, fn [key, value] -> {key, value} end)
   end
 
-  defp parse_client_info(line) do
-    line
-    |> String.split(" ")
-    |> Enum.reduce(%{}, fn kv, acc ->
-      case String.split(kv, "=", parts: 2) do
-        [key, value] -> Map.put(acc, key, value)
-        _ -> acc
-      end
-    end)
-  end
   # Telemetry helpers
 
   # Add job with optional telemetry span
