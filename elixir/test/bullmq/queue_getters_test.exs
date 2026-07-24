@@ -92,6 +92,29 @@ defmodule BullMQ.QueueGettersTest do
 
       assert length(jobs) == 3
     end
+
+    test "skips jobs whose hash was removed while the id stays in the list and preserves order",
+         %{conn: conn, queue_name: queue_name, prefix: prefix} do
+      {:ok, _job1} = Queue.add(queue_name, "job1", %{foo: 1}, connection: conn, prefix: prefix)
+      {:ok, job2} = Queue.add(queue_name, "job2", %{foo: 2}, connection: conn, prefix: prefix)
+      {:ok, _job3} = Queue.add(queue_name, "job3", %{foo: 3}, connection: conn, prefix: prefix)
+
+      # Capture the order before removing any hash.
+      {:ok, before} = Queue.get_waiting(queue_name, connection: conn, prefix: prefix)
+      expected_ids = before |> Enum.map(& &1.id) |> Enum.reject(&(&1 == job2.id))
+
+      # Delete the middle job's hash while its id remains in the wait list. This
+      # mirrors a job removed after its id was read but before the hash was loaded.
+      {:ok, _} =
+        RedisConnection.command(conn, ["DEL", "#{prefix}:#{queue_name}:#{job2.id}"])
+
+      {:ok, jobs} = Queue.get_waiting(queue_name, connection: conn, prefix: prefix)
+
+      job_ids = Enum.map(jobs, & &1.id)
+      refute job2.id in job_ids
+      # The remaining jobs keep their original relative order.
+      assert job_ids == expected_ids
+    end
   end
 
   # ---------------------------------------------------------------------------

@@ -1,3 +1,16 @@
+## [2.25.4](https://github.com/taskforcesh/bullmq/compare/vpy2.25.3...vpy2.25.4) (2026-07-24)
+
+
+### Bug Fixes
+
+* **queue:** retrieve jobs in same transaction under getJobs ([#4300](https://github.com/taskforcesh/bullmq/issues/4300)) (python) (elixir) (php) (rust) ([8571503](https://github.com/taskforcesh/bullmq/commit/8571503034a43c6d5882e290051957215fd20fee))
+
+
+### Features
+
+* add QueueEvents, queue/worker getters, and missing options [rust] ([#4229](https://github.com/taskforcesh/bullmq/issues/4229)) ([60ae049](https://github.com/taskforcesh/bullmq/commit/60ae0492a3200f8496976a3b51609e7e54eafd1b))
+* idiomatic builder-based ergonomics across the public API [rust] ([#4288](https://github.com/taskforcesh/bullmq/issues/4288)) ([bbf0844](https://github.com/taskforcesh/bullmq/commit/bbf0844a250d08d6bfafacb43360f26a57cb9c87))
+
 ## [2.25.3](https://github.com/taskforcesh/bullmq/compare/vpy2.25.2...vpy2.25.3) (2026-07-10)
 
 

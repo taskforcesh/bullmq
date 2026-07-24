@@ -188,6 +188,22 @@ class QueueTest extends TestCase
         }
     }
 
+    public function testGetJobsByTypeSkipsDeletedJobHashAndPreservesOrder(): void
+    {
+        $this->queue->add('job-1', ['data' => 1], ['jobId' => 'job-1']);
+        $this->queue->add('job-2', ['data' => 2], ['jobId' => 'job-2']);
+        $this->queue->add('job-3', ['data' => 3], ['jobId' => 'job-3']);
+
+        $client = $this->queue->getConnection()->getClient();
+        $client->del($this->queue->getQualifiedName() . ':job-2');
+
+        $waitingJobs = $this->queue->getJobsByType('waiting', 0, 1);
+
+        $this->assertCount(2, $waitingJobs);
+        $this->assertSame('job-3', $waitingJobs[0]->id);
+        $this->assertSame('job-1', $waitingJobs[1]->id);
+    }
+
     public function testCanGetDelayedJobs(): void
     {
         $this->queue->add('delayed-1', ['data' => 1], ['delay' => 60000]);

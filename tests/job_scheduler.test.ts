@@ -248,27 +248,21 @@ describe('Job Scheduler', () => {
       async () => {
         const date = new Date('2017-02-07 9:24:00');
         clock.setSystemTime(date);
-        const worker = new Worker(
-          queueName,
-          async () => {
-            await clock.tickAsync(1);
-          },
-          {
-            connection,
-            prefix,
-            concurrency: 1,
-          },
-        );
-        await worker.waitUntilReady();
-        const completed = new Promise<void>(resolve => {
-          worker.once('completed', () => resolve());
+        const worker = new Worker(queueName, void 0, {
+          connection,
+          prefix,
+          concurrency: 1,
+          autorun: false,
         });
+        await worker.waitUntilReady();
+        const token = 'test-token';
 
         const jobSchedulerId = 'test';
         await queue.upsertJobScheduler(jobSchedulerId, {
           every: ONE_MINUTE * 5,
         });
-        await clock.tickAsync(1);
+        const firstJob = await worker.getNextJob(token, { block: false });
+        expect(firstJob).toBeDefined();
         await queue.upsertJobScheduler(jobSchedulerId, {
           every: ONE_MINUTE * 5,
         });
@@ -280,8 +274,7 @@ describe('Job Scheduler', () => {
         });
         const repeatableJobs = await queue.getJobSchedulers();
         expect(repeatableJobs.length).toEqual(1);
-        await clock.tickAsync(ONE_MINUTE);
-        await completed;
+        await firstJob!.moveToCompleted(null, token);
         const count = await queue.getJobCountByTypes('delayed', 'waiting');
         expect(count).toBe(1);
 
