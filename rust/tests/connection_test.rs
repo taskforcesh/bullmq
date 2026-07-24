@@ -152,6 +152,20 @@ fn test_effective_url_tls_certs_imply_rediss_scheme() {
 }
 
 #[test]
+fn test_effective_url_tls_certs_imply_rediss_scheme_for_url_fallback() {
+    let opts = RedisConnectionOptions {
+        host: None,
+        url: "redis://secure.redis:6380".to_string(),
+        tls_certs: Some(TlsCerts {
+            root_cert: Some(b"-----BEGIN CERTIFICATE-----".to_vec()),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    assert_eq!(opts.effective_url(), "rediss://secure.redis:6380");
+}
+
+#[test]
 fn test_debug_redacts_tls_certs() {
     let opts = RedisConnectionOptions {
         host: Some("secure.redis".to_string()),

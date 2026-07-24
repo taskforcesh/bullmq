@@ -152,10 +152,14 @@ impl RedisConnectionOptions {
     /// Build the effective connection URL.
     ///
     /// When [`host`](Self::host) is set, a URL is constructed from the typed
-    /// fields (`scheme://[user][:pass]@host:port[/db]`); otherwise
-    /// [`url`](Self::url) is returned as-is.
+    /// fields (`scheme://[user][:pass]@host:port[/db]`). When `host` is not set,
+    /// [`url`](Self::url) is returned, except that `tls_certs` implies upgrading
+    /// a `redis://` URL to `rediss://`.
     pub fn effective_url(&self) -> String {
         let Some(host) = &self.host else {
+            if self.tls_certs.is_some() && self.url.starts_with("redis://") {
+                return self.url.replacen("redis://", "rediss://", 1);
+            }
             return self.url.clone();
         };
 
