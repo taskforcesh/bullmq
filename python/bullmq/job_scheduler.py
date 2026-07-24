@@ -138,7 +138,8 @@ class JobScheduler:
         """
         Create or update a job scheduler. Returns the `Job` representing
         the next iteration, or `None` if no iteration was produced
-        (limit reached, end date exceeded, pattern unparseable).
+        (limit reached or end date exceeded). Cron/timezone parsing errors
+        from the repeat strategy propagate as exceptions.
 
         Validation mirrors Node:
         - exactly one of `pattern` / `every` must be given;

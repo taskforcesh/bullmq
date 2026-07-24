@@ -12,7 +12,7 @@ Most users never instantiate `LockManager` directly: the `Worker` constructs one
 
 - Keeps an in-memory registry of `{job_id → {token, ts, abort_controller}}` for every job currently being processed.
 - Wakes every `lock_renew_time / 2` ms and calls the `extendJobLocks` Lua script with the subset of tracked jobs whose stored timestamp is older than the renewal threshold. One Lua call atomically renews many locks.
-- Emits the worker's `error` event on failure and re-raises the underlying exception so the worker can decide whether to stall the affected jobs.
+- Emits the worker's `error` event on failure so the worker/application can decide how to react.
 
 ### Construction
 
@@ -50,7 +50,7 @@ controller = manager.track_job(
 )
 ```
 
-`track_job` registers the job for renewal and — when `should_create_controller=True` — allocates an [`AbortController`](job-cancellation.md). The controller is stored alongside the job so `cancel_job(job_id)` can later flip its signal, and is returned to the caller so the worker can pass the underlying `AbortSignal` into the processor as a kwarg.
+`track_job` registers the job for renewal and — when `should_create_controller=True` — allocates an [`AbortController`](job-cancellation.md). The controller is stored alongside the job so `cancel_job(job_id)` can later flip its signal, and is returned to the caller so the worker can pass the underlying `AbortSignal` into the processor as the third positional argument (`processor(job, token, signal)`).
 
 `untrack_job(job_id)` removes the entry; the worker calls this when a job completes, fails, or is moved away from the active state.
 
@@ -85,4 +85,4 @@ await manager.close()
 ## Read more
 
 - 💡 [LockManager source](https://github.com/taskforcesh/bullmq/blob/master/python/bullmq/lock_manager.py)
-- 💡 [extendJobLocks Lua script](https://github.com/taskforcesh/bullmq/blob/master/python/bullmq/commands/extendLocks-2.lua)
+- 💡 [extendJobLocks Lua script](https://github.com/taskforcesh/bullmq/blob/master/src/commands/extendLocks-1.lua)

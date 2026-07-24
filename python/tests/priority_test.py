@@ -25,6 +25,7 @@ class TestPriority(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         connection = redis.Redis(host='localhost')
         await connection.flushdb()
+        await connection.aclose()
 
     async def test_add_prioritized_jobs_are_returned_in_priority_order(self):
         """Jobs added with priority should be retrievable via getPrioritized()

@@ -40,7 +40,7 @@ await scheduler.upsertJobScheduler(
 )
 ```
 
-`upsertJobScheduler` returns the `Job` representing the next iteration, or `None` if no iteration was produced (limit reached, end date passed, pattern unparseable). It validates the repeat options up front and raises `ValueError` on misconfiguration — `pattern` and `every` are mutually exclusive, and `immediately` cannot be combined with `startDate`.
+`upsertJobScheduler` returns the `Job` representing the next iteration, or `None` if no iteration was produced (limit reached or end date passed). It validates the repeat options up front and raises `ValueError` on misconfiguration — `pattern` and `every` are mutually exclusive, and `immediately` cannot be combined with `startDate`. Invalid cron expressions/timezones are raised by the repeat strategy (for example `CroniterBadCronError`/`ZoneInfoNotFoundError`).
 
 ### Repeat options
 
