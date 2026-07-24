@@ -305,6 +305,66 @@ describe('Jobs getters', () => {
     expect(jobsWithoutProvidingRange[3].data.baz).toBe('xuq');
   });
 
+  it('should filter out missing jobs when ids remain in the waiting list', async () => {
+    const [, b] = await Promise.all([
+      queue.add('test', { foo: 'bar' }),
+      queue.add('test', { baz: 'qux' }),
+      queue.add('test', { bar: 'baz' }),
+    ]);
+    const queueClient = await queue.client;
+    const waitingJobs = await queue.getJobs(['waiting']);
+    const waitingJobIds = waitingJobs.map(job => job.id);
+
+    await queueClient.del(queue.toKey(b.id!));
+
+    const jobs = await queue.getJobs(['waiting']);
+
+    expect(jobs).toBeInstanceOf(Array);
+    expect(jobs).toHaveLength(2);
+    expect(jobs.every(job => job !== undefined)).toBe(true);
+    expect(jobs.map(job => job.id)).toEqual(
+      waitingJobIds.filter(jobId => jobId !== b.id),
+    );
+    expect(jobs.map(job => job.data)).toEqual(
+      waitingJobs.filter(job => job.id !== b.id).map(job => job.data),
+    );
+  });
+
+  it('should backfill a bounded range when a job hash is missing', async () => {
+    const addedJobs = [];
+    for (let i = 1; i <= 5; i++) {
+      addedJobs.push(await queue.add('test', { foo: i }));
+    }
+
+    const queueClient = await queue.client;
+    // Remove the hash of the job at index 1 within the requested window while
+    // its id remains in the waiting list.
+    await queueClient.del(queue.toKey(addedJobs[1].id!));
+
+    const jobs = await queue.getJobs(['waiting'], 0, 2, true);
+
+    expect(jobs).toBeInstanceOf(Array);
+    expect(jobs).toHaveLength(3);
+    expect(jobs.every(job => job !== undefined)).toBe(true);
+    // The missing job is skipped and the page is backfilled with the next
+    // available job, preserving order.
+    expect(jobs.map(job => job.data.foo)).toEqual([1, 3, 4]);
+  });
+
+  it('should return an empty array for an ascending bounded range beyond the list length', async () => {
+    for (let i = 1; i <= 3; i++) {
+      await queue.add('test', { foo: i });
+    }
+
+    // Request an ascending window that starts past the last waiting job. Redis
+    // clamps negative list indexes, so without an LLEN guard this would return
+    // the head element instead of an empty page.
+    const jobs = await queue.getJobs(['waiting'], 10, 12, true);
+
+    expect(jobs).toBeInstanceOf(Array);
+    expect(jobs).toHaveLength(0);
+  });
+
   it('should get paused jobs', async () => {
     await queue.pause();
     await Promise.all([
@@ -728,13 +788,16 @@ describe('Jobs getters', () => {
     describe('when there are delayed jobs and waiting jobs', () => {
       it('filters jobIds different than marker', async () => {
         await queue.add('test1', { foo: 3 }, { delay: 2000 });
-        await queue.add('test2', { foo: 2 });
+        const waitingJob = await queue.add('test2', { foo: 2 });
 
         const jobs = await queue.getJobs(['waiting']);
+        const client = await queue.client;
+        const waitingIds = await client.lrange(queue.toKey('wait'), 0, -1);
 
         expect(jobs).toBeInstanceOf(Array);
         expect(jobs).toHaveLength(1);
         expect(jobs[0].name).toBe('test2');
+        expect(waitingIds).toEqual([waitingJob.id]);
       });
     });
 
@@ -752,10 +815,14 @@ describe('Jobs getters', () => {
 
   it('should return deduplicated jobs for duplicates types', async () => {
     await queue.add('test', { foo: 1 });
+    await queue.add('test', { foo: 2 });
+
+    const expectedJobs = await queue.getJobs(['wait']);
     const jobs = await queue.getJobs(['wait', 'waiting', 'waiting']);
 
     expect(jobs).toBeInstanceOf(Array);
-    expect(jobs).toHaveLength(1);
+    expect(jobs).toHaveLength(2);
+    expect(jobs.map(job => job.id)).toEqual(expectedJobs.map(job => job.id));
   });
 
   it('should return jobs for all types', async () => {

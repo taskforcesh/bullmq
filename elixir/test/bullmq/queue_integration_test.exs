@@ -521,6 +521,40 @@ defmodule BullMQ.QueueIntegrationTest do
 
       assert length(first_page) == 3
     end
+
+    @tag :integration
+    test "honors explicit asc override for waiting jobs", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
+      {:ok, job1} =
+        Queue.add(queue_name, "job-1", %{index: 1},
+          connection: conn,
+          prefix: prefix
+        )
+
+      {:ok, job2} =
+        Queue.add(queue_name, "job-2", %{index: 2},
+          connection: conn,
+          prefix: prefix
+        )
+
+      {:ok, job3} =
+        Queue.add(queue_name, "job-3", %{index: 3},
+          connection: conn,
+          prefix: prefix
+        )
+
+      {:ok, waiting_jobs} =
+        Queue.get_jobs(queue_name, [:waiting],
+          connection: conn,
+          prefix: prefix,
+          asc: true
+        )
+
+      assert Enum.map(waiting_jobs, & &1.id) == [job1.id, job2.id, job3.id]
+    end
   end
 
   describe "Queue.get_meta/2" do
