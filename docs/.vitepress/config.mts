@@ -8,7 +8,8 @@ const { nav, sidebar } = loadNavigation();
 export default defineConfig({
   title: 'BullMQ',
   description:
-    'The fastest, most reliable, Redis-based distributed queue for Node. Carefully written for rock solid stability and atomicity.',
+    'The fastest, most reliable, Redis-based distributed queue for Node. ' +
+    'Carefully written for rock solid stability and atomicity.',
   lang: 'en-US',
   cleanUrls: true,
   lastUpdated: true,

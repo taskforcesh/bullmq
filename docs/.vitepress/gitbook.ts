@@ -15,9 +15,9 @@ const HINT_STYLES: Record<string, string> = {
  * `{% ... %}` block tags that VitePress does not understand. This rewrites the
  * most common ones so the existing content renders correctly:
  *
- *  - `{% hint style="..." %}`  -> `::: info | tip | warning | danger`
- *  - `{% tabs %}` / `{% tab %}` -> `::: code-group` with labelled code fences
- *  - `{% code title="..." %}`   -> a labelled `::: code-group` block
+ *  - `{% hint style="..." %}`  -\> `::: info | tip | warning | danger`
+ *  - `{% tabs %}` / `{% tab %}` -\> `::: code-group` with labelled code fences
+ *  - `{% code title="..." %}`   -\> a labelled `::: code-group` block
  */
 export function transformGitbookMarkdown(src: string): string {
   let out = src;
