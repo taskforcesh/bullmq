@@ -4,7 +4,7 @@
   <br/>
   <br/>
   <p>
-    The fastest, most reliable, Redis-based distributed queue for Node.js, Python, Rust, and more. <br/>
+    The fastest, most reliable, Redis-based distributed queue for Node.js, Python, Elixir, Rust, PHP, and more. <br/>
     Carefully written for rock solid stability and atomicity.
   </p>
   Read the <a href="https://docs.bullmq.io">documentation</a>
