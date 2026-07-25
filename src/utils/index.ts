@@ -1,3 +1,4 @@
+import { EventEmitter } from 'events';
 import { Cluster, Redis } from 'ioredis';
 import { AbortController } from '../classes/abort-controller';
 export { randomUUID } from 'crypto';
@@ -89,6 +90,27 @@ export function delay(
     };
     timeout = setTimeout(callback, ms);
     abortController?.signal.addEventListener('abort', callback);
+  });
+}
+
+/**
+ * Forwards 'error' events from a connection to its owning emitter, but only
+ * when a consumer is listening. Emitting 'error' on an EventEmitter with no
+ * listeners throws, which would turn a transient connection error (e.g. a
+ * failed init handshake before the consumer attached its listener) into an
+ * unhandled rejection.
+ *
+ * @param emitter - The owner emitter (Queue, Worker, FlowProducer, ...).
+ * @param connection - The connection whose 'error' events should be forwarded.
+ */
+export function forwardConnectionError(
+  emitter: EventEmitter,
+  connection: EventEmitter,
+): void {
+  connection.on('error', (error: Error) => {
+    if (emitter.listenerCount('error') > 0) {
+      emitter.emit('error', error);
+    }
   });
 }
 

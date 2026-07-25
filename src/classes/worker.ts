@@ -19,6 +19,7 @@ import { Processor } from '../types/processor';
 import {
   delay,
   DELAY_TIME_1,
+  forwardConnectionError,
   isNotConnectionError,
   randomUUID,
 } from '../utils';
