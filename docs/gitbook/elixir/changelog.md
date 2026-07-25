@@ -1,3 +1,10 @@
+## [1.3.7](https://github.com/taskforcesh/bullmq/compare/vex1.3.6...vex1.3.7) (2026-07-25)
+
+
+### Bug Fixes
+
+* **flows:** fix parent job stuck in waiting-children state ([#4335](https://github.com/taskforcesh/bullmq/issues/4335)) fixes [#4332](https://github.com/taskforcesh/bullmq/issues/4332) [elixir] ([65f1f0a](https://github.com/taskforcesh/bullmq/commit/65f1f0a73902df87a50d799d097450e2867eb9c3))
+
 ## [1.3.6](https://github.com/taskforcesh/bullmq/compare/vex1.3.5...vex1.3.6) (2026-07-24)
 
 
