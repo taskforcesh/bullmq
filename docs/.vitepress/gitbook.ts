@@ -25,13 +25,13 @@ export function transformGitbookMarkdown(src: string): string {
   // {% code title="file.ts" lineNumbers="true" %} ```lang ... ``` {% endcode %}
   out = out.replace(
     /\{%\s*code([^%]*)%\}\s*\r?\n```(\w*)([^\n]*)\n([\s\S]*?)```\s*\r?\n\{%\s*endcode\s*%\}/g,
-    (_match, attrs: string, lang: string, fenceRest: string, code: string) => {
+    (_match, attrs: string, lang: string, fenceAttrs: string, code: string) => {
       const title = /title="([^"]*)"/.exec(attrs)?.[1];
       const lineNumbers = /lineNumbers="true"/.test(attrs)
         ? ':line-numbers'
         : '';
       const label = title ? ` [${title}]` : '';
-      return `::: code-group\n\`\`\`${lang}${lineNumbers}${label}${fenceRest}\n${code}\`\`\`\n:::`;
+      return `::: code-group\n\`\`\`${lang}${lineNumbers}${label}${fenceAttrs}\n${code}\`\`\`\n:::`;
     },
   );
 

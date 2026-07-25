@@ -78,6 +78,8 @@ export function loadNavigation(): {
     if (depth > 0) {
       let candidates: RawItem[] = stack;
       for (let level = 0; level < depth - 1; level++) {
+        // Descend into the most recently added item's children. If it has none
+        // yet (malformed indentation), keep the current level as a fallback.
         candidates = candidates[candidates.length - 1]?.children ?? candidates;
       }
       parent = candidates[candidates.length - 1];
