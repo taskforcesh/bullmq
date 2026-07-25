@@ -16,6 +16,7 @@
 - [Queues](guide/queues/README.md)
   - [Auto-removal of jobs](guide/queues/auto-removal-of-jobs.md)
   - [Adding jobs in bulk](guide/queues/adding-bulks.md)
+  - [Working with batches](guide/queues/batches.md)
   - [Global Concurrency](guide/queues/global-concurrency.md)
   - [Global Rate Limit](guide/queues/global-rate-limit.md)
   - [Meta](guide/queues/meta.md)
