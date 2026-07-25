@@ -4,7 +4,7 @@ description: Job scheduler docs are maintained in the shared tabbed scheduler gu
 
 # Job Scheduler
 
-To avoid duplicated content across ports, job scheduler documentation is maintained in the shared guide sections:
+To avoid duplicated content across ports, job scheduler docs are maintained in the shared guide sections:
 
 - [Job Schedulers](../guide/job-schedulers/)
 - [Repeat Strategies](../guide/job-schedulers/repeat-strategies.md)

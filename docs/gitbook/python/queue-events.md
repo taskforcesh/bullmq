@@ -4,7 +4,7 @@ description: Queue events docs are maintained in the shared events guide section
 
 # Queue Events
 
-To avoid duplicated content across ports, queue events docs are maintained in the shared events guide:
+To avoid duplicated content across ports, queue events documentation is maintained in the shared events guide:
 
 - [Events](../guide/events/)
 - [Create Custom Events](../guide/events/create-custom-events.md)
