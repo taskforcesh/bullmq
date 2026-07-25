@@ -1,3 +1,11 @@
+## [5.81.2](https://github.com/taskforcesh/bullmq/compare/v5.81.1...v5.81.2) (2026-07-24)
+
+
+### Bug Fixes
+
+* prevent unhandled rejection when a connection's init fails before an 'error' listener is attached ([#4328](https://github.com/taskforcesh/bullmq/issues/4328)) ([315ec33](https://github.com/taskforcesh/bullmq/commit/315ec3309a42ccf898b2b825e39c42292b7932e7))
+* **telemetry:** emit job.state while preserving job.status compatibility ([#4293](https://github.com/taskforcesh/bullmq/issues/4293)) ([36a3b2a](https://github.com/taskforcesh/bullmq/commit/36a3b2a4196b4611db89b1640a6315e26de37eb0))
+
 ## [5.81.1](https://github.com/taskforcesh/bullmq/compare/v5.81.0...v5.81.1) (2026-07-24)
 
 
