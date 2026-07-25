@@ -16,6 +16,9 @@ export default defineConfig({
   // Content lives in ./gitbook (migrated from the GitBook site).
   srcDir: 'gitbook',
   srcExclude: ['**/SUMMARY.md'],
+  vite: {
+    publicDir: 'gitbook/public',
+  },
 
   // GitBook used README.md as the index of each folder; map those to clean
   // directory URLs (e.g. guide/queues/README.md -> /guide/queues/).

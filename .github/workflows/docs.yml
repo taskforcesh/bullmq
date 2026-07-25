@@ -7,6 +7,8 @@ on:
     paths:
       - 'docs/**'
       - '.github/workflows/docs.yml'
+      - 'package.json'
+      - 'yarn.lock'
   workflow_dispatch:
 
 # Allow only one concurrent deployment, skipping runs queued between the run
