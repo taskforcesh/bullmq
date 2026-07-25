@@ -16,8 +16,8 @@ const HINT_STYLES: Record<string, string> = {
  * most common ones so the existing content renders correctly:
  *
  *  - `{% hint style="..." %}`  -\> `::: info | tip | warning | danger`
- *  - `{% tabs %}` / `{% tab %}` -\> `::: code-group` with labelled code fences
- *  - `{% code title="..." %}`   -\> a labelled `::: code-group` block
+ *  - `{% tabs %}` / `{% tab %}` -\> `::: code-group` with labeled code fences
+ *  - `{% code title="..." %}`   -\> a labeled `::: code-group` block
  */
 export function transformGitbookMarkdown(src: string): string {
   let out = src;
