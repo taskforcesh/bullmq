@@ -4,11 +4,13 @@ Tests for job class.
 https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 """
 
+import asyncio
 import unittest
 import os
 import redis.asyncio as redis
 
-from bullmq import Queue, Job, Worker
+from asyncio import Future
+from bullmq import Queue, Job, Worker, FlowProducer, WaitingChildrenError
 from uuid import uuid4
 
 queueName = ""
@@ -210,6 +212,109 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(result)
 
         await worker.close(force=True)
+        await queue.close()
+
+    async def test_is_waiting_children_returns_true_when_in_waiting_children_state(self):
+        """Regression test: isWaitingChildren should return True when job is in waiting-children state."""
+        parent_queue_name = f"__test_parent_queue__{uuid4().hex}"
+        child_queue_name = f"__test_child_queue__{uuid4().hex}"
+
+        moved_to_waiting = Future()
+        parent_in_waiting_children = asyncio.Event()
+
+        async def child_process(job: Job, token: str):
+            # Wait until parent has signalled it has entered waiting-children
+            # state. This avoids relying on an arbitrary sleep to force ordering.
+            await asyncio.wait_for(parent_in_waiting_children.wait(), timeout=10)
+            return "child-done"
+
+        async def parent_process(job: Job, token: str):
+            should_wait = await job.moveToWaitingChildren(token, {})
+            if should_wait:
+                if not moved_to_waiting.done():
+                    moved_to_waiting.set_result(job)
+                parent_in_waiting_children.set()
+                raise WaitingChildrenError
+            return "parent-done"
+
+        parent_worker = Worker(parent_queue_name, parent_process, {"prefix": prefix})
+        child_worker = Worker(child_queue_name, child_process, {"prefix": prefix})
+
+        flow = FlowProducer({}, {"prefix": prefix})
+        try:
+            await flow.add(
+                {
+                    "name": 'parent-job',
+                    "queueName": parent_queue_name,
+                    "data": {},
+                    "children": [
+                        {"name": 'child-job', "data": {"foo": 'bar'}, "queueName": child_queue_name}
+                    ]
+                }
+            )
+
+            parent_job = await asyncio.wait_for(moved_to_waiting, timeout=10)
+
+            # Parent should be in waiting-children state
+            self.assertTrue(await parent_job.isWaitingChildren())
+        finally:
+            # Make sure cleanup runs even if the assertion or wait_for fails so
+            # the test process does not hang on lingering workers/queues.
+            if not parent_in_waiting_children.is_set():
+                parent_in_waiting_children.set()
+
+            await parent_worker.close()
+            await child_worker.close()
+            await flow.close()
+
+            parent_queue = Queue(parent_queue_name, {"prefix": prefix})
+            await parent_queue.pause()
+            await parent_queue.obliterate()
+            await parent_queue.close()
+
+            child_queue = Queue(child_queue_name, {"prefix": prefix})
+            await child_queue.pause()
+            await child_queue.obliterate()
+            await child_queue.close()
+
+    async def test_is_waiting_children_returns_false_when_job_is_waiting(self):
+        """isWaitingChildren should return False when job is not in waiting-children state."""
+        queue = Queue(queueName, {"prefix": prefix})
+        job = await queue.add("test", {"foo": "bar"}, {})
+
+        self.assertFalse(await job.isWaitingChildren())
+
+        await queue.close()
+
+    async def test_is_state_methods_return_false_when_awaited_for_pending_job(self):
+        """Regression: prior to making these methods async, calling them without
+        ``await`` returned a coroutine object. In Python a coroutine is always
+        truthy, so ``if job.isCompleted():`` reported True regardless of state.
+        This test ensures the now-awaitable forms return False for a freshly
+        queued (waiting) job."""
+        import inspect
+
+        queue = Queue(queueName, {"prefix": prefix})
+        job = await queue.add("test", {"foo": "bar"}, {})
+
+        # All five converted methods are coroutines now and return False
+        # when awaited on a freshly added (waiting) job.
+        for method in (
+            job.isCompleted,
+            job.isFailed,
+            job.isDelayed,
+            job.isWaitingChildren,
+            job.isActive,
+        ):
+            self.assertTrue(
+                inspect.iscoroutinefunction(method),
+                f"{method.__name__} should be async",
+            )
+            self.assertFalse(
+                await method(),
+                f"awaited {method.__name__}() should be False for a waiting job",
+            )
+
         await queue.close()
 
 if __name__ == '__main__':

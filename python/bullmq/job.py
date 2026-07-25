@@ -148,37 +148,37 @@ class Job:
         if not removed:
             raise Exception(f"Job {self.id} could not be removed because it is locked by another worker")
 
-    def isCompleted(self):
+    async def isCompleted(self) -> bool:
         """
         Returns true if the job has completed.
         """
-        return self.isInZSet('completed')
+        return await self.isInZSet('completed')
 
-    def isFailed(self):
+    async def isFailed(self) -> bool:
         """
         Returns true if the job has failed.
         """
-        return self.isInZSet('failed')
+        return await self.isInZSet('failed')
 
-    def isDelayed(self):
+    async def isDelayed(self) -> bool:
         """
         Returns true if the job is delayed.
         """
-        return self.isInZSet('delayed')
+        return await self.isInZSet('delayed')
 
-    def isWaitingChildren(self):
+    async def isWaitingChildren(self) -> bool:
         """
         Returns true if the job is waiting for children.
         """
-        return self.isInZSet('waiting-children')
+        return await self.isInZSet('waiting-children')
 
-    def isActive(self):
+    async def isActive(self) -> bool:
         """
         Returns true if the job is active.
         """
-        return self.isInList('active')
+        return await self.isInList('active')
 
-    async def isWaiting(self):
+    async def isWaiting(self) -> bool:
         return ( await self.isInList('wait') or await self.isInList('paused'))
 
     async def isInZSet(self, set: str):
