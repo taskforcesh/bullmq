@@ -127,7 +127,11 @@ export class FlowProducer<
     // its own queue identity, so the backend is created with an empty name.
     this.backend = backendFactory('', this.opts);
 
-    this.backend.on('error', (error: Error) => this.emit('error', error));
+    this.backend.on('error', (error: Error) => {
+      if (this.listenerCount('error') > 0) {
+        this.emit('error', error);
+      }
+    });
     this.backend.on('close', () => {
       if (!this.closing) {
         this.emit('ioredis:close');
