@@ -9,20 +9,23 @@ power all the functionality.
 Currently, the library does not support all the features available in the NodeJS version. The following
 have been ported so far:
 
-- [ ] Add jobs to queues.
-
+- [x] Add jobs to queues.
   - [x] Regular jobs.
   - [x] Delayed jobs.
   - [x] Job deduplication.
-  - [ ] Job priority.
-  - [ ] Repeatable.
+  - [x] Job priority.
+  - [x] Repeatable (via [`JobScheduler`](../docs/gitbook/python/job-scheduler.md)).
 
 - [x] Workers
-- [ ] Job events.
+- [x] Job events (via [`QueueEvents`](../docs/gitbook/python/queue-events.md) and `QueueEventsProducer`).
 - [x] Job progress.
-- [ ] Job retries.
+- [x] Job retries.
 - [x] Job backoff.
 - [x] Getters.
+- [x] [Flow Producer](../docs/gitbook/python/flow-producer.md).
+- [x] [Lock Manager](../docs/gitbook/python/lock-manager.md) (batched lock renewal).
+- [x] [Global concurrency and rate limit](../docs/gitbook/python/global-concurrency-and-rate-limit.md).
+- [x] [Per-job cancellation](../docs/gitbook/python/job-cancellation.md) (cooperative `AbortController`).
 
 ## Installation
 
@@ -40,6 +43,24 @@ from bullmq import Queue
 queue = Queue('my-queue')
 
 job = await queue.add('my-job', {'foo': 'bar'})
+```
+
+### Job Priority
+
+Prioritize jobs so higher priority jobs are processed first. Lower number = higher
+priority. `1` is the highest priority and `2_097_152` is the lowest. A priority of
+`0` (the default) means "no priority" and jobs are processed in FIFO order.
+
+```python
+from bullmq import Queue
+
+queue = Queue('my-queue')
+
+# Higher priority job (will be processed first)
+await queue.add('paint', {'color': 'red'}, {'priority': 1})
+
+# Lower priority job
+await queue.add('paint', {'color': 'blue'}, {'priority': 10})
 ```
 
 ### Job Deduplication
@@ -77,8 +98,6 @@ job = await queue.add('paint', {'color': 'white'}, {
     'delay': 5000  # Must be delayed for replace to work
 })
 ```
-
-
 
 ## Documentation
 
