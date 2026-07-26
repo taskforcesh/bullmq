@@ -111,6 +111,7 @@ export default defineConfig([
 
       curly: 'error',
       'no-async-promise-executor': 0,
+      'no-useless-assignment': 0,
       'no-extraneous-class': 0,
       '@typescript-eslint/no-inferrable-types': 2,
       semi: 2,
