@@ -6210,6 +6210,62 @@ describe('flows', () => {
   });
 
   describe('when root parent job has deduplication option', () => {
+    it('should reject deduplication when root node has children', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+
+      await expect(
+        flow.add({
+          name: 'root',
+          queueName,
+          opts: {
+            deduplication: { id: 'dedup-root-with-children' },
+          },
+          children: [
+            {
+              name: 'child',
+              queueName,
+              data: { foo: 'bar' },
+            },
+          ],
+        }),
+      ).rejects.toThrow(
+        'Deduplication options cannot be used on flow nodes with children',
+      );
+
+      await flow.close();
+    });
+
+    it('should reject deduplication on nested nodes with children', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+
+      await expect(
+        flow.add({
+          name: 'root',
+          queueName,
+          children: [
+            {
+              name: 'child-parent',
+              queueName,
+              opts: {
+                deduplication: { id: 'dedup-nested-with-children' },
+              },
+              children: [
+                {
+                  name: 'grandchild',
+                  queueName,
+                  data: { foo: 'bar' },
+                },
+              ],
+            },
+          ],
+        }),
+      ).rejects.toThrow(
+        'Deduplication options cannot be used on flow nodes with children',
+      );
+
+      await flow.close();
+    });
+
     it('should return deduplicated root job id when flow has no children', async () => {
       const flow = new FlowProducer({ connection, prefix });
       const dedupId = 'dedup-root-without-children';

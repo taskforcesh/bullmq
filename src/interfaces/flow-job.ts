@@ -1,11 +1,20 @@
-import { JobsOptions } from '../types';
+import { DeduplicationOptions, JobsOptions } from '../types';
 import { QueueOptions } from './queue-options';
 
-type FlowParentJobOpts = Omit<JobsOptions, 'deduplication' | 'repeat'>;
+type FlowDeduplicationOptions = Omit<DeduplicationOptions, 'replace'>;
 
-type FlowNestedLeafJobOpts = Omit<JobsOptions, 'parent' | 'repeat'>;
+type FlowJobOpts = Omit<JobsOptions, 'deduplication'> & {
+  deduplication?: FlowDeduplicationOptions;
+};
 
-type FlowRootLeafJobOpts = Omit<JobsOptions, 'repeat'>;
+type FlowParentJobOpts = Omit<
+  FlowJobOpts,
+  'deduplication' | 'parent' | 'repeat'
+>;
+
+type FlowNestedLeafJobOpts = Omit<FlowJobOpts, 'parent' | 'repeat'>;
+
+type FlowRootLeafJobOpts = Omit<FlowJobOpts, 'repeat'>;
 
 export interface FlowJobBase<T> {
   name: string;
