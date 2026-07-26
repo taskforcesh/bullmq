@@ -213,7 +213,9 @@ export class FlowProducer<
     // the per-node queue contexts used to create jobs.
     await this.backend.waitUntilReady();
 
-    const parentOpts = flow?.opts?.parent;
+    const flowOpts = flow?.opts;
+    const parentOpts =
+      flowOpts && 'parent' in flowOpts ? flowOpts.parent : undefined;
     const parentKey = getParentKey(parentOpts);
     const parentDependenciesKey = parentKey
       ? `${parentKey}:dependencies`
@@ -479,7 +481,9 @@ export class FlowProducer<
   ): Promise<JobNode[]> {
     return Promise.all(
       nodes.map(node => {
-        const parentOpts = node?.opts?.parent;
+        const nodeOpts = node?.opts;
+        const parentOpts =
+          nodeOpts && 'parent' in nodeOpts ? nodeOpts.parent : undefined;
         const parentKey = getParentKey(parentOpts);
         const parentDependenciesKey = parentKey
           ? `${parentKey}:dependencies`
