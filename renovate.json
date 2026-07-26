@@ -27,6 +27,11 @@
       "groupName": "devDependencies (non-major)"
     },
     {
+      "description": "Pin TypeScript below v7 until the tooling (ts-node, typedoc, @typescript-eslint) supports the native (Go) compiler, whose npm package does not yet expose the compiler API",
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<7"
+    },
+    {
       "description": "Group TypeScript type definitions",
       "matchPackagePatterns": ["^@types/"],
       "groupName": "TypeScript type definitions"
