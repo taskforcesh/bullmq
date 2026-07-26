@@ -1,7 +1,7 @@
 # Table of contents
 
 - [What is BullMQ](README.md)
-- [Quick Start](<README (1).md>)
+- [Quick Start](quick-start.md)
 - [API Reference](https://api.docs.bullmq.io)
 - [Changelogs](changelog.md)
   - [v4](changelogs/changelog-v4.md)

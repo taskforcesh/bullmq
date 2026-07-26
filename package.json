@@ -39,6 +39,9 @@
     "coverage": "vitest run --no-file-parallelism --coverage --config vitest.coverage.config.ts",
     "docs": "typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts",
     "docs:json": "typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts --json ./apiVersions/v5.json --name v5",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs",
     "dc:up": "docker-compose -f docker-compose.yml up -d",
     "dc:down": "docker-compose -f docker-compose.yml down",
     "dry-run": "npm publish --dry-run",
@@ -147,6 +150,7 @@
     "ts-node": "10.9.2",
     "typedoc": "0.28.20",
     "typescript": "5.9.3",
+    "vitepress": "1.6.4",
     "vitest": "4.1.10"
   },
   "commitlint": {

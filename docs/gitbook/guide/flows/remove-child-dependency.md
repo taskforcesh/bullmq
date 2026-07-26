@@ -24,7 +24,7 @@ const originalTree = await flow.add({
 await originalTree.children[0].job.removeChildDependency();
 ```
 
-{% hint style="waring" %}
+{% hint style="warning" %}
 As soon as a **child** calls this method, it will verify if it has an existing parent, if not, it'll throw an error.
 {% endhint %}
 
