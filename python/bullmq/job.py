@@ -44,6 +44,7 @@ class Job:
         self.opts = final_opts
         self.queue = queue
         self.delay = opts.get("delay", 0)
+        self.priority = opts.get("priority", 0)
         self.attempts = opts.get("attempts", 1)
         self.attemptsMade = 0
         self.attemptsStarted = 0
