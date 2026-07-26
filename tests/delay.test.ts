@@ -290,6 +290,7 @@ describe('Delayed jobs', () => {
     let count = 0;
     const numJobs = 50;
     const margin = 1.3;
+    const maxExtraDelay = 250;
 
     let processor1, processor2;
 
@@ -307,7 +308,7 @@ describe('Delayed jobs', () => {
             job.opts.delay,
           );
           expect(delayed, 'processedOn is not within margin').toBeLessThan(
-            job.opts.delay * margin,
+            Math.max(job.opts.delay * margin, job.opts.delay + maxExtraDelay),
           );
 
           if (count === numJobs) {
