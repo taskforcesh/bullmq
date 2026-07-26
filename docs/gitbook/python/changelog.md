@@ -1,3 +1,10 @@
+# [2.26.0](https://github.com/taskforcesh/bullmq/compare/vpy2.25.4...vpy2.26.0) (2026-07-26)
+
+
+### Features
+
+* port JobScheduler, LockManager, AbortController, QueueEvents classes and global limits [python] fixes [#2772](https://github.com/taskforcesh/bullmq/issues/2772) ([#4336](https://github.com/taskforcesh/bullmq/issues/4336)) ([2664876](https://github.com/taskforcesh/bullmq/commit/2664876092793ca2ba5e0eb080d99c3042ed136a))
+
 ## [2.25.4](https://github.com/taskforcesh/bullmq/compare/vpy2.25.3...vpy2.25.4) (2026-07-24)
 
 
