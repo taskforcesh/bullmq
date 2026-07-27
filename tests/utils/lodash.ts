@@ -14,10 +14,22 @@ export function after<F extends(...args: any[]) => any>(n: number, func: F) {
 }
 
 export function every<T>(
-  collection: readonly T[],
-  predicate: (value: T, index: number, array: readonly T[]) => unknown,
+  collection: readonly T[] | Record<string, T>,
+  predicate: (
+    value: T,
+    indexOrKey: number | string,
+    collection: readonly T[] | Record<string, T>,
+  ) => unknown,
 ) {
-  return collection.every(predicate);
+  if (Array.isArray(collection)) {
+    return collection.every((value, index) =>
+      Boolean(predicate(value, index, collection)),
+    );
+  }
+
+  return Object.entries(collection).every(([key, value]) =>
+    Boolean(predicate(value, key, collection)),
+  );
 }
 
 export function times<T>(n: number, iteratee: (index: number) => T) {
