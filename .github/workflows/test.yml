@@ -44,7 +44,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
       - name: Detect changed paths
@@ -91,7 +91,7 @@ jobs:
         run: echo "No node/lua changes detected; skipping smoke steps."
       - name: Checkout repository
         if: ${{ needs.changes.outputs.node == 'true' || needs.changes.outputs.lua == 'true' }}
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Use Node.js
         if: ${{ needs.changes.outputs.node == 'true' || needs.changes.outputs.lua == 'true' }}
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -145,7 +145,7 @@ jobs:
         run: echo "No node/lua changes detected; skipping ioredis coverage job."
       - name: Checkout repository
         if: env.should_run == 'true'
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Use Node.js ${{ matrix.node-version }}
         if: env.should_run == 'true'
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -217,7 +217,7 @@ jobs:
         run: echo "No node/lua changes detected; skipping extra ioredis matrix steps."
       - name: Checkout repository
         if: env.should_run == 'true'
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Use Node.js ${{ matrix.node-version }}
         if: env.should_run == 'true'
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -258,7 +258,7 @@ jobs:
         run: echo "No node/lua changes detected; skipping node-redis test steps."
       - name: Checkout repository
         if: env.should_run == 'true'
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Use Node.js ${{ matrix.node-version }}
         if: env.should_run == 'true'
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -375,7 +375,7 @@ jobs:
         run: echo "No node/lua changes detected; skipping Bun test steps."
       - name: Checkout repository
         if: env.should_run == 'true'
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Setup Bun
         if: env.should_run == 'true'
         uses: oven-sh/setup-bun@v2
