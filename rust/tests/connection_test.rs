@@ -209,8 +209,12 @@ async fn test_connect_via_typed_options() {
 
     let redis_settings = conn_info.redis_settings();
     let db = u8::try_from(redis_settings.db()).ok();
-    let username = redis_settings.username().map(|username| username.to_string());
-    let password = redis_settings.password().map(|password| password.to_string());
+    let username = redis_settings
+        .username()
+        .map(|username| username.to_string());
+    let password = redis_settings
+        .password()
+        .map(|password| password.to_string());
 
     let name = test_queue_name();
     let queue = Queue::with_options(
