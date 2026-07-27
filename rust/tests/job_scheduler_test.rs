@@ -13,6 +13,7 @@ use tokio::sync::mpsc;
 
 use bullmq::job_scheduler::RepeatOptions;
 
+/// Wait for the next worker event that matches the predicate, failing on timeout.
 async fn wait_for_worker_event<F>(worker: &Worker, timeout: Duration, matches: F) -> WorkerEvent
 where
     F: Fn(&WorkerEvent) -> bool,
