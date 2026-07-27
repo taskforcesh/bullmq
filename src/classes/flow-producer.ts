@@ -127,7 +127,11 @@ export class FlowProducer<
     // its own queue identity, so the backend is created with an empty name.
     this.backend = backendFactory('', this.opts);
 
-    this.backend.on('error', (error: Error) => this.emit('error', error));
+    this.backend.on('error', (error: Error) => {
+      if (this.listenerCount('error') > 0) {
+        this.emit('error', error);
+      }
+    });
     this.backend.on('close', () => {
       if (!this.closing) {
         this.emit('ioredis:close');
@@ -209,11 +213,15 @@ export class FlowProducer<
       return;
     }
 
+    this.validateFlowJobs([flow]);
+
     // Ensure the backend (and thus the connection) is ready before building
     // the per-node queue contexts used to create jobs.
     await this.backend.waitUntilReady();
 
-    const parentOpts = flow?.opts?.parent;
+    const flowOpts = flow?.opts;
+    const parentOpts =
+      flowOpts && 'parent' in flowOpts ? flowOpts.parent : undefined;
     const parentKey = getParentKey(parentOpts);
     const parentDependenciesKey = parentKey
       ? `${parentKey}:dependencies`
@@ -303,6 +311,8 @@ export class FlowProducer<
     if (this.closing) {
       return;
     }
+
+    this.validateFlowJobs(flows);
 
     // Ensure the backend (and thus the connection) is ready before building
     // the per-node queue contexts used to create jobs.
@@ -479,7 +489,9 @@ export class FlowProducer<
   ): Promise<JobNode[]> {
     return Promise.all(
       nodes.map(node => {
-        const parentOpts = node?.opts?.parent;
+        const nodeOpts = node?.opts;
+        const parentOpts =
+          nodeOpts && 'parent' in nodeOpts ? nodeOpts.parent : undefined;
         const parentKey = getParentKey(parentOpts);
         const parentDependenciesKey = parentKey
           ? `${parentKey}:dependencies`
@@ -541,6 +553,24 @@ export class FlowProducer<
         return { job, children };
       } else {
         return { job };
+      }
+    }
+  }
+
+  private validateFlowJobs(nodes: FlowJob[]): void {
+    for (const node of nodes) {
+      const children = node.children;
+      if (children && children.length > 0) {
+        const nodeOpts = node.opts;
+        const hasDeduplication =
+          nodeOpts && 'deduplication' in nodeOpts && nodeOpts.deduplication;
+        if (hasDeduplication) {
+          throw new Error(
+            'Deduplication options cannot be used on flow nodes with children',
+          );
+        }
+
+        this.validateFlowJobs(children);
       }
     }
   }

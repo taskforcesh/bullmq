@@ -6210,6 +6210,62 @@ describe('flows', () => {
   });
 
   describe('when root parent job has deduplication option', () => {
+    it('should reject deduplication when root node has children', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+
+      await expect(
+        flow.add({
+          name: 'root',
+          queueName,
+          opts: {
+            deduplication: { id: 'dedup-root-with-children' },
+          },
+          children: [
+            {
+              name: 'child',
+              queueName,
+              data: { foo: 'bar' },
+            },
+          ],
+        }),
+      ).rejects.toThrow(
+        'Deduplication options cannot be used on flow nodes with children',
+      );
+
+      await flow.close();
+    });
+
+    it('should reject deduplication on nested nodes with children', async () => {
+      const flow = new FlowProducer({ connection, prefix });
+
+      await expect(
+        flow.add({
+          name: 'root',
+          queueName,
+          children: [
+            {
+              name: 'child-parent',
+              queueName,
+              opts: {
+                deduplication: { id: 'dedup-nested-with-children' },
+              },
+              children: [
+                {
+                  name: 'grandchild',
+                  queueName,
+                  data: { foo: 'bar' },
+                },
+              ],
+            },
+          ],
+        }),
+      ).rejects.toThrow(
+        'Deduplication options cannot be used on flow nodes with children',
+      );
+
+      await flow.close();
+    });
+
     it('should return deduplicated root job id when flow has no children', async () => {
       const flow = new FlowProducer({ connection, prefix });
       const dedupId = 'dedup-root-without-children';
@@ -6239,145 +6295,6 @@ describe('flows', () => {
       const deduplicationJobId = await queue.getDeduplicationJobId(dedupId);
       expect(deduplicationJobId).toBe(firstTree.job.id);
 
-      await flow.close();
-    });
-
-    it('should deduplicate root parent job when added again with same deduplication id', async () => {
-      const flow = new FlowProducer({ connection, prefix });
-      const queueEvents = new QueueEvents(queueName, {
-        connection,
-        prefix,
-        blockingTimeout: 1000,
-      });
-      await queueEvents.waitUntilReady();
-      await delay(50); // allow XREAD to start blocking
-
-      const dedupId = 'dedup-parent-id';
-
-      const deduplicatedPromise = new Promise<void>((resolve, reject) => {
-        queueEvents.once(
-          'deduplicated',
-          async ({ jobId, deduplicationId, deduplicatedJobId }) => {
-            try {
-              expect(jobId).toBe('parent1');
-              expect(deduplicationId).toBe(dedupId);
-              expect(deduplicatedJobId).toBe('parent2');
-              resolve();
-            } catch (error) {
-              reject(error);
-            }
-          },
-        );
-      });
-
-      const firstTree = await flow.add({
-        name: 'parent',
-        data: { order: 1 },
-        queueName,
-        opts: {
-          jobId: 'parent1',
-          deduplication: { id: dedupId },
-        },
-        children: [
-          {
-            queueName,
-            name: 'child1',
-            data: { value: 'first' },
-          },
-        ],
-      });
-
-      // Add second flow with same deduplication id
-      const secondTree = await flow.add({
-        name: 'parent',
-        data: { order: 2 },
-        queueName,
-        opts: {
-          jobId: 'parent2',
-          deduplication: { id: dedupId },
-        },
-        children: [
-          {
-            queueName,
-            name: 'child2',
-            data: { value: 'second' },
-          },
-        ],
-      });
-
-      await deduplicatedPromise;
-      expect(firstTree.job.id).toBe('parent1');
-      expect(secondTree.job.id).toBe('parent1');
-
-      // Verify only first parent exists
-      const parent1 = await queue.getJob('parent1');
-      expect(parent1).toBeDefined();
-      expect(parent1!.data.order).toBe(1);
-
-      const parent2 = await queue.getJob('parent2');
-      expect(parent2).toBeUndefined();
-
-      // Verify only first child exists (second child should not be created)
-      const waitingJobs = await queue.getJobs(['waiting', 'waiting-children']);
-      const childJobs = waitingJobs.filter(job => job.name.startsWith('child'));
-      expect(childJobs.length).toBe(1);
-      expect(childJobs[0].name).toBe('child1');
-
-      await queueEvents.close();
-      await flow.close();
-    });
-
-    it('should return deduplicated id for nested flows', async () => {
-      const flow = new FlowProducer({ connection, prefix });
-      const dedupId = 'dedup-nested-root';
-
-      const firstTree = await flow.add({
-        name: 'parent',
-        data: { order: 1 },
-        queueName,
-        opts: {
-          deduplication: { id: dedupId },
-        },
-        children: [
-          {
-            queueName,
-            name: 'child-1',
-            data: {},
-            children: [
-              {
-                queueName,
-                name: 'grandchild-1',
-                data: {},
-              },
-            ],
-          },
-        ],
-      });
-
-      const secondTree = await flow.add({
-        name: 'parent',
-        data: { order: 2 },
-        queueName,
-        opts: {
-          deduplication: { id: dedupId },
-        },
-        children: [
-          {
-            queueName,
-            name: 'child-2',
-            data: {},
-            children: [
-              {
-                queueName,
-                name: 'grandchild-2',
-                data: {},
-              },
-            ],
-          },
-        ],
-      });
-
-      expect(secondTree.job.id).toBe(firstTree.job.id);
       await flow.close();
     });
 

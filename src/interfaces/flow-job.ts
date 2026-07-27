@@ -1,24 +1,44 @@
 import { DeduplicationOptions, JobsOptions } from '../types';
 import { QueueOptions } from './queue-options';
 
+type FlowDeduplicationOptions = Omit<DeduplicationOptions, 'replace'>;
+
+type FlowJobOpts = Omit<JobsOptions, 'deduplication'> & {
+  deduplication?: FlowDeduplicationOptions;
+};
+
+type FlowParentJobOpts = Omit<
+  FlowJobOpts,
+  'deduplication' | 'parent' | 'repeat'
+>;
+
+type FlowNestedLeafJobOpts = Omit<FlowJobOpts, 'parent' | 'repeat'>;
+
+type FlowRootLeafJobOpts = Omit<FlowJobOpts, 'repeat'>;
+
 export interface FlowJobBase<T> {
   name: string;
   queueName: string;
   data?: any;
   prefix?: string;
-  opts?: Omit<T, 'repeat'>;
-  children?: FlowChildJob[];
+  opts?: T;
 }
 
-export type FlowChildJob = FlowJobBase<
-  Omit<JobsOptions, 'deduplication' | 'parent'>
->;
+export type FlowNestedLeafJob = FlowJobBase<FlowNestedLeafJobOpts> & {
+  children?: never;
+};
 
-export type FlowJob = FlowJobBase<
-  Omit<JobsOptions, 'deduplication'> & {
-    deduplication?: Omit<DeduplicationOptions, 'replace'>;
-  }
->;
+export type FlowParentJob = FlowJobBase<FlowParentJobOpts> & {
+  children: FlowJobNode[];
+};
+
+export type FlowJobNode = FlowParentJob | FlowNestedLeafJob;
+
+export type FlowRootLeafJob = FlowJobBase<FlowRootLeafJobOpts> & {
+  children?: never;
+};
+
+export type FlowJob = FlowRootLeafJob | FlowJobNode;
 
 export type FlowQueuesOpts = Record<
   string,
