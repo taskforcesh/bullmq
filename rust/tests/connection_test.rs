@@ -204,7 +204,7 @@ async fn test_connect_via_typed_options() {
                 "test_connect_via_typed_options only supports TCP/TLS REDIS_URL, not unix sockets"
             )
         }
-        _ => unimplemented!(),
+        other => panic!("unsupported connection address for test: {other:?}"),
     };
 
     let redis_settings = conn_info.redis_settings();
