@@ -10,15 +10,16 @@
   "rangeStrategy": "pin",
   "packageRules": [
     {
-      "description": "🚨 Security vulnerabilities (OSV/GitHub alerts)",
+      "description": "🚨 Group all security vulnerabilities (OSV/GitHub alerts) into a single daily PR",
       "matchUpdateTypes": ["major", "minor", "patch"],
       "matchDepTypes": ["dependencies", "devDependencies"],
       "vulnerabilityFixVersion": true,
-      "groupName": null,
+      "groupName": "security patches",
+      "groupSlug": "security-patches",
       "prPriority": 100,
       "labels": ["security", "osv"],
       "commitMessageSuffix": "[SECURITY]",
-      "branchTopic": "security-{{depName}}"
+      "schedule": ["before 9am"]
     },
     {
       "description": "Group all non-major devDependencies",
@@ -59,7 +60,11 @@
   ],
   "vulnerabilityAlerts": {
     "enabled": true,
-    "labels": ["security", "osv"]
+    "labels": ["security", "osv"],
+    "groupName": "security patches",
+    "groupSlug": "security-patches",
+    "commitMessageSuffix": "[SECURITY]",
+    "schedule": ["before 9am"]
   },
   "osvVulnerabilityAlerts": true,
   "prCreation": "immediate",
