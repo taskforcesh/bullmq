@@ -2471,7 +2471,7 @@ mod tests {
             "boom".to_string()
         )));
         assert!(should_convert_discarded_error(&Error::Redis(
-            redis::RedisError::from((redis::ErrorKind::IoError, "boom"))
+            redis::RedisError::from((redis::ErrorKind::Io, "boom"))
         )));
         assert!(!should_convert_discarded_error(&Error::Unrecoverable(
             "fatal".to_string()
