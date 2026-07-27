@@ -1,4 +1,4 @@
-import { after, times } from 'lodash';
+import { after, times } from './utils/lodash';
 import {
   describe,
   beforeEach,

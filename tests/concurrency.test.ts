@@ -18,7 +18,7 @@ import {
 import { delay, removeAllQueueData, randomUUID } from '../src/utils';
 
 import ProgressBar from 'progress';
-import { after } from 'lodash';
+import { after } from './utils/lodash';
 import { createTestConnection } from './utils/connection-factory';
 import { IRedisClient } from '../src/interfaces';
 

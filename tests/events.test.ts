@@ -8,7 +8,7 @@ import {
   expect,
 } from 'vitest';
 
-import { after } from 'lodash';
+import { after } from './utils/lodash';
 
 import {
   FlowProducer,
