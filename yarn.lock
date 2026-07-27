@@ -1133,32 +1133,32 @@
     "@pnpm/network.ca-file" "^1.0.1"
     config-chain "^1.1.11"
 
-"@redis/bloom@5.12.1":
-  version "5.12.1"
-  resolved "https://registry.yarnpkg.com/@redis/bloom/-/bloom-5.12.1.tgz#047dbfce93cfa7e5879fb58ad1b2afe87ebb2dc4"
-  integrity sha512-PUUfv+ms7jgPSBVoo/DN4AkPHj4D5TZSd6SbJX7egzBplkYUcKmHRE8RKia7UtZ8bSQbLguLvxVO+asKtQfZWA==
+"@redis/bloom@6.1.0":
+  version "6.1.0"
+  resolved "https://registry.yarnpkg.com/@redis/bloom/-/bloom-6.1.0.tgz#8b89b848a319a0f0b79e12d414e6a613f8e1505b"
+  integrity sha512-Rzascjd9J9bJsM45T/Z9CTg1QY/B63B6YO8QorLVMeXnbBDsKiSCVR/+GQ061hYPk8FpTzWmPY8tAv2sT+JEtQ==
 
-"@redis/client@5.12.1":
-  version "5.12.1"
-  resolved "https://registry.yarnpkg.com/@redis/client/-/client-5.12.1.tgz#a35a2bac546c727d7915d2d91b63a77111e51ebd"
-  integrity sha512-7aPGWeqA3uFm43o19umzdl16CEjK/JQGtSXVPevplTaOU3VJA/rseBC1QvYUz9lLDIMBimc4SW/zrW4S89BaCA==
+"@redis/client@6.1.0":
+  version "6.1.0"
+  resolved "https://registry.yarnpkg.com/@redis/client/-/client-6.1.0.tgz#b0e20465ae284134a98afec6522e97a9e7736d13"
+  integrity sha512-7u1LefkezJF0HESlhO7ZFLEPfyY+NejP3SGv+Z4pGaT3oM5GVVLa0u3f4rDLUrcw+SRo8IlX9Y8JAONeDdg1Ag==
   dependencies:
     cluster-key-slot "1.1.2"
 
-"@redis/json@5.12.1":
-  version "5.12.1"
-  resolved "https://registry.yarnpkg.com/@redis/json/-/json-5.12.1.tgz#52aff987abe4d41ec9644857fb00f16c7a97fdb7"
-  integrity sha512-eOze75esLve4vfqDel7aMX08CNaiLLQS2fV8mpRN9NxPe1rVR4vQyYiW/OgtGUysF6QOr9ANhfxABKNOJfXdKg==
+"@redis/json@6.1.0":
+  version "6.1.0"
+  resolved "https://registry.yarnpkg.com/@redis/json/-/json-6.1.0.tgz#400430d1df93dcaede3686adfd42489a929c7d74"
+  integrity sha512-/GFjQA6bu5pG9ClCJAI5Xx4bNXe7UTpxBBlIupBNTrn1+nY860apGnYJuaSCDV2BmEbTidpa7O2qa28oxKx+rg==
 
-"@redis/search@5.12.1":
-  version "5.12.1"
-  resolved "https://registry.yarnpkg.com/@redis/search/-/search-5.12.1.tgz#b7a738be918c8a7af91e39c5bd2023f30f392981"
-  integrity sha512-ItlxbxC9cKI6IU1TLWoczwJCRb6TdmkEpWv05UrPawqaAnWGRu3rcIqsc5vN483T2fSociuyV1UkWIL5I4//2w==
+"@redis/search@6.1.0":
+  version "6.1.0"
+  resolved "https://registry.yarnpkg.com/@redis/search/-/search-6.1.0.tgz#2481ee8b14a7c166cf6a218b066daad3d3e33f88"
+  integrity sha512-kS5agg+3yZbrdrt8omrew7FLCD8eOm7tarG1CROekPBRe+QGDR9aOpnHIQaYsYi6wPRTH70nQiF06AIjgURefQ==
 
-"@redis/time-series@5.12.1":
-  version "5.12.1"
-  resolved "https://registry.yarnpkg.com/@redis/time-series/-/time-series-5.12.1.tgz#15b6deaaf3716bc2633311c0ed18201c9299392d"
-  integrity sha512-c6JL6E3EcZJuNqKFz+KM+l9l5mpcQiKvTwgA3blt5glWJ8hjDk0yeHN3beE/MpqYIQ8UEX44ItQzgkE/gCBELQ==
+"@redis/time-series@6.1.0":
+  version "6.1.0"
+  resolved "https://registry.yarnpkg.com/@redis/time-series/-/time-series-6.1.0.tgz#f06d54e4e68559c4c1c1fdf2d834416da592ed63"
+  integrity sha512-uIDBtV8MmG/xpJsRqbGSO4iX6ryj37MLMP82lRpFvI7ykAVe5GyqgxigEbU+uZNv9kDPNMKw3dvI/S/J1BNBzA==
 
 "@rolldown/binding-android-arm64@1.0.3":
   version "1.0.3"
@@ -5896,16 +5896,16 @@ redis-parser@3.0.0:
   dependencies:
     redis-errors "^1.0.0"
 
-redis@5.12.1:
-  version "5.12.1"
-  resolved "https://registry.yarnpkg.com/redis/-/redis-5.12.1.tgz#f95297e01eca8b87a109601a2418647e05f16bee"
-  integrity sha512-LDsoVvb/CpoV9EN3FXvgvSHNJWuCIzl9MiO3ppOevuGLpSGJhwfQjpEwfFJcQvNSddHADDdZaWx0HnmMxRXG7g==
+redis@6.1.0:
+  version "6.1.0"
+  resolved "https://registry.yarnpkg.com/redis/-/redis-6.1.0.tgz#c0664c8e6966ef1825b820e097bea346944b1ff9"
+  integrity sha512-0kvUPM8RHP/ZMa0xYaDTcG5e8tIGW6kz6MToVT0V8iOnk6bkXp2jncGRGe2bZEk41lZwiDspUqjZCSk5ohjcKw==
   dependencies:
-    "@redis/bloom" "5.12.1"
-    "@redis/client" "5.12.1"
-    "@redis/json" "5.12.1"
-    "@redis/search" "5.12.1"
-    "@redis/time-series" "5.12.1"
+    "@redis/bloom" "6.1.0"
+    "@redis/client" "6.1.0"
+    "@redis/json" "6.1.0"
+    "@redis/search" "6.1.0"
+    "@redis/time-series" "6.1.0"
 
 regex-recursion@^6.0.2:
   version "6.0.2"
