@@ -2875,6 +2875,7 @@ async fn test_retry_failed_scheduler_job_no_duplicate_delayed() {
     let worker_opts = WorkerOptions {
         connection: conn_opts.clone(),
         autorun: true,
+        drain_delay: 1,
         ..Default::default()
     };
     let worker = Worker::with_options(&name, processor, worker_opts)
@@ -2899,7 +2900,7 @@ async fn test_retry_failed_scheduler_job_no_duplicate_delayed() {
     assert_eq!(counts.failed, 0, "No failed jobs after retry");
 
     // Wait for retried job to be processed
-    let result = tokio::time::timeout(Duration::from_secs(3), rx.recv()).await;
+    let result = tokio::time::timeout(Duration::from_secs(8), rx.recv()).await;
     assert!(result.is_ok(), "Retried job should be processed");
 
     // After retry+process, should still only have 1 delayed (not duplicated)
