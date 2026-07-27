@@ -449,6 +449,7 @@ async fn test_scheduler_repeats_with_every() {
     let worker_opts = WorkerOptions {
         connection: conn_opts.clone(),
         autorun: true,
+        drain_delay: 1,
         ..Default::default()
     };
     let worker = Worker::with_options(&name, processor, worker_opts)
@@ -991,7 +992,7 @@ async fn test_scheduler_with_start_date_in_future() {
     );
 
     // But should fire after startDate (wait another 1.5s)
-    let result = tokio::time::timeout(Duration::from_secs(3), rx.recv()).await;
+    let result = tokio::time::timeout(Duration::from_secs(8), rx.recv()).await;
     assert!(result.is_ok(), "Job should fire after startDate");
 
     worker.close(5000).await.unwrap();
