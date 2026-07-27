@@ -1677,6 +1677,7 @@ async fn test_worker_processes_scheduler_after_drain() {
     let worker_opts = WorkerOptions {
         connection: conn_opts.clone(),
         autorun: true,
+        drain_delay: 1,
         ..Default::default()
     };
     let worker = Worker::with_options(&name, processor, worker_opts)
@@ -2168,6 +2169,7 @@ async fn test_scheduler_processes_after_remove_and_readd() {
     let worker_opts = WorkerOptions {
         connection: conn_opts.clone(),
         autorun: true,
+        drain_delay: 1,
         ..Default::default()
     };
     let worker = Worker::with_options(&name, processor, worker_opts)
@@ -2959,6 +2961,7 @@ async fn test_job_retry_on_failed_scheduler_job_no_duplicate() {
     let worker_opts = WorkerOptions {
         connection: conn_opts.clone(),
         autorun: true,
+        drain_delay: 1,
         ..Default::default()
     };
     let worker = Worker::with_options(&name, processor, worker_opts)
