@@ -196,19 +196,21 @@ async fn test_connect_via_typed_options() {
         .into_connection_info()
         .expect("REDIS_URL must be a valid redis:// or rediss:// URL");
 
-    let (host, port, tls) = match conn_info.addr {
-        ConnectionAddr::Tcp(host, port) => (host, port, false),
-        ConnectionAddr::TcpTls { host, port, .. } => (host, port, true),
+    let (host, port, tls) = match conn_info.addr() {
+        ConnectionAddr::Tcp(host, port) => (host.clone(), *port, false),
+        ConnectionAddr::TcpTls { host, port, .. } => (host.clone(), *port, true),
         ConnectionAddr::Unix(_) => {
             panic!(
                 "test_connect_via_typed_options only supports TCP/TLS REDIS_URL, not unix sockets"
             )
         }
+        _ => unimplemented!(),
     };
 
-    let db = u8::try_from(conn_info.redis.db).ok();
-    let username = conn_info.redis.username;
-    let password = conn_info.redis.password;
+    let redis_settings = conn_info.redis_settings();
+    let db = u8::try_from(redis_settings.db()).ok();
+    let username = redis_settings.username().map(|username| username.to_string());
+    let password = redis_settings.password().map(|password| password.to_string());
 
     let name = test_queue_name();
     let queue = Queue::with_options(
