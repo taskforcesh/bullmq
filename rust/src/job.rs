@@ -1463,7 +1463,6 @@ impl Job {
             repeat_job_key,
             deferred_failure,
             queue_name: None,
-            discarded: Arc::new(AtomicBool::new(false)),
             ctx: None,
         })
     }
