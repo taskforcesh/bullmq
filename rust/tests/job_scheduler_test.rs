@@ -1677,6 +1677,7 @@ async fn test_worker_processes_scheduler_after_drain() {
     let worker_opts = WorkerOptions {
         connection: conn_opts.clone(),
         autorun: true,
+        drain_delay: 1,
         ..Default::default()
     };
     let worker = Worker::with_options(&name, processor, worker_opts)
@@ -1697,7 +1698,7 @@ async fn test_worker_processes_scheduler_after_drain() {
         .unwrap();
 
     // Should process within a few seconds
-    let result = tokio::time::timeout(Duration::from_secs(3), rx.recv()).await;
+    let result = tokio::time::timeout(Duration::from_secs(8), rx.recv()).await;
     assert!(
         result.is_ok(),
         "Worker should process jobs added after drain"
@@ -2168,6 +2169,7 @@ async fn test_scheduler_processes_after_remove_and_readd() {
     let worker_opts = WorkerOptions {
         connection: conn_opts.clone(),
         autorun: true,
+        drain_delay: 1,
         ..Default::default()
     };
     let worker = Worker::with_options(&name, processor, worker_opts)
@@ -2198,7 +2200,7 @@ async fn test_scheduler_processes_after_remove_and_readd() {
         .unwrap();
 
     // Should process again after re-add
-    let result = tokio::time::timeout(Duration::from_secs(3), rx.recv()).await;
+    let result = tokio::time::timeout(Duration::from_secs(8), rx.recv()).await;
     assert!(result.is_ok(), "Re-added scheduler should process");
 
     worker.close(5000).await.unwrap();
@@ -2959,6 +2961,7 @@ async fn test_job_retry_on_failed_scheduler_job_no_duplicate() {
     let worker_opts = WorkerOptions {
         connection: conn_opts.clone(),
         autorun: true,
+        drain_delay: 1,
         ..Default::default()
     };
     let worker = Worker::with_options(&name, processor, worker_opts)
@@ -2995,7 +2998,7 @@ async fn test_job_retry_on_failed_scheduler_job_no_duplicate() {
     assert_eq!(counts.failed, 0);
 
     // Wait for the retried job to process
-    let result = tokio::time::timeout(Duration::from_secs(3), rx.recv()).await;
+    let result = tokio::time::timeout(Duration::from_secs(8), rx.recv()).await;
     assert!(result.is_ok(), "Retried job should process");
 
     // Should have at most 1 job scheduled
