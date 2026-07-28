@@ -177,11 +177,6 @@ export class Job<
 
   protected toKey: (type: string) => string;
 
-  /**
-   * @deprecated use UnrecoverableError
-   */
-  protected discarded: boolean;
-
   protected backend: IQueueBackend;
 
   constructor(
@@ -710,7 +705,6 @@ export class Job<
   private async shouldRetryJob(err: Error): Promise<[boolean, number]> {
     if (
       this.attemptsMade + 1 < this.opts.attempts &&
-      !this.discarded &&
       !(err instanceof UnrecoverableError || err.name == 'UnrecoverableError')
     ) {
       const opts = this.queue.opts as WorkerOptions;
@@ -1256,14 +1250,6 @@ export class Job<
     if (opts.resetAttemptsStarted) {
       this.attemptsStarted = 0;
     }
-  }
-
-  /**
-   * Marks a job to not be retried if it fails (even if attempts has been configured)
-   * @deprecated use UnrecoverableError
-   */
-  discard(): void {
-    this.discarded = true;
   }
 
   private async isInState(state: string): Promise<boolean> {
