@@ -350,7 +350,7 @@ fn parse_event(mut fields: HashMap<String, String>) -> QueueEvent {
 fn map_to_strings(map: &HashMap<String, redis::Value>) -> HashMap<String, String> {
     map.iter()
         .filter_map(|(k, v)| {
-            redis::from_redis_value::<String>(v.clone())
+            redis::from_redis_value_ref::<String>(v)
                 .ok()
                 .map(|s| (k.clone(), s))
         })
