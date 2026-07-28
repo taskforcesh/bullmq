@@ -274,11 +274,6 @@ impl ScriptRegistry {
                 include_str!("commands/removeChildDependency-1.lua"),
             ),
             (
-                "removeRepeatable",
-                3,
-                include_str!("commands/removeRepeatable-3.lua"),
-            ),
-            (
                 "removeUnprocessedChildren",
                 2,
                 include_str!("commands/removeUnprocessedChildren-2.lua"),
@@ -287,16 +282,6 @@ impl ScriptRegistry {
                 "removeOrphanedJobs",
                 1,
                 include_str!("commands/removeOrphanedJobs-1.lua"),
-            ),
-            (
-                "addRepeatableJob",
-                2,
-                include_str!("commands/addRepeatableJob-2.lua"),
-            ),
-            (
-                "updateRepeatableJobMillis",
-                1,
-                include_str!("commands/updateRepeatableJobMillis-1.lua"),
             ),
         ]
     }
