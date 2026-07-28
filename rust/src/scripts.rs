@@ -51,7 +51,7 @@ impl LuaScript {
             Ok(val) => Ok(val),
             Err(e) => {
                 // Check for NOSCRIPT error - fall back to EVAL
-                if e.kind() == redis::ErrorKind::NoScriptError {
+                if e.kind() == redis::ErrorKind::Server(redis::ServerErrorKind::NoScript) {
                     let mut eval_cmd = redis::cmd("EVAL");
                     eval_cmd.arg(self.content.as_str()).arg(self.num_keys);
                     for key in keys {
