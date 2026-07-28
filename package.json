@@ -73,7 +73,7 @@
     "tsc:all": "tsc && tsc -p tsconfig-cjs.json"
   },
   "dependencies": {
-    "cron-parser": "4.9.0",
+    "cron-parser": "5.6.2",
     "ioredis": "5.11.1",
     "msgpackr": "2.0.4",
     "node-abort-controller": "3.1.1",
@@ -134,7 +134,7 @@
     "test-console": "2.0.0",
     "ts-node": "10.9.2",
     "typedoc": "0.28.20",
-    "typescript": "5.9.3",
+    "typescript": "6.0.3",
     "vitepress": "1.6.4",
     "vitest": "4.1.10"
   },
