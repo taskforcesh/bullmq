@@ -2,12 +2,8 @@
 
 mod common;
 
-use bullmq::worker::{CancellationToken, ProcessorFn};
-use bullmq::{Job, JobOptions, Queue, QueueOptions, Worker, WorkerOptions};
+use bullmq::{Queue, QueueOptions};
 use common::{cleanup_queue, test_connection, test_queue_name};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Job.clear_logs
