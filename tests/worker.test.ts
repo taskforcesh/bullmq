@@ -1235,6 +1235,103 @@ describe('workers', () => {
     );
   });
 
+  describe('when waiting for a job', () => {
+    async function runBlockingConnectionWatchdog(status: string) {
+      const worker = new Worker(queueName, NoopProc, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      const disconnect = sandbox.stub();
+      const bclient = {
+        bzpopmin: sandbox.stub().resolves(null),
+        disconnect,
+        status,
+      } as unknown as IRedisClient;
+      const setTimeoutStub = sandbox
+        .stub(global, 'setTimeout')
+        .callsFake(callback => {
+          callback();
+          return 0 as unknown as NodeJS.Timeout;
+        });
+
+      try {
+        await worker['waitForJob'](bclient, 0);
+        return disconnect;
+      } finally {
+        setTimeoutStub.restore();
+        await worker.close();
+      }
+    }
+
+    it.each([
+      'wait',
+      'connecting',
+      'connect',
+      'ready',
+      'close',
+      'reconnecting',
+      'end',
+      'custom',
+    ])('disconnects a blocking client with status %s', async status => {
+      const disconnect = await runBlockingConnectionWatchdog(status);
+      expect(disconnect.calledOnceWith(true)).toBe(true);
+    });
+
+    it('reconnects a terminal blocking client after a connection error', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      sandbox.stub(worker, 'delay').resolves();
+      const connect = sandbox.stub();
+      const bclient = {
+        bzpopmin: sandbox.stub().rejects(new Error('Connection is closed.')),
+        connect,
+        status: 'end',
+      } as unknown as IRedisClient;
+
+      try {
+        await worker['waitForJob'](bclient, 0);
+        expect(connect.calledOnce).toBe(true);
+      } finally {
+        await worker.close();
+      }
+    });
+
+    it('retries after reconnecting a terminal blocking client fails', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      const workerDelay = sandbox.stub(worker, 'delay').resolves();
+      const connect = sandbox
+        .stub()
+        .rejects(new Error('Connection is closed.'));
+      const bclient = {
+        bzpopmin: sandbox.stub().rejects(new Error('Connection is closed.')),
+        connect,
+        status: 'end',
+      } as unknown as IRedisClient;
+
+      try {
+        await expect(worker['waitForJob'](bclient, 0)).resolves.toBe(Infinity);
+        expect(connect.calledOnce).toBe(true);
+        expect(workerDelay.calledOnce).toBe(true);
+      } finally {
+        await worker.close();
+      }
+    });
+  });
+
   describe('when calling getBlockTimeout', () => {
     describe('when blockUntil is 0', () => {
       describe('when drainDelay is greater than minimumBlockTimeout', () => {
