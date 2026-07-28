@@ -1,6 +1,6 @@
 import { FlowProducer, Queue, Worker, QueueEvents } from '../src/classes';
 import { delay, randomUUID, removeAllQueueData } from '../src/utils';
-import { after } from 'lodash';
+import { after } from './utils/lodash';
 import {
   describe,
   beforeEach,
