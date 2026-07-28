@@ -21,10 +21,6 @@ export interface JobJson {
   parent?: ParentKeys;
   parentKey?: string;
   repeatJobKey?: string;
-  /**
-   * ID of the next job that will be scheduled by the job scheduler.
-   */
-  nextSchedulerJobId?: string;
   debounceId?: string;
   deduplicationId?: string;
   deferredFailure?: string;

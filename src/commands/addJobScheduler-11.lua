@@ -199,8 +199,4 @@ elseif hasCollision then
     return -10 -- SchedulerJobIdCollision
 end
 
-if ARGV[9] ~= "" then
-    rcall("HSET", ARGV[9], "nrjid", jobId)
-end
-
 return {jobId .. "", delay}

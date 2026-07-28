@@ -161,11 +161,6 @@ export class Job<
   repeatJobKey?: string;
 
   /**
-   * ID of the next job that will be scheduled by the job scheduler.
-   */
-  nextSchedulerJobId?: string;
-
-  /**
    * The token used for locking this job.
    */
   token?: string;
@@ -406,10 +401,6 @@ export class Job<
       job.processedBy = json.processedBy;
     }
 
-    if (json.nextSchedulerJobId) {
-      job.nextSchedulerJobId = json.nextSchedulerJobId;
-    }
-
     return job;
   }
 
@@ -516,7 +507,6 @@ export class Job<
       deduplicationId: this.deduplicationId,
       repeatJobKey: this.repeatJobKey,
       returnvalue: JSON.stringify(this.returnvalue),
-      nextSchedulerJobId: this.nextSchedulerJobId,
     });
   }
 
