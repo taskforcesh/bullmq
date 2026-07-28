@@ -6,6 +6,7 @@
     "incremental": true,
     "declaration": true,
     "outDir": "dist/esm",
+    "rootDir": "src",
     "sourceMap": false,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
@@ -18,7 +19,8 @@
     "allowSyntheticDefaultImports": false,
     "strictNullChecks": false,
     "baseUrl": ".",
-    "lib": ["esnext", "DOM"]
+    "lib": ["esnext", "DOM"],
+    "ignoreDeprecations": "6.0"
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist", "tests/*", "src/commands/*.ts"]

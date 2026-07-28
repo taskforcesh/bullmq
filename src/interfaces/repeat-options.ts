@@ -1,11 +1,31 @@
-import { ParserOptions } from 'cron-parser';
+import { CronExpressionOptions } from 'cron-parser';
+
+type RepeatDateOption = Date | string | number;
 
 /**
  * Settings for repeatable jobs
  *
  * @see {@link https://docs.bullmq.io/guide/jobs/repeatable}
  */
-export interface RepeatOptions extends Omit<ParserOptions, 'iterator'> {
+export interface RepeatOptions extends Omit<
+  CronExpressionOptions,
+  'currentDate' | 'startDate' | 'endDate' | 'iterator'
+> {
+  /**
+   * The start date for the repeat job.
+   */
+  startDate?: RepeatDateOption;
+
+  /**
+   * The end date for the repeat job.
+   */
+  endDate?: RepeatDateOption;
+
+  /**
+   * Override current date for cron calculation.
+   */
+  currentDate?: RepeatDateOption;
+
   /**
    * A repeat pattern
    */
