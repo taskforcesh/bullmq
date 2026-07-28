@@ -631,7 +631,30 @@ export class RedisConnection extends EventEmitter {
 
   async reconnect(): Promise<void> {
     const client = await this.client;
-    return client.connect();
+    for (;;) {
+      if (
+        client.status === 'ready' ||
+        (client.status === 'connect' && isRedisCluster(client))
+      ) {
+        return;
+      }
+
+      if (client.status === 'wait' || client.status === 'end') {
+        return client.connect();
+      }
+
+      try {
+        await RedisConnection.waitUntilReady(client);
+      } catch (error) {
+        if (
+          !['end', 'connecting', 'connect', 'reconnecting'].includes(
+            client.status,
+          )
+        ) {
+          throw error;
+        }
+      }
+    }
   }
 
   async close(force = false): Promise<void> {

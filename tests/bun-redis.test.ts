@@ -127,6 +127,18 @@ describe('bun redis adapter', () => {
       await client.del(`${prefix}:test:dup`);
       await dup.quit();
     });
+
+    it('should explicitly reconnect while an automatic reconnect is pending', async () => {
+      const { client: reconnectingClient } = await createConnectedClient();
+
+      reconnectingClient.disconnect(true);
+      await reconnectingClient.connect();
+      await Bun.sleep(1100);
+
+      expect(reconnectingClient.status).toBe('ready');
+      expect(await reconnectingClient.info()).toContain('redis_version');
+      await reconnectingClient.quit();
+    });
   });
 
   describe('Queue operations via bun adapter', () => {
