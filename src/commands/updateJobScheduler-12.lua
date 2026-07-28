@@ -106,11 +106,6 @@ if prevMillis then
                 prioritizedKey, KEYS[10], delayedKey, KEYS[7], eventsKey, schedulerAttributes[1], maxEvents, ARGV[5],
                 templateData or '{}', jobSchedulerId, delay)
 
-            -- TODO: remove this workaround in next breaking change
-            if KEYS[11] ~= "" then
-                rcall("HSET", KEYS[11], "nrjid", nextDelayedJobId)
-            end
-
             return nextDelayedJobId .. "" -- convert to string
         else
             rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "duplicated", "jobId", nextDelayedJobId)

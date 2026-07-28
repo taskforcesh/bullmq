@@ -2818,7 +2818,6 @@ interface JobJsonRaw {
   parent?: string;
   deid?: string;
   rjk?: string;
-  nrjid?: string;
   atm?: string;
   defa?: string;
   stc?: string;
@@ -2892,7 +2891,6 @@ function rawToJobJson(raw: JobJsonRaw): JobJson {
     parentKey: raw.parentKey,
     parent: raw.parent ? JSON.parse(raw.parent) : undefined,
     processedBy: raw.pb,
-    nextSchedulerJobId: raw.nrjid,
   };
 }
 
