@@ -44,7 +44,7 @@ BullMQ is available natively in multiple languages:
 
 - **Node.js / Bun** — This repository (`npm install bullmq`)
 - **Python** — [`python/`](./python) directory (`pip install bullmq`)
-- **Rust** — [`rust/`](./rust) directory (`cargo add bullmq`)
+- **Rust** — [`rust/`](./rust) directory (`cargo add bullmq-official --rename bullmq`)
 - **Elixir** — [`elixir/`](./elixir) directory (`{:bullmq, "~> x.x"}`)
 - **PHP** — [`php/`](./php) directory
 

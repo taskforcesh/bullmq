@@ -9,14 +9,14 @@ description: BullMQ is available as a native Rust crate with full async/await su
 Add BullMQ to your project via Cargo:
 
 ```bash
-cargo add bullmq-official
+cargo add bullmq-official --rename bullmq
 ```
 
 Or add it to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-bullmq-official = "0.1"
+bullmq = { version = "1.2", package = "bullmq-official" }
 ```
 
 > The crate is published as `bullmq-official` (the `bullmq`, `bullmq-rust` and

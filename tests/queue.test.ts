@@ -8,7 +8,7 @@ import {
   expect,
 } from 'vitest';
 
-import { after } from 'lodash';
+import { after } from './utils/lodash';
 import * as sinon from 'sinon';
 import { FlowProducer, Job, Queue, Worker } from '../src/classes';
 import { delay, randomUUID, removeAllQueueData } from '../src/utils';
