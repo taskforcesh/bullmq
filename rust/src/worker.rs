@@ -2436,7 +2436,6 @@ impl Drop for Worker {
 #[cfg(test)]
 mod tests {
     use super::processing_drained;
-    use crate::error::Error;
 
     #[test]
     fn processing_is_not_drained_while_fetcher_is_chaining_next_job() {
