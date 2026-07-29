@@ -1040,11 +1040,12 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       await worker.waitUntilReady();
 
-      const job = await queue.add('test', { foo: 'bar' });
-
-      await new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
+      const active = new Promise<void>(resolve => {
+        worker.once('active', () => resolve());
       });
+
+      const job = await queue.add('test', { foo: 'bar' });
+      await active;
 
       await delay(50);
 
@@ -1106,11 +1107,12 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       await delay(50);
 
-      worker.cancelJob(job.id!);
-
-      await new Promise<void>(resolve => {
-        worker.on('failed', () => resolve());
+      const failed = new Promise<void>(resolve => {
+        worker.once('failed', () => resolve());
       });
+
+      worker.cancelJob(job.id!);
+      await failed;
 
       expect(firstCheckTime).toBeGreaterThan(0);
       expect(secondCheckTime).toBeGreaterThan(0);
