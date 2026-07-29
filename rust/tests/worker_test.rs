@@ -3770,15 +3770,27 @@ async fn test_pause_does_not_fetch_new_jobs() {
         .await
         .unwrap();
 
-    // Wait for first job to be picked up
+    // Wait until the first job is active, then pause while it is still running.
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            if worker.active_count().await > 0 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("timeout waiting for first job to become active");
+
+    // Pause the worker before the current job completes.
+    worker.pause();
+    assert!(worker.is_paused());
+
+    // First job should still complete.
     tokio::time::timeout(Duration::from_secs(5), rx.recv())
         .await
         .expect("timeout")
         .expect("channel closed");
-
-    // Pause the worker
-    worker.pause();
-    assert!(worker.is_paused());
 
     // Add another job while paused
     queue
