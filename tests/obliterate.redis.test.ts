@@ -10,7 +10,6 @@
  * `obliterate.test.ts`.
  */
 import { getRedisClient } from './utils/get-redis-client';
-import { after } from 'lodash';
 import {
   describe,
   beforeEach,

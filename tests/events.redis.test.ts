@@ -21,8 +21,6 @@ import {
   expect,
 } from 'vitest';
 
-import { after } from 'lodash';
-
 import {
   Queue,
   QueueEvents,
