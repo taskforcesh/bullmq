@@ -854,6 +854,20 @@ will never work with more accuracy than 1ms. */
       if (isNotConnectionError(<Error>error)) {
         this.emit('error', <Error>error);
       }
+      // The watchdog must abort every overdue blocking command, but doing so
+      // during socketless Sentinel resolution can leave ioredis terminally ended.
+      if (!this.closing && bclient.status === 'end') {
+        try {
+          await bclient.connect();
+        } catch (reconnectError) {
+          if (
+            bclient.status === 'end' &&
+            isNotConnectionError(<Error>reconnectError)
+          ) {
+            this.emit('error', <Error>reconnectError);
+          }
+        }
+      }
       if (!this.closing) {
         await this.delay();
       }
