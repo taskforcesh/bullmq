@@ -646,9 +646,10 @@ export class RedisConnection extends EventEmitter {
       try {
         await RedisConnection.waitUntilReady(client);
       } catch (error) {
-        const status = client.status;
         if (
-          !['end', 'connecting', 'connect', 'reconnecting'].includes(status)
+          !['end', 'connecting', 'connect', 'reconnecting'].includes(
+            client.status,
+          )
         ) {
           throw error;
         }

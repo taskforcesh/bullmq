@@ -530,7 +530,7 @@ describe('RedisConnection', () => {
 
     it('waits for a concurrent reconnect started from the end event', async () => {
       const client = createClient('closing');
-      let resolveConnect: () => void;
+      let resolveConnect!: () => void;
       let concurrentReconnect: Promise<void> | undefined;
       client.connect = sinon.stub().callsFake(() => {
         client.status = 'connecting';
