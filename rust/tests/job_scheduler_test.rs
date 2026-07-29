@@ -4,7 +4,7 @@
 mod common;
 
 use bullmq::types::JobState;
-use bullmq::worker::{CancellationToken, ProcessorFn};
+use bullmq::worker::{CancellationToken, ProcessorFn, WorkerEvent};
 use bullmq::{Job, JobOptions, Queue, QueueOptions, Worker, WorkerOptions};
 use common::{cleanup_queue, test_connection, test_queue_name};
 use std::sync::Arc;
@@ -12,6 +12,24 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 
 use bullmq::job_scheduler::RepeatOptions;
+
+/// Wait for the next worker event that matches the predicate, failing on timeout.
+async fn wait_for_worker_event<F>(worker: &Worker, timeout: Duration, matches: F) -> WorkerEvent
+where
+    F: Fn(&WorkerEvent) -> bool,
+{
+    tokio::time::timeout(timeout, async {
+        loop {
+            if let Some(event) = worker.next_event().await {
+                if matches(&event) {
+                    return event;
+                }
+            }
+        }
+    })
+    .await
+    .expect("timed out waiting for worker event")
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Upsert Job Scheduler
@@ -1683,8 +1701,10 @@ async fn test_worker_processes_scheduler_after_drain() {
         .await
         .unwrap();
 
-    // Worker starts with empty queue (drained state)
-    tokio::time::sleep(Duration::from_millis(500)).await;
+    wait_for_worker_event(&worker, Duration::from_secs(3), |event| {
+        matches!(event, WorkerEvent::Drained)
+    })
+    .await;
 
     // Now add a scheduler — worker should wake up and process it
     let repeat_opts = RepeatOptions {
@@ -1697,7 +1717,7 @@ async fn test_worker_processes_scheduler_after_drain() {
         .unwrap();
 
     // Should process within a few seconds
-    let result = tokio::time::timeout(Duration::from_secs(3), rx.recv()).await;
+    let result = tokio::time::timeout(Duration::from_secs(5), rx.recv()).await;
     assert!(
         result.is_ok(),
         "Worker should process jobs added after drain"
@@ -2167,6 +2187,7 @@ async fn test_scheduler_processes_after_remove_and_readd() {
 
     let worker_opts = WorkerOptions {
         connection: conn_opts.clone(),
+        drain_delay: 1,
         autorun: true,
         ..Default::default()
     };
@@ -2189,7 +2210,10 @@ async fn test_scheduler_processes_after_remove_and_readd() {
 
     // Remove the scheduler
     queue.remove_job_scheduler("cycle").await.unwrap();
-    tokio::time::sleep(Duration::from_millis(500)).await;
+    wait_for_worker_event(&worker, Duration::from_secs(3), |event| {
+        matches!(event, WorkerEvent::Drained)
+    })
+    .await;
 
     // Re-add
     queue
@@ -2198,7 +2222,7 @@ async fn test_scheduler_processes_after_remove_and_readd() {
         .unwrap();
 
     // Should process again after re-add
-    let result = tokio::time::timeout(Duration::from_secs(3), rx.recv()).await;
+    let result = tokio::time::timeout(Duration::from_secs(5), rx.recv()).await;
     assert!(result.is_ok(), "Re-added scheduler should process");
 
     worker.close(5000).await.unwrap();
@@ -2244,6 +2268,7 @@ async fn test_scheduler_limit_with_slow_processing() {
 
     let worker_opts = WorkerOptions {
         connection: conn_opts.clone(),
+        drain_delay: 1,
         autorun: true,
         ..Default::default()
     };
@@ -2878,8 +2903,10 @@ async fn test_retry_failed_scheduler_job_no_duplicate_delayed() {
         .await
         .unwrap();
 
-    // Wait for the job to fail
-    tokio::time::sleep(Duration::from_millis(500)).await;
+    wait_for_worker_event(&worker, Duration::from_secs(3), |event| {
+        matches!(event, WorkerEvent::Failed { .. })
+    })
+    .await;
 
     let counts = queue.get_job_counts().await.unwrap();
     assert_eq!(counts.failed, 1, "First job should have failed");
@@ -2896,7 +2923,7 @@ async fn test_retry_failed_scheduler_job_no_duplicate_delayed() {
     assert_eq!(counts.failed, 0, "No failed jobs after retry");
 
     // Wait for retried job to be processed
-    let result = tokio::time::timeout(Duration::from_secs(3), rx.recv()).await;
+    let result = tokio::time::timeout(Duration::from_secs(5), rx.recv()).await;
     assert!(result.is_ok(), "Retried job should be processed");
 
     // After retry+process, should still only have 1 delayed (not duplicated)
@@ -2958,6 +2985,7 @@ async fn test_job_retry_on_failed_scheduler_job_no_duplicate() {
 
     let worker_opts = WorkerOptions {
         connection: conn_opts.clone(),
+        drain_delay: 1,
         autorun: true,
         ..Default::default()
     };
@@ -2965,8 +2993,10 @@ async fn test_job_retry_on_failed_scheduler_job_no_duplicate() {
         .await
         .unwrap();
 
-    // Wait for the job to fail
-    tokio::time::sleep(Duration::from_millis(500)).await;
+    wait_for_worker_event(&worker, Duration::from_secs(3), |event| {
+        matches!(event, WorkerEvent::Failed { .. })
+    })
+    .await;
 
     let counts = queue.get_job_counts().await.unwrap();
     assert_eq!(counts.failed, 1);
@@ -2995,7 +3025,7 @@ async fn test_job_retry_on_failed_scheduler_job_no_duplicate() {
     assert_eq!(counts.failed, 0);
 
     // Wait for the retried job to process
-    let result = tokio::time::timeout(Duration::from_secs(3), rx.recv()).await;
+    let result = tokio::time::timeout(Duration::from_secs(5), rx.recv()).await;
     assert!(result.is_ok(), "Retried job should process");
 
     // Should have at most 1 job scheduled
