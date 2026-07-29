@@ -3,16 +3,19 @@
   "extends": [
     "config:recommended",
     ":semanticCommits",
-    ":maintainLockFilesWeekly",
     ":enableVulnerabilityAlerts"
   ],
   "labels": ["dependencies"],
   "rangeStrategy": "pin",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 9am"]
+  },
   "packageRules": [
     {
-      "description": "Run non-security dependency updates on Mondays by default",
+      "description": "Run non-security dependency updates once per day by default",
       "matchPackageNames": ["*"],
-      "schedule": ["before 9am on monday"]
+      "schedule": ["before 9am"]
     },
     {
       "description": "🚨 Group all security vulnerabilities (OSV/GitHub alerts) into a single daily PR",
