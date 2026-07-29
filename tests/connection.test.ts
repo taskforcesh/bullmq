@@ -531,6 +531,7 @@ describe('RedisConnection', () => {
     it('waits for a concurrent reconnect started from the end event', async () => {
       const client = createClient('closing');
       let resolveConnect: () => void;
+      let concurrentReconnect: Promise<void> | undefined;
       client.connect = sinon.stub().callsFake(() => {
         client.status = 'connecting';
         return new Promise<void>(resolve => {
@@ -538,6 +539,11 @@ describe('RedisConnection', () => {
         });
       });
       const connection = createConnection(client);
+      const waitUntilReady = sinon.spy(RedisConnection, 'waitUntilReady');
+
+      client.once('end', () => {
+        concurrentReconnect = client.connect();
+      });
 
       let reconnectResolved = false;
       const reconnecting = connection.reconnect().then(() => {
@@ -547,16 +553,18 @@ describe('RedisConnection', () => {
 
       client.status = 'end';
       client.emit('end');
-      const concurrentReconnect = client.connect();
+      await Promise.resolve();
       await Promise.resolve();
 
       expect(reconnectResolved).toBe(false);
+      expect(waitUntilReady.callCount).toBe(2);
       client.status = 'ready';
       client.emit('ready');
       resolveConnect();
 
-      await Promise.all([reconnecting, concurrentReconnect]);
+      await Promise.all([reconnecting, concurrentReconnect!]);
       expect(client.connect.calledOnce).toBe(true);
+      waitUntilReady.restore();
     });
   });
 
