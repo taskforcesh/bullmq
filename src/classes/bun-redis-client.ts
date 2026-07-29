@@ -284,7 +284,16 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
   // ---------------------------------------------------------------
 
   async connect(): Promise<void> {
-    if (this.raw.connected) {
+    const replaceRaw =
+      this.hasConnected && (this.closed || !this.raw.connected);
+
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.reconnecting = false;
+
+    if (this.raw.connected && !replaceRaw) {
       this.hasConnected = true;
       this.closed = false;
       this.closing = false;
@@ -299,7 +308,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
 
       // If the raw client was previously closed, Bun doesn't support
       // reconnecting on the same instance. Create a fresh raw client.
-      if (this.hasConnected && !this.raw.connected) {
+      if (replaceRaw) {
         const BunRedisClient = this.raw
           .constructor as BunRedisClientConstructor<TClient>;
         this.raw = new BunRedisClient(this.raw.url);

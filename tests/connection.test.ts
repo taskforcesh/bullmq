@@ -4,6 +4,7 @@ import {
   getBlockingRedisConnection,
 } from './utils/get-redis-client';
 import { default as IORedis, RedisOptions } from 'ioredis';
+import { EventEmitter } from 'events';
 import {
   describe,
   beforeEach,
@@ -464,6 +465,115 @@ describe('RedisConnection', () => {
       ).resolves.toBeUndefined();
       expect(fakeCluster.connect.called).toBe(false);
       expect(fakeCluster.once.called).toBe(false);
+    });
+  });
+
+  describe('reconnect()', () => {
+    function createConnection(client: any) {
+      const connection = Object.create(RedisConnection.prototype);
+      Object.defineProperty(connection, 'client', {
+        get: () => Promise.resolve(client),
+      });
+      return connection as RedisConnection;
+    }
+
+    function createClient(status: string) {
+      const client = new EventEmitter() as any;
+      client.status = status;
+      client.isCluster = false;
+      client.connect = sinon.stub().callsFake(async () => {
+        client.status = 'ready';
+      });
+      return client;
+    }
+
+    it('does not connect from status ready', async () => {
+      const client = createClient('ready');
+      const connection = createConnection(client);
+
+      await connection.reconnect();
+
+      expect(client.connect.called).toBe(false);
+    });
+
+    it.each(['wait', 'end'])('connects from status %s', async status => {
+      const client = createClient(status);
+      const connection = createConnection(client);
+
+      await connection.reconnect();
+
+      expect(client.connect.calledOnce).toBe(true);
+    });
+
+    it.each(['connecting', 'connect', 'reconnecting'])(
+      'waits for status %s to become ready',
+      async status => {
+        const client = createClient(status);
+        const connection = createConnection(client);
+
+        const reconnecting = connection.reconnect();
+        await Promise.resolve();
+        client.status = 'ready';
+        client.emit('ready');
+        await reconnecting;
+
+        expect(client.connect.called).toBe(false);
+      },
+    );
+
+    it.each(['close', 'closing', 'disconnecting'])(
+      'connects after status %s becomes terminal',
+      async status => {
+        const client = createClient(status);
+        const connection = createConnection(client);
+
+        const reconnecting = connection.reconnect();
+        await Promise.resolve();
+        client.status = 'end';
+        client.emit('end');
+        await reconnecting;
+
+        expect(client.connect.calledOnce).toBe(true);
+      },
+    );
+
+    it('waits for a concurrent reconnect started from the end event', async () => {
+      const client = createClient('closing');
+      let resolveConnect!: () => void;
+      let concurrentReconnect: Promise<void> | undefined;
+      client.connect = sinon.stub().callsFake(() => {
+        client.status = 'connecting';
+        return new Promise<void>(resolve => {
+          resolveConnect = resolve;
+        });
+      });
+      const connection = createConnection(client);
+      const waitUntilReady = sinon.spy(RedisConnection, 'waitUntilReady');
+
+      client.once('end', () => {
+        concurrentReconnect = client.connect();
+      });
+
+      let reconnectResolved = false;
+      const reconnecting = connection.reconnect().then(() => {
+        reconnectResolved = true;
+      });
+      await Promise.resolve();
+
+      client.status = 'end';
+      client.emit('end');
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(reconnectResolved).toBe(false);
+      expect(waitUntilReady.callCount).toBe(2);
+      client.status = 'ready';
+      client.emit('ready');
+      resolveConnect();
+
+      await Promise.all([reconnecting, concurrentReconnect!]);
+      expect(client.connect.calledOnce).toBe(true);
+      waitUntilReady.restore();
     });
   });
 
