@@ -11,6 +11,7 @@
  * in `events.test.ts`.
  */
 import { getRedisClient } from './utils/get-redis-client';
+import { after } from './utils/lodash';
 import {
   describe,
   beforeEach,
