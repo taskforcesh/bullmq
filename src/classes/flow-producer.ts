@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import {
+  FlowChildJob,
   FlowJob,
   FlowQueuesOpts,
   FlowOpts,
@@ -216,6 +217,7 @@ export class FlowProducer extends EventEmitter {
     if (this.closing) {
       return;
     }
+    assertNoDeduplication(flow);
     const client = await this.connection.client;
     const multi = client.multi();
 
@@ -310,6 +312,7 @@ export class FlowProducer extends EventEmitter {
     if (this.closing) {
       return;
     }
+    flows.forEach(assertNoDeduplication);
     const client = await this.connection.client;
     const multi = client.multi();
 
@@ -680,4 +683,26 @@ export class FlowProducer extends EventEmitter {
   disconnect(): Promise<void> {
     return this.connection.disconnect();
   }
+}
+
+// Deduplication is incompatible with FlowProducer because parent ids must be
+// known before the multi.exec() commits. A dedup hit returns the existing
+// job's id rather than the freshly generated one, which would orphan the
+// flow's children. See https://github.com/taskforcesh/bullmq/issues/2780.
+//
+// The whole tree is walked, not just the root: FlowChildJob omits these
+// options at the type level, but JavaScript callers (and TypeScript escape
+// hatches) can still set them on a child, and addChildren() would pass them
+// straight through to Job.addJob.
+function assertNoDeduplication(flow: FlowJob | FlowChildJob): void {
+  const opts = flow?.opts as FlowJob['opts'];
+
+  if (opts?.deduplication || opts?.debounce) {
+    throw new Error(
+      `Deduplication and debounce are not supported in flows ` +
+        `(queue "${flow.queueName}", job "${flow.name}").`,
+    );
+  }
+
+  flow?.children?.forEach(child => assertNoDeduplication(child));
 }
