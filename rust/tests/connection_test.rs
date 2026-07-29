@@ -204,20 +204,17 @@ async fn test_connect_via_typed_options() {
                 "test_connect_via_typed_options only supports TCP/TLS REDIS_URL, not unix sockets"
             )
         }
-        _ => {
-            panic!("test_connect_via_typed_options only supports TCP/TLS REDIS_URL")
-        }
+        other => panic!("unsupported connection address for test: {other:?}"),
     };
 
-    let db = u8::try_from(conn_info.redis_settings().db()).ok();
-    let username = conn_info
-        .redis_settings()
+    let redis_settings = conn_info.redis_settings();
+    let db = u8::try_from(redis_settings.db()).ok();
+    let username = redis_settings
         .username()
-        .map(std::string::ToString::to_string);
-    let password = conn_info
-        .redis_settings()
+        .map(|username| username.to_string());
+    let password = redis_settings
         .password()
-        .map(std::string::ToString::to_string);
+        .map(|password| password.to_string());
 
     let name = test_queue_name();
     let queue = Queue::with_options(
