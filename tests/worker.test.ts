@@ -3,7 +3,7 @@ import {
   getDatabaseType,
   getRedisClient,
 } from './utils/get-redis-client';
-import { after, times } from 'lodash';
+import { after, times } from './utils/lodash';
 import {
   describe,
   beforeEach,

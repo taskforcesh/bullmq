@@ -1,6 +1,6 @@
 import { pathToFileURL } from 'url';
 import { default as IORedis } from 'ioredis';
-import { after } from 'lodash';
+import { after } from './utils/lodash';
 import { EventEmitter } from 'events';
 import {
   describe,

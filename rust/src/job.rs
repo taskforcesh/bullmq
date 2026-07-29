@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::broadcast;
 
@@ -100,6 +102,10 @@ pub struct Job {
     /// Queue name (not stored in Redis, set from context).
     #[serde(skip)]
     queue_name: Option<String>,
+    /// Marks the job to not be retried if it fails, even if `attempts` is set.
+    /// Shared so a `discard()` call inside a processor is observed by the worker.
+    #[serde(skip)]
+    discarded: Arc<AtomicBool>,
     /// Script execution context (set by the worker, not serialized).
     #[serde(skip)]
     ctx: Option<ScriptContext>,
@@ -138,6 +144,7 @@ impl Job {
             repeat_job_key: None,
             deferred_failure: None,
             queue_name: None,
+            discarded: Arc::new(AtomicBool::new(false)),
             ctx: None,
         }
     }
@@ -255,6 +262,27 @@ impl Job {
     /// Only available when the job has a script context (i.e. inside a worker processor).
     pub fn queue_qualified_name(&self) -> Option<String> {
         self.ctx.as_ref().map(|ctx| ctx.keys.base())
+    }
+
+    /// Marks the job to not be retried if it fails, even if `attempts` is set.
+    ///
+    /// This mirrors Node.js `Job.discard()`. For new code, returning
+    /// [`Error::Unrecoverable`] from the processor has the same effect. When
+    /// called inside a processor and the job subsequently fails, the worker
+    /// will not retry it.
+    pub fn discard(&self) {
+        self.discarded.store(true, Ordering::SeqCst);
+    }
+
+    /// Whether [`Job::discard`] has been called on this job.
+    pub fn is_discarded(&self) -> bool {
+        self.discarded.load(Ordering::SeqCst)
+    }
+
+    /// Shared handle to the discard flag, used by the worker to observe a
+    /// `discard()` call made inside the processor.
+    pub(crate) fn discarded_handle(&self) -> Arc<AtomicBool> {
+        self.discarded.clone()
     }
 
     // ── Setters (for internal use) ───────────────────────────────────────
@@ -1461,6 +1489,7 @@ impl Job {
             repeat_job_key,
             deferred_failure,
             queue_name: None,
+            discarded: Arc::new(AtomicBool::new(false)),
             ctx: None,
         })
     }

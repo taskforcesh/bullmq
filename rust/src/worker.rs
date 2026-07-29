@@ -215,6 +215,16 @@ enum FetchResult {
     RateLimited(u64),
 }
 
+fn should_convert_discarded_error(error: &Error) -> bool {
+    !matches!(
+        error,
+        Error::Unrecoverable(_)
+            | Error::Delayed
+            | Error::WaitingChildren
+            | Error::RateLimited { .. }
+    )
+}
+
 fn processing_drained(active_job_count: usize, active_fetchers: usize) -> bool {
     active_job_count == 0 && active_fetchers == 0
 }
@@ -1074,6 +1084,7 @@ impl Worker {
         }
 
         // Run the processor
+        let discarded = job.discarded_handle();
         let result = (ctx.processor.clone())(job, cancel_token).await;
 
         // Decide whether to fetch the next job in the same round-trip as the
@@ -1125,6 +1136,13 @@ impl Worker {
                 next
             }
             Err(e) => {
+                // If the processor called `job.discard()`, treat the failure as
+                // unrecoverable so the job is not retried (mirrors Node.js).
+                let e = if discarded.load(Ordering::SeqCst) && should_convert_discarded_error(&e) {
+                    Error::Unrecoverable(e.to_string())
+                } else {
+                    e
+                };
                 let next = Self::handle_job_failed(
                     ctx,
                     &job_id,
@@ -2435,7 +2453,30 @@ impl Drop for Worker {
 
 #[cfg(test)]
 mod tests {
-    use super::processing_drained;
+    use super::{processing_drained, should_convert_discarded_error};
+    use crate::error::Error;
+
+    #[test]
+    fn discard_preserves_worker_control_flow_errors() {
+        assert!(!should_convert_discarded_error(&Error::Delayed));
+        assert!(!should_convert_discarded_error(&Error::WaitingChildren));
+        assert!(!should_convert_discarded_error(&Error::RateLimited {
+            delay_ms: 100,
+        }));
+    }
+
+    #[test]
+    fn discard_converts_real_failures_to_unrecoverable() {
+        assert!(should_convert_discarded_error(&Error::ProcessingError(
+            "boom".to_string()
+        )));
+        assert!(should_convert_discarded_error(&Error::Redis(
+            redis::RedisError::from((redis::ErrorKind::Io, "boom"))
+        )));
+        assert!(!should_convert_discarded_error(&Error::Unrecoverable(
+            "fatal".to_string()
+        )));
+    }
 
     #[test]
     fn processing_is_not_drained_while_fetcher_is_chaining_next_job() {
