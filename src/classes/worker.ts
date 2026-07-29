@@ -773,15 +773,13 @@ export class Worker<
         this.emit('error', <Error>error);
       }
       // The watchdog must abort every overdue blocking command, but doing so
-      // during socketless Sentinel resolution can leave ioredis terminally ended.
-      if (!this.closing && bclient.status === 'end') {
+      // during socketless Sentinel resolution can leave the blocking transport
+      // disconnected. Ask the backend to recover it before retrying.
+      if (!this.closing) {
         try {
-          await bclient.connect();
+          await this.backend.reconnectBlocking();
         } catch (reconnectError) {
-          if (
-            bclient.status === 'end' &&
-            isNotConnectionError(<Error>reconnectError)
-          ) {
+          if (isNotConnectionError(<Error>reconnectError)) {
             this.emit('error', <Error>reconnectError);
           }
         }
