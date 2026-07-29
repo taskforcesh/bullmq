@@ -208,9 +208,11 @@
   },
   "packageManager": "yarn@1.22.22",
   "resolutions": {
+    "js-yaml": "4.3.0",
     "brace-expansion": ">=1.1.13",
     "esbuild": "~0.25.0",
     "picomatch": ">=2.3.2",
+    "tar": "7.5.21",
     "vite": "^6.4.3",
     "yaml": ">=2.8.3"
   }
