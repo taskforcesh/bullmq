@@ -27,7 +27,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: '24.14.1'
+          node-version: '24.15.0'
           cache: 'yarn'
       - name: Install dependencies Node
         run: yarn install --frozen-lockfile --non-interactive
