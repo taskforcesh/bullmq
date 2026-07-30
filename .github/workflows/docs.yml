@@ -30,6 +30,14 @@ jobs:
           cache: 'yarn'
       - name: Install dependencies
         run: yarn install --frozen-lockfile
+      - name: Restore frozen API version snapshots
+        # The pre-generated TypeDoc JSON for older major versions (v1..v5) lives
+        # on the long-lived `docs-api` branch to keep them out of master's tree.
+        # Restore them here so `docs:build` merges them alongside the freshly
+        # generated current-version (v6) docs.
+        run: |
+          git fetch origin docs-api --depth=1
+          git checkout origin/docs-api -- apiVersions
       - name: Build with VitePress
         run: yarn docs:build
       - name: Deploy to GitHub Pages

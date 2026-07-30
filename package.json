@@ -41,7 +41,7 @@
     "coverage": "vitest run --no-file-parallelism --coverage --config vitest.coverage.config.ts",
     "docs": "typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts",
     "docs:api": "yarn docs:json && typedoc --includeVersion --excludeExternals --excludeProtected --excludePrivate --readme ./README.md --entryPointStrategy merge --out ./docs/gitbook/public/api $(find ./apiVersions -maxdepth 1 -name 'v*.json' | sort -r)",
-    "docs:json": "mkdir -p ./apiVersions && yarn pretest && typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts --json ./apiVersions/v5.json --name v5",
+    "docs:json": "mkdir -p ./apiVersions && yarn pretest && typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts --json ./apiVersions/v6.json --name v6",
     "docs:dev": "yarn docs:api && vitepress dev docs",
     "docs:build": "yarn docs:api && vitepress build docs",
     "docs:preview": "vitepress preview docs",
