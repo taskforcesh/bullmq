@@ -1,4 +1,4 @@
-import { parseExpression } from 'cron-parser';
+import { CronExpressionParser } from 'cron-parser';
 import { createHash } from 'crypto';
 import {
   RedisClient,
@@ -333,7 +333,7 @@ export const getNextMillis = (
     opts.startDate && new Date(opts.startDate) > new Date(millis)
       ? new Date(opts.startDate)
       : new Date(millis);
-  const interval = parseExpression(pattern, {
+  const interval = CronExpressionParser.parse(pattern, {
     ...opts,
     currentDate,
   });

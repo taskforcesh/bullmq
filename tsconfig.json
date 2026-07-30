@@ -5,6 +5,7 @@
     "module": "ES2020",
     "incremental": true,
     "declaration": true,
+    "rootDir": "src",
     "outDir": "dist/esm",
     "sourceMap": false,
     "experimentalDecorators": true,
@@ -18,6 +19,7 @@
     "allowSyntheticDefaultImports": false,
     "strictNullChecks": false,
     "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
     "lib": ["esnext", "DOM"]
   },
   "include": ["src"],
