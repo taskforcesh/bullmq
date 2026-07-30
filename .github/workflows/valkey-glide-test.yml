@@ -2,7 +2,7 @@ name: Valkey Glide NodeJS Tests
 
 on:
   push:
-    branches: [master]
+    branches: [master, v5.x]
     paths:
       - 'src/commands/**/*.lua'
       - 'package.json'
@@ -19,7 +19,7 @@ on:
       - '.mocharc.js'
       - 'eslint.config.mjs'
   pull_request:
-    branches: [master, next]
+    branches: [master, next, v5.x]
     paths:
       - 'src/commands/**/*.lua'
       - 'package.json'

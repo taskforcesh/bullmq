@@ -2,9 +2,9 @@ name: Elixir Tests
 
 on:
   push:
-    branches: [master]
+    branches: [master, v5.x]
   pull_request:
-    branches: [master, next]
+    branches: [master, next, v5.x]
 
 concurrency:
   group: elixir-test-${{ github.ref }}

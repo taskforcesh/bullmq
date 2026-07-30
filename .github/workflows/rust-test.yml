@@ -2,9 +2,9 @@ name: Rust Tests
 
 on:
   push:
-    branches: [master]
+    branches: [master, v5.x]
   pull_request:
-    branches: [master]
+    branches: [master, v5.x]
 
 concurrency:
   group: rust-test-${{ github.ref }}

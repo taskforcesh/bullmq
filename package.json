@@ -151,6 +151,13 @@
     "url": "https://github.com/taskforcesh/bullmq.git"
   },
   "release": {
+    "branches": [
+      {
+        "name": "v5.x",
+        "range": "5.x"
+      },
+      "master"
+    ],
     "plugins": [
       [
         "@semantic-release/commit-analyzer",

@@ -2,10 +2,12 @@ name: Release
 on:
   push:
     branches:
+      - v5.x
       - master
 
 env:
   HUSKY: 0
+  RELEASE_BRANCH: ${{ github.ref_name }}
 
 jobs:
   release:
@@ -87,14 +89,14 @@ jobs:
 
               Please review and merge to complete the release process." \
                 --head $BRANCH_NAME \
-                --base master
+                --base "$RELEASE_BRANCH"
               
               echo "Created PR for release ${VERSION}"
-              # Back to master branch for next releases if needed
-              git checkout origin/master
+              # Return to the triggering release branch.
+              git checkout "origin/$RELEASE_BRANCH"
             else
               echo "No changes to commit after staging files"
-              git checkout origin/master
+              git checkout "origin/$RELEASE_BRANCH"
               git branch -D $BRANCH_NAME
             fi
           else
@@ -183,14 +185,14 @@ jobs:
 
               Please review and merge to complete the release process." \
                 --head $BRANCH_NAME \
-                --base master
+                --base "$RELEASE_BRANCH"
               
               echo "Created PR for release vpy${VERSION}"
-              # Back to master branch for next releases if needed
-              git checkout origin/master
+              # Return to the triggering release branch.
+              git checkout "origin/$RELEASE_BRANCH"
             else
               echo "No changes to commit after staging files"
-              git checkout origin/master
+              git checkout "origin/$RELEASE_BRANCH"
               git branch -D $BRANCH_NAME
             fi
           else
@@ -269,14 +271,14 @@ jobs:
 
               Please review and merge to complete the release process." \
                 --head $BRANCH_NAME \
-                --base master
+                --base "$RELEASE_BRANCH"
               
               echo "Created PR for release vex${VERSION}"
-              # Back to master branch for next releases if needed
-              git checkout origin/master
+              # Return to the triggering release branch.
+              git checkout "origin/$RELEASE_BRANCH"
             else
               echo "No changes to commit after staging files"
-              git checkout origin/master
+              git checkout "origin/$RELEASE_BRANCH"
               git branch -D $BRANCH_NAME
             fi
           else
@@ -368,14 +370,14 @@ jobs:
 
               Please review and merge to complete the release process." \
                 --head $BRANCH_NAME \
-                --base master
+                --base "$RELEASE_BRANCH"
               
               echo "Created PR for release vphp${VERSION}"
-              # Back to master branch for next releases if needed
-              git checkout origin/master
+              # Return to the triggering release branch.
+              git checkout "origin/$RELEASE_BRANCH"
             else
               echo "No changes to commit after staging files"
-              git checkout origin/master
+              git checkout "origin/$RELEASE_BRANCH"
               git branch -D $BRANCH_NAME
             fi
           else
@@ -456,13 +458,13 @@ jobs:
 
               Please review and merge to complete the release process." \
                 --head $BRANCH_NAME \
-                --base master
+                --base "$RELEASE_BRANCH"
               
               echo "Created PR for release vrs${VERSION}"
-              git checkout origin/master
+              git checkout "origin/$RELEASE_BRANCH"
             else
               echo "No changes to commit after staging files"
-              git checkout origin/master
+              git checkout "origin/$RELEASE_BRANCH"
               git branch -D $BRANCH_NAME
             fi
           else
