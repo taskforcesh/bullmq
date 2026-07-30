@@ -1,3 +1,13 @@
+# [6.0.0](https://github.com/taskforcesh/bullmq/compare/v5.81.3...v6.0.0) (2026-07-30)
+
+
+* feat!: release BullMQ v6 with pluggable queue backends (php) (python) (elixir) ([e1f86ef](https://github.com/taskforcesh/bullmq/commit/e1f86effc5bddda5b70d890866d9a490555e41ff)), closes [Hi#level](https://github.com/Hi/issues/level) [Queue#client](https://github.com/Queue/issues/client) [Queue#redisVersion](https://github.com/Queue/issues/redisVersion) [Queue#databaseType](https://github.com/Queue/issues/databaseType) [Worker#blockingClient](https://github.com/Worker/issues/blockingClient) [FlowProducer#client](https://github.com/FlowProducer/issues/client) [Queue#add](https://github.com/Queue/issues/add) [Queue#addBulk](https://github.com/Queue/issues/addBulk) [Job#debounceId](https://github.com/Job/issues/debounceId) [Job#deduplicationId](https://github.com/Job/issues/deduplicationId)
+
+
+### BREAKING CHANGES
+
+*
+
 ## [5.81.3](https://github.com/taskforcesh/bullmq/compare/v5.81.2...v5.81.3) (2026-07-30)
 
 
