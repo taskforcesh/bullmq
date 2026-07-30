@@ -17,6 +17,10 @@ coverage/*
 # VitePress build artifacts
 docs/.vitepress/dist
 docs/.vitepress/cache
+docs/gitbook/public/api
+
+# Generated current-version TypeDoc input
+apiVersions/v5.json
 
 # Editor directories and files
 .idea
