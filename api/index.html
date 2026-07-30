@@ -1,0 +1,425 @@
+<!DOCTYPE html><html class="default" lang="en" data-base="./"><head><meta charset="utf-8"/><meta http-equiv="x-ua-compatible" content="IE=edge"/><title>v5 - v6.0.0</title><meta name="description" content="Documentation for v5"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="assets/style.css"/><link rel="stylesheet" href="assets/highlight.css"/><script defer src="assets/main.js"></script><script async src="assets/icons.js" id="tsd-icons-script"></script><script async src="assets/search.js" id="tsd-search-script"></script><script async src="assets/navigation.js" id="tsd-nav-script"></script><script async src="assets/hierarchy.js" id="tsd-hierarchy-script"></script></head><body><script>document.documentElement.dataset.theme = localStorage.getItem("tsd-theme") || "os";document.body.style.display="none";setTimeout(() => window.app?app.showPage():document.body.style.removeProperty("display"),500)</script><header class="tsd-page-toolbar">
+<div class="tsd-toolbar-contents container"><a href="index.html" class="title">v5 - v6.0.0</a>
+<div id="tsd-toolbar-links"></div><button id="tsd-search-trigger" class="tsd-widget" aria-label="Search"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-search"></use></svg></button><dialog id="tsd-search" aria-label="Search"><input role="combobox" id="tsd-search-input" aria-controls="tsd-search-results" aria-autocomplete="list" aria-expanded="true" autocapitalize="off" autocomplete="off" placeholder="Search the docs" maxLength="100"/>
+<ul role="listbox" id="tsd-search-results"></ul>
+<div id="tsd-search-status" aria-live="polite" aria-atomic="true">
+<div>Preparing search index...</div></div></dialog><a href="#" class="tsd-widget menu" id="tsd-toolbar-menu-trigger" data-toggle="menu" aria-label="Menu"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-menu"></use></svg></a></div></header>
+<div class="container container-main">
+<div class="col-content">
+<div class="tsd-page-title">
+<h1>v5 - v6.0.0</h1></div>
+<div class="tsd-panel tsd-typography"><div align="center">
+  <br/>
+  <img src="https://user-images.githubusercontent.com/95200/143832033-32e868df-f3b0-4251-97fb-c64809a43d36.png" width="800" />
+  <br/>
+  <br/>
+  <p>
+    The fastest, most reliable, Redis-based distributed queue for Node.js, Python, Elixir, Rust, PHP, and more. <br/>
+    Carefully written for rock solid stability and atomicity.
+  </p>
+  Read the <a href="https://docs.bullmq.io">documentation</a>
+  <br/>
+  <br/>
+  <p>
+    <a href="https://join.slack.com/t/bullmq/shared_invite/zt-1nbtpk6mv-TItWpF9jf3k4yrCaS0PPZA">
+      <img src="https://img.shields.io/badge/Slack-4A154B"/>
+    </a>    
+    <a href="https://badge.fury.io/js/bullmq">
+      <img src="https://badge.fury.io/js/bullmq.svg"/>
+    </a>
+    <a href="https://coveralls.io/github/taskforcesh/bullmq?branch=master">
+      <img src="https://coveralls.io/repos/github/taskforcesh/bullmq/badge.svg?branch=master"/>
+    </a>
+    <a href="https://github.com/semantic-release/semantic-release">
+      <img src="https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg"/>
+    </a>
+    <a href="https://github.com/sponsors/taskforcesh">
+      <img src="https://img.shields.io/badge/sponsor-30363D?style=flat&logo=GitHub-Sponsors&logoColor=EA4AAA"/>
+    </a>
+  </p>
+  <p>
+    <em><a href="https://x.com/bullmqhq">Follow Us</a> for *important* Bull/BullMQ/BullMQ-Pro news and updates!</em>
+  </p>
+</div>
+<h1 id="🛠-tutorials" class="tsd-anchor-link">🛠 Tutorials<a href="#🛠-tutorials" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h1>
+<p>You can find tutorials and news in this blog: <a href="https://blog.taskforce.sh/">https://blog.taskforce.sh/</a></p>
+<h1 id="news-🚀" class="tsd-anchor-link">News 🚀<a href="#news-🚀" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h1>
+<h2 id="🌐-language-agnostic-bullmq" class="tsd-anchor-link">🌐 Language agnostic BullMQ<a href="#🌐-language-agnostic-bullmq" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>BullMQ is available natively in multiple languages:</p>
+<ul>
+<li><strong>Node.js / Bun</strong> — This repository (<code>npm install bullmq</code>)</li>
+<li><strong>Python</strong> — <a href="media/python"><code>python/</code></a> directory (<code>pip install bullmq</code>)</li>
+<li><strong>Rust</strong> — <a href="media/rust"><code>rust/</code></a> directory (<code>cargo add bullmq-official --rename bullmq</code>)</li>
+<li><strong>Elixir</strong> — <a href="media/elixir"><code>elixir/</code></a> directory (<code>{:bullmq, &quot;~&gt; x.x&quot;}</code>)</li>
+<li><strong>PHP</strong> — <a href="media/php"><code>php/</code></a> directory</li>
+</ul>
+<p>For other platforms, check out the <a href="https://github.com/taskforcesh/bullmq-proxy">BullMQ Proxy</a>.</p>
+<h1 id="official-frontend" class="tsd-anchor-link">Official FrontEnd<a href="#official-frontend" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h1>
+<p><a href="https://taskforce.sh"><img src="https://taskforce.sh/assets/logo_square.png" width="150" alt="Taskforce.sh, Inc" style="padding: 200px"/></a></p>
+<p>Supercharge your queues with a professional front end:</p>
+<ul>
+<li>Get a complete overview of all your queues.</li>
+<li>Inspect jobs, search, retry, or promote delayed jobs.</li>
+<li>Metrics and statistics.</li>
+<li>and many more features.</li>
+</ul>
+<p>Sign up at <a href="https://taskforce.sh">Taskforce.sh</a></p>
+<h1 id="🚀-sponsors-🚀" class="tsd-anchor-link">🚀 Sponsors 🚀<a href="#🚀-sponsors-🚀" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h1>
+<table cellspacing="0" cellpadding="0" border="0">
+  <tr>
+    <td>
+      <a href="https://www.dragonflydb.io/">
+        <img src="https://raw.githubusercontent.com/dragonflydb/dragonfly/main/.github/images/logo-full.svg" width=550 alt="Dragonfly" />
+      </a>
+    </td>
+    <td>
+      Dragonfly is a new Redis™ drop-in replacement that is fully compatible with BullMQ and brings some important advantages over Redis™ such as massive
+      better performance by utilizing all CPU cores available and faster and more memory efficient data structures. Read more <a href="https://www.dragonflydb.io/docs/integrations/bullmq">here</a> on how to use it with BullMQ.
+    </td>
+  </tr>
+</table>
+<h1 id="used-by" class="tsd-anchor-link">Used by<a href="#used-by" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h1>
+<p>Some notable organizations using BullMQ:</p>
+<table cellspacing="0" cellpadding="0">
+  <tr>
+    <td valign="center">
+       <a href="https://github.com/microsoft/lage">
+        <img
+          src="https://files.gitbook.com/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F-LUuDmt_xXMfG66Rn1GA%2Fuploads%2FUvwInTAmk7hxAViDwJzU%2Fclipart1565701.png?alt=media"
+          width="150"
+          alt="Microsoft"
+        />
+       </a>
+    </td>
+    <td valign="center">
+       <a href="https://github.com/vendure-ecommerce/vendure">
+        <img
+          src="https://files.gitbook.com/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F-LUuDmt_xXMfG66Rn1GA%2Fuploads%2FvT30DUqsi61gL8edn3R2%2Fwordmark-logo.png?alt=media"
+          width="150"
+          alt="Vendure"
+        />
+       </a>
+    </td>
+    <td valign="center">
+       <a href="https://github.com/datawrapper/datawrapper">
+        <img
+          src="https://files.gitbook.com/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F-LUuDmt_xXMfG66Rn1GA%2Fuploads%2FCJ5XmotpBBsuSgD8CilC%2Fdatawrapper-logo.png?alt=media"
+          width="150"
+          alt="Datawrapper"
+        />
+       </a>
+    </td>
+    <td valign="center">
+      <a href="https://github.com/nestjs/bull/tree/master/packages/bullmq">
+        <img
+          src="https://876297641-files.gitbook.io/~/files/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F-LUuDmt_xXMfG66Rn1GA%2Fuploads%2FfAcGye182utFUtPKdLqJ%2FScreenshot%202022-02-15%20at%2011.32.39.png?alt=media&token=29feb550-f0bc-467d-a290-f700701d7d15"
+          width="150"
+          alt="Nest"
+        />
+        </a>
+    </td>
+    <td valign="center">
+      <a href="https://langfuse.com">
+        <img
+          src="https://langfuse.com/langfuse_logo.svg"
+          width="150"
+          alt="Langfuse"
+        />
+        </a>
+    </td>
+    </tr>
+    <tr>
+      <td valign="center">
+       <a href="https://github.com/teamcurri">
+        <img
+          src="https://user-images.githubusercontent.com/659829/161662129-ae645bc4-c1e9-48ff-997e-4cee281a964a.png"
+          width="150"
+          alt="Curri"
+        />
+      </a>
+    </td>
+      <td valign="center">
+       <a href="https://novu.co">
+        <img
+          src="https://assets.super.so/1e9f5a51-c4c6-4fca-b6e8-25fa0186f139/images/0f550019-16db-4a65-90d1-1bdb7d3c5f20/novu-logo-gradient-light-background2x.png"
+          width="150"
+          alt="Novu"
+        />
+      </a>
+    </td>
+    </td>
+      <td valign="center">
+       <a href="https://www.nocodb.com">
+        <img
+          src="https://github.com/nocodb/nocodb/raw/develop/packages/nc-gui/assets/img/icons/512x512.png"
+          width="50"
+          alt="NoCodeDB"
+        />
+      </a>
+    </td>
+    </td>
+      <td valign="center">
+       <a href="https://infisical.com/">
+         <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="https://mintlify.s3-us-west-1.amazonaws.com/infisical/logo/dark.svg">
+          <img
+          src="https://mintlify.s3-us-west-1.amazonaws.com/infisical/logo/light.svg"
+          width="150"
+          alt="Infisical"
+        />
+          </picture>
+      </a>
+    </td>
+    </tr>
+</table>
+<h1 id="the-gist" class="tsd-anchor-link">The gist<a href="#the-gist" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h1>
+<p>Install:</p>
+<pre><code><span class="hl-0">$</span><span class="hl-1"> </span><span class="hl-0">yarn</span><span class="hl-1"> </span><span class="hl-0">add</span><span class="hl-1"> </span><span class="hl-0">bullmq</span>
+</code><button>Copy</button></pre>
+
+<p>If you use the node-redis adapter (<code>createNodeRedisClient</code>), install <code>redis</code> v5 or newer (<code>redis &gt;= 5.0.0</code>).</p>
+<p>If you use the Valkey Glide adapter (<code>createValkeyGlideClient</code>), install <code>@valkey/valkey-glide</code>.</p>
+<p>Add jobs to the queue:</p>
+<pre><code class="ts"><span class="hl-2">import</span><span class="hl-1"> { </span><span class="hl-0">Queue</span><span class="hl-1"> } </span><span class="hl-2">from</span><span class="hl-1"> </span><span class="hl-3">&#39;bullmq&#39;</span><span class="hl-1">;</span><br/><br/><span class="hl-4">const</span><span class="hl-1"> </span><span class="hl-5">queue</span><span class="hl-1"> = </span><span class="hl-4">new</span><span class="hl-1"> </span><span class="hl-6">Queue</span><span class="hl-1">(</span><span class="hl-3">&#39;Paint&#39;</span><span class="hl-1">);</span><br/><br/><span class="hl-0">queue</span><span class="hl-1">.</span><span class="hl-6">add</span><span class="hl-1">(</span><span class="hl-3">&#39;cars&#39;</span><span class="hl-1">, { </span><span class="hl-0">color:</span><span class="hl-1"> </span><span class="hl-3">&#39;blue&#39;</span><span class="hl-1"> });</span>
+</code><button type="button">Copy</button></pre>
+
+<p>Process the jobs in your workers:</p>
+<pre><code class="ts"><span class="hl-2">import</span><span class="hl-1"> { </span><span class="hl-0">Worker</span><span class="hl-1"> } </span><span class="hl-2">from</span><span class="hl-1"> </span><span class="hl-3">&#39;bullmq&#39;</span><span class="hl-1">;</span><br/><br/><span class="hl-4">const</span><span class="hl-1"> </span><span class="hl-5">worker</span><span class="hl-1"> = </span><span class="hl-4">new</span><span class="hl-1"> </span><span class="hl-6">Worker</span><span class="hl-1">(</span><span class="hl-3">&#39;Paint&#39;</span><span class="hl-1">, </span><span class="hl-4">async</span><span class="hl-1"> </span><span class="hl-0">job</span><span class="hl-1"> </span><span class="hl-4">=&gt;</span><span class="hl-1"> {</span><br/><span class="hl-1">  </span><span class="hl-2">if</span><span class="hl-1"> (</span><span class="hl-0">job</span><span class="hl-1">.</span><span class="hl-0">name</span><span class="hl-1"> === </span><span class="hl-3">&#39;cars&#39;</span><span class="hl-1">) {</span><br/><span class="hl-1">    </span><span class="hl-2">await</span><span class="hl-1"> </span><span class="hl-6">paintCar</span><span class="hl-1">(</span><span class="hl-0">job</span><span class="hl-1">.</span><span class="hl-0">data</span><span class="hl-1">.</span><span class="hl-0">color</span><span class="hl-1">);</span><br/><span class="hl-1">  }</span><br/><span class="hl-1">});</span>
+</code><button type="button">Copy</button></pre>
+
+<p>Listen to jobs for completion:</p>
+<pre><code class="ts"><span class="hl-2">import</span><span class="hl-1"> { </span><span class="hl-0">QueueEvents</span><span class="hl-1"> } </span><span class="hl-2">from</span><span class="hl-1"> </span><span class="hl-3">&#39;bullmq&#39;</span><span class="hl-1">;</span><br/><br/><span class="hl-4">const</span><span class="hl-1"> </span><span class="hl-5">queueEvents</span><span class="hl-1"> = </span><span class="hl-4">new</span><span class="hl-1"> </span><span class="hl-6">QueueEvents</span><span class="hl-1">(</span><span class="hl-3">&#39;Paint&#39;</span><span class="hl-1">);</span><br/><br/><span class="hl-0">queueEvents</span><span class="hl-1">.</span><span class="hl-6">on</span><span class="hl-1">(</span><span class="hl-3">&#39;completed&#39;</span><span class="hl-1">, ({ </span><span class="hl-0">jobId</span><span class="hl-1"> }) </span><span class="hl-4">=&gt;</span><span class="hl-1"> {</span><br/><span class="hl-1">  </span><span class="hl-0">console</span><span class="hl-1">.</span><span class="hl-6">log</span><span class="hl-1">(</span><span class="hl-3">&#39;done painting&#39;</span><span class="hl-1">);</span><br/><span class="hl-1">});</span><br/><br/><span class="hl-0">queueEvents</span><span class="hl-1">.</span><span class="hl-6">on</span><span class="hl-1">(</span><br/><span class="hl-1">  </span><span class="hl-3">&#39;failed&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">  ({ </span><span class="hl-0">jobId</span><span class="hl-1">, </span><span class="hl-0">failedReason</span><span class="hl-1"> }: { </span><span class="hl-0">jobId</span><span class="hl-1">: </span><span class="hl-7">string</span><span class="hl-1">; </span><span class="hl-0">failedReason</span><span class="hl-1">: </span><span class="hl-7">string</span><span class="hl-1"> }) </span><span class="hl-4">=&gt;</span><span class="hl-1"> {</span><br/><span class="hl-1">    </span><span class="hl-0">console</span><span class="hl-1">.</span><span class="hl-6">error</span><span class="hl-1">(</span><span class="hl-3">&#39;error painting&#39;</span><span class="hl-1">, </span><span class="hl-0">failedReason</span><span class="hl-1">);</span><br/><span class="hl-1">  },</span><br/><span class="hl-1">);</span>
+</code><button type="button">Copy</button></pre>
+
+<p>Adds jobs with parent-child relationship:</p>
+<pre><code class="ts"><span class="hl-2">import</span><span class="hl-1"> { </span><span class="hl-0">FlowProducer</span><span class="hl-1"> } </span><span class="hl-2">from</span><span class="hl-1"> </span><span class="hl-3">&#39;bullmq&#39;</span><span class="hl-1">;</span><br/><br/><span class="hl-4">const</span><span class="hl-1"> </span><span class="hl-5">flow</span><span class="hl-1"> = </span><span class="hl-4">new</span><span class="hl-1"> </span><span class="hl-6">FlowProducer</span><span class="hl-1">();</span><br/><br/><span class="hl-4">const</span><span class="hl-1"> </span><span class="hl-5">originalTree</span><span class="hl-1"> = </span><span class="hl-2">await</span><span class="hl-1"> </span><span class="hl-0">flow</span><span class="hl-1">.</span><span class="hl-6">add</span><span class="hl-1">({</span><br/><span class="hl-1">  </span><span class="hl-0">name:</span><span class="hl-1"> </span><span class="hl-3">&#39;root-job&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-0">queueName:</span><span class="hl-1"> </span><span class="hl-3">&#39;topQueueName&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-0">data:</span><span class="hl-1"> {},</span><br/><span class="hl-1">  </span><span class="hl-0">children:</span><span class="hl-1"> [</span><br/><span class="hl-1">    {</span><br/><span class="hl-1">      </span><span class="hl-0">name:</span><span class="hl-1"> </span><span class="hl-3">&#39;child-job&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">      </span><span class="hl-0">data:</span><span class="hl-1"> { </span><span class="hl-0">idx:</span><span class="hl-1"> </span><span class="hl-8">0</span><span class="hl-1">, </span><span class="hl-0">foo:</span><span class="hl-1"> </span><span class="hl-3">&#39;bar&#39;</span><span class="hl-1"> },</span><br/><span class="hl-1">      </span><span class="hl-0">queueName:</span><span class="hl-1"> </span><span class="hl-3">&#39;childrenQueueName&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">      </span><span class="hl-0">children:</span><span class="hl-1"> [</span><br/><span class="hl-1">        {</span><br/><span class="hl-1">          </span><span class="hl-0">name:</span><span class="hl-1"> </span><span class="hl-3">&#39;grandchild-job&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">          </span><span class="hl-0">data:</span><span class="hl-1"> { </span><span class="hl-0">idx:</span><span class="hl-1"> </span><span class="hl-8">1</span><span class="hl-1">, </span><span class="hl-0">foo:</span><span class="hl-1"> </span><span class="hl-3">&#39;bah&#39;</span><span class="hl-1"> },</span><br/><span class="hl-1">          </span><span class="hl-0">queueName:</span><span class="hl-1"> </span><span class="hl-3">&#39;grandChildrenQueueName&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">        },</span><br/><span class="hl-1">        {</span><br/><span class="hl-1">          </span><span class="hl-0">name:</span><span class="hl-1"> </span><span class="hl-3">&#39;grandchild-job&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">          </span><span class="hl-0">data:</span><span class="hl-1"> { </span><span class="hl-0">idx:</span><span class="hl-1"> </span><span class="hl-8">2</span><span class="hl-1">, </span><span class="hl-0">foo:</span><span class="hl-1"> </span><span class="hl-3">&#39;baz&#39;</span><span class="hl-1"> },</span><br/><span class="hl-1">          </span><span class="hl-0">queueName:</span><span class="hl-1"> </span><span class="hl-3">&#39;grandChildrenQueueName&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">        },</span><br/><span class="hl-1">      ],</span><br/><span class="hl-1">    },</span><br/><span class="hl-1">    {</span><br/><span class="hl-1">      </span><span class="hl-0">name:</span><span class="hl-1"> </span><span class="hl-3">&#39;child-job&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">      </span><span class="hl-0">data:</span><span class="hl-1"> { </span><span class="hl-0">idx:</span><span class="hl-1"> </span><span class="hl-8">3</span><span class="hl-1">, </span><span class="hl-0">foo:</span><span class="hl-1"> </span><span class="hl-3">&#39;foo&#39;</span><span class="hl-1"> },</span><br/><span class="hl-1">      </span><span class="hl-0">queueName:</span><span class="hl-1"> </span><span class="hl-3">&#39;childrenQueueName&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">    },</span><br/><span class="hl-1">  ],</span><br/><span class="hl-1">});</span>
+</code><button type="button">Copy</button></pre>
+
+<p>This is just scratching the surface, check all the features and more in the official <a href="https://docs.bullmq.io">documentation</a></p>
+<h1 id="feature-comparison" class="tsd-anchor-link">Feature Comparison<a href="#feature-comparison" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h1>
+<p>Since there are a few job queue solutions, here is a table comparing them:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Feature</th>
+<th style="text-align:center"><a href="https://bullmq.io/#bullmq-pro">BullMQ-Pro</a></th>
+<th style="text-align:center"><a href="https://bullmq.io">BullMQ</a></th>
+<th style="text-align:center">Bull</th>
+<th style="text-align:center">Kue</th>
+<th>Bee</th>
+<th>Agenda</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Backend</td>
+<td style="text-align:center">redis</td>
+<td style="text-align:center">redis</td>
+<td style="text-align:center">redis</td>
+<td style="text-align:center">redis</td>
+<td>redis</td>
+<td>mongo</td>
+</tr>
+<tr>
+<td style="text-align:left">Observables</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center"></td>
+<td style="text-align:center"></td>
+<td style="text-align:center"></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align:left">Group Rate Limit</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center"></td>
+<td style="text-align:center"></td>
+<td style="text-align:center"></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align:left">Group Support</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center"></td>
+<td style="text-align:center"></td>
+<td style="text-align:center"></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align:left">Batches Support</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center"></td>
+<td style="text-align:center"></td>
+<td style="text-align:center"></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align:left">Parent/Child Dependencies</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center"></td>
+<td style="text-align:center"></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align:left">Deduplication (Debouncing)</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center"></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align:left">Deduplication (Throttling)</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center"></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align:left">Priorities</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td></td>
+<td>✓</td>
+</tr>
+<tr>
+<td style="text-align:left">Concurrency</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td style="text-align:left">Delayed jobs</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td></td>
+<td>✓</td>
+</tr>
+<tr>
+<td style="text-align:left">Global events</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align:left">Rate Limiter</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center"></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align:left">Pause/Resume</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align:left">Sandboxed worker</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center"></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align:left">Repeatable jobs</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center"></td>
+<td></td>
+<td>✓</td>
+</tr>
+<tr>
+<td style="text-align:left">Atomic ops</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center"></td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align:left">Persistence</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td style="text-align:left">UI</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td style="text-align:center">✓</td>
+<td></td>
+<td>✓</td>
+</tr>
+<tr>
+<td style="text-align:left">Optimized for</td>
+<td style="text-align:center">Jobs / Messages</td>
+<td style="text-align:center">Jobs / Messages</td>
+<td style="text-align:center">Jobs / Messages</td>
+<td style="text-align:center">Jobs</td>
+<td>Messages</td>
+<td>Jobs</td>
+</tr>
+</tbody>
+</table>
+<h2 id="contributing" class="tsd-anchor-link">Contributing<a href="#contributing" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>Fork the repo, make some changes, submit a pull-request! Here is the <a href="https://github.com/taskforcesh/bullmq/blob/master/contributing.md">contributing</a> doc that has more details.</p>
+<h1 id="thanks" class="tsd-anchor-link">Thanks<a href="#thanks" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h1>
+<p>Thanks for all the contributors that made this library possible,
+also a special mention to Leon van Kammen that kindly donated
+his npm bullmq repo.</p>
+</div></div>
+<div class="col-sidebar">
+<div class="page-menu">
+<div class="tsd-navigation settings">
+<details class="tsd-accordion"><summary class="tsd-accordion-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-chevronDown"></use></svg>
+<h3>Settings</h3></summary>
+<div class="tsd-accordion-details">
+<div class="tsd-filter-visibility"><span class="settings-label">Member Visibility</span>
+<ul id="tsd-filter-options">
+<li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-inherited" name="inherited" checked/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Inherited</span></label></li></ul></div>
+<div class="tsd-theme-toggle"><label class="settings-label" for="tsd-theme">Theme</label><select id="tsd-theme"><option value="os">OS</option><option value="light">Light</option><option value="dark">Dark</option></select></div></div></details></div>
+<details open class="tsd-accordion tsd-page-navigation"><summary class="tsd-accordion-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-chevronDown"></use></svg>
+<h3>On This Page</h3></summary>
+<div class="tsd-accordion-details"><a href="#🛠-tutorials"><span>🛠 <wbr/>Tutorials</span></a><a href="#news-🚀"><span>News 🚀</span></a>
+<ul>
+<li><a href="#🌐-language-agnostic-bullmq"><span>🌐 <wbr/>Language agnostic <wbr/>Bull<wbr/>MQ</span></a></li></ul><a href="#official-frontend"><span>Official <wbr/>Front<wbr/>End</span></a><a href="#🚀-sponsors-🚀"><span>🚀 <wbr/>Sponsors 🚀</span></a><a href="#used-by"><span>Used by</span></a><a href="#the-gist"><span>The gist</span></a><a href="#feature-comparison"><span>Feature <wbr/>Comparison</span></a>
+<ul>
+<li><a href="#contributing"><span>Contributing</span></a></li></ul><a href="#thanks"><span>Thanks</span></a></div></details></div>
+<div class="site-menu">
+<nav class="tsd-navigation"><a href="modules.html">v5 - v6.0.0</a>
+<ul class="tsd-small-nested-navigation" id="tsd-nav-container">
+<li>Loading...</li></ul></nav></div></div></div><footer>
+<p class="tsd-generator">Generated using <a href="https://typedoc.org/" target="_blank">TypeDoc</a></p></footer>
+<div class="overlay"></div></body></html>
