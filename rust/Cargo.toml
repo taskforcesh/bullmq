@@ -27,20 +27,20 @@ include = [
 name = "bullmq"
 
 [dependencies]
-redis = { version = "=1.4.1", features = ["tokio-comp", "connection-manager", "script", "tokio-rustls-comp", "tls-rustls-webpki-roots"] }
-tokio = { version = "=1.52.3", features = ["full"] }
-serde = { version = "=1.0.228", features = ["derive"] }
-serde_json = "=1.0.150"
-thiserror = "=2.0.18"
-uuid = { version = "=1.23.1", features = ["v4"] }
+redis = { version = "=1.5.0", features = ["tokio-comp", "connection-manager", "script", "tokio-rustls-comp", "tls-rustls-webpki-roots"] }
+tokio = { version = "=1.53.1", features = ["full"] }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.151"
+thiserror = "=2.0.19"
+uuid = { version = "=1.24.0", features = ["v4"] }
 sha1 = "=0.11.0"
 tracing = "=0.1.44"
-chrono = { version = "=0.4.44", features = ["serde"] }
+chrono = { version = "=0.4.45", features = ["serde"] }
 rmp = "=0.8.15"
 rmp-serde = "=1.3.1"
-async-trait = "=0.1.89"
-tokio-stream = "=0.1.18"
-futures = "=0.3.32"
+async-trait = "=0.1.91"
+tokio-stream = "=0.1.19"
+futures = "=0.3.33"
 croner = "=3.0.1"
 chrono-tz = "=0.10.4"
 
