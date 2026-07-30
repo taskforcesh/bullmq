@@ -30,6 +30,7 @@ jobs:
             python:
               - 'python/**'
               - 'src/commands/**'
+              - 'src/postgres/**'
               - 'scripts/**'
               - 'package.json'
               - 'yarn.lock'
@@ -74,7 +75,9 @@ jobs:
       - if: env.should_run == 'true'
         run: yarn build
       - if: env.should_run == 'true'
-        run: yarn copy:lua:python
+        run: |
+          yarn copy:lua:python
+          yarn copy:sql:python
 
       - name: Set up Python ${{ matrix.python-version }}
         if: env.should_run == 'true'
@@ -144,7 +147,9 @@ jobs:
       - if: env.should_run == 'true'
         run: yarn build
       - if: env.should_run == 'true'
-        run: yarn copy:lua:python
+        run: |
+          yarn copy:lua:python
+          yarn copy:sql:python
 
       - name: Set up Python ${{ matrix.python-version }}
         if: env.should_run == 'true'
