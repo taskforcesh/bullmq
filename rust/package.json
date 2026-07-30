@@ -59,5 +59,6 @@
       ],
       "@semantic-release/github"
     ]
-  }
+  },
+  "packageManager": "yarn@1.22.22"
 }
