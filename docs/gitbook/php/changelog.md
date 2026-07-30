@@ -1,3 +1,18 @@
+# [2.0.0](https://github.com/taskforcesh/bullmq/compare/vphp1.0.3...vphp2.0.0) (2026-07-30)
+
+
+* feat!: release BullMQ v6 with pluggable queue backends (php) (python) (elixir) ([e1f86ef](https://github.com/taskforcesh/bullmq/commit/e1f86effc5bddda5b70d890866d9a490555e41ff)), closes [Hi#level](https://github.com/Hi/issues/level) [Queue#client](https://github.com/Queue/issues/client) [Queue#redisVersion](https://github.com/Queue/issues/redisVersion) [Queue#databaseType](https://github.com/Queue/issues/databaseType) [Worker#blockingClient](https://github.com/Worker/issues/blockingClient) [FlowProducer#client](https://github.com/FlowProducer/issues/client) [Queue#add](https://github.com/Queue/issues/add) [Queue#addBulk](https://github.com/Queue/issues/addBulk) [Job#debounceId](https://github.com/Job/issues/debounceId) [Job#deduplicationId](https://github.com/Job/issues/deduplicationId)
+
+
+### Bug Fixes
+
+* **deps:** update dependency redis [security] ([#4369](https://github.com/taskforcesh/bullmq/issues/4369)) ([2a120df](https://github.com/taskforcesh/bullmq/commit/2a120dfea7324d7af67ad505c78f48571c74402b))
+
+
+### BREAKING CHANGES
+
+*
+
 ## [1.0.3](https://github.com/taskforcesh/bullmq/compare/vphp1.0.2...vphp1.0.3) (2026-07-24)
 
 
