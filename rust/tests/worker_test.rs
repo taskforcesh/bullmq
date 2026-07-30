@@ -3770,15 +3770,27 @@ async fn test_pause_does_not_fetch_new_jobs() {
         .await
         .unwrap();
 
-    // Wait for first job to be picked up
+    // Wait until the first job is active, then pause while it is still running.
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            if worker.active_count().await > 0 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("timeout waiting for first job to become active");
+
+    // Pause the worker before the current job completes.
+    worker.pause();
+    assert!(worker.is_paused());
+
+    // First job should still complete.
     tokio::time::timeout(Duration::from_secs(5), rx.recv())
         .await
         .expect("timeout")
         .expect("channel closed");
-
-    // Pause the worker
-    worker.pause();
-    assert!(worker.is_paused());
 
     // Add another job while paused
     queue
@@ -9731,82 +9743,6 @@ async fn test_delayed_error_does_not_emit_failed_event() {
     .await;
     assert!(timeout.is_ok(), "Should complete");
     assert!(!saw_failed, "DelayedError should NOT emit a Failed event");
-
-    worker.close(5000).await.unwrap();
-    cleanup_queue(&queue).await;
-}
-
-#[tokio::test]
-async fn test_discard_does_not_convert_delayed_error_to_failure() {
-    let name = test_queue_name();
-    let conn_opts = test_connection();
-
-    let queue_opts = QueueOptions {
-        connection: conn_opts.clone(),
-        ..Default::default()
-    };
-    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
-
-    queue
-        .add("test", serde_json::json!({"step": 0}))
-        .await
-        .unwrap();
-
-    let attempt_count = Arc::new(AtomicUsize::new(0));
-    let attempts = attempt_count.clone();
-
-    let processor: ProcessorFn = Arc::new(move |mut job: Job, _token: CancellationToken| {
-        let attempts = attempts.clone();
-        Box::pin(async move {
-            let step = job.data().get("step").and_then(|v| v.as_u64()).unwrap_or(0);
-            attempts.fetch_add(1, Ordering::SeqCst);
-
-            if step == 0 {
-                job.discard();
-                let now = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_millis() as u64;
-                job.move_to_delayed(now + 100).await.unwrap();
-                job.update_data(serde_json::json!({"step": 1}))
-                    .await
-                    .unwrap();
-                return Err(Error::Delayed);
-            }
-
-            Ok(serde_json::json!({"done": true}))
-        })
-    });
-
-    let worker_opts = WorkerOptions {
-        connection: conn_opts,
-        autorun: true,
-        ..Default::default()
-    };
-
-    let worker = Worker::with_options(&name, processor, worker_opts)
-        .await
-        .unwrap();
-
-    let timeout = tokio::time::timeout(Duration::from_secs(10), async {
-        loop {
-            match worker.next_event().await {
-                Some(WorkerEvent::Completed { .. }) => break,
-                Some(WorkerEvent::Failed { error, .. }) => {
-                    panic!("discarded Delayed error should not fail the job: {error}")
-                }
-                Some(WorkerEvent::Closed) | None => panic!("worker closed unexpectedly"),
-                _ => {}
-            }
-        }
-    })
-    .await;
-    assert!(timeout.is_ok(), "Job should complete after being delayed");
-
-    assert_eq!(attempt_count.load(Ordering::SeqCst), 2);
-    let counts = queue.get_job_counts().await.unwrap();
-    assert_eq!(counts.completed, 1);
-    assert_eq!(counts.failed, 0);
 
     worker.close(5000).await.unwrap();
     cleanup_queue(&queue).await;

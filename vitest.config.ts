@@ -21,6 +21,9 @@ export default defineConfig({
       'tests/bun-redis.test.ts',
       'tests/bun-adapter-suite.test.ts',
 
+      // PostgreSQL backend tests run in the dedicated PostgreSQL CI job.
+      'tests/postgres/**',
+
       // Old mocha-era files
       'tests/test_*.ts',
 

@@ -8,4 +8,4 @@ export type JobState =
   | 'waiting'
   | 'waiting-children';
 
-export type JobType = JobState | 'paused' | 'repeat' | 'wait';
+export type JobType = JobState | 'repeat' | 'wait';

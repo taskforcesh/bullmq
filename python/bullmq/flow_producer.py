@@ -23,33 +23,28 @@ Design notes:
 from typing import Optional, Union
 from uuid import uuid4
 
+from bullmq.backends import create_backend
 from bullmq.error_code import ErrorCode
 from bullmq.event_emitter import EventEmitter
 from bullmq.job import Job
-from bullmq.queue_keys import QueueKeys
-from bullmq.redis_connection import RedisConnection
-from bullmq.scripts import Scripts
 from bullmq.types import QueueBaseOptions
 from bullmq.utils import get_parent_key
 
 
 class MinimalQueue:
     """
-    Instantiate a MinimalQueue object
+    A lightweight queue view used by :class:`FlowProducer` for each node in a
+    flow. It carries the node's queue identity and a backend scoped to that
+    queue (sharing the flow producer's connection), which is what :class:`Job`
+    needs to be constructed and, if necessary, operated on.
     """
 
-    def __init__(self, name: str, queue_keys, redisConnection, scripts, opts: QueueBaseOptions = {}):
-        """
-        Initialize a connection
-        """
+    def __init__(self, name: str, backend, opts: QueueBaseOptions = {}):
         self.name = name
-        self.redisConnection = redisConnection
-        self.client = self.redisConnection.conn
         self.opts = opts
         self.prefix = opts.get("prefix", "bull")
-        self.keys = queue_keys.getKeys(name)
-        self.qualifiedName = queue_keys.getQueueQualifiedName(name)
-        self.scripts = scripts
+        self.backend = backend
+        self.qualifiedName = backend.qualifiedName
 
 
 class FlowProducer(EventEmitter):
@@ -57,36 +52,53 @@ class FlowProducer(EventEmitter):
     Instantiate a FlowProducer object
     """
 
-    #TODO: pass only queueOpts, no need 2 parameters in next breaking change
-    def __init__(self, redisOpts: Union[dict, str] = {}, opts: QueueBaseOptions = {}):
+    def __init__(
+        self,
+        redisOpts: Union[dict, str, None] = None,
+        opts: Optional[QueueBaseOptions] = None,
+    ):
         """
         Initialize a connection
         """
         super().__init__()
-        self.redisConnection = RedisConnection(
-            redisOpts,
-            skipVersionCheck=opts.get("skipVersionCheck", False)
-        )
-        self.client = self.redisConnection.conn
-        self.opts: dict = opts
-        self.prefix = opts.get("prefix", "bull")
-        self.scripts = Scripts(
-            self.prefix, "__default__", self.redisConnection)
+
+        if opts is None and isinstance(redisOpts, dict) and (
+            "prefix" in redisOpts
+            or "connection" in redisOpts
+            or "backend" in redisOpts
+            or "skipVersionCheck" in redisOpts
+        ):
+            opts = redisOpts
+            redisOpts = None
+
+        self.opts: dict = dict(opts or {})
+        if redisOpts is not None:
+            self.opts["connection"] = redisOpts
+        self.prefix = self.opts.get("prefix", "bull")
+        self.backend = create_backend("__default__", self.opts)
         self.closing = False
 
-    def queueFromNode(self, node: dict, queue_keys, prefix: str):
-        return MinimalQueue(node.get("queueName"), queue_keys, self.redisConnection, self.scripts, {"prefix": prefix})
+    def queueFromNode(self, node: dict, prefix: str):
+        queue_name = node.get("queueName")
+        node_backend = self.backend.forQueue(queue_name, prefix)
+        return MinimalQueue(queue_name, node_backend, {"prefix": prefix})
 
-    async def addChildren(self, nodes, parent, queues_opts, pipe):
+    async def addChildren(self, nodes, parent, queues_opts, entries):
         children = []
         for node in nodes:
-            job = await self.addNode(node, parent, queues_opts, pipe)
+            job = await self.addNode(node, parent, queues_opts, entries)
             children.append(job)
         return children
 
-    async def addNode(self, node: dict, parent: dict, queues_opts: dict, pipe):
+    async def addNode(self, node: dict, parent: dict, queues_opts: dict, entries: list):
+        """
+        Build the job for ``node`` (and, recursively, its children) and append
+        it to the flat, pre-ordered ``entries`` list that is later inserted
+        atomically via ``backend.addFlow``. A node with children is added as a
+        parent job (before its children, which reference it).
+        """
         prefix = node.get("prefix", self.prefix)
-        queue = self.queueFromNode(node, QueueKeys(prefix), prefix)
+        queue = self.queueFromNode(node, prefix)
         queue_name = node.get("queueName")
         queue_opts = queues_opts and queues_opts.get(queue_name)
 
@@ -94,7 +106,7 @@ class FlowProducer(EventEmitter):
         # caller-provided `queuesOptions[*].defaultJobOptions`; otherwise
         # node-level options like `parent`/`jobId` would persist across
         # subsequent nodes/flows that share the same defaults dict.
-        default_opts = (queue_opts or {}).get('defaultJobOptions') or {}
+        default_opts = (queue_opts or {}).get("defaultJobOptions") or {}
         node_opts = node.get("opts") or {}
         parent_opts = parent.get("parentOpts")
         jobs_opts = {**default_opts, **node_opts, "parent": parent_opts}
@@ -110,11 +122,10 @@ class FlowProducer(EventEmitter):
 
         node_children = node.get("children", [])
 
-        self.scripts.resetQueueKeys(queue_name)
         if len(node_children) > 0:
             parent_id = job_id
 
-            await self.scripts.addParentJob(job, pipe)
+            entries.append({"job": job, "is_parent": True})
 
             children = await self.addChildren(
                 node_children,
@@ -125,25 +136,25 @@ class FlowProducer(EventEmitter):
                     }
                 },
                 queues_opts,
-                pipe,
+                entries,
             )
             return {"job": job, "children": children}
         else:
-            await self.scripts.addJob(job, pipe)
+            entries.append({"job": job, "is_parent": False})
             return {"job": job}
 
-    async def addNodes(self, nodes: list[dict], pipe):
+    async def addNodes(self, nodes: list[dict], entries: list):
         """
-        Queue every root node in `nodes` onto `pipe`. Kept for backward
+        Queue every root node in `nodes` onto `entries`. Kept for backward
         compatibility with callers that don't need per-tree result
         mapping. `addBulk` uses `_queue_tree` directly so it can track
-        each root's pipeline index.
+        each root's result index.
         """
         trees = []
         for node in nodes:
             parent_opts = node.get("opts", {}).get("parent", None)
             jobs_tree = await self.addNode(
-                node, {"parentOpts": parent_opts}, None, pipe
+                node, {"parentOpts": parent_opts}, None, entries
             )
             trees.append(jobs_tree)
         return trees
@@ -168,15 +179,12 @@ class FlowProducer(EventEmitter):
         parent_key = get_parent_key(parent_opts)
         queues_options = opts.get("queuesOptions")
 
-        async with self.redisConnection.conn.pipeline(transaction=True) as pipe:
-            # Only one tree, so the root command is at index 0.
-            jobs_tree, _ = await self._queue_tree(pipe, flow, queues_options)
-            exec_results = await pipe.execute()
-            root_result = self._result_at(exec_results, 0)
-            self._apply_root_result(
-                jobs_tree, root_result, parent_key, strict=True
-            )
-            return jobs_tree
+        entries: list = []
+        jobs_tree, _ = await self._queue_tree(entries, flow, queues_options)
+        results = await self.backend.addFlow(entries)
+        root_result = self._result_at(results, 0)
+        self._apply_root_result(jobs_tree, root_result, parent_key, strict=True)
+        return jobs_tree
 
     async def addBulk(self, flows: list[dict]) -> Optional[list[dict]]:
         """
@@ -192,43 +200,41 @@ class FlowProducer(EventEmitter):
         if self.closing:
             return None
 
-        async with self.redisConnection.conn.pipeline(transaction=True) as pipe:
-            queued: list[tuple[dict, int]] = []
-            running_index = 0
-            for flow in flows:
-                jobs_tree, queued_count = await self._queue_tree(
-                    pipe, flow, queues_options=None
-                )
-                queued.append((jobs_tree, running_index))
-                running_index += queued_count
+        entries: list = []
+        queued: list[tuple[dict, int]] = []
+        running_index = 0
+        for flow in flows:
+            jobs_tree, queued_count = await self._queue_tree(
+                entries, flow, queues_options=None
+            )
+            queued.append((jobs_tree, running_index))
+            running_index += queued_count
 
-            exec_results = await pipe.execute()
+        results = await self.backend.addFlow(entries)
 
-            for jobs_tree, root_index in queued:
-                root_result = self._result_at(exec_results, root_index)
-                self._apply_root_result(
-                    jobs_tree, root_result, parent_key=None, strict=False
-                )
+        for jobs_tree, root_index in queued:
+            root_result = self._result_at(results, root_index)
+            self._apply_root_result(
+                jobs_tree, root_result, parent_key=None, strict=False
+            )
 
-            return [tree for tree, _ in queued]
+        return [tree for tree, _ in queued]
 
     async def _queue_tree(
         self,
-        pipe,
+        entries: list,
         flow: dict,
         queues_options: Optional[dict],
     ) -> tuple[dict, int]:
         """
-        Queue one flow (root + children) onto `pipe` and return the
+        Queue one flow (root + children) onto `entries` and return the
         resulting `JobNode`-shaped dict together with the number of
-        commands that were queued for this tree. Callers track the
-        root-command index themselves by accumulating the returned
-        count. Counting nodes ourselves avoids reaching into redis-py's
-        `pipe.command_stack`, which is not a stable public API.
+        backend results consumed by this tree. Callers track the root
+        result index themselves by accumulating the returned count.
         """
         parent_opts = flow.get("opts", {}).get("parent", None)
         jobs_tree = await self.addNode(
-            flow, {"parentOpts": parent_opts}, queues_options, pipe
+            flow, {"parentOpts": parent_opts}, queues_options, entries
         )
         # `addNode` queues exactly one command per visited node
         # (`addParentJob` for nodes with children, `addJob` for leaves),
@@ -303,10 +309,11 @@ class FlowProducer(EventEmitter):
         Close the flow instance.
         """
         self.closing = True
-        return await self.redisConnection.close()
+        return await self.backend.close()
 
-    def disconnect(self):
+    async def disconnect(self):
         """
-        Force-disconnect the underlying Redis connection.
+        Force-disconnect the underlying backend connection.
         """
-        return self.redisConnection.disconnect()
+        self.closing = True
+        return await self.backend.disconnect()

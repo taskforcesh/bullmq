@@ -66,7 +66,7 @@ defmodule BullMQ.StalledChecker do
   use GenServer
   require Logger
 
-  alias BullMQ.{Keys, RedisConnection, Scripts, Telemetry}
+  alias BullMQ.Backend
 
   @type opts :: [
           connection: atom(),
@@ -113,9 +113,9 @@ defmodule BullMQ.StalledChecker do
   def check(connection, queue, opts \\ []) do
     prefix = Keyword.get(opts, :prefix, "bull")
     max_stalled_count = Keyword.get(opts, :max_stalled_count, 1)
-    ctx = Keys.context(prefix, queue)
+    backend = Backend.create(queue, connection: connection, prefix: prefix)
 
-    do_check(connection, ctx, max_stalled_count)
+    Backend.check_stalled_jobs(backend, max_stalled_count)
   end
 
   @doc """
@@ -125,12 +125,10 @@ defmodule BullMQ.StalledChecker do
           {:ok, boolean()} | {:error, term()}
   def job_stalled?(connection, queue, job_id, opts \\ []) do
     prefix = Keyword.get(opts, :prefix, "bull")
-    ctx = Keys.context(prefix, queue)
-    lock_key = Keys.lock(ctx, job_id)
+    backend = Backend.create(queue, connection: connection, prefix: prefix)
 
-    case RedisConnection.command(connection, ["EXISTS", lock_key]) do
-      {:ok, 0} -> {:ok, true}
-      {:ok, 1} -> {:ok, false}
+    case Backend.has_job_lock?(backend, job_id) do
+      {:ok, exists} -> {:ok, not exists}
       {:error, _} = error -> error
     end
   end
@@ -161,9 +159,9 @@ defmodule BullMQ.StalledChecker do
 
   @impl true
   def handle_info(:check_stalled, state) do
-    ctx = Keys.context(state.prefix, state.queue)
+    backend = Backend.create(state.queue, connection: state.connection, prefix: state.prefix)
 
-    case do_check(state.connection, ctx, state.max_stalled_count) do
+    case Backend.check_stalled_jobs(backend, state.max_stalled_count) do
       {:ok, result} ->
         if result.recovered > 0 or result.failed > 0 do
           Logger.info(
@@ -188,98 +186,5 @@ defmodule BullMQ.StalledChecker do
     end
 
     :ok
-  end
-
-  # Private functions
-
-  defp do_check(connection, ctx, max_stalled_count) do
-    # Get active jobs
-    case RedisConnection.command(connection, ["LRANGE", Keys.active(ctx), 0, -1]) do
-      {:ok, []} ->
-        {:ok, %{recovered: 0, failed: 0}}
-
-      {:ok, job_ids} ->
-        # Check which jobs are stalled (no valid lock)
-        check_jobs_stalled(connection, ctx, job_ids, max_stalled_count)
-
-      {:error, _} = error ->
-        error
-    end
-  end
-
-  defp check_jobs_stalled(connection, ctx, job_ids, max_stalled_count) do
-    # Build commands to check all locks
-    lock_commands =
-      Enum.map(job_ids, fn job_id ->
-        ["EXISTS", Keys.lock(ctx, job_id)]
-      end)
-
-    case RedisConnection.pipeline(connection, lock_commands) do
-      {:ok, results} ->
-        # Find stalled jobs (lock doesn't exist)
-        stalled_jobs =
-          Enum.zip(job_ids, results)
-          |> Enum.filter(fn {_id, exists} -> exists == 0 end)
-          |> Enum.map(fn {id, _} -> id end)
-
-        if Enum.empty?(stalled_jobs) do
-          {:ok, %{recovered: 0, failed: 0}}
-        else
-          move_stalled_jobs(connection, ctx, stalled_jobs, max_stalled_count)
-        end
-
-      {:error, _} = error ->
-        error
-    end
-  end
-
-  defp move_stalled_jobs(connection, ctx, stalled_jobs, max_stalled_count) do
-    # Use Lua script to atomically move stalled jobs
-    {script, _key_count} = Scripts.get(:move_stalled_jobs_to_wait)
-
-    keys = [
-      Keys.stalled(ctx),
-      Keys.wait(ctx),
-      Keys.active(ctx),
-      Keys.failed(ctx),
-      Keys.key(ctx),
-      Keys.meta(ctx),
-      Keys.events(ctx),
-      Keys.marker(ctx)
-    ]
-
-    args = [
-      max_stalled_count,
-      System.system_time(:millisecond),
-      Enum.count(stalled_jobs),
-      Enum.join(stalled_jobs, " ")
-    ]
-
-    case Scripts.execute_raw(connection, script, keys, args) do
-      {:ok, [recovered, failed]} ->
-        # Emit telemetry events
-        if recovered > 0 do
-          Telemetry.emit(:stalled_recovered, %{count: recovered}, %{
-            queue: ctx.name,
-            prefix: ctx.prefix
-          })
-        end
-
-        if failed > 0 do
-          Telemetry.emit(:stalled_failed, %{count: failed}, %{
-            queue: ctx.name,
-            prefix: ctx.prefix
-          })
-        end
-
-        {:ok, %{recovered: recovered, failed: failed}}
-
-      {:ok, result} ->
-        # Handle different response formats
-        {:ok, %{recovered: result, failed: 0}}
-
-      {:error, _} = error ->
-        error
-    end
   end
 end

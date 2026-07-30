@@ -6,8 +6,7 @@ from redis.exceptions import (
     TimeoutError as RedisTimeoutError,
 )
 from bullmq.custom_errors import UnrecoverableError, WaitingChildrenError
-from bullmq.scripts import Scripts
-from bullmq.redis_connection import RedisConnection
+from bullmq.backends import RedisBackend, create_backend
 from bullmq.event_emitter import EventEmitter
 from bullmq.job import Job
 from bullmq.lock_manager import LockManager
@@ -17,6 +16,7 @@ from bullmq.utils import extract_result
 
 import asyncio
 import errno
+import functools
 import inspect
 import re
 import traceback
@@ -69,9 +69,20 @@ _TRANSIENT_MESSAGE_FRAGMENTS = (
 )
 
 
+@functools.lru_cache(maxsize=1)
+def _postgres_connection_error_types():
+    try:
+        from psycopg import InterfaceError as PostgresInterfaceError
+        from psycopg import OperationalError as PostgresOperationalError
+    except ImportError:
+        return ()
+    return (PostgresInterfaceError, PostgresOperationalError)
+
+
 class Worker(EventEmitter):
     def __init__(self, name: str, processor: Callable[..., asyncio.Future], opts: WorkerOptions = {}):
         super().__init__()
+        opts = opts or {}
         self.name = name
         self.processor = processor
         # Detect whether the processor wants an `AbortSignal` third argument.
@@ -96,20 +107,21 @@ class Worker(EventEmitter):
         if "lockRenewTime" not in final_opts:
             final_opts["lockRenewTime"] = final_opts["lockDuration"] // 2
         self.opts = final_opts
-        redis_opts = opts.get("connection", {})
-        skip_version_check = opts.get("skipVersionCheck", False)
-        self.redisConnection = RedisConnection(
-            redis_opts,
-            skipVersionCheck=skip_version_check,
+        self.backend = create_backend(
+            name, self.opts, with_blocking_connection=True
         )
-        self.blockingRedisConnection = RedisConnection(
-            redis_opts,
-            skipVersionCheck=skip_version_check,
+        # Compatibility handles for callers/tests that read the raw connections
+        # (Redis backend only). All datastore operations go through `backend`.
+        self.redisConnection = (
+            self.backend.connection if isinstance(self.backend, RedisBackend) else None
         )
-        self.client = self.redisConnection.conn
-        self.bclient = self.blockingRedisConnection.conn
-        self.prefix = opts.get("prefix", "bull")
-        self.scripts = Scripts(opts.get("prefix", "bull"), name, self.redisConnection)
+        self.blockingRedisConnection = (
+            self.backend.blocking_connection if isinstance(self.backend, RedisBackend) else None
+        )
+        self.client = getattr(self.backend, "conn", None)
+        self.bclient = getattr(self.backend, "bclient", None)
+        self.scripts = getattr(self.backend, "scripts", None)
+        self.prefix = self.opts.get("prefix", "bull")
         self.closing = False
         self.forceClosing = False
         self.closed = False
@@ -122,9 +134,11 @@ class Worker(EventEmitter):
         self.blockUntil = 0
         self.limitUntil = 0
         self.drained = False
-        self.qualifiedName = self.scripts.queue_keys.getQueueQualifiedName(name)
+        self.qualifiedName = self.backend.qualifiedName
         self.workerName = opts.get("name")
-        self.clientName = self.qualifiedName + (f":w:{self.workerName}" if self.workerName else "")
+        self.clientName = self.backend.clientName(
+            f":w:{self.workerName}" if self.workerName else ""
+        )
         self._client_name_set = False
 
         self.lockManager = LockManager(
@@ -231,7 +245,7 @@ class Worker(EventEmitter):
             return job_instance
 
     async def moveToActive(self, token: str):
-        result = await self.scripts.moveToActive(token, self.opts)
+        result = await self.backend.moveToActive(token, self.opts)
         job_data = None
         id = None
         limit_until = None
@@ -262,10 +276,10 @@ class Worker(EventEmitter):
 
     async def waitForJob(self) -> int:
         block_timeout = self.getBlockTimeout(self.blockUntil)
-        block_timeout = block_timeout if self.blockingRedisConnection.capabilities.get("canDoubleTimeout", False) else math.ceil(block_timeout)
+        block_timeout = block_timeout if self.backend.capabilities.get("canDoubleTimeout", False) else math.ceil(block_timeout)
 
         try:
-            result = await self.bclient.bzpopmin(self.scripts.keys["marker"], block_timeout)
+            result = await self.backend.waitForJob(block_timeout)
         except (asyncio.CancelledError, KeyboardInterrupt, SystemExit):
             # Cooperative cancellation must propagate immediately;
             # adding a sleep here would defeat the cancel signal.
@@ -298,8 +312,7 @@ class Worker(EventEmitter):
         if self._client_name_set:
             return
 
-        await self.redisConnection.set_client_name(self.clientName)
-        await self.blockingRedisConnection.set_client_name(self.clientName)
+        await self.backend.setName(self.clientName)
         self._client_name_set = True
 
     def getBlockTimeout(self, block_until: int) -> float:
@@ -319,7 +332,7 @@ class Worker(EventEmitter):
 
     @property
     def minimumBlockTimeout(self):
-        return minimum_block_timeout if self.blockingRedisConnection.capabilities.get("canBlockFor1Ms", True) else 0.002
+        return self.backend.minimumBlockTimeout
 
     async def processJob(self, job: Job, token: str):
         try:
@@ -347,7 +360,7 @@ class Worker(EventEmitter):
             else:
                 result = await self.processor(job, token)
             if not self.forceClosing:
-                await self.scripts.moveToCompleted(job, result, job.opts.get("removeOnComplete", False), token, fetchNext=False)
+                await self.backend.moveToCompleted(job, result, job.opts.get("removeOnComplete", False), token, fetch_next=False)
                 job.returnvalue = result
                 job.attemptsMade = job.attemptsMade + 1
             self.emit("completed", job, result)
@@ -444,6 +457,11 @@ class Worker(EventEmitter):
         ):
             return True
 
+        if self.opts.get("backend") == "postgres" and isinstance(
+            error, _postgres_connection_error_types()
+        ):
+            return True
+
         # DNS or socket failures raised before the redis client has a
         # chance to wrap them surface as a plain OSError. Match either
         # error.errno, any [Errno N] embedded in the message string, or
@@ -462,9 +480,26 @@ class Worker(EventEmitter):
 
         return False
 
+    async def extendLocks(self):
+        # Renew all the locks for the jobs that are still active
+        try:
+            job_ids = []
+            tokens = []
+            for job, token in self.jobs:
+                job_ids.append(job.id)
+                tokens.append(token)
+            result = await self.backend.extendLocks(job_ids, tokens, self.opts.get("lockDuration"))
+
+            # result includes job IDs with locks that may not have been renewed.
+            # We should emit an error for each of those jobs.
+            #    for jobId in result:
+            #    self.emit("error", "could not renew lock for job " + jobId)
+
+        except Exception as e:
+            traceback.print_exc()
     async def runStalledJobsCheck(self):
         try:
-            stalled = await self.scripts.moveStalledJobsToWait(self.opts.get("maxStalledCount"), self.opts.get("stalledInterval"))
+            stalled = await self.backend.moveStalledJobsToWait(self.opts.get("maxStalledCount"), self.opts.get("stalledInterval"))
             for jobId in stalled:
                 self.emit("stalled", jobId)
 
@@ -492,11 +527,10 @@ class Worker(EventEmitter):
 
         await self.lockManager.close()
 
-        for conn in (self.blockingRedisConnection, self.redisConnection):
-            try:
-                await conn.close()
-            except Exception as err:
-                self.emit('error', err)
+        try:
+            await self.backend.close(force=force)
+        except Exception as err:
+            self.emit('error', err)
 
         self.closed = True
         self.emit('closed')

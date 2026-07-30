@@ -40,7 +40,7 @@ class LockManager:
     ):
         """
         @param worker: The Worker that owns this manager. Used to access
-                       `scripts.extendJobLocks` and to emit events.
+                       `backend.extendLocks` and to emit events.
         @param lock_renew_time: Total renewal window in milliseconds. The
                                 renewal loop wakes every `lock_renew_time / 2`
                                 ms; jobs whose stored timestamp is older than
@@ -205,7 +205,7 @@ class LockManager:
                 (self.tracked_jobs.get(jid) or {}).get("token", "")
                 for jid in job_ids
             ]
-            errored_job_ids = await self.worker.scripts.extendJobLocks(
+            errored_job_ids = await self.worker.backend.extendLocks(
                 job_ids, tokens, self.lock_duration
             )
 

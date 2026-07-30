@@ -13,6 +13,12 @@ export interface ScriptQueueContext {
    */
   get client(): Promise<RedisClient>;
   /**
+   * Optional dedicated blocking connection used by the backend's
+   * `waitForJob` primitive. Only workers provide it; other contexts (e.g. a
+   * plain Queue) leave it undefined since they never block waiting for jobs.
+   */
+  blockingClient?: Promise<RedisClient>;
+  /**
    * Returns the database type of the Redis instance the client is connected to,
    */
   get databaseType(): DatabaseType;

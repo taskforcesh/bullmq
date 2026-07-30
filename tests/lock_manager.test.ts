@@ -11,8 +11,9 @@ import {
 import { randomUUID } from '../src/utils';
 import { LockManager, Queue, Worker } from '../src/classes';
 import { IRedisClient, LockManagerWorkerContext } from '../src/interfaces';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
 
 describe('LockManager', () => {
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
@@ -416,7 +417,7 @@ describe('LockManager', () => {
 
     afterEach(async () => {
       await queue.close();
-      await removeAllQueueData(createTestConnection(), queueName);
+      await cleanupQueue(queueName);
     }, 15000);
 
     it('should track jobs during processing', async () => {

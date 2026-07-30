@@ -5,7 +5,7 @@ import { JobJson } from './job-json';
 import { ParentKeys } from './parent';
 import { ParentOptions } from './parent-options';
 
-export type BulkJobOptions = Omit<JobsOptions, 'repeat'>;
+export type BulkJobOptions = JobsOptions;
 
 export interface MoveToDelayedOpts {
   skipAttempt?: boolean;
@@ -160,7 +160,7 @@ export interface MinimalJob<
   get prefix(): string;
   /**
    * @returns it includes the prefix, the namespace separator :, and queue name.
-   * @see https://www.gnu.org/software/gawk/manual/html_node/Qualified-Names.html
+   * @see {@link https://www.gnu.org/software/gawk/manual/html_node/Qualified-Names.html}
    */
   get queueQualifiedName(): string;
 }

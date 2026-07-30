@@ -28,7 +28,7 @@ local rcall = redis.call;
 -- Includes
 --- @include "includes/addJobInTargetList"
 --- @include "includes/getOrSetMaxEvents"
---- @include "includes/getTargetQueueList"
+--- @include "includes/isQueuePausedOrMaxed"
 
 local jobKey = KEYS[1]
 if rcall("EXISTS", jobKey) == 1 then
@@ -46,8 +46,8 @@ if rcall("EXISTS", jobKey) == 1 then
 
     rcall("HDEL", jobKey, "finishedOn", "processedOn", ARGV[3], unpack(attributesToRemove))
 
-    local target, isPausedOrMaxed = getTargetQueueList(KEYS[5], KEYS[7], KEYS[4], KEYS[6])
-    addJobInTargetList(target, KEYS[8], ARGV[2], isPausedOrMaxed, jobId)
+    local isPausedOrMaxed = isQueuePausedOrMaxed(KEYS[5], KEYS[7])
+    addJobInTargetList(KEYS[4], KEYS[8], ARGV[2], isPausedOrMaxed, jobId)
 
     local parentKey = rcall("HGET", jobKey, "parentKey")
 

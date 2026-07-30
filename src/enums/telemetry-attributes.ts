@@ -14,6 +14,7 @@ export enum TelemetryAttributes {
   QueueDrainDelay = 'bullmq.queue.drain.delay',
   QueueGrace = 'bullmq.queue.grace',
   QueueCleanLimit = 'bullmq.queue.clean.limit',
+  QueueCleanCount = 'bullmq.queue.clean.count',
   QueueRateLimit = 'bullmq.queue.rate.limit',
   JobType = 'bullmq.job.type',
   QueueOptions = 'bullmq.queue.options',
@@ -28,20 +29,12 @@ export enum TelemetryAttributes {
   WorkerStalledJobs = 'bullmq.worker.stalled.jobs',
   WorkerFailedJobs = 'bullmq.worker.failed.jobs',
   WorkerJobsToExtendLocks = 'bullmq.worker.jobs.to.extend.locks',
-  /**
-   * @deprecated Use JobAttemptFinishedTimestamp instead. Will be removed in a future version.
-   */
-  JobFinishedTimestamp = 'bullmq.job.finished.timestamp',
   JobAttemptFinishedTimestamp = 'bullmq.job.attempt_finished_timestamp',
   JobProcessedTimestamp = 'bullmq.job.processed.timestamp',
   JobResult = 'bullmq.job.result',
   JobFailedReason = 'bullmq.job.failed.reason',
   FlowName = 'bullmq.flow.name',
   JobSchedulerId = 'bullmq.job.scheduler.id',
-  /**
-   * @deprecated Use JobState instead. Will be removed in a future version.
-   */
-  JobStatus = 'bullmq.job.status',
   JobState = 'bullmq.job.state',
 }
 

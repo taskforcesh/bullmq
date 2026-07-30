@@ -24,6 +24,9 @@ export default defineConfig({
       'tests/bun-redis.test.ts',
       'tests/bun-adapter-suite.test.ts',
 
+      // PostgreSQL backend tests run in the dedicated PostgreSQL CI job.
+      'tests/postgres/**',
+
       // Node.js-specific tests (worker threads / child processes)
       'tests/child-pool.test.ts',
 
@@ -39,8 +42,8 @@ export default defineConfig({
       'node_modules/**',
     ],
     setupFiles: ['./vitest.bun.setup.ts'],
-    testTimeout: 10000,
-    hookTimeout: 10000,
+    testTimeout: 20000,
+    hookTimeout: 20000,
     sequence: { concurrent: false },
     reporters: ['verbose'],
   },

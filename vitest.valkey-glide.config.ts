@@ -11,6 +11,7 @@ export default defineConfig({
       'tests/adapter-conformance.test.ts',
       'tests/bun-redis.test.ts',
       'tests/bun-adapter-suite.test.ts',
+      'tests/postgres/**',
       'tests/valkey-glide-client.test.ts',
       'tests/test_*.ts',
       'tests/debug-*.test.ts',
