@@ -3,6 +3,7 @@ import { markdownItGitbook } from './gitbook';
 import { loadNavigation } from './sidebar';
 
 const { nav, sidebar } = loadNavigation();
+const legacyApiOrigin = 'https://api.docs.bullmq.io';
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
@@ -17,9 +18,6 @@ export default defineConfig({
   // Content lives in ./gitbook (migrated from the GitBook site).
   srcDir: 'gitbook',
   srcExclude: ['**/SUMMARY.md'],
-  vite: {
-    publicDir: 'gitbook/public',
-  },
 
   // GitBook used README.md as the index of each folder; map those to clean
   // directory URLs (e.g. guide/queues/README.md -> /guide/queues/).
@@ -32,6 +30,26 @@ export default defineConfig({
   markdown: {
     config: md => {
       md.use(markdownItGitbook);
+      md.core.ruler.after('inline', 'rewrite-api-reference-links', state => {
+        for (const token of state.tokens) {
+          for (const child of token.children ?? []) {
+            if (child.type === 'link_open') {
+              const href = child.attrGet('href');
+              if (href === legacyApiOrigin || href === `${legacyApiOrigin}/`) {
+                child.attrSet('href', '/api/index.html');
+              } else if (href?.startsWith(`${legacyApiOrigin}/`)) {
+                child.attrSet(
+                  'href',
+                  `/api/${href.slice(legacyApiOrigin.length + 1)}`,
+                );
+              }
+              if (child.attrGet('href')?.startsWith('/api/')) {
+                child.attrSet('target', '_self');
+              }
+            }
+          }
+        }
+      });
     },
   },
 

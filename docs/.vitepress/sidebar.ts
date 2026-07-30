@@ -95,6 +95,9 @@ export function loadNavigation(): {
   const toSidebarItem = (item: RawItem): DefaultTheme.SidebarItem => {
     const node: DefaultTheme.SidebarItem = { text: item.text };
     node.link = toLink(item.target);
+    if (node.link.startsWith('/api/')) {
+      node.target = '_self';
+    }
     if (item.children.length > 0) {
       node.collapsed = true;
       node.items = item.children.map(toSidebarItem);
@@ -146,7 +149,11 @@ export function loadNavigation(): {
     nav.push({ text: 'Pro', link: proLink });
   }
 
-  nav.push({ text: 'API Reference', link: 'https://api.docs.bullmq.io' });
+  nav.push({
+    text: 'API Reference',
+    link: '/api/index.html',
+    target: '_self',
+  });
 
   return { nav, sidebar };
 }
