@@ -45,6 +45,6 @@ croner = "=3.0.1"
 chrono-tz = "=0.10.4"
 
 [dev-dependencies]
-tokio = { version = "=1.52.3", features = ["full", "test-util"] }
+tokio = { version = "=1.53.1", features = ["full", "test-util"] }
 tracing-subscriber = { version = "=0.3.23", features = ["env-filter"] }
 rand = "=0.8.6"
