@@ -11,13 +11,13 @@
 <li><a href="../modules/v5.html">v5</a></li>
 <li><a href="" aria-current="page">FlowJobBase</a></li></ul>
 <h1>Interface FlowJobBase&lt;T&gt;</h1></div>
-<div class="tsd-signature"><span class="tsd-signature-keyword">interface</span> <span class="tsd-kind-interface">FlowJobBase</span><span class="tsd-signature-symbol">&lt;</span><a class="tsd-signature-type tsd-kind-type-parameter" href="#t">T</a><span class="tsd-signature-symbol">&gt;</span> <span class="tsd-signature-symbol">{</span><br/>    <a class="tsd-kind-property" href="#children">children</a><span class="tsd-signature-symbol">?:</span> <a href="../types/v5.FlowChildJob.html" class="tsd-signature-type tsd-kind-type-alias">FlowChildJob</a><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#data">data</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#name">name</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#opts">opts</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">Omit</span><span class="tsd-signature-symbol">&lt;</span><a class="tsd-signature-type tsd-kind-type-parameter" href="#t">T</a><span class="tsd-signature-symbol">,</span> <span class="tsd-signature-type">&quot;repeat&quot;</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#prefix">prefix</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#queuename">queueName</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div>
+<div class="tsd-signature"><span class="tsd-signature-keyword">interface</span> <span class="tsd-kind-interface">FlowJobBase</span><span class="tsd-signature-symbol">&lt;</span><a class="tsd-signature-type tsd-kind-type-parameter" href="#t">T</a><span class="tsd-signature-symbol">&gt;</span> <span class="tsd-signature-symbol">{</span><br/>    <a class="tsd-kind-property" href="#data">data</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#name">name</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#opts">opts</a><span class="tsd-signature-symbol">?:</span> <a class="tsd-signature-type tsd-kind-type-parameter" href="#t">T</a><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#prefix">prefix</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#queuename">queueName</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div>
 <section class="tsd-panel">
 <h4>Type Parameters</h4>
 <ul class="tsd-type-parameter-list">
 <li><span id="t"><span class="tsd-kind-type-parameter">T</span></span></li></ul></section><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/76f2d1fc0dadab1448aaf819b039e051c0a901c9/src/interfaces/flow-job.ts#L4">interfaces/flow-job.ts:4</a></li></ul></aside>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/544be589e8b44040c63487d7fe9c6100f6c9ce4c/src/interfaces/flow-job.ts#L19">interfaces/flow-job.ts:19</a></li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-accordion" open><summary class="tsd-accordion-summary tsd-index-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
@@ -25,8 +25,7 @@
 <div class="tsd-accordion-details">
 <section class="tsd-index-section">
 <h3 class="tsd-index-heading tsd-anchor-link" id="properties">Properties<a href="#properties" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
-<div class="tsd-index-list"><a href="#children" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>children?</span></a>
-<a href="#data" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>data?</span></a>
+<div class="tsd-index-list"><a href="#data" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>data?</span></a>
 <a href="#name" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>name</span></a>
 <a href="#opts" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>opts?</span></a>
 <a href="#prefix" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>prefix?</span></a>
@@ -36,35 +35,30 @@
 <h2 class="tsd-anchor-link" id="properties-1">Properties<a href="#properties-1" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h2></summary>
 <section>
 <section class="tsd-panel tsd-member">
-<h3 class="tsd-anchor-link" id="children"><code class="tsd-tag">Optional</code><span>children</span><a href="#children" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
-<div class="tsd-signature"><span class="tsd-kind-property">children</span><span class="tsd-signature-symbol">?:</span> <a href="../types/v5.FlowChildJob.html" class="tsd-signature-type tsd-kind-type-alias">FlowChildJob</a><span class="tsd-signature-symbol">[]</span></div><aside class="tsd-sources">
-<ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/76f2d1fc0dadab1448aaf819b039e051c0a901c9/src/interfaces/flow-job.ts#L10">interfaces/flow-job.ts:10</a></li></ul></aside></section>
-<section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="data"><code class="tsd-tag">Optional</code><span>data</span><a href="#data" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">data</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">any</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/76f2d1fc0dadab1448aaf819b039e051c0a901c9/src/interfaces/flow-job.ts#L7">interfaces/flow-job.ts:7</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/544be589e8b44040c63487d7fe9c6100f6c9ce4c/src/interfaces/flow-job.ts#L22">interfaces/flow-job.ts:22</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="name"><span>name</span><a href="#name" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">name</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/76f2d1fc0dadab1448aaf819b039e051c0a901c9/src/interfaces/flow-job.ts#L5">interfaces/flow-job.ts:5</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/544be589e8b44040c63487d7fe9c6100f6c9ce4c/src/interfaces/flow-job.ts#L20">interfaces/flow-job.ts:20</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="opts"><code class="tsd-tag">Optional</code><span>opts</span><a href="#opts" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
-<div class="tsd-signature"><span class="tsd-kind-property">opts</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">Omit</span><span class="tsd-signature-symbol">&lt;</span><a class="tsd-signature-type tsd-kind-type-parameter" href="#t">T</a><span class="tsd-signature-symbol">,</span> <span class="tsd-signature-type">&quot;repeat&quot;</span><span class="tsd-signature-symbol">&gt;</span></div><aside class="tsd-sources">
+<div class="tsd-signature"><span class="tsd-kind-property">opts</span><span class="tsd-signature-symbol">?:</span> <a class="tsd-signature-type tsd-kind-type-parameter" href="#t">T</a></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/76f2d1fc0dadab1448aaf819b039e051c0a901c9/src/interfaces/flow-job.ts#L9">interfaces/flow-job.ts:9</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/544be589e8b44040c63487d7fe9c6100f6c9ce4c/src/interfaces/flow-job.ts#L24">interfaces/flow-job.ts:24</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="prefix"><code class="tsd-tag">Optional</code><span>prefix</span><a href="#prefix" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">prefix</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/76f2d1fc0dadab1448aaf819b039e051c0a901c9/src/interfaces/flow-job.ts#L8">interfaces/flow-job.ts:8</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/544be589e8b44040c63487d7fe9c6100f6c9ce4c/src/interfaces/flow-job.ts#L23">interfaces/flow-job.ts:23</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="queuename"><span>queue<wbr/>Name</span><a href="#queuename" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">queueName</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/76f2d1fc0dadab1448aaf819b039e051c0a901c9/src/interfaces/flow-job.ts#L6">interfaces/flow-job.ts:6</a></li></ul></aside></section></section></details></div>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/544be589e8b44040c63487d7fe9c6100f6c9ce4c/src/interfaces/flow-job.ts#L21">interfaces/flow-job.ts:21</a></li></ul></aside></section></section></details></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
@@ -79,7 +73,7 @@
 <h3>On This Page</h3></summary>
 <div class="tsd-accordion-details">
 <details open class="tsd-accordion tsd-page-navigation-section"><summary class="tsd-accordion-summary" data-key="section-Properties"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>Properties</summary>
-<div><a href="#children"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>children</span></a><a href="#data"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>data</span></a><a href="#name"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>name</span></a><a href="#opts"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>opts</span></a><a href="#prefix"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>prefix</span></a><a href="#queuename"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>queue<wbr/>Name</span></a></div></details></div></details></div>
+<div><a href="#data"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>data</span></a><a href="#name"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>name</span></a><a href="#opts"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>opts</span></a><a href="#prefix"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>prefix</span></a><a href="#queuename"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>queue<wbr/>Name</span></a></div></details></div></details></div>
 <div class="site-menu">
 <nav class="tsd-navigation"><a href="../modules.html">bullmq - v5.81.3</a>
 <ul class="tsd-small-nested-navigation" id="tsd-nav-container">
