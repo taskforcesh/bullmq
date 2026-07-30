@@ -1,3 +1,12 @@
+## [5.81.3](https://github.com/taskforcesh/bullmq/compare/v5.81.2...v5.81.3) (2026-07-30)
+
+
+### Bug Fixes
+
+* **deps:** update dependency msgpackr to v2.0.5 [security] ([#4387](https://github.com/taskforcesh/bullmq/issues/4387)) ([6fccb59](https://github.com/taskforcesh/bullmq/commit/6fccb59248c3d78e81ae09ad70b8cbea7ae48b87))
+* **deps:** update dependency redis [security] ([#4369](https://github.com/taskforcesh/bullmq/issues/4369)) ([2a120df](https://github.com/taskforcesh/bullmq/commit/2a120dfea7324d7af67ad505c78f48571c74402b))
+* **worker:** recover blocking client after sentinel disconnect, fixes… ([#4384](https://github.com/taskforcesh/bullmq/issues/4384)) ([93649b8](https://github.com/taskforcesh/bullmq/commit/93649b8694a155a7c6fcd596f772e43b86285f1f))
+
 ## [5.81.2](https://github.com/taskforcesh/bullmq/compare/v5.81.1...v5.81.2) (2026-07-24)
 
 
