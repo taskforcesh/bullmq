@@ -1,3 +1,11 @@
+# [1.2.1](https://github.com/taskforcesh/bullmq/compare/vrs1.2.0...vrs1.2.1) (2026-07-30)
+
+
+### Bug Fixes
+
+* **deps:** pin dependencies [rust] ([#4402](https://github.com/taskforcesh/bullmq/issues/4402)) ([eb956b0](https://github.com/taskforcesh/bullmq/commit/eb956b07fde2ab3d43b41325a06a6b103610e3e3))
+* **deps:** update dependency redis [security] ([#4369](https://github.com/taskforcesh/bullmq/issues/4369)) ([2a120df](https://github.com/taskforcesh/bullmq/commit/2a120dfea7324d7af67ad505c78f48571c74402b))
+
 # [1.1.0](https://github.com/taskforcesh/bullmq/compare/vrs1.0.1...vrs1.1.0) (2026-07-15)
 
 

@@ -435,7 +435,7 @@ jobs:
             # Add and commit changes
             git add Cargo.toml || true
             git add Cargo.lock || true
-            git add CHANGELOG.md || true
+            git add ../docs/gitbook/rust/changelog.md || true
             
             # Check if there are actually changes to commit after adding
             if [[ -n $(git diff --cached --name-only) ]]; then
@@ -452,7 +452,7 @@ jobs:
               This PR contains:
               - Updated rust/Cargo.toml version
               - Updated rust/Cargo.lock
-              - Updated rust/CHANGELOG.md
+              - Updated docs/gitbook/rust/changelog.md
 
               Please review and merge to complete the release process." \
                 --head $BRANCH_NAME \
