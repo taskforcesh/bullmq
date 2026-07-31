@@ -1,3 +1,10 @@
+## [3.0.1](https://github.com/taskforcesh/bullmq/compare/vpy3.0.0...vpy3.0.1) (2026-07-31)
+
+
+### Bug Fixes
+
+* add missing sql files to release packages (elixir) (python) ([#4413](https://github.com/taskforcesh/bullmq/issues/4413)) ([a138230](https://github.com/taskforcesh/bullmq/commit/a1382307c1d0b8b185e16443daad6f221067f55d))
+
 # [3.0.0](https://github.com/taskforcesh/bullmq/compare/vpy2.26.0...vpy3.0.0) (2026-07-30)
 
 
