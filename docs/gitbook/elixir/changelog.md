@@ -1,3 +1,11 @@
+## [2.0.2](https://github.com/taskforcesh/bullmq/compare/vex2.0.1...vex2.0.2) (2026-07-31)
+
+
+### Bug Fixes
+
+* **deps:** update dependency redis to v7.4.1 ([#4426](https://github.com/taskforcesh/bullmq/issues/4426)) ([2ac754f](https://github.com/taskforcesh/bullmq/commit/2ac754fd718927e2c0043d6d7787de32d0d196f7))
+* **postgres:** drop redundant bullmq_ prefix from schema objects ([#4436](https://github.com/taskforcesh/bullmq/issues/4436)) (elixir) (python) (node) ([067a73f](https://github.com/taskforcesh/bullmq/commit/067a73f3666a493c36c03ec2cca8228ae149f043))
+
 ## [2.0.1](https://github.com/taskforcesh/bullmq/compare/vex2.0.0...vex2.0.1) (2026-07-31)
 
 
