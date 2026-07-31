@@ -20,7 +20,7 @@ docs/.vitepress/cache
 docs/gitbook/public/api
 
 # Generated current-version TypeDoc input
-apiVersions/v5.json
+apiVersions/v6.json
 
 # Editor directories and files
 .idea
