@@ -23,8 +23,8 @@ describe('ConnectionClosedError', () => {
   });
 
   it('treats the connection closed message as a connection error', () => {
-    expect(isNotConnectionError(new Error(CONNECTION_CLOSED_ERROR_MSG))).to.be
-      .false;
+    const error = new Error(CONNECTION_CLOSED_ERROR_MSG);
+    expect(isNotConnectionError(error)).to.be.false;
   });
 
   it('treats an unrelated error as not a connection error', () => {
