@@ -102,4 +102,4 @@ A working example is available [here](https://github.com/taskforcesh/nestjs-bull
 - 💡 [Queues Technique](https://docs.nestjs.com/techniques/queues)
 - 💡 [Register Queue API Reference](https://nestjs.bullmq.pro/classes/BullModule.html#registerQueue)
 - 💡 [Register Flow Producer API Reference](https://nestjs.bullmq.pro/classes/BullModule.html#registerFlowProducer)
-- 💡 [Worker Listener API Reference](https://api.docs.bullmq.io/interfaces/v5.WorkerListener.html)
+- 💡 [Worker Listener API Reference](https://docs.bullmq.io/api/interfaces/v6.WorkerListener.html)

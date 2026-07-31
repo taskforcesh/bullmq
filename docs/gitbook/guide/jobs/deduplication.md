@@ -190,7 +190,7 @@ When the active job is retried (e.g., due to `attempts` configuration), the stor
 
 ## Read more:
 
-- 💡 [Add Job API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#add)
-- 💡 [Queue Remove Deduplication Key API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removededuplicationkey)
-- 💡 [Job Remove Deduplication Key API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#removededuplicationkey)
+- 💡 [Add Job API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#add)
+- 💡 [Queue Remove Deduplication Key API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#removededuplicationkey)
+- 💡 [Job Remove Deduplication Key API Reference](https://docs.bullmq.io/api/classes/v6.Job.html#removededuplicationkey)
 - 💡 [Deduplication Patterns](../../patterns/deduplication.md)

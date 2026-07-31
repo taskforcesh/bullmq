@@ -102,5 +102,5 @@ let completed = queue.get_jobs(&["completed"], 0, 99, true).await?;
 
 ## Read more:
 
-- 💡 [Get Job Counts API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getjobcounts)
-- 💡 [Get Jobs API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getjobs)
+- 💡 [Get Job Counts API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#getjobcounts)
+- 💡 [Get Jobs API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#getjobs)

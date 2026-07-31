@@ -150,4 +150,4 @@ These additional labels allow you to filter and group metrics in Prometheus or G
 
 ## Read more:
 
-* 💡 [Export Prometheus Metrics API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#exportprometheusmetrics)
+* 💡 [Export Prometheus Metrics API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#exportprometheusmetrics)

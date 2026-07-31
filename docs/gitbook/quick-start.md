@@ -77,10 +77,10 @@ worker.on('failed', (job, err) => {
 ```
 
 {% hint style="info" %}
-There are many other events available, check the [Guide](guide/events.md) or the [API reference](https://api.docs.bullmq.io/) for more information.
+There are many other events available, check the [Guide](guide/events.md) or the [API reference](https://docs.bullmq.io/api/) for more information.
 {% endhint %}
 
-Sometimes you need to listen to all the workers events in a given place, for this you need to use a special class [`QueueEvents`](https://api.docs.bullmq.io/classes/v5.QueueEvents.html):
+Sometimes you need to listen to all the workers events in a given place, for this you need to use a special class [`QueueEvents`](https://docs.bullmq.io/api/classes/v6.QueueEvents.html):
 
 ```typescript
 import { QueueEvents } from 'bullmq';
@@ -117,5 +117,5 @@ queueEvents.on('progress', ({ jobId, data }, timestamp) => {
 ```
 
 {% hint style="danger" %}
-For performance reasons, the events emitted by a `QueueEvents` instance do not contain the `Job` instance, only the `jobId`. Use the [`Job.fromId`](https://api.docs.bullmq.io/classes/v5.Job.html#fromid) method if you need the `Job` instance.
+For performance reasons, the events emitted by a `QueueEvents` instance do not contain the `Job` instance, only the `jobId`. Use the [`Job.fromId`](https://docs.bullmq.io/api/classes/v6.Job.html#fromid) method if you need the `Job` instance.
 {% endhint %}

@@ -6,4 +6,4 @@ An important thing to consider is that you can mix the different job types in th
 
 ## Read more:
 
-- 💡 [Job API Reference](https://api.docs.bullmq.io/classes/v5.Job.html)
+- 💡 [Job API Reference](https://docs.bullmq.io/api/classes/v6.Job.html)

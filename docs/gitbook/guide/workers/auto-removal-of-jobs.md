@@ -2,7 +2,7 @@
 
 By default, when your queue jobs are completed (or failed), they are stored in two special sets, the "completed" and the "failed" set. This is useful so that you can examine the results of your jobs, particularly in the early stages of development. However, as the solution reaches a production-grade level, we usually need to restrict the number of finished jobs to be kept, so that we do not fill Redis with data that is not particularly useful.
 
-BullMQ supports different strategies for auto-removing finalized jobs. These strategies are configured on the Worker's options [`removeOnComplete`](https://api.docs.bullmq.io/interfaces/v5.WorkerOptions.html#removeoncomplete) and [`removeOnFail`](https://api.docs.bullmq.io/interfaces/v5.WorkerOptions.html#removeonfail).
+BullMQ supports different strategies for auto-removing finalized jobs. These strategies are configured on the Worker's options [`removeOnComplete`](https://docs.bullmq.io/api/interfaces/v6.WorkerOptions.html#removeoncomplete) and [`removeOnFail`](https://docs.bullmq.io/api/interfaces/v6.WorkerOptions.html#removeonfail).
 
 ### Remove all finalized jobs
 
@@ -174,7 +174,7 @@ let worker = Worker::new("myQueueName", processor, WorkerOptions {
 
 ### Keep jobs based on their age
 
-Another possibility is to keep jobs up to a certain age. The `removeOn` option accepts a [`KeepJobs`](https://api.docs.bullmq.io/interfaces/v5.KeepJobs.html) object, that includes `age`, `count`, and `limit` fields. The `age` is used to specify how old jobs to keep (in seconds), the `count` can be used to limit the total amount to keep, and the `limit` controls how many jobs are removed per cleanup iteration. The `count` option is useful in cases we get an unexpected amount of jobs in a very short time, in this case we may just want to limit to a certain amount to avoid running out of memory. The `limit` option helps control the performance impact of cleanup operations by limiting how many jobs are processed at once.
+Another possibility is to keep jobs up to a certain age. The `removeOn` option accepts a [`KeepJobs`](https://docs.bullmq.io/api/interfaces/v6.KeepJobs.html) object, that includes `age`, `count`, and `limit` fields. The `age` is used to specify how old jobs to keep (in seconds), the `count` can be used to limit the total amount to keep, and the `limit` controls how many jobs are removed per cleanup iteration. The `count` option is useful in cases we get an unexpected amount of jobs in a very short time, in this case we may just want to limit to a certain amount to avoid running out of memory. The `limit` option helps control the performance impact of cleanup operations by limiting how many jobs are processed at once.
 
 {% tabs %}
 {% tab title="TypeScript" %}

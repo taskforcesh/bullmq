@@ -35,7 +35,7 @@ await queue.removeGlobalRateLimit();
 
 ## Read more:
 
-- 💡 [Set Global Rate Limit API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#setglobalratelimit)
-- 💡 [Get Global Rate Limit API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getglobalratelimit)
-- 💡 [Get Rate Limit Ttl API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getratelimitttl)
-- 💡 [Remove Global Rate Limit API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removeglobalratelimit)
+- 💡 [Set Global Rate Limit API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#setglobalratelimit)
+- 💡 [Get Global Rate Limit API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#getglobalratelimit)
+- 💡 [Get Rate Limit Ttl API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#getratelimitttl)
+- 💡 [Remove Global Rate Limit API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#removeglobalratelimit)

@@ -32,7 +32,7 @@ myWorker.on('failed', (job: Job) => {
 });
 ```
 
-The events above are local for the workers that actually completed the jobs. However, in many situations you want to listen to all the events emitted by all the workers in one single place. For this you can use the [`QueueEvents`](https://api.docs.bullmq.io/classes/v5.QueueEvents.html) class:
+The events above are local for the workers that actually completed the jobs. However, in many situations you want to listen to all the events emitted by all the workers in one single place. For this you can use the [`QueueEvents`](https://docs.bullmq.io/api/classes/v6.QueueEvents.html) class:
 
 ```typescript
 import { QueueEvents } from 'bullmq';
@@ -101,7 +101,7 @@ queue.trim_events(10).await?; // leaves 10 events
 
 ## Read more:
 
-- 💡 [Queue Events API Reference](https://api.docs.bullmq.io/classes/v5.QueueEvents.html)
-- 💡 [Queue Events Listener API Reference](https://api.docs.bullmq.io/interfaces/v5.QueueEventsListener.html)
-- 💡 [Queue Listener API Reference](https://api.docs.bullmq.io/interfaces/v5.QueueListener.html)
-- 💡 [Worker Listener API Reference](https://api.docs.bullmq.io/interfaces/v5.WorkerListener.html)
+- 💡 [Queue Events API Reference](https://docs.bullmq.io/api/classes/v6.QueueEvents.html)
+- 💡 [Queue Events Listener API Reference](https://docs.bullmq.io/api/interfaces/v6.QueueEventsListener.html)
+- 💡 [Queue Listener API Reference](https://docs.bullmq.io/api/interfaces/v6.QueueListener.html)
+- 💡 [Worker Listener API Reference](https://docs.bullmq.io/api/interfaces/v6.WorkerListener.html)
