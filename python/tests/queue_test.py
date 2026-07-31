@@ -70,6 +70,25 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(waiting_jobs[2].id, job3.id)
         await queue.close()
 
+    async def test_get_jobs_skips_missing_hash_and_backfills_waiting_range(self):
+        queue_name = f"__test_queue__{uuid4().hex}"
+        queue = Queue(queue_name, {"prefix": prefix})
+        jobs = []
+
+        for i in range(1, 6):
+            jobs.append(await queue.add("test-job", {"foo": i}, {}))
+
+        await queue.client.delete(queue.toKey(jobs[1].id))
+
+        waiting_jobs = await queue.getJobs(["waiting"], 0, 2, True)
+
+        self.assertIsInstance(waiting_jobs, list)
+        self.assertEqual(len(waiting_jobs), 3)
+        self.assertTrue(all(job is not None for job in waiting_jobs))
+        self.assertEqual([job.data["foo"] for job in waiting_jobs], [1, 3, 4])
+
+        await queue.close()
+
     async def test_get_job_state(self):
         queue = Queue(queueName, {"prefix": prefix})
         job = await queue.add("test-job", {"foo": "bar"}, {})
@@ -404,8 +423,8 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.pause()
         await queue.retryJobs({'count': 2})
 
-        paused_count = await queue.getJobCounts('paused')
-        self.assertEqual(paused_count['paused'], job_count)
+        waiting_count = await queue.getJobCounts('waiting')
+        self.assertEqual(waiting_count['waiting'], job_count)
 
         await queue.close()
         await worker.close()
@@ -685,29 +704,26 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_drain_paused_queue(self):
-        """Test drain removes paused jobs when queue is paused"""
+        """Test drain removes waiting jobs when queue is paused"""
         queue = Queue(queueName, {"prefix": prefix})
         max_jobs = 50
         
         # Pause the queue first
         await queue.pause()
         
-        # Add jobs (they will go to paused state)
+        # Add jobs (they will remain in the waiting list while the queue is paused)
         for i in range(1, max_jobs + 1):
             await queue.add("test", {"foo": "bar", "num": i}, {})
         
         # Check initial count
-        initial_count = await queue.getJobCountByTypes("paused")
+        initial_count = await queue.getJobCountByTypes("waiting")
         self.assertEqual(initial_count, max_jobs)
-        
-        paused_counts = await queue.getJobCounts("paused")
-        self.assertEqual(paused_counts["paused"], max_jobs)
         
         # Drain the queue
         await queue.drain()
         
         # Check that all jobs are removed
-        count_after_drain = await queue.getJobCountByTypes("paused")
+        count_after_drain = await queue.getJobCountByTypes("waiting")
         self.assertEqual(count_after_drain, 0)
         
         await queue.close()

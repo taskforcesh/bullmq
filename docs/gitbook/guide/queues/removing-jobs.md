@@ -59,6 +59,18 @@ $queue->close();
 ```
 
 {% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Queue, QueueOptions};
+
+let queue = Queue::new("paint", QueueOptions::default()).await?;
+
+queue.drain(false).await?;
+```
+
+{% endtab %}
 {% endtabs %}
 
 You can also drain delayed jobs by setting the delayed parameter:
@@ -119,6 +131,19 @@ $queue->drain(true);
 
 $queue->close();
 ?>
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Queue, QueueOptions};
+
+let queue = Queue::new("paint", QueueOptions::default()).await?;
+
+// Also drain delayed jobs
+queue.drain(true).await?;
 ```
 
 {% endtab %}
@@ -208,6 +233,18 @@ $queue->close();
 ```
 
 {% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Queue, QueueOptions};
+
+let queue = Queue::new("paint", QueueOptions::default()).await?;
+
+queue.obliterate(false, 1000).await?;
+```
+
+{% endtab %}
 {% endtabs %}
 
 For more advanced scenarios where you need to force obliteration even with active jobs:
@@ -268,6 +305,19 @@ $queue->obliterate(['force' => true]);
 
 $queue->close();
 ?>
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Queue, QueueOptions};
+
+let queue = Queue::new("paint", QueueOptions::default()).await?;
+
+// Force obliteration even with active jobs
+queue.obliterate(true, 1000).await?;
 ```
 
 {% endtab %}

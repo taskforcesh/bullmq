@@ -3,28 +3,42 @@
   "extends": [
     "config:recommended",
     ":semanticCommits",
-    ":maintainLockFilesWeekly",
     ":enableVulnerabilityAlerts"
   ],
   "labels": ["dependencies"],
   "rangeStrategy": "pin",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 9am"]
+  },
   "packageRules": [
     {
-      "description": "🚨 Security vulnerabilities (OSV/GitHub alerts)",
+      "description": "Run non-security dependency updates once per day by default",
+      "matchPackageNames": ["*"],
+      "schedule": ["before 9am"]
+    },
+    {
+      "description": "🚨 Group all security vulnerabilities (OSV/GitHub alerts) into a single daily PR",
       "matchUpdateTypes": ["major", "minor", "patch"],
       "matchDepTypes": ["dependencies", "devDependencies"],
       "vulnerabilityFixVersion": true,
-      "groupName": null,
+      "groupName": "security patches",
+      "groupSlug": "security-patches",
       "prPriority": 100,
       "labels": ["security", "osv"],
       "commitMessageSuffix": "[SECURITY]",
-      "branchTopic": "security-{{depName}}"
+      "schedule": ["before 9am"]
     },
     {
       "description": "Group all non-major devDependencies",
       "matchDepTypes": ["devDependencies"],
       "matchUpdateTypes": ["minor", "patch"],
       "groupName": "devDependencies (non-major)"
+    },
+    {
+      "description": "Pin TypeScript below v7 until the tooling (ts-node, typedoc, @typescript-eslint) supports the native (Go) compiler, whose npm package does not yet expose the compiler API",
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<7"
     },
     {
       "description": "Group TypeScript type definitions",
@@ -54,9 +68,12 @@
   ],
   "vulnerabilityAlerts": {
     "enabled": true,
-    "labels": ["security", "osv"]
+    "labels": ["security", "osv"],
+    "groupName": "security patches",
+    "groupSlug": "security-patches",
+    "commitMessageSuffix": "[SECURITY]",
+    "schedule": ["before 9am"]
   },
   "osvVulnerabilityAlerts": true,
-  "prCreation": "immediate",
-  "schedule": ["before 9am on monday"]
+  "prCreation": "immediate"
 }

@@ -23,13 +23,16 @@ running Redis instance.
 import asyncio
 import errno
 import socket
+import sys
 import time
 import unittest
-from unittest.mock import AsyncMock, MagicMock
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 import redis.exceptions
 
-from bullmq import Worker
+from bullmq import Queue, Worker
+from bullmq.worker import _postgres_connection_error_types
 
 
 def _find_closed_port():
@@ -97,6 +100,28 @@ class TestIsConnectionError(unittest.TestCase):
     def test_asyncio_timeout_is_transient(self):
         self.assertTrue(self.worker.isConnectionError(asyncio.TimeoutError()))
 
+    def test_postgres_disconnect_errors_are_transient_when_postgres_backend_is_enabled(self):
+        class FakeOperationalError(Exception):
+            pass
+
+        class FakeInterfaceError(Exception):
+            pass
+
+        fake_psycopg = SimpleNamespace(
+            OperationalError=FakeOperationalError,
+            InterfaceError=FakeInterfaceError,
+        )
+        worker = Worker.__new__(Worker)
+        worker.opts = {"backend": "postgres"}
+
+        try:
+            _postgres_connection_error_types.cache_clear()
+            with patch.dict(sys.modules, {"psycopg": fake_psycopg}):
+                self.assertTrue(worker.isConnectionError(FakeOperationalError("db down")))
+                self.assertTrue(worker.isConnectionError(FakeInterfaceError("db closed")))
+        finally:
+            _postgres_connection_error_types.cache_clear()
+
     def test_os_error_with_aggregated_errno_message_is_transient(self):
         # Mirrors the bare OSError asyncio raises when every connect()
         # attempt fails: a single string message embedding "[Errno N]"
@@ -137,6 +162,96 @@ class TestIsConnectionError(unittest.TestCase):
     def test_plain_value_error_is_not_transient(self):
         # Programmer errors must still bubble up so users can fix them.
         self.assertFalse(self.worker.isConnectionError(ValueError("bug")))
+
+
+class TestWorkerInitialization(unittest.TestCase):
+    def test_worker_accepts_none_opts(self):
+        worker = Worker("issue_3103_queue", None, None)
+
+        try:
+            self.assertEqual(worker.prefix, "bull")
+            self.assertIsNone(worker.workerName)
+        finally:
+            asyncio.run(worker.close(force=True))
+
+    def test_worker_uses_backend_client_name_convention(self):
+        backend = SimpleNamespace(
+            qualifiedName="bull:test-queue",
+            clientName=lambda suffix=None: f"tenant_a:test-queue{suffix or ''}",
+            close=AsyncMock(),
+            capabilities={"canBlockFor1Ms": True},
+        )
+
+        with patch("bullmq.worker.create_backend", return_value=backend):
+            worker = Worker(
+                "test-queue",
+                None,
+                {"name": "worker-1", "autorun": False},
+            )
+
+        try:
+            self.assertEqual(worker.clientName, "tenant_a:test-queue:w:worker-1")
+        finally:
+            asyncio.run(worker.close(force=True))
+
+    def test_worker_redis_compatibility_handles_are_none_for_non_redis_backends(self):
+        backend = SimpleNamespace(
+            qualifiedName="test-queue",
+            clientName=lambda suffix=None: f"tenant_a:test-queue{suffix or ''}",
+            connection=object(),
+            blocking_connection=object(),
+            close=AsyncMock(),
+            capabilities={"canBlockFor1Ms": True},
+        )
+
+        with patch("bullmq.worker.create_backend", return_value=backend):
+            worker = Worker(
+                "test-queue",
+                None,
+                {"name": "worker-1", "backend": "postgres", "autorun": False},
+            )
+
+        try:
+            self.assertIsNone(worker.redisConnection)
+            self.assertIsNone(worker.blockingRedisConnection)
+        finally:
+            asyncio.run(worker.close(force=True))
+
+    def test_worker_uses_backend_minimum_block_timeout(self):
+        backend = SimpleNamespace(
+            qualifiedName="test-queue",
+            clientName=lambda suffix=None: f"tenant_a:test-queue{suffix or ''}",
+            close=AsyncMock(),
+            capabilities={"canBlockFor1Ms": False},
+            minimumBlockTimeout=0.001,
+        )
+
+        with patch("bullmq.worker.create_backend", return_value=backend):
+            worker = Worker(
+                "test-queue",
+                None,
+                {"backend": "postgres", "autorun": False},
+            )
+
+        try:
+            self.assertEqual(worker.minimumBlockTimeout, 0.001)
+        finally:
+            asyncio.run(worker.close(force=True))
+
+
+class TestQueueInitialization(unittest.TestCase):
+    def test_queue_redis_compatibility_handle_is_none_for_non_redis_backends(self):
+        backend = SimpleNamespace(
+            qualifiedName="test-queue",
+            connection=object(),
+            keys={},
+            close=AsyncMock(),
+        )
+
+        with patch("bullmq.queue.create_backend", return_value=backend):
+            queue = Queue("test-queue", {"backend": "postgres"})
+
+        self.assertIsNone(queue.redisConnection)
 
 
 class TestRetryIfFailedDoesNotBusyLoop(unittest.IsolatedAsyncioTestCase):
@@ -232,8 +347,7 @@ class TestWaitForJobBacksOff(unittest.IsolatedAsyncioTestCase):
     async def test_waitForJob_delays_before_raising_connection_error(self):
         # Replace the blocking command with one that raises immediately.
         boom = redis.exceptions.ConnectionError("redis down")
-        self.worker.bclient = MagicMock()
-        self.worker.bclient.bzpopmin = AsyncMock(side_effect=boom)
+        self.worker.backend.waitForJob = AsyncMock(side_effect=boom)
 
         started = time.monotonic()
         with self.assertRaises(redis.exceptions.ConnectionError):
@@ -255,8 +369,7 @@ class TestWaitForJobBacksOff(unittest.IsolatedAsyncioTestCase):
         # would silently throttle real bugs at 1-per-100ms, making them
         # much harder to diagnose in production logs.
         boom = ValueError("not a connection error")
-        self.worker.bclient = MagicMock()
-        self.worker.bclient.bzpopmin = AsyncMock(side_effect=boom)
+        self.worker.backend.waitForJob = AsyncMock(side_effect=boom)
 
         started = time.monotonic()
         with self.assertRaises(ValueError):
@@ -274,8 +387,7 @@ class TestWaitForJobBacksOff(unittest.IsolatedAsyncioTestCase):
         # asyncio.CancelledError implements cooperative cancellation;
         # delaying its propagation would defeat the cancel signal and
         # could keep run() alive past close(force=True).
-        self.worker.bclient = MagicMock()
-        self.worker.bclient.bzpopmin = AsyncMock(side_effect=asyncio.CancelledError())
+        self.worker.backend.waitForJob = AsyncMock(side_effect=asyncio.CancelledError())
 
         started = time.monotonic()
         with self.assertRaises(asyncio.CancelledError):
@@ -291,8 +403,7 @@ class TestWaitForJobBacksOff(unittest.IsolatedAsyncioTestCase):
         emitted = []
         self.worker.on("error", lambda err: emitted.append(err))
 
-        self.worker.bclient = MagicMock()
-        self.worker.bclient.bzpopmin = AsyncMock(
+        self.worker.backend.waitForJob = AsyncMock(
             side_effect=ValueError("not a connection error")
         )
 
@@ -304,8 +415,7 @@ class TestWaitForJobBacksOff(unittest.IsolatedAsyncioTestCase):
     async def test_worker_can_be_closed_after_disconnect_errors(self):
         # After a burst of connection errors the worker must still be
         # closeable without hanging the event loop.
-        self.worker.bclient = MagicMock()
-        self.worker.bclient.bzpopmin = AsyncMock(
+        self.worker.backend.waitForJob = AsyncMock(
             side_effect=redis.exceptions.ConnectionError("redis down")
         )
 

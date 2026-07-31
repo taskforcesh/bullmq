@@ -1,0 +1,65 @@
+name: Valkey Glide NodeJS Tests
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'src/commands/**/*.lua'
+      - 'package.json'
+      - 'yarn.lock'
+      - 'scripts/**'
+      - '.github/workflows/test.yml'
+      - '.github/workflows/valkey-glide-test.yml'
+      - 'src/**'
+      - 'tests/**'
+      - 'tsconfig*.json'
+      - 'vitest*.ts'
+      - 'bun-test-preload.ts'
+      - 'mocha.setup.ts'
+      - '.mocharc.js'
+      - 'eslint.config.mjs'
+  pull_request:
+    branches: [master, next]
+    paths:
+      - 'src/commands/**/*.lua'
+      - 'package.json'
+      - 'yarn.lock'
+      - 'scripts/**'
+      - '.github/workflows/test.yml'
+      - '.github/workflows/valkey-glide-test.yml'
+      - 'src/**'
+      - 'tests/**'
+      - 'tsconfig*.json'
+      - 'vitest*.ts'
+      - 'bun-test-preload.ts'
+      - 'mocha.setup.ts'
+      - '.mocharc.js'
+      - 'eslint.config.mjs'
+
+permissions:
+  contents: read
+
+jobs:
+  valkey-glide:
+    runs-on: ubuntu-latest
+
+    name: testing valkey-glide node@lts/*
+
+    services:
+      valkey:
+        image: valkey/valkey:8-alpine3.20
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - name: Use Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: lts/*
+          cache: 'yarn'
+      - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
+      - run: npm install --no-save @valkey/valkey-glide@2.5.0
+      - run: yarn build
+      - run: yarn test:valkey-glide

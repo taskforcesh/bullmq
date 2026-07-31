@@ -1,7 +1,7 @@
 defmodule BullMQ.MixProject do
   use Mix.Project
 
-  @version "1.3.2"
+  @version "2.0.0"
   @source_url "https://github.com/taskforcesh/bullmq"
   @description "A powerful, fast, and robust job queue for Elixir backed by Redis"
 
@@ -66,6 +66,9 @@ defmodule BullMQ.MixProject do
     [
       # Redis client
       {:redix, "~> 1.3"},
+
+      # PostgreSQL client (optional backend)
+      {:postgrex, "~> 0.22", optional: true},
 
       # Connection pooling
       {:nimble_pool, "~> 1.0"},

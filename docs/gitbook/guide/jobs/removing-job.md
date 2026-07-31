@@ -4,6 +4,7 @@ Sometimes it is necessary to remove a job. For example, there could be a job tha
 
 {% tabs %}
 {% tab title="TypeScript" %}
+
 ```typescript
 import { Queue } from 'bullmq';
 
@@ -13,9 +14,11 @@ const job = await queue.add('wall', { color: 1 });
 
 await job.remove();
 ```
+
 {% endtab %}
 
 {% tab title="Python" %}
+
 ```python
 from bullmq import Queue
 
@@ -25,6 +28,21 @@ job = await queue.add('wall', {'color': 1})
 
 await job.remove()
 ```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Queue, QueueOptions};
+
+let queue = Queue::new("paint", QueueOptions::default()).await?;
+
+let job = queue.add("wall", serde_json::json!({"color": 1}), None).await?;
+
+queue.remove(job.id()).await?;
+```
+
 {% endtab %}
 {% endtabs %}
 
@@ -53,4 +71,4 @@ If any of the children are locked, the deletion process will be stopped.
 
 ### Read more:
 
-* 💡 [Remove API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#remove)
+- 💡 [Remove API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#remove)

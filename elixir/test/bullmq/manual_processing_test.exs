@@ -217,6 +217,37 @@ defmodule BullMQ.ManualProcessingTest do
       Worker.close(worker)
     end
 
+    test "returns an error when the blocking connection cannot be established", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn _job -> {:ok, "unused"} end,
+          autorun: false
+        )
+
+      broken_conn = :"manual_broken_blocking_#{System.unique_integer([:positive])}"
+      broken_conn_key = {BullMQ.RedisConnection, :redis_opts, broken_conn}
+
+      :persistent_term.put(broken_conn_key, host: "127.0.0.1", port: 1, sync_connect: true)
+
+      on_exit(fn ->
+        :persistent_term.erase(broken_conn_key)
+      end)
+
+      :sys.replace_state(worker, fn state ->
+        %{state | connection: broken_conn}
+      end)
+
+      assert {:error, _reason} = Worker.get_next_job(worker, generate_token(), timeout: 1)
+
+      Worker.close(worker)
+    end
+
     @tag timeout: 10_000
     test "returns nil when worker is paused", %{conn: conn, queue_name: queue_name} do
       {:ok, worker} =

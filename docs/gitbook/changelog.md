@@ -1,3 +1,202 @@
+# [6.0.0](https://github.com/taskforcesh/bullmq/compare/v5.81.3...v6.0.0) (2026-07-30)
+
+
+* feat!: release BullMQ v6 with pluggable queue backends (php) (python) (elixir) ([e1f86ef](https://github.com/taskforcesh/bullmq/commit/e1f86effc5bddda5b70d890866d9a490555e41ff)), closes [Hi#level](https://github.com/Hi/issues/level) [Queue#client](https://github.com/Queue/issues/client) [Queue#redisVersion](https://github.com/Queue/issues/redisVersion) [Queue#databaseType](https://github.com/Queue/issues/databaseType) [Worker#blockingClient](https://github.com/Worker/issues/blockingClient) [FlowProducer#client](https://github.com/FlowProducer/issues/client) [Queue#add](https://github.com/Queue/issues/add) [Queue#addBulk](https://github.com/Queue/issues/addBulk) [Job#debounceId](https://github.com/Job/issues/debounceId) [Job#deduplicationId](https://github.com/Job/issues/deduplicationId)
+
+
+### BREAKING CHANGES
+
+*
+
+## [5.81.3](https://github.com/taskforcesh/bullmq/compare/v5.81.2...v5.81.3) (2026-07-30)
+
+
+### Bug Fixes
+
+* **deps:** update dependency msgpackr to v2.0.5 [security] ([#4387](https://github.com/taskforcesh/bullmq/issues/4387)) ([6fccb59](https://github.com/taskforcesh/bullmq/commit/6fccb59248c3d78e81ae09ad70b8cbea7ae48b87))
+* **deps:** update dependency redis [security] ([#4369](https://github.com/taskforcesh/bullmq/issues/4369)) ([2a120df](https://github.com/taskforcesh/bullmq/commit/2a120dfea7324d7af67ad505c78f48571c74402b))
+* **worker:** recover blocking client after sentinel disconnect, fixes… ([#4384](https://github.com/taskforcesh/bullmq/issues/4384)) ([93649b8](https://github.com/taskforcesh/bullmq/commit/93649b8694a155a7c6fcd596f772e43b86285f1f))
+
+## [5.81.2](https://github.com/taskforcesh/bullmq/compare/v5.81.1...v5.81.2) (2026-07-24)
+
+
+### Bug Fixes
+
+* prevent unhandled rejection when a connection's init fails before an 'error' listener is attached ([#4328](https://github.com/taskforcesh/bullmq/issues/4328)) ([315ec33](https://github.com/taskforcesh/bullmq/commit/315ec3309a42ccf898b2b825e39c42292b7932e7))
+* **telemetry:** emit job.state while preserving job.status compatibility ([#4293](https://github.com/taskforcesh/bullmq/issues/4293)) ([36a3b2a](https://github.com/taskforcesh/bullmq/commit/36a3b2a4196b4611db89b1640a6315e26de37eb0))
+
+## [5.81.1](https://github.com/taskforcesh/bullmq/compare/v5.81.0...v5.81.1) (2026-07-24)
+
+
+### Bug Fixes
+
+* **queue:** retrieve jobs in same transaction under getJobs ([#4300](https://github.com/taskforcesh/bullmq/issues/4300)) (python) (elixir) (php) (rust) ([8571503](https://github.com/taskforcesh/bullmq/commit/8571503034a43c6d5882e290051957215fd20fee))
+
+# [5.81.0](https://github.com/taskforcesh/bullmq/compare/v5.80.12...v5.81.0) (2026-07-23)
+
+
+### Features
+
+* **connection:** add Valkey Glide client adapter ([#4321](https://github.com/taskforcesh/bullmq/issues/4321)) ([e2b89f7](https://github.com/taskforcesh/bullmq/commit/e2b89f7a4a64c60551f1fa4463ec62d8072c4731))
+
+## [5.80.12](https://github.com/taskforcesh/bullmq/compare/v5.80.11...v5.80.12) (2026-07-23)
+
+
+### Bug Fixes
+
+* **bun:** match Bun RedisClient callback types and suppress teardown ConnectionClosedError ([#4329](https://github.com/taskforcesh/bullmq/issues/4329)) fixes [#4212](https://github.com/taskforcesh/bullmq/issues/4212) ([c7bd217](https://github.com/taskforcesh/bullmq/commit/c7bd217ab0496fbdcbacd486b85cca8a825aa4d4))
+
+## [5.80.11](https://github.com/taskforcesh/bullmq/compare/v5.80.10...v5.80.11) (2026-07-23)
+
+
+### Bug Fixes
+
+* **worker:** emit active event for all jobs moved to active fixes [#3911](https://github.com/taskforcesh/bullmq/issues/3911) ([#4326](https://github.com/taskforcesh/bullmq/issues/4326)) ([b002d48](https://github.com/taskforcesh/bullmq/commit/b002d4836f7819b995378112e0c40fbbbe694e4d))
+
+## [5.80.10](https://github.com/taskforcesh/bullmq/compare/v5.80.9...v5.80.10) (2026-07-21)
+
+
+### Bug Fixes
+
+* **ci:** remove stale OSV ignore ([#4320](https://github.com/taskforcesh/bullmq/issues/4320)) ([88730b0](https://github.com/taskforcesh/bullmq/commit/88730b08ecc18cd243dfeddaa80bd8b2d3a5151a))
+
+## [5.80.9](https://github.com/taskforcesh/bullmq/compare/v5.80.8...v5.80.9) (2026-07-18)
+
+
+### Performance Improvements
+
+* **flow-producer:** reuse queue's shared Scripts instance in jobs fixes [#4263](https://github.com/taskforcesh/bullmq/issues/4263) ([#4308](https://github.com/taskforcesh/bullmq/issues/4308)) ([4f4b574](https://github.com/taskforcesh/bullmq/commit/4f4b574de507e56e1e3a7f359565eb359463710f))
+
+## [5.80.8](https://github.com/taskforcesh/bullmq/compare/v5.80.7...v5.80.8) (2026-07-18)
+
+
+### Bug Fixes
+
+* **scheduler:** walk past stale slots when re-upserting under same id ([#4299](https://github.com/taskforcesh/bullmq/issues/4299)) ([e8af563](https://github.com/taskforcesh/bullmq/commit/e8af56348a77677a4d802d2563e33b7313a79570))
+
+## [5.80.7](https://github.com/taskforcesh/bullmq/compare/v5.80.6...v5.80.7) (2026-07-17)
+
+
+### Bug Fixes
+
+* **worker:** move stalled job to failed when fetched manually ([#4294](https://github.com/taskforcesh/bullmq/issues/4294)) ([c4a0a4a](https://github.com/taskforcesh/bullmq/commit/c4a0a4a90d48303b1b6b7c45f67898573a73c424))
+
+## [5.80.6](https://github.com/taskforcesh/bullmq/compare/v5.80.5...v5.80.6) (2026-07-17)
+
+
+### Bug Fixes
+
+* **sandbox:** preserve child_process exports in null-stdio ([#4301](https://github.com/taskforcesh/bullmq/issues/4301)) ([5044cf8](https://github.com/taskforcesh/bullmq/commit/5044cf8fc17f0842655eda581b9e26b27f6abfe8))
+
+## [5.80.5](https://github.com/taskforcesh/bullmq/compare/v5.80.4...v5.80.5) (2026-07-16)
+
+
+### Bug Fixes
+
+* **sandbox:** kill children that fail init and surface refusal errors fixes [#4283](https://github.com/taskforcesh/bullmq/issues/4283) ([#4284](https://github.com/taskforcesh/bullmq/issues/4284)) ([7dd064e](https://github.com/taskforcesh/bullmq/commit/7dd064ec794ff2f8f67a859caf11cd5554ad75e4))
+
+## [5.80.4](https://github.com/taskforcesh/bullmq/compare/v5.80.3...v5.80.4) (2026-07-15)
+
+
+### Bug Fixes
+
+* **deps:** update dependency ioredis to v5.11.1 [security] ([#4282](https://github.com/taskforcesh/bullmq/issues/4282)) ([d978d72](https://github.com/taskforcesh/bullmq/commit/d978d721995aa4d40aa93980866e2a6b02bcfed1))
+
+## [5.80.3](https://github.com/taskforcesh/bullmq/compare/v5.80.2...v5.80.3) (2026-07-15)
+
+
+### Bug Fixes
+
+* fix potential job id integer to string conversion ([#4262](https://github.com/taskforcesh/bullmq/issues/4262)) ([4e8b595](https://github.com/taskforcesh/bullmq/commit/4e8b59592d1f285f2e9e3860f8ece8bc60769fe5))
+
+## [5.80.2](https://github.com/taskforcesh/bullmq/compare/v5.80.1...v5.80.2) (2026-07-11)
+
+
+### Bug Fixes
+
+* **job-scheduler:** respect offset option in upsertJobScheduler (elixir) (rust) ([#3993](https://github.com/taskforcesh/bullmq/issues/3993)) ([78bbb25](https://github.com/taskforcesh/bullmq/commit/78bbb253546b4c45f7e23ceccc31eb644651416c))
+
+## [5.80.1](https://github.com/taskforcesh/bullmq/compare/v5.80.0...v5.80.1) (2026-07-10)
+
+
+### Bug Fixes
+
+* **job:** enforce priority max of 2^21-1 to preserve FIFO at the boundary ([#4261](https://github.com/taskforcesh/bullmq/issues/4261)) ([418de1e](https://github.com/taskforcesh/bullmq/commit/418de1e51db09ffc8e95bac35015a1057d8a7271))
+
+# [5.80.0](https://github.com/taskforcesh/bullmq/compare/v5.79.4...v5.80.0) (2026-07-10)
+
+* Nothing changed, triggered by a rust version release
+
+## [5.79.4](https://github.com/taskforcesh/bullmq/compare/v5.79.3...v5.79.4) (2026-07-10)
+
+
+### Bug Fixes
+
+* **job-scheduler:** coerce string offset in Lua helper ([#4266](https://github.com/taskforcesh/bullmq/issues/4266)) (python) (elixir) ([5a88614](https://github.com/taskforcesh/bullmq/commit/5a88614312243a12bb9e56b525c4deb60d76cf12))
+
+## [5.79.3](https://github.com/taskforcesh/bullmq/compare/v5.79.2...v5.79.3) (2026-07-07)
+
+
+### Bug Fixes
+
+* **queue-events:** correct delay event number type and documentation ([#3989](https://github.com/taskforcesh/bullmq/issues/3989)) ([6ffd88a](https://github.com/taskforcesh/bullmq/commit/6ffd88a0070b3ab84b77539dca7c35266716425e))
+
+## [5.79.2](https://github.com/taskforcesh/bullmq/compare/v5.79.1...v5.79.2) (2026-06-27)
+
+
+### Bug Fixes
+
+* **flow:** use correct data structure when retrying failed child using ignoreDependencyOnFailure fixes [#4235](https://github.com/taskforcesh/bullmq/issues/4235) ([#4236](https://github.com/taskforcesh/bullmq/issues/4236)) ([6f1b2e3](https://github.com/taskforcesh/bullmq/commit/6f1b2e33b01c9f97dee6ff96bab782a8399c7ae5))
+
+## [5.79.1](https://github.com/taskforcesh/bullmq/compare/v5.79.0...v5.79.1) (2026-06-21)
+
+
+### Bug Fixes
+
+* **node-redis:** accept plain createClient result without cast ([#4201](https://github.com/taskforcesh/bullmq/issues/4201)) ([#4209](https://github.com/taskforcesh/bullmq/issues/4209)) ([1aefd5b](https://github.com/taskforcesh/bullmq/commit/1aefd5b80618a8a9080b98ca9e6e89463a98b713))
+
+# [5.79.0](https://github.com/taskforcesh/bullmq/compare/v5.78.1...v5.79.0) (2026-06-18)
+
+
+### Features
+
+* Nothing changed, triggered by a rust version release
+
+## [5.78.1](https://github.com/taskforcesh/bullmq/compare/v5.78.0...v5.78.1) (2026-06-13)
+
+
+### Bug Fixes
+
+* **scheduler:** fail stalled jobs if scheduler does not longer exist (elixir) (rust) ([#4222](https://github.com/taskforcesh/bullmq/issues/4222)) ([d1fcda5](https://github.com/taskforcesh/bullmq/commit/d1fcda5f9c4f53b56846a73421d6eb9a32603aa4))
+
+# [5.78.0](https://github.com/taskforcesh/bullmq/compare/v5.77.7...v5.78.0) (2026-06-02)
+
+
+### Features
+
+* Nothing changed, triggered by a rust version release
+
+## [5.77.7](https://github.com/taskforcesh/bullmq/compare/v5.77.6...v5.77.7) (2026-06-01)
+
+
+### Bug Fixes
+
+* **deps:** update dependency msgpackr to v2.0.2 [security] ([#4202](https://github.com/taskforcesh/bullmq/issues/4202)) ([fbe04af](https://github.com/taskforcesh/bullmq/commit/fbe04af1b3e9c7c9683229544914a54c5bb1f8d8))
+
+## [5.77.6](https://github.com/taskforcesh/bullmq/compare/v5.77.5...v5.77.6) (2026-05-27)
+
+
+### Bug Fixes
+
+* **types:** change NodeRedisRawClient to be node-redis compliant ([#4195](https://github.com/taskforcesh/bullmq/issues/4195)) ([81709e4](https://github.com/taskforcesh/bullmq/commit/81709e4abe71f4e7c05c748938ec004a50c1fd4b))
+
+## [5.77.5](https://github.com/taskforcesh/bullmq/compare/v5.77.4...v5.77.5) (2026-05-27)
+
+
+### Bug Fixes
+
+* **connection:** handle cluster reconnection with timeouts ([#4186](https://github.com/taskforcesh/bullmq/issues/4186)) ([411690e](https://github.com/taskforcesh/bullmq/commit/411690e9070ba0dda59a86628fc8b56ad9ebea04))
+
 ## [5.77.4](https://github.com/taskforcesh/bullmq/compare/v5.77.3...v5.77.4) (2026-05-26)
 
 

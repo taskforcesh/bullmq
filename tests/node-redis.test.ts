@@ -82,6 +82,15 @@ describe('node-redis adapter', () => {
       expect(client.status).toBe('ready');
     });
 
+    it('should accept a plain createClient() result without a type cast', async () => {
+      // Intentionally no `as unknown as NodeRedisRawClient` cast.
+      const raw = createClient({ url: `redis://${redisHost}:${redisPort}` });
+      const wrapped = createNodeRedisClient(raw);
+      await wrapped.connect();
+      expect(wrapped.status).toBe('ready');
+      await wrapped.quit();
+    });
+
     it('should get/set string values', async () => {
       const key = `${prefix}:test:string`;
       await client.set(key, 'hello');

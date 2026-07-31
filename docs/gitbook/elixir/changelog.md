@@ -1,3 +1,65 @@
+# [2.0.0](https://github.com/taskforcesh/bullmq/compare/vex1.3.7...vex2.0.0) (2026-07-30)
+
+
+* feat!: release BullMQ v6 with pluggable queue backends (php) (python) (elixir) ([e1f86ef](https://github.com/taskforcesh/bullmq/commit/e1f86effc5bddda5b70d890866d9a490555e41ff)), closes [Hi#level](https://github.com/Hi/issues/level) [Queue#client](https://github.com/Queue/issues/client) [Queue#redisVersion](https://github.com/Queue/issues/redisVersion) [Queue#databaseType](https://github.com/Queue/issues/databaseType) [Worker#blockingClient](https://github.com/Worker/issues/blockingClient) [FlowProducer#client](https://github.com/FlowProducer/issues/client) [Queue#add](https://github.com/Queue/issues/add) [Queue#addBulk](https://github.com/Queue/issues/addBulk) [Job#debounceId](https://github.com/Job/issues/debounceId) [Job#deduplicationId](https://github.com/Job/issues/deduplicationId)
+
+
+### Bug Fixes
+
+* **deps:** update dependency redis [security] ([#4369](https://github.com/taskforcesh/bullmq/issues/4369)) ([2a120df](https://github.com/taskforcesh/bullmq/commit/2a120dfea7324d7af67ad505c78f48571c74402b))
+
+
+### BREAKING CHANGES
+
+*
+
+## [1.3.7](https://github.com/taskforcesh/bullmq/compare/vex1.3.6...vex1.3.7) (2026-07-25)
+
+
+### Bug Fixes
+
+* **flows:** fix parent job stuck in waiting-children state ([#4335](https://github.com/taskforcesh/bullmq/issues/4335)) fixes [#4332](https://github.com/taskforcesh/bullmq/issues/4332) [elixir] ([65f1f0a](https://github.com/taskforcesh/bullmq/commit/65f1f0a73902df87a50d799d097450e2867eb9c3))
+
+## [1.3.6](https://github.com/taskforcesh/bullmq/compare/vex1.3.5...vex1.3.6) (2026-07-24)
+
+
+### Bug Fixes
+
+* **queue:** retrieve jobs in same transaction under getJobs ([#4300](https://github.com/taskforcesh/bullmq/issues/4300)) (python) (elixir) (php) (rust) ([8571503](https://github.com/taskforcesh/bullmq/commit/8571503034a43c6d5882e290051957215fd20fee))
+
+
+### Features
+
+* idiomatic builder-based ergonomics across the public API [rust] ([#4288](https://github.com/taskforcesh/bullmq/issues/4288)) ([bbf0844](https://github.com/taskforcesh/bullmq/commit/bbf0844a250d08d6bfafacb43360f26a57cb9c87))
+
+## [1.3.5](https://github.com/taskforcesh/bullmq/compare/vex1.3.4...vex1.3.5) (2026-07-11)
+
+
+### Bug Fixes
+
+* **job-scheduler:** respect offset option in upsertJobScheduler (elixir) (rust) ([#3993](https://github.com/taskforcesh/bullmq/issues/3993)) ([78bbb25](https://github.com/taskforcesh/bullmq/commit/78bbb253546b4c45f7e23ceccc31eb644651416c))
+
+
+### Features
+
+* add QueueEvents, queue/worker getters, and missing options [rust] ([#4229](https://github.com/taskforcesh/bullmq/issues/4229)) ([60ae049](https://github.com/taskforcesh/bullmq/commit/60ae0492a3200f8496976a3b51609e7e54eafd1b))
+
+## [1.3.4](https://github.com/taskforcesh/bullmq/compare/vex1.3.3...vex1.3.4) (2026-07-10)
+
+
+### Bug Fixes
+
+* **job-scheduler:** coerce string offset in Lua helper ([#4266](https://github.com/taskforcesh/bullmq/issues/4266)) (python) (elixir) ([5a88614](https://github.com/taskforcesh/bullmq/commit/5a88614312243a12bb9e56b525c4deb60d76cf12))
+* **flow:** use correct data structure when retrying failed child using ignoreDependencyOnFailure fixes [#4235](https://github.com/taskforcesh/bullmq/issues/4235) ([#4236](https://github.com/taskforcesh/bullmq/issues/4236)) ([6f1b2e3](https://github.com/taskforcesh/bullmq/commit/6f1b2e33b01c9f97dee6ff96bab782a8399c7ae5))
+
+
+## [1.3.3](https://github.com/taskforcesh/bullmq/compare/vex1.3.2...vex1.3.3) (2026-06-13)
+
+
+### Bug Fixes
+
+* **scheduler:** fail stalled jobs if scheduler does not longer exist (elixir) (rust) ([#4222](https://github.com/taskforcesh/bullmq/issues/4222)) ([d1fcda5](https://github.com/taskforcesh/bullmq/commit/d1fcda5f9c4f53b56846a73421d6eb9a32603aa4))
+
 ## [1.3.2](https://github.com/taskforcesh/bullmq/compare/vex1.3.1...vex1.3.2) (2026-04-10)
 
 

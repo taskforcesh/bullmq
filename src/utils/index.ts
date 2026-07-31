@@ -1,6 +1,7 @@
+import { EventEmitter } from 'events';
 import { Cluster, Redis } from 'ioredis';
 import { AbortController } from '../classes/abort-controller';
-import { randomBytes, randomUUID as cryptoRandomUUID } from 'crypto';
+export { randomUUID } from 'crypto';
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
@@ -11,11 +12,9 @@ import {
   ContextManager,
   IRedisClient,
   ParentOptions,
-  RedisClient,
   Span,
   Tracer,
 } from '../interfaces';
-import { EventEmitter } from 'events';
 import * as semver from 'semver';
 
 import { SpanKind, TelemetryAttributes } from '../enums';
@@ -94,6 +93,27 @@ export function delay(
   });
 }
 
+/**
+ * Forwards 'error' events from a connection to its owning emitter, but only
+ * when a consumer is listening. Emitting 'error' on an EventEmitter with no
+ * listeners throws, which would turn a transient connection error (e.g. a
+ * failed init handshake before the consumer attached its listener) into an
+ * unhandled rejection.
+ *
+ * @param emitter - The owner emitter (Queue, Worker, FlowProducer, ...).
+ * @param connection - The connection whose 'error' events should be forwarded.
+ */
+export function forwardConnectionError(
+  emitter: EventEmitter,
+  connection: EventEmitter,
+): void {
+  connection.on('error', (error: Error) => {
+    if (emitter.listenerCount('error') > 0) {
+      emitter.emit('error', error);
+    }
+  });
+}
+
 export function increaseMaxListeners(
   emitter: { getMaxListeners(): number; setMaxListeners(n: number): any },
   count: number,
@@ -128,7 +148,6 @@ export const optsDecodeMap = {
 
 export const optsEncodeMap = {
   ...invertObject(optsDecodeMap),
-  /*/ Legacy for backwards compatibility */ debounce: 'de', // TODO: remove in next breaking change
 } as const;
 
 export function isRedisInstance(
@@ -442,28 +461,4 @@ export async function trace<T>(
       span.end();
     }
   }
-}
-
-/**
- * randomUUID helper to generate a UUID v4 using native crypto dependency.
- */
-export function randomUUID() {
-  if (typeof cryptoRandomUUID === 'function') {
-    return cryptoRandomUUID();
-  }
-
-  const bytes = randomBytes(16);
-
-  // Set version to 4 (bits 4-7 of the 7th byte)
-  bytes[6] = (bytes[6] & 0x0f) | 0x40;
-  // Set variant to RFC 4122 (bits 6-7 of the 9th byte)
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-
-  return [
-    bytes.toString('hex', 0, 4),
-    bytes.toString('hex', 4, 6),
-    bytes.toString('hex', 6, 8),
-    bytes.toString('hex', 8, 10),
-    bytes.toString('hex', 10, 16),
-  ].join('-');
 }

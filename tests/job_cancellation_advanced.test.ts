@@ -10,8 +10,9 @@ import {
 
 import { randomUUID } from '../src/utils';
 import { Queue, QueueEvents, Worker, UnrecoverableError } from '../src/classes';
-import { delay, removeAllQueueData } from '../src/utils';
+import { delay } from '../src/utils';
 import { createTestConnection } from './utils/connection-factory';
+import { cleanupQueue } from './utils/cleanup-queue';
 
 describe('Job Cancellation - Advanced Scenarios', () => {
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
@@ -35,7 +36,7 @@ describe('Job Cancellation - Advanced Scenarios', () => {
   afterEach(async () => {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(createTestConnection(), queueName);
+    await cleanupQueue(queueName);
   });
 
   afterAll(async function () {
@@ -247,20 +248,24 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       await worker.waitUntilReady();
 
+      const waitingOnActive = new Promise<void>(resolve => {
+        worker.once('active', () => resolve());
+      });
+
+      const waitingOnFailed = new Promise<void>(resolve => {
+        worker.once('failed', () => resolve());
+      });
+
       const job = await queue.add('test', { foo: 'bar' }, { attempts: 1 });
 
-      await new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
-      });
+      await waitingOnActive;
 
       const stateBefore = await job.getState();
       expect(stateBefore).toBe('active');
 
       worker.cancelJob(job.id!);
 
-      await new Promise<void>(resolve => {
-        worker.on('failed', () => resolve());
-      });
+      await waitingOnFailed;
 
       await delay(10);
 
@@ -345,19 +350,17 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       await worker.waitUntilReady();
 
+      let wasCancelled = false;
+      const waitingOnActive = new Promise<void>(resolve => {
+        worker.once('active', () => resolve());
+      });
+
       const job = await queue.add('test', { foo: 'bar' });
 
       // Cancel immediately after adding (race condition test)
-      let wasCancelled = false;
-      const racePromise = new Promise<void>(resolve => {
-        worker.on('active', async () => {
-          worker.cancelJob(job.id!);
-          wasCancelled = true;
-          resolve();
-        });
-      });
-
-      await racePromise;
+      await waitingOnActive;
+      worker.cancelJob(job.id!);
+      wasCancelled = true;
 
       // Wait for either completion or failure
       await new Promise<void>(resolve => {
@@ -392,11 +395,13 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       await worker.waitUntilReady();
 
+      const waitingOnActive = new Promise<void>(resolve => {
+        worker.once('active', () => resolve());
+      });
+
       const job = await queue.add('test', { foo: 'bar' });
 
-      await new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
-      });
+      await waitingOnActive;
 
       // Wait for some processing
       await delay(50);
@@ -438,11 +443,13 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       await worker.waitUntilReady();
 
+      const waitingOnActive = new Promise<void>(resolve => {
+        worker.once('active', () => resolve());
+      });
+
       const job = await queue.add('test', { foo: 'bar' });
 
-      await new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
-      });
+      await waitingOnActive;
 
       // Wait until almost complete
       await delay(85);
@@ -559,6 +566,19 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       await worker.waitUntilReady();
 
+      // Register the active listener before adding jobs so we never miss an
+      // 'active' event (the worker can move jobs to active while the bulk add
+      // is still in flight).
+      let activeCount = 0;
+      const allActive = new Promise<void>(resolve => {
+        worker.on('active', () => {
+          activeCount++;
+          if (activeCount === concurrency) {
+            resolve();
+          }
+        });
+      });
+
       // Add many jobs
       const jobs = await Promise.all(
         Array.from({ length: concurrency }, (_, i) =>
@@ -567,15 +587,7 @@ describe('Job Cancellation - Advanced Scenarios', () => {
       );
 
       // Wait for all to be active
-      let activeCount = 0;
-      await new Promise<void>(resolve => {
-        worker.on('active', () => {
-          activeCount++;
-          if (activeCount === concurrency) {
-            resolve();
-          }
-        });
-      });
+      await allActive;
 
       // Cancel half of them rapidly
       const jobsToCancel = jobs.slice(0, 5);
@@ -876,11 +888,12 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       await worker.waitUntilReady();
 
-      const job = await queue.add('test', { foo: 'bar' });
-
-      await new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
+      const active = new Promise<void>(resolve => {
+        worker.once('active', () => resolve());
       });
+
+      const job = await queue.add('test', { foo: 'bar' });
+      await active;
 
       await delay(50);
 
@@ -960,19 +973,21 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       await worker.waitUntilReady();
 
-      const job = await queue.add('test', { foo: 'bar' });
-
-      await new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
+      const active = new Promise<void>(resolve => {
+        worker.once('active', () => resolve());
       });
+
+      const job = await queue.add('test', { foo: 'bar' });
+      await active;
 
       await delay(50);
 
-      worker.cancelJob(job.id!);
-
-      await new Promise<void>(resolve => {
-        worker.on('failed', () => resolve());
+      const failed = new Promise<void>(resolve => {
+        worker.once('failed', () => resolve());
       });
+
+      worker.cancelJob(job.id!);
+      await failed;
 
       // Verify cleanup happened in correct order
       expect(cleanupLog).toContain('cancellation-detected');
@@ -1025,22 +1040,24 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       await worker.waitUntilReady();
 
-      const job = await queue.add('test', { foo: 'bar' });
-
-      await new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
+      const active = new Promise<void>(resolve => {
+        worker.once('active', () => resolve());
       });
+
+      const job = await queue.add('test', { foo: 'bar' });
+      await active;
 
       await delay(50);
 
-      worker.cancelJob(job.id!);
-
-      await new Promise<void>(resolve => {
-        worker.on('failed', (failedJob, err) => {
+      const failed = new Promise<void>(resolve => {
+        worker.once('failed', (failedJob, err) => {
           expect(err.message).toContain('cleanup timeout');
           resolve();
         });
       });
+
+      worker.cancelJob(job.id!);
+      await failed;
 
       expect(cleanupAttempted).toBe(true);
       expect(cleanupTimedOut).toBe(true);
@@ -1090,11 +1107,12 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       await delay(50);
 
-      worker.cancelJob(job.id!);
-
-      await new Promise<void>(resolve => {
-        worker.on('failed', () => resolve());
+      const failed = new Promise<void>(resolve => {
+        worker.once('failed', () => resolve());
       });
+
+      worker.cancelJob(job.id!);
+      await failed;
 
       expect(firstCheckTime).toBeGreaterThan(0);
       expect(secondCheckTime).toBeGreaterThan(0);
@@ -1129,19 +1147,22 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       await worker.waitUntilReady();
 
+      const active = new Promise<void>(resolve => {
+        worker.once('active', () => resolve());
+      });
+      const failed = new Promise<void>(resolve => {
+        worker.once('failed', () => resolve());
+      });
+
       const job = await queue.add('test', { foo: 'bar' });
 
-      await new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
-      });
+      await active;
 
       await delay(50);
 
       worker.cancelJob(job.id!);
 
-      await new Promise<void>(resolve => {
-        worker.on('failed', () => resolve());
-      });
+      await failed;
 
       expect(progressUpdates.length).toBeGreaterThan(0);
       expect(progressUpdates[progressUpdates.length - 1]).toBeLessThan(100);

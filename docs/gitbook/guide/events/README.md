@@ -85,6 +85,18 @@ await queue.trimEvents(10) # leaves 10 events
 ```
 
 {% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Queue, QueueOptions};
+
+let queue = Queue::new("paint", QueueOptions::default()).await?;
+
+queue.trim_events(10).await?; // leaves 10 events
+```
+
+{% endtab %}
 {% endtabs %}
 
 ## Read more:

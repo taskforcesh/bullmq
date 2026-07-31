@@ -6,16 +6,18 @@ from redis.exceptions import (
     TimeoutError as RedisTimeoutError,
 )
 from bullmq.custom_errors import UnrecoverableError, WaitingChildrenError
-from bullmq.scripts import Scripts
-from bullmq.redis_connection import RedisConnection
+from bullmq.backends import RedisBackend, create_backend
 from bullmq.event_emitter import EventEmitter
 from bullmq.job import Job
+from bullmq.lock_manager import LockManager
 from bullmq.timer import Timer
 from bullmq.types import WorkerOptions
 from bullmq.utils import extract_result
 
 import asyncio
 import errno
+import functools
+import inspect
 import re
 import traceback
 import time
@@ -67,11 +69,29 @@ _TRANSIENT_MESSAGE_FRAGMENTS = (
 )
 
 
+@functools.lru_cache(maxsize=1)
+def _postgres_connection_error_types():
+    try:
+        from psycopg import InterfaceError as PostgresInterfaceError
+        from psycopg import OperationalError as PostgresOperationalError
+    except ImportError:
+        return ()
+    return (PostgresInterfaceError, PostgresOperationalError)
+
+
 class Worker(EventEmitter):
-    def __init__(self, name: str, processor: Callable[[Job, str], asyncio.Future], opts: WorkerOptions = {}):
+    def __init__(self, name: str, processor: Callable[..., asyncio.Future], opts: WorkerOptions = {}):
         super().__init__()
+        opts = opts or {}
         self.name = name
         self.processor = processor
+        # Detect whether the processor wants an `AbortSignal` third argument.
+        # We only allocate per-job AbortControllers when the processor opts in
+        # by declaring a 3rd positional parameter (or `*args`), matching the
+        # Node implementation where `signal` is an optional 3rd parameter in
+        # the `Processor` type and the controller is only created when the
+        # user is interested in it.
+        self._processor_wants_signal = _processor_accepts_signal(processor)
         final_opts = {
             "drainDelay": 5,
             "concurrency": 1,
@@ -81,21 +101,27 @@ class Worker(EventEmitter):
             "runRetryDelay": 15000,
         }
         final_opts.update(opts or {})
+        # Default lockRenewTime to lockDuration // 2 if not explicitly set.
+        # Use integer division: lock durations are integer milliseconds and
+        # we don't want a float value leaking into user-visible `worker.opts`.
+        if "lockRenewTime" not in final_opts:
+            final_opts["lockRenewTime"] = final_opts["lockDuration"] // 2
         self.opts = final_opts
-        redis_opts = opts.get("connection", {})
-        skip_version_check = opts.get("skipVersionCheck", False)
-        self.redisConnection = RedisConnection(
-            redis_opts,
-            skipVersionCheck=skip_version_check,
+        self.backend = create_backend(
+            name, self.opts, with_blocking_connection=True
         )
-        self.blockingRedisConnection = RedisConnection(
-            redis_opts,
-            skipVersionCheck=skip_version_check,
+        # Compatibility handles for callers/tests that read the raw connections
+        # (Redis backend only). All datastore operations go through `backend`.
+        self.redisConnection = (
+            self.backend.connection if isinstance(self.backend, RedisBackend) else None
         )
-        self.client = self.redisConnection.conn
-        self.bclient = self.blockingRedisConnection.conn
-        self.prefix = opts.get("prefix", "bull")
-        self.scripts = Scripts(opts.get("prefix", "bull"), name, self.redisConnection)
+        self.blockingRedisConnection = (
+            self.backend.blocking_connection if isinstance(self.backend, RedisBackend) else None
+        )
+        self.client = getattr(self.backend, "conn", None)
+        self.bclient = getattr(self.backend, "bclient", None)
+        self.scripts = getattr(self.backend, "scripts", None)
+        self.prefix = self.opts.get("prefix", "bull")
         self.closing = False
         self.forceClosing = False
         self.closed = False
@@ -108,10 +134,20 @@ class Worker(EventEmitter):
         self.blockUntil = 0
         self.limitUntil = 0
         self.drained = False
-        self.qualifiedName = self.scripts.queue_keys.getQueueQualifiedName(name)
+        self.qualifiedName = self.backend.qualifiedName
         self.workerName = opts.get("name")
-        self.clientName = self.qualifiedName + (f":w:{self.workerName}" if self.workerName else "")
+        self.clientName = self.backend.clientName(
+            f":w:{self.workerName}" if self.workerName else ""
+        )
         self._client_name_set = False
+
+        self.lockManager = LockManager(
+            self,
+            lock_renew_time=self.opts["lockRenewTime"],
+            lock_duration=self.opts["lockDuration"],
+            worker_id=self.id,
+            worker_name=self.workerName,
+        )
 
         if processor:
             if opts.get("autorun", True):
@@ -123,8 +159,7 @@ class Worker(EventEmitter):
 
         await self._ensure_client_names()
 
-        self.timer = Timer(
-            (self.opts.get("lockDuration") / 2) / 1000, self.extendLocks, self.emit)
+        self.lockManager.start()
         self.stalledCheckTimer = Timer(self.opts.get(
             "stalledInterval") / 1000, self.runStalledJobsCheck, self.emit)
         self.running = True
@@ -132,47 +167,56 @@ class Worker(EventEmitter):
 
         token_postfix = 0
 
-        while not self.closed:
-            while not self.waiting and len(self.processing) < self.opts.get("concurrency") and not self.closing:
-                token_postfix+=1
-                token = f'{self.id}:{token_postfix}'
-                
-                # Use retryIfFailed to wrap getNextJob call, similar to TypeScript worker
-                async def get_next_job_wrapped():
-                    return await self.getNextJob(token)
-                
-                waiting_job = asyncio.ensure_future(
-                    self.retryIfFailed(
-                        get_next_job_wrapped,
-                        {
-                            "delay_in_ms": self.opts.get("runRetryDelay"),
-                            "only_emit_error": True,
-                        }
+        try:
+            while not self.closed:
+                while not self.waiting and len(self.processing) < self.opts.get("concurrency") and not self.closing:
+                    token_postfix+=1
+                    token = f'{self.id}:{token_postfix}'
+
+                    # Use retryIfFailed to wrap getNextJob call, similar to TypeScript worker
+                    async def get_next_job_wrapped():
+                        return await self.getNextJob(token)
+
+                    waiting_job = asyncio.ensure_future(
+                        self.retryIfFailed(
+                            get_next_job_wrapped,
+                            {
+                                "delay_in_ms": self.opts.get("runRetryDelay"),
+                                "only_emit_error": True,
+                            }
+                        )
                     )
-                )
-                self.processing.add(waiting_job)
+                    self.processing.add(waiting_job)
 
-            try:
-                jobs, pending = await getCompleted(self.processing, self.emit)
+                try:
+                    jobs, pending = await getCompleted(self.processing, self.emit)
 
-                jobs_to_process = [self.processJob(job, job.token) for job in jobs]
-                processing_jobs = [asyncio.ensure_future(
-                    j) for j in jobs_to_process]
-                pending.update(processing_jobs)
-                self.processing = pending
+                    jobs_to_process = [self.processJob(job, job.token) for job in jobs]
+                    processing_jobs = [asyncio.ensure_future(
+                        j) for j in jobs_to_process]
+                    pending.update(processing_jobs)
+                    self.processing = pending
 
-                if (len(jobs) == 0 or len(self.processing) == 0) and self.closing:
-                    # We are done processing so we can close the queue
-                    break
+                    if (len(jobs) == 0 or len(self.processing) == 0) and self.closing:
+                        # We are done processing so we can close the queue
+                        break
 
-            except Exception as e:
-                # This should never happen or we will have an endless loop
-                traceback.print_exc()
-                return
-
-        self.running = False
-        self.timer.stop()
-        self.stalledCheckTimer.stop()
+                except Exception as e:
+                    # This should never happen or we will have an endless loop
+                    traceback.print_exc()
+                    return
+        finally:
+            # Ensure background resources are released even when the loop
+            # exits via the broad-exception `return` above; otherwise the
+            # lock renewal task and stalled-check timer would keep hitting
+            # Redis after run() has given up.
+            self.running = False
+            if self.stalledCheckTimer is not None:
+                try:
+                    self.stalledCheckTimer.stop()
+                except Exception:
+                    pass
+            await self.lockManager.close()
 
     async def getNextJob(self, token: str):
         """
@@ -201,7 +245,7 @@ class Worker(EventEmitter):
             return job_instance
 
     async def moveToActive(self, token: str):
-        result = await self.scripts.moveToActive(token, self.opts)
+        result = await self.backend.moveToActive(token, self.opts)
         job_data = None
         id = None
         limit_until = None
@@ -232,10 +276,10 @@ class Worker(EventEmitter):
 
     async def waitForJob(self) -> int:
         block_timeout = self.getBlockTimeout(self.blockUntil)
-        block_timeout = block_timeout if self.blockingRedisConnection.capabilities.get("canDoubleTimeout", False) else math.ceil(block_timeout)
+        block_timeout = block_timeout if self.backend.capabilities.get("canDoubleTimeout", False) else math.ceil(block_timeout)
 
         try:
-            result = await self.bclient.bzpopmin(self.scripts.keys["marker"], block_timeout)
+            result = await self.backend.waitForJob(block_timeout)
         except (asyncio.CancelledError, KeyboardInterrupt, SystemExit):
             # Cooperative cancellation must propagate immediately;
             # adding a sleep here would defeat the cancel signal.
@@ -268,8 +312,7 @@ class Worker(EventEmitter):
         if self._client_name_set:
             return
 
-        await self.redisConnection.set_client_name(self.clientName)
-        await self.blockingRedisConnection.set_client_name(self.clientName)
+        await self.backend.setName(self.clientName)
         self._client_name_set = True
 
     def getBlockTimeout(self, block_until: int) -> float:
@@ -289,7 +332,7 @@ class Worker(EventEmitter):
 
     @property
     def minimumBlockTimeout(self):
-        return minimum_block_timeout if self.blockingRedisConnection.capabilities.get("canBlockFor1Ms", True) else 0.002
+        return self.backend.minimumBlockTimeout
 
     async def processJob(self, job: Job, token: str):
         try:
@@ -300,15 +343,24 @@ class Worker(EventEmitter):
                 job.opts["removeOnFail"] = self.opts["removeOnFail"]
 
             self.jobs.add((job, token))
-            
+            controller = self.lockManager.track_job(
+                job.id,
+                token,
+                int(time.time() * 1000),
+                should_create_controller=self._processor_wants_signal,
+            )
+
             if job.deferredFailure:
                 await job.moveToFailed(UnrecoverableError(job.deferredFailure), token)
                 self.emit("failed", job, UnrecoverableError(job.deferredFailure))
                 return
 
-            result = await self.processor(job, token)
+            if controller is not None:
+                result = await self.processor(job, token, controller.signal)
+            else:
+                result = await self.processor(job, token)
             if not self.forceClosing:
-                await self.scripts.moveToCompleted(job, result, job.opts.get("removeOnComplete", False), token, fetchNext=False)
+                await self.backend.moveToCompleted(job, result, job.opts.get("removeOnComplete", False), token, fetch_next=False)
                 job.returnvalue = result
                 job.attemptsMade = job.attemptsMade + 1
             self.emit("completed", job, result)
@@ -324,6 +376,7 @@ class Worker(EventEmitter):
                 self.emit("error", err, job)
         finally:
             self.jobs.discard((job, token))
+            self.lockManager.untrack_job(job.id)
 
     async def retryIfFailed(self, fn, opts=None):
         """
@@ -404,6 +457,11 @@ class Worker(EventEmitter):
         ):
             return True
 
+        if self.opts.get("backend") == "postgres" and isinstance(
+            error, _postgres_connection_error_types()
+        ):
+            return True
+
         # DNS or socket failures raised before the redis client has a
         # chance to wrap them surface as a plain OSError. Match either
         # error.errno, any [Errno N] embedded in the message string, or
@@ -425,22 +483,23 @@ class Worker(EventEmitter):
     async def extendLocks(self):
         # Renew all the locks for the jobs that are still active
         try:
-            multi = self.client.pipeline()
+            job_ids = []
+            tokens = []
             for job, token in self.jobs:
-                await self.scripts.extendLock(job.id, token, self.opts.get("lockDuration"), multi)
-            result = await multi.execute()
+                job_ids.append(job.id)
+                tokens.append(token)
+            result = await self.backend.extendLocks(job_ids, tokens, self.opts.get("lockDuration"))
 
-            # result includes an object with locks that may not have been renewed.
+            # result includes job IDs with locks that may not have been renewed.
             # We should emit an error for each of those jobs.
-            #    for jobId, err in result.items():
+            #    for jobId in result:
             #    self.emit("error", "could not renew lock for job " + jobId)
 
         except Exception as e:
             traceback.print_exc()
-
     async def runStalledJobsCheck(self):
         try:
-            stalled = await self.scripts.moveStalledJobsToWait(self.opts.get("maxStalledCount"), self.opts.get("stalledInterval"))
+            stalled = await self.backend.moveStalledJobsToWait(self.opts.get("maxStalledCount"), self.opts.get("stalledInterval"))
             for jobId in stalled:
                 self.emit("stalled", jobId)
 
@@ -456,16 +515,22 @@ class Worker(EventEmitter):
         self.closing = True
         if force:
             self.forceClosing = True
+            # Abort cooperating processors first so they can observe a
+            # meaningful `reason` via their AbortSignal before the
+            # underlying tasks are cancelled below. Non-cooperating
+            # processors are still preempted by `cancelProcessing()`.
+            self.lockManager.cancel_all_jobs("worker force-closed")
             self.cancelProcessing()
 
         if not force and len(self.processing) > 0:
             await asyncio.wait(self.processing, return_when=asyncio.ALL_COMPLETED)
 
-        for conn in (self.blockingRedisConnection, self.redisConnection):
-            try:
-                await conn.close()
-            except Exception as err:
-                self.emit('error', err)
+        await self.lockManager.close()
+
+        try:
+            await self.backend.close(force=force)
+        except Exception as err:
+            self.emit('error', err)
 
         self.closed = True
         self.emit('closed')
@@ -494,6 +559,52 @@ class Worker(EventEmitter):
         for job in self.processing:
             if not job.done():
                 job.cancel()
+
+    def cancelJob(self, job_id: str, reason: str | None = None) -> bool:
+        """
+        Cancel a specific in-flight job by aborting its `AbortSignal`.
+
+        Returns True if the job is tracked and an `AbortController` was
+        allocated for it (i.e. the processor was declared with a 3rd
+        `signal` parameter), False otherwise. Cancellation is cooperative:
+        the processor must observe `signal.aborted` (or await
+        `signal.wait()`) to actually short-circuit. Mirrors
+        `Worker.cancelJob` from the Node.js implementation.
+        """
+        return self.lockManager.cancel_job(job_id, reason)
+
+    def cancelAllJobs(self, reason: str | None = None) -> None:
+        """Abort the signals of all currently tracked jobs. Has no effect
+        on jobs whose processors did not opt into the `signal` argument."""
+        self.lockManager.cancel_all_jobs(reason)
+
+
+def _processor_accepts_signal(processor) -> bool:
+    """Return True if `processor` declares a 3rd positional parameter
+    (the `AbortSignal`). Falls back to False for builtins / C callables
+    whose signature cannot be inspected.
+
+    Variadic handling: `*args` is treated as opt-in because the worker
+    invokes the processor positionally. `**kwargs` is NOT opt-in for
+    the same reason — the signal is passed as a positional argument and
+    a processor that only declares `**kwargs` could not bind it without
+    a named `signal=` keyword (which the worker does not use)."""
+    if processor is None:
+        return False
+    try:
+        sig = inspect.signature(processor)
+    except (TypeError, ValueError):
+        return False
+    positional = 0
+    for param in sig.parameters.values():
+        if param.kind in (
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        ):
+            positional += 1
+        elif param.kind == inspect.Parameter.VAR_POSITIONAL:
+            return True
+    return positional >= 3
 
 
 async def getCompleted(task_set: set, emit_callback) -> tuple[list[Job], set]:

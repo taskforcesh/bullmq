@@ -15,6 +15,11 @@ use MessagePack\Packer;
  */
 class Scripts
 {
+    /**
+     * Maximum number of bounded range backfill iterations when skipping missing job hashes.
+     */
+    private const GET_JOBS_MAX_BACKFILL_ITERATIONS = 5;
+
     private string $queueName;
     /** @var \Predis\Client */
     private $client;
@@ -348,6 +353,36 @@ class Scripts
         $result = $this->execScript('getStateV2-8.lua', $keys, $args);
         
         return is_string($result) ? $result : 'unknown';
+    }
+
+    /**
+     * Get jobs with raw hash data by type/state.
+     *
+     * @param array<string> $types
+     * @param int $start
+     * @param int $end
+     * @param bool $asc
+     * @return array<mixed> Raw per-type job arrays returned by Redis
+     */
+    public function getJobs(array $types, int $start = 0, int $end = -1, bool $asc = false): array
+    {
+        $transformedTypes = array_map(
+            fn($type) => $type === 'waiting' ? 'wait' : $type,
+            $types
+        );
+
+        $keys = $this->getKeys(['']);
+        $args = [
+            $start,
+            $end,
+            $asc ? '1' : '0',
+            self::GET_JOBS_MAX_BACKFILL_ITERATIONS,
+            ...$transformedTypes,
+        ];
+
+        $result = $this->execScript('getJobs-1.lua', $keys, $args);
+
+        return is_array($result) ? $result : [];
     }
 
     /**

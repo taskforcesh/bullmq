@@ -195,7 +195,17 @@ export class RedisConnection extends EventEmitter {
     };
 
     this.initializing = this.init();
-    this.initializing.catch(err => this.emit('error', err));
+    this.initializing.catch(err => {
+      // Only emit if there is an `error` listener attached. `EventEmitter.emit`
+      // throws when emitting `error` with no listeners, which would surface as
+      // an unhandled rejection — e.g. when the connection is force-closed during
+      // shutdown while its version-check `INFO` command is still in flight and
+      // rejects with "Connection is closed". The init error is still propagated
+      // to anything awaiting `initializing` (the `client` getter and `close`).
+      if (this.listenerCount('error') > 0) {
+        this.emit('error', err);
+      }
+    });
   }
 
   private checkBlockingOptions(
@@ -631,7 +641,30 @@ export class RedisConnection extends EventEmitter {
 
   async reconnect(): Promise<void> {
     const client = await this.client;
-    return client.connect();
+    for (;;) {
+      if (
+        client.status === 'ready' ||
+        (client.status === 'connect' && isRedisCluster(client))
+      ) {
+        return;
+      }
+
+      if (client.status === 'wait' || client.status === 'end') {
+        return client.connect();
+      }
+
+      try {
+        await RedisConnection.waitUntilReady(client);
+      } catch (error) {
+        if (
+          !['end', 'connecting', 'connect', 'reconnecting'].includes(
+            client.status,
+          )
+        ) {
+          throw error;
+        }
+      }
+    }
   }
 
   async close(force = false): Promise<void> {

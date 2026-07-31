@@ -3,6 +3,7 @@ node_modules
 /dist
 /rawScripts
 /src/scripts
+/rust/src/commands
 # Log files
 npm-debug.log*
 yarn-debug.log*
@@ -12,6 +13,14 @@ yarn-error.log*
 .nyc_output
 coverage
 coverage/*
+
+# VitePress build artifacts
+docs/.vitepress/dist
+docs/.vitepress/cache
+docs/gitbook/public/api
+
+# Generated current-version TypeDoc input
+apiVersions/v5.json
 
 # Editor directories and files
 .idea

@@ -322,9 +322,54 @@ class Queue
             $types = [$types];
         }
 
-        $jobIds = $this->scripts->getRanges($types, $start, $end, $asc);
-        
-        return $this->getJobs($jobIds);
+        $responses = $this->scripts->getJobs($types, $start, $end, $asc);
+        $jobs = [];
+        $seenJobIds = [];
+
+        foreach ($responses as $response) {
+            if (!is_array($response)) {
+                continue;
+            }
+
+            foreach ($response as $entry) {
+                if (!is_array($entry) || count($entry) < 2 || !is_array($entry[1])) {
+                    continue;
+                }
+
+                $jobId = (string) $entry[0];
+                if (isset($seenJobIds[$jobId])) {
+                    continue;
+                }
+
+                $rawData = $this->flatHashToArray($entry[1]);
+                if ($rawData === []) {
+                    continue;
+                }
+
+                $seenJobIds[$jobId] = true;
+                $jobs[] = Job::fromRaw($this, $rawData, $jobId);
+            }
+        }
+
+        return $jobs;
+    }
+
+    /**
+     * Convert a flat Redis HGETALL response into an associative array.
+     *
+     * @param array<mixed> $flatHash
+     * @return array<string, mixed>
+     */
+    private function flatHashToArray(array $flatHash): array
+    {
+        $rawData = [];
+        $count = count($flatHash);
+
+        for ($i = 0; $i < $count - 1; $i += 2) {
+            $rawData[(string) $flatHash[$i]] = $flatHash[$i + 1];
+        }
+
+        return $rawData;
     }
 
     /**

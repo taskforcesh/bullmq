@@ -1,3 +1,45 @@
+# [3.0.0](https://github.com/taskforcesh/bullmq/compare/vpy2.26.0...vpy3.0.0) (2026-07-30)
+
+
+* feat!: release BullMQ v6 with pluggable queue backends (php) (python) (elixir) ([e1f86ef](https://github.com/taskforcesh/bullmq/commit/e1f86effc5bddda5b70d890866d9a490555e41ff)), closes [Hi#level](https://github.com/Hi/issues/level) [Queue#client](https://github.com/Queue/issues/client) [Queue#redisVersion](https://github.com/Queue/issues/redisVersion) [Queue#databaseType](https://github.com/Queue/issues/databaseType) [Worker#blockingClient](https://github.com/Worker/issues/blockingClient) [FlowProducer#client](https://github.com/FlowProducer/issues/client) [Queue#add](https://github.com/Queue/issues/add) [Queue#addBulk](https://github.com/Queue/issues/addBulk) [Job#debounceId](https://github.com/Job/issues/debounceId) [Job#deduplicationId](https://github.com/Job/issues/deduplicationId)
+
+
+### Bug Fixes
+
+* **deps:** update dependency redis [security] ([#4369](https://github.com/taskforcesh/bullmq/issues/4369)) ([2a120df](https://github.com/taskforcesh/bullmq/commit/2a120dfea7324d7af67ad505c78f48571c74402b))
+
+
+### BREAKING CHANGES
+
+*
+
+# [2.26.0](https://github.com/taskforcesh/bullmq/compare/vpy2.25.4...vpy2.26.0) (2026-07-26)
+
+
+### Features
+
+* port JobScheduler, LockManager, AbortController, QueueEvents classes and global limits [python] fixes [#2772](https://github.com/taskforcesh/bullmq/issues/2772) ([#4336](https://github.com/taskforcesh/bullmq/issues/4336)) ([2664876](https://github.com/taskforcesh/bullmq/commit/2664876092793ca2ba5e0eb080d99c3042ed136a))
+
+## [2.25.4](https://github.com/taskforcesh/bullmq/compare/vpy2.25.3...vpy2.25.4) (2026-07-24)
+
+
+### Bug Fixes
+
+* **queue:** retrieve jobs in same transaction under getJobs ([#4300](https://github.com/taskforcesh/bullmq/issues/4300)) (python) (elixir) (php) (rust) ([8571503](https://github.com/taskforcesh/bullmq/commit/8571503034a43c6d5882e290051957215fd20fee))
+
+
+### Features
+
+* add QueueEvents, queue/worker getters, and missing options [rust] ([#4229](https://github.com/taskforcesh/bullmq/issues/4229)) ([60ae049](https://github.com/taskforcesh/bullmq/commit/60ae0492a3200f8496976a3b51609e7e54eafd1b))
+* idiomatic builder-based ergonomics across the public API [rust] ([#4288](https://github.com/taskforcesh/bullmq/issues/4288)) ([bbf0844](https://github.com/taskforcesh/bullmq/commit/bbf0844a250d08d6bfafacb43360f26a57cb9c87))
+
+## [2.25.3](https://github.com/taskforcesh/bullmq/compare/vpy2.25.2...vpy2.25.3) (2026-07-10)
+
+
+### Bug Fixes
+
+* **flow:** use correct data structure when retrying failed child using ignoreDependencyOnFailure fixes [#4235](https://github.com/taskforcesh/bullmq/issues/4235) ([#4236](https://github.com/taskforcesh/bullmq/issues/4236)) ([6f1b2e3](https://github.com/taskforcesh/bullmq/commit/6f1b2e33b01c9f97dee6ff96bab782a8399c7ae5))
+
 ## [2.25.2](https://github.com/taskforcesh/bullmq/compare/vpy2.25.1...vpy2.25.2) (2026-05-10)
 
 

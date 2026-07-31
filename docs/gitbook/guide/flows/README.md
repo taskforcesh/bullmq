@@ -73,6 +73,51 @@ flow = await flowProducer.add({
 ```
 
 {% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{FlowProducer, FlowProducerOptions, FlowJob};
+
+// A FlowProducer connects to a local Redis instance by default.
+let flow_producer = FlowProducer::new(FlowProducerOptions::default()).await?;
+
+let flow = flow_producer.add(FlowJob {
+    name: "renovate-interior".to_string(),
+    queue_name: "renovate".to_string(),
+    data: serde_json::json!({}),
+    opts: None,
+    prefix: None,
+    children: Some(vec![
+        FlowJob {
+            name: "paint".to_string(),
+            queue_name: "steps".to_string(),
+            data: serde_json::json!({ "place": "ceiling" }),
+            opts: None,
+            prefix: None,
+            children: None,
+        },
+        FlowJob {
+            name: "paint".to_string(),
+            queue_name: "steps".to_string(),
+            data: serde_json::json!({ "place": "walls" }),
+            opts: None,
+            prefix: None,
+            children: None,
+        },
+        FlowJob {
+            name: "fix".to_string(),
+            queue_name: "steps".to_string(),
+            data: serde_json::json!({ "place": "floor" }),
+            opts: None,
+            prefix: None,
+            children: None,
+        },
+    ]),
+}).await?;
+```
+
+{% endtab %}
 {% endtabs %}
 
 The above code will atomically add 4 jobs: one to the "renovate" queue, and 3 to the "steps" queue. When the 3 jobs in the "steps" queue are completed, the parent job in the "renovate" queue will be processed as a regular job.
@@ -121,6 +166,30 @@ async def process(job: Job, token: str):
     return 1750
 
 stepsWorker = Worker("steps", process, {"connection": connection})
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{Worker, WorkerOptions, Job};
+use bullmq::worker::{CancellationToken, ProcessorFn};
+use std::sync::Arc;
+
+let processor: ProcessorFn = Arc::new(|job: Job, _token: CancellationToken| {
+    Box::pin(async move {
+        perform_step(job.data()).await;
+
+        match job.name() {
+            "paint" => Ok(serde_json::json!(2500)),
+            "fix" => Ok(serde_json::json!(1750)),
+            _ => Ok(serde_json::Value::Null),
+        }
+    })
+});
+
+let steps_worker = Worker::new("steps", processor, WorkerOptions::default()).await?;
 ```
 
 {% endtab %}
@@ -191,6 +260,40 @@ chain = await flowProducer.add({
     },
   ],
 })
+```
+
+{% endtab %}
+
+{% tab title="Rust" %}
+
+```rust
+use bullmq::{FlowProducer, FlowProducerOptions, FlowJob};
+
+let flow_producer = FlowProducer::new(FlowProducerOptions::default()).await?;
+
+let queue_name = "assembly-line";
+let chain = flow_producer.add(FlowJob {
+    name: "car".to_string(),
+    queue_name: queue_name.to_string(),
+    data: serde_json::json!({ "step": "engine" }),
+    opts: None,
+    prefix: None,
+    children: Some(vec![FlowJob {
+        name: "car".to_string(),
+        queue_name: queue_name.to_string(),
+        data: serde_json::json!({ "step": "wheels" }),
+        opts: None,
+        prefix: None,
+        children: Some(vec![FlowJob {
+            name: "car".to_string(),
+            queue_name: queue_name.to_string(),
+            data: serde_json::json!({ "step": "chassis" }),
+            opts: None,
+            prefix: None,
+            children: None,
+        }]),
+    }]),
+}).await?;
 ```
 
 {% endtab %}

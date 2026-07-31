@@ -6,13 +6,13 @@
 ]]
 --- @include "checkItemInList"
 
-local function storeDeduplicatedNextJob(deduplicationOpts, currentDebounceJobId, prefix,
+local function storeDeduplicatedNextJob(deduplicationOpts, currentDeduplicatedJobId, prefix,
     deduplicationId, jobName, jobData, fullOpts, eventsKey, maxEvents, jobId,
     parentKey, parentData, parentDependenciesKey, repeatJobKey)
-    if deduplicationOpts['keepLastIfActive'] and currentDebounceJobId then
+    if deduplicationOpts['keepLastIfActive'] and currentDeduplicatedJobId then
         local activeKey = prefix .. "active"
         local activeItems = rcall('LRANGE', activeKey, 0, -1)
-        if checkItemInList(activeItems, currentDebounceJobId) then
+        if checkItemInList(activeItems, currentDeduplicatedJobId) then
             local deduplicationNextKey = prefix .. "dn:" .. deduplicationId
             local fields = {'name', jobName, 'data', jobData, 'opts', cjson.encode(fullOpts),
                 'jid', jobId}
@@ -46,11 +46,8 @@ local function storeDeduplicatedNextJob(deduplicationOpts, currentDebounceJobId,
             local deduplicationKey = prefix .. "de:" .. deduplicationId
             rcall('PERSIST', deduplicationKey)
 
-            -- TODO remove debounced event in next breaking change
-            rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "debounced", "jobId",
-                currentDebounceJobId, "debounceId", deduplicationId)
             rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "deduplicated", "jobId",
-                currentDebounceJobId, "deduplicationId", deduplicationId, "deduplicatedJobId", jobId)
+                currentDeduplicatedJobId, "deduplicationId", deduplicationId, "deduplicatedJobId", jobId)
             return true
         end
     end

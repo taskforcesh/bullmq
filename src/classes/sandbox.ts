@@ -41,7 +41,10 @@ const sandbox = <T, R, N extends string>(
                   case ParentCommand.Failed:
                   case ParentCommand.Error: {
                     const err = new Error();
-                    Object.assign(err, msg.value);
+                    // ParentCommand.Failed carries the error under `value`,
+                    // while ParentCommand.Error carries it under `err`. Read
+                    // from either key so the failure reason is never lost.
+                    Object.assign(err, msg.value ?? msg.err);
                     reject(err);
                     break;
                   }
