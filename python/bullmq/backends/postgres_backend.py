@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 minimum_block_timeout = 0.001
 
-# Job states stored as the enum value in bullmq_job.state; the high-level
+# Job states stored as the enum value in job.state; the high-level
 # classes sometimes use Redis list names ("wait", "paused") that map here.
 _STATE_ALIASES = {"wait": "waiting", "paused": "waiting"}
 
@@ -116,7 +116,7 @@ def _to_int(value: Any) -> int:
 
 
 def _row_to_job_map(row: dict) -> dict:
-    """Map a ``bullmq_job`` row into the Redis-hash-shaped dict ``Job.fromJSON``
+    """Map a ``job`` row into the Redis-hash-shaped dict ``Job.fromJSON``
     consumes (JSON-string values for the object fields, string values for the
     rest; ``None`` fields are dropped)."""
     parent_id = row.get("parent_id")

@@ -95,7 +95,7 @@ defmodule BullMQ.Backends.Postgres do
     Enum.map(rows, fn row -> cols |> Enum.zip(row) |> Map.new() end)
   end
 
-  # Maps a `bullmq_job` row into the Redis-hash-shaped string-keyed map that
+  # Maps a `job` row into the Redis-hash-shaped string-keyed map that
   # `BullMQ.Job.from_redis/4` consumes.
   defp row_to_job_map(row) do
     %{
@@ -319,12 +319,12 @@ defmodule BullMQ.Backends.Postgres do
   @impl true
   def add_flow(%__MODULE__{} = b, commands, _opts) do
     # `commands` is the pre-built, roots-first list of batch entries for every
-    # node of the flow tree (from `build_add_*_command`). `bullmq_add_flow`
+    # node of the flow tree (from `build_add_*_command`). `add_flow`
     # inserts the whole tree in one atomic statement.
     {:ok, Enum.map(run_add_flow(b, commands), &flow_result/1)}
   end
 
-  # Runs `bullmq_add_flow` with the ordered (roots-first) entry array and
+  # Runs `add_flow` with the ordered (roots-first) entry array and
   # returns the resulting ids in input order. The list is passed as an Elixir
   # term so Postgrex encodes it to a jsonb array (a JSON string would be wrapped
   # as a jsonb scalar and `jsonb_array_elements` would reject it).
@@ -345,7 +345,7 @@ defmodule BullMQ.Backends.Postgres do
     end
   end
 
-  # Builds one entry of the JSONB batch consumed by `bullmq_add_flow`. `job` is
+  # Builds one entry of the JSONB batch consumed by `add_flow`. `job` is
   # either a `%BullMQ.Job{}` (Queue.add_bulk) or a flow job map (FlowProducer);
   # both expose id/name/data/opts/timestamp/parent as atom keys.
   defp batch_entry(queue, job, encoded_opts, add_to_waiting_children) do
@@ -372,7 +372,7 @@ defmodule BullMQ.Backends.Postgres do
     }
   end
 
-  # `bullmq_add_flow` links a child to its parent by `(parentQueue, parentId)`
+  # `add_flow` links a child to its parent by `(parentQueue, parentId)`
   # matched against the parent's `queue` column — the plain queue name (no
   # prefix), which the flow job map exposes as `parent.queue`.
   defp batch_parent_queue(nil), do: nil
@@ -677,7 +677,7 @@ defmodule BullMQ.Backends.Postgres do
       Postgrex.query!(
         pool,
         "SELECT lock_token IS NOT NULL AND locked_until_ms > $3 AS locked " <>
-          "FROM bullmq_job WHERE queue = $1 AND id = $2",
+          "FROM job WHERE queue = $1 AND id = $2",
         [q, job_id, now_ms()]
       )
 
@@ -968,7 +968,7 @@ defmodule BullMQ.Backends.Postgres do
     Enum.each(values, fn {field, value} ->
       Postgrex.query!(
         pool,
-        "INSERT INTO bullmq_meta (queue, field, value) VALUES ($1, $2, $3) " <>
+        "INSERT INTO meta (queue, field, value) VALUES ($1, $2, $3) " <>
           "ON CONFLICT (queue, field) DO UPDATE SET value = EXCLUDED.value",
         [b.queue_name, to_string(field), to_string(value)]
       )
@@ -1289,7 +1289,7 @@ defmodule BullMQ.Backends.Postgres do
 
   def wait_for_job(%__MODULE__{notifications: notif} = b, block_timeout) do
     # Producers `NOTIFY bullmq_jobs` with the queue name as payload (in
-    # `bullmq_add_job`), so a producer in any process wakes a blocked worker
+    # `add_job`), so a producer in any process wakes a blocked worker
     # immediately. This mirrors the Redis backend's `BZPOPMIN`.
     {:ok, ref} = Postgrex.Notifications.listen(notif, "bullmq_jobs")
 

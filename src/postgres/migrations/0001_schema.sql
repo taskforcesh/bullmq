@@ -16,7 +16,7 @@
 -- `prefix` namespaces every key — SQL uses the schema as the single namespace
 -- for the whole connection, so there is no per-row/per-queue prefix.
 --
--- The migration ledger table (`bullmq_migration`) is bootstrapped by the
+-- The migration ledger table (`migration`) is bootstrapped by the
 -- migration runner itself, so it is intentionally not created here.
 --
 -- v1 only establishes the foundation that is independent of the job-storage
@@ -26,7 +26,7 @@
 -- Per-queue metadata. Mirrors the Redis `<prefix>:<queue>:meta` hash: a small
 -- key/value store keyed by (queue, field). Used for the queue version, global
 -- concurrency, global rate limit, paused flag, etc.
-CREATE TABLE IF NOT EXISTS bullmq_meta (
+CREATE TABLE IF NOT EXISTS meta (
   queue text NOT NULL,
   field text NOT NULL,
   value text,
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS bullmq_meta (
 --   independent BullMQ namespace. So there is no per-row/per-queue prefix — the
 --   `queue` column alone discriminates within the schema.
 --
--- * Single `bullmq_job` table keyed by (queue, id). The Redis adapter spreads a
+-- * Single `job` table keyed by (queue, id). The Redis adapter spreads a
 --   job's lifecycle across many keys (wait list, prioritized zset, delayed zset,
 --   active list, completed/failed zsets, locks, …); here a single `state`
 --   column plus a handful of promoted, indexable columns replaces all of them.
@@ -68,14 +68,14 @@ CREATE TABLE IF NOT EXISTS bullmq_meta (
 --   has a small index that only contains the rows in the relevant state.
 --
 -- * "paused" and "prioritized" are NOT physical states. Pausing is an O(1)
---   queue-level flag in `bullmq_meta`; a prioritized job is simply a waiting job
+--   queue-level flag in `meta`; a prioritized job is simply a waiting job
 --   with `priority > 0`. This avoids the bulk row rewrites Redis performs on
 --   pause and removes the need for a separate prioritized structure — full
 --   `ORDER BY (priority, seq)` does the job.
 -- ──────────────────────────────────────────────────────────────────────────
 
 -- Physical job states. (Pause = meta flag; prioritized = waiting + priority>0.)
-CREATE TYPE bullmq_job_state AS ENUM (
+CREATE TYPE job_state AS ENUM (
   'waiting',
   'active',
   'completed',
@@ -85,7 +85,7 @@ CREATE TYPE bullmq_job_state AS ENUM (
 );
 
 -- Status of a parent→child dependency (flows).
-CREATE TYPE bullmq_dep_status AS ENUM (
+CREATE TYPE dep_status AS ENUM (
   'pending',    -- child not finished yet
   'processed',  -- child completed; `value` holds its return value
   'ignored',    -- child failed but parent was told to ignore it; `value` = reason
@@ -97,21 +97,21 @@ CREATE TYPE bullmq_dep_status AS ENUM (
 -- with insertion. LIFO jobs are stored with a *negative* `seq` (from the same
 -- sequence, negated) so they sort ahead of all FIFO jobs and, among themselves,
 -- most-recently-added first — reproducing "last in, first out" with one column.
-CREATE SEQUENCE bullmq_job_seq;
+CREATE SEQUENCE job_seq;
 
 -- Global monotonic id for the event stream (the Postgres analogue of a Redis
 -- stream entry id). Consumers page forward with `id > cursor`.
-CREATE SEQUENCE bullmq_event_seq;
+CREATE SEQUENCE event_seq;
 
 -- ──────────────────────────────────────────────────────────────────────────
 -- Jobs
 -- ──────────────────────────────────────────────────────────────────────────
-CREATE TABLE bullmq_job (
+CREATE TABLE job (
   queue             text             NOT NULL,
   id                text             NOT NULL,  -- custom id, or numeric counter as text
   seq               bigint           NOT NULL,  -- FIFO order (negative = LIFO); see sequence above
   name              text             NOT NULL,
-  state             bullmq_job_state NOT NULL,
+  state             job_state NOT NULL,
 
   -- Payload / options. BullMQ serializes these as JSON strings; stored as jsonb
   -- (always valid JSON) so they are queryable and compact.
@@ -157,7 +157,7 @@ CREATE TABLE bullmq_job (
   parent_key        text,                         -- denormalized "<queue>:<id>" (Redis-compatible "<prefix>:<queue>:<id>")
   pending_deps      integer          NOT NULL DEFAULT 0,
   -- Two-phase stalled mark/sweep: set on the first stalled pass, reclaimed on
-  -- the next (see bullmq_move_stalled_jobs_to_wait in 0002_functions.sql).
+  -- the next (see move_stalled_jobs_to_wait in 0002_functions.sql).
   stalled_marked    boolean          NOT NULL DEFAULT false,
 
   PRIMARY KEY (queue, id)
@@ -166,52 +166,52 @@ CREATE TABLE bullmq_job (
 -- Claim next ready job: waiting jobs ordered by (priority, seq). Covers both the
 -- "wait" (priority = 0) and "prioritized" (priority > 0) views, and the FIFO/LIFO
 -- ordering via the signed `seq`. Used with FOR UPDATE SKIP LOCKED.
-CREATE INDEX bullmq_job_ready_idx
-  ON bullmq_job (queue, priority, seq)
+CREATE INDEX job_ready_idx
+  ON job (queue, priority, seq)
   WHERE state = 'waiting';
 
 -- Promote due delayed jobs (process_at_ms <= now) and find the next wake-up.
-CREATE INDEX bullmq_job_delayed_idx
-  ON bullmq_job (queue, process_at_ms)
+CREATE INDEX job_delayed_idx
+  ON job (queue, process_at_ms)
   WHERE state = 'delayed';
 
 -- Active jobs: stalled scan by lock expiry, and O(1)-ish concurrency counting
 -- (COUNT over the partial index for a queue).
-CREATE INDEX bullmq_job_active_idx
-  ON bullmq_job (queue, locked_until_ms)
+CREATE INDEX job_active_idx
+  ON job (queue, locked_until_ms)
   WHERE state = 'active';
 
 -- Finished jobs: range listing and age/count-based retention + cleaning.
-CREATE INDEX bullmq_job_finished_idx
-  ON bullmq_job (queue, state, finished_at_ms)
+CREATE INDEX job_finished_idx
+  ON job (queue, state, finished_at_ms)
   WHERE state IN ('completed', 'failed');
 
 -- Parents blocked on children.
-CREATE INDEX bullmq_job_waiting_children_idx
-  ON bullmq_job (queue, seq)
+CREATE INDEX job_waiting_children_idx
+  ON job (queue, seq)
   WHERE state = 'waiting-children';
 
 -- Reverse lookup from a child to its parent (e.g. orphan/repair scans).
-CREATE INDEX bullmq_job_parent_idx
-  ON bullmq_job (parent_queue, parent_id)
+CREATE INDEX job_parent_idx
+  ON job (parent_queue, parent_id)
   WHERE parent_id IS NOT NULL;
 
 -- Locate the job(s) produced by a given scheduler.
-CREATE INDEX bullmq_job_scheduler_idx
-  ON bullmq_job (queue, scheduler_id)
+CREATE INDEX job_scheduler_idx
+  ON job (queue, scheduler_id)
   WHERE scheduler_id IS NOT NULL;
 
 -- ──────────────────────────────────────────────────────────────────────────
 -- Job logs (append-only, per-job ordered lines)
 -- ──────────────────────────────────────────────────────────────────────────
-CREATE TABLE bullmq_job_log (
+CREATE TABLE job_log (
   queue   text   NOT NULL,
   job_id  text   NOT NULL,
   idx     bigint NOT NULL,   -- per-job ordinal (0-based); range reads + trimming
   row     text   NOT NULL,
   PRIMARY KEY (queue, job_id, idx),
   FOREIGN KEY (queue, job_id)
-    REFERENCES bullmq_job (queue, id) ON DELETE CASCADE
+    REFERENCES job (queue, id) ON DELETE CASCADE
 );
 
 -- ──────────────────────────────────────────────────────────────────────────
@@ -221,27 +221,27 @@ CREATE TABLE bullmq_job_log (
 -- child sets with a single `status` column, and stores each processed child's
 -- return value (or failure reason) in `value`. `pending_deps` on the parent job
 -- is the count of rows here still in 'pending'.
-CREATE TABLE bullmq_job_dependency (
+CREATE TABLE job_dependency (
   parent_queue text NOT NULL,
   parent_id    text NOT NULL,
   child_queue  text NOT NULL,
   child_id     text NOT NULL,
   child_key    text NOT NULL,  -- denormalized "<queue>:<id>" (Redis-compatible "<prefix>:<queue>:<id>")
-  status       bullmq_dep_status NOT NULL DEFAULT 'pending',
+  status       dep_status NOT NULL DEFAULT 'pending',
   value        jsonb,
   PRIMARY KEY (parent_queue, parent_id, child_key),
   FOREIGN KEY (parent_queue, parent_id)
-    REFERENCES bullmq_job (queue, id) ON DELETE CASCADE
+    REFERENCES job (queue, id) ON DELETE CASCADE
 );
 
 -- Paginate a parent's children by category (processed / pending / …).
-CREATE INDEX bullmq_dep_parent_status_idx
-  ON bullmq_job_dependency (parent_queue, parent_id, status);
+CREATE INDEX dep_parent_status_idx
+  ON job_dependency (parent_queue, parent_id, status);
 
 -- Resolve dependencies from the child side (when a child finishes, or when a
 -- child dependency is explicitly removed).
-CREATE INDEX bullmq_dep_child_idx
-  ON bullmq_job_dependency (child_queue, child_id);
+CREATE INDEX dep_child_idx
+  ON job_dependency (child_queue, child_id);
 
 -- ──────────────────────────────────────────────────────────────────────────
 -- Event stream (QueueEvents)
@@ -250,16 +250,16 @@ CREATE INDEX bullmq_dep_child_idx
 -- consumers page forward with `id > cursor`. Blocking reads are delivered via
 -- LISTEN/NOTIFY (the operation layer NOTIFYs on insert); trimming deletes the
 -- lowest ids beyond the configured max length.
-CREATE TABLE bullmq_event (
+CREATE TABLE event (
   queue         text   NOT NULL,
-  id            bigint NOT NULL DEFAULT nextval('bullmq_event_seq'),
+  id            bigint NOT NULL DEFAULT nextval('event_seq'),
   event         text   NOT NULL,
   data          jsonb  NOT NULL DEFAULT '{}'::jsonb,
   created_at_ms bigint NOT NULL,
   PRIMARY KEY (queue, id)
 );
 
-CREATE TABLE bullmq_metrics (
+CREATE TABLE metrics (
   queue      text     NOT NULL,
   kind       text     NOT NULL,  -- 'completed' | 'failed'
   count      bigint   NOT NULL DEFAULT 0,  -- cumulative finished jobs
@@ -277,7 +277,7 @@ CREATE TABLE bullmq_metrics (
 -- Redis `<prefix>:<queue>:limiter` counter key (with its PTTL). The global
 -- limiter is the only mode the open-source backend supports (per-group rate
 -- limiting was removed in BullMQ 3.0).
-CREATE TABLE bullmq_rate_limit (
+CREATE TABLE rate_limit (
   queue        text    NOT NULL,
   points       bigint  NOT NULL DEFAULT 0,
   expire_at_ms bigint  NOT NULL,
@@ -287,7 +287,7 @@ CREATE TABLE bullmq_rate_limit (
 -- ──────────────────────────────────────────────────────────────────────────
 -- Deduplication keys
 -- ──────────────────────────────────────────────────────────────────────────
-CREATE TABLE bullmq_dedup (
+CREATE TABLE dedup (
   queue        text   NOT NULL,
   dedup_id     text   NOT NULL,
   job_id       text   NOT NULL,
@@ -296,10 +296,10 @@ CREATE TABLE bullmq_dedup (
 );
 
 -- Expired dedup keys are reclaimed lazily by operation functions in
--- 0002_functions.sql (for example bullmq_deduplicate_job and
--- bullmq_dedup_finalize). This index keeps those lookups/deletes efficient.
-CREATE INDEX bullmq_dedup_expire_idx
-  ON bullmq_dedup (queue, expire_at_ms)
+-- 0002_functions.sql (for example deduplicate_job and
+-- dedup_finalize). This index keeps those lookups/deletes efficient.
+CREATE INDEX dedup_expire_idx
+  ON dedup (queue, expire_at_ms)
   WHERE expire_at_ms IS NOT NULL;
 
 -- ──────────────────────────────────────────────────────────────────────────
@@ -311,7 +311,7 @@ CREATE INDEX bullmq_dedup_expire_idx
 -- computes nextMillis (JS cron-parser); for `every` the backend computes it,
 -- honouring `offset_ms` (the phase offset from `start_date`).
 -- ──────────────────────────────────────────────────────────────────────────
-CREATE TABLE bullmq_scheduler (
+CREATE TABLE scheduler (
   queue           text   NOT NULL,
   scheduler_id    text   NOT NULL,
   name            text,
@@ -331,8 +331,8 @@ CREATE TABLE bullmq_scheduler (
 );
 
 -- Find schedulers whose next iteration is due, and order schedulers by next run.
-CREATE INDEX bullmq_scheduler_next_idx
-  ON bullmq_scheduler (queue, next_run_ms);
+CREATE INDEX scheduler_next_idx
+  ON scheduler (queue, next_run_ms);
 
 -- ── keepLastIfActive proto-next storage ──────────────────────────────────
 -- When a job is deduplicated while its winner is *active* and keepLastIfActive
@@ -340,7 +340,7 @@ CREATE INDEX bullmq_scheduler_next_idx
 -- dedup key is persisted (no expiry). When the active winner finishes, the
 -- stashed payload is turned into a real job (the new winner). At most one
 -- proto-next exists per id; a later add while active overwrites it.
-CREATE TABLE bullmq_dedup_next (
+CREATE TABLE dedup_next (
   queue    text  NOT NULL,
   dedup_id text  NOT NULL,
   payload  jsonb NOT NULL,  -- { name, data, opts, jobId }

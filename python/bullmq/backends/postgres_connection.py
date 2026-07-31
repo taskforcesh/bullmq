@@ -119,11 +119,11 @@ async def run_migrations(
         await cur.execute(f"CREATE SCHEMA IF NOT EXISTS {quoted}")
         await cur.execute(f"SET LOCAL search_path TO {quoted}")
         await cur.execute(
-            "CREATE TABLE IF NOT EXISTS bullmq_migration ("
+            "CREATE TABLE IF NOT EXISTS migration ("
             "version integer PRIMARY KEY, name text NOT NULL, "
             "applied_at timestamptz NOT NULL DEFAULT now())"
         )
-        await cur.execute("SELECT COALESCE(MAX(version), 0)::int FROM bullmq_migration")
+        await cur.execute("SELECT COALESCE(MAX(version), 0)::int FROM migration")
         current = (await cur.fetchone())[0]
 
         for filename in sql_loader.migration_files():
@@ -131,7 +131,7 @@ async def run_migrations(
             if version > current:
                 await cur.execute(sql_loader.load_migration(filename))
                 await cur.execute(
-                    "INSERT INTO bullmq_migration (version, name) VALUES (%s, %s)",
+                    "INSERT INTO migration (version, name) VALUES (%s, %s)",
                     (version, filename),
                 )
                 current = version

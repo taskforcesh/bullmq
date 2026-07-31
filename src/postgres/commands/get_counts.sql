@@ -8,6 +8,6 @@ SELECT
   COUNT(*) FILTER (WHERE state = 'waiting' AND priority = 0) AS waiting,
   COUNT(*) FILTER (WHERE state = 'waiting' AND priority > 0) AS prioritized,
   COUNT(*) FILTER (WHERE state = 'waiting-children')         AS "waiting-children",
-  (SELECT value FROM bullmq_meta WHERE queue = $1 AND field = 'paused') AS paused
-FROM bullmq_job
+  (SELECT value FROM meta WHERE queue = $1 AND field = 'paused') AS paused
+FROM job
 WHERE queue = $1;

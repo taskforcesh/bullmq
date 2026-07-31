@@ -3,9 +3,9 @@
 -- established (mirrors the atomicity of Redis's blocking pop). Param: $1 queue.
 SELECT
   EXISTS(
-    SELECT 1 FROM bullmq_job WHERE queue = $1 AND state = 'waiting'
+    SELECT 1 FROM job WHERE queue = $1 AND state = 'waiting'
   )
   AND NOT EXISTS(
-    SELECT 1 FROM bullmq_meta
+    SELECT 1 FROM meta
      WHERE queue = $1 AND field = 'paused' AND value = '1'
   ) AS present;

@@ -28,7 +28,7 @@ import { PostgresConnection } from './postgres-connection';
 import { PgNotification, PgListenClient, PgQueryResult } from './pg-types';
 import { loadCommandSql } from './sql-loader';
 /**
- * A raw `bullmq_job` row as returned by `pg`. `jsonb` columns arrive already
+ * A raw `job` row as returned by `pg`. `jsonb` columns arrive already
  * parsed; `bigint`/`int8` columns arrive as strings (node-postgres default).
  */
 interface JobRow {
@@ -114,7 +114,7 @@ function normalizeKeep(opt: boolean | number | KeepJobs | undefined): {
 }
 
 /**
- * Maps a `bullmq_job` row to the public {@link JobJson} shape consumed by
+ * Maps a `job` row to the public {@link JobJson} shape consumed by
  * `Job.fromJSON`. JSON-string fields (`data`, `returnvalue`, `stacktrace`) are
  * re-stringified; `opts` is returned as the stored object.
  */
@@ -160,7 +160,7 @@ function notImplemented(op: string): never {
   );
 }
 
-/** Raw `bullmq_scheduler` row as returned by the `get_job_scheduler` command. */
+/** Raw `scheduler` row as returned by the `get_job_scheduler` command. */
 interface SchedulerRow {
   name: string | null;
   iteration_count: number | string | null;
@@ -608,7 +608,7 @@ export class PostgresQueueBackend
     return rows.map(r => r.id);
   }
 
-  /** Builds one entry of the JSONB batch consumed by `bullmq_add_flow`. */
+  /** Builds one entry of the JSONB batch consumed by `add_flow`. */
   private toBatchEntry(
     queueName: string,
     data: JobJson,
@@ -2069,10 +2069,10 @@ export class PostgresQueueBackend
   // Worker blocking primitive
   // ============================================================
 
-  /** The shared notify channel all producers post to (see `bullmq_add_job`). */
+  /** The shared notify channel all producers post to (see `add_job`). */
   private static readonly NOTIFY_CHANNEL = 'bullmq_jobs';
 
-  /** The shared event-stream channel (see `bullmq_publish_event`). */
+  /** The shared event-stream channel (see `publish_event`). */
   private static readonly EVENTS_CHANNEL = 'bullmq_events';
 
   /** Subscribes the dedicated client to the shared jobs channel (once). */
@@ -2135,7 +2135,7 @@ export class PostgresQueueBackend
   /**
    * Blocks (up to `blockTimeout` seconds) until a job for this queue may be
    * available, via `LISTEN`/`NOTIFY`. Producers notify the shared `bullmq_jobs`
-   * channel with the queue name as payload (in `bullmq_add_job`), so a producer
+   * channel with the queue name as payload (in `add_job`), so a producer
    * in any process wakes a blocked worker immediately. Returns a marker
    * (`score` 0 = "check now") or `null` on timeout. The Redis backend
    * implements this with `BZPOPMIN`.

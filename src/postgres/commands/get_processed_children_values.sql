@@ -3,6 +3,6 @@
 -- Redis `<jobId>:processed` hash of stringified values). Params: $1 parent_queue,
 -- $2 parent_id.
 SELECT child_key, value::text AS value
-FROM bullmq_job_dependency
+FROM job_dependency
 WHERE parent_queue = $1 AND parent_id = $2 AND status = 'processed'
 ORDER BY child_id;

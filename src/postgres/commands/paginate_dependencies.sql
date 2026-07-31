@@ -4,16 +4,16 @@
 -- (NULL = no limit). `total` is the full number of matching dependencies
 -- (COUNT(*) OVER(), computed before the slice). `dep_value` is the stored
 -- result for processed children. The remaining columns are the child
--- `bullmq_job` row consumed by rowToJobJson.
+-- `job` row consumed by rowToJobJson.
 SELECT
   d.child_key,
   d.value AS dep_value,
   COUNT(*) OVER() AS total,
   j.*
-FROM bullmq_job_dependency d
-LEFT JOIN bullmq_job j
+FROM job_dependency d
+LEFT JOIN job j
   ON j.queue = d.child_queue AND j.id = d.child_id
-WHERE d.parent_queue = $1 AND d.parent_id = $2 AND d.status = $3::bullmq_dep_status
+WHERE d.parent_queue = $1 AND d.parent_id = $2 AND d.status = $3::dep_status
 ORDER BY d.child_key
 OFFSET $4
 LIMIT $5;

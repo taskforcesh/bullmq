@@ -6,7 +6,7 @@
 -- wait/prioritized sets).
 SELECT COUNT(j.id) AS cnt
 FROM unnest($2::bigint[]) WITH ORDINALITY AS pr(priority, ord)
-LEFT JOIN bullmq_job j
+LEFT JOIN job j
   ON j.queue = $1
  AND j.state = 'waiting'
  AND j.priority = pr.priority
