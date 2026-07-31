@@ -1,3 +1,10 @@
+## [6.0.2](https://github.com/taskforcesh/bullmq/compare/v6.0.1...v6.0.2) (2026-07-31)
+
+
+### Bug Fixes
+
+* **deps:** update dependency redis to v7.4.1 ([#4426](https://github.com/taskforcesh/bullmq/issues/4426)) ([2ac754f](https://github.com/taskforcesh/bullmq/commit/2ac754fd718927e2c0043d6d7787de32d0d196f7))
+
 ## [6.0.1](https://github.com/taskforcesh/bullmq/compare/v6.0.0...v6.0.1) (2026-07-31)
 
 
