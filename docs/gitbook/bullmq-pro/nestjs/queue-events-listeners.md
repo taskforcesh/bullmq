@@ -12,13 +12,7 @@ import {
 @QueueEventsListener('queueName')
 export class TestQueueEvents extends QueueEventsHost {
   @OnQueueEvent('completed')
-  onCompleted({
-    jobId,
-  }: {
-    jobId: string;
-    returnvalue: string;
-    prev?: string;
-  }) {
+  onCompleted({ jobId }: { jobId: string; returnvalue: any; prev?: string }) {
     // do some stuff
   }
 }

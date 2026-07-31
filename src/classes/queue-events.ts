@@ -9,7 +9,7 @@ import { array2obj, isRedisInstance, QUEUE_EVENT_SUFFIX } from '../utils';
 import { QueueBase } from './queue-base';
 import { createIORedisClient, isIRedisClient } from './ioredis-client';
 
-export interface QueueEventsListener extends IoredisListener {
+export interface QueueEventsListener<ReturnType = any> extends IoredisListener {
   /**
    * Listen to 'active' event.
    *
@@ -54,12 +54,12 @@ export interface QueueEventsListener extends IoredisListener {
    *
    * @param args - An object containing details about the completed job.
    *   - `jobId` - The unique identifier of the job that completed.
-   *   - `returnvalue` - The return value of the job, serialized as a string.
+   *   - `returnvalue` - The value returned by the job's processor, deserialized from JSON.
    *   - `prev` - The previous state of the job before completion (e.g., 'active'), if applicable.
    * @param id - The identifier of the event.
    */
   completed: (
-    args: { jobId: string; returnvalue: string; prev?: string },
+    args: { jobId: string; returnvalue: ReturnType; prev?: string },
     id: string,
   ) => void;
 
@@ -256,7 +256,7 @@ type KeyOf<T extends object> = Extract<keyof T, string>;
  * This class requires a dedicated redis connection.
  *
  */
-export class QueueEvents extends QueueBase {
+export class QueueEvents<ReturnType = any> extends QueueBase {
   private running = false;
   private blocking = false;
 
@@ -295,14 +295,16 @@ export class QueueEvents extends QueueBase {
   }
 
   emit<
-    QEL extends QueueEventsListener = QueueEventsListener,
+    QEL extends QueueEventsListener<ReturnType> =
+      QueueEventsListener<ReturnType>,
     U extends KeyOf<QEL> = KeyOf<QEL>,
   >(event: U, ...args: CustomParameters<QEL[U]>): boolean {
     return super.emit(event, ...args);
   }
 
   off<
-    QEL extends QueueEventsListener = QueueEventsListener,
+    QEL extends QueueEventsListener<ReturnType> =
+      QueueEventsListener<ReturnType>,
     U extends KeyOf<QEL> = KeyOf<QEL>,
   >(eventName: U, listener: QEL[U]): this {
     super.off(eventName, listener as (...args: any[]) => void);
@@ -310,7 +312,8 @@ export class QueueEvents extends QueueBase {
   }
 
   on<
-    QEL extends QueueEventsListener = QueueEventsListener,
+    QEL extends QueueEventsListener<ReturnType> =
+      QueueEventsListener<ReturnType>,
     U extends KeyOf<QEL> = KeyOf<QEL>,
   >(event: U, listener: QEL[U]): this {
     super.on(event, listener as (...args: any[]) => void);
@@ -318,7 +321,8 @@ export class QueueEvents extends QueueBase {
   }
 
   once<
-    QEL extends QueueEventsListener = QueueEventsListener,
+    QEL extends QueueEventsListener<ReturnType> =
+      QueueEventsListener<ReturnType>,
     U extends KeyOf<QEL> = KeyOf<QEL>,
   >(event: U, listener: QEL[U]): this {
     super.once(event, listener as (...args: any[]) => void);
