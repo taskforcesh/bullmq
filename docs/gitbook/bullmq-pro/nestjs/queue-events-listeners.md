@@ -8,7 +8,7 @@ import {
   QueueEventsHost,
   OnQueueEvent,
 } from '@taskforcesh/nestjs-bullmq-pro';
-// Aliased because `QueueEventsListener` from the decorator package is the decorator
+// Aliased because `QueueEventsListener` from '@taskforcesh/nestjs-bullmq-pro' is the decorator
 import type { QueueEventsListener as QueueEventsListenerType } from 'bullmq';
 
 // Use the generic to type the event payload with your job's return value
