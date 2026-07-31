@@ -284,7 +284,6 @@ match job.retry("failed", None).await {
 
 ## Read More
 
-- 💡 [Retry API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#retry)
-
+* 💡 [Retry API Reference](https://docs.bullmq.io/api/classes/v6.Job.html#retry)
 * 💡 [Retrying Failing Jobs](../retrying-failing-jobs.md) - Automatic retry configuration with backoff strategies
 * 💡 [Stop Retrying Jobs](../patterns/stop-retrying-jobs.md) - How to prevent further retries

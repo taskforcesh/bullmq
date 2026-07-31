@@ -46,4 +46,4 @@ export class AppModule {}
 
 - 💡 [Queues Technique](https://docs.nestjs.com/techniques/queues)
 - 💡 [Register Queue API Reference](https://nestjs.bullmq.pro/classes/BullModule.html#registerQueue)
-- 💡 [Queue Events Listener API Reference](https://api.docs.bullmq.io/interfaces/v5.QueueEventsListener.html)
+- 💡 [Queue Events Listener API Reference](https://docs.bullmq.io/api/interfaces/v6.QueueEventsListener.html)

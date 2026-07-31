@@ -34,11 +34,11 @@ await queueEventsProducer.publishEvent<CustomEventPayload>({
 Only eventName attribute is required.
 
 {% hint style="warning" %}
-Some event names are reserved from [Queue Listener API Reference](https://api.docs.bullmq.io/interfaces/v5.QueueListener.html).
+Some event names are reserved from [Queue Listener API Reference](https://docs.bullmq.io/api/interfaces/v6.QueueListener.html).
 {% endhint %}
 
 ## Read more:
 
-* 💡 [Queue Events API Reference](https://api.docs.bullmq.io/classes/v5.QueueEvents.html)
-* 💡 [Queue Events Listener API Reference](https://api.docs.bullmq.io/interfaces/v5.QueueEventsListener.html)
-* 💡 [Queue Events Producer API Reference](https://api.docs.bullmq.io/classes/v5.QueueEventsProducer.html)
+* 💡 [Queue Events API Reference](https://docs.bullmq.io/api/classes/v6.QueueEvents.html)
+* 💡 [Queue Events Listener API Reference](https://docs.bullmq.io/api/interfaces/v6.QueueEventsListener.html)
+* 💡 [Queue Events Producer API Reference](https://docs.bullmq.io/api/classes/v6.QueueEventsProducer.html)
