@@ -5,5 +5,5 @@ SELECT
   COUNT(*) FILTER (WHERE status = 'pending')   AS unprocessed,
   COUNT(*) FILTER (WHERE status = 'ignored')   AS ignored,
   COUNT(*) FILTER (WHERE status = 'failed')    AS failed
-FROM bullmq_job_dependency
+FROM job_dependency
 WHERE parent_queue = $1 AND parent_id = $2;

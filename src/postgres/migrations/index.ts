@@ -3,7 +3,7 @@ import { loadMigrationSql } from '../sql-loader';
 /**
  * A single, ordered schema migration. The `.sql` file is the source of truth;
  * `version` is the monotonically increasing schema version recorded in the
- * `bullmq_migration` ledger table once applied.
+ * `migration` ledger table once applied.
  */
 export interface Migration {
   /** Monotonically increasing schema version (1, 2, 3, …). */

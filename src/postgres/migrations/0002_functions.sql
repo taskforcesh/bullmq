@@ -8,7 +8,7 @@
 -- Per-queue job-id allocator
 -- ──────────────────────────────────────────────────────────────────────────
 -- BullMQ hands auto-generated job ids from a per-queue counter (Redis: INCR
--- <prefix>:<queue>:id). Implementing that as a `bullmq_meta` row bumped with
+-- <prefix>:<queue>:id). Implementing that as a `meta` row bumped with
 -- `ON CONFLICT DO UPDATE` serializes *every* concurrent `add` on that row's
 -- lock (held until commit), so parallel producers cannot make progress — by far
 -- the biggest `add` bottleneck. A dedicated per-queue SEQUENCE hands out ids via
@@ -16,20 +16,20 @@
 -- parallel. Ids are still 1, 2, 3, … per queue (sequence starts at 1), matching
 -- Redis; a rolled-back add may leave a gap, exactly as a failed Redis add leaves
 -- its INCR in place. The sequence is created lazily on first use and dropped by
--- `bullmq_obliterate`. If we ever need user-facing immutable ids independent from
+-- `obliterate`. If we ever need user-facing immutable ids independent from
 -- this allocator, we can add a separate custom-id column/index without regressing
 -- the hot-path insert concurrency.
-CREATE FUNCTION bullmq_job_id_seq_name(p_queue text) RETURNS text
+CREATE FUNCTION job_id_seq_name(p_queue text) RETURNS text
 LANGUAGE sql IMMUTABLE AS $$
   SELECT 'bullmq_jid_' || md5(p_queue)
 $$;
 
-CREATE FUNCTION bullmq_next_job_id(p_queue text) RETURNS text
+CREATE FUNCTION next_job_id(p_queue text) RETURNS text
 LANGUAGE plpgsql
 SET search_path FROM CURRENT
 AS $$
 DECLARE
-  v_seq text := bullmq_job_id_seq_name(p_queue);
+  v_seq text := job_id_seq_name(p_queue);
 BEGIN
   -- Fast path once the sequence exists: a cached catalog lookup + a lock-free
   -- `nextval`. Only the first add(s) for a queue take the creation path; the
@@ -44,7 +44,7 @@ END;
 $$;
 
 -- ── Recreate add_job to run the deduplication decision before inserting.
-CREATE OR REPLACE FUNCTION bullmq_add_job(
+CREATE OR REPLACE FUNCTION add_job(
   p_queue        text,
   p_id           text,
   p_name         text,
@@ -67,7 +67,7 @@ AS $$
 DECLARE
   v_id    text := p_id;
   v_seq   bigint;
-  v_state bullmq_job_state;
+  v_state job_state;
   v_process_at bigint;
   v_inserted boolean;
   v_dedup    jsonb;
@@ -85,14 +85,14 @@ BEGIN
   END IF;
 
   IF v_id IS NULL OR v_id = '' THEN
-    v_id := bullmq_next_job_id(p_queue);
+    v_id := next_job_id(p_queue);
   END IF;
 
   -- Deduplication: if a live key wins, skip the insert and return its id.
   IF p_dedup_id IS NOT NULL AND p_dedup_id <> '' THEN
     v_dedup := COALESCE(p_opts->'deduplication', p_opts->'debounce',
                         jsonb_build_object('id', p_dedup_id));
-    v_existing := bullmq_deduplicate_job(p_queue, v_dedup, v_id, p_timestamp,
+    v_existing := deduplicate_job(p_queue, v_dedup, v_id, p_timestamp,
       p_name, COALESCE(p_data, '{}'::jsonb), COALESCE(p_opts, '{}'::jsonb));
     IF v_existing IS NOT NULL THEN
       RETURN v_existing;
@@ -102,14 +102,14 @@ BEGIN
   -- Verify the parent exists before inserting (atomic: a failure rolls back).
   IF p_parent_id IS NOT NULL AND p_parent_queue IS NOT NULL THEN
     IF NOT EXISTS (
-      SELECT 1 FROM bullmq_job WHERE queue = p_parent_queue AND id = p_parent_id
+      SELECT 1 FROM job WHERE queue = p_parent_queue AND id = p_parent_id
     ) THEN
       RAISE EXCEPTION 'bullmq: missing parent %', p_parent_key
         USING ERRCODE = 'BM001', DETAIL = '-5';
     END IF;
   END IF;
 
-  v_seq := nextval('bullmq_job_seq');
+  v_seq := nextval('job_seq');
   IF p_lifo THEN
     v_seq := -v_seq;
   END IF;
@@ -122,7 +122,7 @@ BEGIN
     v_process_at := NULL;
   END IF;
 
-  INSERT INTO bullmq_job (
+  INSERT INTO job (
     queue, id, seq, name, state,
     data, opts, priority, delay_ms, max_attempts,
     added_at_ms, process_at_ms,
@@ -141,7 +141,7 @@ BEGIN
   GET DIAGNOSTICS v_inserted = ROW_COUNT;
 
   IF v_inserted AND p_parent_id IS NOT NULL AND p_parent_queue IS NOT NULL THEN
-    INSERT INTO bullmq_job_dependency (
+    INSERT INTO job_dependency (
       parent_queue, parent_id, child_queue, child_id, child_key, status
     ) VALUES (
       p_parent_queue, p_parent_id, p_queue, v_id,
@@ -149,7 +149,7 @@ BEGIN
     )
     ON CONFLICT (parent_queue, parent_id, child_key) DO NOTHING;
 
-    UPDATE bullmq_job
+    UPDATE job
        SET pending_deps = pending_deps + 1
      WHERE queue = p_parent_queue AND id = p_parent_id;
   END IF;
@@ -157,7 +157,7 @@ BEGIN
   -- The job already existed: re-attach it to the new parent (or, with no
   -- parent, just announce the duplicate). -7 = it already has a different one.
   IF NOT v_inserted THEN
-    IF bullmq_handle_duplicated_job(p_queue, v_id, p_parent_queue,
+    IF handle_duplicated_job(p_queue, v_id, p_parent_queue,
          p_parent_id, p_parent_key, p_timestamp) = -7 THEN
       RAISE EXCEPTION 'bullmq: parent cannot be replaced'
         USING ERRCODE = 'BM001', DETAIL = '-7';
@@ -167,13 +167,13 @@ BEGIN
   IF v_inserted THEN
     PERFORM pg_notify('bullmq_jobs', p_queue);
     -- Every stored job announces itself (mirrors storeJob.lua's 'added').
-    PERFORM bullmq_publish_event(p_queue, 'added',
+    PERFORM publish_event(p_queue, 'added',
       jsonb_build_object('jobId', v_id, 'name', p_name));
     IF v_state = 'delayed' THEN
-      PERFORM bullmq_publish_event(p_queue, 'delayed',
+      PERFORM publish_event(p_queue, 'delayed',
         jsonb_build_object('jobId', v_id, 'delay', v_process_at));
     ELSE
-      PERFORM bullmq_publish_event(p_queue, 'waiting',
+      PERFORM publish_event(p_queue, 'waiting',
         jsonb_build_object('jobId', v_id));
     END IF;
   END IF;
@@ -184,9 +184,9 @@ $$;
 
 -- ── move_to_active with limiter enforcement ────────────────────────────────
 -- Adds the limiter: after promoting due delayed jobs, refuse to claim while
--- rate limited (the caller reads the ttl via bullmq_next_signal), and consume a
+-- rate limited (the caller reads the ttl via next_signal), and consume a
 -- token when a job is claimed. Otherwise identical to the v23 definition.
-CREATE OR REPLACE FUNCTION bullmq_move_to_active(
+CREATE OR REPLACE FUNCTION move_to_active(
   p_queue            text,
   p_token            text,
   p_lock_ms          bigint,
@@ -194,13 +194,13 @@ CREATE OR REPLACE FUNCTION bullmq_move_to_active(
   p_name             text,
   p_limiter_max      integer,
   p_limiter_duration bigint
-) RETURNS SETOF bullmq_job
+) RETURNS SETOF job
 LANGUAGE plpgsql
 SET search_path FROM CURRENT
 AS $$
 DECLARE
   v_id       text;
-  v_job      bullmq_job;
+  v_job      job;
   v_meta_max integer;
   v_max      integer;
   v_duration bigint;
@@ -214,7 +214,7 @@ BEGIN
   -- but the claim/activate below is skipped.
   FOR v_id IN
     WITH promoted AS (
-      UPDATE bullmq_job
+      UPDATE job
          SET state = 'waiting', delay_ms = 0
        WHERE queue = p_queue
          AND state = 'delayed'
@@ -223,12 +223,12 @@ BEGIN
     )
     SELECT id FROM promoted
   LOOP
-    PERFORM bullmq_publish_event(p_queue, 'waiting',
+    PERFORM publish_event(p_queue, 'waiting',
       jsonb_build_object('jobId', v_id, 'prev', 'delayed'));
   END LOOP;
 
   IF EXISTS (
-    SELECT 1 FROM bullmq_meta
+    SELECT 1 FROM meta
      WHERE queue = p_queue AND field = 'paused' AND value = '1'
   ) THEN
     RETURN;
@@ -239,11 +239,11 @@ BEGIN
   -- advisory lock so concurrent workers cannot all pass the check and overshoot;
   -- it releases at commit, once this claim is reflected in the active count.
   SELECT value::integer INTO v_concurrency
-    FROM bullmq_meta WHERE queue = p_queue AND field = 'concurrency';
+    FROM meta WHERE queue = p_queue AND field = 'concurrency';
   IF v_concurrency IS NOT NULL THEN
     PERFORM pg_advisory_xact_lock(hashtext('bullmq:concurrency:' || p_queue));
     IF (
-      SELECT count(*) FROM bullmq_job
+      SELECT count(*) FROM job
        WHERE queue = p_queue AND state = 'active'
     ) >= v_concurrency THEN
       RETURN;
@@ -252,7 +252,7 @@ BEGIN
 
   -- Rate limit: meta `max` wins, else the worker's `limiter.max`.
   SELECT value::integer INTO v_meta_max
-    FROM bullmq_meta WHERE queue = p_queue AND field = 'max';
+    FROM meta WHERE queue = p_queue AND field = 'max';
   v_max := COALESCE(v_meta_max, p_limiter_max);
 
   IF v_max IS NOT NULL THEN
@@ -268,13 +268,13 @@ BEGIN
     -- (this function is always called standalone) and is only taken when a
     -- limiter actually applies, so unlimited queues pay nothing.
     PERFORM pg_advisory_xact_lock(hashtext('bullmq:limiter:' || p_queue));
-    IF bullmq_rate_limit_effective(p_queue, p_limiter_max, p_now) > 0 THEN
+    IF rate_limit_effective(p_queue, p_limiter_max, p_now) > 0 THEN
       RETURN;
     END IF;
   END IF;
 
   SELECT id INTO v_id
-    FROM bullmq_job
+    FROM job
    WHERE queue = p_queue AND state = 'waiting'
    ORDER BY priority, seq
    FOR UPDATE SKIP LOCKED
@@ -288,14 +288,14 @@ BEGIN
   -- worker's `limiter.duration` wins, else meta `duration`.
   IF v_max IS NOT NULL THEN
     SELECT value::bigint INTO v_duration
-      FROM bullmq_meta WHERE queue = p_queue AND field = 'duration';
+      FROM meta WHERE queue = p_queue AND field = 'duration';
     v_duration := COALESCE(p_limiter_duration, v_duration);
     IF v_duration IS NOT NULL THEN
-      PERFORM bullmq_rate_limit_consume(p_queue, v_duration, p_now);
+      PERFORM rate_limit_consume(p_queue, v_duration, p_now);
     END IF;
   END IF;
 
-  UPDATE bullmq_job
+  UPDATE job
      SET state = 'active',
          lock_token = p_token,
          locked_until_ms = p_now + p_lock_ms,
@@ -305,7 +305,7 @@ BEGIN
    WHERE queue = p_queue AND id = v_id
   RETURNING * INTO v_job;
 
-  PERFORM bullmq_publish_event(p_queue, 'active',
+  PERFORM publish_event(p_queue, 'active',
     jsonb_build_object('jobId', v_id, 'prev', 'waiting'));
 
   RETURN NEXT v_job;
@@ -316,16 +316,16 @@ $$;
 -- next_delay: the timestamp of the next delayed job (for worker block timing),
 -- or NULL when there are none.
 -- ──────────────────────────────────────────────────────────────────────────
-CREATE FUNCTION bullmq_next_delay(p_queue text) RETURNS bigint
+CREATE FUNCTION next_delay(p_queue text) RETURNS bigint
 LANGUAGE sql
 SET search_path FROM CURRENT
 AS $$
   SELECT MIN(process_at_ms)
-    FROM bullmq_job
+    FROM job
    WHERE queue = p_queue AND state = 'delayed';
 $$;
 
-CREATE OR REPLACE FUNCTION bullmq_move_to_completed(
+CREATE OR REPLACE FUNCTION move_to_completed(
   p_queue        text,
   p_id           text,
   p_token        text,
@@ -339,7 +339,7 @@ LANGUAGE plpgsql
 SET search_path FROM CURRENT
 AS $$
 DECLARE
-  v_state    bullmq_job_state;
+  v_state    job_state;
   v_lock     text;
   v_pq       text;
   v_pid      text;
@@ -355,7 +355,7 @@ BEGIN
   -- serialize. Mirrors Redis's single-threaded atomicity; auto-releases at
   -- commit and is only ever taken on the direct parent (never nested).
   SELECT parent_queue, parent_id INTO v_pq, v_pid
-    FROM bullmq_job WHERE queue = p_queue AND id = p_id;
+    FROM job WHERE queue = p_queue AND id = p_id;
   IF v_pq IS NOT NULL AND v_pid IS NOT NULL THEN
     PERFORM pg_advisory_xact_lock(
       hashtext('bullmq:parent:' || v_pq || ':' || v_pid));
@@ -363,7 +363,7 @@ BEGIN
 
   SELECT state, lock_token, parent_queue, parent_id, dedup_id
     INTO v_state, v_lock, v_pq, v_pid, v_dedup_id
-    FROM bullmq_job WHERE queue = p_queue AND id = p_id FOR UPDATE;
+    FROM job WHERE queue = p_queue AND id = p_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'bullmq: missing job %', p_id USING ERRCODE = 'BM001', DETAIL = '-1';
   END IF;
@@ -378,21 +378,21 @@ BEGIN
   -- children → -4, failed children → -9 (mirrors moveToFinished-14.lua, which
   -- only enforces this on the "completed" path).
   IF EXISTS (
-    SELECT 1 FROM bullmq_job_dependency
+    SELECT 1 FROM job_dependency
      WHERE parent_queue = p_queue AND parent_id = p_id AND status = 'pending'
   ) THEN
     RAISE EXCEPTION 'bullmq: job % has pending dependencies', p_id
       USING ERRCODE = 'BM001', DETAIL = '-4';
   END IF;
   IF EXISTS (
-    SELECT 1 FROM bullmq_job_dependency
+    SELECT 1 FROM job_dependency
      WHERE parent_queue = p_queue AND parent_id = p_id AND status = 'failed'
   ) THEN
     RAISE EXCEPTION 'bullmq: job % has failed dependencies', p_id
       USING ERRCODE = 'BM001', DETAIL = '-9';
   END IF;
 
-  UPDATE bullmq_job
+  UPDATE job
      SET state = 'completed',
          return_value = p_return_value,
          finished_at_ms = p_finished_on,
@@ -401,7 +401,7 @@ BEGIN
          attempts_made = attempts_made + 1
    WHERE queue = p_queue AND id = p_id;
 
-  PERFORM bullmq_publish_event(p_queue, 'completed',
+  PERFORM publish_event(p_queue, 'completed',
     jsonb_build_object('jobId', p_id, 'returnvalue',
       COALESCE(p_return_value, 'null'::jsonb)::text, 'prev', 'active'));
 
@@ -411,12 +411,12 @@ BEGIN
   -- these mutations with any sibling finish op and with a concurrent parent
   -- removal, so the decrement cannot deadlock on the parent row.
   IF v_pid IS NOT NULL AND v_pq IS NOT NULL THEN
-    UPDATE bullmq_job_dependency
+    UPDATE job_dependency
        SET status = 'processed', value = p_return_value
      WHERE parent_queue = v_pq AND parent_id = v_pid
        AND child_key = p_queue || ':' || p_id;
 
-    UPDATE bullmq_job
+    UPDATE job
        SET pending_deps = GREATEST(pending_deps - 1, 0)
      WHERE queue = v_pq AND id = v_pid
     RETURNING pending_deps INTO v_remaining;
@@ -424,11 +424,11 @@ BEGIN
     IF v_remaining = 0 THEN
       -- Release the parent (delay-aware: a parent carrying a delay goes to the
       -- delayed set, a prioritized parent keeps its priority).
-      PERFORM bullmq_move_parent_to_wait(v_pq, v_pid, p_finished_on);
+      PERFORM move_parent_to_wait(v_pq, v_pid, p_finished_on);
     END IF;
   END IF;
 
-  PERFORM bullmq_apply_retention(
+  PERFORM apply_retention(
     p_queue, p_id, 'completed', p_finished_on, p_remove_all, p_keep_age, p_keep_count
   );
 
@@ -439,27 +439,27 @@ BEGIN
       hashtext('bullmq:dedup:' || p_queue || ':' || v_dedup_id));
   END IF;
   -- Clear a no-ttl deduplication key now that its winner has finished.
-  PERFORM bullmq_dedup_finalize(p_queue, v_dedup_id, p_id, p_finished_on);
+  PERFORM dedup_finalize(p_queue, v_dedup_id, p_id, p_finished_on);
   -- keepLastIfActive: turn any stashed proto-next into the new winner job.
-  PERFORM bullmq_requeue_dedup_next(p_queue, v_dedup_id, p_finished_on);
+  PERFORM requeue_dedup_next(p_queue, v_dedup_id, p_finished_on);
 
   -- run, announce the queue is drained. Redis checks the physical wait + active
   -- + prioritized lists; when paused, jobs live in the paused list, so the wait
   -- list is empty and 'drained' still fires. Here that is: no active jobs and
   -- (the queue is paused OR there are no waiting/prioritized jobs).
   IF NOT EXISTS (
-       SELECT 1 FROM bullmq_job WHERE queue = p_queue AND state = 'active'
+       SELECT 1 FROM job WHERE queue = p_queue AND state = 'active'
      )
      AND (
        EXISTS (
-         SELECT 1 FROM bullmq_meta
+         SELECT 1 FROM meta
           WHERE queue = p_queue AND field = 'paused' AND value = '1'
        )
        OR NOT EXISTS (
-         SELECT 1 FROM bullmq_job WHERE queue = p_queue AND state = 'waiting'
+         SELECT 1 FROM job WHERE queue = p_queue AND state = 'waiting'
        )
      ) THEN
-    PERFORM bullmq_publish_event(p_queue, 'drained', '{}'::jsonb);
+    PERFORM publish_event(p_queue, 'drained', '{}'::jsonb);
   END IF;
 
   RETURN p_finished_on;
@@ -470,7 +470,7 @@ $$;
 --
 -- A permanent failure (no retries left) emits a 'retries-exhausted' event in
 -- addition to 'failed'. Recreate move_to_failed (from 0010) to publish it.
-CREATE OR REPLACE FUNCTION bullmq_move_to_failed(
+CREATE OR REPLACE FUNCTION move_to_failed(
   p_queue         text,
   p_id            text,
   p_token         text,
@@ -485,13 +485,13 @@ LANGUAGE plpgsql
 SET search_path FROM CURRENT
 AS $$
 DECLARE
-  v_state    bullmq_job_state;
+  v_state    job_state;
   v_lock     text;
   v_dedup_id text;
   v_attempts integer;
 BEGIN
-  -- If this job is itself a flow parent, `removeOnFail` (bullmq_apply_retention
-  -- below) DELETEs it and, via the `bullmq_job_dependency … ON DELETE CASCADE`
+  -- If this job is itself a flow parent, `removeOnFail` (apply_retention
+  -- below) DELETEs it and, via the `job_dependency … ON DELETE CASCADE`
   -- FK, its child-dependency rows. A child finishing concurrently locks that
   -- same dependency row and then this job's row — the opposite order — which
   -- deadlocks (SQLSTATE 40P01). Take the per-parent advisory lock (keyed on this
@@ -502,7 +502,7 @@ BEGIN
     hashtext('bullmq:parent:' || p_queue || ':' || p_id));
 
   SELECT state, lock_token, dedup_id INTO v_state, v_lock, v_dedup_id
-    FROM bullmq_job WHERE queue = p_queue AND id = p_id FOR UPDATE;
+    FROM job WHERE queue = p_queue AND id = p_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'bullmq: missing job %', p_id USING ERRCODE = 'BM001', DETAIL = '-1';
   END IF;
@@ -513,7 +513,7 @@ BEGIN
     RAISE EXCEPTION 'bullmq: job % lock mismatch', p_id USING ERRCODE = 'BM001', DETAIL = '-6';
   END IF;
 
-  UPDATE bullmq_job
+  UPDATE job
      SET state = 'failed',
          failed_reason = p_failed_reason,
          stacktrace = COALESCE(p_stacktrace, stacktrace),
@@ -525,18 +525,18 @@ BEGIN
    WHERE queue = p_queue AND id = p_id
   RETURNING attempts_made INTO v_attempts;
 
-  PERFORM bullmq_publish_event(p_queue, 'failed',
+  PERFORM publish_event(p_queue, 'failed',
     jsonb_build_object('jobId', p_id, 'failedReason', p_failed_reason, 'prev', 'active'));
 
   -- A final failure (reached this function rather than retry/delay) exhausts
   -- the job's attempts.
-  PERFORM bullmq_publish_event(p_queue, 'retries-exhausted',
+  PERFORM publish_event(p_queue, 'retries-exhausted',
     jsonb_build_object('jobId', p_id, 'attemptsMade', v_attempts));
 
   -- Propagate the permanent failure to a parent flow job (fpof/cpof/idof/rdof).
-  PERFORM bullmq_handle_child_failure(p_queue, p_id, p_failed_reason, p_finished_on);
+  PERFORM handle_child_failure(p_queue, p_id, p_failed_reason, p_finished_on);
 
-  PERFORM bullmq_apply_retention(
+  PERFORM apply_retention(
     p_queue, p_id, 'failed', p_finished_on, p_remove_all, p_keep_age, p_keep_count
   );
 
@@ -547,25 +547,25 @@ BEGIN
       hashtext('bullmq:dedup:' || p_queue || ':' || v_dedup_id));
   END IF;
   -- Clear a no-ttl deduplication key now that its winner has finished.
-  PERFORM bullmq_dedup_finalize(p_queue, v_dedup_id, p_id, p_finished_on);
+  PERFORM dedup_finalize(p_queue, v_dedup_id, p_id, p_finished_on);
   -- keepLastIfActive: turn any stashed proto-next into the new winner job.
-  PERFORM bullmq_requeue_dedup_next(p_queue, v_dedup_id, p_finished_on);
+  PERFORM requeue_dedup_next(p_queue, v_dedup_id, p_finished_on);
 
   -- finishes and nothing is left to run (no active and either paused or no
-  -- waiting/prioritized jobs — see bullmq_move_to_completed).
+  -- waiting/prioritized jobs — see move_to_completed).
   IF NOT EXISTS (
-       SELECT 1 FROM bullmq_job WHERE queue = p_queue AND state = 'active'
+       SELECT 1 FROM job WHERE queue = p_queue AND state = 'active'
      )
      AND (
        EXISTS (
-         SELECT 1 FROM bullmq_meta
+         SELECT 1 FROM meta
           WHERE queue = p_queue AND field = 'paused' AND value = '1'
        )
        OR NOT EXISTS (
-         SELECT 1 FROM bullmq_job WHERE queue = p_queue AND state = 'waiting'
+         SELECT 1 FROM job WHERE queue = p_queue AND state = 'waiting'
        )
      ) THEN
-    PERFORM bullmq_publish_event(p_queue, 'drained', '{}'::jsonb);
+    PERFORM publish_event(p_queue, 'drained', '{}'::jsonb);
   END IF;
 
   RETURN p_finished_on;
@@ -576,7 +576,7 @@ $$;
 -- extend_lock: refresh an active job's lock if the token still holds it.
 -- Returns 1 on success, 0 if the lock was lost.
 -- ──────────────────────────────────────────────────────────────────────────
-CREATE FUNCTION bullmq_extend_lock(
+CREATE FUNCTION extend_lock(
   p_queue    text,
   p_id       text,
   p_token    text,
@@ -589,7 +589,7 @@ AS $$
 DECLARE
   v_updated integer;
 BEGIN
-  UPDATE bullmq_job
+  UPDATE job
      SET locked_until_ms = p_now + p_lock_ms
    WHERE queue = p_queue
      AND id = p_id
@@ -601,7 +601,7 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION bullmq_move_to_delayed(
+CREATE OR REPLACE FUNCTION move_to_delayed(
   p_queue         text,
   p_id            text,
   p_token         text,
@@ -615,11 +615,11 @@ LANGUAGE plpgsql
 SET search_path FROM CURRENT
 AS $$
 DECLARE
-  v_state bullmq_job_state;
+  v_state job_state;
   v_lock  text;
 BEGIN
   SELECT state, lock_token INTO v_state, v_lock
-    FROM bullmq_job WHERE queue = p_queue AND id = p_id FOR UPDATE;
+    FROM job WHERE queue = p_queue AND id = p_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'bullmq: missing job %', p_id USING ERRCODE = 'BM001', DETAIL = '-1';
   END IF;
@@ -630,7 +630,7 @@ BEGIN
     RAISE EXCEPTION 'bullmq: job % lock mismatch', p_id USING ERRCODE = 'BM001', DETAIL = '-6';
   END IF;
 
-  UPDATE bullmq_job
+  UPDATE job
      SET state = 'delayed',
          process_at_ms = p_process_at,
          delay_ms = p_delay,
@@ -644,7 +644,7 @@ BEGIN
   -- Announce the delay on the event stream (mirrors moveToDelayed's XADD
   -- 'delayed'); QueueEvents consumers rely on this. `delay` carries the
   -- absolute timestamp the job becomes due, matching the Redis payload.
-  PERFORM bullmq_publish_event(p_queue, 'delayed',
+  PERFORM publish_event(p_queue, 'delayed',
     jsonb_build_object('jobId', p_id, 'delay', p_process_at));
   PERFORM pg_notify('bullmq_jobs', p_queue);
   RETURN 1;
@@ -655,7 +655,7 @@ $$;
 --
 -- An immediately-retried job transitions active → waiting, so the 'waiting'
 -- event's `prev` is 'active' (not 'failed'). Recreate retry_job accordingly.
-CREATE OR REPLACE FUNCTION bullmq_retry_job(
+CREATE OR REPLACE FUNCTION retry_job(
   p_queue         text,
   p_id            text,
   p_token         text,
@@ -667,12 +667,12 @@ LANGUAGE plpgsql
 SET search_path FROM CURRENT
 AS $$
 DECLARE
-  v_state bullmq_job_state;
+  v_state job_state;
   v_lock  text;
   v_seq   bigint;
 BEGIN
   SELECT state, lock_token INTO v_state, v_lock
-    FROM bullmq_job WHERE queue = p_queue AND id = p_id FOR UPDATE;
+    FROM job WHERE queue = p_queue AND id = p_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'bullmq: missing job %', p_id USING ERRCODE = 'BM001', DETAIL = '-1';
   END IF;
@@ -683,12 +683,12 @@ BEGIN
     RAISE EXCEPTION 'bullmq: job % lock mismatch', p_id USING ERRCODE = 'BM001', DETAIL = '-6';
   END IF;
 
-  v_seq := nextval('bullmq_job_seq');
+  v_seq := nextval('job_seq');
   IF p_lifo THEN
     v_seq := -v_seq;
   END IF;
 
-  UPDATE bullmq_job
+  UPDATE job
      SET state = 'waiting',
          seq = v_seq,
          process_at_ms = NULL,
@@ -700,7 +700,7 @@ BEGIN
    WHERE queue = p_queue AND id = p_id;
 
   PERFORM pg_notify('bullmq_jobs', p_queue);
-  PERFORM bullmq_publish_event(p_queue, 'waiting',
+  PERFORM publish_event(p_queue, 'waiting',
     jsonb_build_object('jobId', p_id, 'prev', 'active'));
   RETURN 1;
 END;
@@ -712,10 +712,10 @@ $$;
 -- a job exactly on the boundary (finished_at = now - age*1000) is removed, so
 -- the comparison is `<=`, not `<` (matches Redis: keep jobs with score above
 -- the cutoff). Otherwise an N-second window keeps N+1 jobs.
-CREATE OR REPLACE FUNCTION bullmq_apply_retention(
+CREATE OR REPLACE FUNCTION apply_retention(
   p_queue       text,
   p_id          text,
-  p_state       bullmq_job_state,
+  p_state       job_state,
   p_now         bigint,
   p_remove_all  boolean,
   p_keep_age    bigint,
@@ -735,28 +735,28 @@ BEGIN
     -- pending dependency (mirrors removeParentDependencyKey on removal). A
     -- processed/failed dependency is left untouched so the parent keeps it.
     SELECT parent_queue, parent_id INTO v_pq, v_pid
-      FROM bullmq_job WHERE queue = p_queue AND id = p_id;
+      FROM job WHERE queue = p_queue AND id = p_id;
     IF v_pq IS NOT NULL AND v_pid IS NOT NULL THEN
-      DELETE FROM bullmq_job_dependency
+      DELETE FROM job_dependency
        WHERE parent_queue = v_pq AND parent_id = v_pid
          AND child_key = p_queue || ':' || p_id
          AND status = 'pending';
       IF FOUND THEN
-        UPDATE bullmq_job SET pending_deps = GREATEST(pending_deps - 1, 0)
+        UPDATE job SET pending_deps = GREATEST(pending_deps - 1, 0)
          WHERE queue = v_pq AND id = v_pid
         RETURNING pending_deps INTO v_remaining;
         IF v_remaining = 0 THEN
-          PERFORM bullmq_move_parent_to_wait(v_pq, v_pid, p_now);
+          PERFORM move_parent_to_wait(v_pq, v_pid, p_now);
         END IF;
       END IF;
     END IF;
 
-    DELETE FROM bullmq_job WHERE queue = p_queue AND id = p_id;
+    DELETE FROM job WHERE queue = p_queue AND id = p_id;
     RETURN;
   END IF;
 
   IF p_keep_age IS NOT NULL AND p_keep_age >= 0 THEN
-    DELETE FROM bullmq_job
+    DELETE FROM job
      WHERE queue = p_queue
        AND state = p_state
        AND finished_at_ms <= p_now - p_keep_age * 1000;
@@ -766,11 +766,11 @@ BEGIN
   -- where -1 disables count-based trimming); skip it — a negative SQL LIMIT is
   -- a hard error.
   IF p_keep_count IS NOT NULL AND p_keep_count >= 0 THEN
-    DELETE FROM bullmq_job
+    DELETE FROM job
      WHERE queue = p_queue
        AND state = p_state
        AND id NOT IN (
-         SELECT id FROM bullmq_job
+         SELECT id FROM job
           WHERE queue = p_queue AND state = p_state
           ORDER BY finished_at_ms DESC, seq DESC
           LIMIT p_keep_count
@@ -782,7 +782,7 @@ $$;
 -- BullMQ PostgreSQL backend — event stream (schema version 6).
 --
 -- QueueEvents consumes an append-only event stream. In Redis this is an XADD
--- stream read with a blocking XREAD; here events live in `bullmq_event` (a
+-- stream read with a blocking XREAD; here events live in `event` (a
 -- globally-ordered id per insert) and blocking reads use LISTEN/NOTIFY on the
 -- shared `bullmq_events` channel. This migration adds the publish helper and
 -- weaves event emission into the lifecycle operations.
@@ -792,7 +792,7 @@ $$;
 -- stream to the queue's configured max length (`opts.maxLenEvents`, default
 -- 10000). Returns the new event id.
 -- ──────────────────────────────────────────────────────────────────────────
-CREATE FUNCTION bullmq_publish_event(
+CREATE FUNCTION publish_event(
   p_queue text,
   p_event text,
   p_data  jsonb
@@ -804,7 +804,7 @@ DECLARE
   v_id      bigint;
   v_max     integer;
 BEGIN
-  INSERT INTO bullmq_event (queue, event, data, created_at_ms)
+  INSERT INTO event (queue, event, data, created_at_ms)
   VALUES (
     p_queue, p_event, COALESCE(p_data, '{}'::jsonb),
     (extract(epoch FROM clock_timestamp()) * 1000)::bigint
@@ -831,13 +831,13 @@ BEGIN
   END IF;
 
   SELECT value::integer INTO v_max
-    FROM bullmq_meta
+    FROM meta
    WHERE queue = p_queue AND field = 'opts.maxLenEvents';
   IF v_max IS NULL THEN
     v_max := 10000;
   END IF;
 
-  -- Trim to (approximately) the most recent `v_max` events. `bullmq_event.id`
+  -- Trim to (approximately) the most recent `v_max` events. `event.id`
   -- comes from a monotonic sequence, so the cutoff is simply `id - v_max` — an
   -- O(number-of-deleted-rows) DELETE.
   --
@@ -845,14 +845,14 @@ BEGIN
   -- it. Redis's `XADD MAXLEN ~` likewise trims a whole macro-node at a time
   -- rather than on every add — trimming eagerly turns a bulk/concurrent insert
   -- into a stream of DELETEs that contend (and previously deadlocked) with the
-  -- concurrent INSERTs on `bullmq_event`. At 1/256 the table stays within
+  -- concurrent INSERTs on `event`. At 1/256 the table stays within
   -- `v_max + 256`, which is well inside the "approximate" contract. A
   -- non-blocking, per-queue advisory lock further ensures at most one trimmer
   -- per queue at a time; publishers that miss it simply skip (the next one
   -- covers the same rows).
   IF v_max > 0 AND v_id > v_max AND (v_id % 256) = 0 THEN
     IF pg_try_advisory_xact_lock(hashtext('bullmq:evtrim:' || p_queue)) THEN
-      DELETE FROM bullmq_event
+      DELETE FROM event
        WHERE queue = p_queue AND id <= v_id - v_max;
     END IF;
   END IF;
@@ -861,7 +861,7 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION bullmq_update_progress(
+CREATE FUNCTION update_progress(
   p_queue    text,
   p_id       text,
   p_progress jsonb
@@ -872,12 +872,12 @@ AS $$
 DECLARE
   v_updated integer;
 BEGIN
-  UPDATE bullmq_job SET progress = p_progress
+  UPDATE job SET progress = p_progress
    WHERE queue = p_queue AND id = p_id;
   GET DIAGNOSTICS v_updated = ROW_COUNT;
 
   IF v_updated > 0 THEN
-    PERFORM bullmq_publish_event(p_queue, 'progress',
+    PERFORM publish_event(p_queue, 'progress',
       jsonb_build_object('jobId', p_id, 'data', p_progress::text));
   END IF;
 
@@ -893,20 +893,20 @@ $$;
 -- ──────────────────────────────────────────────────────────────────────────
 -- pause: set/clear the queue's paused flag (an O(1) meta flag — no bulk move).
 -- ──────────────────────────────────────────────────────────────────────────
-CREATE FUNCTION bullmq_pause(p_queue text, p_paused boolean) RETURNS void
+CREATE FUNCTION pause(p_queue text, p_paused boolean) RETURNS void
 LANGUAGE plpgsql
 SET search_path FROM CURRENT
 AS $$
 BEGIN
   IF p_paused THEN
-    INSERT INTO bullmq_meta (queue, field, value)
+    INSERT INTO meta (queue, field, value)
     VALUES (p_queue, 'paused', '1')
     ON CONFLICT (queue, field) DO UPDATE SET value = '1';
   ELSE
     -- Resume mirrors Redis `HDEL meta paused`: the field is removed entirely,
     -- so `isPaused` (hasQueueMetaField 'paused') reports false rather than
     -- finding a lingering '0'.
-    DELETE FROM bullmq_meta WHERE queue = p_queue AND field = 'paused';
+    DELETE FROM meta WHERE queue = p_queue AND field = 'paused';
 
     -- Wake any worker blocked in waitForJob (LISTEN bullmq_jobs): jobs that were
     -- unclaimable only because the queue was paused are now claimable, but no
@@ -916,14 +916,14 @@ BEGIN
     PERFORM pg_notify('bullmq_jobs', p_queue);
   END IF;
 
-  PERFORM bullmq_publish_event(
+  PERFORM publish_event(
     p_queue, CASE WHEN p_paused THEN 'paused' ELSE 'resumed' END, '{}'::jsonb
   );
 END;
 $$;
 
 -- drain: never remove scheduler jobs.
-CREATE OR REPLACE FUNCTION bullmq_drain(p_queue text, p_delayed boolean)
+CREATE OR REPLACE FUNCTION drain(p_queue text, p_delayed boolean)
 RETURNS void
 LANGUAGE plpgsql
 SET search_path FROM CURRENT
@@ -937,15 +937,15 @@ BEGIN
     INTO v_pq, v_pid
   FROM (
     SELECT DISTINCT parent_queue, parent_id
-      FROM bullmq_job
+      FROM job
      WHERE queue = p_queue
        AND parent_id IS NOT NULL
        AND scheduler_id IS NULL
        AND (state = 'waiting' OR (p_delayed AND state = 'delayed'))
   ) s;
 
-  DELETE FROM bullmq_job_dependency d
-   USING bullmq_job j
+  DELETE FROM job_dependency d
+   USING job j
    WHERE j.queue = p_queue
      AND (j.state = 'waiting' OR (p_delayed AND j.state = 'delayed'))
      AND j.parent_id IS NOT NULL
@@ -955,36 +955,36 @@ BEGIN
      AND d.child_queue = j.queue
      AND d.child_id = j.id;
 
-  DELETE FROM bullmq_job
+  DELETE FROM job
    WHERE queue = p_queue
      AND scheduler_id IS NULL
      AND (state = 'waiting' OR (p_delayed AND state = 'delayed'));
 
   IF v_pq IS NOT NULL THEN
     FOR i IN 1 .. array_length(v_pq, 1) LOOP
-      UPDATE bullmq_job p
+      UPDATE job p
          SET pending_deps = (
-           SELECT count(*) FROM bullmq_job_dependency d
+           SELECT count(*) FROM job_dependency d
             WHERE d.parent_queue = v_pq[i]
               AND d.parent_id = v_pid[i]
               AND d.status = 'pending'
          )
        WHERE p.queue = v_pq[i] AND p.id = v_pid[i];
 
-      PERFORM 1 FROM bullmq_job p
+      PERFORM 1 FROM job p
        WHERE p.queue = v_pq[i] AND p.id = v_pid[i]
          AND p.state = 'waiting-children'
          AND p.pending_deps = 0;
 
       IF FOUND THEN
         IF v_pq[i] = p_queue THEN
-          DELETE FROM bullmq_job WHERE queue = v_pq[i] AND id = v_pid[i];
+          DELETE FROM job WHERE queue = v_pq[i] AND id = v_pid[i];
         ELSE
-          UPDATE bullmq_job
-             SET state = 'waiting', seq = nextval('bullmq_job_seq')
+          UPDATE job
+             SET state = 'waiting', seq = nextval('job_seq')
            WHERE queue = v_pq[i] AND id = v_pid[i];
           PERFORM pg_notify('bullmq_jobs', v_pq[i]);
-          PERFORM bullmq_publish_event(v_pq[i], 'waiting',
+          PERFORM publish_event(v_pq[i], 'waiting',
             jsonb_build_object('jobId', v_pid[i], 'prev', 'waiting-children'));
         END IF;
       END IF;
@@ -1011,7 +1011,7 @@ $$;
 --     the parent to wait when that clears its last pending dependency;
 --   * recursively deletes the subtree (children linked via parent_queue/
 --     parent_id) and clears each removed job's deduplication key.
-CREATE OR REPLACE FUNCTION bullmq_remove(
+CREATE OR REPLACE FUNCTION remove(
   p_queue text, p_id text, p_remove_children boolean
 ) RETURNS integer
 LANGUAGE plpgsql
@@ -1030,7 +1030,7 @@ DECLARE
 BEGIN
   SELECT true, scheduler_id, parent_queue, parent_id
     INTO v_found, v_scheduler, v_pq, v_pid
-    FROM bullmq_job WHERE queue = p_queue AND id = p_id;
+    FROM job WHERE queue = p_queue AND id = p_id;
 
   IF NOT COALESCE(v_found, false) THEN
     RETURN 0;
@@ -1049,18 +1049,18 @@ BEGIN
       UNION
       SELECT d.child_queue, d.child_id
         FROM subtree s
-        JOIN bullmq_job_dependency d
+        JOIN job_dependency d
           ON d.parent_queue = s.q AND d.parent_id = s.id
          AND d.status = 'pending'
     )
     SELECT EXISTS (
       SELECT 1 FROM subtree s
-       JOIN bullmq_job j ON j.queue = s.q AND j.id = s.id
+       JOIN job j ON j.queue = s.q AND j.id = s.id
       WHERE j.lock_token IS NOT NULL AND j.locked_until_ms > v_now
     ) INTO v_locked;
   ELSE
     SELECT lock_token IS NOT NULL AND locked_until_ms > v_now INTO v_locked
-      FROM bullmq_job WHERE queue = p_queue AND id = p_id;
+      FROM job WHERE queue = p_queue AND id = p_id;
   END IF;
 
   IF v_locked THEN
@@ -1071,16 +1071,16 @@ BEGIN
   -- clears the parent's last pending dependency, promote it to wait. Only
   -- pending links matter (a processed/failed child was already accounted for).
   IF v_pq IS NOT NULL AND v_pid IS NOT NULL THEN
-    DELETE FROM bullmq_job_dependency
+    DELETE FROM job_dependency
      WHERE parent_queue = v_pq AND parent_id = v_pid
        AND child_key = p_queue || ':' || p_id
        AND status = 'pending';
     IF FOUND THEN
-      UPDATE bullmq_job SET pending_deps = GREATEST(pending_deps - 1, 0)
+      UPDATE job SET pending_deps = GREATEST(pending_deps - 1, 0)
        WHERE queue = v_pq AND id = v_pid
       RETURNING pending_deps INTO v_remaining;
       IF v_remaining = 0 THEN
-        PERFORM bullmq_move_parent_to_wait(v_pq, v_pid, v_now);
+        PERFORM move_parent_to_wait(v_pq, v_pid, v_now);
       END IF;
     END IF;
   END IF;
@@ -1090,23 +1090,23 @@ BEGIN
     FOR r IN
       WITH RECURSIVE subtree AS (
         SELECT p_queue AS q, p_id AS id, dedup_id AS dd
-          FROM bullmq_job WHERE queue = p_queue AND id = p_id
+          FROM job WHERE queue = p_queue AND id = p_id
         UNION
         SELECT j.queue, j.id, j.dedup_id
           FROM subtree s
-          JOIN bullmq_job j ON j.parent_queue = s.q AND j.parent_id = s.id
+          JOIN job j ON j.parent_queue = s.q AND j.parent_id = s.id
       )
       SELECT q, id, dd FROM subtree
     LOOP
-      PERFORM bullmq_dedup_on_removal(r.q, r.id, r.dd);
-      DELETE FROM bullmq_job WHERE queue = r.q AND id = r.id;
+      PERFORM dedup_on_removal(r.q, r.id, r.dd);
+      DELETE FROM job WHERE queue = r.q AND id = r.id;
       v_deleted := v_deleted + 1;
     END LOOP;
   ELSE
-    PERFORM bullmq_dedup_on_removal(
+    PERFORM dedup_on_removal(
       p_queue, p_id,
-      (SELECT dedup_id FROM bullmq_job WHERE queue = p_queue AND id = p_id));
-    DELETE FROM bullmq_job WHERE queue = p_queue AND id = p_id;
+      (SELECT dedup_id FROM job WHERE queue = p_queue AND id = p_id));
+    DELETE FROM job WHERE queue = p_queue AND id = p_id;
     GET DIAGNOSTICS v_deleted = ROW_COUNT;
   END IF;
 
@@ -1118,7 +1118,7 @@ $$;
 -- retry_jobs: move up to `count` finished jobs of a state back to waiting.
 -- Returns the number moved (the caller loops until it returns 0).
 -- ──────────────────────────────────────────────────────────────────────────
-CREATE FUNCTION bullmq_retry_jobs(
+CREATE FUNCTION retry_jobs(
   p_queue text, p_state text, p_count integer, p_timestamp bigint
 ) RETURNS integer
 LANGUAGE plpgsql
@@ -1128,16 +1128,16 @@ DECLARE
   v_moved integer;
 BEGIN
   WITH batch AS (
-    SELECT id FROM bullmq_job
+    SELECT id FROM job
      WHERE queue = p_queue
-       AND state = p_state::bullmq_job_state
+       AND state = p_state::job_state
        AND (p_timestamp IS NULL OR finished_at_ms <= p_timestamp)
      ORDER BY finished_at_ms
      LIMIT p_count
   )
-  UPDATE bullmq_job j
+  UPDATE job j
      SET state = 'waiting',
-         seq = nextval('bullmq_job_seq'),
+         seq = nextval('job_seq'),
          finished_at_ms = NULL,
          processed_at_ms = NULL,
          return_value = NULL,
@@ -1162,7 +1162,7 @@ $$;
 -- promote_jobs: move up to `count` delayed jobs to waiting (process now).
 -- Returns the number moved (the caller loops until it returns 0).
 -- ──────────────────────────────────────────────────────────────────────────
-CREATE FUNCTION bullmq_promote_jobs(p_queue text, p_count integer)
+CREATE FUNCTION promote_jobs(p_queue text, p_count integer)
 RETURNS integer
 LANGUAGE plpgsql
 SET search_path FROM CURRENT
@@ -1171,13 +1171,13 @@ DECLARE
   v_moved integer;
 BEGIN
   WITH batch AS (
-    SELECT id FROM bullmq_job
+    SELECT id FROM job
      WHERE queue = p_queue AND state = 'delayed'
      ORDER BY process_at_ms
      LIMIT p_count
   )
-  UPDATE bullmq_job j
-     SET state = 'waiting', process_at_ms = NULL, seq = nextval('bullmq_job_seq')
+  UPDATE job j
+     SET state = 'waiting', process_at_ms = NULL, seq = nextval('job_seq')
     FROM batch
    WHERE j.queue = p_queue AND j.id = batch.id;
 
@@ -1195,7 +1195,7 @@ $$;
 -- ascending seq order (the getter layer reverses them for `asc`); zset-like
 -- states honour the requested direction.
 -- ──────────────────────────────────────────────────────────────────────────
-CREATE FUNCTION bullmq_get_range(
+CREATE FUNCTION get_range(
   p_queue text, p_type text, p_start integer, p_end integer, p_asc boolean
 ) RETURNS SETOF text
 LANGUAGE plpgsql
@@ -1238,7 +1238,7 @@ BEGIN
   END IF;
 
   RETURN QUERY EXECUTE format(
-    'SELECT id FROM bullmq_job WHERE queue = %L AND %s ORDER BY %s %s OFFSET %s LIMIT %s',
+    'SELECT id FROM job WHERE queue = %L AND %s ORDER BY %s %s OFFSET %s LIMIT %s',
     p_queue, v_where, v_order, v_dir, v_offset, v_limit
   );
 END;
@@ -1246,7 +1246,7 @@ $$;
 
 -- BullMQ PostgreSQL backend — flows (schema version 8).
 --
--- `bullmq_add_flow` atomically inserts a whole tree of jobs (possibly spanning
+-- `add_flow` atomically inserts a whole tree of jobs (possibly spanning
 -- multiple queues) from a single JSONB array of entries, ordered roots-first so
 -- a parent always exists before its children register a dependency. `drain` is
 -- recreated to be flow-aware: when draining a queue's children resolves a
@@ -1275,7 +1275,7 @@ $$;
 --      model) for callers that do not use QueueEvents, removing the event
 --      insert entirely.
 -- ──────────────────────────────────────────────────────────────────────────
-CREATE FUNCTION bullmq_add_flow(p_entries jsonb) RETURNS SETOF text
+CREATE FUNCTION add_flow(p_entries jsonb) RETURNS SETOF text
 LANGUAGE plpgsql
 SET search_path FROM CURRENT
 AS $$
@@ -1283,7 +1283,7 @@ DECLARE
   e              jsonb;
   v_id           text;
   v_seq          bigint;
-  v_state        bullmq_job_state;
+  v_state        job_state;
   v_process_at   bigint;
   v_queue        text;
   v_delay        bigint;
@@ -1297,7 +1297,7 @@ DECLARE
   v_winner       text;
   v_inserted     boolean;
   v_code         integer;
-  -- Lifecycle-event accumulation. Rather than PERFORM bullmq_publish_event per
+  -- Lifecycle-event accumulation. Rather than PERFORM publish_event per
   -- job (which turns a 1000-job addBulk into ~2000 extra statement executions —
   -- the dominant cost of a single-connection bulk add), events are collected
   -- here and flushed in ONE set-based INSERT after the loop. Appending to a
@@ -1329,7 +1329,7 @@ BEGIN
     END IF;
 
     IF v_id IS NULL OR v_id = '' THEN
-      v_id := bullmq_next_job_id(v_queue);
+      v_id := next_job_id(v_queue);
     END IF;
 
     -- Root deduplication: if a live key already won, return its id and skip
@@ -1338,7 +1338,7 @@ BEGIN
       v_dedup := COALESCE(e -> 'opts' -> 'deduplication',
                           e -> 'opts' -> 'debounce',
                           jsonb_build_object('id', v_dedup_id));
-      v_winner := bullmq_deduplicate_job(v_queue, v_dedup, v_id, v_timestamp,
+      v_winner := deduplicate_job(v_queue, v_dedup, v_id, v_timestamp,
         e ->> 'name', COALESCE((e ->> 'data')::jsonb, '{}'::jsonb),
         COALESCE(e -> 'opts', '{}'::jsonb));
       IF v_winner IS NOT NULL THEN
@@ -1352,14 +1352,14 @@ BEGIN
     -- without aborting the rest of the flow.
     IF v_parent_id IS NOT NULL AND v_parent_queue IS NOT NULL
        AND NOT EXISTS (
-         SELECT 1 FROM bullmq_job
+         SELECT 1 FROM job
           WHERE queue = v_parent_queue AND id = v_parent_id
        ) THEN
       RETURN NEXT '-5';
       CONTINUE;
     END IF;
 
-    v_seq := nextval('bullmq_job_seq');
+    v_seq := nextval('job_seq');
     IF v_lifo THEN
       v_seq := -v_seq;
     END IF;
@@ -1375,7 +1375,7 @@ BEGIN
       v_process_at := NULL;
     END IF;
 
-    INSERT INTO bullmq_job (
+    INSERT INTO job (
       queue, id, seq, name, state,
       data, opts, priority, delay_ms, max_attempts,
       added_at_ms, process_at_ms,
@@ -1397,7 +1397,7 @@ BEGIN
     IF v_parent_id IS NOT NULL AND v_parent_queue IS NOT NULL THEN
       IF v_inserted THEN
         -- New job: register a pending dependency on its parent.
-        INSERT INTO bullmq_job_dependency (
+        INSERT INTO job_dependency (
           parent_queue, parent_id, child_queue, child_id, child_key, status
         ) VALUES (
           v_parent_queue, v_parent_id, v_queue, v_id,
@@ -1405,13 +1405,13 @@ BEGIN
         )
         ON CONFLICT (parent_queue, parent_id, child_key) DO NOTHING;
 
-        UPDATE bullmq_job
+        UPDATE job
            SET pending_deps = pending_deps + 1
          WHERE queue = v_parent_queue AND id = v_parent_id;
       ELSE
         -- The job already existed: re-attach it to this new parent (mirrors
         -- handleDuplicatedJob). -7 means it already has a different parent.
-        v_code := bullmq_handle_duplicated_job(v_queue, v_id,
+        v_code := handle_duplicated_job(v_queue, v_id,
           v_parent_queue, v_parent_id, e ->> 'parentKey', v_timestamp);
         IF v_code = -7 THEN
           RETURN NEXT '-7';
@@ -1455,10 +1455,10 @@ BEGIN
 
   -- ── Flush accumulated lifecycle events in one statement ──────────────────
   IF array_length(v_ev_queue, 1) > 0 THEN
-    -- Single set-based append. The id DEFAULT nextval('bullmq_event_seq') is
+    -- Single set-based append. The id DEFAULT nextval('event_seq') is
     -- assigned in ordinality order (the ORDER BY pins row-production order), so
     -- the stream keeps each job's 'added' → state-event ordering.
-    INSERT INTO bullmq_event (queue, event, data, created_at_ms)
+    INSERT INTO event (queue, event, data, created_at_ms)
     SELECT q, ev, dat, (extract(epoch FROM clock_timestamp()) * 1000)::bigint
       FROM unnest(v_ev_queue, v_ev_event, v_ev_data)
              WITH ORDINALITY AS t(q, ev, dat, ord)
@@ -1467,12 +1467,12 @@ BEGIN
     -- One 'bullmq_events' wakeup per distinct queue, then trim that queue's
     -- stream once (not per publish). A non-blocking advisory lock keeps at most
     -- one trimmer per queue; publishers that miss it skip (the next flush covers
-    -- the same rows). Matches bullmq_publish_event's approximate-MAXLEN trim.
+    -- the same rows). Matches publish_event's approximate-MAXLEN trim.
     FOR v_queue IN SELECT DISTINCT q FROM unnest(v_ev_queue) AS q LOOP
       PERFORM pg_notify('bullmq_events', v_queue);
 
       SELECT value::integer INTO v_max
-        FROM bullmq_meta
+        FROM meta
        WHERE queue = v_queue AND field = 'opts.maxLenEvents';
       IF v_max IS NULL THEN
         v_max := 10000;
@@ -1480,9 +1480,9 @@ BEGIN
       IF v_max > 0
          AND pg_try_advisory_xact_lock(hashtext('bullmq:evtrim:' || v_queue))
       THEN
-        DELETE FROM bullmq_event
+        DELETE FROM event
          WHERE queue = v_queue
-           AND id <= (SELECT max(id) FROM bullmq_event WHERE queue = v_queue)
+           AND id <= (SELECT max(id) FROM event WHERE queue = v_queue)
                      - v_max;
       END IF;
     END LOOP;
@@ -1505,14 +1505,14 @@ $$;
 -- promote: a delayed job → waiting (process ASAP, keeping its priority).
 -- Returns 0 ok, -1 missing (JobNotExist), -3 not delayed (JobNotInState).
 -- ──────────────────────────────────────────────────────────────────────────
-CREATE FUNCTION bullmq_promote(p_queue text, p_id text) RETURNS integer
+CREATE FUNCTION promote(p_queue text, p_id text) RETURNS integer
 LANGUAGE plpgsql
 SET search_path FROM CURRENT
 AS $$
 DECLARE
-  v_state bullmq_job_state;
+  v_state job_state;
 BEGIN
-  SELECT state INTO v_state FROM bullmq_job WHERE queue = p_queue AND id = p_id;
+  SELECT state INTO v_state FROM job WHERE queue = p_queue AND id = p_id;
   IF NOT FOUND THEN
     RETURN -1;
   END IF;
@@ -1520,15 +1520,15 @@ BEGIN
     RETURN -3;
   END IF;
 
-  UPDATE bullmq_job
+  UPDATE job
      SET state = 'waiting',
          process_at_ms = NULL,
          delay_ms = 0,
-         seq = nextval('bullmq_job_seq')
+         seq = nextval('job_seq')
    WHERE queue = p_queue AND id = p_id;
 
   PERFORM pg_notify('bullmq_jobs', p_queue);
-  PERFORM bullmq_publish_event(p_queue, 'waiting',
+  PERFORM publish_event(p_queue, 'waiting',
     jsonb_build_object('jobId', p_id, 'prev', 'delayed'));
   RETURN 0;
 END;
@@ -1538,16 +1538,16 @@ $$;
 -- change_delay: reschedule a delayed job to fire `p_delay` ms from now.
 -- Returns 0 ok, -1 missing, -3 not delayed.
 -- ──────────────────────────────────────────────────────────────────────────
-CREATE FUNCTION bullmq_change_delay(
+CREATE FUNCTION change_delay(
   p_queue text, p_id text, p_delay bigint, p_now bigint
 ) RETURNS integer
 LANGUAGE plpgsql
 SET search_path FROM CURRENT
 AS $$
 DECLARE
-  v_state bullmq_job_state;
+  v_state job_state;
 BEGIN
-  SELECT state INTO v_state FROM bullmq_job WHERE queue = p_queue AND id = p_id;
+  SELECT state INTO v_state FROM job WHERE queue = p_queue AND id = p_id;
   IF NOT FOUND THEN
     RETURN -1;
   END IF;
@@ -1555,7 +1555,7 @@ BEGIN
     RETURN -3;
   END IF;
 
-  UPDATE bullmq_job
+  UPDATE job
      SET delay_ms = p_delay,
          process_at_ms = p_now + p_delay
    WHERE queue = p_queue AND id = p_id;
@@ -1571,30 +1571,30 @@ $$;
 -- waiting/prioritized; otherwise just record the new priority. Returns 0 ok,
 -- -1 missing.
 -- ──────────────────────────────────────────────────────────────────────────
-CREATE FUNCTION bullmq_change_priority(
+CREATE FUNCTION change_priority(
   p_queue text, p_id text, p_priority integer, p_lifo boolean
 ) RETURNS integer
 LANGUAGE plpgsql
 SET search_path FROM CURRENT
 AS $$
 DECLARE
-  v_state bullmq_job_state;
+  v_state job_state;
 BEGIN
-  SELECT state INTO v_state FROM bullmq_job WHERE queue = p_queue AND id = p_id;
+  SELECT state INTO v_state FROM job WHERE queue = p_queue AND id = p_id;
   IF NOT FOUND THEN
     RETURN -1;
   END IF;
 
   IF v_state = 'waiting' THEN
     -- Reposition: lifo → head (negative seq), otherwise → tail (new seq).
-    UPDATE bullmq_job
+    UPDATE job
        SET priority = p_priority,
            seq = CASE WHEN p_lifo
-                      THEN -nextval('bullmq_job_seq')
-                      ELSE nextval('bullmq_job_seq') END
+                      THEN -nextval('job_seq')
+                      ELSE nextval('job_seq') END
      WHERE queue = p_queue AND id = p_id;
   ELSE
-    UPDATE bullmq_job
+    UPDATE job
        SET priority = p_priority
      WHERE queue = p_queue AND id = p_id;
   END IF;
@@ -1605,7 +1605,7 @@ $$;
 
 -- BullMQ PostgreSQL backend — rate-limit-aware active→wait move (schema v26).
 --
--- Recreates bullmq_move_active_to_wait (used by the dynamic/manual rate limit
+-- Recreates move_active_to_wait (used by the dynamic/manual rate limit
 -- and `Job.moveToWait`) to mirror moveJobFromActiveToWait-9.lua:
 --   * A missing job returns -1 (so the caller can raise the canonical
 --     "Missing key for job …" error).
@@ -1615,21 +1615,21 @@ $$;
 --     before the positive seqs of same-priority jobs), tail = `nextval`.
 --   * Returns the remaining limiter window in ms (Redis returns the limiter
 --     PTTL), which the worker uses to decide how long to back off.
-CREATE OR REPLACE FUNCTION bullmq_move_active_to_wait(
+CREATE OR REPLACE FUNCTION move_active_to_wait(
   p_queue text, p_id text, p_token text, p_now bigint
 ) RETURNS bigint
 LANGUAGE plpgsql
 SET search_path FROM CURRENT
 AS $$
 DECLARE
-  v_state    bullmq_job_state;
+  v_state    job_state;
   v_lock     text;
   v_priority integer;
   v_seq      bigint;
   v_expire   bigint;
 BEGIN
   SELECT state, lock_token, priority INTO v_state, v_lock, v_priority
-    FROM bullmq_job WHERE queue = p_queue AND id = p_id;
+    FROM job WHERE queue = p_queue AND id = p_id;
   IF NOT FOUND THEN
     RETURN -1;
   END IF;
@@ -1637,12 +1637,12 @@ BEGIN
   IF v_state = 'active'
      AND (p_token = '0' OR v_lock IS NOT DISTINCT FROM p_token) THEN
     IF v_priority > 0 THEN
-      v_seq := -nextval('bullmq_job_seq');
+      v_seq := -nextval('job_seq');
     ELSE
-      v_seq := nextval('bullmq_job_seq');
+      v_seq := nextval('job_seq');
     END IF;
 
-    UPDATE bullmq_job
+    UPDATE job
        SET state = 'waiting',
            seq = v_seq,
            lock_token = NULL,
@@ -1650,13 +1650,13 @@ BEGIN
      WHERE queue = p_queue AND id = p_id;
 
     PERFORM pg_notify('bullmq_jobs', p_queue);
-    PERFORM bullmq_publish_event(p_queue, 'waiting',
+    PERFORM publish_event(p_queue, 'waiting',
       jsonb_build_object('jobId', p_id, 'prev', 'active'));
   END IF;
 
   -- Remaining limiter window (mirrors Redis returning PTTL of the limiter key).
   SELECT expire_at_ms INTO v_expire
-    FROM bullmq_rate_limit WHERE queue = p_queue;
+    FROM rate_limit WHERE queue = p_queue;
   IF v_expire IS NOT NULL AND v_expire > p_now THEN
     RETURN v_expire - p_now;
   END IF;
@@ -1668,7 +1668,7 @@ $$;
 --
 -- Job.retry() must reset processedOn too: a re-queued job is "fresh", so
 -- processed_at_ms is cleared alongside finished/return/failed/stacktrace.
-CREATE OR REPLACE FUNCTION bullmq_reprocess_job(
+CREATE OR REPLACE FUNCTION reprocess_job(
   p_queue         text,
   p_id            text,
   p_state         text,
@@ -1680,26 +1680,26 @@ LANGUAGE plpgsql
 SET search_path FROM CURRENT
 AS $$
 DECLARE
-  v_state bullmq_job_state;
+  v_state job_state;
   v_seq   bigint;
   v_pq    text;
   v_pid   text;
 BEGIN
   SELECT state, parent_queue, parent_id INTO v_state, v_pq, v_pid
-    FROM bullmq_job WHERE queue = p_queue AND id = p_id FOR UPDATE;
+    FROM job WHERE queue = p_queue AND id = p_id FOR UPDATE;
   IF NOT FOUND THEN
     RETURN -1;
   END IF;
-  IF v_state <> p_state::bullmq_job_state THEN
+  IF v_state <> p_state::job_state THEN
     RETURN -3;
   END IF;
 
-  v_seq := nextval('bullmq_job_seq');
+  v_seq := nextval('job_seq');
   IF p_lifo THEN
     v_seq := -v_seq;
   END IF;
 
-  UPDATE bullmq_job
+  UPDATE job
      SET state = 'waiting',
          seq = v_seq,
          process_at_ms = NULL,
@@ -1717,21 +1717,21 @@ BEGIN
   -- back to pending and re-count it (mirrors reprocessJob-8.lua re-adding the
   -- job to the parent's :dependencies set).
   IF v_pq IS NOT NULL AND v_pid IS NOT NULL
-     AND EXISTS (SELECT 1 FROM bullmq_job WHERE queue = v_pq AND id = v_pid) THEN
-    UPDATE bullmq_job_dependency
+     AND EXISTS (SELECT 1 FROM job WHERE queue = v_pq AND id = v_pid) THEN
+    UPDATE job_dependency
        SET status = 'pending', value = NULL
      WHERE parent_queue = v_pq AND parent_id = v_pid
        AND child_key = p_queue || ':' || p_id
        AND status = (CASE WHEN p_state = 'failed' THEN 'failed'
-                          ELSE 'processed' END)::bullmq_dep_status;
+                          ELSE 'processed' END)::dep_status;
     IF FOUND THEN
-      UPDATE bullmq_job SET pending_deps = pending_deps + 1
+      UPDATE job SET pending_deps = pending_deps + 1
        WHERE queue = v_pq AND id = v_pid;
     END IF;
   END IF;
 
   PERFORM pg_notify('bullmq_jobs', p_queue);
-  PERFORM bullmq_publish_event(p_queue, 'waiting',
+  PERFORM publish_event(p_queue, 'waiting',
     jsonb_build_object('jobId', p_id, 'prev', p_state));
   RETURN 1;
 END;
@@ -1744,19 +1744,19 @@ $$;
 --   * move_to_completed also releases the parent: a completing child marks its
 --     dependency processed and, when the parent has no pending deps left and is
 --     waiting-children, promotes it back to waiting.
-CREATE FUNCTION bullmq_move_to_waiting_children(
+CREATE FUNCTION move_to_waiting_children(
   p_queue text, p_id text, p_token text
 ) RETURNS integer
 LANGUAGE plpgsql
 SET search_path FROM CURRENT
 AS $$
 DECLARE
-  v_state   bullmq_job_state;
+  v_state   job_state;
   v_lock    text;
   v_pending integer;
 BEGIN
   SELECT state, lock_token, pending_deps INTO v_state, v_lock, v_pending
-    FROM bullmq_job WHERE queue = p_queue AND id = p_id FOR UPDATE;
+    FROM job WHERE queue = p_queue AND id = p_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'bullmq: missing job %', p_id USING ERRCODE = 'BM001', DETAIL = '-1';
   END IF;
@@ -1764,7 +1764,7 @@ BEGIN
   -- children step; surface it as an unrecoverable failure (mirrors the
   -- `:unsuccessful` set check in moveToWaitingChildren-7.lua).
   IF EXISTS (
-    SELECT 1 FROM bullmq_job_dependency
+    SELECT 1 FROM job_dependency
      WHERE parent_queue = p_queue AND parent_id = p_id AND status = 'failed'
   ) THEN
     RAISE EXCEPTION 'bullmq: job % has failed children', p_id
@@ -1786,7 +1786,7 @@ BEGIN
   END IF;
 
   IF v_pending > 0 THEN
-    UPDATE bullmq_job
+    UPDATE job
        SET state = 'waiting-children', lock_token = NULL, locked_until_ms = NULL
      WHERE queue = p_queue AND id = p_id;
     RETURN 1; -- should wait
@@ -1800,7 +1800,7 @@ $$;
 -- Flow-aware: when a cleaned job is a pending child, its parent's dependency
 -- count is updated and the parent released (removed if it lives in the cleaned
 -- queue, otherwise moved to wait) — mirrors removeJob → removeParentDependencyKey.
-CREATE OR REPLACE FUNCTION bullmq_clean(
+CREATE OR REPLACE FUNCTION clean(
   p_queue text, p_type text, p_ts bigint, p_limit integer
 ) RETURNS SETOF text
 LANGUAGE plpgsql
@@ -1833,7 +1833,7 @@ BEGIN
 
   -- Collect the ids to clean (respecting FIFO order + limit).
   EXECUTE format(
-    'SELECT array_agg(id) FROM (SELECT id FROM bullmq_job '
+    'SELECT array_agg(id) FROM (SELECT id FROM job '
     || 'WHERE queue = %L AND %s %s ORDER BY seq %s) s',
     p_queue, v_where, v_scheduler_filter,
     CASE WHEN p_limit > 0 THEN 'LIMIT ' || p_limit ELSE '' END
@@ -1846,38 +1846,38 @@ BEGIN
   -- Distinct parents of the cleaned jobs, for flow-aware release.
   SELECT array_agg(pq), array_agg(pid) INTO v_pq, v_pid FROM (
     SELECT DISTINCT parent_queue AS pq, parent_id AS pid
-      FROM bullmq_job
+      FROM job
      WHERE queue = p_queue AND id = ANY(v_ids)
        AND parent_queue IS NOT NULL AND parent_id IS NOT NULL
   ) s;
 
   -- Break the cleaned jobs' dependency links, then delete the jobs.
-  DELETE FROM bullmq_job_dependency
+  DELETE FROM job_dependency
    WHERE child_queue = p_queue AND child_id = ANY(v_ids);
-  DELETE FROM bullmq_job WHERE queue = p_queue AND id = ANY(v_ids);
+  DELETE FROM job WHERE queue = p_queue AND id = ANY(v_ids);
 
   -- Release affected parents: a parent with no remaining pending dependencies
   -- is removed when it lives in the cleaned queue, else moved to wait.
   IF v_pq IS NOT NULL THEN
     FOR i IN 1 .. array_length(v_pq, 1) LOOP
-      UPDATE bullmq_job p SET pending_deps = (
-        SELECT count(*) FROM bullmq_job_dependency d
+      UPDATE job p SET pending_deps = (
+        SELECT count(*) FROM job_dependency d
          WHERE d.parent_queue = v_pq[i] AND d.parent_id = v_pid[i]
            AND d.status = 'pending'
       ) WHERE p.queue = v_pq[i] AND p.id = v_pid[i];
 
-      PERFORM 1 FROM bullmq_job p
+      PERFORM 1 FROM job p
        WHERE p.queue = v_pq[i] AND p.id = v_pid[i]
          AND p.state = 'waiting-children' AND p.pending_deps = 0;
       IF FOUND THEN
         IF v_pq[i] = p_queue THEN
-          DELETE FROM bullmq_job WHERE queue = v_pq[i] AND id = v_pid[i];
+          DELETE FROM job WHERE queue = v_pq[i] AND id = v_pid[i];
         ELSE
-          UPDATE bullmq_job
-             SET state = 'waiting', seq = nextval('bullmq_job_seq')
+          UPDATE job
+             SET state = 'waiting', seq = nextval('job_seq')
            WHERE queue = v_pq[i] AND id = v_pid[i];
           PERFORM pg_notify('bullmq_jobs', v_pq[i]);
-          PERFORM bullmq_publish_event(v_pq[i], 'waiting',
+          PERFORM publish_event(v_pq[i], 'waiting',
             jsonb_build_object('jobId', v_pid[i], 'prev', 'waiting-children'));
         END IF;
       END IF;
@@ -1886,7 +1886,7 @@ BEGIN
 
   -- Announce how many jobs were cleaned (mirrors cleanJobsInSet-3.lua's
   -- `cleaned` event; count is a string, as on the Redis stream).
-  PERFORM bullmq_publish_event(p_queue, 'cleaned',
+  PERFORM publish_event(p_queue, 'cleaned',
     jsonb_build_object('count', array_length(v_ids, 1)::text));
 
   RETURN QUERY SELECT unnest(v_ids);
@@ -1895,7 +1895,7 @@ $$;
 
 -- Mirror of the Lua getJobSchedulerEveryNextMillis: returns the next due time
 -- for a fixed-interval scheduler and the aligned offset, as a 2-int array.
-CREATE FUNCTION bullmq_scheduler_every_next_millis(
+CREATE FUNCTION scheduler_every_next_millis(
   p_prev bigint, p_every bigint, p_now bigint, p_offset bigint, p_start bigint
 ) RETURNS bigint[]
 LANGUAGE plpgsql
@@ -1934,7 +1934,7 @@ $$;
 
 -- Registers/updates a scheduler and enqueues its next delayed job.
 -- Returns (job_id, delay).
-CREATE FUNCTION bullmq_add_job_scheduler(
+CREATE FUNCTION add_job_scheduler(
   p_queue         text,
   p_scheduler_id  text,
   p_next_millis   bigint,
@@ -1973,12 +1973,12 @@ DECLARE
   v_em      bigint[];
   v_jobid   text;
   v_delay   bigint;
-  v_state   bullmq_job_state;
+  v_state   job_state;
   v_seq     bigint;
 BEGIN
   SELECT next_run_ms, every_ms, iteration_count, offset_ms
     INTO v_prev, v_prev_every, v_ic, v_existing_offset
-    FROM bullmq_scheduler WHERE queue = p_queue AND scheduler_id = p_scheduler_id;
+    FROM scheduler WHERE queue = p_queue AND scheduler_id = p_scheduler_id;
 
   -- `v_prev` is the previous iteration (used for removal); `v_millis` seeds the
   -- `every` formula and is reset to NULL when the interval itself changed.
@@ -1988,7 +1988,7 @@ BEGIN
       v_millis := NULL;
       v_updated_every := true;
     END IF;
-    v_em := bullmq_scheduler_every_next_millis(v_millis, v_every, p_now, v_offset, v_start);
+    v_em := scheduler_every_next_millis(v_millis, v_every, p_now, v_offset, v_start);
     v_next := v_em[1];
     v_new_offset := v_em[2];
     -- Preserve the offset established at scheduler creation. On re-upsert of an
@@ -2003,7 +2003,7 @@ BEGIN
 
   -- Remove the previous iteration's (still-pending) job, if any.
   IF v_prev IS NOT NULL THEN
-    DELETE FROM bullmq_job
+    DELETE FROM job
      WHERE queue = p_queue
        AND id = 'repeat:' || p_scheduler_id || ':' || v_prev
        AND state IN ('delayed', 'waiting');
@@ -2020,11 +2020,11 @@ BEGIN
   -- (e.g. it is active). For `every` we try the following slot; for `pattern`
   -- we fail — unless we just removed the previous job (override replaces it).
   v_jobid := 'repeat:' || p_scheduler_id || ':' || v_next;
-  IF EXISTS (SELECT 1 FROM bullmq_job WHERE queue = p_queue AND id = v_jobid) THEN
+  IF EXISTS (SELECT 1 FROM job WHERE queue = p_queue AND id = v_jobid) THEN
     IF v_every IS NOT NULL THEN
       v_next := v_next + v_every;
       v_jobid := 'repeat:' || p_scheduler_id || ':' || v_next;
-      IF EXISTS (SELECT 1 FROM bullmq_job WHERE queue = p_queue AND id = v_jobid) THEN
+      IF EXISTS (SELECT 1 FROM job WHERE queue = p_queue AND id = v_jobid) THEN
         RAISE EXCEPTION 'scheduler job slots busy'
           USING ERRCODE = 'BM001', DETAIL = '-11';
       END IF;
@@ -2039,7 +2039,7 @@ BEGIN
   v_delay := GREATEST(v_next - p_now, 0);
 
   -- Upsert the scheduler row (iteration count preserved, or 1 the first time).
-  INSERT INTO bullmq_scheduler (
+  INSERT INTO scheduler (
     queue, scheduler_id, name, next_run_ms, pattern, every_ms, tz,
     start_date_ms, end_date_ms, limit_count, iteration_count, offset_ms,
     template_data, template_opts, producer_id
@@ -2064,14 +2064,14 @@ BEGIN
 
   -- Create the next delayed (or immediately-ready) job. When `v_collision` we
   -- are replacing an existing (removed-prev) row, so fully reset it.
-  v_seq := nextval('bullmq_job_seq');
+  v_seq := nextval('job_seq');
   IF v_delay > 0 THEN
     v_state := 'delayed';
   ELSE
     v_state := 'waiting';
   END IF;
 
-  INSERT INTO bullmq_job (
+  INSERT INTO job (
     queue, id, seq, name, state, data, opts, priority, delay_ms, max_attempts,
     added_at_ms, process_at_ms, scheduler_id
   ) VALUES (
@@ -2118,7 +2118,7 @@ $$;
 
 -- Advance an existing scheduler to its next iteration (no template change).
 -- Returns the new job id, or NULL if the scheduler no longer exists.
-CREATE FUNCTION bullmq_update_job_scheduler_next_millis(
+CREATE FUNCTION update_job_scheduler_next_millis(
   p_queue         text,
   p_scheduler_id  text,
   p_next_millis   bigint,
@@ -2143,12 +2143,12 @@ DECLARE
   v_jobid  text;
   v_current text;
   v_delay  bigint;
-  v_state  bullmq_job_state;
+  v_state  job_state;
   v_seq    bigint;
 BEGIN
   SELECT name, next_run_ms, every_ms, start_date_ms, offset_ms, template_data
     INTO v_name, v_prev, v_every, v_start, v_offset, v_data
-    FROM bullmq_scheduler WHERE queue = p_queue AND scheduler_id = p_scheduler_id;
+    FROM scheduler WHERE queue = p_queue AND scheduler_id = p_scheduler_id;
   IF NOT FOUND THEN
     RETURN NULL;
   END IF;
@@ -2159,7 +2159,7 @@ BEGIN
 
   IF v_every IS NOT NULL THEN
     v_offset := COALESCE(v_offset, (p_delayed_opts #>> '{repeat,offset}')::bigint, 0);
-    v_em := bullmq_scheduler_every_next_millis(v_prev, v_every, p_now, v_offset, v_start);
+    v_em := scheduler_every_next_millis(v_prev, v_every, p_now, v_offset, v_start);
     v_next := v_em[1];
     v_new_offset := v_em[2];
   END IF;
@@ -2174,15 +2174,15 @@ BEGIN
   v_jobid := 'repeat:' || p_scheduler_id || ':' || v_next;
 
   -- If the next iteration's job already exists, this is a duplicate.
-  IF EXISTS (SELECT 1 FROM bullmq_job WHERE queue = p_queue AND id = v_jobid) THEN
-    PERFORM bullmq_publish_event(p_queue, 'duplicated',
+  IF EXISTS (SELECT 1 FROM job WHERE queue = p_queue AND id = v_jobid) THEN
+    PERFORM publish_event(p_queue, 'duplicated',
       jsonb_build_object('jobId', v_jobid));
     RETURN NULL;
   END IF;
 
   v_delay := GREATEST(v_next - p_now, 0);
 
-  UPDATE bullmq_scheduler
+  UPDATE scheduler
      SET next_run_ms = v_next,
          iteration_count = iteration_count + 1,
          offset_ms = COALESCE(offset_ms, v_new_offset),
@@ -2193,10 +2193,10 @@ BEGIN
          END
    WHERE queue = p_queue AND scheduler_id = p_scheduler_id;
 
-  v_seq := nextval('bullmq_job_seq');
+  v_seq := nextval('job_seq');
   v_state := CASE WHEN v_delay > 0 THEN 'delayed' ELSE 'waiting' END;
 
-  INSERT INTO bullmq_job (
+  INSERT INTO job (
     queue, id, seq, name, state, data, opts, priority, delay_ms, max_attempts,
     added_at_ms, process_at_ms, scheduler_id
   ) VALUES (
@@ -2220,7 +2220,7 @@ $$;
 -- Remove a scheduler and its still-pending job, emitting a `removed` event for
 -- each deleted job. Returns 0 if the scheduler existed (removed), 1 otherwise
 -- (mirrors removeJobScheduler-3.lua: 0 = OK, 1 = missing).
-CREATE FUNCTION bullmq_remove_job_scheduler(
+CREATE FUNCTION remove_job_scheduler(
   p_queue text, p_scheduler_id text
 ) RETURNS integer
 LANGUAGE plpgsql
@@ -2239,20 +2239,20 @@ BEGIN
   -- 'duplicated'. Deleting every delayed/waiting job of the scheduler would
   -- wrongly reap the promoted job.
   SELECT next_run_ms INTO v_next
-    FROM bullmq_scheduler
+    FROM scheduler
    WHERE queue = p_queue AND scheduler_id = p_scheduler_id;
 
   IF v_next IS NOT NULL THEN
     v_jobid := 'repeat:' || p_scheduler_id || ':' || v_next;
-    DELETE FROM bullmq_job
+    DELETE FROM job
      WHERE queue = p_queue AND id = v_jobid AND state = 'delayed';
     IF FOUND THEN
-      PERFORM bullmq_publish_event(p_queue, 'removed',
+      PERFORM publish_event(p_queue, 'removed',
         jsonb_build_object('jobId', v_jobid, 'prev', 'delayed'));
     END IF;
   END IF;
 
-  DELETE FROM bullmq_scheduler
+  DELETE FROM scheduler
    WHERE queue = p_queue AND scheduler_id = p_scheduler_id;
   GET DIAGNOSTICS v_removed = ROW_COUNT;
   RETURN CASE WHEN v_removed > 0 THEN 0 ELSE 1 END;
@@ -2271,7 +2271,7 @@ $$;
 --     lock — so a job that completes or renews its lock between passes is never
 --     reclaimed.
 --   * Scheduler ("repeatable") jobs are recovered but never permanently failed.
-CREATE FUNCTION bullmq_move_stalled_jobs_to_wait(
+CREATE FUNCTION move_stalled_jobs_to_wait(
   p_queue          text,
   p_max_stalled    integer,
   p_now            bigint,
@@ -2290,11 +2290,11 @@ BEGIN
   -- Throttle: only run once per `max_check_time` window (mirrors the Redis
   -- `stalled-check` key with `PX maxCheckTime`).
   SELECT value::bigint INTO v_last
-    FROM bullmq_meta WHERE queue = p_queue AND field = 'stalled-check';
+    FROM meta WHERE queue = p_queue AND field = 'stalled-check';
   IF v_last IS NOT NULL AND p_now < v_last + p_max_check_time THEN
     RETURN;
   END IF;
-  INSERT INTO bullmq_meta (queue, field, value)
+  INSERT INTO meta (queue, field, value)
     VALUES (p_queue, 'stalled-check', p_now::text)
     ON CONFLICT (queue, field) DO UPDATE SET value = EXCLUDED.value;
 
@@ -2302,7 +2302,7 @@ BEGIN
   -- still active with an expired lock.
   FOR r IN
     SELECT id, scheduler_id, stalled_count
-      FROM bullmq_job
+      FROM job
      WHERE queue = p_queue
        AND state = 'active'
        AND stalled_marked
@@ -2314,17 +2314,17 @@ BEGIN
 
     -- Scheduler jobs are recovered but never permanently failed.
     v_repeatable := r.scheduler_id IS NOT NULL AND EXISTS (
-      SELECT 1 FROM bullmq_scheduler
+      SELECT 1 FROM scheduler
        WHERE queue = p_queue AND scheduler_id = r.scheduler_id
     );
 
-    UPDATE bullmq_job
+    UPDATE job
        SET state = 'waiting',
            lock_token = NULL,
            locked_until_ms = NULL,
            stalled_marked = false,
            stalled_count = v_count,
-           seq = nextval('bullmq_job_seq'),
+           seq = nextval('job_seq'),
            deferred_failure = CASE
              WHEN v_count > p_max_stalled AND NOT v_repeatable
                THEN 'job stalled more than allowable limit'
@@ -2332,20 +2332,20 @@ BEGIN
            END
      WHERE queue = p_queue AND id = r.id;
 
-    PERFORM bullmq_publish_event(p_queue, 'stalled',
+    PERFORM publish_event(p_queue, 'stalled',
       jsonb_build_object('jobId', r.id));
     v_reclaimed := true;
     RETURN NEXT r.id;
   END LOOP;
 
   -- Clear all old marks (mirrors `DEL stalledKey`) …
-  UPDATE bullmq_job SET stalled_marked = false
+  UPDATE job SET stalled_marked = false
    WHERE queue = p_queue AND stalled_marked;
 
   -- … then mark every currently-active job for the NEXT pass (mirrors
   -- `SADD stalledKey <active>`). Freshly-claimed jobs are therefore never
   -- reclaimed on the pass that first observes them.
-  UPDATE bullmq_job SET stalled_marked = true
+  UPDATE job SET stalled_marked = true
    WHERE queue = p_queue AND state = 'active';
 
   -- Wake a worker for any jobs pushed back to wait.
@@ -2362,7 +2362,7 @@ $$;
 -- counter key with a PTTL: a token is consumed (INCR + PEXPIRE-on-first) each
 -- time a job is moved to active, and `getRateLimitTTL` reports the remaining
 -- window once the counter reaches `max`. Here that key is one row of
--- `bullmq_rate_limit` (`points` ⇔ the counter, `expire_at_ms` ⇔ the PTTL
+-- `rate_limit` (`points` ⇔ the counter, `expire_at_ms` ⇔ the PTTL
 -- window). The limiter config comes from the queue meta (`max`/`duration`, set
 -- via `Queue.setGlobalRateLimit`) and/or the worker's `limiter` option.
 
@@ -2370,7 +2370,7 @@ $$;
 -- p_max_jobs > 0 → check against that; else fall back to meta `max`; else the
 -- raw remaining window (or -2 when there is none, like Redis PTTL on a missing
 -- key).
-CREATE FUNCTION bullmq_rate_limit_ttl(
+CREATE FUNCTION rate_limit_ttl(
   p_queue text, p_max_jobs integer, p_now bigint
 ) RETURNS bigint
 LANGUAGE plpgsql
@@ -2386,7 +2386,7 @@ DECLARE
   v_max     integer;
 BEGIN
   SELECT points, expire_at_ms INTO v_points, v_expire
-    FROM bullmq_rate_limit WHERE queue = p_queue;
+    FROM rate_limit WHERE queue = p_queue;
   v_active  := v_expire IS NOT NULL AND v_expire > p_now;
   v_counter := CASE WHEN v_active THEN v_points ELSE 0 END;
   v_pttl    := CASE WHEN v_active THEN v_expire - p_now ELSE -2 END;
@@ -2399,7 +2399,7 @@ BEGIN
   END IF;
 
   SELECT value::integer INTO v_max
-    FROM bullmq_meta WHERE queue = p_queue AND field = 'max';
+    FROM meta WHERE queue = p_queue AND field = 'max';
   IF v_max IS NOT NULL THEN
     IF v_max <= v_counter AND v_pttl > 0 THEN
       RETURN v_pttl;
@@ -2416,7 +2416,7 @@ $$;
 -- falling back to the worker's own `limiter.max`. Returns the remaining window
 -- when the counter has reached that limit, else 0 (and 0 when no limiter at
 -- all is configured).
-CREATE FUNCTION bullmq_rate_limit_effective(
+CREATE FUNCTION rate_limit_effective(
   p_queue text, p_limiter_max integer, p_now bigint
 ) RETURNS bigint
 LANGUAGE plpgsql
@@ -2430,14 +2430,14 @@ DECLARE
   v_expire   bigint;
 BEGIN
   SELECT value::integer INTO v_meta_max
-    FROM bullmq_meta WHERE queue = p_queue AND field = 'max';
+    FROM meta WHERE queue = p_queue AND field = 'max';
   v_max := COALESCE(v_meta_max, p_limiter_max);
   IF v_max IS NULL THEN
     RETURN 0;
   END IF;
 
   SELECT points, expire_at_ms INTO v_points, v_expire
-    FROM bullmq_rate_limit WHERE queue = p_queue;
+    FROM rate_limit WHERE queue = p_queue;
   IF v_expire IS NULL OR v_expire <= p_now THEN
     RETURN 0;
   END IF;
@@ -2449,31 +2449,31 @@ END;
 $$;
 
 -- Consume one token (INCR + PEXPIRE-on-first-of-window).
-CREATE FUNCTION bullmq_rate_limit_consume(
+CREATE FUNCTION rate_limit_consume(
   p_queue text, p_duration bigint, p_now bigint
 ) RETURNS void
 LANGUAGE sql
 SET search_path FROM CURRENT
 AS $$
-  INSERT INTO bullmq_rate_limit (queue, points, expire_at_ms)
+  INSERT INTO rate_limit (queue, points, expire_at_ms)
     VALUES (p_queue, 1, p_now + p_duration)
   ON CONFLICT (queue) DO UPDATE SET
-    points = CASE WHEN bullmq_rate_limit.expire_at_ms <= p_now
-                  THEN 1 ELSE bullmq_rate_limit.points + 1 END,
-    expire_at_ms = CASE WHEN bullmq_rate_limit.expire_at_ms <= p_now
+    points = CASE WHEN rate_limit.expire_at_ms <= p_now
+                  THEN 1 ELSE rate_limit.points + 1 END,
+    expire_at_ms = CASE WHEN rate_limit.expire_at_ms <= p_now
                         THEN p_now + p_duration
-                        ELSE bullmq_rate_limit.expire_at_ms END;
+                        ELSE rate_limit.expire_at_ms END;
 $$;
 
 -- Force the limiter for `p_expire_ms` (dynamic / manual rate limit). Mirrors
 -- Redis SET limiter = MAX_SAFE_INTEGER PX p_expire_ms.
-CREATE FUNCTION bullmq_set_rate_limit(
+CREATE FUNCTION set_rate_limit(
   p_queue text, p_expire_ms bigint, p_now bigint
 ) RETURNS void
 LANGUAGE sql
 SET search_path FROM CURRENT
 AS $$
-  INSERT INTO bullmq_rate_limit (queue, points, expire_at_ms)
+  INSERT INTO rate_limit (queue, points, expire_at_ms)
     VALUES (p_queue, 9007199254740991, p_now + p_expire_ms)
   ON CONFLICT (queue) DO UPDATE SET
     points = 9007199254740991,
@@ -2482,15 +2482,15 @@ $$;
 
 -- The "no job" signal: the worker-effective rate-limit ttl and the next delayed
 -- job's timestamp, in one round trip.
-CREATE FUNCTION bullmq_next_signal(
+CREATE FUNCTION next_signal(
   p_queue text, p_limiter_max integer, p_now bigint
 ) RETURNS TABLE (rate_limit_ttl bigint, next_delay bigint)
 LANGUAGE sql
 STABLE
 SET search_path FROM CURRENT
 AS $$
-  SELECT bullmq_rate_limit_effective(p_queue, p_limiter_max, p_now),
-         bullmq_next_delay(p_queue);
+  SELECT rate_limit_effective(p_queue, p_limiter_max, p_now),
+         next_delay(p_queue);
 $$;
 
 -- BullMQ PostgreSQL backend — obliterate (schema v27).
@@ -2503,9 +2503,9 @@ $$;
 --     caller loops), and once every job is gone delete the remaining
 --     per-queue data and return 0.
 --
--- `bullmq_job_log` and `bullmq_job_dependency` rows cascade from `bullmq_job`,
+-- `job_log` and `job_dependency` rows cascade from `job`,
 -- so deleting the jobs removes their logs and (parent-side) dependency links.
-CREATE FUNCTION bullmq_obliterate(
+CREATE FUNCTION obliterate(
   p_queue text, p_count integer, p_force boolean
 ) RETURNS integer
 LANGUAGE plpgsql
@@ -2515,22 +2515,22 @@ DECLARE
   v_deleted integer;
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM bullmq_meta
+    SELECT 1 FROM meta
      WHERE queue = p_queue AND field = 'paused' AND value = '1'
   ) THEN
     RETURN -1;  -- NotPaused
   END IF;
 
   IF NOT p_force AND EXISTS (
-    SELECT 1 FROM bullmq_job WHERE queue = p_queue AND state = 'active'
+    SELECT 1 FROM job WHERE queue = p_queue AND state = 'active'
   ) THEN
     RETURN -2;  -- ExistActiveJobs
   END IF;
 
   WITH batch AS (
-    SELECT id FROM bullmq_job WHERE queue = p_queue LIMIT p_count
+    SELECT id FROM job WHERE queue = p_queue LIMIT p_count
   )
-  DELETE FROM bullmq_job j
+  DELETE FROM job j
    USING batch
    WHERE j.queue = p_queue AND j.id = batch.id;
   GET DIAGNOSTICS v_deleted = ROW_COUNT;
@@ -2541,17 +2541,17 @@ BEGIN
   END IF;
 
   -- Every job is gone; remove the rest of the queue's footprint.
-  DELETE FROM bullmq_scheduler  WHERE queue = p_queue;
-  DELETE FROM bullmq_rate_limit WHERE queue = p_queue;
-  DELETE FROM bullmq_event      WHERE queue = p_queue;
-  DELETE FROM bullmq_metrics    WHERE queue = p_queue;
-  DELETE FROM bullmq_dedup      WHERE queue = p_queue;
-  DELETE FROM bullmq_dedup_next WHERE queue = p_queue;
-  DELETE FROM bullmq_meta       WHERE queue = p_queue;
+  DELETE FROM scheduler  WHERE queue = p_queue;
+  DELETE FROM rate_limit WHERE queue = p_queue;
+  DELETE FROM event      WHERE queue = p_queue;
+  DELETE FROM metrics    WHERE queue = p_queue;
+  DELETE FROM dedup      WHERE queue = p_queue;
+  DELETE FROM dedup_next WHERE queue = p_queue;
+  DELETE FROM meta       WHERE queue = p_queue;
   -- Drop the per-queue job-id sequence so a re-created queue restarts at 1
   -- (mirrors Redis obliterate deleting the `<queue>:id` counter key).
   EXECUTE format(
-    'DROP SEQUENCE IF EXISTS %I', bullmq_job_id_seq_name(p_queue));
+    'DROP SEQUENCE IF EXISTS %I', job_id_seq_name(p_queue));
   RETURN 0;
 END;
 $$;
@@ -2563,19 +2563,19 @@ $$;
 -- `{ id, ttl, extend, replace, keepLastIfActive }`. When a *live* key already
 -- exists for that id the new job is NOT added: the existing "winner" job id is
 -- returned and `deduplicated` events are emitted. The key is one
--- row of `bullmq_dedup` (`job_id` ⇔ the winner, `expire_at_ms` ⇔ the Redis
+-- row of `dedup` (`job_id` ⇔ the winner, `expire_at_ms` ⇔ the Redis
 -- PTTL window; NULL = no expiry). The full key lifecycle:
---   * add        — set / check the key (see bullmq_deduplicate_job),
+--   * add        — set / check the key (see deduplicate_job),
 --   * finalize   — when the winner completes/fails, a no-ttl key is cleared
---                  (bullmq_dedup_finalize),
+--                  (dedup_finalize),
 --   * removal    — when the winner is removed, its key is cleared
---                  (bullmq_dedup_on_removal).
+--                  (dedup_on_removal).
 -- NOTE: `keepLastIfActive`'s proto-job storage/requeue is added in a later
 -- migration; here keepLastIfActive only governs the key's expiry (no ttl).
 
 -- ── Finalize: clear a no-ttl key whose winner is finishing (PTTL == -1 path),
 --    and reap an already-expired key (PTTL == 0). ttl keys expire on their own.
-CREATE FUNCTION bullmq_dedup_finalize(
+CREATE FUNCTION dedup_finalize(
   p_queue text, p_dedup_id text, p_job_id text, p_now bigint
 ) RETURNS void
 LANGUAGE plpgsql
@@ -2589,25 +2589,25 @@ BEGIN
     RETURN;
   END IF;
   SELECT job_id, expire_at_ms INTO v_cur, v_exp
-    FROM bullmq_dedup WHERE queue = p_queue AND dedup_id = p_dedup_id;
+    FROM dedup WHERE queue = p_queue AND dedup_id = p_dedup_id;
   IF NOT FOUND THEN
     RETURN;
   END IF;
   IF v_exp IS NULL THEN
     -- No expiry: only the current winner clears its own key.
     IF v_cur = p_job_id THEN
-      DELETE FROM bullmq_dedup WHERE queue = p_queue AND dedup_id = p_dedup_id;
+      DELETE FROM dedup WHERE queue = p_queue AND dedup_id = p_dedup_id;
     END IF;
   ELSIF v_exp <= p_now THEN
     -- Already expired: reap it.
-    DELETE FROM bullmq_dedup WHERE queue = p_queue AND dedup_id = p_dedup_id;
+    DELETE FROM dedup WHERE queue = p_queue AND dedup_id = p_dedup_id;
   END IF;
 END;
 $$;
 
 -- ── Removal: clear the key (and any proto-next data) when its winner job is
 --    removed (mirrors removeDeduplicationKeyIfNeededOnRemoval).
-CREATE FUNCTION bullmq_dedup_on_removal(
+CREATE FUNCTION dedup_on_removal(
   p_queue text, p_job_id text, p_dedup_id text
 ) RETURNS void
 LANGUAGE plpgsql
@@ -2617,14 +2617,14 @@ BEGIN
   IF p_dedup_id IS NULL OR p_dedup_id = '' THEN
     RETURN;
   END IF;
-  DELETE FROM bullmq_dedup
+  DELETE FROM dedup
    WHERE queue = p_queue AND dedup_id = p_dedup_id AND job_id = p_job_id;
 END;
 $$;
 
 -- Stash the new job as the proto-next IF keepLastIfActive and the current
 -- winner is active. Returns true when stashed. Mirrors storeDeduplicatedNextJob.
-CREATE FUNCTION bullmq_dedup_store_next(
+CREATE FUNCTION dedup_store_next(
   p_queue text, p_dedup_id text, p_winner text, p_job_id text,
   p_keeplast boolean, p_name text, p_data jsonb, p_opts jsonb
 ) RETURNS boolean
@@ -2636,17 +2636,17 @@ BEGIN
     RETURN false;
   END IF;
   IF NOT EXISTS (
-    SELECT 1 FROM bullmq_job
+    SELECT 1 FROM job
      WHERE queue = p_queue AND id = p_winner AND state = 'active'
   ) THEN
     RETURN false;
   END IF;
-  INSERT INTO bullmq_dedup_next (queue, dedup_id, payload)
+  INSERT INTO dedup_next (queue, dedup_id, payload)
     VALUES (p_queue, p_dedup_id, jsonb_build_object(
       'name', p_name, 'data', p_data, 'opts', p_opts, 'jobId', p_job_id))
   ON CONFLICT (queue, dedup_id) DO UPDATE SET payload = EXCLUDED.payload;
   -- Persist the dedup key so it outlives the active job's duration.
-  UPDATE bullmq_dedup SET expire_at_ms = NULL
+  UPDATE dedup SET expire_at_ms = NULL
    WHERE queue = p_queue AND dedup_id = p_dedup_id;
   RETURN true;
 END;
@@ -2654,7 +2654,7 @@ $$;
 
 -- Turn a stored proto-next into a real job (the new winner) when the active
 -- winner finishes. Mirrors requeueDeduplicatedJob.
-CREATE FUNCTION bullmq_requeue_dedup_next(
+CREATE FUNCTION requeue_dedup_next(
   p_queue text, p_dedup_id text, p_now bigint
 ) RETURNS void
 LANGUAGE plpgsql
@@ -2673,14 +2673,14 @@ DECLARE
   v_keeplast boolean;
   v_ttl      bigint;
   v_seq      bigint;
-  v_state    bullmq_job_state;
+  v_state    job_state;
   v_process_at bigint;
 BEGIN
   IF p_dedup_id IS NULL OR p_dedup_id = '' THEN
     RETURN;
   END IF;
   SELECT payload INTO v_payload
-    FROM bullmq_dedup_next WHERE queue = p_queue AND dedup_id = p_dedup_id;
+    FROM dedup_next WHERE queue = p_queue AND dedup_id = p_dedup_id;
   IF NOT FOUND THEN
     RETURN;
   END IF;
@@ -2690,7 +2690,7 @@ BEGIN
   v_opts   := COALESCE(v_payload->'opts', '{}'::jsonb);
   v_job_id := v_payload->>'jobId';
   IF v_job_id IS NULL OR v_job_id = '' THEN
-    v_job_id := bullmq_next_job_id(p_queue);
+    v_job_id := next_job_id(p_queue);
   END IF;
 
   v_de       := COALESCE(v_opts->'deduplication', v_opts->'debounce');
@@ -2700,7 +2700,7 @@ BEGIN
   v_keeplast := COALESCE((v_de->>'keepLastIfActive')::boolean, false);
   v_ttl      := NULLIF(v_de->>'ttl', '')::bigint;
 
-  v_seq := nextval('bullmq_job_seq');
+  v_seq := nextval('job_seq');
   IF v_lifo THEN
     v_seq := -v_seq;
   END IF;
@@ -2712,7 +2712,7 @@ BEGIN
     v_process_at := NULL;
   END IF;
 
-  INSERT INTO bullmq_job (
+  INSERT INTO job (
     queue, id, seq, name, state, data, opts, priority, delay_ms,
     max_attempts, added_at_ms, process_at_ms, dedup_id
   ) VALUES (
@@ -2723,21 +2723,21 @@ BEGIN
   ON CONFLICT (queue, id) DO NOTHING;
 
   -- New winner key (no expiry while keepLastIfActive, else honour ttl).
-  INSERT INTO bullmq_dedup (queue, dedup_id, job_id, expire_at_ms)
+  INSERT INTO dedup (queue, dedup_id, job_id, expire_at_ms)
     VALUES (p_queue, p_dedup_id, v_job_id,
       CASE WHEN v_keeplast OR COALESCE(v_ttl, 0) <= 0
            THEN NULL ELSE p_now + v_ttl END)
   ON CONFLICT (queue, dedup_id) DO UPDATE
     SET job_id = EXCLUDED.job_id, expire_at_ms = EXCLUDED.expire_at_ms;
 
-  DELETE FROM bullmq_dedup_next WHERE queue = p_queue AND dedup_id = p_dedup_id;
+  DELETE FROM dedup_next WHERE queue = p_queue AND dedup_id = p_dedup_id;
 
   PERFORM pg_notify('bullmq_jobs', p_queue);
   IF v_state = 'delayed' THEN
-    PERFORM bullmq_publish_event(p_queue, 'delayed',
+    PERFORM publish_event(p_queue, 'delayed',
       jsonb_build_object('jobId', v_job_id, 'delay', v_process_at));
   ELSE
-    PERFORM bullmq_publish_event(p_queue, 'waiting',
+    PERFORM publish_event(p_queue, 'waiting',
       jsonb_build_object('jobId', v_job_id));
   END IF;
 END;
@@ -2746,7 +2746,7 @@ $$;
 -- ── Core decision (mirrors deduplicateJob / deduplicateJobWithoutReplace).
 -- Returns the existing winner's id when the new job should be deduplicated
 -- (i.e. NOT inserted); returns NULL when the caller should go on to add it.
-CREATE FUNCTION bullmq_deduplicate_job(
+CREATE FUNCTION deduplicate_job(
   p_queue text, p_dedup jsonb, p_job_id text, p_now bigint,
   p_name text, p_data jsonb, p_opts jsonb
 ) RETURNS text
@@ -2761,7 +2761,7 @@ DECLARE
   v_keeplast boolean := COALESCE((p_dedup->>'keepLastIfActive')::boolean, false);
   v_cur      text;
   v_exp      bigint;
-  v_state    bullmq_job_state;
+  v_state    job_state;
 BEGIN
   IF v_id IS NULL OR v_id = '' THEN
     RETURN NULL;
@@ -2769,7 +2769,7 @@ BEGIN
 
   -- The current winner (only if the key is still live).
   SELECT job_id, expire_at_ms INTO v_cur, v_exp
-    FROM bullmq_dedup WHERE queue = p_queue AND dedup_id = v_id;
+    FROM dedup WHERE queue = p_queue AND dedup_id = v_id;
   IF v_cur IS NULL OR (v_exp IS NOT NULL AND v_exp <= p_now) THEN
     v_cur := NULL;
   END IF;
@@ -2777,24 +2777,24 @@ BEGIN
   IF v_replace THEN
     IF v_cur IS NOT NULL THEN
       SELECT state INTO v_state
-        FROM bullmq_job WHERE queue = p_queue AND id = v_cur;
+        FROM job WHERE queue = p_queue AND id = v_cur;
       IF v_state = 'delayed' THEN
         -- Drop the previous delayed job and take its place.
-        DELETE FROM bullmq_job WHERE queue = p_queue AND id = v_cur;
-        PERFORM bullmq_publish_event(p_queue, 'removed',
+        DELETE FROM job WHERE queue = p_queue AND id = v_cur;
+        PERFORM publish_event(p_queue, 'removed',
           jsonb_build_object('jobId', v_cur, 'prev', 'delayed'));
-        PERFORM bullmq_publish_event(p_queue, 'deduplicated',
+        PERFORM publish_event(p_queue, 'deduplicated',
           jsonb_build_object('jobId', p_job_id, 'deduplicationId', v_id,
             'deduplicatedJobId', v_cur));
         IF v_keeplast THEN
-          UPDATE bullmq_dedup SET job_id = p_job_id, expire_at_ms = NULL
+          UPDATE dedup SET job_id = p_job_id, expire_at_ms = NULL
            WHERE queue = p_queue AND dedup_id = v_id;
         ELSIF NOT v_extend AND COALESCE(v_ttl, 0) > 0 THEN
           -- KEEPTTL: keep the existing window, just swap the winner.
-          UPDATE bullmq_dedup SET job_id = p_job_id
+          UPDATE dedup SET job_id = p_job_id
            WHERE queue = p_queue AND dedup_id = v_id;
         ELSE
-          UPDATE bullmq_dedup
+          UPDATE dedup
              SET job_id = p_job_id,
                  expire_at_ms = CASE WHEN COALESCE(v_ttl, 0) > 0
                                      THEN p_now + v_ttl ELSE NULL END
@@ -2804,12 +2804,12 @@ BEGIN
       ELSE
         -- Winner is not a removable delayed job: stash proto-next if it is
         -- active + keepLastIfActive, then deduplicate.
-        PERFORM bullmq_dedup_store_next(p_queue, v_id, v_cur, p_job_id,
+        PERFORM dedup_store_next(p_queue, v_id, v_cur, p_job_id,
           v_keeplast, p_name, p_data, p_opts);
         RETURN v_cur;
       END IF;
     ELSE
-      INSERT INTO bullmq_dedup (queue, dedup_id, job_id, expire_at_ms)
+      INSERT INTO dedup (queue, dedup_id, job_id, expire_at_ms)
         VALUES (p_queue, v_id, p_job_id,
           CASE WHEN NOT v_keeplast AND COALESCE(v_ttl, 0) > 0
                THEN p_now + v_ttl ELSE NULL END)
@@ -2824,18 +2824,18 @@ BEGIN
     IF v_cur IS NOT NULL THEN
       -- Stash proto-next if active+keepLast; else extend the window (or
       -- persist when keepLastIfActive). Either way keep the current winner.
-      IF NOT bullmq_dedup_store_next(p_queue, v_id, v_cur, p_job_id,
+      IF NOT dedup_store_next(p_queue, v_id, v_cur, p_job_id,
                v_keeplast, p_name, p_data, p_opts) THEN
-        UPDATE bullmq_dedup
+        UPDATE dedup
            SET expire_at_ms = CASE WHEN v_keeplast THEN NULL ELSE p_now + v_ttl END
          WHERE queue = p_queue AND dedup_id = v_id;
       END IF;
-      PERFORM bullmq_publish_event(p_queue, 'deduplicated',
+      PERFORM publish_event(p_queue, 'deduplicated',
         jsonb_build_object('jobId', v_cur, 'deduplicationId', v_id,
           'deduplicatedJobId', p_job_id));
       RETURN v_cur;
     END IF;
-    INSERT INTO bullmq_dedup (queue, dedup_id, job_id, expire_at_ms)
+    INSERT INTO dedup (queue, dedup_id, job_id, expire_at_ms)
       VALUES (p_queue, v_id, p_job_id,
         CASE WHEN v_keeplast THEN NULL ELSE p_now + v_ttl END)
     ON CONFLICT (queue, dedup_id) DO UPDATE
@@ -2845,15 +2845,15 @@ BEGIN
 
   -- SET NX semantics (ttl>0 non-extend, or no ttl at all).
   IF v_cur IS NOT NULL THEN
-    PERFORM bullmq_dedup_store_next(p_queue, v_id, v_cur, p_job_id,
+    PERFORM dedup_store_next(p_queue, v_id, v_cur, p_job_id,
       v_keeplast, p_name, p_data, p_opts);
-    PERFORM bullmq_publish_event(p_queue, 'deduplicated',
+    PERFORM publish_event(p_queue, 'deduplicated',
       jsonb_build_object('jobId', v_cur, 'deduplicationId', v_id,
         'deduplicatedJobId', p_job_id));
     RETURN v_cur;
   END IF;
 
-  INSERT INTO bullmq_dedup (queue, dedup_id, job_id, expire_at_ms)
+  INSERT INTO dedup (queue, dedup_id, job_id, expire_at_ms)
     VALUES (p_queue, v_id, p_job_id,
       CASE WHEN NOT v_keeplast AND COALESCE(v_ttl, 0) > 0
            THEN p_now + v_ttl ELSE NULL END)
@@ -2883,7 +2883,7 @@ $$;
 -- Release a parent from waiting-children to wait (mirrors moveParentToWait —
 -- priority is preserved by the row's `priority` column; FIFO order via a fresh
 -- seq). Emits the 'waiting' (prev waiting-children) event and wakes a worker.
-CREATE FUNCTION bullmq_move_parent_to_wait(
+CREATE FUNCTION move_parent_to_wait(
   p_parent_queue text, p_parent_id text, p_now bigint
 ) RETURNS void
 LANGUAGE plpgsql
@@ -2894,7 +2894,7 @@ DECLARE
   v_process_at bigint;
 BEGIN
   SELECT delay_ms INTO v_delay
-    FROM bullmq_job
+    FROM job
    WHERE queue = p_parent_queue AND id = p_parent_id
      AND state = 'waiting-children';
   IF NOT FOUND THEN
@@ -2905,28 +2905,28 @@ BEGIN
     -- The parent carries a delay: release it into the delayed set (mirrors the
     -- delay branch of moveParentToWait), scored from the release moment.
     v_process_at := p_now + v_delay;
-    UPDATE bullmq_job
+    UPDATE job
        SET state = 'delayed', process_at_ms = v_process_at,
-           seq = nextval('bullmq_job_seq')
+           seq = nextval('job_seq')
      WHERE queue = p_parent_queue AND id = p_parent_id;
     PERFORM pg_notify('bullmq_jobs', p_parent_queue);
-    PERFORM bullmq_publish_event(p_parent_queue, 'delayed',
+    PERFORM publish_event(p_parent_queue, 'delayed',
       jsonb_build_object('jobId', p_parent_id, 'delay', v_process_at));
   ELSE
     -- No delay: release to wait. Priority is preserved by the row's `priority`
     -- column, so a prioritized parent stays prioritized.
-    UPDATE bullmq_job
-       SET state = 'waiting', seq = nextval('bullmq_job_seq')
+    UPDATE job
+       SET state = 'waiting', seq = nextval('job_seq')
      WHERE queue = p_parent_queue AND id = p_parent_id;
     PERFORM pg_notify('bullmq_jobs', p_parent_queue);
-    PERFORM bullmq_publish_event(p_parent_queue, 'waiting',
+    PERFORM publish_event(p_parent_queue, 'waiting',
       jsonb_build_object('jobId', p_parent_id, 'prev', 'waiting-children'));
   END IF;
 END;
 $$;
 
 -- Propagate a child's permanent failure to its parent.
-CREATE FUNCTION bullmq_handle_child_failure(
+CREATE FUNCTION handle_child_failure(
   p_queue text, p_id text, p_reason text, p_now bigint
 ) RETURNS void
 LANGUAGE plpgsql
@@ -2940,7 +2940,7 @@ DECLARE
   v_remaining integer;
 BEGIN
   SELECT parent_queue, parent_id, opts INTO v_pq, v_pid, v_opts
-    FROM bullmq_job WHERE queue = p_queue AND id = p_id;
+    FROM job WHERE queue = p_queue AND id = p_id;
   IF v_pid IS NULL OR v_pq IS NULL THEN
     RETURN;
   END IF;
@@ -2950,61 +2950,61 @@ BEGIN
   -- (completion or failure). Mirrors the single-threaded atomicity Redis relies
   -- on and prevents the `pending_deps` UPDATE from deadlocking against a
   -- sibling's decrement (SQLSTATE 40P01). Taken on the direct parent only, so it
-  -- never nests and auto-releases at commit (see bullmq_move_to_completed).
+  -- never nests and auto-releases at commit (see move_to_completed).
   PERFORM pg_advisory_xact_lock(
     hashtext('bullmq:parent:' || v_pq || ':' || v_pid));
 
   IF COALESCE((v_opts->>'failParentOnFailure')::boolean, false) THEN
-    UPDATE bullmq_job_dependency
+    UPDATE job_dependency
        SET status = 'failed', value = to_jsonb(p_reason)
      WHERE parent_queue = v_pq AND parent_id = v_pid
        AND child_key = v_child_key AND status = 'pending';
     IF FOUND THEN
-      UPDATE bullmq_job SET pending_deps = GREATEST(pending_deps - 1, 0)
+      UPDATE job SET pending_deps = GREATEST(pending_deps - 1, 0)
        WHERE queue = v_pq AND id = v_pid;
       -- Defer the failure onto the parent; when a worker activates it the
       -- deferred failure fails it immediately (worker checks job.deferredFailure).
-      UPDATE bullmq_job
+      UPDATE job
          SET deferred_failure = 'child ' || v_child_key || ' failed'
        WHERE queue = v_pq AND id = v_pid;
-      PERFORM bullmq_move_parent_to_wait(v_pq, v_pid, p_now);
+      PERFORM move_parent_to_wait(v_pq, v_pid, p_now);
     END IF;
 
   ELSIF COALESCE((v_opts->>'continueParentOnFailure')::boolean, false) THEN
-    UPDATE bullmq_job_dependency
+    UPDATE job_dependency
        SET status = 'ignored', value = to_jsonb(p_reason)
      WHERE parent_queue = v_pq AND parent_id = v_pid
        AND child_key = v_child_key AND status = 'pending';
     IF FOUND THEN
-      UPDATE bullmq_job SET pending_deps = GREATEST(pending_deps - 1, 0)
+      UPDATE job SET pending_deps = GREATEST(pending_deps - 1, 0)
        WHERE queue = v_pq AND id = v_pid;
-      PERFORM bullmq_move_parent_to_wait(v_pq, v_pid, p_now);
+      PERFORM move_parent_to_wait(v_pq, v_pid, p_now);
     END IF;
 
   ELSIF COALESCE((v_opts->>'ignoreDependencyOnFailure')::boolean, false) THEN
-    UPDATE bullmq_job_dependency
+    UPDATE job_dependency
        SET status = 'ignored', value = to_jsonb(p_reason)
      WHERE parent_queue = v_pq AND parent_id = v_pid
        AND child_key = v_child_key AND status = 'pending';
     IF FOUND THEN
-      UPDATE bullmq_job SET pending_deps = GREATEST(pending_deps - 1, 0)
+      UPDATE job SET pending_deps = GREATEST(pending_deps - 1, 0)
        WHERE queue = v_pq AND id = v_pid
       RETURNING pending_deps INTO v_remaining;
       IF v_remaining = 0 THEN
-        PERFORM bullmq_move_parent_to_wait(v_pq, v_pid, p_now);
+        PERFORM move_parent_to_wait(v_pq, v_pid, p_now);
       END IF;
     END IF;
 
   ELSIF COALESCE((v_opts->>'removeDependencyOnFailure')::boolean, false) THEN
-    DELETE FROM bullmq_job_dependency
+    DELETE FROM job_dependency
      WHERE parent_queue = v_pq AND parent_id = v_pid
        AND child_key = v_child_key AND status = 'pending';
     IF FOUND THEN
-      UPDATE bullmq_job SET pending_deps = GREATEST(pending_deps - 1, 0)
+      UPDATE job SET pending_deps = GREATEST(pending_deps - 1, 0)
        WHERE queue = v_pq AND id = v_pid
       RETURNING pending_deps INTO v_remaining;
       IF v_remaining = 0 THEN
-        PERFORM bullmq_move_parent_to_wait(v_pq, v_pid, p_now);
+        PERFORM move_parent_to_wait(v_pq, v_pid, p_now);
       END IF;
     END IF;
   END IF;
@@ -3015,7 +3015,7 @@ $$;
 --    removeChildDependency-1.lua). Returns 0 when the relationship existed and
 --    was removed, 1 when there was no relationship; raises -1 (missing job) /
 --    -5 (missing parent).
-CREATE FUNCTION bullmq_remove_child_dependency(
+CREATE FUNCTION remove_child_dependency(
   p_queue text, p_id text, p_parent_key text, p_now bigint
 ) RETURNS integer
 LANGUAGE plpgsql
@@ -3028,7 +3028,7 @@ DECLARE
   v_remaining integer;
 BEGIN
   SELECT parent_queue, parent_id INTO v_pq, v_pid
-    FROM bullmq_job WHERE queue = p_queue AND id = p_id;
+    FROM job WHERE queue = p_queue AND id = p_id;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'bullmq: missing job %', p_id
       USING ERRCODE = 'BM001', DETAIL = '-1';
@@ -3037,13 +3037,13 @@ BEGIN
     RETURN 1; -- no relationship
   END IF;
   IF NOT EXISTS (
-    SELECT 1 FROM bullmq_job WHERE queue = v_pq AND id = v_pid
+    SELECT 1 FROM job WHERE queue = v_pq AND id = v_pid
   ) THEN
     RAISE EXCEPTION 'bullmq: missing parent %', p_parent_key
       USING ERRCODE = 'BM001', DETAIL = '-5';
   END IF;
 
-  DELETE FROM bullmq_job_dependency
+  DELETE FROM job_dependency
    WHERE parent_queue = v_pq AND parent_id = v_pid
      AND child_key = p_queue || ':' || p_id;
   GET DIAGNOSTICS v_deleted = ROW_COUNT;
@@ -3052,18 +3052,18 @@ BEGIN
   END IF;
 
   -- Detach the child and release the parent if it has no more pending deps.
-  UPDATE bullmq_job
+  UPDATE job
      SET parent_queue = NULL, parent_id = NULL, parent_key = NULL
    WHERE queue = p_queue AND id = p_id;
   -- Serialize with concurrent child resolutions of the same parent (see
-  -- bullmq_move_to_completed) to avoid a pending_deps deadlock.
+  -- move_to_completed) to avoid a pending_deps deadlock.
   PERFORM pg_advisory_xact_lock(
     hashtext('bullmq:parent:' || v_pq || ':' || v_pid));
-  UPDATE bullmq_job SET pending_deps = GREATEST(pending_deps - 1, 0)
+  UPDATE job SET pending_deps = GREATEST(pending_deps - 1, 0)
    WHERE queue = v_pq AND id = v_pid
   RETURNING pending_deps INTO v_remaining;
   IF v_remaining = 0 THEN
-    PERFORM bullmq_move_parent_to_wait(v_pq, v_pid, p_now);
+    PERFORM move_parent_to_wait(v_pq, v_pid, p_now);
   END IF;
   RETURN 0;
 END;
@@ -3072,7 +3072,7 @@ $$;
 -- ── removeUnprocessedChildren: recursively remove a parent's still-pending
 --    children (skipping active/locked ones), mirroring removeUnprocessedChildren-2.
 --    Emits 'removed' for each child taken out; cascades clean up dependency rows.
-CREATE FUNCTION bullmq_remove_unprocessed_children(
+CREATE FUNCTION remove_unprocessed_children(
   p_queue text, p_id text
 ) RETURNS void
 LANGUAGE plpgsql
@@ -3084,8 +3084,8 @@ BEGIN
   FOR r IN
     WITH RECURSIVE subtree AS (
       SELECT j.queue AS q, j.id AS id
-        FROM bullmq_job_dependency d
-        JOIN bullmq_job j ON j.queue = d.child_queue AND j.id = d.child_id
+        FROM job_dependency d
+        JOIN job j ON j.queue = d.child_queue AND j.id = d.child_id
        WHERE d.parent_queue = p_queue AND d.parent_id = p_id
          AND d.status = 'pending'
          AND j.state NOT IN ('active', 'failed', 'completed')
@@ -3093,21 +3093,21 @@ BEGIN
       UNION
       SELECT j.queue, j.id
         FROM subtree s
-        JOIN bullmq_job_dependency d
+        JOIN job_dependency d
           ON d.parent_queue = s.q AND d.parent_id = s.id AND d.status = 'pending'
-        JOIN bullmq_job j ON j.queue = d.child_queue AND j.id = d.child_id
+        JOIN job j ON j.queue = d.child_queue AND j.id = d.child_id
        WHERE j.state NOT IN ('active', 'failed', 'completed')
          AND j.lock_token IS NULL
     )
     SELECT q, id FROM subtree
   LOOP
     -- Decrement the (live) parent's pending counter for direct children.
-    UPDATE bullmq_job p SET pending_deps = GREATEST(pending_deps - 1, 0)
-      FROM bullmq_job_dependency d
+    UPDATE job p SET pending_deps = GREATEST(pending_deps - 1, 0)
+      FROM job_dependency d
      WHERE d.child_queue = r.q AND d.child_id = r.id AND d.status = 'pending'
        AND p.queue = d.parent_queue AND p.id = d.parent_id;
-    DELETE FROM bullmq_job WHERE queue = r.q AND id = r.id;
-    PERFORM bullmq_publish_event(r.q, 'removed',
+    DELETE FROM job WHERE queue = r.q AND id = r.id;
+    PERFORM publish_event(r.q, 'removed',
       jsonb_build_object('jobId', r.id, 'prev', 'waiting'));
   END LOOP;
 END;
@@ -3126,7 +3126,7 @@ $$;
 --     already-completed job is recorded as a processed dependency (carrying its
 --     return value) and, if it clears the parent's last pending dependency, the
 --     parent is released.
-CREATE FUNCTION bullmq_handle_duplicated_job(
+CREATE FUNCTION handle_duplicated_job(
   p_queue        text,
   p_id           text,
   p_parent_queue text,
@@ -3140,28 +3140,28 @@ AS $$
 DECLARE
   v_ex_pq     text;
   v_ex_pid    text;
-  v_state     bullmq_job_state;
+  v_state     job_state;
   v_rv        jsonb;
   v_remaining integer;
   v_added     boolean;
 BEGIN
   -- No new parent to attach: still a duplicate add, so announce it.
   IF p_parent_id IS NULL OR p_parent_queue IS NULL THEN
-    PERFORM bullmq_publish_event(p_queue, 'duplicated',
+    PERFORM publish_event(p_queue, 'duplicated',
       jsonb_build_object('jobId', p_id));
     RETURN 0;
   END IF;
 
   SELECT parent_queue, parent_id, state, return_value
     INTO v_ex_pq, v_ex_pid, v_state, v_rv
-    FROM bullmq_job WHERE queue = p_queue AND id = p_id;
+    FROM job WHERE queue = p_queue AND id = p_id;
 
   -- The existing job already belongs to a different (still-existing) parent.
   IF v_ex_pq IS NOT NULL
      AND (v_ex_pq IS DISTINCT FROM p_parent_queue
           OR v_ex_pid IS DISTINCT FROM p_parent_id)
      AND EXISTS (
-       SELECT 1 FROM bullmq_job WHERE queue = v_ex_pq AND id = v_ex_pid
+       SELECT 1 FROM job WHERE queue = v_ex_pq AND id = v_ex_pid
      ) THEN
     RETURN -7;
   END IF;
@@ -3169,7 +3169,7 @@ BEGIN
   IF v_state = 'completed' THEN
     -- Already finished: record a processed dependency (no pending increment)
     -- and release the parent if this was its last outstanding dependency.
-    INSERT INTO bullmq_job_dependency (
+    INSERT INTO job_dependency (
       parent_queue, parent_id, child_queue, child_id, child_key, status, value
     ) VALUES (
       p_parent_queue, p_parent_id, p_queue, p_id,
@@ -3179,13 +3179,13 @@ BEGIN
       DO UPDATE SET status = 'processed', value = v_rv;
 
     SELECT pending_deps INTO v_remaining
-      FROM bullmq_job WHERE queue = p_parent_queue AND id = p_parent_id;
+      FROM job WHERE queue = p_parent_queue AND id = p_parent_id;
     IF COALESCE(v_remaining, 0) = 0 THEN
-      PERFORM bullmq_move_parent_to_wait(p_parent_queue, p_parent_id, p_now);
+      PERFORM move_parent_to_wait(p_parent_queue, p_parent_id, p_now);
     END IF;
   ELSE
     -- Still pending: register a pending dependency and count it on the parent.
-    INSERT INTO bullmq_job_dependency (
+    INSERT INTO job_dependency (
       parent_queue, parent_id, child_queue, child_id, child_key, status
     ) VALUES (
       p_parent_queue, p_parent_id, p_queue, p_id,
@@ -3194,19 +3194,19 @@ BEGIN
     ON CONFLICT (parent_queue, parent_id, child_key) DO NOTHING;
     GET DIAGNOSTICS v_added = ROW_COUNT;
     IF v_added THEN
-      UPDATE bullmq_job SET pending_deps = pending_deps + 1
+      UPDATE job SET pending_deps = pending_deps + 1
        WHERE queue = p_parent_queue AND id = p_parent_id;
     END IF;
   END IF;
 
   -- Point the existing job at its new parent.
-  UPDATE bullmq_job
+  UPDATE job
      SET parent_queue = p_parent_queue,
          parent_id    = p_parent_id,
          parent_key   = p_parent_key
    WHERE queue = p_queue AND id = p_id;
 
-  PERFORM bullmq_publish_event(p_queue, 'duplicated',
+  PERFORM publish_event(p_queue, 'duplicated',
     jsonb_build_object('jobId', p_id));
 
   RETURN 0;
@@ -3215,7 +3215,7 @@ $$;
 
 -- Record one finished job into the queue/kind metrics (mirrors collectMetrics).
 -- `p_max` is the worker's `metrics.maxDataPoints`; `p_ts` the finish timestamp.
-CREATE FUNCTION bullmq_collect_metrics(
+CREATE FUNCTION collect_metrics(
   p_queue text, p_kind text, p_max integer, p_ts bigint
 ) RETURNS void
 LANGUAGE plpgsql
@@ -3231,15 +3231,15 @@ DECLARE
 BEGIN
   -- Increment the cumulative count; v_count is the value BEFORE this job
   -- (matches Lua's `HINCRBY count 1) - 1`).
-  INSERT INTO bullmq_metrics (queue, kind, count, prev_ts, prev_count, data)
+  INSERT INTO metrics (queue, kind, count, prev_ts, prev_count, data)
     VALUES (p_queue, p_kind, 1, NULL, 0, '{}')
-  ON CONFLICT (queue, kind) DO UPDATE SET count = bullmq_metrics.count + 1
+  ON CONFLICT (queue, kind) DO UPDATE SET count = metrics.count + 1
   RETURNING count - 1, prev_ts, prev_count, data
     INTO v_count, v_prev_ts, v_prev_count, v_data;
 
   -- First data point only establishes the baseline.
   IF v_prev_ts IS NULL THEN
-    UPDATE bullmq_metrics SET prev_ts = p_ts, prev_count = 0
+    UPDATE metrics SET prev_ts = p_ts, prev_count = 0
      WHERE queue = p_queue AND kind = p_kind;
     RETURN;
   END IF;
@@ -3261,7 +3261,7 @@ BEGIN
     END IF;
     -- Trim to the max number of data points.
     v_data := v_data[1 : p_max];
-    UPDATE bullmq_metrics
+    UPDATE metrics
        SET data = v_data, prev_count = v_count, prev_ts = p_ts
      WHERE queue = p_queue AND kind = p_kind;
   END IF;
@@ -3280,9 +3280,9 @@ $$;
 --
 -- These wrappers fuse the two into a single function call — one transaction, one
 -- commit — by simply invoking the existing, unchanged finish and claim functions
--- in sequence. No logic is duplicated: `bullmq_move_to_completed` /
--- `bullmq_move_to_failed` keep all their semantics (parent release, retention,
--- dedup, events, retries), and `bullmq_move_to_active` keeps all of its
+-- in sequence. No logic is duplicated: `move_to_completed` /
+-- `move_to_failed` keep all their semantics (parent release, retention,
+-- dedup, events, retries), and `move_to_active` keeps all of its
 -- (delayed promotion, pause/concurrency/limiter checks, FOR UPDATE SKIP LOCKED
 -- claim). The finish runs first; if it raises (BM001 lock/state errors) the
 -- whole transaction rolls back and nothing is claimed — matching the old
@@ -3296,7 +3296,7 @@ $$;
 -- ──────────────────────────────────────────────────────────────────────────
 -- complete + claim next (0 or 1 job rows)
 -- ──────────────────────────────────────────────────────────────────────────
-CREATE FUNCTION bullmq_move_to_completed_fetch(
+CREATE FUNCTION move_to_completed_fetch(
   p_queue            text,
   p_id               text,
   p_token            text,
@@ -3310,16 +3310,16 @@ CREATE FUNCTION bullmq_move_to_completed_fetch(
   p_name             text,
   p_limiter_max      integer,
   p_limiter_duration bigint
-) RETURNS SETOF bullmq_job
+) RETURNS SETOF job
 LANGUAGE plpgsql
 SET search_path FROM CURRENT
 AS $$
 BEGIN
-  PERFORM bullmq_move_to_completed(
+  PERFORM move_to_completed(
     p_queue, p_id, p_token, p_return_value,
     p_finished_on, p_remove_all, p_keep_age, p_keep_count);
 
-  RETURN QUERY SELECT * FROM bullmq_move_to_active(
+  RETURN QUERY SELECT * FROM move_to_active(
     p_queue, p_token, p_lock_ms, p_now, p_name, p_limiter_max, p_limiter_duration);
 END;
 $$;
@@ -3327,7 +3327,7 @@ $$;
 -- ──────────────────────────────────────────────────────────────────────────
 -- fail (or retry) + claim next (0 or 1 job rows)
 -- ──────────────────────────────────────────────────────────────────────────
-CREATE FUNCTION bullmq_move_to_failed_fetch(
+CREATE FUNCTION move_to_failed_fetch(
   p_queue            text,
   p_id               text,
   p_token            text,
@@ -3342,16 +3342,16 @@ CREATE FUNCTION bullmq_move_to_failed_fetch(
   p_name             text,
   p_limiter_max      integer,
   p_limiter_duration bigint
-) RETURNS SETOF bullmq_job
+) RETURNS SETOF job
 LANGUAGE plpgsql
 SET search_path FROM CURRENT
 AS $$
 BEGIN
-  PERFORM bullmq_move_to_failed(
+  PERFORM move_to_failed(
     p_queue, p_id, p_token, p_failed_reason, p_stacktrace,
     p_finished_on, p_remove_all, p_keep_age, p_keep_count);
 
-  RETURN QUERY SELECT * FROM bullmq_move_to_active(
+  RETURN QUERY SELECT * FROM move_to_active(
     p_queue, p_token, p_lock_ms, p_now, p_name, p_limiter_max, p_limiter_duration);
 END;
 $$;
@@ -3359,20 +3359,20 @@ $$;
 -- ──────────────────────────────────────────────────────────────────────────
 -- add_jobs_bulk: fast set-based bulk insert for INDEPENDENT jobs (no parents,
 -- no deduplication). This is the common Queue.add_bulk case. Unlike
--- bullmq_add_flow — which loops row-by-row to support flow trees, dedup and
+-- add_flow — which loops row-by-row to support flow trees, dedup and
 -- mixed states — this inserts the whole batch with a single set-based INSERT
 -- and emits the lifecycle events in one more set-based INSERT, so it is several
 -- times faster. Returns the job ids in input order. Callers must route flows or
--- deduplicated jobs to bullmq_add_flow instead.
-CREATE FUNCTION bullmq_add_jobs_bulk(p_queue text, p_entries jsonb)
+-- deduplicated jobs to add_flow instead.
+CREATE FUNCTION add_jobs_bulk(p_queue text, p_entries jsonb)
 RETURNS SETOF text
 LANGUAGE plpgsql
 SET search_path FROM CURRENT
 AS $$
 DECLARE
-  v_seq_name text := bullmq_job_id_seq_name(p_queue);
+  v_seq_name text := job_id_seq_name(p_queue);
 BEGIN
-  -- Ensure the per-queue id sequence exists (mirrors bullmq_next_job_id).
+  -- Ensure the per-queue id sequence exists (mirrors next_job_id).
   IF to_regclass(v_seq_name) IS NULL THEN
     PERFORM pg_advisory_xact_lock(hashtext('bullmq:jidseq:' || p_queue));
     EXECUTE format('CREATE SEQUENCE IF NOT EXISTS %I', v_seq_name);
@@ -3405,7 +3405,7 @@ BEGIN
   -- value with the ord-th entry, so seq is strictly monotonic in input order
   -- regardless of evaluation order.
   reserved AS (
-    SELECT ord, nextval('bullmq_job_seq') AS s FROM prepared
+    SELECT ord, nextval('job_seq') AS s FROM prepared
   ),
   rr AS (SELECT s, row_number() OVER (ORDER BY s) AS rn FROM reserved),
   rp AS (SELECT prepared.*, row_number() OVER (ORDER BY ord) AS rn FROM prepared),
@@ -3413,8 +3413,8 @@ BEGIN
     SELECT rp.ord, rp.id, rp.name, rp.data, rp.opts, rp.priority, rp.delay,
            rp.ts, rp.attempts, rp.scheduler_id,
            CASE WHEN rp.lifo THEN -rr.s ELSE rr.s END AS seq,
-           CASE WHEN rp.delay > 0 THEN 'delayed'::bullmq_job_state
-                ELSE 'waiting'::bullmq_job_state END   AS state,
+           CASE WHEN rp.delay > 0 THEN 'delayed'::job_state
+                ELSE 'waiting'::job_state END   AS state,
            CASE WHEN rp.delay > 0 THEN rp.ts + rp.delay ELSE NULL END AS process_at
       FROM rp JOIN rr ON rp.rn = rr.rn
   )
@@ -3424,10 +3424,10 @@ BEGIN
   -- skips ids that already exist and in-batch duplicate ids. Events and the
   -- wakeup are driven from this set, so a batch that repeats or reuses an id
   -- does not emit spurious added/waiting/delayed events or a bogus NOTIFY —
-  -- mirroring bullmq_add_flow's per-row `IF v_inserted` gating.
+  -- mirroring add_flow's per-row `IF v_inserted` gating.
   CREATE TEMP TABLE _bulk_inserted ON COMMIT DROP AS
   WITH ins AS (
-    INSERT INTO bullmq_job (
+    INSERT INTO job (
       queue, id, seq, name, state, data, opts, priority, delay_ms, max_attempts,
       added_at_ms, process_at_ms, scheduler_id, pending_deps
     )
@@ -3442,7 +3442,7 @@ BEGIN
   -- One set-based event flush ('added' then the state event per inserted job),
   -- ordered by each inserted job's first input ordinality so stream ordering
   -- matches caller payload order even when seq is negated by LIFO.
-  INSERT INTO bullmq_event (queue, event, data, created_at_ms)
+  INSERT INTO event (queue, event, data, created_at_ms)
   WITH inserted AS (
     SELECT i.id, i.name, i.state, i.process_at_ms, MIN(r.ord) AS ord
       FROM _bulk_inserted i

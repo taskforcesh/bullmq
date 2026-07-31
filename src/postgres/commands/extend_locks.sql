@@ -8,7 +8,7 @@ WITH input AS (
       USING (ord)
 ),
 updated AS (
-  UPDATE bullmq_job
+  UPDATE job
      SET locked_until_ms = $5::bigint + $4::bigint
     FROM input
    WHERE queue = $1

@@ -3,8 +3,8 @@
 -- when no concurrency limit is configured.
 -- Params: $1 queue.
 SELECT COALESCE(
-  (SELECT count(*) FROM bullmq_job WHERE queue = $1 AND state = 'active')
-    >= (SELECT value::integer FROM bullmq_meta
+  (SELECT count(*) FROM job WHERE queue = $1 AND state = 'active')
+    >= (SELECT value::integer FROM meta
          WHERE queue = $1 AND field = 'concurrency'),
   false
 ) AS maxed;

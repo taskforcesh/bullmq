@@ -139,7 +139,7 @@ defmodule BullMQ.Backends.Postgres.Migrator do
   defp ensure_ledger_table(conn) do
     Postgrex.query!(
       conn,
-      "CREATE TABLE IF NOT EXISTS bullmq_migration (" <>
+      "CREATE TABLE IF NOT EXISTS migration (" <>
         "version integer PRIMARY KEY, name text NOT NULL, " <>
         "applied_at timestamptz NOT NULL DEFAULT now())",
       []
@@ -150,7 +150,7 @@ defmodule BullMQ.Backends.Postgres.Migrator do
     %{rows: [[version]]} =
       Postgrex.query!(
         conn,
-        "SELECT COALESCE(MAX(version), 0)::int AS version FROM bullmq_migration",
+        "SELECT COALESCE(MAX(version), 0)::int AS version FROM migration",
         []
       )
 
@@ -172,7 +172,7 @@ defmodule BullMQ.Backends.Postgres.Migrator do
 
     Postgrex.query!(
       conn,
-      "INSERT INTO bullmq_migration (version, name) VALUES ($1, $2)",
+      "INSERT INTO migration (version, name) VALUES ($1, $2)",
       [version, name]
     )
   end

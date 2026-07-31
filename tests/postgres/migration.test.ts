@@ -56,13 +56,13 @@ describe('PostgreSQL migrations', () => {
       await connection.waitUntilReady();
 
       const { rows } = await pool.query<{ version: number }>(
-        `SELECT COALESCE(MAX(version), 0)::int AS version FROM "${schema}".bullmq_migration`,
+        `SELECT COALESCE(MAX(version), 0)::int AS version FROM "${schema}".migration`,
       );
       expect(rows[0].version).toBe(LATEST_SCHEMA_VERSION);
 
       // The v1 schema creates the meta table inside the namespace schema.
       const { rows: metaRows } = await pool.query<{ exists: boolean }>(
-        `SELECT to_regclass('"${schema}".bullmq_meta') IS NOT NULL AS exists`,
+        `SELECT to_regclass('"${schema}".meta') IS NOT NULL AS exists`,
       );
       expect(metaRows[0].exists).toBe(true);
     } finally {
@@ -76,14 +76,14 @@ describe('PostgreSQL migrations', () => {
       await connection.waitUntilReady();
 
       const tables = [
-        'bullmq_job',
-        'bullmq_job_log',
-        'bullmq_job_dependency',
-        'bullmq_event',
-        'bullmq_metrics',
-        'bullmq_rate_limit',
-        'bullmq_dedup',
-        'bullmq_scheduler',
+        'job',
+        'job_log',
+        'job_dependency',
+        'event',
+        'metrics',
+        'rate_limit',
+        'dedup',
+        'scheduler',
       ];
       for (const table of tables) {
         const { rows } = await pool.query<{ exists: boolean }>(
@@ -98,14 +98,14 @@ describe('PostgreSQL migrations', () => {
          FROM pg_type t
          JOIN pg_namespace n ON n.oid = t.typnamespace
          WHERE n.nspname = $1
-           AND t.typname IN ('bullmq_job_state', 'bullmq_dep_status')`,
+           AND t.typname IN ('job_state', 'dep_status')`,
         [schema],
       );
       expect(enumRows[0].n).toBe(2);
 
       // The partial index that powers the "claim next ready job" hot path.
       const { rows: idxRows } = await pool.query<{ exists: boolean }>(
-        `SELECT to_regclass('"${schema}".bullmq_job_ready_idx') IS NOT NULL AS exists`,
+        `SELECT to_regclass('"${schema}".job_ready_idx') IS NOT NULL AS exists`,
       );
       expect(idxRows[0].exists).toBe(true);
     } finally {
@@ -120,7 +120,7 @@ describe('PostgreSQL migrations', () => {
     await first.close();
 
     const { rows: before } = await pool.query<{ version: number; n: number }>(
-      `SELECT COALESCE(MAX(version), 0)::int AS version, COUNT(*)::int AS n FROM "${schema}".bullmq_migration`,
+      `SELECT COALESCE(MAX(version), 0)::int AS version, COUNT(*)::int AS n FROM "${schema}".migration`,
     );
 
     // Second run on a brand-new connection.
@@ -129,7 +129,7 @@ describe('PostgreSQL migrations', () => {
     await second.close();
 
     const { rows: after } = await pool.query<{ version: number; n: number }>(
-      `SELECT COALESCE(MAX(version), 0)::int AS version, COUNT(*)::int AS n FROM "${schema}".bullmq_migration`,
+      `SELECT COALESCE(MAX(version), 0)::int AS version, COUNT(*)::int AS n FROM "${schema}".migration`,
     );
 
     expect(after[0].version).toBe(before[0].version);
@@ -144,7 +144,7 @@ describe('PostgreSQL migrations', () => {
 
     const futureVersion = LATEST_SCHEMA_VERSION + 1;
     await pool.query(
-      `INSERT INTO "${schema}".bullmq_migration (version, name) VALUES ($1, $2)`,
+      `INSERT INTO "${schema}".migration (version, name) VALUES ($1, $2)`,
       [futureVersion, 'future'],
     );
 
@@ -155,10 +155,9 @@ describe('PostgreSQL migrations', () => {
       );
     } finally {
       client.release();
-      await pool.query(
-        `DELETE FROM "${schema}".bullmq_migration WHERE version = $1`,
-        [futureVersion],
-      );
+      await pool.query(`DELETE FROM "${schema}".migration WHERE version = $1`, [
+        futureVersion,
+      ]);
     }
   });
 

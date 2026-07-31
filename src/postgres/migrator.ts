@@ -248,14 +248,14 @@ export async function getCurrentSchemaVersion(
   client: PgQueryable,
 ): Promise<number> {
   const { rows } = await client.query<{ version: number }>(
-    'SELECT COALESCE(MAX(version), 0)::int AS version FROM bullmq_migration',
+    'SELECT COALESCE(MAX(version), 0)::int AS version FROM migration',
   );
   return rows[0]?.version ?? 0;
 }
 
 async function ensureLedgerTable(client: PgQueryable): Promise<void> {
   await client.query(
-    `CREATE TABLE IF NOT EXISTS bullmq_migration (
+    `CREATE TABLE IF NOT EXISTS migration (
        version    integer PRIMARY KEY,
        name       text NOT NULL,
        applied_at timestamptz NOT NULL DEFAULT now()
@@ -268,8 +268,8 @@ async function applyMigration(
   migration: Migration,
 ): Promise<void> {
   await client.query(migration.load());
-  await client.query(
-    'INSERT INTO bullmq_migration (version, name) VALUES ($1, $2)',
-    [migration.version, migration.name],
-  );
+  await client.query('INSERT INTO migration (version, name) VALUES ($1, $2)', [
+    migration.version,
+    migration.name,
+  ]);
 }

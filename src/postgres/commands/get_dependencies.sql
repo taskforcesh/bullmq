@@ -3,6 +3,6 @@
 -- processed → processed (value = return value), pending → unprocessed,
 -- ignored → ignored (value = reason), failed → failed.
 SELECT status::text AS status, child_key, value
-FROM bullmq_job_dependency
+FROM job_dependency
 WHERE parent_queue = $1 AND parent_id = $2
 ORDER BY child_id;
