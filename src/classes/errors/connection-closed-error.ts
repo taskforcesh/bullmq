@@ -20,7 +20,7 @@ export class ConnectionClosedError extends Error {
     message?: string,
     public readonly cause?: unknown,
   ) {
-    super(message ?? 'Connection is closed');
+    super(message ?? CONNECTION_CLOSED_ERROR_MSG);
     this.name = 'ConnectionClosedError';
     Object.setPrototypeOf(this, new.target.prototype);
   }
