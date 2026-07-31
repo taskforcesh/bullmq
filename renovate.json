@@ -11,6 +11,7 @@
     "enabled": true,
     "schedule": ["before 9am"]
   },
+  "separateMajorMinor": true,
   "packageRules": [
     {
       "description": "Run non-security dependency updates once per day by default",
@@ -18,7 +19,111 @@
       "schedule": ["before 9am"]
     },
     {
-      "description": "🚨 Group all security vulnerabilities (OSV/GitHub alerts) into a single daily PR",
+      "description": "Group every non-major Node.js/npm update (minor + patch) into a single PR",
+      "matchCategories": ["js", "node"],
+      "groupName": "Node.js dependencies",
+      "groupSlug": "nodejs"
+    },
+    {
+      "description": "Group every PHP (composer) update into a single PR",
+      "matchCategories": ["php"],
+      "groupName": "PHP dependencies",
+      "groupSlug": "php",
+      "commitMessageSuffix": "(php)"
+    },
+    {
+      "description": "Group every Python update into a single PR",
+      "matchCategories": ["python"],
+      "groupName": "Python dependencies",
+      "groupSlug": "python",
+      "commitMessageSuffix": "(python)"
+    },
+    {
+      "description": "Group every Elixir (mix) update into a single PR",
+      "matchCategories": ["elixir"],
+      "groupName": "Elixir dependencies",
+      "groupSlug": "elixir",
+      "commitMessageSuffix": "(elixir)"
+    },
+    {
+      "description": "Group every Rust (cargo) update into a single PR",
+      "matchCategories": ["rust"],
+      "groupName": "Rust dependencies",
+      "groupSlug": "rust",
+      "commitMessageSuffix": "(rust)"
+    },
+    {
+      "description": "Group every GitHub Actions / CI update into a single PR",
+      "matchManagers": ["github-actions"],
+      "groupName": "CI dependencies",
+      "groupSlug": "ci"
+    },
+    {
+      "description": "Group every Docker update into a single PR",
+      "matchCategories": ["docker"],
+      "groupName": "Docker dependencies",
+      "groupSlug": "docker"
+    },
+    {
+      "description": "Separate Node.js major updates into their own PR so the safe minor/patch PR stays mergeable",
+      "matchCategories": ["js", "node"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "Node.js dependencies (major)",
+      "groupSlug": "nodejs-major"
+    },
+    {
+      "description": "Separate PHP major updates into their own PR",
+      "matchCategories": ["php"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "PHP dependencies (major)",
+      "groupSlug": "php-major",
+      "commitMessageSuffix": "(php)"
+    },
+    {
+      "description": "Separate Python major updates into their own PR",
+      "matchCategories": ["python"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "Python dependencies (major)",
+      "groupSlug": "python-major",
+      "commitMessageSuffix": "(python)"
+    },
+    {
+      "description": "Separate Elixir major updates into their own PR",
+      "matchCategories": ["elixir"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "Elixir dependencies (major)",
+      "groupSlug": "elixir-major",
+      "commitMessageSuffix": "(elixir)"
+    },
+    {
+      "description": "Separate Rust major updates into their own PR",
+      "matchCategories": ["rust"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "Rust dependencies (major)",
+      "groupSlug": "rust-major",
+      "commitMessageSuffix": "(rust)"
+    },
+    {
+      "description": "Separate GitHub Actions / CI major updates into their own PR",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "CI dependencies (major)",
+      "groupSlug": "ci-major"
+    },
+    {
+      "description": "Separate Docker major updates into their own PR",
+      "matchCategories": ["docker"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "Docker dependencies (major)",
+      "groupSlug": "docker-major"
+    },
+    {
+      "description": "Pin TypeScript below v7 until the tooling (ts-node, typedoc, @typescript-eslint) supports the native (Go) compiler, whose npm package does not yet expose the compiler API",
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<7"
+    },
+    {
+      "description": "🚨 Group all security vulnerabilities (OSV/GitHub alerts) into a single daily PR (overrides the per-runtime groups above)",
       "matchUpdateTypes": ["major", "minor", "patch"],
       "matchDepTypes": ["dependencies", "devDependencies"],
       "vulnerabilityFixVersion": true,
@@ -28,42 +133,6 @@
       "labels": ["security", "osv"],
       "commitMessageSuffix": "[SECURITY]",
       "schedule": ["before 9am"]
-    },
-    {
-      "description": "Group all non-major devDependencies",
-      "matchDepTypes": ["devDependencies"],
-      "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "devDependencies (non-major)"
-    },
-    {
-      "description": "Pin TypeScript below v7 until the tooling (ts-node, typedoc, @typescript-eslint) supports the native (Go) compiler, whose npm package does not yet expose the compiler API",
-      "matchPackageNames": ["typescript"],
-      "allowedVersions": "<7"
-    },
-    {
-      "description": "Group TypeScript type definitions",
-      "matchPackagePatterns": ["^@types/"],
-      "groupName": "TypeScript type definitions"
-    },
-    {
-      "description": "Group ESLint related packages",
-      "matchPackagePatterns": ["eslint"],
-      "groupName": "ESLint"
-    },
-    {
-      "description": "Python dependencies",
-      "matchManagers": ["pip_requirements", "pep621", "pip-compile"],
-      "groupName": "Python dependencies"
-    },
-    {
-      "description": "PHP dependencies",
-      "matchManagers": ["composer"],
-      "groupName": "PHP dependencies"
-    },
-    {
-      "description": "Elixir dependencies",
-      "matchManagers": ["mix"],
-      "groupName": "Elixir dependencies"
     }
   ],
   "vulnerabilityAlerts": {
