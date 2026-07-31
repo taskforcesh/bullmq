@@ -41,4 +41,4 @@ const queue = new Queue('Paint', { defaultJobOptions: {
 
 ## Read more:
 
-* 💡 [Add Job API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#add)
+* 💡 [Add Job API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#add)

@@ -23,4 +23,4 @@ const worker = new Worker(
 
 ## Read more:
 
-- 💡 [Move To Wait API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#movetowait)
+- 💡 [Move To Wait API Reference](https://docs.bullmq.io/api/classes/v6.Job.html#movetowait)

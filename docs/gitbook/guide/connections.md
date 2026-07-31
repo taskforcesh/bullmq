@@ -202,7 +202,7 @@ This guarantees that the workers will keep processing forever as long as there i
 
 ### The queue backend
 
-While the `IRedisClient` adapter described above abstracts the low-level _driver_ (ioredis, node-redis, Bun), the high-level classes (`Queue`, `Worker`, `FlowProducer`, `QueueEvents`, …) sit one level higher: they are **datastore-agnostic** and talk to a _backend_ that implements the [`IQueueBackend`](https://api.docs.bullmq.io) contract. The backend owns the connection(s) and implements every queue operation ("add job", "move to active", "extend lock", the blocking "wait for next job", …).
+While the `IRedisClient` adapter described above abstracts the low-level _driver_ (ioredis, node-redis, Bun), the high-level classes (`Queue`, `Worker`, `FlowProducer`, `QueueEvents`, …) sit one level higher: they are **datastore-agnostic** and talk to a _backend_ that implements the [`IQueueBackend`](https://docs.bullmq.io/api) contract. The backend owns the connection(s) and implements every queue operation ("add job", "move to active", "extend lock", the blocking "wait for next job", …).
 
 The default backend is the Redis one (`RedisQueueBackend`), so you normally never interact with this layer directly — you just pass a `connection` as shown throughout this page and BullMQ wires up the Redis backend for you.
 
@@ -281,7 +281,7 @@ On the other hand, if you are adding jobs inside a Worker processor, this proces
 For more details, refer to the [persistent connections](https://docs.bullmq.io/bull/patterns/persistent-connections) page.
 
 {% hint style="danger" %}
-When using ioredis connections, be careful not to use the "keyPrefix" option in [ioredis](https://redis.github.io/ioredis/interfaces/CommonRedisOptions.html#keyPrefix) as this option is not compatible with BullMQ, which provides its own key prefixing mechanism by using [prefix](https://api.docs.bullmq.io/interfaces/v5.QueueOptions.html#prefix) option.
+When using ioredis connections, be careful not to use the "keyPrefix" option in [ioredis](https://redis.github.io/ioredis/interfaces/CommonRedisOptions.html#keyPrefix) as this option is not compatible with BullMQ, which provides its own key prefixing mechanism by using [prefix](https://docs.bullmq.io/api/interfaces/v6.QueueOptions.html#prefix) option.
 {% endhint %}
 
 If you can afford many connections, by all means just use them. Redis connections have quite low overhead, so you should not need to care about reusing connections unless your service provider imposes hard limitations.

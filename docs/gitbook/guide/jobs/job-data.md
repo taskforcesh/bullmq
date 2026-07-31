@@ -150,4 +150,4 @@ calls it automatically — to control exactly how the instance is serialized.
 
 ## Read more:
 
-- 💡 [Update Data API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#updatedata)
+- 💡 [Update Data API Reference](https://docs.bullmq.io/api/classes/v6.Job.html#updatedata)

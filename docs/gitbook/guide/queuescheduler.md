@@ -29,4 +29,4 @@ It is ok to have as many `QueueScheduler` instances as you want, just keep in mi
 
 ## Read more:
 
-- 💡 [Queue Scheduler API Reference](https://api.docs.bullmq.io/classes/v1.QueueScheduler.html)
+- 💡 [Queue Scheduler API Reference](https://docs.bullmq.io/api/classes/v1.QueueScheduler.html)

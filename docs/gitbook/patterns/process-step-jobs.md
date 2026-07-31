@@ -475,5 +475,5 @@ Manually moving jobs using special errors does **not** increment the attemptsMad
 
 ## Read more:
 
-- 💡 [Move To Delayed API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#movetodelayed)
-- 💡 [Move To Waiting Children API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#movetowaitingchildren)
+- 💡 [Move To Delayed API Reference](https://docs.bullmq.io/api/classes/v6.Job.html#movetodelayed)
+- 💡 [Move To Waiting Children API Reference](https://docs.bullmq.io/api/classes/v6.Job.html#movetowaitingchildren)

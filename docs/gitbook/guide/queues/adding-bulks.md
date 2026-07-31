@@ -57,4 +57,4 @@ This call can only succeed or fail, and all or none of the jobs will be added.
 
 ## Read more:
 
-- 💡 [Add Bulk API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#addbulk)
+- 💡 [Add Bulk API Reference](https://docs.bullmq.io/api/classes/v6.Queue.html#addbulk)
