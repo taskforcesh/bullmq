@@ -40,7 +40,7 @@ test = [
     "pytest-timeout==2.4.0"
 ]
 postgres = [
-    "psycopg[binary] >=3.2"
+    "psycopg[binary] ==3.3.4"
 ]
 
 [project.urls]

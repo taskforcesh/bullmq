@@ -20,7 +20,7 @@
     "dist"
   ],
   "engines": {
-    "node": ">=14.17.0"
+    "node": "v26.5.1"
   },
   "scripts": {
     "build": "npm run clean:dist && npm run pretest && npm run tsc:all && npm run copy:main:type && npm run clean:temp:files && npm run copy:lua && npm run copy:includes:lua && npm run copy:sql",
@@ -86,10 +86,10 @@
     "tslib": "2.8.1"
   },
   "peerDependencies": {
-    "bullmq-otel": ">=2.0.0",
-    "ioredis": ">=5.0.0",
-    "pg": ">=8.0.0",
-    "redis": ">=5.0.0"
+    "bullmq-otel": "2.0.0",
+    "ioredis": "6.0.0",
+    "pg": "8.22.0",
+    "redis": "6.2.0"
   },
   "peerDependenciesMeta": {
     "bullmq-otel": {
@@ -229,11 +229,11 @@
   "packageManager": "yarn@1.22.22",
   "resolutions": {
     "brace-expansion": "5.0.9",
-    "esbuild": "~0.25.0",
+    "esbuild": "0.25.12",
     "js-yaml": "4.3.0",
     "picomatch": "4.0.5",
     "tar": "7.5.22",
-    "vite": "^6.4.3",
-    "yaml": ">=2.8.3"
+    "vite": "6.4.3",
+    "yaml": "2.9.0"
   }
 }
