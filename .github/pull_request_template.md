@@ -22,7 +22,7 @@
     docs: update rate-limiting guide [python]
     feat(queue): add group priority support
 
-  Please check all three ports below before setting your title.
+  Please review all listed ports below before setting your title.
 -->
 
 ### Port Impact Checklist
