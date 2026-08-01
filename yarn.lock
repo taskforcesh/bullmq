@@ -1154,32 +1154,32 @@
     "@pnpm/network.ca-file" "^1.0.1"
     config-chain "^1.1.11"
 
-"@redis/bloom@6.1.0":
-  version "6.1.0"
-  resolved "https://registry.yarnpkg.com/@redis/bloom/-/bloom-6.1.0.tgz#8b89b848a319a0f0b79e12d414e6a613f8e1505b"
-  integrity sha512-Rzascjd9J9bJsM45T/Z9CTg1QY/B63B6YO8QorLVMeXnbBDsKiSCVR/+GQ061hYPk8FpTzWmPY8tAv2sT+JEtQ==
+"@redis/bloom@6.2.0":
+  version "6.2.0"
+  resolved "https://registry.yarnpkg.com/@redis/bloom/-/bloom-6.2.0.tgz#fbd66dffbd7e2b1151f4195da461a8432cb686b3"
+  integrity sha512-ggQvzpeCKnybwUrEiMVVtE1Np4vWnRfpeAaIP2MdZiVw7PHOhJrF4cONVuLRn1TkMi6ehp2OPjTOMK+8XmiQSQ==
 
-"@redis/client@6.1.0":
-  version "6.1.0"
-  resolved "https://registry.yarnpkg.com/@redis/client/-/client-6.1.0.tgz#b0e20465ae284134a98afec6522e97a9e7736d13"
-  integrity sha512-7u1LefkezJF0HESlhO7ZFLEPfyY+NejP3SGv+Z4pGaT3oM5GVVLa0u3f4rDLUrcw+SRo8IlX9Y8JAONeDdg1Ag==
+"@redis/client@6.2.0":
+  version "6.2.0"
+  resolved "https://registry.yarnpkg.com/@redis/client/-/client-6.2.0.tgz#5d21d880aa0c5c6ba2f54aa64486071b3a2dc7ea"
+  integrity sha512-HHszna68MTBRiDZV3Wo2wANH7Z5v/nuh+ZyCAGBce0PS8tDcg1/yzZ1vqbKbUyTdz1wB54kqZxXrnPwpR8Ivdw==
   dependencies:
     cluster-key-slot "1.1.2"
 
-"@redis/json@6.1.0":
-  version "6.1.0"
-  resolved "https://registry.yarnpkg.com/@redis/json/-/json-6.1.0.tgz#400430d1df93dcaede3686adfd42489a929c7d74"
-  integrity sha512-/GFjQA6bu5pG9ClCJAI5Xx4bNXe7UTpxBBlIupBNTrn1+nY860apGnYJuaSCDV2BmEbTidpa7O2qa28oxKx+rg==
+"@redis/json@6.2.0":
+  version "6.2.0"
+  resolved "https://registry.yarnpkg.com/@redis/json/-/json-6.2.0.tgz#5ddf42521fce7a34c7d5dc64e63f4560364d1dbe"
+  integrity sha512-oweO7PfHWYXkgVT88K+Fm3Wx98lKYKAEXaH162gVbw1kmBOBVQHxw0Yjh1p6BYBUIQMHqLyWwYe99eK7/hD1VQ==
 
-"@redis/search@6.1.0":
-  version "6.1.0"
-  resolved "https://registry.yarnpkg.com/@redis/search/-/search-6.1.0.tgz#2481ee8b14a7c166cf6a218b066daad3d3e33f88"
-  integrity sha512-kS5agg+3yZbrdrt8omrew7FLCD8eOm7tarG1CROekPBRe+QGDR9aOpnHIQaYsYi6wPRTH70nQiF06AIjgURefQ==
+"@redis/search@6.2.0":
+  version "6.2.0"
+  resolved "https://registry.yarnpkg.com/@redis/search/-/search-6.2.0.tgz#65788d53e758e0557a603e0dc0b675c61353c43c"
+  integrity sha512-chLEQfalFW3+uCPE99XoIOZhcQ3eF7S3fGxgiiaPf6MMrOZHEiTvgMnXR4xXZX0yDecyoWjGYlQQKTYag/ZExg==
 
-"@redis/time-series@6.1.0":
-  version "6.1.0"
-  resolved "https://registry.yarnpkg.com/@redis/time-series/-/time-series-6.1.0.tgz#f06d54e4e68559c4c1c1fdf2d834416da592ed63"
-  integrity sha512-uIDBtV8MmG/xpJsRqbGSO4iX6ryj37MLMP82lRpFvI7ykAVe5GyqgxigEbU+uZNv9kDPNMKw3dvI/S/J1BNBzA==
+"@redis/time-series@6.2.0":
+  version "6.2.0"
+  resolved "https://registry.yarnpkg.com/@redis/time-series/-/time-series-6.2.0.tgz#57b2df20e1653c5a225afce3f681d72754593dda"
+  integrity sha512-/H/eE/lnhZLZYpHGpI+ZN7TePb7isEaub8b07oQcTDQptPslVKdUFwNhUm+hQHks781oh+F1Leiip1WHh4HfWw==
 
 "@rollup/rollup-android-arm-eabi@4.62.3":
   version "4.62.3"
@@ -1810,10 +1810,10 @@
   resolved "https://registry.npmjs.org/@types/normalize-package-data/-/normalize-package-data-2.4.4.tgz"
   integrity sha512-37i+OaWTh9qeK4LSHPsyRC7NahnGotNuZvjLSgcPzblpHB3rrCJxAOgI5gCdKm7coonsaX1Of0ILiTcnZjbfxA==
 
-"@types/pg@8.20.0":
-  version "8.20.0"
-  resolved "https://registry.yarnpkg.com/@types/pg/-/pg-8.20.0.tgz#8bd03d3ac6b19143a8de7d66a9d13da32cd91526"
-  integrity sha512-bEPFOaMAHTEP1EzpvHTbmwR8UsFyHSKsRisLIHVMXnpNefSbGA1bD6CVy+qKjGSqmZqNqBDV2azOBo8TgkcVow==
+"@types/pg@8.20.2":
+  version "8.20.2"
+  resolved "https://registry.yarnpkg.com/@types/pg/-/pg-8.20.2.tgz#13d31709875afeb03b01ec951822eb38c6e81cf0"
+  integrity sha512-hCbcoph8FualKVaVJuc8aHCisaD9hcafEu/VabHbAGimByLo6DJ2+IGnWyq1egrVegU1oVJEZtXj4Nh863IxbQ==
   dependencies:
     "@types/node" "*"
     pg-protocol "*"
@@ -2946,10 +2946,10 @@ create-require@^1.1.0:
   resolved "https://registry.npmjs.org/create-require/-/create-require-1.1.1.tgz"
   integrity sha512-dcKFX3jn0MpIaXjisoRvexIJVEKzaq7z2rZKxf+MSr9TkdmHmsU4m2lcLojrj/FHl8mk5VxMmYA+ftRkP/3oKQ==
 
-cron-parser@5.6.1:
-  version "5.6.1"
-  resolved "https://registry.yarnpkg.com/cron-parser/-/cron-parser-5.6.1.tgz#55a2f53ce6a868bc17f3103ae9ad4d0a08cd14c1"
-  integrity sha512-QBm4o1PwZiuY7KFbVvW7FLC8bozy7YWzv+Fz6KRS7sQghzcbDZCGxr/Bc5b6TQreAoSwuWVP491dIcK0THCX6A==
+cron-parser@5.6.2:
+  version "5.6.2"
+  resolved "https://registry.yarnpkg.com/cron-parser/-/cron-parser-5.6.2.tgz#8d1815ff06ebb3605c5c3e6cd62cbb18f955101c"
+  integrity sha512-yJ/G1LVir6CnlkLI40CsampPLKl1SprGGlUagWtGJxewytRVYezv5xVyzzbT+Pvzx+VIRvZVF7/a0eEMTxdnTA==
   dependencies:
     luxon "^3.7.2"
 
@@ -4457,10 +4457,10 @@ linkify-it@^5.0.2:
   dependencies:
     uc.micro "^2.0.0"
 
-lint-staged@17.2.0:
-  version "17.2.0"
-  resolved "https://registry.yarnpkg.com/lint-staged/-/lint-staged-17.2.0.tgz#b7676a66ea77ae4d24018c12ce9e235ed59b46b8"
-  integrity sha512-FchGnFe4i4B1C/a35SPU9bNGPEHSC1+1iV0plLjzBmKVe9klZrlRfSgK6Cw4VeHyqOXbJUXP0vON61uRftNQ0A==
+lint-staged@17.3.0:
+  version "17.3.0"
+  resolved "https://registry.yarnpkg.com/lint-staged/-/lint-staged-17.3.0.tgz#f13483b12f11790746e0ec82808ca0614ba80f4b"
+  integrity sha512-woZS3vNe3UKqBaLPvbLOtKRY4tLANpWQhom12MGWqC8Mh1lCOO+WgSwmX2amjJAqTY9BkXYW87fCUH5H9Ph6xw==
   dependencies:
     picomatch "^4.0.5"
     string-argv "^0.3.2"
@@ -5848,16 +5848,16 @@ redis-parser@3.0.0:
   dependencies:
     redis-errors "^1.0.0"
 
-redis@6.1.0:
-  version "6.1.0"
-  resolved "https://registry.yarnpkg.com/redis/-/redis-6.1.0.tgz#c0664c8e6966ef1825b820e097bea346944b1ff9"
-  integrity sha512-0kvUPM8RHP/ZMa0xYaDTcG5e8tIGW6kz6MToVT0V8iOnk6bkXp2jncGRGe2bZEk41lZwiDspUqjZCSk5ohjcKw==
+redis@6.2.0:
+  version "6.2.0"
+  resolved "https://registry.yarnpkg.com/redis/-/redis-6.2.0.tgz#38c599cd21c985921063b3d858a17030c2623e32"
+  integrity sha512-BShYVyT0Gx67CE80xry5XroSSv6Vxr60yKs0HRiBbUc7kHm+bY7gvSDBBgTjuiV/reWKeZWLyA1ebC5z359wRQ==
   dependencies:
-    "@redis/bloom" "6.1.0"
-    "@redis/client" "6.1.0"
-    "@redis/json" "6.1.0"
-    "@redis/search" "6.1.0"
-    "@redis/time-series" "6.1.0"
+    "@redis/bloom" "6.2.0"
+    "@redis/client" "6.2.0"
+    "@redis/json" "6.2.0"
+    "@redis/search" "6.2.0"
+    "@redis/time-series" "6.2.0"
 
 regex-recursion@^6.0.2:
   version "6.0.2"
