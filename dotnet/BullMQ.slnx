@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BullMQ/BullMQ.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BullMQ.Tests/BullMQ.Tests.csproj" />
+  </Folder>
+</Solution>

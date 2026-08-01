@@ -47,4 +47,4 @@ chrono-tz = "=0.10.4"
 [dev-dependencies]
 tokio = { version = "=1.53.1", features = ["full", "test-util"] }
 tracing-subscriber = { version = "=0.3.23", features = ["env-filter"] }
-rand = "=0.8.6"
+rand = "=0.10.2"

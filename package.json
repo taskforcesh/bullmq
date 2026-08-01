@@ -37,6 +37,8 @@
     "copy:sql:elixir": "rm -f ./elixir/priv/postgres/migrations/*.sql ./elixir/priv/postgres/commands/*.sql && cpx \"./src/postgres/migrations/*.sql\" ./elixir/priv/postgres/migrations && cpx \"./src/postgres/commands/*.sql\" ./elixir/priv/postgres/commands",
     "copy:lua:php": "cpx \"./rawScripts/*.lua\" ./php/src/commands",
     "copy:lua:rust": "cpx \"./rawScripts/*.lua\" ./rust/src/commands",
+    "copy:lua:dotnet": "cpx \"./rawScripts/*.lua\" ./dotnet/src/BullMQ/Commands",
+    "copy:sql:dotnet": "rm -f ./dotnet/src/BullMQ/Postgres/migrations/*.sql ./dotnet/src/BullMQ/Postgres/commands/*.sql && cpx \"./src/postgres/migrations/*.sql\" ./dotnet/src/BullMQ/Postgres/migrations && cpx \"./src/postgres/commands/*.sql\" ./dotnet/src/BullMQ/Postgres/commands",
     "copy:main:type": "cpx \"./dist/esm/classes/main.d.ts\" ./dist/cjs/classes && cpx \"./dist/esm/classes/main-worker.d.ts\" ./dist/cjs/classes",
     "coverage": "vitest run --no-file-parallelism --coverage --config vitest.coverage.config.ts",
     "docs": "typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts",
@@ -121,7 +123,7 @@
     "@types/lodash.isarguments": "3.1.9",
     "@types/msgpack": "0.0.34",
     "@types/node": "24.13.3",
-    "@types/pg": "8.20.2",
+    "@types/pg": "8.20.3",
     "@types/semver": "7.7.1",
     "@types/sinon": "22.0.0",
     "@typescript-eslint/eslint-plugin": "8.65.0",
@@ -191,6 +193,14 @@
             {
               "header": "**/*\\[rust\\]*",
               "release": false
+            },
+            {
+              "header": "**/*\\[dotnet\\]*",
+              "release": false
+            },
+            {
+              "header": "**/*\\(dotnet\\)*",
+              "release": false
             }
           ]
         }
@@ -200,7 +210,7 @@
         {
           "preset": "angular",
           "presetConfig": {
-            "ignoreCommits": "(\\[python\\]|\\[elixir\\]|\\[php\\]|\\[rust\\])"
+            "ignoreCommits": "(\\[python\\]|\\[elixir\\]|\\[php\\]|\\[rust\\]|\\[dotnet\\]|\\(dotnet\\))"
           }
         }
       ],

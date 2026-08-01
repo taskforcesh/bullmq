@@ -1,0 +1,89 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>12</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- 1591: missing XML doc comment. We document the public surface but do
+         not require a comment on every member during the initial port. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <!-- NuGet package metadata -->
+  <PropertyGroup>
+    <PackageId>BullMQ</PackageId>
+    <Authors>Taskforce.sh Inc.</Authors>
+    <Company>Taskforce.sh Inc.</Company>
+    <Product>BullMQ</Product>
+    <Description>The fastest, most reliable, Redis-based (and PostgreSQL-based) distributed queue for .NET. Carefully written for rock solid stability and atomicity, sharing the same Lua/SQL scripts as the reference Node.js implementation.</Description>
+    <PackageTags>queue;redis;postgres;jobs;worker;bullmq;background-jobs;distributed</PackageTags>
+    <PackageProjectUrl>https://bullmq.io</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/taskforcesh/bullmq</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <!-- Deterministic, CI-friendly builds so the produced package is
+         byte-reproducible. ContinuousIntegrationBuild is enabled in CI only
+         (via -p:ContinuousIntegrationBuild=true) to keep local builds fast. -->
+    <Deterministic>true</Deterministic>
+    <!-- Detect accidental breaking changes to the public API across releases. -->
+    <EnablePackageValidation>true</EnablePackageValidation>
+    <!-- Version is stamped by the release pipeline; keep a dev default here. -->
+    <Version>0.0.0-dev</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="StackExchange.Redis" Version="2.8.24" />
+    <PackageReference Include="Npgsql" Version="8.0.5" />
+    <PackageReference Include="Cronos" Version="0.8.4" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="BullMQ.Tests" />
+  </ItemGroup>
+
+  <!-- The shared, pre-flattened Lua command scripts are copied from the
+       repository root `rawScripts/` folder into `Commands/` by the
+       `copy:lua:dotnet` step and embedded into the assembly so the package is
+       self-contained. They are the single source of truth shared with every
+       other BullMQ runtime. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Commands/**/*.lua" />
+  </ItemGroup>
+
+  <!-- The shared PostgreSQL schema/commands are copied from `src/postgres` into
+       `Postgres/` by the `copy:sql:dotnet` step and embedded into the assembly.
+       Same single source of truth as every other runtime's SQL backend. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Postgres/**/*.sql" />
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('$(MSBuildThisFileDirectory)../../README.md')">
+    <None Include="../../README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <!-- Safeguard: the shared Lua/SQL scripts are generated (git-ignored) by the
+       `copy:lua:dotnet` / `copy:sql:dotnet` steps and MUST be embedded in the
+       package. Without them the assembly compiles but is non-functional at
+       runtime, so fail the build early (before compile and before pack) if
+       either set is missing rather than shipping a broken package. -->
+  <Target Name="EnsureEmbeddedScripts" BeforeTargets="BeforeCompile;Pack">
+    <ItemGroup>
+      <_LuaScripts Include="Commands/**/*.lua" />
+      <_SqlScripts Include="Postgres/**/*.sql" />
+    </ItemGroup>
+    <Error Condition="'@(_LuaScripts)' == ''"
+           Text="No Lua command scripts found under 'Commands/'. Run 'yarn copy:lua:dotnet' from the repository root before building; these shared scripts must be embedded in the released package." />
+    <Error Condition="'@(_SqlScripts)' == ''"
+           Text="No SQL scripts found under 'Postgres/'. Run 'yarn copy:sql:dotnet' from the repository root before building; these shared scripts must be embedded in the released package." />
+  </Target>
+
+</Project>
