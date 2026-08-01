@@ -10,7 +10,7 @@
 
 ### Bug Fixes
 
-* Nothing changed, triggered by a python dependency change
+* No Node.js changes.
 
 ## [6.0.1](https://github.com/taskforcesh/bullmq/compare/v6.0.0...v6.0.1) (2026-07-31)
 
