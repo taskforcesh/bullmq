@@ -26,7 +26,7 @@
 * High-level classes no longer expose Redis internals. The optional Connection constructor parameter is replaced by an optional BackendFactory. Queue#client, Queue#redisVersion, Queue#databaseType, Worker#blockingClient, and FlowProducer#client are removed. Access the raw Redis client through the RedisQueueBackend returned by getBackend(). Worker#waitUntilReady() now resolves to void instead of the Redis client.
 * The deprecated debounce option and Job#debounceId property are removed. Use deduplication and Job#deduplicationId instead.
 * The deprecated debounced event is removed. Listen for the deduplicated event instead.
-* Job#discard() is removed from the Node.js API. Use UnrecoverableError instead.
+* Job#discard() is removed from the API. Use UnrecoverableError instead.
 * The legacy nextSchedulerJobId property is removed from Job and JobJson.
 * The paused job state is removed from JobType and from the default Queue#getJobCounts() result. Jobs in a paused queue are represented as waiting.
 * The public Redis implementation exports Scripts, createScripts, JobJsonRaw, and RedisJobOptions are removed. Use the backend APIs instead.
