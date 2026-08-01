@@ -112,11 +112,13 @@ jobs:
           yarn copy:lua:python
           yarn copy:sql:python
       - name: Install Python dependencies
+        if: ${{ contains(env.commitmsg, '[python]') || contains(env.commitmsg, '(python)') }}
         run: |
           python -m pip install --upgrade pip
           pip install flake8 mypy types-redis
           pip install -e "python/[dev,test]"
       - name: Lint with flake8
+        if: ${{ contains(env.commitmsg, '[python]') || contains(env.commitmsg, '(python)') }}
         run: |
           # stop the build if there are Python syntax errors or undefined names
           flake8 ./python --count --select=E9,F63,F7,F82 --show-source --statistics
@@ -294,7 +296,9 @@ jobs:
           php-version: '8.1'
           extensions: redis, msgpack
           tools: composer:v2
-      - run: yarn copy:lua:php
+      - name: Copy Lua scripts for PHP
+        if: ${{ contains(env.commitmsg, '[php]') || contains(env.commitmsg, '(php)') }}
+        run: yarn copy:lua:php
       - name: Install Node dependencies for PHP
         if: ${{ contains(env.commitmsg, '[php]') || contains(env.commitmsg, '(php)') }}
         working-directory: php
@@ -463,6 +467,87 @@ jobs:
                 --base master
               
               echo "Created PR for release vrs${VERSION}"
+              git checkout origin/master
+            else
+              echo "No changes to commit after staging files"
+              git checkout origin/master
+              git branch -D $BRANCH_NAME
+            fi
+          else
+            echo "No changes detected after semantic-release"
+          fi
+
+      # .NET Release
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Copy runtime artifacts for .NET
+        if: ${{ contains(env.commitmsg, '[dotnet]') || contains(env.commitmsg, '(dotnet)') }}
+        run: |
+          yarn copy:lua:dotnet
+          yarn copy:sql:dotnet
+      - name: Install Node dependencies for .NET
+        if: ${{ contains(env.commitmsg, '[dotnet]') || contains(env.commitmsg, '(dotnet)') }}
+        working-directory: dotnet
+        run: yarn install --frozen-lockfile --non-interactive
+      - name: Release .NET
+        id: semantic_release_dotnet
+        if: ${{ contains(env.commitmsg, '[dotnet]') || contains(env.commitmsg, '(dotnet)') }}
+        working-directory: dotnet
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: npx semantic-release
+      - name: Create PR with .NET release changes
+        if: ${{ success() && steps.semantic_release_dotnet.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: dotnet
+        run: |
+          # Check if there are any changes to commit
+          if [[ -n $(git status --porcelain) ]]; then
+            # Get the version from the project file
+            VERSION=$(grep -m 1 '<Version>' src/BullMQ/BullMQ.csproj | sed 's/.*<Version>\(.*\)<\/Version>.*/\1/')
+            BRANCH_NAME="release/vnet${VERSION}"
+
+            echo "Creating PR for .NET release version: vnet${VERSION}"
+
+            # Create and switch to new branch
+            git checkout -b $BRANCH_NAME
+
+            # Configure git
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+
+            # Add and commit changes (only add files that exist)
+            git add src/BullMQ/BullMQ.csproj || true
+            git add src/BullMQ/Version.cs || true
+            git add ../docs/gitbook/dotnet/changelog.md || true
+
+            # Check if there are actually changes to commit after adding
+            if [[ -n $(git diff --cached --name-only) ]]; then
+              git commit -m "chore(release): vnet${VERSION}"
+
+              # Push the branch
+              git push origin $BRANCH_NAME
+
+              # Create PR using GitHub CLI
+              gh pr create \
+                --title "chore(release): vnet${VERSION}" \
+                --body "Automated release PR for .NET version vnet${VERSION}
+
+              This PR contains:
+              - Updated dotnet/src/BullMQ/BullMQ.csproj version
+              - Updated dotnet/src/BullMQ/Version.cs
+              - Updated docs/gitbook/dotnet/changelog.md
+
+              Please review and merge to complete the release process." \
+                --head $BRANCH_NAME \
+                --base master
+
+              echo "Created PR for release vnet${VERSION}"
               git checkout origin/master
             else
               echo "No changes to commit after staging files"
