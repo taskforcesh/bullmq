@@ -19,7 +19,7 @@
 ### Features
 
 * release BullMQ v2 with pluggable queue backends (php) (python) (elixir) ([e1f86ef](https://github.com/taskforcesh/bullmq/commit/e1f86effc5bddda5b70d890866d9a490555e41ff))
-* Introduce the IQueueBackend abstraction, Redis and PostgreSQL backends, and the accompanying v6 updates across the supported language clients.
+* Introduce the IQueueBackend abstraction, Redis and PostgreSQL backends, and the accompanying v2 updates across the supported language clients.
 
 ### BREAKING CHANGES
 
