@@ -779,8 +779,21 @@ public sealed class PostgresBackend : IQueueBackend
                 return null;
             }
 
-            var wait = TimeSpan.FromMilliseconds(Math.Min(250, remaining.TotalMilliseconds));
-            await _connection.WaitForNotificationAsync(listen, wait).ConfigureAwait(false);
+            // Block until a NOTIFY on the jobs channel wakes us or the deadline
+            // elapses — no fixed-interval polling. `remaining` already accounts
+            // for the next delayed job's due time (a delayed job's promotion is
+            // not announced by a NOTIFY), so an idle worker issues no queries
+            // until something actually changes. A NOTIFY for another queue on
+            // the shared channel wakes us too; the has_waiting_job probe then
+            // simply finds nothing and we wait out the rest of the deadline.
+            //
+            // Re-acquire the LISTEN connection every iteration: a failed wait
+            // tears it down (ResetJobChannelAsync), and EnsureJobChannelAsync
+            // transparently reconnects and re-subscribes rather than leaving us
+            // spinning on a disposed handle. Any NOTIFY missed during a reconnect
+            // is still caught by the has_waiting_job probe below (or on timeout).
+            listen = await _connection.EnsureJobChannelAsync().ConfigureAwait(false);
+            await _connection.WaitForNotificationAsync(listen, remaining).ConfigureAwait(false);
             if (await HasWaitingJobAsync().ConfigureAwait(false))
             {
                 return new MarkerResult(Name, 0);

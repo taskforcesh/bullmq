@@ -5,6 +5,7 @@
   "license": "MIT",
   "private": true,
   "scripts": {
+    "test": "./scripts/test.sh",
     "semantic-release": "semantic-release"
   },
   "devDependencies": {

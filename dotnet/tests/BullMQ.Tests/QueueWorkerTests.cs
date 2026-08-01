@@ -375,6 +375,62 @@ public abstract class QueueWorkerTestsBase
             await queue.ObliterateAsync(force: true);
         }
     }
+
+    [Fact]
+    public void Worker_InvalidConcurrency_Throws()
+    {
+        var opts = NewWorkerOptions();
+        opts.Concurrency = 0;
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new Worker(UniqueName(), (_, _) => Task.FromResult<object?>(null), opts));
+    }
+
+    [Fact]
+    public async Task Worker_ForceClose_DoesNotFailActiveJob()
+    {
+        var name = UniqueName();
+        await using var queue = new Queue(name, NewQueueOptions());
+        var active = new TaskCompletionSource<Job>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        // A cooperating processor that blocks until its abort token is cancelled
+        // (as a graceful processor should), throwing OperationCanceledException.
+        var worker = new Worker(
+            name,
+            async (job, ct) =>
+            {
+                active.TrySetResult(job);
+                await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(false);
+                return null;
+            },
+            NewWorkerOptions());
+
+        var failedRaised = false;
+        worker.Failed += (_, _) => failedRaised = true;
+
+        try
+        {
+            var added = await queue.AddAsync("job", new { x = 1 }, new JobsOptions { Attempts = 1 });
+            _ = worker.RunAsync();
+
+            var job = await WaitForAsync(active.Task, TimeSpan.FromSeconds(15));
+            Assert.Equal(added.Id, job.Id);
+
+            // Force close cancels the processor's token. The job must NOT be moved
+            // to failed just because the worker shut down; it is left active to be
+            // recovered as stalled/retried later.
+            await worker.CloseAsync(force: true);
+
+            Assert.False(failedRaised, "job should not be marked failed due to shutdown");
+            Assert.NotEqual(JobState.Failed, await added.GetStateAsync());
+            Assert.Equal(0, await queue.GetFailedCountAsync());
+        }
+        finally
+        {
+            await worker.CloseAsync(force: true);
+            await queue.ObliterateAsync(force: true);
+        }
+    }
 }
 
 /// <summary>Runs the Queue/Worker end-to-end suite against the Redis backend.</summary>

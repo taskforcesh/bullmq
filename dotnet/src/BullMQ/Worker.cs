@@ -83,6 +83,14 @@ public sealed class Worker : IAsyncDisposable
             throw new ArgumentException("Worker requires a connection");
         }
 
+        if (opts.Concurrency < 1)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(opts),
+                opts.Concurrency,
+                "WorkerOptions.Concurrency must be greater than 0.");
+        }
+
         _backend = new Lazy<Task<IQueueBackend>>(InitBackendAsync);
 
         if (opts.Autorun)
@@ -272,6 +280,13 @@ public sealed class Worker : IAsyncDisposable
             var result = await _processor(job, _abortCts.Token).ConfigureAwait(false);
             await job.MoveToCompletedAsync(result, token, fetchNext: false).ConfigureAwait(false);
             Completed?.Invoke(job, result);
+        }
+        catch (OperationCanceledException) when (_forceClosing)
+        {
+            // Force close cancelled the processor's abort token and a cooperating
+            // processor threw. Do NOT move the job to failed: leave it active so
+            // it is recovered as stalled (and retried) later. Failing a job merely
+            // because the worker shut down is not BullMQ's intended semantics.
         }
         catch (Exception ex)
         {

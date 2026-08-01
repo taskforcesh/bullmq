@@ -113,7 +113,18 @@ dotnet build
 dotnet test          # requires a Redis server on localhost:6379
 ```
 
-Set `BULLMQ_TEST_REDIS` to point the integration tests at a different server.
+Or just run the helper, which copies the shared scripts if needed, sets the
+default test connections, and runs the suite (any arguments are passed straight
+through to `dotnet test`):
+
+```bash
+cd dotnet
+./scripts/test.sh                      # whole suite (Redis + PostgreSQL)
+./scripts/test.sh --filter Name~Flow   # a subset
+```
+
+Set `BULLMQ_TEST_REDIS` and/or `BULLMQ_TEST_POSTGRES` to point the integration
+tests at different servers.
 
 ## License
 
