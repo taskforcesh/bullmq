@@ -1,5 +1,4 @@
 import { EventEmitter } from 'events';
-import type { Cluster, Redis } from 'ioredis';
 import { AbortController } from '../classes/abort-controller';
 export { randomUUID } from 'crypto';
 
@@ -19,6 +18,12 @@ import * as semver from 'semver';
 
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { DatabaseType } from '../types';
+
+type RedisLikeClient = {
+  connect(...args: any[]): any;
+  disconnect(...args: any[]): any;
+  duplicate(...args: any[]): any;
+};
 
 export const errorObject: { [index: string]: any } = { value: null };
 
@@ -152,7 +157,7 @@ export const optsEncodeMap = {
 
 export function isRedisInstance(
   obj: any,
-): obj is IRedisClient | Redis | Cluster {
+): obj is IRedisClient | RedisLikeClient {
   if (!obj) {
     return false;
   }
