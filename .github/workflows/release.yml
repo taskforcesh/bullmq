@@ -491,13 +491,22 @@ jobs:
         if: ${{ contains(env.commitmsg, '[dotnet]') || contains(env.commitmsg, '(dotnet)') }}
         working-directory: dotnet
         run: yarn install --frozen-lockfile --non-interactive
+      - name: NuGet login (Trusted Publishing / OIDC)
+        id: nuget_login
+        if: ${{ contains(env.commitmsg, '[dotnet]') || contains(env.commitmsg, '(dotnet)') }}
+        uses: NuGet/login@v1
+        with:
+          # NuGet.org account that owns the Trusted Publishing policy for BullMQ.
+          user: manast
       - name: Release .NET
         id: semantic_release_dotnet
         if: ${{ contains(env.commitmsg, '[dotnet]') || contains(env.commitmsg, '(dotnet)') }}
         working-directory: dotnet
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          # Short-lived key minted by the Trusted Publishing OIDC exchange above
+          # (no long-lived NUGET_API_KEY secret required).
+          NUGET_API_KEY: ${{ steps.nuget_login.outputs.NUGET_API_KEY }}
         run: npx semantic-release
       - name: Create PR with .NET release changes
         if: ${{ success() && steps.semantic_release_dotnet.outcome == 'success' }}
