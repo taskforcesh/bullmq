@@ -1,18 +1,9 @@
 ## [1.2.2](https://github.com/taskforcesh/bullmq/compare/vrs1.2.1...vrs1.2.2) (2026-08-01)
 
 
-* feat!: release BullMQ v6 with pluggable queue backends (php) (python) (elixir) ([e1f86ef](https://github.com/taskforcesh/bullmq/commit/e1f86effc5bddda5b70d890866d9a490555e41ff)), closes [Hi#level](https://github.com/Hi/issues/level) [Queue#client](https://github.com/Queue/issues/client) [Queue#redisVersion](https://github.com/Queue/issues/redisVersion) [Queue#databaseType](https://github.com/Queue/issues/databaseType) [Worker#blockingClient](https://github.com/Worker/issues/blockingClient) [FlowProducer#client](https://github.com/FlowProducer/issues/client) [Queue#add](https://github.com/Queue/issues/add) [Queue#addBulk](https://github.com/Queue/issues/addBulk) [Job#debounceId](https://github.com/Job/issues/debounceId) [Job#deduplicationId](https://github.com/Job/issues/deduplicationId)
-
-
 ### Bug Fixes
 
-* **deps:** update dependency redis to v7.4.1 ([#4426](https://github.com/taskforcesh/bullmq/issues/4426)) ([2ac754f](https://github.com/taskforcesh/bullmq/commit/2ac754fd718927e2c0043d6d7787de32d0d196f7))
 * **deps:** update security patches [security] [rust] ([#4404](https://github.com/taskforcesh/bullmq/issues/4404)) ([956e2d4](https://github.com/taskforcesh/bullmq/commit/956e2d4b1cefd5b1e4da98d69013a2fa866e8d75))
-
-
-### BREAKING CHANGES
-
-*
 
 # [1.2.1](https://github.com/taskforcesh/bullmq/compare/vrs1.2.0...vrs1.2.1) (2026-07-30)
 
