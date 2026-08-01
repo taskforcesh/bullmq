@@ -112,11 +112,13 @@ jobs:
           yarn copy:lua:python
           yarn copy:sql:python
       - name: Install Python dependencies
+        if: ${{ contains(env.commitmsg, '[python]') || contains(env.commitmsg, '(python)') }}
         run: |
           python -m pip install --upgrade pip
           pip install flake8 mypy types-redis
           pip install -e "python/[dev,test]"
       - name: Lint with flake8
+        if: ${{ contains(env.commitmsg, '[python]') || contains(env.commitmsg, '(python)') }}
         run: |
           # stop the build if there are Python syntax errors or undefined names
           flake8 ./python --count --select=E9,F63,F7,F82 --show-source --statistics
@@ -294,7 +296,9 @@ jobs:
           php-version: '8.1'
           extensions: redis, msgpack
           tools: composer:v2
-      - run: yarn copy:lua:php
+      - name: Copy Lua scripts for PHP
+        if: ${{ contains(env.commitmsg, '[php]') || contains(env.commitmsg, '(php)') }}
+        run: yarn copy:lua:php
       - name: Install Node dependencies for PHP
         if: ${{ contains(env.commitmsg, '[php]') || contains(env.commitmsg, '(php)') }}
         working-directory: php

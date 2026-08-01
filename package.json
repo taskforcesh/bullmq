@@ -193,6 +193,14 @@
             {
               "header": "**/*\\[rust\\]*",
               "release": false
+            },
+            {
+              "header": "**/*\\[dotnet\\]*",
+              "release": false
+            },
+            {
+              "header": "**/*\\(dotnet\\)*",
+              "release": false
             }
           ]
         }
@@ -202,7 +210,7 @@
         {
           "preset": "angular",
           "presetConfig": {
-            "ignoreCommits": "(\\[python\\]|\\[elixir\\]|\\[php\\]|\\[rust\\])"
+            "ignoreCommits": "(\\[python\\]|\\[elixir\\]|\\[php\\]|\\[rust\\]|\\[dotnet\\]|\\(dotnet\\))"
           }
         }
       ],
