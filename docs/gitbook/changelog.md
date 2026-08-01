@@ -5,6 +5,13 @@
 
 * **deps:** update python dependencies (python) ([#4453](https://github.com/taskforcesh/bullmq/issues/4453)) ([e58f9e1](https://github.com/taskforcesh/bullmq/commit/e58f9e1892463da4ca411506d66ee01413e5daeb))
 
+## [6.0.4](https://github.com/taskforcesh/bullmq/compare/v6.0.3...v6.0.4) (2026-08-01)
+
+
+### Bug Fixes
+
+* **deps:** update security patches [security] ([#4444](https://github.com/taskforcesh/bullmq/issues/4444)) ([c1cf328](https://github.com/taskforcesh/bullmq/commit/c1cf32881474f3f1e9b620e025abde07a359eb06))
+
 ## [6.0.3](https://github.com/taskforcesh/bullmq/compare/v6.0.2...v6.0.3) (2026-07-31)
 
 
