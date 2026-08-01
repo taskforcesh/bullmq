@@ -36,7 +36,7 @@
 - [ ] **Elixir** – does this change need to be ported or documented in the Elixir library?
 - [ ] **PHP** – does this change need to be ported or documented in the PHP library?
 - [ ] **Rust** – does this change need to be ported or documented in the Rust library?
-- [ ] **.Net** – does this change need to be ported or documented in the .Net library?
+- [ ] **.NET** – does this change need to be ported or documented in the .NET library?
 
 ### Why
 
