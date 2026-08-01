@@ -12,26 +12,32 @@ public delegate Task<object?> Processor(Job job, CancellationToken cancellationT
 /// processing jobs concurrently up to <see cref="WorkerOptions.Concurrency"/>.
 ///
 /// <para>
-/// This initial implementation fetches jobs by polling
-/// <see cref="IQueueBackend.MoveToActiveAsync"/>. A marker-based blocking wait
-/// (matching the reference <c>BZPOPMIN</c> primitive) will replace the idle poll
-/// in a subsequent iteration.
+/// Jobs are fetched using the backend's blocking wait primitive
+/// (Redis <c>BZPOPMIN</c> on the marker set / PostgreSQL <c>LISTEN</c>), so an
+/// idle worker does not busy-poll. Locks are renewed periodically by a
+/// <see cref="LockManager"/>, and a background stalled-job checker recovers jobs
+/// whose lock expired.
 /// </para>
 /// </summary>
 public sealed class Worker : IAsyncDisposable
 {
-    // Idle poll interval used when the queue is drained. Replaced by a blocking
-    // marker wait in a later iteration.
-    private const int IdlePollMs = 100;
-
     private readonly Lazy<Task<IQueueBackend>> _backend;
     private readonly Processor _processor;
-    private readonly CancellationTokenSource _cts = new();
 
+    // Cancels the processor's abort signal (force close only).
+    private readonly CancellationTokenSource _abortCts = new();
+
+    // Interrupts the fetcher's waits (any close).
+    private readonly CancellationTokenSource _closeCts = new();
+
+    private SemaphoreSlim? _slots;
     private long _tokenCounter;
     private volatile bool _closing;
+    private volatile bool _forceClosing;
     private volatile bool _drained;
     private Task? _running;
+    private LockManager? _lockManager;
+    private Task? _stalledChecker;
 
     /// <summary>A unique id for this worker instance.</summary>
     public string Id { get; } = Guid.NewGuid().ToString();
@@ -57,6 +63,15 @@ public sealed class Worker : IAsyncDisposable
     /// <summary>Raised when a non-fatal error occurs (e.g. a fetch failure).</summary>
     public event Action<Exception>? Error;
 
+    /// <summary>Raised when a job has stalled and been moved back to wait.</summary>
+    public event Action<string>? Stalled;
+
+    /// <summary>Raised when lock renewal fails for one or more jobs.</summary>
+    public event Action<IReadOnlyList<string>>? LockRenewalFailed;
+
+    /// <summary>Raised when locks are successfully renewed.</summary>
+    public event Action<IReadOnlyList<string>>? LocksRenewed;
+
     public Worker(string name, Processor processor, WorkerOptions opts)
     {
         Name = name;
@@ -78,13 +93,20 @@ public sealed class Worker : IAsyncDisposable
 
     private async Task<IQueueBackend> InitBackendAsync()
     {
-        var lockRenew = Opts.LockRenewTime ?? Opts.LockDuration / 2;
-        _ = lockRenew; // reserved for the lock manager (added in a later iteration)
-
         var backend = await BackendBuilder
-            .CreateAsync(Name, Opts, Opts.LockDuration, Opts.Name)
+            .CreateAsync(Name, Opts, Opts.LockDuration, Opts.Name, withBlockingConnection: true)
             .ConfigureAwait(false);
         await backend.WaitUntilReadyAsync().ConfigureAwait(false);
+
+        var lockRenewTime = Opts.LockRenewTime ?? Opts.LockDuration / 2;
+        _lockManager = new LockManager(
+            backend,
+            lockRenewTime,
+            Opts.LockDuration,
+            err => Error?.Invoke(err),
+            ids => LockRenewalFailed?.Invoke(ids),
+            ids => LocksRenewed?.Invoke(ids));
+
         return backend;
     }
 
@@ -104,22 +126,48 @@ public sealed class Worker : IAsyncDisposable
     private async Task RunInternalAsync()
     {
         var backend = await _backend.Value.ConfigureAwait(false);
+        _slots = new SemaphoreSlim(Opts.Concurrency, Opts.Concurrency);
 
-        var loops = new Task[Opts.Concurrency];
-        for (var i = 0; i < Opts.Concurrency; i++)
+        if (!Opts.SkipLockRenewal)
         {
-            loops[i] = WorkerLoop(backend);
+            _lockManager?.Start();
         }
 
-        await Task.WhenAll(loops).ConfigureAwait(false);
+        if (!Opts.SkipStalledCheck)
+        {
+            _stalledChecker = StalledCheckerLoopAsync(backend);
+        }
+
+        await MainLoopAsync(backend).ConfigureAwait(false);
     }
 
-    private async Task WorkerLoop(IQueueBackend backend)
+    /// <summary>
+    /// The main fetch loop. A semaphore bounds in-flight processing to
+    /// <see cref="WorkerOptions.Concurrency"/>: each free slot triggers a fetch,
+    /// jobs are processed fire-and-forget (releasing their slot on completion),
+    /// and an idle worker blocks on the backend's wait primitive instead of
+    /// busy-polling.
+    /// </summary>
+    private async Task MainLoopAsync(IQueueBackend backend)
     {
         while (!_closing)
         {
-            var token = $"{Id}:{Interlocked.Increment(ref _tokenCounter)}";
+            try
+            {
+                await _slots!.WaitAsync(_closeCts.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
 
+            if (_closing)
+            {
+                _slots!.Release();
+                break;
+            }
+
+            var token = $"{Id}:{Interlocked.Increment(ref _tokenCounter)}";
             NextJobData next;
             try
             {
@@ -127,8 +175,13 @@ public sealed class Worker : IAsyncDisposable
             }
             catch (Exception ex)
             {
-                Error?.Invoke(ex);
-                await DelayIdle().ConfigureAwait(false);
+                _slots!.Release();
+                if (!_closing)
+                {
+                    Error?.Invoke(ex);
+                }
+
+                await SafeDelayAsync(200).ConfigureAwait(false);
                 continue;
             }
 
@@ -137,7 +190,12 @@ public sealed class Worker : IAsyncDisposable
                 _drained = false;
                 var job = Job.FromJson(backend, Name, next.Job, next.JobId);
                 job.Token = token;
-                await ProcessJob(job, token).ConfigureAwait(false);
+                if (!string.IsNullOrEmpty(job.RepeatJobKey))
+                {
+                    await ScheduleNextIterationAsync(backend, job).ConfigureAwait(false);
+                }
+
+                _ = RunJobAsync(backend, job, token);
             }
             else
             {
@@ -147,17 +205,71 @@ public sealed class Worker : IAsyncDisposable
                     Drained?.Invoke();
                 }
 
-                await DelayIdle().ConfigureAwait(false);
+                _slots!.Release();
+                await WaitForJobAsync(backend, next.DelayUntil).ConfigureAwait(false);
+            }
+        }
+
+        // Drain: wait for every in-flight job to finish (skipped on force close).
+        if (!_forceClosing)
+        {
+            for (var i = 0; i < Opts.Concurrency; i++)
+            {
+                await _slots!.WaitAsync().ConfigureAwait(false);
             }
         }
     }
 
-    private async Task ProcessJob(Job job, string token)
+    private async Task RunJobAsync(IQueueBackend backend, Job job, string token)
     {
+        try
+        {
+            await ProcessJob(backend, job, token).ConfigureAwait(false);
+        }
+        finally
+        {
+            _slots!.Release();
+        }
+    }
+
+    /// <summary>
+    /// When a fetched job was produced by a scheduler, enqueue the scheduler's
+    /// next iteration (matching the reference worker's reschedule-on-fetch).
+    /// </summary>
+    private async Task ScheduleNextIterationAsync(IQueueBackend backend, Job job)
+    {
+        try
+        {
+            if (job.Repeat is null)
+            {
+                return;
+            }
+
+            if (!await backend.IsJobSchedulerAsync(job.RepeatJobKey!).ConfigureAwait(false))
+            {
+                return;
+            }
+
+            var scheduler = new JobScheduler(backend, Name);
+            await scheduler.UpsertJobSchedulerAsync(
+                job.RepeatJobKey!, job.Repeat, job.Name, job.Data, job.Opts,
+                @override: false, producerId: job.Id).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            Error?.Invoke(new BullMQException(
+                $"Failed to add repeatable job for next iteration: {ex.Message}", ex));
+        }
+    }
+
+    private async Task ProcessJob(IQueueBackend backend, Job job, string token)
+    {
+        var ts = job.ProcessedOn ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        _lockManager?.TrackJob(job.Id!, token, ts);
         Active?.Invoke(job);
         try
         {
-            var result = await _processor(job, _cts.Token).ConfigureAwait(false);
+            var result = await _processor(job, _abortCts.Token).ConfigureAwait(false);
             await job.MoveToCompletedAsync(result, token, fetchNext: false).ConfigureAwait(false);
             Completed?.Invoke(job, result);
         }
@@ -174,13 +286,98 @@ public sealed class Worker : IAsyncDisposable
 
             Failed?.Invoke(job, ex);
         }
+        finally
+        {
+            _lockManager?.UntrackJob(job.Id!);
+        }
     }
 
-    private async Task DelayIdle()
+    /// <summary>Blocks on the backend's wait primitive until a job may be available.</summary>
+    private async Task WaitForJobAsync(IQueueBackend backend, long delayUntil = 0)
+    {
+        var maxBlockSeconds = Math.Min(Math.Max(Opts.DrainDelay, 1), 10);
+
+        // When the next job is a delayed job due at `delayUntil`, sleep until it
+        // is due (bounded) rather than blocking indefinitely on the marker.
+        if (delayUntil > 0)
+        {
+            var delta = delayUntil - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            if (delta <= 0)
+            {
+                return;
+            }
+
+            await SafeDelayAsync((int)Math.Min(delta, maxBlockSeconds * 1000L)).ConfigureAwait(false);
+            return;
+        }
+
+        try
+        {
+            var waitTask = backend.WaitForJobAsync(maxBlockSeconds);
+
+            // Race the (server-side) blocking wait against the close signal so a
+            // closing worker does not have to wait for the block timeout. An
+            // abandoned wait completes harmlessly in the background.
+            var cancelTask = Task.Delay(Timeout.Infinite, _closeCts.Token);
+            var done = await Task.WhenAny(waitTask, cancelTask).ConfigureAwait(false);
+            if (done == waitTask)
+            {
+                await waitTask.ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Worker is closing.
+        }
+        catch (Exception ex)
+        {
+            if (!_closing)
+            {
+                Error?.Invoke(ex);
+            }
+
+            await SafeDelayAsync(200).ConfigureAwait(false);
+        }
+    }
+
+    private async Task StalledCheckerLoopAsync(IQueueBackend backend)
+    {
+        while (!_closing)
+        {
+            try
+            {
+                var stalled = await backend
+                    .MoveStalledJobsToWaitAsync(Opts.MaxStalledCount, Opts.StalledInterval)
+                    .ConfigureAwait(false);
+                foreach (var jobId in stalled)
+                {
+                    Stalled?.Invoke(jobId);
+                }
+            }
+            catch (Exception ex)
+            {
+                if (!_closing)
+                {
+                    Error?.Invoke(ex);
+                }
+            }
+
+            try
+            {
+                await Task.Delay(Opts.StalledInterval, _closeCts.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+        }
+    }
+
+    private async Task SafeDelayAsync(int ms)
     {
         try
         {
-            await Task.Delay(IdlePollMs, _cts.Token).ConfigureAwait(false);
+            await Task.Delay(ms, _closeCts.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -197,9 +394,17 @@ public sealed class Worker : IAsyncDisposable
         }
 
         _closing = true;
-        _cts.Cancel();
+        _forceClosing = force;
 
-        if (_running is not null && !force)
+        // Interrupt the fetcher's blocking waits. On force close also cancel the
+        // processor abort signal so cooperating processors stop promptly.
+        _closeCts.Cancel();
+        if (force)
+        {
+            _abortCts.Cancel();
+        }
+
+        if (_running is not null)
         {
             try
             {
@@ -211,13 +416,32 @@ public sealed class Worker : IAsyncDisposable
             }
         }
 
+        if (_stalledChecker is not null)
+        {
+            try
+            {
+                await _stalledChecker.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected.
+            }
+        }
+
+        if (_lockManager is not null)
+        {
+            await _lockManager.CloseAsync().ConfigureAwait(false);
+        }
+
         if (_backend.IsValueCreated)
         {
             var backend = await _backend.Value.ConfigureAwait(false);
             await backend.CloseAsync(force).ConfigureAwait(false);
         }
 
-        _cts.Dispose();
+        _closeCts.Dispose();
+        _abortCts.Dispose();
+        _slots?.Dispose();
     }
 
     public async ValueTask DisposeAsync() => await CloseAsync().ConfigureAwait(false);

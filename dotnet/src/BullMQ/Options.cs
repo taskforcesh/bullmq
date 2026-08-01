@@ -78,6 +78,34 @@ public sealed class WorkerOptions : QueueBaseOptions
 
     /// <summary>When true (default) the worker starts processing immediately.</summary>
     public bool Autorun { get; set; } = true;
+
+    /// <summary>Max number of times a job can be recovered from stalled before failing. Default 1.</summary>
+    public int MaxStalledCount { get; set; } = 1;
+
+    /// <summary>How often (ms) to run the stalled-job check. Default 30000.</summary>
+    public int StalledInterval { get; set; } = 30000;
+
+    /// <summary>Disable the stalled-job checker.</summary>
+    public bool SkipStalledCheck { get; set; }
+
+    /// <summary>Disable periodic lock renewal.</summary>
+    public bool SkipLockRenewal { get; set; }
+}
+
+/// <summary>Options for a <see cref="QueueEvents"/> listener.</summary>
+public sealed class QueueEventsOptions : QueueBaseOptions
+{
+    /// <summary>When true (default) the listener starts consuming events immediately.</summary>
+    public bool Autorun { get; set; } = true;
+
+    /// <summary>
+    /// Cursor to start from. Defaults to <c>"$"</c> (only events produced after
+    /// the listener starts). Provide a known event id to resume from it.
+    /// </summary>
+    public string? LastEventId { get; set; }
+
+    /// <summary>Timeout in milliseconds for each blocking read of the event stream. Default 10000.</summary>
+    public int BlockingTimeout { get; set; } = 10000;
 }
 
 /// <summary>Backoff configuration for retrying failed jobs.</summary>

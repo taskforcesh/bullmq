@@ -54,7 +54,7 @@
       [
         "@semantic-release/exec",
         {
-          "publishCmd": "dotnet pack src/BullMQ/BullMQ.csproj -c Release -o ./nupkg && dotnet nuget push \"./nupkg/*.nupkg\" --api-key $NUGET_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate"
+          "publishCmd": "dotnet pack src/BullMQ/BullMQ.csproj -c Release -p:ContinuousIntegrationBuild=true -o ./nupkg && dotnet nuget push \"./nupkg/*.nupkg\" --api-key $NUGET_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate"
         }
       ],
       "@semantic-release/github"

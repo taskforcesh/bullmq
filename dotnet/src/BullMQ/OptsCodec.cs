@@ -24,7 +24,7 @@ internal static class OptsCodec
         DecodeMap.ToDictionary(kv => kv.Value, kv => kv.Key, StringComparer.Ordinal);
 
     /// <summary>Applies short-form encoding to the keys of an options map.</summary>
-    public static Dictionary<string, object?> Encode(IDictionary<string, object?> opts)
+    public static Dictionary<string, object?> Encode(IReadOnlyDictionary<string, object?> opts)
     {
         var encoded = new Dictionary<string, object?>(StringComparer.Ordinal);
         foreach (var (key, value) in opts)

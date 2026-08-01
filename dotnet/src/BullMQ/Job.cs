@@ -67,6 +67,7 @@ public class Job
     public string? ParentKey { get; set; }
     public object? Parent { get; set; }
     public string? RepeatJobKey { get; set; }
+    public RepeatOptions? Repeat { get; set; }
     public string? DeduplicationId { get; set; }
     public string? DeferredFailure { get; set; }
 
@@ -136,6 +137,8 @@ public class Job
             job.StackTrace = JsonSerializer.Deserialize<List<string>>(raw.StackTrace) ?? new();
         }
 
+        job.Repeat = ParseRepeat(raw.Opts);
+
         return job;
     }
 
@@ -149,10 +152,80 @@ public class Job
     /// <summary>Returns the current state of this job.</summary>
     public Task<JobState> GetStateAsync() => _backend.GetStateAsync(Id!);
 
-    /// <summary>
-    /// Moves the job to the completed state, optionally fetching the next job to
-    /// process (used by the worker to chain fetches efficiently).
-    /// </summary>
+    /// <summary>Appends a row to this job's log. Returns the total log count.</summary>
+    public Task<long> LogAsync(string logRow) =>
+        _backend.AddLogAsync(Id!, logRow, Opts.KeepLogs ?? 0);
+
+    /// <summary>Updates this job's progress and notifies listeners.</summary>
+    public async Task UpdateProgressAsync(object? progress)
+    {
+        await _backend.UpdateProgressAsync(Id!, progress).ConfigureAwait(false);
+        Progress = progress;
+    }
+
+    /// <summary>Replaces this job's data payload.</summary>
+    public async Task UpdateDataAsync(object? data)
+    {
+        await _backend.UpdateDataAsync(Id!, data).ConfigureAwait(false);
+        Data = data;
+    }
+
+    /// <summary>Changes this job's priority (and optionally lifo) while waiting.</summary>
+    public Task ChangePriorityAsync(int priority = 0, bool lifo = false) =>
+        _backend.ChangePriorityAsync(Id!, priority, lifo);
+
+    /// <summary>Promotes this delayed job so it can be processed as soon as possible.</summary>
+    public Task PromoteAsync() => _backend.PromoteAsync(Id!);
+
+    /// <summary>Reprocesses a finished job (moving it back to wait).</summary>
+    public Task RetryAsync(string state = "failed") => _backend.ReprocessJobAsync(this, state);
+
+    /// <summary>Removes this job (and optionally its children).</summary>
+    public Task<long> RemoveAsync(bool removeChildren = true) => _backend.RemoveAsync(Id!, removeChildren);
+
+    /// <summary>Moves this (parent) job to the waiting-children state.</summary>
+    public Task<bool> MoveToWaitingChildrenAsync(string token, string? childKey = null) =>
+        _backend.MoveToWaitingChildrenAsync(Id!, token, childKey);
+
+    /// <summary>Returns the processed children values (child key -&gt; deserialized value).</summary>
+    public async Task<IReadOnlyDictionary<string, object?>> GetChildrenValuesAsync()
+    {
+        var raw = await _backend.GetProcessedChildrenValuesAsync(Id!).ConfigureAwait(false);
+        var result = new Dictionary<string, object?>(StringComparer.Ordinal);
+        foreach (var (key, value) in raw)
+        {
+            result[key] = string.IsNullOrEmpty(value)
+                ? null
+                : JsonSerializer.Deserialize<JsonElement>(value);
+        }
+
+        return result;
+    }
+
+    /// <summary>Returns whether this job has completed.</summary>
+    public async Task<bool> IsCompletedAsync() => await GetStateAsync().ConfigureAwait(false) == JobState.Completed;
+
+    /// <summary>Returns whether this job has failed.</summary>
+    public async Task<bool> IsFailedAsync() => await GetStateAsync().ConfigureAwait(false) == JobState.Failed;
+
+    /// <summary>Returns whether this job is delayed.</summary>
+    public async Task<bool> IsDelayedAsync() => await GetStateAsync().ConfigureAwait(false) == JobState.Delayed;
+
+    /// <summary>Returns whether this job is active.</summary>
+    public async Task<bool> IsActiveAsync() => await GetStateAsync().ConfigureAwait(false) == JobState.Active;
+
+    /// <summary>Returns whether this job is waiting (or prioritized).</summary>
+    public async Task<bool> IsWaitingAsync()
+    {
+        var state = await GetStateAsync().ConfigureAwait(false);
+        return state is JobState.Waiting or JobState.Prioritized;
+    }
+
+    /// <summary>Returns whether this job is waiting for its children.</summary>
+    public async Task<bool> IsWaitingChildrenAsync() =>
+        await GetStateAsync().ConfigureAwait(false) == JobState.WaitingChildren;
+
+
     public async Task<NextJobData?> MoveToCompletedAsync(
         object? returnValue, string token, bool fetchNext = true)
     {
@@ -270,5 +343,72 @@ public class Job
         }
 
         return opts;
+    }
+
+    private static RepeatOptions? ParseRepeat(string optsJson)
+    {
+        if (string.IsNullOrEmpty(optsJson))
+        {
+            return null;
+        }
+
+        using var doc = JsonDocument.Parse(optsJson);
+        var root = doc.RootElement;
+        if (root.ValueKind != JsonValueKind.Object ||
+            !root.TryGetProperty("repeat", out var repeat) ||
+            repeat.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var options = new RepeatOptions();
+
+        if (repeat.TryGetProperty("pattern", out var pattern) && pattern.ValueKind == JsonValueKind.String)
+        {
+            options.Pattern = pattern.GetString();
+        }
+
+        if (repeat.TryGetProperty("every", out var every) && every.TryGetInt64(out var e))
+        {
+            options.Every = e;
+        }
+
+        if (repeat.TryGetProperty("limit", out var limit) && limit.TryGetInt32(out var l))
+        {
+            options.Limit = l;
+        }
+
+        if (repeat.TryGetProperty("offset", out var offset) && offset.TryGetInt64(out var o))
+        {
+            options.Offset = o;
+        }
+
+        if (repeat.TryGetProperty("tz", out var tz) && tz.ValueKind == JsonValueKind.String)
+        {
+            options.Tz = tz.GetString();
+        }
+
+        if (repeat.TryGetProperty("count", out var count) && count.TryGetInt32(out var c))
+        {
+            options.Count = c;
+        }
+
+        if (repeat.TryGetProperty("startDate", out var sd) && sd.TryGetInt64(out var sdv))
+        {
+            options.StartDate = sdv;
+        }
+
+        if (repeat.TryGetProperty("endDate", out var ed) && ed.TryGetInt64(out var edv))
+        {
+            options.EndDate = edv;
+        }
+
+        // prevMillis lives at the top level of the job opts, not inside repeat.
+        if (root.TryGetProperty("prevMillis", out var prev) && prev.TryGetInt64(out var pm))
+        {
+            options.PrevMillis = pm;
+        }
+
+        return options;
     }
 }

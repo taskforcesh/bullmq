@@ -142,7 +142,7 @@ public sealed class PostgresBackend : IQueueBackend
             return Array.Empty<string>();
         }
 
-        var entries = jobs.Select(j => BatchEntry(j, addToWaitingChildren: false)).ToList();
+        var entries = jobs.Select(j => BatchEntry(j, Name, addToWaitingChildren: false)).ToList();
         var result = await RunAsync("add_jobs_bulk", new object?[] { Name, JsonUtil.Serialize(entries) })
             .ConfigureAwait(false);
 
@@ -155,12 +155,32 @@ public sealed class PostgresBackend : IQueueBackend
         return ids;
     }
 
-    private Dictionary<string, object?> BatchEntry(Job job, bool addToWaitingChildren)
+    public async Task<IReadOnlyList<string>> AddFlowAsync(IReadOnlyList<FlowJobEntry> entries)
+    {
+        if (entries.Count == 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        var batch = entries.Select(e => BatchEntry(e.Job, e.QueueName, e.IsParent)).ToList();
+        var result = await RunAsync("add_flow", new object?[] { JsonUtil.Serialize(batch) }, op: "addJob")
+            .ConfigureAwait(false);
+
+        var ids = result.Rows.Select(r => Str(r[0])!).ToArray();
+        for (var i = 0; i < ids.Length && i < entries.Count; i++)
+        {
+            entries[i].Job.Id = ids[i];
+        }
+
+        return ids;
+    }
+
+    private Dictionary<string, object?> BatchEntry(Job job, string queueName, bool addToWaitingChildren)
     {
         var (parentQueue, parentId) = ParentParts(job.Parent);
         return new Dictionary<string, object?>(StringComparer.Ordinal)
         {
-            ["queue"] = Name,
+            ["queue"] = queueName,
             ["id"] = job.Id ?? string.Empty,
             ["name"] = job.Name,
             ["data"] = job.Data ?? new Dictionary<string, object?>(),
@@ -571,6 +591,155 @@ public sealed class PostgresBackend : IQueueBackend
     public Task<long> RemoveDeprecatedPriorityKeyAsync() => Task.FromResult(0L);
 
     // ============================================================
+    // Job schedulers
+    // ============================================================
+
+    public async Task<(string JobId, long Delay)> AddJobSchedulerAsync(
+        string schedulerId,
+        long? nextMillis,
+        string templateData,
+        IReadOnlyDictionary<string, object?> templateOpts,
+        IReadOnlyDictionary<string, object?> schedulerOpts,
+        IReadOnlyDictionary<string, object?> delayedJobOpts,
+        string? producerId = null)
+    {
+        var result = await RunAsync(
+            "add_job_scheduler",
+            new object?[]
+            {
+                Name,
+                schedulerId,
+                nextMillis,
+                string.IsNullOrEmpty(templateData) ? "{}" : templateData,
+                Json(templateOpts),
+                Json(schedulerOpts),
+                Json(delayedJobOpts),
+                NowMs(),
+                producerId,
+            },
+            op: "addJobScheduler").ConfigureAwait(false);
+
+        var row = result.FirstMap();
+        var jobId = Str(row?.GetValueOrDefault("job_id")) ?? string.Empty;
+        var delay = ToInt(row?.GetValueOrDefault("delay"));
+        return (jobId, delay);
+    }
+
+    public async Task<string?> UpdateJobSchedulerNextMillisAsync(
+        string schedulerId,
+        long nextMillis,
+        string templateData,
+        IReadOnlyDictionary<string, object?> delayedJobOpts,
+        string? producerId = null)
+    {
+        var result = await RunAsync(
+            "update_job_scheduler",
+            new object?[]
+            {
+                Name,
+                schedulerId,
+                nextMillis,
+                string.IsNullOrEmpty(templateData) ? "{}" : templateData,
+                Json(delayedJobOpts),
+                NowMs(),
+                producerId,
+            }).ConfigureAwait(false);
+
+        return Str(result.FirstMap()?.GetValueOrDefault("job_id"));
+    }
+
+    public async Task<long> RemoveJobSchedulerAsync(string schedulerId)
+    {
+        var result = await RunAsync("remove_job_scheduler", new object?[] { Name, schedulerId }).ConfigureAwait(false);
+        return ToInt(result.FirstMap()?.GetValueOrDefault("removed"));
+    }
+
+    public async Task<(IReadOnlyList<string> Raw, long? Next)> GetJobSchedulerAsync(string id)
+    {
+        var result = await RunAsync("get_job_scheduler", new object?[] { Name, id }).ConfigureAwait(false);
+        var row = result.FirstMap();
+        if (row is null)
+        {
+            return (Array.Empty<string>(), null);
+        }
+
+        var (hash, next) = MapSchedulerRow(row);
+        var flat = new List<string>(hash.Count * 2);
+        foreach (var (key, value) in hash)
+        {
+            flat.Add(key);
+            flat.Add(value);
+        }
+
+        return (flat, next);
+    }
+
+    public async Task<bool> IsJobSchedulerAsync(string id)
+    {
+        var result = await RunAsync("is_job_scheduler", new object?[] { Name, id }).ConfigureAwait(false);
+        return ToBool(result.FirstMap()?.GetValueOrDefault("exists"));
+    }
+
+    public async Task<IReadOnlyDictionary<string, string>> GetJobSchedulerDataAsync(string key)
+    {
+        var result = await RunAsync("get_job_scheduler", new object?[] { Name, key }).ConfigureAwait(false);
+        var row = result.FirstMap();
+        return row is null ? new Dictionary<string, string>() : MapSchedulerRow(row).Hash;
+    }
+
+    public async Task<IReadOnlyList<string>> GetJobSchedulersRangeAsync(int start, int end, bool asc)
+    {
+        int? count = end < 0 ? null : end - start + 1;
+        var result = await RunAsync(
+            "get_job_schedulers_range", new object?[] { Name, asc, start, count }).ConfigureAwait(false);
+
+        var flat = new List<string>();
+        foreach (var m in result.Maps())
+        {
+            flat.Add(Str(m.GetValueOrDefault("scheduler_id")) ?? string.Empty);
+            flat.Add(ToInt(m.GetValueOrDefault("next_run_ms")).ToString());
+        }
+
+        return flat;
+    }
+
+    public async Task<long> GetJobSchedulersCountAsync()
+    {
+        var result = await RunAsync("get_job_schedulers_count", new object?[] { Name }).ConfigureAwait(false);
+        return ToInt(result.FirstMap()?.GetValueOrDefault("count"));
+    }
+
+    private static (Dictionary<string, string> Hash, long? Next) MapSchedulerRow(
+        IReadOnlyDictionary<string, object?> row)
+    {
+        var hash = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        void Put(string key, string column)
+        {
+            var value = Str(row.GetValueOrDefault(column));
+            if (value is not null)
+            {
+                hash[key] = value;
+            }
+        }
+
+        Put("name", "name");
+        Put("ic", "iteration_count");
+        Put("limit", "limit_count");
+        Put("startDate", "start_date_ms");
+        Put("endDate", "end_date_ms");
+        Put("tz", "tz");
+        Put("pattern", "pattern");
+        Put("every", "every_ms");
+        Put("offset", "offset_ms");
+        Put("data", "template_data");
+        Put("opts", "template_opts");
+
+        var next = row.GetValueOrDefault("next_run_ms") is { } n ? ToInt(n) : (long?)null;
+        return (hash, next);
+    }
+
+    // ============================================================
     // Worker blocking primitive
     // ============================================================
 
@@ -630,6 +799,96 @@ public sealed class PostgresBackend : IQueueBackend
         var result = await RunAsync("next_delay", new object?[] { Name }).ConfigureAwait(false);
         var next = result.FirstMap()?.GetValueOrDefault("next_delay");
         return next is null ? null : ToInt(next) - NowMs();
+    }
+
+    // ============================================================
+    // Event stream
+    // ============================================================
+
+    public async Task<string> PublishEventAsync(IReadOnlyList<string> fields, int maxEvents)
+    {
+        // fields is a flattened [field, value, ...] list whose first pair is
+        // ("event", <name>); everything else becomes the event's JSON payload.
+        string eventName = string.Empty;
+        var data = new Dictionary<string, string>(StringComparer.Ordinal);
+        for (var i = 0; i + 1 < fields.Count; i += 2)
+        {
+            var key = fields[i];
+            var value = fields[i + 1];
+            if (string.Equals(key, "event", StringComparison.Ordinal) && eventName.Length == 0)
+            {
+                eventName = value;
+            }
+            else
+            {
+                data[key] = value;
+            }
+        }
+
+        var result = await RunAsync(
+            "publish_event",
+            new object?[] { Name, eventName, JsonUtil.Serialize(data) }).ConfigureAwait(false);
+
+        return Str(result.FirstMap()?.GetValueOrDefault("id")) ?? string.Empty;
+    }
+
+    public async Task<IReadOnlyList<EventEntry>> ReadEventsAsync(string id, double blockTimeoutSeconds)
+    {
+        var listen = await _connection.EnsureEventsChannelAsync().ConfigureAwait(false);
+
+        // Resolve the cursor: "$" means "only events from now on".
+        var cursor = id;
+        if (id == "$")
+        {
+            var maxResult = await RunAsync("read_events_max", new object?[] { Name }).ConfigureAwait(false);
+            cursor = Str(maxResult.FirstMap()?.GetValueOrDefault("max")) ?? "0";
+        }
+
+        var events = await FetchEventsAsync(cursor).ConfigureAwait(false);
+        if (events.Count == 0)
+        {
+            var wait = TimeSpan.FromMilliseconds(Math.Max((long)Math.Round(blockTimeoutSeconds * 1000), 1));
+            await _connection.WaitForEventsNotificationAsync(listen, wait).ConfigureAwait(false);
+            events = await FetchEventsAsync(cursor).ConfigureAwait(false);
+        }
+
+        return events;
+    }
+
+    private async Task<IReadOnlyList<EventEntry>> FetchEventsAsync(string cursor)
+    {
+        const int batch = 100;
+        var result = await RunAsync(
+            "read_events",
+            new object?[] { Name, cursor, batch }).ConfigureAwait(false);
+
+        var list = new List<EventEntry>();
+        foreach (var row in result.Maps())
+        {
+            var entryId = Str(row.GetValueOrDefault("id")) ?? string.Empty;
+            var eventName = Str(row.GetValueOrDefault("event")) ?? string.Empty;
+
+            var fields = new List<string> { "event", eventName };
+            var dataRaw = Str(row.GetValueOrDefault("data"));
+            if (!string.IsNullOrEmpty(dataRaw))
+            {
+                var data = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(dataRaw);
+                if (data is not null)
+                {
+                    foreach (var kv in data)
+                    {
+                        fields.Add(kv.Key);
+                        fields.Add(kv.Value.ValueKind == JsonValueKind.String
+                            ? kv.Value.GetString() ?? string.Empty
+                            : kv.Value.GetRawText());
+                    }
+                }
+            }
+
+            list.Add(new EventEntry(entryId, fields));
+        }
+
+        return list;
     }
 
     // ============================================================
@@ -694,6 +953,9 @@ public sealed class PostgresBackend : IQueueBackend
 
     private static string OptsJson(JobsOptions opts) =>
         JsonSerializer.Serialize(OptsCodec.ToStorageMap(opts), JsonUtil.Compact);
+
+    private static string Json(IReadOnlyDictionary<string, object?> map) =>
+        JsonSerializer.Serialize(map, JsonUtil.Compact);
 
     private static (bool removeAll, int? keepAge, int? keepCount) NormalizeKeep(object? removeOn) => removeOn switch
     {

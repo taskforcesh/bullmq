@@ -71,6 +71,13 @@ public interface IQueueBackend : IAsyncDisposable
     /// <summary>Adds many independent jobs in a single efficient operation.</summary>
     Task<IReadOnlyList<string>> AddJobsAsync(IReadOnlyList<Job> jobs);
 
+    /// <summary>
+    /// Atomically inserts a flow (tree) of jobs that may span multiple queues.
+    /// Entries are ordered roots-first; a parent entry is inserted before its
+    /// children (which reference it). Returns the created ids, in order.
+    /// </summary>
+    Task<IReadOnlyList<string>> AddFlowAsync(IReadOnlyList<FlowJobEntry> entries);
+
     // ============================================================
     // State transitions
     // ============================================================
@@ -216,6 +223,58 @@ public interface IQueueBackend : IAsyncDisposable
     Task<long> RemoveDeprecatedPriorityKeyAsync();
 
     // ============================================================
+    // Job schedulers
+    // ============================================================
+
+    /// <summary>
+    /// Registers (or overrides) a job scheduler and enqueues its next delayed
+    /// iteration. Returns the created job id and its delay (ms).
+    /// </summary>
+    Task<(string JobId, long Delay)> AddJobSchedulerAsync(
+        string schedulerId,
+        long? nextMillis,
+        string templateData,
+        IReadOnlyDictionary<string, object?> templateOpts,
+        IReadOnlyDictionary<string, object?> schedulerOpts,
+        IReadOnlyDictionary<string, object?> delayedJobOpts,
+        string? producerId = null);
+
+    /// <summary>
+    /// Advances an existing scheduler to its next iteration (no template
+    /// change). Returns the new delayed job id, or null when none was produced.
+    /// </summary>
+    Task<string?> UpdateJobSchedulerNextMillisAsync(
+        string schedulerId,
+        long nextMillis,
+        string templateData,
+        IReadOnlyDictionary<string, object?> delayedJobOpts,
+        string? producerId = null);
+
+    /// <summary>Removes a scheduler. Returns 0 if it was removed, 1 if it did not exist.</summary>
+    Task<long> RemoveJobSchedulerAsync(string schedulerId);
+
+    /// <summary>
+    /// Returns a scheduler's stored fields (flattened <c>[k, v, ...]</c>) and its
+    /// next-run score, or <c>(empty, null)</c> when absent.
+    /// </summary>
+    Task<(IReadOnlyList<string> Raw, long? Next)> GetJobSchedulerAsync(string id);
+
+    /// <summary>Returns whether an id corresponds to a registered scheduler.</summary>
+    Task<bool> IsJobSchedulerAsync(string id);
+
+    /// <summary>Returns the raw stored fields (name -&gt; value) of a scheduler.</summary>
+    Task<IReadOnlyDictionary<string, string>> GetJobSchedulerDataAsync(string key);
+
+    /// <summary>
+    /// Returns a page of scheduler keys with their next-run scores, flattened as
+    /// <c>[key, score, key, score, ...]</c>.
+    /// </summary>
+    Task<IReadOnlyList<string>> GetJobSchedulersRangeAsync(int start, int end, bool asc);
+
+    /// <summary>Returns the number of registered schedulers.</summary>
+    Task<long> GetJobSchedulersCountAsync();
+
+    // ============================================================
     // Worker blocking primitive
     // ============================================================
 
@@ -224,7 +283,30 @@ public interface IQueueBackend : IAsyncDisposable
     /// signals that a job may be available, returning the marker entry or null.
     /// </summary>
     Task<MarkerResult?> WaitForJobAsync(double blockTimeoutSeconds);
+
+    // ============================================================
+    // Event stream
+    // ============================================================
+
+    /// <summary>
+    /// Appends a custom event to the queue's event stream and returns its id.
+    /// <paramref name="fields"/> is a flattened <c>[field, value, ...]</c> list
+    /// whose first pair is always <c>("event", &lt;name&gt;)</c>. On Redis this is
+    /// an <c>XADD</c> trimmed to roughly <paramref name="maxEvents"/> entries.
+    /// </summary>
+    Task<string> PublishEventAsync(IReadOnlyList<string> fields, int maxEvents);
+
+    /// <summary>
+    /// Reads events newer than <paramref name="id"/> (or <c>"$"</c> for "from now
+    /// on"), blocking up to <paramref name="blockTimeoutSeconds"/> for the next
+    /// batch. Returns an empty list on timeout. On Redis this is an
+    /// <c>XREAD ... BLOCK</c>.
+    /// </summary>
+    Task<IReadOnlyList<EventEntry>> ReadEventsAsync(string id, double blockTimeoutSeconds);
 }
+
+/// <summary>A single event-stream entry: its id and flattened <c>[field, value, ...]</c> fields.</summary>
+public readonly record struct EventEntry(string Id, IReadOnlyList<string> Fields);
 
 /// <summary>Datastore capability flags.</summary>
 public readonly record struct BackendCapabilities(bool CanBlockFor1Ms, bool CanDoubleTimeout);

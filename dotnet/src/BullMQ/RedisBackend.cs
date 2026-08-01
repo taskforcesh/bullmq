@@ -243,6 +243,112 @@ public sealed class RedisBackend : IQueueBackend
         };
     }
 
+    public async Task<IReadOnlyList<string>> AddFlowAsync(IReadOnlyList<FlowJobEntry> entries)
+    {
+        if (entries.Count == 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        var tran = _connection.Db.CreateTransaction();
+        var tasks = new List<Task<RedisResult>>(entries.Count);
+        foreach (var entry in entries)
+        {
+            var keys = new QueueKeys(entry.Prefix).GetKeys(entry.QueueName);
+            var (cmd, redisKeys, args) = BuildAddJobForFlow(keys, entry.Job, entry.IsParent);
+            var scriptText = LuaScripts.Get(cmd).Content;
+            tasks.Add(tran.ScriptEvaluateAsync(scriptText, redisKeys, args));
+        }
+
+        var committed = await tran.ExecuteAsync().ConfigureAwait(false);
+        if (!committed)
+        {
+            throw new BullMQException("addFlow transaction was not committed");
+        }
+
+        var ids = new string[entries.Count];
+        for (var i = 0; i < entries.Count; i++)
+        {
+            ids[i] = ParseAddJobResult(await tasks[i].ConfigureAwait(false), entries[i].Job);
+            entries[i].Job.Id = ids[i];
+        }
+
+        return ids;
+    }
+
+    private static (string cmd, RedisKey[] keys, RedisValue[] args) BuildAddJobForFlow(
+        IReadOnlyDictionary<string, string> keys, Job job, bool isParent)
+    {
+        RedisKey[] Map(params string[] names)
+        {
+            var result = new RedisKey[names.Length];
+            for (var i = 0; i < names.Length; i++)
+            {
+                result[i] = keys[names[i]];
+            }
+
+            return result;
+        }
+
+        if (isParent)
+        {
+            return (
+                "addParentJob",
+                Map("meta", "id", "delayed", "waiting-children", "completed", "events"),
+                AddJobArgsWithKeys(keys, job, trailing: null));
+        }
+
+        if (job.Delay > 0)
+        {
+            return (
+                "addDelayedJob",
+                Map("marker", "meta", "id", "delayed", "completed", "events"),
+                AddJobArgsWithKeys(keys, job, job.Delay));
+        }
+
+        if (job.Priority > 0)
+        {
+            return (
+                "addPrioritizedJob",
+                Map("marker", "meta", "id", "prioritized", "delayed", "completed", "active", "events", "pc"),
+                AddJobArgsWithKeys(keys, job, job.Priority));
+        }
+
+        return (
+            "addStandardJob",
+            Map("wait", "paused", "meta", "id", "completed", "delayed", "active", "events", "marker"),
+            AddJobArgsWithKeys(keys, job, job.Timestamp));
+    }
+
+    private static RedisValue[] AddJobArgsWithKeys(
+        IReadOnlyDictionary<string, string> keys, Job job, long? trailing)
+    {
+        var prefix = keys[""];
+        string? parentDepsKey = job.ParentKey is null ? null : $"{job.ParentKey}:dependencies";
+        string? deduplicationKey = job.DeduplicationId is null ? null : $"{prefix}de:{job.DeduplicationId}";
+
+        var packedArgs = MsgPack.Encode(new object?[]
+        {
+            prefix,
+            job.Id ?? string.Empty,
+            job.Name,
+            job.Timestamp,
+            job.ParentKey,
+            parentDepsKey,
+            job.Parent,
+            job.RepeatJobKey,
+            deduplicationKey,
+        });
+
+        var list = new List<RedisValue> { packedArgs, job.DataJson(), job.PackedOpts() };
+        if (trailing.HasValue)
+        {
+            list.Add(trailing.Value);
+        }
+
+        return list.ToArray();
+    }
+
     // ============================================================
     // State transitions
     // ============================================================
@@ -800,6 +906,133 @@ public sealed class RedisBackend : IQueueBackend
     }
 
     // ============================================================
+    // Job schedulers
+    // ============================================================
+
+    public async Task<(string JobId, long Delay)> AddJobSchedulerAsync(
+        string schedulerId,
+        long? nextMillis,
+        string templateData,
+        IReadOnlyDictionary<string, object?> templateOpts,
+        IReadOnlyDictionary<string, object?> schedulerOpts,
+        IReadOnlyDictionary<string, object?> delayedJobOpts,
+        string? producerId = null)
+    {
+        var keys = MapKeys(
+            "repeat", "delayed", "wait", "paused", "meta", "prioritized", "marker", "id", "events", "pc", "active");
+        var args = new RedisValue[]
+        {
+            nextMillis ?? 0,
+            MsgPack.Encode(ToObjectMap(schedulerOpts)),
+            schedulerId,
+            string.IsNullOrEmpty(templateData) ? "{}" : templateData,
+            MsgPack.Encode(OptsCodec.Encode(templateOpts)),
+            MsgPack.Encode(OptsCodec.Encode(delayedJobOpts)),
+            NowMs(),
+            _keys[""],
+            producerId is null ? string.Empty : ToKey(producerId),
+        };
+
+        var result = await _connection.EvalAsync("addJobScheduler", keys, args).ConfigureAwait(false);
+        if (result.Resp2Type == ResultType.Integer)
+        {
+            var code = (long)result;
+            if (code < 0)
+            {
+                throw FinishedErrors.Create((int)code, command: "addJobScheduler");
+            }
+        }
+
+        var arr = (RedisResult[]?)result ?? Array.Empty<RedisResult>();
+        var jobId = arr.Length > 0 ? (string?)arr[0] ?? string.Empty : string.Empty;
+        var delay = arr.Length > 1 ? ToLong(arr[1]) : 0;
+        return (jobId, delay);
+    }
+
+    public async Task<string?> UpdateJobSchedulerNextMillisAsync(
+        string schedulerId,
+        long nextMillis,
+        string templateData,
+        IReadOnlyDictionary<string, object?> delayedJobOpts,
+        string? producerId = null)
+    {
+        var keys = new RedisKey[]
+        {
+            _keys["repeat"], _keys["delayed"], _keys["wait"], _keys["paused"], _keys["meta"],
+            _keys["prioritized"], _keys["marker"], _keys["id"], _keys["events"], _keys["pc"],
+            producerId is null ? _keys[""] : ToKey(producerId),
+            _keys["active"],
+        };
+        var args = new RedisValue[]
+        {
+            nextMillis,
+            schedulerId,
+            string.IsNullOrEmpty(templateData) ? "{}" : templateData,
+            MsgPack.Encode(OptsCodec.Encode(delayedJobOpts)),
+            NowMs(),
+            _keys[""],
+            producerId ?? string.Empty,
+        };
+
+        var result = await _connection.EvalAsync("updateJobScheduler", keys, args).ConfigureAwait(false);
+        return result.IsNull ? null : (string?)result;
+    }
+
+    public async Task<long> RemoveJobSchedulerAsync(string schedulerId)
+    {
+        var keys = MapKeys("repeat", "delayed", "events");
+        var args = new RedisValue[] { schedulerId, _keys[""] };
+        var result = await _connection.EvalAsync("removeJobScheduler", keys, args).ConfigureAwait(false);
+        // Native contract shared with every backend: 0 = removed, 1 = did not exist.
+        return result.Resp2Type == ResultType.Integer ? (long)result : 1;
+    }
+
+    public async Task<(IReadOnlyList<string> Raw, long? Next)> GetJobSchedulerAsync(string id)
+    {
+        var keys = MapKeys("repeat");
+        var args = new RedisValue[] { id };
+        var result = await _connection.EvalAsync("getJobScheduler", keys, args).ConfigureAwait(false);
+        var arr = (RedisResult[]?)result;
+        if (arr is null || arr.Length == 0 || arr[0].IsNull)
+        {
+            return (Array.Empty<string>(), null);
+        }
+
+        var raw = ToStringList(arr[0]);
+        long? next = arr.Length > 1 && !arr[1].IsNull ? ToLong(arr[1]) : null;
+        return (raw, next);
+    }
+
+    public async Task<bool> IsJobSchedulerAsync(string id) =>
+        await _connection.Db.HashExistsAsync($"{_keys["repeat"]}:{id}", "ic").ConfigureAwait(false);
+
+    public async Task<IReadOnlyDictionary<string, string>> GetJobSchedulerDataAsync(string key)
+    {
+        var entries = await _connection.Db.HashGetAllAsync($"{_keys["repeat"]}:{key}").ConfigureAwait(false);
+        return entries.ToDictionary(e => e.Name.ToString(), e => e.Value.ToString(), StringComparer.Ordinal);
+    }
+
+    public async Task<IReadOnlyList<string>> GetJobSchedulersRangeAsync(int start, int end, bool asc)
+    {
+        var order = asc ? Order.Ascending : Order.Descending;
+        var entries = await _connection.Db
+            .SortedSetRangeByRankWithScoresAsync(_keys["repeat"], start, end, order)
+            .ConfigureAwait(false);
+
+        var flat = new List<string>(entries.Length * 2);
+        foreach (var entry in entries)
+        {
+            flat.Add(entry.Element.ToString());
+            flat.Add(((long)entry.Score).ToString());
+        }
+
+        return flat;
+    }
+
+    public async Task<long> GetJobSchedulersCountAsync() =>
+        await _connection.Db.SortedSetLengthAsync(_keys["repeat"]).ConfigureAwait(false);
+
+    // ============================================================
     // Worker blocking primitive
     // ============================================================
 
@@ -827,6 +1060,81 @@ public sealed class RedisBackend : IQueueBackend
     }
 
     // ============================================================
+    // Event stream
+    // ============================================================
+
+    public async Task<string> PublishEventAsync(IReadOnlyList<string> fields, int maxEvents)
+    {
+        // XADD <events> MAXLEN ~ <maxEvents> * field value [field value ...]
+        var args = new List<RedisValue>(6 + fields.Count)
+        {
+            _keys["events"],
+            "MAXLEN",
+            "~",
+            maxEvents,
+            "*",
+        };
+        foreach (var f in fields)
+        {
+            args.Add(f);
+        }
+
+        var result = await _connection.Db.ExecuteAsync("XADD", args.ToArray()).ConfigureAwait(false);
+        return (string?)result ?? string.Empty;
+    }
+
+    public async Task<IReadOnlyList<EventEntry>> ReadEventsAsync(string id, double blockTimeoutSeconds)
+    {
+        var db = (_blocking ?? _connection).Db;
+        var blockMs = (long)(blockTimeoutSeconds * 1000);
+
+        // XREAD BLOCK <ms> STREAMS <events> <id>
+        var result = await db
+            .ExecuteAsync("XREAD", "BLOCK", blockMs, "STREAMS", _keys["events"], id)
+            .ConfigureAwait(false);
+
+        if (result.IsNull)
+        {
+            return Array.Empty<EventEntry>();
+        }
+
+        // Shape: [[streamKey, [[id, [f1, v1, ...]], ...]]]
+        var streams = (RedisResult[]?)result;
+        if (streams is null || streams.Length == 0)
+        {
+            return Array.Empty<EventEntry>();
+        }
+
+        var firstStream = (RedisResult[]?)streams[0];
+        if (firstStream is null || firstStream.Length < 2)
+        {
+            return Array.Empty<EventEntry>();
+        }
+
+        var entries = (RedisResult[]?)firstStream[1];
+        if (entries is null || entries.Length == 0)
+        {
+            return Array.Empty<EventEntry>();
+        }
+
+        var list = new List<EventEntry>(entries.Length);
+        foreach (var entry in entries)
+        {
+            var pair = (RedisResult[]?)entry;
+            if (pair is null || pair.Length < 2)
+            {
+                continue;
+            }
+
+            var entryId = (string?)pair[0] ?? string.Empty;
+            var fields = ToStringList(pair[1]);
+            list.Add(new EventEntry(entryId, fields));
+        }
+
+        return list;
+    }
+
+    // ============================================================
     // Helpers
     // ============================================================
 
@@ -842,6 +1150,9 @@ public sealed class RedisBackend : IQueueBackend
     }
 
     private static long NowMs() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+    private static Dictionary<string, object?> ToObjectMap(IReadOnlyDictionary<string, object?> map) =>
+        map as Dictionary<string, object?> ?? new Dictionary<string, object?>(map, StringComparer.Ordinal);
 
     private static void ThrowIfNegative(RedisResult result, string? jobId, string command, string? state)
     {

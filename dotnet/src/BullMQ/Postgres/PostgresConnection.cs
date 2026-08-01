@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Npgsql;
+using NpgsqlTypes;
 
 namespace BullMQ.Postgres;
 
@@ -51,16 +52,22 @@ public sealed class PostgresConnection : IAsyncDisposable
 
     public const string JobsChannel = "bullmq_jobs";
 
+    public const string EventsChannel = "bullmq_events";
+
     private static readonly Regex SchemaNameRegex =
         new("^[A-Za-z_][A-Za-z0-9_$]*$", RegexOptions.Compiled);
 
     private readonly string _connectionString;
     private readonly bool _skipVersionCheck;
     private readonly SemaphoreSlim _readyLock = new(1, 1);
+    private readonly SemaphoreSlim _connLock = new(1, 1);
 
     private bool _ready;
+    private NpgsqlConnection? _conn;
     private NpgsqlConnection? _listenConn;
     private bool _jobChannelListening;
+    private NpgsqlConnection? _eventsConn;
+    private bool _eventsChannelListening;
     private string? _applicationName;
 
     public string Schema { get; }
@@ -193,39 +200,70 @@ public sealed class PostgresConnection : IAsyncDisposable
             await WaitUntilReadyAsync().ConfigureAwait(false);
         }
 
-        await using var conn = new NpgsqlConnection(_connectionString);
-        await conn.OpenAsync().ConfigureAwait(false);
-        await using var cmd = new NpgsqlCommand(sql, conn);
-        foreach (var value in parameters)
+        // A single persistent connection serialized by a lock (matching the
+        // reference runtimes). Concurrency across queues/workers comes from their
+        // separate connections; the blocking wait uses its own dedicated
+        // connection so it never holds this lock. Reusing one connection avoids
+        // per-operation connect overhead (and the type-catalog reload that a
+        // fresh physical connection incurs after migrations).
+        await _connLock.WaitAsync().ConfigureAwait(false);
+        try
         {
-            cmd.Parameters.Add(new NpgsqlParameter { Value = value ?? DBNull.Value });
-        }
-
-        await using var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false);
-        if (!reader.HasRows && reader.FieldCount == 0)
-        {
-            return new PgResult(Array.Empty<string>(), Array.Empty<object?[]>());
-        }
-
-        var columns = new string[reader.FieldCount];
-        for (var i = 0; i < reader.FieldCount; i++)
-        {
-            columns[i] = reader.GetName(i);
-        }
-
-        var rows = new List<object?[]>();
-        while (await reader.ReadAsync().ConfigureAwait(false))
-        {
-            var row = new object?[reader.FieldCount];
-            for (var i = 0; i < reader.FieldCount; i++)
+            var conn = await GetConnAsync().ConfigureAwait(false);
+            await using var cmd = new NpgsqlCommand(sql, conn);
+            foreach (var value in parameters)
             {
-                row[i] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+                // Send string values with the `unknown` type (like the reference
+                // pg driver) so PostgreSQL infers the real type from context. This
+                // lets untyped string arguments bind to jsonb / enum parameters
+                // even when the command SQL has no explicit `::type` cast.
+                var parameter = value is string s
+                    ? new NpgsqlParameter { Value = s, NpgsqlDbType = NpgsqlDbType.Unknown }
+                    : new NpgsqlParameter { Value = value ?? DBNull.Value };
+                cmd.Parameters.Add(parameter);
             }
 
-            rows.Add(row);
+            await using var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false);
+            if (!reader.HasRows && reader.FieldCount == 0)
+            {
+                return new PgResult(Array.Empty<string>(), Array.Empty<object?[]>());
+            }
+
+            var columns = new string[reader.FieldCount];
+            for (var i = 0; i < reader.FieldCount; i++)
+            {
+                columns[i] = reader.GetName(i);
+            }
+
+            var rows = new List<object?[]>();
+            while (await reader.ReadAsync().ConfigureAwait(false))
+            {
+                var row = new object?[reader.FieldCount];
+                for (var i = 0; i < reader.FieldCount; i++)
+                {
+                    row[i] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+                }
+
+                rows.Add(row);
+            }
+
+            return new PgResult(columns, rows);
+        }
+        finally
+        {
+            _connLock.Release();
+        }
+    }
+
+    private async Task<NpgsqlConnection> GetConnAsync()
+    {
+        if (_conn is null || _conn.State != System.Data.ConnectionState.Open)
+        {
+            _conn = new NpgsqlConnection(_connectionString);
+            await _conn.OpenAsync().ConfigureAwait(false);
         }
 
-        return new PgResult(columns, rows);
+        return _conn;
     }
 
     public async Task SetApplicationNameAsync(string name)
@@ -303,15 +341,91 @@ public sealed class PostgresConnection : IAsyncDisposable
         _jobChannelListening = false;
     }
 
+    /// <summary>Returns a dedicated LISTEN connection subscribed to <c>bullmq_events</c> once.</summary>
+    public async Task<NpgsqlConnection> EnsureEventsChannelAsync()
+    {
+        if (_eventsConn is null || _eventsConn.State != System.Data.ConnectionState.Open)
+        {
+            _eventsConn = new NpgsqlConnection(_connectionString);
+            await _eventsConn.OpenAsync().ConfigureAwait(false);
+            _eventsChannelListening = false;
+            if (_applicationName is not null)
+            {
+                await using var cmd = new NpgsqlCommand(
+                    "SELECT set_config('application_name', $1, false)", _eventsConn);
+                cmd.Parameters.Add(new NpgsqlParameter { Value = _applicationName });
+                await cmd.ExecuteNonQueryAsync().ConfigureAwait(false);
+            }
+        }
+
+        if (!_eventsChannelListening)
+        {
+            await using var cmd = new NpgsqlCommand($"LISTEN {EventsChannel}", _eventsConn);
+            await cmd.ExecuteNonQueryAsync().ConfigureAwait(false);
+            _eventsChannelListening = true;
+        }
+
+        return _eventsConn;
+    }
+
+    /// <summary>Waits up to <paramref name="timeout"/> for a NOTIFY on the events channel.</summary>
+    public async Task WaitForEventsNotificationAsync(NpgsqlConnection listenConn, TimeSpan timeout)
+    {
+        try
+        {
+            await listenConn.WaitAsync(timeout).ConfigureAwait(false);
+        }
+        catch (NpgsqlException)
+        {
+            await ResetEventsChannelAsync().ConfigureAwait(false);
+        }
+    }
+
+    public async Task ResetEventsChannelAsync()
+    {
+        if (_eventsConn is not null)
+        {
+            try
+            {
+                await _eventsConn.CloseAsync().ConfigureAwait(false);
+                await _eventsConn.DisposeAsync().ConfigureAwait(false);
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        _eventsConn = null;
+        _eventsChannelListening = false;
+    }
+
     public async Task CloseAsync()
     {
         await ResetJobChannelAsync().ConfigureAwait(false);
+        await ResetEventsChannelAsync().ConfigureAwait(false);
+
+        if (_conn is not null)
+        {
+            try
+            {
+                await _conn.CloseAsync().ConfigureAwait(false);
+                await _conn.DisposeAsync().ConfigureAwait(false);
+            }
+            catch
+            {
+                // ignore
+            }
+
+            _conn = null;
+        }
     }
 
     public async ValueTask DisposeAsync()
     {
         await CloseAsync().ConfigureAwait(false);
         _readyLock.Dispose();
+        _connLock.Dispose();
     }
 
     // ============================================================

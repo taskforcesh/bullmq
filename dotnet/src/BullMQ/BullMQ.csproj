@@ -29,6 +29,12 @@
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <!-- Deterministic, CI-friendly builds so the produced package is
+         byte-reproducible. ContinuousIntegrationBuild is enabled in CI only
+         (via -p:ContinuousIntegrationBuild=true) to keep local builds fast. -->
+    <Deterministic>true</Deterministic>
+    <!-- Detect accidental breaking changes to the public API across releases. -->
+    <EnablePackageValidation>true</EnablePackageValidation>
     <!-- Version is stamped by the release pipeline; keep a dev default here. -->
     <Version>0.0.0-dev</Version>
   </PropertyGroup>
@@ -36,6 +42,8 @@
   <ItemGroup>
     <PackageReference Include="StackExchange.Redis" Version="2.8.24" />
     <PackageReference Include="Npgsql" Version="8.0.5" />
+    <PackageReference Include="Cronos" Version="0.8.4" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
   </ItemGroup>
 
   <ItemGroup>
@@ -61,5 +69,21 @@
   <ItemGroup Condition="Exists('$(MSBuildThisFileDirectory)../../README.md')">
     <None Include="../../README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
+
+  <!-- Safeguard: the shared Lua/SQL scripts are generated (git-ignored) by the
+       `copy:lua:dotnet` / `copy:sql:dotnet` steps and MUST be embedded in the
+       package. Without them the assembly compiles but is non-functional at
+       runtime, so fail the build early (before compile and before pack) if
+       either set is missing rather than shipping a broken package. -->
+  <Target Name="EnsureEmbeddedScripts" BeforeTargets="BeforeCompile;Pack">
+    <ItemGroup>
+      <_LuaScripts Include="Commands/**/*.lua" />
+      <_SqlScripts Include="Postgres/**/*.sql" />
+    </ItemGroup>
+    <Error Condition="'@(_LuaScripts)' == ''"
+           Text="No Lua command scripts found under 'Commands/'. Run 'yarn copy:lua:dotnet' from the repository root before building; these shared scripts must be embedded in the released package." />
+    <Error Condition="'@(_SqlScripts)' == ''"
+           Text="No SQL scripts found under 'Postgres/'. Run 'yarn copy:sql:dotnet' from the repository root before building; these shared scripts must be embedded in the released package." />
+  </Target>
 
 </Project>
