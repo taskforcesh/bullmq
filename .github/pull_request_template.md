@@ -9,11 +9,11 @@
   If your change affects one or more ports, append a tag at the end of the
   PR title (outside the conventional-commit part) to indicate their status:
 
-    [python] / [elixir] / [php] / [rust]
+    [python] / [elixir] / [php] / [rust] / [dotnet]
       → The change is ONLY relevant to that port (Node.js is NOT affected).
         Multiple ports can be listed: [python][elixir]
 
-    (python) / (elixir) / (php) / (rust)
+    (python) / (elixir) / (php) / (rust) / (dotnet)
       → The change affects that port AND Node.js.
         Multiple ports can be listed: (python)(php)
 
@@ -36,6 +36,7 @@
 - [ ] **Elixir** – does this change need to be ported or documented in the Elixir library?
 - [ ] **PHP** – does this change need to be ported or documented in the PHP library?
 - [ ] **Rust** – does this change need to be ported or documented in the Rust library?
+- [ ] **.Net** – does this change need to be ported or documented in the .Net library?
 
 ### Why
 

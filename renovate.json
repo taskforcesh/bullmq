@@ -53,6 +53,13 @@
       "commitMessageSuffix": "[rust]"
     },
     {
+      "description": "Group every .NET (NuGet) update into a single PR",
+      "matchCategories": ["dotnet"],
+      "groupName": ".NET dependencies",
+      "groupSlug": "dotnet",
+      "commitMessageSuffix": "[dotnet]"
+    },
+    {
       "description": "Group every GitHub Actions / CI update into a single PR",
       "matchManagers": ["github-actions"],
       "groupName": "CI dependencies",
@@ -102,6 +109,14 @@
       "groupName": "Rust dependencies (major)",
       "groupSlug": "rust-major",
       "commitMessageSuffix": "[rust]"
+    },
+    {
+      "description": "Separate .NET major updates into their own PR",
+      "matchCategories": ["dotnet"],
+      "matchUpdateTypes": ["major"],
+      "groupName": ".NET dependencies (major)",
+      "groupSlug": "dotnet-major",
+      "commitMessageSuffix": "[dotnet]"
     },
     {
       "description": "Separate GitHub Actions / CI major updates into their own PR",
