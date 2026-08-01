@@ -4,6 +4,7 @@
 - [Quick Start](quick-start.md)
 - [API Reference](/api/index.html)
 - [Changelogs](changelog.md)
+  - [v5](changelogs/changelog-v5.md)
   - [v4](changelogs/changelog-v4.md)
   - [v3](changelogs/changelog-v3.md)
   - [v2](changelogs/changelog-v2.md)
@@ -162,6 +163,7 @@
 - [Job Cancellation](python/job-cancellation.md)
 - [Queue Events](python/queue-events.md)
 - [Changelogs](python/changelog.md)
+  - [v2](python/changelogs/changelog-v2.md)
   - [v1](python/changelogs/changelog-v1.md)
   - [v0](python/changelogs/changelog-v0.md)
 
@@ -176,8 +178,10 @@
 - [Introduction](elixir/introduction.md)
 - [API Reference](https://hexdocs.pm/bullmq)
 - [Changelogs](elixir/changelog.md)
+  - [v1](elixir/changelogs/changelog-v1.md)
 
 ## PHP
 
 - [Introduction](php/introduction.md)
 - [Changelogs](php/changelog.md)
+  - [v1](php/changelogs/changelog-v1.md)
