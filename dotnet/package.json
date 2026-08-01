@@ -1,0 +1,64 @@
+{
+  "name": "bullmq-dotnet-release",
+  "description": "BullMQ .NET SDK - semantic release configuration",
+  "author": "Taskforce.sh Inc.",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "semantic-release": "semantic-release"
+  },
+  "devDependencies": {
+    "@semantic-release/changelog": "7.0.0",
+    "@semantic-release/commit-analyzer": "13.0.1",
+    "@semantic-release/exec": "7.1.0",
+    "@semantic-release/git": "11.0.1",
+    "@semantic-release/github": "12.0.9",
+    "@semantic-release/release-notes-generator": "14.1.1",
+    "semantic-release": "25.0.8"
+  },
+  "release": {
+    "tagFormat": "vnet${version}",
+    "plugins": [
+      [
+        "@semantic-release/commit-analyzer",
+        {
+          "releaseRules": [
+            {
+              "header": "!({*,**/*}\\(dotnet\\)*|{*,**/*}\\[dotnet\\]*)",
+              "release": false
+            }
+          ]
+        }
+      ],
+      [
+        "@semantic-release/release-notes-generator",
+        {
+          "preset": "angular",
+          "presetConfig": {
+            "ignoreCommits": "^(?![^]*\\(dotnet\\))(?![^]*\\[dotnet\\]).*$"
+          }
+        }
+      ],
+      [
+        "@semantic-release/changelog",
+        {
+          "changelogFile": "../docs/gitbook/dotnet/changelog.md"
+        }
+      ],
+      [
+        "@semantic-release/exec",
+        {
+          "prepareCmd": "sed -i 's#<Version>.*</Version>#<Version>${nextRelease.version}</Version>#' src/BullMQ/BullMQ.csproj && sed -i 's/public const string Value = \".*\";/public const string Value = \"${nextRelease.version}\";/' src/BullMQ/Version.cs"
+        }
+      ],
+      [
+        "@semantic-release/exec",
+        {
+          "publishCmd": "dotnet pack src/BullMQ/BullMQ.csproj -c Release -o ./nupkg && dotnet nuget push \"./nupkg/*.nupkg\" --api-key $NUGET_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate"
+        }
+      ],
+      "@semantic-release/github"
+    ]
+  },
+  "packageManager": "yarn@1.22.22"
+}
