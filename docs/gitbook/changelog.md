@@ -17,7 +17,7 @@
 
 ### Bug Fixes
 
-* Nothing changed, triggered by a python and elixir version release
+* No Node.js changes.
 
 # [6.0.0](https://github.com/taskforcesh/bullmq/compare/v5.81.3...v6.0.0) (2026-07-30)
 
