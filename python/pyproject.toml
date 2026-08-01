@@ -28,19 +28,19 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pre-commit==4.5.1",
-    "build==1.4.2",
+    "pre-commit==4.6.1",
+    "build==1.5.0",
     "types-redis==4.6.0.20241004",
-    "pipenv==2026.5.1",
-    "virtualenv==21.2.0",
+    "pipenv==2026.6.2",
+    "virtualenv==21.7.1",
     "virtualenv-clone==0.5.7"
 ]
 test = [
-    "pytest==9.0.3",
+    "pytest==9.1.1",
     "pytest-timeout==2.4.0"
 ]
 postgres = [
-    "psycopg[binary] >=3.2"
+    "psycopg[binary] ==3.3.4"
 ]
 
 [project.urls]
