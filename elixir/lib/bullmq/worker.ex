@@ -1110,6 +1110,16 @@ defmodule BullMQ.Worker do
     end
   end
 
+  def handle_info({:job_unrecoverable, job_id, reason}, state) do
+    case Map.get(state.active_jobs, job_id) do
+      nil ->
+        {:noreply, state}
+
+      {job, _task_ref} ->
+        handle_job_unrecoverable(job, reason, state)
+    end
+  end
+
   def handle_info({:DOWN, ref, :process, _pid, reason}, state) do
     # Find the job associated with this task
     case find_job_by_ref(state.active_jobs, ref) do
@@ -1791,48 +1801,74 @@ defmodule BullMQ.Worker do
 
   # Execute processor without telemetry
   defp execute_processor(processor_fn, job, worker_pid) do
-    try do
-      result = processor_fn.()
-      send(worker_pid, {:job_completed, job.id, result})
-    rescue
-      e ->
-        stacktrace = __STACKTRACE__
-        send(worker_pid, {:job_failed, job.id, Exception.message(e), stacktrace})
-    catch
-      :exit, reason ->
-        stacktrace = __STACKTRACE__
-        send(worker_pid, {:job_failed, job.id, inspect(reason), stacktrace})
+    case deferred_failure_reason(job) do
+      nil ->
+        try do
+          result = processor_fn.()
+          send(worker_pid, {:job_completed, job.id, result})
+        rescue
+          e ->
+            stacktrace = __STACKTRACE__
+            send(worker_pid, {:job_failed, job.id, Exception.message(e), stacktrace})
+        catch
+          :exit, reason ->
+            stacktrace = __STACKTRACE__
+            send(worker_pid, {:job_failed, job.id, inspect(reason), stacktrace})
 
-      :throw, value ->
-        stacktrace = __STACKTRACE__
-        send(worker_pid, {:job_failed, job.id, inspect(value), stacktrace})
+          :throw, value ->
+            stacktrace = __STACKTRACE__
+            send(worker_pid, {:job_failed, job.id, inspect(value), stacktrace})
+        end
+
+      reason ->
+        # Jobs carrying a deferred failure (e.g. stalled over the allowable
+        # limit) must fail immediately without running the processor.
+        send(worker_pid, {:job_unrecoverable, job.id, reason})
     end
   end
 
   # Execute processor with telemetry span
   defp execute_processor_with_span(processor_fn, job, worker_pid, telemetry_mod, span) do
-    try do
-      result = processor_fn.()
-      telemetry_mod.end_span(span, :ok)
-      send(worker_pid, {:job_completed, job.id, result})
-    rescue
-      e ->
-        stacktrace = __STACKTRACE__
-        telemetry_mod.record_exception(span, e, stacktrace)
-        telemetry_mod.end_span(span, {:error, Exception.message(e)})
-        send(worker_pid, {:job_failed, job.id, Exception.message(e), stacktrace})
-    catch
-      :exit, reason ->
-        stacktrace = __STACKTRACE__
-        telemetry_mod.end_span(span, {:error, inspect(reason)})
-        send(worker_pid, {:job_failed, job.id, inspect(reason), stacktrace})
+    case deferred_failure_reason(job) do
+      nil ->
+        try do
+          result = processor_fn.()
+          telemetry_mod.end_span(span, :ok)
+          send(worker_pid, {:job_completed, job.id, result})
+        rescue
+          e ->
+            stacktrace = __STACKTRACE__
+            telemetry_mod.record_exception(span, e, stacktrace)
+            telemetry_mod.end_span(span, {:error, Exception.message(e)})
+            send(worker_pid, {:job_failed, job.id, Exception.message(e), stacktrace})
+        catch
+          :exit, reason ->
+            stacktrace = __STACKTRACE__
+            telemetry_mod.end_span(span, {:error, inspect(reason)})
+            send(worker_pid, {:job_failed, job.id, inspect(reason), stacktrace})
 
-      :throw, value ->
-        stacktrace = __STACKTRACE__
-        telemetry_mod.end_span(span, {:error, inspect(value)})
-        send(worker_pid, {:job_failed, job.id, inspect(value), stacktrace})
+          :throw, value ->
+            stacktrace = __STACKTRACE__
+            telemetry_mod.end_span(span, {:error, inspect(value)})
+            send(worker_pid, {:job_failed, job.id, inspect(value), stacktrace})
+        end
+
+      reason ->
+        # Jobs carrying a deferred failure (e.g. stalled over the allowable
+        # limit) must fail immediately without running the processor.
+        telemetry_mod.end_span(span, {:error, reason})
+        send(worker_pid, {:job_unrecoverable, job.id, reason})
     end
   end
+
+  # Jobs carrying a deferred failure must fail immediately instead of running
+  # the processor or retrying.
+  defp deferred_failure_reason(%Job{deferred_failure: deferred_failure})
+       when is_binary(deferred_failure) and deferred_failure != "" do
+    deferred_failure
+  end
+
+  defp deferred_failure_reason(_), do: nil
 
   # Check if processor accepts cancellation token (arity 2)
   defp processor_supports_cancellation?(processor) when is_function(processor) do
@@ -2047,6 +2083,33 @@ defmodule BullMQ.Worker do
       updated_job = %{job | attempts_made: job.attempts_made + 1, failed_reason: error_message}
       emit_event(state.on_failed, [updated_job, error_message])
     end
+
+    # Untrack job from LockManager
+    if state.lock_manager do
+      LockManager.untrack_job(state.lock_manager, job.id)
+    end
+
+    # Remove from active jobs, clean up cancellation token, and handle next job
+    new_state = cleanup_job_resources(job.id, state)
+    handle_next_job_or_fetch(next_job_result, new_state)
+  end
+
+  # A deferred/unrecoverable failure moves the job straight to failed,
+  # bypassing the retry logic (mirrors the autonomous worker path).
+  defp handle_job_unrecoverable(job, reason, state) do
+    error_message = if is_binary(reason), do: reason, else: inspect(reason)
+
+    next_job_result =
+      Backend.move_to_failed(
+        state.backend,
+        job.id,
+        job.token,
+        error_message,
+        build_move_opts(state, job) ++ [stacktrace: nil]
+      )
+
+    updated_job = %{job | attempts_made: job.attempts_made + 1, failed_reason: error_message}
+    emit_event(state.on_failed, [updated_job, error_message])
 
     # Untrack job from LockManager
     if state.lock_manager do

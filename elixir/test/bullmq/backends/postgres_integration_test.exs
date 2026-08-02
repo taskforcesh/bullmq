@@ -115,6 +115,65 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
     Worker.close(worker)
   end
 
+  # Regression: a job that stalled more than `max_stalled_count` allows is moved
+  # back to `waiting` with its `deferred_failure` column set (see
+  # `move_stalled_jobs_to_wait`). The worker must fail such a job immediately —
+  # without running the processor and without retrying — instead of running the
+  # user code again and letting the job cycle through active/stalled forever.
+  test "job carrying deferred_failure is failed without running the processor or retrying",
+       %{conn: conn, queue: queue} do
+    test_pid = self()
+    reason = "job stalled more than allowable limit"
+
+    # Seed a normal waiting job that still has retry attempts left, so proving it
+    # ends `failed` also proves the deferred failure bypasses the retry logic.
+    {:ok, job} = Queue.add(queue, "stalled-job", %{}, connection: conn, attempts: 5)
+
+    # Stamp the deferred failure exactly as the stalled-recovery flow does.
+    {:ok, _} =
+      Postgrex.query(
+        Backends.Postgres.Connection.pool(conn),
+        "UPDATE job SET deferred_failure = $1 WHERE queue = $2 AND id = $3",
+        [reason, queue, job.id]
+      )
+
+    {:ok, worker} =
+      Worker.start_link(
+        queue: queue,
+        connection: conn,
+        processor: fn _job ->
+          send(test_pid, :processor_ran)
+          {:ok, :should_not_happen}
+        end,
+        on_completed: fn j, _result -> send(test_pid, {:completed, j.id}) end,
+        on_failed: fn j, failed_reason ->
+          send(test_pid, {:failed, j.id, j.attempts_made, failed_reason})
+        end
+      )
+
+    # The job is failed immediately, carrying the deferred reason, with its
+    # attempt counter advanced once.
+    assert_receive {:failed, job_id, attempts_made, failed_reason}, 10_000
+    assert job_id == job.id
+    assert to_string(failed_reason) =~ "stalled more than allowable limit"
+    assert attempts_made == 1
+
+    # The processor never runs and the job never completes.
+    refute_receive :processor_ran, 500
+    refute_receive {:completed, _}, 200
+
+    # The job ends in `failed` — not stuck in active/waiting, and not retried.
+    assert {:ok, "failed"} = Queue.get_job_state(queue, job.id, connection: conn)
+
+    backend = Backend.create(queue, connection: conn, backend: Backends.Postgres)
+    {:ok, counts} = Backend.get_counts(backend)
+    assert counts["failed"] == 1
+    assert counts["active"] == 0
+    assert counts["waiting"] == 0
+
+    Worker.close(worker)
+  end
+
   test "FlowProducer parent completes after its children are processed", %{conn: conn, queue: queue} do
     test_pid = self()
 
