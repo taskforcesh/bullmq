@@ -65,7 +65,7 @@ defmodule BullMQ.MixProject do
   defp deps do
     [
       # Redis client
-      {:redix, "== 1.5.3"},
+      {:redix, "== 1.6.0"},
 
       # PostgreSQL client (optional backend)
       {:postgrex, "== 0.22.3", optional: true},
@@ -77,7 +77,7 @@ defmodule BullMQ.MixProject do
       {:nimble_options, "== 1.1.1"},
 
       # JSON encoding/decoding
-      {:jason, "== 1.4.4"},
+      {:jason, "== 1.4.5"},
 
       # Cron expression parsing
       {:crontab, "== 1.2.0"},
@@ -89,18 +89,18 @@ defmodule BullMQ.MixProject do
       {:elixir_uuid, "== 1.2.1"},
 
       # Telemetry for instrumentation
-      {:telemetry, "== 1.3.0"},
+      {:telemetry, "== 1.4.2"},
 
       # OpenTelemetry for distributed tracing (optional)
       {:opentelemetry_api, "== 1.5.0", optional: true},
 
       # Development and test dependencies
       {:dialyxir, "== 1.4.7", only: [:dev, :test], runtime: false},
-      {:ex_doc, "== 0.39.1", only: :dev, runtime: false},
-      {:credo, "== 1.7.13", only: [:dev, :test], runtime: false},
+      {:ex_doc, "== 0.40.3", only: :dev, runtime: false},
+      {:credo, "== 1.7.19", only: [:dev, :test], runtime: false},
       {:excoveralls, "== 0.18.5", only: :test},
       {:mox, "== 1.2.0", only: :test},
-      {:stream_data, "== 1.2.0", only: [:dev, :test]}
+      {:stream_data, "== 1.4.0", only: [:dev, :test]}
     ]
   end
 
