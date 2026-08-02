@@ -1,3 +1,12 @@
+## [2.0.3](https://github.com/taskforcesh/bullmq/compare/vex2.0.2...vex2.0.3) (2026-08-02)
+
+
+### Bug Fixes
+
+* **deps:** update python dependencies (python) ([#4453](https://github.com/taskforcesh/bullmq/issues/4453)) ([e58f9e1](https://github.com/taskforcesh/bullmq/commit/e58f9e1892463da4ca411506d66ee01413e5daeb))
+* **deps:** update security patches [security] ([#4444](https://github.com/taskforcesh/bullmq/issues/4444)) ([c1cf328](https://github.com/taskforcesh/bullmq/commit/c1cf32881474f3f1e9b620e025abde07a359eb06))
+* **worker:** fail jobs with deferred failure in task-based worker path [elixir] ([#4458](https://github.com/taskforcesh/bullmq/issues/4458)) ([740985a](https://github.com/taskforcesh/bullmq/commit/740985ae2f67a9144e7787f89955bf8c7f9500e0))
+
 ## [2.0.2](https://github.com/taskforcesh/bullmq/compare/vex2.0.1...vex2.0.2) (2026-07-31)
 
 
