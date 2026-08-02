@@ -847,6 +847,13 @@ public sealed class PostgresBackend : IQueueBackend
 
     public async Task<IReadOnlyList<EventEntry>> ReadEventsAsync(string id, double blockTimeoutSeconds)
     {
+        // Stop cleanly once the backend/connection is closing rather than
+        // reconnecting and blocking again (which would hang shutdown).
+        if (Closing || _connection.IsClosing)
+        {
+            return Array.Empty<EventEntry>();
+        }
+
         var listen = await _connection.EnsureEventsChannelAsync().ConfigureAwait(false);
 
         // Resolve the cursor: "$" means "only events from now on".
@@ -862,6 +869,11 @@ public sealed class PostgresBackend : IQueueBackend
         {
             var wait = TimeSpan.FromMilliseconds(Math.Max((long)Math.Round(blockTimeoutSeconds * 1000), 1));
             await _connection.WaitForEventsNotificationAsync(listen, wait).ConfigureAwait(false);
+            if (Closing || _connection.IsClosing)
+            {
+                return Array.Empty<EventEntry>();
+            }
+
             events = await FetchEventsAsync(cursor).ConfigureAwait(false);
         }
 

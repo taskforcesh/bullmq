@@ -61,8 +61,10 @@ public sealed class PostgresConnection : IAsyncDisposable
     private readonly bool _skipVersionCheck;
     private readonly SemaphoreSlim _readyLock = new(1, 1);
     private readonly SemaphoreSlim _connLock = new(1, 1);
+    private readonly CancellationTokenSource _closeCts = new();
 
     private bool _ready;
+    private volatile bool _closed;
     private NpgsqlConnection? _conn;
     private NpgsqlConnection? _listenConn;
     private bool _jobChannelListening;
@@ -71,6 +73,9 @@ public sealed class PostgresConnection : IAsyncDisposable
     private string? _applicationName;
 
     public string Schema { get; }
+
+    /// <summary>True once the connection has been closed; it will not reconnect.</summary>
+    public bool IsClosing => _closed;
 
     public PostgresConnection(PostgresOptions options)
     {
@@ -104,21 +109,47 @@ public sealed class PostgresConnection : IAsyncDisposable
                 return;
             }
 
+            await EnsureMigratedOnceAsync().ConfigureAwait(false);
+            _ready = true;
+        }
+        finally
+        {
+            _readyLock.Release();
+        }
+    }
+
+    // Migrations and the post-migration type-catalog reload run at most once per
+    // connection string per process. Doing them per-instance would repeatedly
+    // invalidate Npgsql's shared type cache and, under concurrency (e.g. many
+    // queues/workers/tests starting at once), trigger a catalog-reload storm
+    // across every other connection — turning startup into tens of seconds.
+    private static readonly SemaphoreSlim s_migrateLock = new(1, 1);
+    private static readonly HashSet<string> s_migrated = new(StringComparer.Ordinal);
+
+    private async Task EnsureMigratedOnceAsync()
+    {
+        await s_migrateLock.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (s_migrated.Contains(_connectionString))
+            {
+                return;
+            }
+
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync().ConfigureAwait(false);
             await RunMigrationsAsync(conn).ConfigureAwait(false);
 
             // The migrations create custom types (e.g. the job-state enum). Npgsql
             // caches the database type catalog on first connect (before those types
-            // existed), so reload it now — this clears the shared cache for this
-            // connection string so subsequent connections resolve the new types
-            // (and read the unmapped enum columns as strings).
+            // existed), so reload it once now so subsequent connections resolve the
+            // new types (and read the unmapped enum columns as strings).
             await conn.ReloadTypesAsync().ConfigureAwait(false);
-            _ready = true;
+            s_migrated.Add(_connectionString);
         }
         finally
         {
-            _readyLock.Release();
+            s_migrateLock.Release();
         }
     }
 
@@ -257,6 +288,11 @@ public sealed class PostgresConnection : IAsyncDisposable
 
     private async Task<NpgsqlConnection> GetConnAsync()
     {
+        if (_closed)
+        {
+            throw new ObjectDisposedException(nameof(PostgresConnection));
+        }
+
         if (_conn is null || _conn.State != System.Data.ConnectionState.Open)
         {
             _conn = new NpgsqlConnection(_connectionString);
@@ -285,6 +321,11 @@ public sealed class PostgresConnection : IAsyncDisposable
     /// <summary>Returns the dedicated LISTEN connection, subscribing to <c>bullmq_jobs</c> once.</summary>
     public async Task<NpgsqlConnection> EnsureJobChannelAsync()
     {
+        if (_closed)
+        {
+            throw new ObjectDisposedException(nameof(PostgresConnection));
+        }
+
         if (_listenConn is null || _listenConn.State != System.Data.ConnectionState.Open)
         {
             _listenConn = new NpgsqlConnection(_connectionString);
@@ -312,9 +353,18 @@ public sealed class PostgresConnection : IAsyncDisposable
     /// <summary>Waits up to <paramref name="timeout"/> for a NOTIFY on the job channel.</summary>
     public async Task WaitForNotificationAsync(NpgsqlConnection listenConn, TimeSpan timeout)
     {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(_closeCts.Token);
+        cts.CancelAfter(timeout);
         try
         {
-            await listenConn.WaitAsync(timeout).ConfigureAwait(false);
+            // WaitAsync returns on a NOTIFY; the linked token ends it on timeout
+            // or when the connection is closing (so shutdown is not blocked for
+            // the full timeout).
+            await listenConn.WaitAsync(cts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Timed out or closing — nothing to do.
         }
         catch (NpgsqlException)
         {
@@ -344,6 +394,11 @@ public sealed class PostgresConnection : IAsyncDisposable
     /// <summary>Returns a dedicated LISTEN connection subscribed to <c>bullmq_events</c> once.</summary>
     public async Task<NpgsqlConnection> EnsureEventsChannelAsync()
     {
+        if (_closed)
+        {
+            throw new ObjectDisposedException(nameof(PostgresConnection));
+        }
+
         if (_eventsConn is null || _eventsConn.State != System.Data.ConnectionState.Open)
         {
             _eventsConn = new NpgsqlConnection(_connectionString);
@@ -371,9 +426,15 @@ public sealed class PostgresConnection : IAsyncDisposable
     /// <summary>Waits up to <paramref name="timeout"/> for a NOTIFY on the events channel.</summary>
     public async Task WaitForEventsNotificationAsync(NpgsqlConnection listenConn, TimeSpan timeout)
     {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(_closeCts.Token);
+        cts.CancelAfter(timeout);
         try
         {
-            await listenConn.WaitAsync(timeout).ConfigureAwait(false);
+            await listenConn.WaitAsync(cts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Timed out or closing — nothing to do.
         }
         catch (NpgsqlException)
         {
@@ -402,28 +463,52 @@ public sealed class PostgresConnection : IAsyncDisposable
 
     public async Task CloseAsync()
     {
+        _closed = true;
+
+        // Interrupt any in-flight blocking LISTEN waits immediately so shutdown
+        // does not stall for their full timeout.
+        try
+        {
+            _closeCts.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Already disposed.
+        }
+
         await ResetJobChannelAsync().ConfigureAwait(false);
         await ResetEventsChannelAsync().ConfigureAwait(false);
 
-        if (_conn is not null)
+        // Serialize with in-flight queries so we never dispose the connection
+        // out from under an executing command (which can hang under load).
+        await _connLock.WaitAsync().ConfigureAwait(false);
+        try
         {
-            try
+            if (_conn is not null)
             {
-                await _conn.CloseAsync().ConfigureAwait(false);
-                await _conn.DisposeAsync().ConfigureAwait(false);
-            }
-            catch
-            {
-                // ignore
-            }
+                try
+                {
+                    await _conn.CloseAsync().ConfigureAwait(false);
+                    await _conn.DisposeAsync().ConfigureAwait(false);
+                }
+                catch
+                {
+                    // ignore
+                }
 
-            _conn = null;
+                _conn = null;
+            }
+        }
+        finally
+        {
+            _connLock.Release();
         }
     }
 
     public async ValueTask DisposeAsync()
     {
         await CloseAsync().ConfigureAwait(false);
+        _closeCts.Dispose();
         _readyLock.Dispose();
         _connLock.Dispose();
     }

@@ -55,7 +55,7 @@
       [
         "@semantic-release/exec",
         {
-          "publishCmd": "dotnet pack src/BullMQ/BullMQ.csproj -c Release -p:ContinuousIntegrationBuild=true -o ./nupkg && dotnet nuget push \"./nupkg/*.nupkg\" --api-key $NUGET_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate"
+          "publishCmd": "if [ -z \"$NUGET_API_KEY\" ]; then echo 'ERROR: no NuGet API key available; the NuGet/login Trusted Publishing (OIDC) step must run first.' >&2; exit 1; fi && dotnet pack src/BullMQ/BullMQ.csproj -c Release -p:ContinuousIntegrationBuild=true -o ./nupkg && dotnet nuget push \"./nupkg/*.nupkg\" --source https://api.nuget.org/v3/index.json --api-key \"$NUGET_API_KEY\" --skip-duplicate"
         }
       ],
       "@semantic-release/github"

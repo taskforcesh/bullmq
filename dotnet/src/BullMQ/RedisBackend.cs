@@ -91,20 +91,24 @@ public sealed class RedisBackend : IQueueBackend
 
     public Task CloseAsync(bool force = false)
     {
-        _closing ??= CloseInternalAsync();
+        _closing ??= CloseInternalAsync(force);
         return _closing;
     }
 
-    private async Task CloseInternalAsync()
+    private async Task CloseInternalAsync(bool force)
     {
+        // Always abort the blocking connection's in-flight BLOCK reads
+        // (XREAD/BZPOPMIN) so a close never waits for their full server-side
+        // timeout — otherwise shutting down a QueueEvents listener or an idle
+        // worker would stall for the whole blocking timeout.
         if (_blocking is not null)
         {
-            await _blocking.CloseAsync().ConfigureAwait(false);
+            await _blocking.CloseAsync(allowCommandsToComplete: false).ConfigureAwait(false);
         }
 
         if (_ownsConnection)
         {
-            await _connection.CloseAsync().ConfigureAwait(false);
+            await _connection.CloseAsync(allowCommandsToComplete: !force).ConfigureAwait(false);
         }
     }
 
