@@ -29,28 +29,35 @@
       "matchCategories": ["php"],
       "groupName": "PHP dependencies",
       "groupSlug": "php",
-      "commitMessageSuffix": "(php)"
+      "commitMessageSuffix": "[php]"
     },
     {
       "description": "Group every Python update into a single PR",
       "matchCategories": ["python"],
       "groupName": "Python dependencies",
       "groupSlug": "python",
-      "commitMessageSuffix": "(python)"
+      "commitMessageSuffix": "[python]"
     },
     {
       "description": "Group every Elixir (mix) update into a single PR",
       "matchCategories": ["elixir"],
       "groupName": "Elixir dependencies",
       "groupSlug": "elixir",
-      "commitMessageSuffix": "(elixir)"
+      "commitMessageSuffix": "[elixir]"
     },
     {
       "description": "Group every Rust (cargo) update into a single PR",
       "matchCategories": ["rust"],
       "groupName": "Rust dependencies",
       "groupSlug": "rust",
-      "commitMessageSuffix": "(rust)"
+      "commitMessageSuffix": "[rust]"
+    },
+    {
+      "description": "Group every .NET (NuGet) update into a single PR",
+      "matchCategories": ["dotnet"],
+      "groupName": ".NET dependencies",
+      "groupSlug": "dotnet",
+      "commitMessageSuffix": "[dotnet]"
     },
     {
       "description": "Group every GitHub Actions / CI update into a single PR",
@@ -77,7 +84,7 @@
       "matchUpdateTypes": ["major"],
       "groupName": "PHP dependencies (major)",
       "groupSlug": "php-major",
-      "commitMessageSuffix": "(php)"
+      "commitMessageSuffix": "[php]"
     },
     {
       "description": "Separate Python major updates into their own PR",
@@ -85,7 +92,7 @@
       "matchUpdateTypes": ["major"],
       "groupName": "Python dependencies (major)",
       "groupSlug": "python-major",
-      "commitMessageSuffix": "(python)"
+      "commitMessageSuffix": "[python]"
     },
     {
       "description": "Separate Elixir major updates into their own PR",
@@ -93,7 +100,7 @@
       "matchUpdateTypes": ["major"],
       "groupName": "Elixir dependencies (major)",
       "groupSlug": "elixir-major",
-      "commitMessageSuffix": "(elixir)"
+      "commitMessageSuffix": "[elixir]"
     },
     {
       "description": "Separate Rust major updates into their own PR",
@@ -101,7 +108,15 @@
       "matchUpdateTypes": ["major"],
       "groupName": "Rust dependencies (major)",
       "groupSlug": "rust-major",
-      "commitMessageSuffix": "(rust)"
+      "commitMessageSuffix": "[rust]"
+    },
+    {
+      "description": "Separate .NET major updates into their own PR",
+      "matchCategories": ["dotnet"],
+      "matchUpdateTypes": ["major"],
+      "groupName": ".NET dependencies (major)",
+      "groupSlug": "dotnet-major",
+      "commitMessageSuffix": "[dotnet]"
     },
     {
       "description": "Separate GitHub Actions / CI major updates into their own PR",

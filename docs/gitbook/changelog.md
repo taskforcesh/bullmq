@@ -46,7 +46,7 @@
 * High-level classes no longer expose Redis internals. The optional Connection constructor parameter is replaced by an optional BackendFactory. Queue#client, Queue#redisVersion, Queue#databaseType, Worker#blockingClient, and FlowProducer#client are removed. Access the raw Redis client through the RedisQueueBackend returned by getBackend(). Worker#waitUntilReady() now resolves to void instead of the Redis client.
 * Legacy repeatable jobs and their APIs are removed. This includes the repeat option on Queue#add and Queue#addBulk, the Repeat class, Queue#getRepeatableJobs(), Queue#removeRepeatable(), and Queue#removeRepeatableByKey(). Migrate recurring jobs to Job Schedulers.
 * The minimum supported Node.js version is now 14.17.0.
-* Worker#resume() is now asynchronous, returns Promise<void>, and must be awaited.
+* Worker#resume() is now asynchronous, returns `Promise<void>`, and must be awaited.
 * Queue#clean() telemetry now reports the number of cleaned jobs instead of recording the complete array of job IDs.
 * The deprecated TelemetryAttributes JobFinishedTimestamp and TelemetryAttributes.JobStatus members are removed. Telemetry uses JobState, and workers no longer set JobFinishedTimestamp on spans.
 * Meter#createGauge() is now required for telemetry adapters.
