@@ -91,20 +91,24 @@ public sealed class RedisBackend : IQueueBackend
 
     public Task CloseAsync(bool force = false)
     {
-        _closing ??= CloseInternalAsync();
+        _closing ??= CloseInternalAsync(force);
         return _closing;
     }
 
-    private async Task CloseInternalAsync()
+    private async Task CloseInternalAsync(bool force)
     {
+        // When this backend owns the blocking connection, abort any in-flight
+        // BLOCK reads (XREAD/BZPOPMIN) so close doesn't wait for the full
+        // server-side timeout — otherwise shutting down a QueueEvents listener
+        // or an idle worker can stall for the whole blocking timeout.
         if (_blocking is not null)
         {
-            await _blocking.CloseAsync().ConfigureAwait(false);
+            await _blocking.CloseAsync(allowCommandsToComplete: false).ConfigureAwait(false);
         }
 
         if (_ownsConnection)
         {
-            await _connection.CloseAsync().ConfigureAwait(false);
+            await _connection.CloseAsync(allowCommandsToComplete: !force).ConfigureAwait(false);
         }
     }
 
@@ -1036,12 +1040,25 @@ public sealed class RedisBackend : IQueueBackend
     // Worker blocking primitive
     // ============================================================
 
-    public async Task<MarkerResult?> WaitForJobAsync(double blockTimeoutSeconds)
+    public async Task<MarkerResult?> WaitForJobAsync(double blockTimeoutSeconds, CancellationToken cancellationToken = default)
     {
         var db = (_blocking ?? _connection).Db;
-        var result = await db
-            .ExecuteAsync("BZPOPMIN", _keys["marker"], blockTimeoutSeconds)
-            .ConfigureAwait(false);
+        var waitTask = db
+            .ExecuteAsync("BZPOPMIN", _keys["marker"], blockTimeoutSeconds);
+
+        // Race the blocking pop against the close signal. On cancel we abandon
+        // the BZPOPMIN; closing the (blocking) connection aborts it server-side.
+        if (cancellationToken.CanBeCanceled)
+        {
+            var cancelTask = Task.Delay(Timeout.Infinite, cancellationToken);
+            var done = await Task.WhenAny(waitTask, cancelTask).ConfigureAwait(false);
+            if (done != waitTask)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+        }
+
+        var result = await waitTask.ConfigureAwait(false);
 
         if (result.IsNull)
         {

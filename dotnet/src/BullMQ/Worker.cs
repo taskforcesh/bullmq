@@ -328,17 +328,10 @@ public sealed class Worker : IAsyncDisposable
 
         try
         {
-            var waitTask = backend.WaitForJobAsync(maxBlockSeconds);
-
-            // Race the (server-side) blocking wait against the close signal so a
-            // closing worker does not have to wait for the block timeout. An
-            // abandoned wait completes harmlessly in the background.
-            var cancelTask = Task.Delay(Timeout.Infinite, _closeCts.Token);
-            var done = await Task.WhenAny(waitTask, cancelTask).ConfigureAwait(false);
-            if (done == waitTask)
-            {
-                await waitTask.ConfigureAwait(false);
-            }
+            // Await the (server-side) blocking wait directly, cancelled by the
+            // close signal. Awaiting (rather than abandoning) lets the backend's
+            // wait unwind cleanly before the connection is torn down.
+            await backend.WaitForJobAsync(maxBlockSeconds, _closeCts.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {

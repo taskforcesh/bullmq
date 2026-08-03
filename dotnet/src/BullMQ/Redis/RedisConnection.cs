@@ -87,12 +87,18 @@ public sealed class RedisConnection : IAsyncDisposable
         return Db.ScriptEvaluateAsync(script.Content, keys, args);
     }
 
-    /// <summary>Closes the connection, disposing it only when owned.</summary>
-    public async Task CloseAsync()
+    /// <summary>
+    /// Closes the connection, disposing it only when owned. When
+    /// <paramref name="allowCommandsToComplete"/> is <c>false</c>, any in-flight
+    /// commands (e.g. a blocking <c>XREAD</c>/<c>BZPOPMIN</c>) are aborted
+    /// immediately rather than waited on — essential so shutting down a blocking
+    /// connection does not stall for the command's full server-side timeout.
+    /// </summary>
+    public async Task CloseAsync(bool allowCommandsToComplete = true)
     {
         if (_ownsConnection)
         {
-            await Multiplexer.CloseAsync().ConfigureAwait(false);
+            await Multiplexer.CloseAsync(allowCommandsToComplete).ConfigureAwait(false);
             Multiplexer.Dispose();
         }
     }
