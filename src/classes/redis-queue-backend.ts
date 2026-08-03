@@ -2814,8 +2814,8 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       BLOCK: blockTimeout,
     }) as Promise<StreamReadRaw>;
 
-    // A non-positive BLOCK means "block forever"; there is no bounded deadline
-    // to guard, so fall back to the plain blocking read.
+    // Redis XREAD `BLOCK 0` means "block forever". If `blockTimeout` is <= 0 we
+    // cannot enforce a bounded deadline, so fall back to the plain blocking read.
     if (blockTimeout <= 0) {
       return xread;
     }
