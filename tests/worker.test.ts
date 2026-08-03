@@ -1152,6 +1152,42 @@ describe('workers', () => {
         await worker.close();
       }
     });
+
+    it('recovers when the blocking command never settles (#4479)', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      const backend = worker.getBackend();
+      const bclient = (await backend.blockingClient)!;
+
+      // Reproduce the #4479 wedge: blocking connections must use
+      // `maxRetriesPerRequest: null`, and with that setting IORedis silently
+      // re-queues and re-sends an interrupted blocking command after a
+      // reconnect instead of rejecting it — so the awaited `bzpopmin` never
+      // settles. Before the watchdog fix this parked `waitForJob` forever.
+      const bzpopmin = sandbox
+        .stub(bclient, 'bzpopmin')
+        .returns(new Promise(() => {}) as any);
+      const reconnectBlocking = sandbox
+        .stub(backend, 'reconnectBlocking')
+        .resolves();
+
+      try {
+        // A tiny block timeout keeps the watchdog window small. The watchdog
+        // must conclude the wait as a timeout (null) even though `bzpopmin`
+        // never settles, and re-establish the blocking connection.
+        const result = await backend.waitForJob(0.001);
+        expect(result).toBe(null);
+        expect(bzpopmin.calledOnce).toBe(true);
+        expect(reconnectBlocking.calledOnce).toBe(true);
+      } finally {
+        await worker.close();
+      }
+    });
   });
 
   describe('when calling getBlockTimeout', () => {

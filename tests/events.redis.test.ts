@@ -27,6 +27,7 @@ import {
   QueueEvents,
   QueueEventsListener,
   QueueEventsProducer,
+  RedisQueueBackend,
   Worker,
 } from '../src/classes';
 import { delay, randomUUID, removeAllQueueData } from '../src/utils';
@@ -64,6 +65,54 @@ describe('events (redis-only)', () => {
 
   afterAll(async function () {
     await connection.quit();
+  });
+
+  describe('when the blocking XREAD never settles (#4479)', () => {
+    it('recovers via the readEvents watchdog', async () => {
+      // Reproduce the #4479 wedge for the event-stream consumer: under
+      // `maxRetriesPerRequest: null` IORedis silently re-queues and re-sends an
+      // interrupted blocking `XREAD` after a reconnect instead of rejecting it,
+      // so the awaited read never settles. The watchdog must conclude the read
+      // as a timeout, abandon the stuck command (disconnect) and re-establish
+      // the connection. We drive `readEvents` against a fake client/connection
+      // so the never-settling read is deterministic and Redis-independent.
+      let disconnectedWithReconnect: boolean | undefined;
+      let reconnectCalls = 0;
+
+      const fakeClient = {
+        xread: () => new Promise(() => {}), // never settles
+        disconnect: (reconnect: boolean) => {
+          disconnectedWithReconnect = reconnect;
+        },
+      };
+
+      const fakeBackend = {
+        closing: false,
+        connection: {
+          reconnect: async () => {
+            reconnectCalls++;
+          },
+        },
+        queue: {
+          client: Promise.resolve(fakeClient),
+          keys: { events: `${prefix}:${queueName}:events` },
+        },
+      };
+
+      // A tiny BLOCK keeps the watchdog window small (~1s).
+      const result = await (
+        RedisQueueBackend.prototype.readEvents as (
+          this: unknown,
+          id: string,
+          blockTimeout: number,
+        ) => Promise<unknown>
+      ).call(fakeBackend, '$', 50);
+
+      expect(result).toBe(null);
+      // Abandoned without auto-resend so the stuck command is discarded.
+      expect(disconnectedWithReconnect).toBe(false);
+      expect(reconnectCalls).toBe(1);
+    });
   });
 
   describe('when jobs removal is attempted on non-existed records', async () => {
