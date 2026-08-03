@@ -1040,12 +1040,25 @@ public sealed class RedisBackend : IQueueBackend
     // Worker blocking primitive
     // ============================================================
 
-    public async Task<MarkerResult?> WaitForJobAsync(double blockTimeoutSeconds)
+    public async Task<MarkerResult?> WaitForJobAsync(double blockTimeoutSeconds, CancellationToken cancellationToken = default)
     {
         var db = (_blocking ?? _connection).Db;
-        var result = await db
-            .ExecuteAsync("BZPOPMIN", _keys["marker"], blockTimeoutSeconds)
-            .ConfigureAwait(false);
+        var waitTask = db
+            .ExecuteAsync("BZPOPMIN", _keys["marker"], blockTimeoutSeconds);
+
+        // Race the blocking pop against the close signal. On cancel we abandon
+        // the BZPOPMIN; closing the (blocking) connection aborts it server-side.
+        if (cancellationToken.CanBeCanceled)
+        {
+            var cancelTask = Task.Delay(Timeout.Infinite, cancellationToken);
+            var done = await Task.WhenAny(waitTask, cancelTask).ConfigureAwait(false);
+            if (done != waitTask)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+        }
+
+        var result = await waitTask.ConfigureAwait(false);
 
         if (result.IsNull)
         {

@@ -282,7 +282,7 @@ public interface IQueueBackend : IAsyncDisposable
     /// Blocks (up to <paramref name="blockTimeoutSeconds"/>) until the queue
     /// signals that a job may be available, returning the marker entry or null.
     /// </summary>
-    Task<MarkerResult?> WaitForJobAsync(double blockTimeoutSeconds);
+    Task<MarkerResult?> WaitForJobAsync(double blockTimeoutSeconds, CancellationToken cancellationToken = default);
 
     // ============================================================
     // Event stream
