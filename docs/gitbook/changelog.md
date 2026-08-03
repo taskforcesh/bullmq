@@ -1,3 +1,10 @@
+## [6.0.6](https://github.com/taskforcesh/bullmq/compare/v6.0.5...v6.0.6) (2026-08-03)
+
+
+### Bug Fixes
+
+* **deps:** update cron-parser to v5.7.0 ([#4462](https://github.com/taskforcesh/bullmq/issues/4462)) ([a514f2d](https://github.com/taskforcesh/bullmq/commit/a514f2d3976848aa631de22bfa458b7e9f60b384))
+
 ## [6.0.5](https://github.com/taskforcesh/bullmq/compare/v6.0.4...v6.0.5) (2026-08-01)
 
 
