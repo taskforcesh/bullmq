@@ -146,16 +146,16 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Elixir
-        uses: erlef/setup-beam@v1
+        uses: erlef/setup-beam@v1.24.1
         with:
           elixir-version: ${{ matrix.elixir-version }}
           otp-version: ${{ matrix.otp-version }}
 
       - name: Restore dependencies cache
-        uses: actions/cache@v6
+        uses: actions/cache@v6.1.0
         with:
           path: elixir/deps
           key: ${{ runner.os }}-mix-deps-${{ matrix.elixir-version }}-${{ matrix.otp-version }}-${{ hashFiles('elixir/mix.lock') }}

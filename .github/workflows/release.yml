@@ -27,7 +27,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '24.15.0'
+          node-version: '24.18.1'
           cache: 'yarn'
       - name: Install dependencies Node
         run: yarn install --frozen-lockfile --non-interactive
@@ -479,7 +479,7 @@ jobs:
 
       # .NET Release
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@v6.0.0
         with:
           dotnet-version: '8.0.x'
       - name: Copy runtime artifacts for .NET
@@ -494,7 +494,7 @@ jobs:
       - name: NuGet login (Trusted Publishing / OIDC)
         id: nuget_login
         if: ${{ contains(env.commitmsg, '[dotnet]') || contains(env.commitmsg, '(dotnet)') }}
-        uses: NuGet/login@v1
+        uses: NuGet/login@v1.2.0
         with:
           # NuGet.org account that owns the Trusted Publishing policy for BullMQ.
           user: manast

@@ -84,7 +84,7 @@ jobs:
 
       - name: Setup .NET ${{ matrix.dotnet-version }}
         if: env.should_run == 'true'
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@v6.0.0
         with:
           dotnet-version: ${{ matrix.dotnet-version }}
 
