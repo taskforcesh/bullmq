@@ -81,7 +81,7 @@
     "tsc:all": "tsc && tsc -p tsconfig-cjs.json"
   },
   "dependencies": {
-    "cron-parser": "5.6.2",
+    "cron-parser": "5.7.0",
     "msgpackr": "2.0.5",
     "node-abort-controller": "3.1.1",
     "semver": "7.8.5",
@@ -124,7 +124,7 @@
     "@types/msgpack": "0.0.34",
     "@types/node": "24.13.3",
     "@types/pg": "8.20.3",
-    "@types/semver": "7.7.1",
+    "@types/semver": "7.8.0",
     "@types/sinon": "22.0.0",
     "@typescript-eslint/eslint-plugin": "8.65.0",
     "@typescript-eslint/parser": "8.65.0",
@@ -137,7 +137,7 @@
     "eslint-plugin-promise": "7.3.0",
     "eslint-plugin-tsdoc": "0.5.2",
     "fast-glob": "3.3.3",
-    "globals": "17.8.0",
+    "globals": "17.9.0",
     "husky": "9.1.7",
     "ioredis": "5.11.1",
     "lint-staged": "17.3.0",
