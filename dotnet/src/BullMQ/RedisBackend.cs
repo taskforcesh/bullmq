@@ -97,10 +97,10 @@ public sealed class RedisBackend : IQueueBackend
 
     private async Task CloseInternalAsync(bool force)
     {
-        // Always abort the blocking connection's in-flight BLOCK reads
-        // (XREAD/BZPOPMIN) so a close never waits for their full server-side
-        // timeout — otherwise shutting down a QueueEvents listener or an idle
-        // worker would stall for the whole blocking timeout.
+        // When this backend owns the blocking connection, abort any in-flight
+        // BLOCK reads (XREAD/BZPOPMIN) so close doesn't wait for the full
+        // server-side timeout — otherwise shutting down a QueueEvents listener
+        // or an idle worker can stall for the whole blocking timeout.
         if (_blocking is not null)
         {
             await _blocking.CloseAsync(allowCommandsToComplete: false).ConfigureAwait(false);

@@ -76,7 +76,7 @@ public sealed class PostgresConnection : IAsyncDisposable
 
     public string Schema { get; }
 
-    /// <summary>True once the connection has been closed; it will not reconnect.</summary>
+    /// <summary>True once close has started; the connection will not reconnect.</summary>
     public bool IsClosing => _closed;
 
     public PostgresConnection(PostgresOptions options)
