@@ -24,7 +24,9 @@ public abstract class QueueEventsTestsBase
     {
         var q = UniqueName();
         await using var queue = new Queue(q, NewQueueOptions());
-        await using var events = new QueueEvents(q, NewQueueEventsOptions());
+        var queueEventsOptions = NewQueueEventsOptions();
+        queueEventsOptions.LastEventId ??= "0-0";
+        await using var events = new QueueEvents(q, queueEventsOptions);
         await events.WaitUntilReadyAsync();
 
         var completed = new TaskCompletionSource<QueueEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
