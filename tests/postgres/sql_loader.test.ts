@@ -20,17 +20,19 @@ describe('PostgreSQL SQL Loader', () => {
 
   it('caches loaded SQL content for subsequent calls', async () => {
     vi.resetModules();
-    const fs = await import('fs');
-    const readSpy = vi.spyOn(fs, 'readFileSync');
+    const readFileSync = vi.fn(() => 'SELECT 1;');
 
-    const { loadCommandSql: loadCommandSqlFresh } = await import(
-      '../../src/postgres/sql-loader',
-    );
+    vi.doMock('fs', () => ({
+      readFileSync,
+    }));
 
-    loadCommandSqlFresh('add_job');
-    loadCommandSqlFresh('add_job');
+    const { loadCommandSql: loadCommandSqlFresh } =
+      await import('../../src/postgres/sql-loader');
 
-    expect(readSpy).toHaveBeenCalledTimes(1);
-    readSpy.mockRestore();
+    expect(loadCommandSqlFresh('add_job')).toBe('SELECT 1;');
+    expect(loadCommandSqlFresh('add_job')).toBe('SELECT 1;');
+
+    expect(readFileSync).toHaveBeenCalledTimes(1);
+    vi.doUnmock('fs');
   });
 });
