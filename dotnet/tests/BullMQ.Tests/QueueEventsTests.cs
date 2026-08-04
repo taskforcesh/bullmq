@@ -17,6 +17,8 @@ public abstract class QueueEventsTestsBase
 
     protected abstract QueueEventsOptions NewQueueEventsOptions();
 
+    protected virtual string? InitialLastEventId => null;
+
     private static string UniqueName() => $"dotnet-qe-{Guid.NewGuid():N}";
 
     [Fact]
@@ -25,7 +27,7 @@ public abstract class QueueEventsTestsBase
         var q = UniqueName();
         await using var queue = new Queue(q, NewQueueOptions());
         var queueEventsOptions = NewQueueEventsOptions();
-        queueEventsOptions.LastEventId ??= "0-0";
+        queueEventsOptions.LastEventId ??= InitialLastEventId;
         await using var events = new QueueEvents(q, queueEventsOptions);
         await events.WaitUntilReadyAsync();
 
@@ -75,6 +77,8 @@ public sealed class RedisQueueEventsTests : QueueEventsTestsBase
 {
     private static string ConnectionString =>
         Environment.GetEnvironmentVariable("BULLMQ_TEST_REDIS") ?? "localhost:6379";
+
+    protected override string? InitialLastEventId => "0-0";
 
     protected override QueueOptions NewQueueOptions() =>
         new() { Connection = ConnectionOptions.FromString(ConnectionString) };
