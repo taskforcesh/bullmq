@@ -2735,21 +2735,43 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       ? blockTimeout
       : Math.ceil(blockTimeout);
 
-    // We cannot trust that the blocking connection stays blocking forever due
-    // to issues in Redis and IORedis, so we reconnect the (owned) blocking
-    // connection if we don't get a response within the expected time.
-    const watchdog = setTimeout(
-      () => {
-        bclient.disconnect(!this.closing);
-      },
-      roundedTimeout * 1000 + 1000,
-    );
+    const bzpopmin = bclient.bzpopmin(
+      this.queue.keys.marker,
+      roundedTimeout,
+    ) as Promise<[string, string, string] | null>;
+    // If the watchdog abandons this command below, its (possibly much later)
+    // rejection must not surface as an unhandled promise rejection.
+    bzpopmin.catch((): null => null);
+
+    // We cannot trust that the blocking connection stays blocking for exactly
+    // the expected time due to issues in Redis and IORedis. In particular,
+    // blocking connections must use `maxRetriesPerRequest: null`, and with that
+    // setting IORedis silently re-queues and re-sends an interrupted blocking
+    // command after a reconnect instead of rejecting it (see #4479). As a
+    // result the awaited `bzpopmin` can hang forever after a transient
+    // connection reset, parking the worker's fetch loop permanently.
+    //
+    // To make this robust we race the blocking command against a watchdog
+    // timeout: when the deadline passes we disconnect the (owned) blocking
+    // connection to abandon the possibly-stuck command and resolve the wait as
+    // a timeout, so the worker loop always advances (and can promote due
+    // delayed jobs / write markers) regardless of whether IORedis ever settles
+    // the command.
+    let timedOut = false;
+    let watchdog: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<null>(resolve => {
+      watchdog = setTimeout(
+        () => {
+          timedOut = true;
+          bclient.disconnect(false);
+          resolve(null);
+        },
+        roundedTimeout * 1000 + 1000,
+      );
+    });
 
     try {
-      const result = await bclient.bzpopmin(
-        this.queue.keys.marker,
-        roundedTimeout,
-      );
+      const result = await Promise.race([bzpopmin, timeout]);
       if (result) {
         const [, member, score] = result;
         if (member) {
@@ -2759,6 +2781,18 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       return null;
     } finally {
       clearTimeout(watchdog);
+      // The watchdog disconnected the blocking connection without letting
+      // IORedis auto-resend the abandoned command. Since we resolved the wait
+      // as a timeout (rather than surfacing a rejection to the worker's own
+      // reconnect path), re-establish the dedicated blocking connection here so
+      // the next `waitForJob` starts from a healthy, unblocked connection.
+      if (timedOut && !this.closing) {
+        try {
+          await this.reconnectBlocking();
+        } catch {
+          // Ignored: the next waitForJob call will retry the reconnect.
+        }
+      }
     }
   }
 
@@ -2775,9 +2809,55 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
 
   async readEvents(id: string, blockTimeout: number): Promise<StreamReadRaw> {
     const client = await this.queue.client;
-    return client.xread([{ key: this.queue.keys.events, id }], {
+
+    const xread = client.xread([{ key: this.queue.keys.events, id }], {
       BLOCK: blockTimeout,
+    }) as Promise<StreamReadRaw>;
+
+    // Redis XREAD `BLOCK 0` means "block forever". If `blockTimeout` is <= 0 we
+    // cannot enforce a bounded deadline, so fall back to the plain blocking read.
+    if (blockTimeout <= 0) {
+      return xread;
+    }
+
+    // If the watchdog abandons this command below, its (possibly much later)
+    // rejection must not surface as an unhandled promise rejection.
+    xread.catch((): null => null);
+
+    // Same class of hang as `waitForJob` (#4479): the event-stream connection
+    // must use `maxRetriesPerRequest: null`, and with that setting IORedis
+    // silently re-queues and re-sends an interrupted blocking `XREAD` after a
+    // reconnect instead of rejecting it — so the awaited read can hang forever
+    // after a transient connection reset, permanently stalling the event
+    // consumer loop. Race the read against a watchdog: when the deadline passes
+    // (the server-side BLOCK plus a small margin) we disconnect the connection
+    // to abandon the stuck command and resolve as a timeout, so the consumer
+    // loop always advances and can re-issue the read.
+    let timedOut = false;
+    let watchdog: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<null>(resolve => {
+      watchdog = setTimeout(() => {
+        timedOut = true;
+        client.disconnect(false);
+        resolve(null);
+      }, blockTimeout + 1000);
     });
+
+    try {
+      return (await Promise.race([xread, timeout])) as StreamReadRaw;
+    } finally {
+      clearTimeout(watchdog);
+      // The watchdog disconnected the connection without letting IORedis
+      // auto-resend the abandoned command. Re-establish it here so the next
+      // read starts from a healthy, unblocked connection.
+      if (timedOut && !this.closing) {
+        try {
+          await this.connection.reconnect();
+        } catch {
+          // Ignored: the next readEvents call will retry the reconnect.
+        }
+      }
+    }
   }
 }
 
