@@ -1,3 +1,10 @@
+## [6.0.7](https://github.com/taskforcesh/bullmq/compare/v6.0.6...v6.0.7) (2026-08-04)
+
+
+### Bug Fixes
+
+* **worker:** recover blocking reads that never settle after a reconnect fixes [#4479](https://github.com/taskforcesh/bullmq/issues/4479) ([#4484](https://github.com/taskforcesh/bullmq/issues/4484)) ([e7e9a64](https://github.com/taskforcesh/bullmq/commit/e7e9a6478d39d43406559b03410b2c5c28639e74))
+
 ## [6.0.6](https://github.com/taskforcesh/bullmq/compare/v6.0.5...v6.0.6) (2026-08-03)
 
 
