@@ -240,10 +240,10 @@
   "resolutions": {
     "brace-expansion": "5.0.9",
     "esbuild": "~0.25.0",
-    "js-yaml": "4.3.0",
+    "js-yaml": "5.2.3",
     "picomatch": "4.0.5",
     "tar": "7.5.22",
-    "vite": "^6.4.3",
+    "vite": "^8.0.0",
     "yaml": ">=2.8.3"
   }
 }
