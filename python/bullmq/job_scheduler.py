@@ -23,7 +23,6 @@ one, mirroring how the Node side composes `JobScheduler` onto its
 
 from __future__ import annotations
 
-import asyncio
 import json
 import time
 from datetime import datetime, timezone
@@ -122,7 +121,9 @@ class JobScheduler:
 
     def __init__(self, queue: "Queue", repeat_strategy=None):
         self.queue = queue
-        self.scripts = queue.scripts
+        # All datastore operations go through the queue's backend, so the
+        # scheduler is backend-agnostic (Redis, PostgreSQL, ...).
+        self.backend = queue.backend
         self.repeat_strategy = repeat_strategy or default_repeat_strategy
 
     async def upsertJobScheduler(
@@ -230,7 +231,7 @@ class JobScheduler:
                 k: v for k, v in scheduler_opts.items() if v is not None
             }
 
-            result = await self.scripts.addJobScheduler(
+            result = await self.backend.addJobScheduler(
                 job_scheduler_id,
                 clamped_next,
                 template_data_str,
@@ -257,7 +258,7 @@ class JobScheduler:
             return job
 
         # Non-override path: only advance the next-millis pointer.
-        job_id = await self.scripts.updateJobSchedulerNextMillis(
+        job_id = await self.backend.updateJobSchedulerNextMillis(
             job_scheduler_id,
             next_millis or now,
             template_data_str,
@@ -310,89 +311,36 @@ class JobScheduler:
 
     async def removeJobScheduler(self, job_scheduler_id: str) -> int:
         """Remove a scheduler. Returns 0 on success, 1 if absent."""
-        return await self.scripts.removeJobScheduler(job_scheduler_id)
+        return await self.backend.removeJobScheduler(job_scheduler_id)
 
     async def isJobScheduler(self, job_scheduler_id: str) -> bool:
-        """
-        Return True if `job_scheduler_id` corresponds to a registered
-        scheduler. Probes the `ic` field on the per-id hash so that
-        legacy repeatable-job ids stored in the same sorted set are not
-        misclassified as schedulers. Mirrors Node's `isJobScheduler`.
-        """
-        scheduler_hash_key = f"{self.queue.keys['repeat']}:{job_scheduler_id}"
-        exists = await self.queue.client.hexists(scheduler_hash_key, "ic")
-        return exists == 1
+        """Return True if `job_scheduler_id` corresponds to a registered
+        scheduler. Mirrors Node's `isJobScheduler`."""
+        return await self.backend.isJobScheduler(job_scheduler_id)
 
     async def getScheduler(self, job_scheduler_id: str) -> Optional[dict]:
         """Return the JSON-shaped scheduler record, or None."""
-        raw, score = await self.scripts.getJobScheduler(job_scheduler_id)
-        next_millis = int(score) if score is not None else None
-        if not raw:
+        fields, next_millis = await self.backend.getJobScheduler(job_scheduler_id)
+        if not fields:
             return None
-        fields = _array_to_dict(raw)
         return _transform_scheduler_data(job_scheduler_id, fields, next_millis)
 
     async def getJobSchedulers(
         self, start: int = 0, end: int = -1, asc: bool = False
     ) -> list:
         """Page through registered schedulers. `asc=True` returns
-        earliest-next-fire first.
-
-        Issues the per-scheduler `HGETALL` calls concurrently via
-        `asyncio.gather` to avoid an N+1 sequential round-trip on large
-        scheduler counts.
-        """
-        repeat_key = self.queue.keys["repeat"]
-        if asc:
-            raw = await self.queue.client.zrange(
-                repeat_key, start, end, withscores=True
-            )
-        else:
-            raw = await self.queue.client.zrevrange(
-                repeat_key, start, end, withscores=True
-            )
-
-        if not raw:
-            return []
-
-        members = [member for member, _score in raw]
-        scores = [score for _member, score in raw]
-
-        fields_per_member = await asyncio.gather(
-            *(
-                self.queue.client.hgetall(f"{repeat_key}:{member}")
-                for member in members
-            )
-        )
-
+        earliest-next-fire first."""
+        records = await self.backend.getJobSchedulers(start, end, asc)
         out = []
-        for member, score, fields_raw in zip(members, scores, fields_per_member):
-            try:
-                next_millis = int(score)
-            except (TypeError, ValueError):
-                next_millis = None
-            data = _transform_scheduler_data(member, fields_raw, next_millis)
+        for key, fields, next_millis in records:
+            data = _transform_scheduler_data(key, fields, next_millis)
             if data is not None:
                 out.append(data)
         return out
 
     async def getSchedulersCount(self) -> int:
         """Total number of registered schedulers."""
-        return await self.queue.client.zcard(self.queue.keys["repeat"])
-
-
-def _array_to_dict(arr) -> dict:
-    """Turn the Lua-flat `[k1, v1, k2, v2, ...]` shape into a dict.
-    `redis-py` may also already hand us a dict (depending on the
-    response policy); pass it through unchanged in that case."""
-    if isinstance(arr, dict):
-        return arr
-    if not arr:
-        return {}
-    out = {}
-    for i in range(0, len(arr), 2):
-        out[arr[i]] = arr[i + 1]
-    return out
+        return await self.backend.getJobSchedulersCount()
 
 
 def _transform_scheduler_data(

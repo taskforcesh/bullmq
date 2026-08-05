@@ -121,6 +121,7 @@ class Worker(EventEmitter):
         self.client = getattr(self.backend, "conn", None)
         self.bclient = getattr(self.backend, "bclient", None)
         self.scripts = getattr(self.backend, "scripts", None)
+        self.keys = getattr(self.backend, "keys", None)
         self.prefix = self.opts.get("prefix", "bull")
         self.closing = False
         self.forceClosing = False
@@ -136,6 +137,7 @@ class Worker(EventEmitter):
         self.drained = False
         self.qualifiedName = self.backend.qualifiedName
         self.workerName = opts.get("name")
+        self._job_scheduler = None
         self.clientName = self.backend.clientName(
             f":w:{self.workerName}" if self.workerName else ""
         )
@@ -254,9 +256,22 @@ class Worker(EventEmitter):
         if result:
             job_data, id, limit_until, delay_until = result
 
-        return self.nextJobFromJobData(job_data, id, limit_until, delay_until, token)
+        return await self.nextJobFromJobData(job_data, id, limit_until, delay_until, token)
 
-    def nextJobFromJobData(self, job_data: dict | None = None, job_id: str | None = None, limit_until: int = 0,
+    @property
+    def jobScheduler(self):
+        """
+        Lazily-instantiated JobScheduler that shares this worker's backend
+        (same queue). Created on first use so that workers which never
+        process scheduled jobs pay no cost. Mirrors the Node worker's
+        `jobScheduler` getter.
+        """
+        if self._job_scheduler is None:
+            from bullmq.job_scheduler import JobScheduler
+            self._job_scheduler = JobScheduler(self)
+        return self._job_scheduler
+
+    async def nextJobFromJobData(self, job_data: dict | None = None, job_id: str | None = None, limit_until: int = 0,
         delay_until: int = 0, token: str | None = None) -> Job | None:
         self.limitUntil = max(limit_until, 0) or 0
 
@@ -272,7 +287,47 @@ class Worker(EventEmitter):
             self.drained = False
             job_instance = Job.fromJSON(self, job_data, job_id)
             job_instance.token = token
+
+            # If this job was produced by a job scheduler, advance the
+            # scheduler to materialize its next iteration. The Node worker
+            # performs the same step here in `nextJobFromJobData`; without
+            # it a scheduler only ever fires its first iteration
+            # (see issue #4483).
+            if job_instance.repeatJobKey:
+                try:
+                    await self.retryIfFailed(
+                        lambda: self._scheduleNextIteration(job_instance),
+                        {"delay_in_ms": self.opts.get("runRetryDelay")},
+                    )
+                except Exception as err:
+                    # Emit the error but don't propagate it: the current job
+                    # has already been moved to active and must still be
+                    # returned for processing. The trade-off is that the
+                    # next iteration will not have been scheduled.
+                    self.emit(
+                        "error",
+                        RuntimeError(
+                            "Failed to add repeatable job for next iteration: "
+                            f"{err}"
+                        ),
+                    )
+
             return job_instance
+
+    async def _scheduleNextIteration(self, job: Job) -> None:
+        """Upsert the job scheduler that produced `job` so its next
+        iteration is materialized. Most of the arguments are no longer
+        strictly needed (the scheduler reads them from its own record),
+        but they are passed through to mirror the Node implementation."""
+        await self.jobScheduler.upsertJobScheduler(
+            job.repeatJobKey,
+            (job.opts or {}).get("repeat"),
+            job.name,
+            job.data,
+            job.opts,
+            override=False,
+            producer_id=job.id,
+        )
 
     async def waitForJob(self) -> int:
         block_timeout = self.getBlockTimeout(self.blockUntil)

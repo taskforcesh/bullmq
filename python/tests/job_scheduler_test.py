@@ -3,6 +3,7 @@ Tests for JobScheduler (repeatable job factories).
 """
 
 import os
+import asyncio
 import time
 import unittest
 from uuid import uuid4
@@ -11,7 +12,7 @@ from zoneinfo import ZoneInfoNotFoundError
 from croniter import CroniterBadCronError
 import redis.asyncio as redis
 
-from bullmq import Queue
+from bullmq import Queue, Worker
 from bullmq.job_scheduler import default_repeat_strategy, _transform_scheduler_data
 
 
@@ -68,6 +69,103 @@ class TestJobScheduler(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(scheduler.get("pattern"), "* * * * *")
             self.assertIsNotNone(scheduler.get("next"))
         finally:
+            await queue.close()
+
+    async def test_worker_lazily_creates_job_scheduler(self):
+        """The worker exposes a lazily-instantiated `jobScheduler` that
+        shares its backend (same queue). It must be created on first use
+        and memoized thereafter."""
+        worker = Worker(self.queueName, None, {"prefix": prefix})
+        try:
+            self.assertIsNone(worker._job_scheduler)
+            scheduler = worker.jobScheduler
+            self.assertIsNotNone(scheduler)
+            # Memoized: repeated access returns the same instance.
+            self.assertIs(worker.jobScheduler, scheduler)
+            # It shares the worker's backend rather than opening its own.
+            self.assertIs(scheduler.queue, worker)
+            self.assertIs(scheduler.backend, worker.backend)
+        finally:
+            await worker.close()
+
+    async def test_worker_advances_scheduler_across_iterations(self):
+        """Regression test for #4483: a worker processing a job produced
+        by a job scheduler must advance the scheduler to its next
+        iteration. Previously only the first iteration was ever
+        materialized and the schedule stopped permanently."""
+        queue = Queue(self.queueName, {"prefix": prefix})
+        processed: list[str] = []
+        enough = asyncio.Event()
+
+        async def process(job, token=None):
+            processed.append(job.id)
+            if len(processed) >= 3:
+                enough.set()
+            return None
+
+        worker = None
+        try:
+            await queue.upsertJobScheduler(
+                "tick", {"every": 200}, job_name="tick"
+            )
+
+            worker = Worker(self.queueName, process, {"prefix": prefix})
+
+            # Wait until the scheduler has advanced past its first iteration
+            # (or bail out after a generous timeout to avoid hanging CI).
+            try:
+                await asyncio.wait_for(enough.wait(), timeout=10)
+            except asyncio.TimeoutError:
+                pass
+
+            # More than the single first iteration was processed.
+            self.assertGreaterEqual(len(processed), 3)
+            # Each processed job is a distinct scheduler iteration.
+            self.assertEqual(len(set(processed)), len(processed))
+            for job_id in processed:
+                self.assertTrue(job_id.startswith("repeat:tick:"))
+
+            # The scheduler is still registered and its iteration count
+            # advanced beyond the initial upsert.
+            scheduler = await queue.getJobScheduler("tick")
+            self.assertIsNotNone(scheduler)
+            self.assertGreater(scheduler["iterationCount"], 1)
+
+            # A delayed job representing the next iteration is always pending.
+            self.assertEqual(await queue.getDelayedCount(), 1)
+        finally:
+            if worker is not None:
+                await worker.close()
+            await queue.close()
+
+    async def test_next_job_from_job_data_materializes_next_iteration(self):
+        """`Worker.nextJobFromJobData` must upsert the scheduler for the
+        next iteration when the job carries a `repeatJobKey`, mirroring the
+        Node worker. Exercised directly (no timing) for determinism."""
+        queue = Queue(self.queueName, {"prefix": prefix})
+        worker = Worker(self.queueName, None, {"prefix": prefix})
+        try:
+            first = await queue.upsertJobScheduler(
+                "direct", {"every": 5_000}, job_name="direct"
+            )
+            self.assertIsNotNone(first)
+
+            # Grab the raw stored job data for the first iteration and feed
+            # it back through the worker exactly like the run loop would.
+            job_data = await worker.backend.getJobData(first.id)
+            self.assertTrue(job_data)
+
+            next_job = await worker.nextJobFromJobData(
+                job_data, first.id, token="token"
+            )
+            self.assertIsNotNone(next_job)
+            self.assertEqual(next_job.id, first.id)
+
+            # The scheduler advanced to its second iteration.
+            scheduler = await queue.getJobScheduler("direct")
+            self.assertEqual(scheduler["iterationCount"], 2)
+        finally:
+            await worker.close()
             await queue.close()
 
     async def test_upsert_override_replaces_pending_iteration(self):

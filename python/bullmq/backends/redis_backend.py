@@ -16,6 +16,7 @@ blocking wait, ...) itself.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Optional, TYPE_CHECKING
 
 from bullmq.backend import Backend
@@ -37,6 +38,20 @@ minimum_block_timeout = 0.001
 _ZSET_STATES = frozenset(
     {"completed", "failed", "delayed", "waiting-children", "prioritized"}
 )
+
+
+def _array_to_dict(arr) -> dict:
+    """Turn the Lua-flat ``[k1, v1, k2, v2, ...]`` shape into a dict.
+    ``redis-py`` may also already hand us a dict (depending on the response
+    policy); pass it through unchanged in that case."""
+    if isinstance(arr, dict):
+        return arr
+    if not arr:
+        return {}
+    out = {}
+    for i in range(0, len(arr), 2):
+        out[arr[i]] = arr[i + 1]
+    return out
 
 
 class RedisBackend(Backend):
@@ -405,6 +420,95 @@ class RedisBackend(Backend):
 
     async def waitForJob(self, block_timeout: float) -> Any:
         return await self.bclient.bzpopmin(self.keys["marker"], block_timeout)
+
+    # ============================================================
+    # Job schedulers (repeatable job factories)
+    # ============================================================
+
+    async def addJobScheduler(
+        self,
+        job_scheduler_id: str,
+        next_millis: Optional[int],
+        template_data: str,
+        template_opts: dict,
+        scheduler_opts: dict,
+        delayed_job_opts: dict,
+        producer_id: Optional[str] = None,
+    ):
+        return await self.scripts.addJobScheduler(
+            job_scheduler_id,
+            next_millis,
+            template_data,
+            template_opts,
+            scheduler_opts,
+            delayed_job_opts,
+            producer_id,
+        )
+
+    async def updateJobSchedulerNextMillis(
+        self,
+        job_scheduler_id: str,
+        next_millis: Optional[int],
+        template_data: str,
+        delayed_job_opts: dict,
+        producer_id: Optional[str] = None,
+    ):
+        return await self.scripts.updateJobSchedulerNextMillis(
+            job_scheduler_id,
+            next_millis,
+            template_data,
+            delayed_job_opts,
+            producer_id,
+        )
+
+    async def removeJobScheduler(self, job_scheduler_id: str) -> int:
+        return await self.scripts.removeJobScheduler(job_scheduler_id)
+
+    async def isJobScheduler(self, job_scheduler_id: str) -> bool:
+        # Probe the `ic` (iteration count) field on the per-id hash so that
+        # legacy repeatable-job ids sharing the `repeat` sorted set are not
+        # misclassified as schedulers.
+        scheduler_hash_key = f"{self.keys['repeat']}:{job_scheduler_id}"
+        exists = await self.conn.hexists(scheduler_hash_key, "ic")
+        return exists == 1
+
+    async def getJobScheduler(self, job_scheduler_id: str):
+        raw, score = await self.scripts.getJobScheduler(job_scheduler_id)
+        next_millis = int(score) if score is not None else None
+        return (_array_to_dict(raw) if raw else None, next_millis)
+
+    async def getJobSchedulers(
+        self, start: int = 0, end: int = -1, asc: bool = False
+    ) -> list:
+        repeat_key = self.keys["repeat"]
+        if asc:
+            raw = await self.conn.zrange(repeat_key, start, end, withscores=True)
+        else:
+            raw = await self.conn.zrevrange(repeat_key, start, end, withscores=True)
+
+        if not raw:
+            return []
+
+        members = [member for member, _score in raw]
+        scores = [score for _member, score in raw]
+
+        # Issue the per-scheduler HGETALLs concurrently to avoid an N+1
+        # sequential round-trip on large scheduler counts.
+        fields_per_member = await asyncio.gather(
+            *(self.conn.hgetall(f"{repeat_key}:{member}") for member in members)
+        )
+
+        out = []
+        for member, score, fields in zip(members, scores, fields_per_member):
+            try:
+                next_millis = int(score)
+            except (TypeError, ValueError):
+                next_millis = None
+            out.append((member, fields, next_millis))
+        return out
+
+    async def getJobSchedulersCount(self) -> int:
+        return await self.conn.zcard(self.keys["repeat"])
 
 
 def create_redis_backend(
