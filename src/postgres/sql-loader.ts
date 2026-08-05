@@ -1,5 +1,26 @@
 import { readFileSync } from 'fs';
-import { join } from 'path';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+
+function getDirname(): string {
+  if (typeof __dirname !== 'undefined' && __dirname) {
+    return __dirname;
+  }
+  const stack = new Error().stack || '';
+  for (const line of stack.split('\n')) {
+    const match = line.match(/(file:\/\/\/[^\s)]+)/);
+    if (match) {
+      try {
+        return dirname(fileURLToPath(match[1]));
+      } catch {
+        // continue searching
+      }
+    }
+  }
+  throw new Error('Could not determine sql-loader directory path');
+}
+
+const currentDir = getDirname();
 
 /**
  * Loads a migration's SQL from its `.sql` file — the portable source of truth
@@ -10,7 +31,7 @@ import { join } from 'path';
  * analogous to how the Lua scripts are bundled), so the same relative lookup
  * works at runtime.
  */
-const MIGRATIONS_DIR = join(__dirname, 'migrations');
+const MIGRATIONS_DIR = join(currentDir, 'migrations');
 
 /**
  * Runtime queries live under `commands/`. Each `.sql` file is one parameterized
@@ -20,7 +41,7 @@ const MIGRATIONS_DIR = join(__dirname, 'migrations');
  * Python/Elixir/PHP/Rust ports (mirroring how the Redis backend's `.lua`
  * scripts never hardcode the key prefix).
  */
-const COMMANDS_DIR = join(__dirname, 'commands');
+const COMMANDS_DIR = join(currentDir, 'commands');
 
 const migrationCache = new Map<string, string>();
 const commandCache = new Map<string, string>();
