@@ -33,9 +33,9 @@
         "rybakit/msgpack": "^0.9"
     },
     "require-dev": {
-        "phpunit/phpunit": "^10.5",
-        "phpstan/phpstan": "^2.0",
-        "squizlabs/php_codesniffer": "^4.0"
+        "phpunit/phpunit": "10.5.64",
+        "phpstan/phpstan": "2.2.8",
+        "squizlabs/php_codesniffer": "4.0.1"
     },
     "autoload": {
         "psr-4": {
