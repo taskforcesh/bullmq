@@ -1,4 +1,4 @@
-import { Cluster, Redis, ChainableCommander } from 'ioredis';
+import type { Cluster, Redis, ChainableCommander } from 'ioredis';
 import { IRedisClient, IRedisTransaction } from '../interfaces/redis-client';
 
 /**
@@ -180,8 +180,7 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
       return (client as any).xadd(key, idOrModifier, fieldsOrArg, ...rest);
     }
     const options = rest[0] as
-      | { MAXLEN?: number; approximate?: boolean }
-      | undefined;
+      { MAXLEN?: number; approximate?: boolean } | undefined;
     const args: any[] = [key];
     if (options?.MAXLEN != null) {
       args.push('MAXLEN');

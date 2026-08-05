@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { default as IORedis } from 'ioredis';
+import type { default as IORedis } from 'ioredis';
 import { ConnectionOptions, RedisOptions, RedisClient } from '../interfaces';
 import { IRedisClient } from '../interfaces/redis-client';
 import {
@@ -14,6 +14,8 @@ import { version as packageVersion } from '../version';
 import * as scripts from '../scripts';
 import { DatabaseType } from '../types';
 import { createIORedisClient, isIRedisClient } from './ioredis-client';
+import { createNodeRedisClient } from './node-redis-client';
+import { createBunRedisClient } from './bun-redis-client';
 import {
   ConnectionClosedError,
   CONNECTION_CLOSED_ERROR_MSG,
@@ -65,6 +67,87 @@ export interface RawCommand {
   content: string;
   name: string;
   keys: number;
+}
+
+type IORedisModule = { default: typeof IORedis };
+
+/**
+ * Lazily loads the optional `ioredis` driver. Users on another Redis driver
+ * (node-redis, Bun built-in, …) or on the PostgreSQL backend never hit this
+ * path, so they never need `ioredis` installed.
+ *
+ * Only reached when no {@link RedisConnection.clientFactory} is set and the
+ * caller did not pass an already-constructed client instance. In native ESM
+ * environments where `require` is unavailable, callers should provide a client
+ * instance or a `clientFactory` instead.
+ */
+function loadIORedis(): typeof IORedis {
+  try {
+    if (typeof require === 'function') {
+      const mod = require('ioredis') as IORedisModule | typeof IORedis;
+      // ioredis exports the constructor both as the module itself (CJS) and
+      // under `default` (ESM interop); normalise to the constructor.
+      return (mod as IORedisModule).default ?? (mod as typeof IORedis);
+    }
+  } catch {
+    // Fall through to the friendly error below.
+  }
+  throw new Error(
+    "BullMQ could not load the optional 'ioredis' package. " +
+      'Install it with `npm install ioredis`, or provide a different Redis ' +
+      'client instance (e.g. node-redis) via the connection option. In a ' +
+      'native ESM environment, pass an already-constructed client instance ' +
+      'instead of connection options.',
+  );
+}
+
+/**
+ * Wraps a raw client instance passed through the `connection` option in the
+ * matching {@link IRedisClient} adapter, auto-detecting the underlying driver.
+ *
+ * This lets consumers pass a native node-redis or Bun client directly (without
+ * manually calling `createNodeRedisClient` / `createBunRedisClient` or setting a
+ * global {@link RedisConnection.clientFactory}), so those users never need
+ * `ioredis` installed. ioredis instances keep their existing code path, so the
+ * behaviour is fully backwards compatible.
+ *
+ * Detection is purely structural (no driver package is imported), keying off
+ * markers that are unique to each client:
+ *   - ioredis exposes `defineCommand` (used to register Lua scripts);
+ *     node-redis and Bun do not.
+ *   - node-redis (`@redis/client`) exposes `sendCommand` plus `isOpen`/`isReady`.
+ *   - Bun's built-in `RedisClient` exposes `send` plus a `connected` flag.
+ */
+function wrapRedisInstance(instance: any): IRedisClient {
+  // Already an adapted IRedisClient (ioredis proxy, node-redis, Bun, or a
+  // custom implementation) — use as-is.
+  if (isIRedisClient(instance)) {
+    return instance;
+  }
+
+  const hasDefineCommand = typeof instance.defineCommand === 'function';
+
+  // node-redis (@redis/client): `sendCommand` + `isOpen`/`isReady`, and no
+  // ioredis-style `defineCommand`.
+  if (
+    !hasDefineCommand &&
+    typeof instance.sendCommand === 'function' &&
+    ('isOpen' in instance || 'isReady' in instance)
+  ) {
+    return createNodeRedisClient(instance);
+  }
+
+  // Bun's built-in RedisClient: `send` + `connected`, and no `defineCommand`.
+  if (
+    !hasDefineCommand &&
+    typeof instance.send === 'function' &&
+    'connected' in instance
+  ) {
+    return createBunRedisClient(instance);
+  }
+
+  // Default: treat as an ioredis instance (backwards compatible).
+  return createIORedisClient(instance);
 }
 
 export class RedisConnection extends EventEmitter {
@@ -156,10 +239,10 @@ export class RedisConnection extends EventEmitter {
         this.opts.maxRetriesPerRequest = null;
       }
     } else {
-      // Wrap raw ioredis instances in the IRedisClient adapter if not already wrapped
-      this._client = isIRedisClient(opts)
-        ? opts
-        : createIORedisClient(opts as any);
+      // Wrap raw client instances in the matching IRedisClient adapter,
+      // auto-detecting the driver (ioredis / node-redis / Bun) so callers can
+      // pass a native client directly without setting a clientFactory.
+      this._client = wrapRedisInstance(opts);
 
       // Test if the redis instance is using keyPrefix
       // and if so, throw an error.
@@ -321,7 +404,10 @@ export class RedisConnection extends EventEmitter {
         this._client = RedisConnection.clientFactory(this.opts);
       } else {
         const { url, ...rest } = this.opts;
-        const ioredisClient = url ? new IORedis(url, rest) : new IORedis(rest);
+        const IORedisCtor = loadIORedis();
+        const ioredisClient = url
+          ? new IORedisCtor(url, rest)
+          : new IORedisCtor(rest);
         this._client = createIORedisClient(ioredisClient);
       }
     }
