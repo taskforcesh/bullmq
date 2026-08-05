@@ -46,7 +46,7 @@
         {
           "preset": "angular",
           "presetConfig": {
-            "ignoreCommits": "^(?!.*\\(elixir\\))(?!.*\\[elixir\\]).*$"
+            "ignoreCommits": "^(?!.*\\(elixir\\))(?!.*\\[elixir\\])"
           }
         }
       ],
