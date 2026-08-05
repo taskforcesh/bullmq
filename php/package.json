@@ -39,7 +39,7 @@
         {
           "preset": "angular",
           "presetConfig": {
-            "ignoreCommits": "^(?!.*\\(php\\))(?!.*\\[php\\]).*$"
+            "ignoreCommits": "^(?!.*\\(php\\))(?!.*\\[php\\])"
           }
         }
       ],
