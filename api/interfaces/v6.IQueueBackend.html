@@ -49,7 +49,7 @@ thread a connection or transaction through an operation.</p>
 <li><a href="../classes/v6.PostgresQueueBackend.html" class="tsd-signature-type tsd-kind-class">PostgresQueueBackend</a></li>
 <li><a href="../classes/v6.RedisQueueBackend.html" class="tsd-signature-type tsd-kind-class">RedisQueueBackend</a></li></ul></section><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L60">interfaces/queue-backend.ts:60</a></li></ul></aside>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L60">interfaces/queue-backend.ts:60</a></li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-accordion" open><summary class="tsd-accordion-summary tsd-index-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
@@ -162,7 +162,7 @@ datastore operations (e.g. completing the current job) while the
 higher-level instance is shutting down.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L90">interfaces/queue-backend.ts:90</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L90">interfaces/queue-backend.ts:90</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="keys"><code class="tsd-tag">Readonly</code><span>keys</span><a href="#keys" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">keys</span><span class="tsd-signature-symbol">:</span> <a href="../types/v6.KeysMap.html" class="tsd-signature-type tsd-kind-type-alias">KeysMap</a></div>
@@ -171,7 +171,7 @@ the concrete Redis keys; backends that don't address jobs by key may return
 an empty map.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L164">interfaces/queue-backend.ts:164</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L164">interfaces/queue-backend.ts:164</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="minimumblocktimeout"><code class="tsd-tag">Readonly</code><span>minimum<wbr/>Block<wbr/>Timeout</span><a href="#minimumblocktimeout" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">minimumBlockTimeout</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span></div>
@@ -179,7 +179,7 @@ an empty map.</p>
 blocking primitive. Used by workers to bound <code>waitForJob</code>.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L107">interfaces/queue-backend.ts:107</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L107">interfaces/queue-backend.ts:107</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="qualifiedname"><code class="tsd-tag">Readonly</code><span>qualified<wbr/>Name</span><a href="#qualifiedname" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">qualifiedName</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
@@ -187,7 +187,7 @@ blocking primitive. Used by workers to bound <code>waitForJob</code>.</p>
 e.g. as a flow parent reference). Redis: <code>&quot;&lt;prefix&gt;:&lt;queue&gt;&quot;</code>.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L157">interfaces/queue-backend.ts:157</a></li></ul></aside></section></section></details>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L157">interfaces/queue-backend.ts:157</a></li></ul></aside></section></section></details>
 <details class="tsd-panel-group tsd-member-group tsd-accordion" open><summary class="tsd-accordion-summary" data-key="section-Methods"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
 <h2 class="tsd-anchor-link" id="methods-1">Methods<a href="#methods-1" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h2></summary>
 <section>
@@ -210,7 +210,7 @@ single transaction.</p>
 <li><span><span class="tsd-kind-parameter">entries</span>: <span class="tsd-signature-symbol">{</span><br/>    <span class="tsd-kind-property">jobData</span><span class="tsd-signature-symbol">:</span> <a href="v6.JobJson.html" class="tsd-signature-type tsd-kind-interface">JobJson</a><span class="tsd-signature-symbol">;</span><br/>    <span class="tsd-kind-property">jobId</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <span class="tsd-kind-property">parentKeyOpts</span><span class="tsd-signature-symbol">:</span> <a href="../types/v6.ParentKeyOpts.html" class="tsd-signature-type tsd-kind-type-alias">ParentKeyOpts</a><span class="tsd-signature-symbol">;</span><br/>    <span class="tsd-kind-property">prefix</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <span class="tsd-kind-property">queueName</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span><span class="tsd-signature-symbol">[]</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">[</span><span class="tsd-signature-type">Error</span><span class="tsd-signature-symbol">,</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">]</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L230">interfaces/queue-backend.ts:230</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L230">interfaces/queue-backend.ts:230</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="addjob"><span>add<wbr/>Job</span><a href="#addjob" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -229,7 +229,7 @@ single transaction.</p>
 <li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">parentKeyOpts</span>: <a href="../types/v6.ParentKeyOpts.html" class="tsd-signature-type tsd-kind-type-alias">ParentKeyOpts</a></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L197">interfaces/queue-backend.ts:197</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L197">interfaces/queue-backend.ts:197</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="addjobs"><span>add<wbr/>Jobs</span><a href="#addjobs" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -249,7 +249,7 @@ returned in order.</p>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">&gt;</span></h4><p>The generated ids, in the same order as <code>entries</code>.</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L213">interfaces/queue-backend.ts:213</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L213">interfaces/queue-backend.ts:213</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="addjobscheduler"><span>add<wbr/>Job<wbr/>Scheduler</span><a href="#addjobscheduler" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -279,7 +279,7 @@ job created right now: the template plus this iteration's <code>jobId</code>,
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">[</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">]</span><span class="tsd-signature-symbol">&gt;</span></h4><p>A tuple of <code>[jobId, delay]</code> for the next iteration.</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L252">interfaces/queue-backend.ts:252</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L252">interfaces/queue-backend.ts:252</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="addlog"><span>add<wbr/>Log</span><a href="#addlog" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -297,7 +297,7 @@ job created right now: the template plus this iteration's <code>jobId</code>,
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span></h4><p>The total number of log entries.</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L450">interfaces/queue-backend.ts:450</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L450">interfaces/queue-backend.ts:450</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="changedelay"><span>change<wbr/>Delay</span><a href="#changedelay" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -313,7 +313,7 @@ job created right now: the template plus this iteration's <code>jobId</code>,
 <li><span><span class="tsd-kind-parameter">delay</span>: <span class="tsd-signature-type">number</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L460">interfaces/queue-backend.ts:460</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L460">interfaces/queue-backend.ts:460</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="changepriority"><span>change<wbr/>Priority</span><a href="#changepriority" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -330,7 +330,7 @@ job created right now: the template plus this iteration's <code>jobId</code>,
 <li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">lifo</span>: <span class="tsd-signature-type">boolean</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L465">interfaces/queue-backend.ts:465</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L465">interfaces/queue-backend.ts:465</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="cleanjobsbystate"><span>clean<wbr/>Jobs<wbr/>By<wbr/>State</span><a href="#cleanjobsbystate" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -348,7 +348,7 @@ job created right now: the template plus this iteration's <code>jobId</code>,
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">&gt;</span></h4><p>The ids of the removed jobs.</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L391">interfaces/queue-backend.ts:391</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L391">interfaces/queue-backend.ts:391</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="clearlogs"><span>clear<wbr/>Logs</span><a href="#clearlogs" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -364,7 +364,7 @@ job created right now: the template plus this iteration's <code>jobId</code>,
 <li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">keepLogs</span>: <span class="tsd-signature-type">number</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L455">interfaces/queue-backend.ts:455</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L455">interfaces/queue-backend.ts:455</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="clientname"><span>client<wbr/>Name</span><a href="#clientname" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -381,7 +381,7 @@ client-name concept may return any stable string.</p>
 <li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">suffix</span>: <span class="tsd-signature-type">string</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">string</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L185">interfaces/queue-backend.ts:185</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L185">interfaces/queue-backend.ts:185</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="close"><span>close</span><a href="#close" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -400,7 +400,7 @@ waiting for in-flight (e.g. blocking) commands to finish.</p>
 </div></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L82">interfaces/queue-backend.ts:82</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L82">interfaces/queue-backend.ts:82</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="deletededuplicationkey"><span>delete<wbr/>Deduplication<wbr/>Key</span><a href="#deletededuplicationkey" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -416,7 +416,7 @@ waiting for in-flight (e.g. blocking) commands to finish.</p>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span></h4><p>The number of keys removed.</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L501">interfaces/queue-backend.ts:501</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L501">interfaces/queue-backend.ts:501</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="disconnect"><span>disconnect</span><a href="#disconnect" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -427,7 +427,7 @@ waiting for in-flight (e.g. blocking) commands to finish.</p>
 </div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L95">interfaces/queue-backend.ts:95</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L95">interfaces/queue-backend.ts:95</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="disconnectblocking"><span>disconnect<wbr/>Blocking</span><a href="#disconnectblocking" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -443,7 +443,7 @@ recover). No-op for backends without a dedicated blocking connection.</p>
 <li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">wait</span>: <span class="tsd-signature-type">boolean</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L762">interfaces/queue-backend.ts:762</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L762">interfaces/queue-backend.ts:762</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="drain"><span>drain</span><a href="#drain" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -458,7 +458,7 @@ recover). No-op for backends without a dedicated blocking connection.</p>
 <li><span><span class="tsd-kind-parameter">delayed</span>: <span class="tsd-signature-type">boolean</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L385">interfaces/queue-backend.ts:385</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L385">interfaces/queue-backend.ts:385</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="extendlock"><span>extend<wbr/>Lock</span><a href="#extendlock" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -475,7 +475,7 @@ recover). No-op for backends without a dedicated blocking connection.</p>
 <li><span><span class="tsd-kind-parameter">duration</span>: <span class="tsd-signature-type">number</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L417">interfaces/queue-backend.ts:417</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L417">interfaces/queue-backend.ts:417</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="extendlocks"><span>extend<wbr/>Locks</span><a href="#extendlocks" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -493,7 +493,7 @@ recover). No-op for backends without a dedicated blocking connection.</p>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">&gt;</span></h4><p>The ids of the jobs whose lock could not be extended.</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L423">interfaces/queue-backend.ts:423</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L423">interfaces/queue-backend.ts:423</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="forqueue"><span>for<wbr/>Queue</span><a href="#forqueue" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -522,7 +522,7 @@ is used.</p>
 </div></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="" class="tsd-signature-type tsd-kind-interface">IQueueBackend</a></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L139">interfaces/queue-backend.ts:139</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L139">interfaces/queue-backend.ts:139</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="getclientlist"><span>get<wbr/>Client<wbr/>List</span><a href="#getclientlist" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -536,7 +536,7 @@ may return an empty array.</p>
 </div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L648">interfaces/queue-backend.ts:648</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L648">interfaces/queue-backend.ts:648</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="getcounts"><span>get<wbr/>Counts</span><a href="#getcounts" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -549,7 +549,7 @@ may return an empty array.</p>
 <li><span><span class="tsd-kind-parameter">types</span>: <a href="../types/v6.JobType.html" class="tsd-signature-type tsd-kind-type-alias">JobType</a><span class="tsd-signature-symbol">[]</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L596">interfaces/queue-backend.ts:596</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L596">interfaces/queue-backend.ts:596</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="getcountsperpriority"><span>get<wbr/>Counts<wbr/>Per<wbr/>Priority</span><a href="#getcountsperpriority" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -562,7 +562,7 @@ may return an empty array.</p>
 <li><span><span class="tsd-kind-parameter">priorities</span>: <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">[]</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L598">interfaces/queue-backend.ts:598</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L598">interfaces/queue-backend.ts:598</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="getdeduplicationjobid"><span>get<wbr/>Deduplication<wbr/>Job<wbr/>Id</span><a href="#getdeduplicationjobid" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -577,7 +577,7 @@ may return an empty array.</p>
 <li><span><span class="tsd-kind-parameter">deduplicationId</span>: <span class="tsd-signature-type">string</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L579">interfaces/queue-backend.ts:579</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L579">interfaces/queue-backend.ts:579</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="getdependencies"><span>get<wbr/>Dependencies</span><a href="#getdependencies" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -593,7 +593,7 @@ may return an empty array.</p>
 <li><span><span class="tsd-kind-parameter">opts</span>: <a href="v6.DependenciesOpts.html" class="tsd-signature-type tsd-kind-interface">DependenciesOpts</a></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><br/>    <span class="tsd-signature-symbol">{</span><br/>        <span class="tsd-kind-property">failed</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">;</span><br/>        <span class="tsd-kind-property">ignored</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span> <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">;</span><br/>        <span class="tsd-kind-property">nextFailedCursor</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">;</span><br/>        <span class="tsd-kind-property">nextIgnoredCursor</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">;</span><br/>        <span class="tsd-kind-property">nextProcessedCursor</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">;</span><br/>        <span class="tsd-kind-property">nextUnprocessedCursor</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">;</span><br/>        <span class="tsd-kind-property">processed</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span> <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">;</span><br/>        <span class="tsd-kind-property">unprocessed</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">;</span><br/>    <span class="tsd-signature-symbol">}</span><span class="tsd-signature-symbol">,</span><br/><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L612">interfaces/queue-backend.ts:612</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L612">interfaces/queue-backend.ts:612</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="getdependencycounts"><span>get<wbr/>Dependency<wbr/>Counts</span><a href="#getdependencycounts" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -607,7 +607,7 @@ may return an empty array.</p>
 <li><span><span class="tsd-kind-parameter">types</span>: <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L607">interfaces/queue-backend.ts:607</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L607">interfaces/queue-backend.ts:607</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="getignoredchildrenfailures"><span>get<wbr/>Ignored<wbr/>Children<wbr/>Failures</span><a href="#getignoredchildrenfailures" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -622,7 +622,7 @@ may return an empty array.</p>
 <li><span><span class="tsd-kind-parameter">jobId</span>: <span class="tsd-signature-type">string</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L634">interfaces/queue-backend.ts:634</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L634">interfaces/queue-backend.ts:634</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="getjobdata"><span>get<wbr/>Job<wbr/>Data</span><a href="#getjobdata" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -637,7 +637,7 @@ may return an empty array.</p>
 <li><span><span class="tsd-kind-parameter">jobId</span>: <span class="tsd-signature-type">string</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="v6.JobJson.html" class="tsd-signature-type tsd-kind-interface">JobJson</a><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L574">interfaces/queue-backend.ts:574</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L574">interfaces/queue-backend.ts:574</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="getjoblogs"><span>get<wbr/>Job<wbr/>Logs</span><a href="#getjoblogs" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -655,7 +655,7 @@ may return an empty array.</p>
 <li><span><span class="tsd-kind-parameter">asc</span>: <span class="tsd-signature-type">boolean</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">{</span> <span class="tsd-kind-property">count</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">;</span> <span class="tsd-kind-property">logs</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span> <span class="tsd-signature-symbol">}</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L584">interfaces/queue-backend.ts:584</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L584">interfaces/queue-backend.ts:584</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="getjobscheduler"><span>get<wbr/>Job<wbr/>Scheduler</span><a href="#getjobscheduler" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -668,7 +668,7 @@ may return an empty array.</p>
 <li><span><span class="tsd-kind-parameter">id</span>: <span class="tsd-signature-type">string</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">[</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">,</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">]</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L517">interfaces/queue-backend.ts:517</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L517">interfaces/queue-backend.ts:517</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="getjobschedulerdata"><span>get<wbr/>Job<wbr/>Scheduler<wbr/>Data</span><a href="#getjobschedulerdata" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -683,7 +683,7 @@ may return an empty array.</p>
 <li><span><span class="tsd-kind-parameter">key</span>: <span class="tsd-signature-type">string</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L527">interfaces/queue-backend.ts:527</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L527">interfaces/queue-backend.ts:527</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="getjobschedulerscount"><span>get<wbr/>Job<wbr/>Schedulers<wbr/>Count</span><a href="#getjobschedulerscount" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -694,7 +694,7 @@ may return an empty array.</p>
 </div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L542">interfaces/queue-backend.ts:542</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L542">interfaces/queue-backend.ts:542</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="getjobschedulersrange"><span>get<wbr/>Job<wbr/>Schedulers<wbr/>Range</span><a href="#getjobschedulersrange" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -712,7 +712,7 @@ may return an empty array.</p>
 <li><span><span class="tsd-kind-parameter">asc</span>: <span class="tsd-signature-type">boolean</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L533">interfaces/queue-backend.ts:533</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L533">interfaces/queue-backend.ts:533</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="getmetrics"><span>get<wbr/>Metrics</span><a href="#getmetrics" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -727,7 +727,7 @@ may return an empty array.</p>
 <li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">end</span>: <span class="tsd-signature-type">number</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">[</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">,</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">,</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">]</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L636">interfaces/queue-backend.ts:636</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L636">interfaces/queue-backend.ts:636</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="getprocessedchildrenvalues"><span>get<wbr/>Processed<wbr/>Children<wbr/>Values</span><a href="#getprocessedchildrenvalues" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -742,7 +742,7 @@ may return an empty array.</p>
 <li><span><span class="tsd-kind-parameter">jobId</span>: <span class="tsd-signature-type">string</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L629">interfaces/queue-backend.ts:629</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L629">interfaces/queue-backend.ts:629</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="getqueuemeta"><span>get<wbr/>Queue<wbr/>Meta</span><a href="#getqueuemeta" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -753,7 +753,7 @@ may return an empty array.</p>
 </div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L685">interfaces/queue-backend.ts:685</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L685">interfaces/queue-backend.ts:685</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="getqueuemetafield"><span>get<wbr/>Queue<wbr/>Meta<wbr/>Field</span><a href="#getqueuemetafield" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -768,7 +768,7 @@ may return an empty array.</p>
 <li><span><span class="tsd-kind-parameter">field</span>: <span class="tsd-signature-type">string</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L675">interfaces/queue-backend.ts:675</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L675">interfaces/queue-backend.ts:675</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="getqueuemetafields"><span>get<wbr/>Queue<wbr/>Meta<wbr/>Fields</span><a href="#getqueuemetafields" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -783,7 +783,7 @@ may return an empty array.</p>
 <li><span><span class="tsd-kind-parameter">fields</span>: <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L680">interfaces/queue-backend.ts:680</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L680">interfaces/queue-backend.ts:680</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="getranges"><span>get<wbr/>Ranges</span><a href="#getranges" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -799,7 +799,7 @@ may return an empty array.</p>
 <li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">asc</span>: <span class="tsd-signature-type">boolean</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">[</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">]</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L600">interfaces/queue-backend.ts:600</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L600">interfaces/queue-backend.ts:600</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="getratelimitttl"><span>get<wbr/>Rate<wbr/>Limit<wbr/>Ttl</span><a href="#getratelimitttl" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -814,7 +814,7 @@ may return an empty array.</p>
 <li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">maxJobs</span>: <span class="tsd-signature-type">number</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L594">interfaces/queue-backend.ts:594</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L594">interfaces/queue-backend.ts:594</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="getstate"><span>get<wbr/>State</span><a href="#getstate" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -829,7 +829,7 @@ may return an empty array.</p>
 <li><span><span class="tsd-kind-parameter">jobId</span>: <span class="tsd-signature-type">string</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">&quot;unknown&quot;</span> <span class="tsd-signature-symbol">|</span> <a href="../types/v6.JobState.html" class="tsd-signature-type tsd-kind-type-alias">JobState</a><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L551">interfaces/queue-backend.ts:551</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L551">interfaces/queue-backend.ts:551</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="hasqueuemetafield"><span>has<wbr/>Queue<wbr/>Meta<wbr/>Field</span><a href="#hasqueuemetafield" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -844,7 +844,7 @@ may return an empty array.</p>
 <li><span><span class="tsd-kind-parameter">field</span>: <span class="tsd-signature-type">string</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L695">interfaces/queue-backend.ts:695</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L695">interfaces/queue-backend.ts:695</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="isfinished"><span>is<wbr/>Finished</span><a href="#isfinished" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -860,7 +860,7 @@ may return an empty array.</p>
 <li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">returnValue</span>: <span class="tsd-signature-type">boolean</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-symbol">[</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">,</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">]</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L556">interfaces/queue-backend.ts:556</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L556">interfaces/queue-backend.ts:556</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="isjobinstate"><span>is<wbr/>Job<wbr/>In<wbr/>State</span><a href="#isjobinstate" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -876,7 +876,7 @@ may return an empty array.</p>
 <li><span><span class="tsd-kind-parameter">jobId</span>: <span class="tsd-signature-type">string</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L569">interfaces/queue-backend.ts:569</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L569">interfaces/queue-backend.ts:569</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="isjobscheduler"><span>is<wbr/>Job<wbr/>Scheduler</span><a href="#isjobscheduler" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -891,7 +891,7 @@ may return an empty array.</p>
 <li><span><span class="tsd-kind-parameter">id</span>: <span class="tsd-signature-type">string</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L522">interfaces/queue-backend.ts:522</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L522">interfaces/queue-backend.ts:522</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="ismaxed"><span>is<wbr/>Maxed</span><a href="#ismaxed" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -902,7 +902,7 @@ may return an empty array.</p>
 </div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L564">interfaces/queue-backend.ts:564</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L564">interfaces/queue-backend.ts:564</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="movejobfromactivetowait"><span>move<wbr/>Job<wbr/>From<wbr/>Active<wbr/>To<wbr/>Wait</span><a href="#movejobfromactivetowait" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -918,7 +918,7 @@ may return an empty array.</p>
 <li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">token</span>: <span class="tsd-signature-type">string</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L325">interfaces/queue-backend.ts:325</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L325">interfaces/queue-backend.ts:325</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="movestalledjobstowait"><span>move<wbr/>Stalled<wbr/>Jobs<wbr/>To<wbr/>Wait</span><a href="#movestalledjobstowait" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -930,7 +930,7 @@ may return an empty array.</p>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">&gt;</span></h4><p>The ids of the jobs that were moved.</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L355">interfaces/queue-backend.ts:355</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L355">interfaces/queue-backend.ts:355</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="movetoactive"><span>move<wbr/>To<wbr/>Active</span><a href="#movetoactive" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -947,7 +947,7 @@ returning its data (or the delay/rate-limit signals when none is ready).</p>
 <li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">name</span>: <span class="tsd-signature-type">string</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L270">interfaces/queue-backend.ts:270</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L270">interfaces/queue-backend.ts:270</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="movetocompleted"><span>move<wbr/>To<wbr/>Completed</span><a href="#movetocompleted" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -975,7 +975,7 @@ next job to process.</p>
 <code>finishedOn</code> timestamp that was recorded.</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L278">interfaces/queue-backend.ts:278</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L278">interfaces/queue-backend.ts:278</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="movetodelayed"><span>move<wbr/>To<wbr/>Delayed</span><a href="#movetodelayed" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -994,7 +994,7 @@ next job to process.</p>
 <li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">opts</span>: <a href="v6.MoveToDelayedOpts.html" class="tsd-signature-type tsd-kind-interface">MoveToDelayedOpts</a></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L304">interfaces/queue-backend.ts:304</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L304">interfaces/queue-backend.ts:304</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="movetofailed"><span>move<wbr/>To<wbr/>Failed</span><a href="#movetofailed" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1023,7 +1023,7 @@ job to process.</p>
 <code>finishedOn</code> timestamp that was recorded.</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L292">interfaces/queue-backend.ts:292</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L292">interfaces/queue-backend.ts:292</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="movetowaitingchildren"><span>move<wbr/>To<wbr/>Waiting<wbr/>Children</span><a href="#movetowaitingchildren" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1041,7 +1041,7 @@ job to process.</p>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">&gt;</span></h4><p><code>true</code> if moved, <code>false</code> if there are pending dependencies.</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L316">interfaces/queue-backend.ts:316</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L316">interfaces/queue-backend.ts:316</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="obliterate"><span>obliterate</span><a href="#obliterate" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1057,7 +1057,7 @@ job to process.</p>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span></h4><p>A cursor; <code>0</code> when obliteration is complete.</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L401">interfaces/queue-backend.ts:401</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L401">interfaces/queue-backend.ts:401</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="on"><span>on</span><a href="#on" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1074,7 +1074,7 @@ job to process.</p>
 <li><span><span class="tsd-kind-parameter">listener</span>: <span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">...</span><span class="tsd-kind-parameter">args</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">)</span> <span class="tsd-signature-symbol">=&gt;</span> <span class="tsd-signature-type">void</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">this</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L113">interfaces/queue-backend.ts:113</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L113">interfaces/queue-backend.ts:113</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="once"><span>once</span><a href="#once" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1088,7 +1088,7 @@ job to process.</p>
 <li><span><span class="tsd-kind-parameter">listener</span>: <span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">...</span><span class="tsd-kind-parameter">args</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">)</span> <span class="tsd-signature-symbol">=&gt;</span> <span class="tsd-signature-type">void</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">this</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L117">interfaces/queue-backend.ts:117</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L117">interfaces/queue-backend.ts:117</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="paginate"><span>paginate</span><a href="#paginate" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1104,7 +1104,7 @@ job to process.</p>
 <li><span><span class="tsd-kind-parameter">opts</span>: <span class="tsd-signature-symbol">{</span> <span class="tsd-kind-property">end</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">;</span> <span class="tsd-kind-property">fetchJobs</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">;</span> <span class="tsd-kind-property">start</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span> <span class="tsd-signature-symbol">}</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><br/>    <span class="tsd-signature-symbol">{</span><br/>        <span class="tsd-kind-property">cursor</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>        <span class="tsd-kind-property">items</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">{</span> <span class="tsd-kind-property">err</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span> <span class="tsd-kind-property">id</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span> <span class="tsd-kind-property">v</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">any</span> <span class="tsd-signature-symbol">}</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">;</span><br/>        <span class="tsd-kind-property">jobs</span><span class="tsd-signature-symbol">?:</span> <a href="v6.JobJson.html" class="tsd-signature-type tsd-kind-interface">JobJson</a><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">;</span><br/>        <span class="tsd-kind-property">total</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">;</span><br/>    <span class="tsd-signature-symbol">}</span><span class="tsd-signature-symbol">,</span><br/><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L653">interfaces/queue-backend.ts:653</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L653">interfaces/queue-backend.ts:653</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="parsenodekey"><span>parse<wbr/>Node<wbr/>Key</span><a href="#parsenodekey" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1122,7 +1122,7 @@ backend's key format; used when walking a flow tree.</p>
 <li><span><span class="tsd-kind-parameter">key</span>: <span class="tsd-signature-type">string</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-symbol">{</span> <span class="tsd-kind-property">id</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span> <span class="tsd-kind-property">prefix</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span> <span class="tsd-kind-property">queueName</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">}</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L178">interfaces/queue-backend.ts:178</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L178">interfaces/queue-backend.ts:178</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="pause"><span>pause</span><a href="#pause" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1137,7 +1137,7 @@ backend's key format; used when walking a flow tree.</p>
 <li><span><span class="tsd-kind-parameter">pause</span>: <span class="tsd-signature-type">boolean</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L380">interfaces/queue-backend.ts:380</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L380">interfaces/queue-backend.ts:380</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="promote"><span>promote</span><a href="#promote" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1152,7 +1152,7 @@ backend's key format; used when walking a flow tree.</p>
 <li><span><span class="tsd-kind-parameter">jobId</span>: <span class="tsd-signature-type">string</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L349">interfaces/queue-backend.ts:349</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L349">interfaces/queue-backend.ts:349</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="promotejobs"><span>promote<wbr/>Jobs</span><a href="#promotejobs" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1168,7 +1168,7 @@ backend's key format; used when walking a flow tree.</p>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span></h4><p>A cursor; <code>0</code> when there are no more jobs to promote.</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L375">interfaces/queue-backend.ts:375</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L375">interfaces/queue-backend.ts:375</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="publishevent"><span>publish<wbr/>Event</span><a href="#publishevent" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1185,7 +1185,7 @@ backend's key format; used when walking a flow tree.</p>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">&gt;</span></h4><p>The id of the appended event entry.</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L728">interfaces/queue-backend.ts:728</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L728">interfaces/queue-backend.ts:728</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="readevents"><span>read<wbr/>Events</span><a href="#readevents" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1203,7 +1203,7 @@ on timeout). For the Redis adapter this is an <code>XREAD ... BLOCK</code>.</p>
 <li><span><span class="tsd-kind-parameter">blockTimeout</span>: <span class="tsd-signature-type">number</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">[</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span> <a href="../types/v6.EntryRaw.html" class="tsd-signature-type tsd-kind-type-alias">EntryRaw</a><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">]</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L738">interfaces/queue-backend.ts:738</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L738">interfaces/queue-backend.ts:738</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="reconnectblocking"><span>reconnect<wbr/>Blocking</span><a href="#reconnectblocking" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1214,7 +1214,7 @@ on timeout). For the Redis adapter this is an <code>XREAD ... BLOCK</code>.</p>
 </div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L767">interfaces/queue-backend.ts:767</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L767">interfaces/queue-backend.ts:767</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="remove"><span>remove</span><a href="#remove" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1231,7 +1231,7 @@ on timeout). For the Redis adapter this is an <code>XREAD ... BLOCK</code>.</p>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span></h4><p><code>1</code> if removed, <code>0</code> if it (or a dependency) was locked.</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L475">interfaces/queue-backend.ts:475</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L475">interfaces/queue-backend.ts:475</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="removechilddependency"><span>remove<wbr/>Child<wbr/>Dependency</span><a href="#removechilddependency" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1248,7 +1248,7 @@ on timeout). For the Redis adapter this is an <code>XREAD ... BLOCK</code>.</p>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">&gt;</span></h4><p><code>true</code> if the dependency existed and was removed.</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L486">interfaces/queue-backend.ts:486</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L486">interfaces/queue-backend.ts:486</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="removededuplicationkey"><span>remove<wbr/>Deduplication<wbr/>Key</span><a href="#removededuplicationkey" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1265,7 +1265,7 @@ on timeout). For the Redis adapter this is an <code>XREAD ... BLOCK</code>.</p>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span></h4><p><code>1</code> if removed, <code>0</code> otherwise.</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L492">interfaces/queue-backend.ts:492</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L492">interfaces/queue-backend.ts:492</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="removedeprecatedprioritykey"><span>remove<wbr/>Deprecated<wbr/>Priority<wbr/>Key</span><a href="#removedeprecatedprioritykey" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1277,7 +1277,7 @@ on timeout). For the Redis adapter this is an <code>XREAD ... BLOCK</code>.</p>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span></h4><p>The number of keys removed.</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L712">interfaces/queue-backend.ts:712</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L712">interfaces/queue-backend.ts:712</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="removejobscheduler"><span>remove<wbr/>Job<wbr/>Scheduler</span><a href="#removejobscheduler" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1290,7 +1290,7 @@ on timeout). For the Redis adapter this is an <code>XREAD ... BLOCK</code>.</p>
 <li><span><span class="tsd-kind-parameter">jobSchedulerId</span>: <span class="tsd-signature-type">string</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L515">interfaces/queue-backend.ts:515</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L515">interfaces/queue-backend.ts:515</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="removelistener"><span>remove<wbr/>Listener</span><a href="#removelistener" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1304,7 +1304,7 @@ on timeout). For the Redis adapter this is an <code>XREAD ... BLOCK</code>.</p>
 <li><span><span class="tsd-kind-parameter">listener</span>: <span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">...</span><span class="tsd-kind-parameter">args</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">)</span> <span class="tsd-signature-symbol">=&gt;</span> <span class="tsd-signature-type">void</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">this</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L121">interfaces/queue-backend.ts:121</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L121">interfaces/queue-backend.ts:121</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="removeorphanedjobs"><span>remove<wbr/>Orphaned<wbr/>Jobs</span><a href="#removeorphanedjobs" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1322,7 +1322,7 @@ referenced by any queue state set.</p>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span></h4><p>The total number of orphaned jobs removed.</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L408">interfaces/queue-backend.ts:408</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L408">interfaces/queue-backend.ts:408</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="removequeuemetafields"><span>remove<wbr/>Queue<wbr/>Meta<wbr/>Fields</span><a href="#removequeuemetafields" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1337,7 +1337,7 @@ referenced by any queue state set.</p>
 <li><span><span class="tsd-kind-parameter">fields</span>: <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L690">interfaces/queue-backend.ts:690</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L690">interfaces/queue-backend.ts:690</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="removeratelimitkey"><span>remove<wbr/>Rate<wbr/>Limit<wbr/>Key</span><a href="#removeratelimitkey" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1349,7 +1349,7 @@ referenced by any queue state set.</p>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span></h4><p>The number of keys removed.</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L706">interfaces/queue-backend.ts:706</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L706">interfaces/queue-backend.ts:706</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="removeunprocessedchildren"><span>remove<wbr/>Unprocessed<wbr/>Children</span><a href="#removeunprocessedchildren" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1364,7 +1364,7 @@ referenced by any queue state set.</p>
 <li><span><span class="tsd-kind-parameter">jobId</span>: <span class="tsd-signature-type">string</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L480">interfaces/queue-backend.ts:480</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L480">interfaces/queue-backend.ts:480</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="retryfinishedjob"><span>retry<wbr/>Finished<wbr/>Job</span><a href="#retryfinishedjob" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1387,7 +1387,7 @@ referenced by any queue state set.</p>
 <li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">opts</span>: <a href="v6.RetryOptions.html" class="tsd-signature-type tsd-kind-interface">RetryOptions</a></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L340">interfaces/queue-backend.ts:340</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L340">interfaces/queue-backend.ts:340</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="retryfinishedjobs"><span>retry<wbr/>Finished<wbr/>Jobs</span><a href="#retryfinishedjobs" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1405,7 +1405,7 @@ referenced by any queue state set.</p>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span></h4><p>A cursor; <code>0</code> when there are no more jobs to move.</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L365">interfaces/queue-backend.ts:365</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L365">interfaces/queue-backend.ts:365</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="retryjob"><span>retry<wbr/>Job</span><a href="#retryjob" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1423,7 +1423,7 @@ referenced by any queue state set.</p>
 <li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">opts</span>: <a href="v6.RetryJobOpts.html" class="tsd-signature-type tsd-kind-interface">RetryJobOpts</a></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L330">interfaces/queue-backend.ts:330</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L330">interfaces/queue-backend.ts:330</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="setname"><span>set<wbr/>Name</span><a href="#setname" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1439,7 +1439,7 @@ observability). No-op for backends that have no such concept.</p>
 <li><span><span class="tsd-kind-parameter">name</span>: <span class="tsd-signature-type">string</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L101">interfaces/queue-backend.ts:101</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L101">interfaces/queue-backend.ts:101</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="setqueuemeta"><span>set<wbr/>Queue<wbr/>Meta</span><a href="#setqueuemeta" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1454,7 +1454,7 @@ observability). No-op for backends that have no such concept.</p>
 <li><span><span class="tsd-kind-parameter">values</span>: <span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L670">interfaces/queue-backend.ts:670</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L670">interfaces/queue-backend.ts:670</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="setratelimit"><span>set<wbr/>Rate<wbr/>Limit</span><a href="#setratelimit" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1469,7 +1469,7 @@ observability). No-op for backends that have no such concept.</p>
 <li><span><span class="tsd-kind-parameter">expireTimeMs</span>: <span class="tsd-signature-type">number</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L700">interfaces/queue-backend.ts:700</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L700">interfaces/queue-backend.ts:700</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="tokey"><span>to<wbr/>Key</span><a href="#tokey" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1485,7 +1485,7 @@ observability). No-op for backends that have no such concept.</p>
 <li><span><span class="tsd-kind-parameter">type</span>: <span class="tsd-signature-type">string</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">string</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L170">interfaces/queue-backend.ts:170</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L170">interfaces/queue-backend.ts:170</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="trimevents"><span>trim<wbr/>Events</span><a href="#trimevents" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1501,7 +1501,7 @@ observability). No-op for backends that have no such concept.</p>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span></h4><p>The number of entries removed.</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L718">interfaces/queue-backend.ts:718</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L718">interfaces/queue-backend.ts:718</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="updatedata"><span>update<wbr/>Data</span><a href="#updatedata" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1523,7 +1523,7 @@ observability). No-op for backends that have no such concept.</p>
 <li><span><span class="tsd-kind-parameter">data</span>: <a class="tsd-signature-type tsd-kind-type-parameter" href="#updatedatat">T</a></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L436">interfaces/queue-backend.ts:436</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L436">interfaces/queue-backend.ts:436</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="updatejobschedulernextmillis"><span>update<wbr/>Job<wbr/>Scheduler<wbr/>Next<wbr/>Millis</span><a href="#updatejobschedulernextmillis" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1540,7 +1540,7 @@ observability). No-op for backends that have no such concept.</p>
 <li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">producerId</span>: <span class="tsd-signature-type">string</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L507">interfaces/queue-backend.ts:507</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L507">interfaces/queue-backend.ts:507</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="updateprogress"><span>update<wbr/>Progress</span><a href="#updateprogress" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1556,7 +1556,7 @@ observability). No-op for backends that have no such concept.</p>
 <li><span><span class="tsd-kind-parameter">progress</span>: <a href="../types/v6.JobProgress.html" class="tsd-signature-type tsd-kind-type-alias">JobProgress</a></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L444">interfaces/queue-backend.ts:444</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L444">interfaces/queue-backend.ts:444</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="waitforjob"><span>wait<wbr/>For<wbr/>Job</span><a href="#waitforjob" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1576,7 +1576,7 @@ implement it via <code>LISTEN</code>/<code>NOTIFY</code>, change-data-capture or
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">{</span> <span class="tsd-kind-property">member</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span> <span class="tsd-kind-property">score</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span> <span class="tsd-signature-symbol">}</span><span class="tsd-signature-symbol">&gt;</span></h4><p>The marker member/score on success, or <code>null</code> on timeout.</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L754">interfaces/queue-backend.ts:754</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L754">interfaces/queue-backend.ts:754</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="waituntilready"><span>wait<wbr/>Until<wbr/>Ready</span><a href="#waituntilready" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -1588,7 +1588,7 @@ operations.</p>
 </div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/62777d9a7150e68eabd04db6e46ca18fc860d1b7/src/interfaces/queue-backend.ts#L73">interfaces/queue-backend.ts:73</a></li></ul></aside></div></li></ul></section></section></details></div>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/cdab95e5880d1f2809f0d6bcfa14f53016cbf5f9/src/interfaces/queue-backend.ts#L73">interfaces/queue-backend.ts:73</a></li></ul></aside></div></li></ul></section></section></details></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
