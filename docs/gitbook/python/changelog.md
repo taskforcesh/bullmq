@@ -1,3 +1,10 @@
+## [3.0.4](https://github.com/taskforcesh/bullmq/compare/vpy3.0.3...vpy3.0.4) (2026-08-05)
+
+
+### Bug Fixes
+
+* **scheduler:** make job schedulers advance and support the postgres backend [python] fixes [#4483](https://github.com/taskforcesh/bullmq/issues/4483) ([#4498](https://github.com/taskforcesh/bullmq/issues/4498)) ([5eb9dca](https://github.com/taskforcesh/bullmq/commit/5eb9dca3050b472cc0f72a1fc0cb491b32b705d3))
+
 ## [3.0.3](https://github.com/taskforcesh/bullmq/compare/vpy3.0.2...vpy3.0.3) (2026-08-01)
 
 
