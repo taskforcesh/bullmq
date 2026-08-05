@@ -1,3 +1,11 @@
+## [6.0.8](https://github.com/taskforcesh/bullmq/compare/v6.0.7...v6.0.8) (2026-08-05)
+
+
+### Bug Fixes
+
+* **deps:** avoid deep ioredis import so postgres backend works without ioredis internals ([#4437](https://github.com/taskforcesh/bullmq/issues/4437)) fixes [#4435](https://github.com/taskforcesh/bullmq/issues/4435) ([550e446](https://github.com/taskforcesh/bullmq/commit/550e446db235be4bb9ee15d4d882632e139b3afb))
+* **postgres:** fail fast when SQL loader directory cannot be resolved ([#4482](https://github.com/taskforcesh/bullmq/issues/4482)) ([f3936a2](https://github.com/taskforcesh/bullmq/commit/f3936a22fe564ddf3468ee8388e7024ad9a76265))
+
 ## [6.0.7](https://github.com/taskforcesh/bullmq/compare/v6.0.6...v6.0.7) (2026-08-04)
 
 
