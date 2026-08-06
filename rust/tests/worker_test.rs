@@ -63,6 +63,180 @@ async fn test_worker_processes_job() {
     cleanup_queue(&queue).await;
 }
 
+/// Regression test for https://github.com/taskforcesh/bullmq/issues/4512
+///
+/// An idle worker must wake up and process a newly added job promptly via the
+/// marker -> BZPOPMIN -> notify_waiters chain, rather than waiting for the
+/// periodic empty-queue re-poll (`drain_delay`, default 5s). Previously the
+/// blocking connection inherited redis-rs's default 500ms response timeout,
+/// which aborted every BZPOPMIN before it could observe the marker, so idle
+/// workers only picked up jobs on the 5s poll.
+#[tokio::test]
+async fn test_idle_worker_picks_up_new_job_quickly() {
+    let name = test_queue_name();
+    let conn_opts = test_connection();
+
+    let queue_opts = QueueOptions {
+        connection: conn_opts.clone(),
+        ..Default::default()
+    };
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
+
+    let (tx, mut rx) = mpsc::channel::<String>(1);
+    let processor: ProcessorFn = Arc::new(move |job: Job, _token: CancellationToken| {
+        let tx = tx.clone();
+        Box::pin(async move {
+            tx.send(job.id().to_string()).await.unwrap();
+            Ok(serde_json::json!({"processed": true}))
+        })
+    });
+
+    let worker_opts = WorkerOptions {
+        connection: conn_opts,
+        autorun: true,
+        ..Default::default()
+    };
+
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
+
+    // Let the worker go idle: its first fetch finds nothing and it parks on
+    // the blocking BZPOPMIN watcher.
+    tokio::time::sleep(Duration::from_secs(1)).await;
+
+    let added_at = std::time::Instant::now();
+    queue
+        .add("wake-up", serde_json::json!({"hello": "world"}))
+        .await
+        .unwrap();
+
+    let processed_id = tokio::time::timeout(Duration::from_secs(10), rx.recv())
+        .await
+        .expect("timeout waiting for job")
+        .expect("channel closed");
+    let latency = added_at.elapsed();
+
+    assert!(!processed_id.is_empty());
+    // The blocking watcher should wake the worker well before the 5s poll.
+    // A healthy wake-up is near-instant; allow generous slack for CI while
+    // still failing if pickup regresses to the poll interval.
+    assert!(
+        latency < Duration::from_secs(3),
+        "idle worker took {latency:?} to pick up a new job; expected a near-instant \
+         wake-up via BZPOPMIN, not the 5s empty-queue poll"
+    );
+
+    worker.close(5000).await.unwrap();
+    cleanup_queue(&queue).await;
+}
+
+/// Stress test for the marker -> `notify_waiters()` wake-up path.
+///
+/// `tokio::Notify::notify_waiters()` does **not** store a permit: if it fires
+/// after a worker's non-blocking fetch returns `Empty` but before that worker
+/// re-registers on `job_available.notified()`, the notification is lost. A lost
+/// wake-up would strand the job until the worker's periodic empty-queue re-poll
+/// (`drain_delay`, 5s), since the marker that triggered it has already been
+/// consumed by the watcher's `BZPOPMIN`.
+///
+/// This drives many idle -> add -> process cycles, varying the delay between the
+/// worker going idle and the job being added (nanosecond-derived jitter) so the
+/// marker sometimes lands right inside that re-park window. Every job must be
+/// picked up promptly; any single stall near `drain_delay` fails the test.
+#[tokio::test]
+async fn test_idle_worker_wakeup_is_not_lost_under_race() {
+    let name = test_queue_name();
+    let conn_opts = test_connection();
+
+    let queue_opts = QueueOptions {
+        connection: conn_opts.clone(),
+        ..Default::default()
+    };
+    let queue = Queue::with_options(&name, queue_opts).await.unwrap();
+
+    // One job processed -> one message. Buffer a few so a fast processor never
+    // blocks on send.
+    let (tx, mut rx) = mpsc::channel::<String>(8);
+    let processor: ProcessorFn = Arc::new(move |job: Job, _token: CancellationToken| {
+        let tx = tx.clone();
+        Box::pin(async move {
+            tx.send(job.id().to_string()).await.unwrap();
+            Ok(serde_json::json!({"processed": true}))
+        })
+    });
+
+    let worker_opts = WorkerOptions {
+        connection: conn_opts,
+        autorun: true,
+        concurrency: 1,
+        ..Default::default()
+    };
+
+    let worker = Worker::with_options(&name, processor, worker_opts)
+        .await
+        .unwrap();
+
+    // Let the worker reach its idle/parked state before the first add.
+    tokio::time::sleep(Duration::from_millis(300)).await;
+
+    const ITERATIONS: usize = 60;
+    let mut max_latency = Duration::ZERO;
+    let mut slow_count = 0usize;
+
+    for i in 0..ITERATIONS {
+        // Jitter the gap between "worker is idle" and "job added" so the marker
+        // sometimes arrives exactly as the worker transitions back to parking —
+        // the window where a `notify_waiters()` wake-up could be lost. Derive it
+        // from the wall-clock nanoseconds (0..=7ms) so timing varies per run.
+        let jitter_us = (std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .subsec_nanos()
+            % 7_000) as u64;
+        tokio::time::sleep(Duration::from_micros(jitter_us)).await;
+
+        let added_at = std::time::Instant::now();
+        queue
+            .add("race", serde_json::json!({"i": i}))
+            .await
+            .unwrap();
+
+        // Tight timeout: a healthy wake-up is ~instant. If a notify is lost the
+        // job only surfaces on the 5s poll, which this timeout catches.
+        tokio::time::timeout(Duration::from_secs(4), rx.recv())
+            .await
+            .unwrap_or_else(|_| {
+                panic!(
+                    "iteration {i}: job was not processed within 4s — the marker \
+                 wake-up was likely lost, leaving the worker parked until the \
+                 {drain}s empty-queue poll",
+                    drain = 5
+                )
+            })
+            .expect("event channel closed");
+
+        let latency = added_at.elapsed();
+        if latency > max_latency {
+            max_latency = latency;
+        }
+        if latency > Duration::from_secs(1) {
+            slow_count += 1;
+        }
+    }
+
+    // No job should ever have waited near the 5s poll. Allow generous slack for
+    // CI scheduling, but fail if pickup regresses toward the poll interval.
+    assert!(
+        max_latency < Duration::from_secs(3),
+        "worst-case pickup latency was {max_latency:?} over {ITERATIONS} \
+         iterations ({slow_count} slower than 1s); a wake-up was likely lost",
+    );
+
+    worker.close(5000).await.unwrap();
+    cleanup_queue(&queue).await;
+}
+
 #[tokio::test]
 async fn test_worker_processes_jobs_serially() {
     let name = test_queue_name();
