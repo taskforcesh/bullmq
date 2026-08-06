@@ -227,6 +227,11 @@
       "labels": ["security", "osv"],
       "commitMessageSuffix": "[SECURITY]",
       "schedule": ["before 9am"]
+    },
+    {
+      "description": "Do not pin peerDependencies, keep range strategy as-is",
+      "matchDepTypes": ["peerDependencies"],
+      "rangeStrategy": "widen"
     }
   ],
   "vulnerabilityAlerts": {
