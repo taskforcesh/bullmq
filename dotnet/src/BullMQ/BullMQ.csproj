@@ -18,7 +18,7 @@
     <Authors>Taskforce.sh Inc.</Authors>
     <Company>Taskforce.sh Inc.</Company>
     <Product>BullMQ</Product>
-    <Description>The fastest, most reliable, Redis-based (and PostgreSQL-based) distributed queue for .NET. Carefully written for rock solid stability and atomicity, sharing the same Lua/SQL scripts as the reference Node.js implementation.</Description>
+    <Description>A robust, Redis- and PostgreSQL-based distributed queue for .NET. Carefully written for stability and atomicity, sharing the same Lua/SQL scripts as the reference Node.js implementation.</Description>
     <PackageTags>queue;redis;postgres;jobs;worker;bullmq;background-jobs;distributed</PackageTags>
     <PackageProjectUrl>https://bullmq.io</PackageProjectUrl>
     <RepositoryUrl>https://github.com/taskforcesh/bullmq</RepositoryUrl>

@@ -8,7 +8,7 @@ function getDirname(): string {
   }
   const stack = new Error().stack || '';
   for (const line of stack.split('\n')) {
-    const match = line.match(/(file:\/\/\/[^\s\)]+)/);
+    const match = line.match(/(file:\/\/\/[^\s)]+)/);
     if (match) {
       try {
         return dirname(fileURLToPath(match[1]));
@@ -17,7 +17,7 @@ function getDirname(): string {
       }
     }
   }
-  return '';
+  throw new Error('Could not determine sql-loader directory path');
 }
 
 const currentDir = getDirname();

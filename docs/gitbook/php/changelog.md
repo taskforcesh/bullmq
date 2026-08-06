@@ -1,3 +1,10 @@
+## [2.0.1](https://github.com/taskforcesh/bullmq/compare/vphp2.0.0...vphp2.0.1) (2026-08-05)
+
+
+### Bug Fixes
+
+* **deps:** upgrade predis to v3 (major) [php] (major) ([#4489](https://github.com/taskforcesh/bullmq/issues/4489)) ([6a166ea](https://github.com/taskforcesh/bullmq/commit/6a166ea3f747f5dece935d206057d43c2febcde7))
+
 # [2.0.0](https://github.com/taskforcesh/bullmq/compare/vphp1.0.3...vphp2.0.0) (2026-07-30)
 
 

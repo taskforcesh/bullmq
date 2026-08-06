@@ -15,6 +15,7 @@ unqualified names and stay portable.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from typing import Any, Optional, TYPE_CHECKING
@@ -163,6 +164,48 @@ def _normalize_keep(remove_on: Any) -> tuple[bool, Optional[int], Optional[int]]
     if isinstance(remove_on, dict):
         return (False, remove_on.get("age"), remove_on.get("count"))
     return (False, None, None)
+
+
+def _scheduler_row_to_hash(row: dict) -> tuple[dict, Optional[int]]:
+    """Map a ``scheduler`` row into the Redis-hash-shaped ``(fields, next)``
+    pair that :func:`bullmq.job_scheduler._transform_scheduler_data` consumes.
+
+    Scalar fields become string values; ``template_data``/``template_opts``
+    (stored as ``jsonb``, decoded by psycopg into Python objects) are
+    re-serialized to JSON strings and omitted when empty. Absent fields are
+    dropped. Mirrors the Node ``mapSchedulerRow`` helper.
+    """
+    fields: dict = {}
+
+    def _put(key: str, value: Any) -> None:
+        if value is not None:
+            fields[key] = str(value)
+
+    _put("name", row.get("name"))
+    _put("ic", row.get("iteration_count"))
+    _put("limit", row.get("limit_count"))
+    _put("startDate", row.get("start_date_ms"))
+    _put("endDate", row.get("end_date_ms"))
+    _put("tz", row.get("tz"))
+    _put("pattern", row.get("pattern"))
+    _put("every", row.get("every_ms"))
+    _put("offset", row.get("offset_ms"))
+
+    template_data = row.get("template_data")
+    if template_data is not None:
+        data = template_data if isinstance(template_data, str) else _json(template_data)
+        if data != "{}":
+            fields["data"] = data
+
+    template_opts = row.get("template_opts")
+    if template_opts is not None:
+        opts = template_opts if isinstance(template_opts, str) else _json(template_opts)
+        if opts != "{}":
+            fields["opts"] = opts
+
+    next_run = row.get("next_run_ms")
+    next_millis = None if next_run is None else _to_int(next_run)
+    return (fields, next_millis)
 
 
 class PostgresBackend(Backend):
@@ -752,6 +795,122 @@ class PostgresBackend(Backend):
                 listen_conn = await self.connection.ensure_job_channel()
             if not checked_waiting_job and await self._has_waiting_job():
                 return marker
+
+    # ============================================================
+    # Job schedulers (repeatable job factories)
+    # ============================================================
+
+    async def addJobScheduler(
+        self,
+        job_scheduler_id: str,
+        next_millis: Optional[int],
+        template_data: str,
+        template_opts: dict,
+        scheduler_opts: dict,
+        delayed_job_opts: dict,
+        producer_id: Optional[str] = None,
+    ):
+        result = await self._run(
+            "add_job_scheduler",
+            [
+                self.queue_name,
+                job_scheduler_id,
+                next_millis,
+                template_data or "{}",
+                _jsonb(template_opts or {}),
+                _jsonb(scheduler_opts or {}),
+                _jsonb(delayed_job_opts or {}),
+                _now_ms(),
+                producer_id,
+            ],
+            op="addJobScheduler",
+        )
+        row = result.first_map()
+        if not row or row.get("job_id") is None:
+            return None
+        return (str(row["job_id"]), _to_int(row.get("delay")))
+
+    async def updateJobSchedulerNextMillis(
+        self,
+        job_scheduler_id: str,
+        next_millis: Optional[int],
+        template_data: str,
+        delayed_job_opts: dict,
+        producer_id: Optional[str] = None,
+    ):
+        result = await self._run(
+            "update_job_scheduler",
+            [
+                self.queue_name,
+                job_scheduler_id,
+                next_millis,
+                template_data or "{}",
+                _jsonb(delayed_job_opts or {}),
+                _now_ms(),
+                producer_id,
+            ],
+            op="updateJobSchedulerNextMillis",
+        )
+        row = result.first_map()
+        job_id = row.get("job_id") if row else None
+        return str(job_id) if job_id is not None else None
+
+    async def removeJobScheduler(self, job_scheduler_id: str) -> int:
+        result = await self._run(
+            "remove_job_scheduler", [self.queue_name, job_scheduler_id]
+        )
+        row = result.first_map()
+        return _to_int(row.get("removed")) if row else 1
+
+    async def isJobScheduler(self, job_scheduler_id: str) -> bool:
+        result = await self._run(
+            "is_job_scheduler", [self.queue_name, job_scheduler_id]
+        )
+        row = result.first_map()
+        return bool(row.get("exists")) if row else False
+
+    async def getJobScheduler(self, job_scheduler_id: str):
+        result = await self._run(
+            "get_job_scheduler", [self.queue_name, job_scheduler_id]
+        )
+        row = result.first_map()
+        if not row:
+            return (None, None)
+        return _scheduler_row_to_hash(row)
+
+    async def getJobSchedulers(
+        self, start: int = 0, end: int = -1, asc: bool = False
+    ) -> list:
+        count = None if end < 0 else end - start + 1
+        result = await self._run(
+            "get_job_schedulers_range", [self.queue_name, asc, start, count]
+        )
+        # The range command only returns (scheduler_id, next_run_ms); fetch
+        # each scheduler's metadata concurrently, mirroring the Redis path.
+        rows = result.maps()
+        if not rows:
+            return []
+        details = await asyncio.gather(
+            *(
+                self._run("get_job_scheduler", [self.queue_name, row["scheduler_id"]])
+                for row in rows
+            )
+        )
+        out = []
+        for row, detail in zip(rows, details):
+            detail_row = detail.first_map()
+            key = row["scheduler_id"]
+            if detail_row:
+                fields, next_millis = _scheduler_row_to_hash(detail_row)
+            else:
+                fields, next_millis = {}, _to_int(row.get("next_run_ms"))
+            out.append((key, fields, next_millis))
+        return out
+
+    async def getJobSchedulersCount(self) -> int:
+        result = await self._run("get_job_schedulers_count", [self.queue_name])
+        row = result.first_map()
+        return _to_int(row.get("count")) if row else 0
 
 
 def create_postgres_backend(

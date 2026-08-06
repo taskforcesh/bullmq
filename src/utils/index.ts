@@ -1,12 +1,11 @@
 import { EventEmitter } from 'events';
-import { Cluster, Redis } from 'ioredis';
 import { AbortController } from '../classes/abort-controller';
 export { randomUUID } from 'crypto';
 
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
-import { ConnectionClosedError } from '../classes/errors/connection-closed-error';
+import {
+  ConnectionClosedError,
+  CONNECTION_CLOSED_ERROR_MSG,
+} from '../classes/errors/connection-closed-error';
 import {
   ChildMessage,
   ContextManager,
@@ -19,6 +18,12 @@ import * as semver from 'semver';
 
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { DatabaseType } from '../types';
+
+type RedisLikeClient = {
+  connect(...args: any[]): any;
+  disconnect(...args: any[]): any;
+  duplicate(...args: any[]): any;
+};
 
 export const errorObject: { [index: string]: any } = { value: null };
 
@@ -152,7 +157,7 @@ export const optsEncodeMap = {
 
 export function isRedisInstance(
   obj: any,
-): obj is IRedisClient | Redis | Cluster {
+): obj is IRedisClient | RedisLikeClient {
   if (!obj) {
     return false;
   }

@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { loadCommandSql, loadMigrationSql } from '../../src/postgres/sql-loader';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  loadCommandSql,
+  loadMigrationSql,
+} from '../../src/postgres/sql-loader';
 
 describe('PostgreSQL SQL Loader', () => {
   it('loads migration SQL files without throwing', () => {
@@ -15,9 +18,21 @@ describe('PostgreSQL SQL Loader', () => {
     expect(command.length).toBeGreaterThan(0);
   });
 
-  it('caches loaded SQL content for subsequent calls', () => {
-    const firstCall = loadCommandSql('add_job');
-    const secondCall = loadCommandSql('add_job');
-    expect(firstCall).toBe(secondCall);
+  it('caches loaded SQL content for subsequent calls', async () => {
+    vi.resetModules();
+    const readFileSync = vi.fn(() => 'SELECT 1;');
+
+    vi.doMock('fs', () => ({
+      readFileSync,
+    }));
+
+    const { loadCommandSql: loadCommandSqlFresh } =
+      await import('../../src/postgres/sql-loader');
+
+    expect(loadCommandSqlFresh('add_job')).toBe('SELECT 1;');
+    expect(loadCommandSqlFresh('add_job')).toBe('SELECT 1;');
+
+    expect(readFileSync).toHaveBeenCalledTimes(1);
+    vi.doUnmock('fs');
   });
 });

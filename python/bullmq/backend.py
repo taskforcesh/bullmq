@@ -348,6 +348,74 @@ class Backend(ABC):
         Returns the raw marker entry on success, or a falsy value on timeout.
         """
 
+    # ============================================================
+    # Job schedulers (repeatable job factories)
+    # ============================================================
+
+    @abstractmethod
+    async def addJobScheduler(
+        self,
+        job_scheduler_id: str,
+        next_millis: Optional[int],
+        template_data: str,
+        template_opts: dict,
+        scheduler_opts: dict,
+        delayed_job_opts: dict,
+        producer_id: Optional[str] = None,
+    ):
+        """Register/override a scheduler and enqueue its next iteration.
+
+        Returns a ``(job_id, delay)`` pair for the newly-scheduled iteration,
+        or a falsy value when no iteration was produced.
+        """
+
+    @abstractmethod
+    async def updateJobSchedulerNextMillis(
+        self,
+        job_scheduler_id: str,
+        next_millis: Optional[int],
+        template_data: str,
+        delayed_job_opts: dict,
+        producer_id: Optional[str] = None,
+    ):
+        """Advance an existing scheduler to its next iteration without
+        touching its template. Returns the new delayed job id, or a falsy
+        value if no iteration was produced (e.g. the scheduler is gone)."""
+
+    @abstractmethod
+    async def removeJobScheduler(self, job_scheduler_id: str) -> int:
+        """Remove a scheduler and its pending next-iteration job.
+
+        Returns 0 if the scheduler was removed, 1 if it did not exist.
+        """
+
+    @abstractmethod
+    async def isJobScheduler(self, job_scheduler_id: str) -> bool:
+        """Return whether ``job_scheduler_id`` is a registered scheduler."""
+
+    @abstractmethod
+    async def getJobScheduler(self, job_scheduler_id: str):
+        """Return a ``(fields, next_millis)`` pair for a single scheduler.
+
+        ``fields`` is the metadata mapping (``name``, ``ic``, ``every``,
+        ``pattern``, ``data``, ``opts`` ...) in the Redis-hash shape that
+        :func:`bullmq.job_scheduler._transform_scheduler_data` consumes, or a
+        falsy value when the scheduler is missing. ``next_millis`` is the
+        next-run timestamp, or ``None``.
+        """
+
+    @abstractmethod
+    async def getJobSchedulers(
+        self, start: int = 0, end: int = -1, asc: bool = False
+    ) -> list:
+        """Return a page of registered schedulers as a list of
+        ``(key, fields, next_millis)`` tuples (see :meth:`getJobScheduler`
+        for the ``fields`` shape)."""
+
+    @abstractmethod
+    async def getJobSchedulersCount(self) -> int:
+        """Return the total number of registered schedulers."""
+
 
 BackendFactory = Callable[..., Backend]
 """Factory that builds a :class:`Backend` for a given queue.

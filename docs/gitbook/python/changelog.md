@@ -1,10 +1,16 @@
+## [3.0.4](https://github.com/taskforcesh/bullmq/compare/vpy3.0.3...vpy3.0.4) (2026-08-05)
+
+
+### Bug Fixes
+
+* **scheduler:** make job schedulers advance and support the postgres backend [python] fixes [#4483](https://github.com/taskforcesh/bullmq/issues/4483) ([#4498](https://github.com/taskforcesh/bullmq/issues/4498)) ([5eb9dca](https://github.com/taskforcesh/bullmq/commit/5eb9dca3050b472cc0f72a1fc0cb491b32b705d3))
+
 ## [3.0.3](https://github.com/taskforcesh/bullmq/compare/vpy3.0.2...vpy3.0.3) (2026-08-01)
 
 
 ### Bug Fixes
 
-* **deps:** update python dependencies (python) ([#4453](https://github.com/taskforcesh/bullmq/issues/4453)) ([e58f9e1](https://github.com/taskforcesh/bullmq/commit/e58f9e1892463da4ca411506d66ee01413e5daeb))
-* **deps:** update security patches [security] ([#4444](https://github.com/taskforcesh/bullmq/issues/4444)) ([c1cf328](https://github.com/taskforcesh/bullmq/commit/c1cf32881474f3f1e9b620e025abde07a359eb06))
+* **deps:** update python dependencies [python] ([#4453](https://github.com/taskforcesh/bullmq/issues/4453)) ([e58f9e1](https://github.com/taskforcesh/bullmq/commit/e58f9e1892463da4ca411506d66ee01413e5daeb))
 
 ## [3.0.2](https://github.com/taskforcesh/bullmq/compare/vpy3.0.1...vpy3.0.2) (2026-07-31)
 

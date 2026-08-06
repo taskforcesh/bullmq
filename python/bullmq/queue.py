@@ -474,10 +474,6 @@ class Queue(EventEmitter):
         on first use so that queues which never schedule pay no cost.
         """
         if self._job_scheduler is None:
-            if self.scripts is None or self.client is None:
-                raise NotImplementedError(
-                    "Job schedulers are currently only supported by the Redis backend"
-                )
             from bullmq.job_scheduler import JobScheduler
             self._job_scheduler = JobScheduler(self)
         return self._job_scheduler

@@ -14,7 +14,7 @@ library can be consumed by a .NET worker and vice versa.
 > (the exact same tests run against both adapters). The high-level `Queue`,
 > `Worker` and `Job` classes run on **either backend** — select PostgreSQL by
 > setting `Postgres` on the options. `FlowProducer`, `QueueEvents` and
-> `JobScheduler` are still being added towards full parity.
+> `JobScheduler` are also implemented.
 
 ## Requirements
 

@@ -19,10 +19,23 @@
       "schedule": ["before 9am"]
     },
     {
+      "description": "Use chore commit type for all dev dependency updates",
+      "matchDepTypes": ["devDependencies", "require-dev", "dev-dependencies"],
+      "semanticCommitType": "chore"
+    },
+    {
       "description": "Group every non-major Node.js/npm update (minor + patch) into a single PR",
       "matchCategories": ["js", "node"],
       "groupName": "Node.js dependencies",
       "groupSlug": "nodejs"
+    },
+    {
+      "description": "Group every non-major Node.js/npm dev dependency update into a single PR",
+      "matchCategories": ["js", "node"],
+      "matchDepTypes": ["devDependencies"],
+      "groupName": "Node.js dev dependencies",
+      "groupSlug": "nodejs-dev",
+      "semanticCommitType": "chore"
     },
     {
       "description": "Group every PHP (composer) update into a single PR",
@@ -32,11 +45,29 @@
       "commitMessageSuffix": "[php]"
     },
     {
+      "description": "Group every PHP (composer) dev dependency update into a single PR",
+      "matchCategories": ["php"],
+      "matchDepTypes": ["require-dev"],
+      "groupName": "PHP dev dependencies",
+      "groupSlug": "php-dev",
+      "commitMessageSuffix": "[php]",
+      "semanticCommitType": "chore"
+    },
+    {
       "description": "Group every Python update into a single PR",
       "matchCategories": ["python"],
       "groupName": "Python dependencies",
       "groupSlug": "python",
       "commitMessageSuffix": "[python]"
+    },
+    {
+      "description": "Group every Python dev dependency update into a single PR",
+      "matchCategories": ["python"],
+      "matchDepTypes": ["dev-dependencies"],
+      "groupName": "Python dev dependencies",
+      "groupSlug": "python-dev",
+      "commitMessageSuffix": "[python]",
+      "semanticCommitType": "chore"
     },
     {
       "description": "Group every Elixir (mix) update into a single PR",
@@ -51,6 +82,15 @@
       "groupName": "Rust dependencies",
       "groupSlug": "rust",
       "commitMessageSuffix": "[rust]"
+    },
+    {
+      "description": "Group every Rust (cargo) dev dependency update into a single PR",
+      "matchCategories": ["rust"],
+      "matchDepTypes": ["dev-dependencies"],
+      "groupName": "Rust dev dependencies",
+      "groupSlug": "rust-dev",
+      "commitMessageSuffix": "[rust]",
+      "semanticCommitType": "chore"
     },
     {
       "description": "Group every .NET (NuGet) update into a single PR",
@@ -79,6 +119,15 @@
       "groupSlug": "nodejs-major"
     },
     {
+      "description": "Separate Node.js major dev dependency updates into their own PR",
+      "matchCategories": ["js", "node"],
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "Node.js dev dependencies (major)",
+      "groupSlug": "nodejs-dev-major",
+      "semanticCommitType": "chore"
+    },
+    {
       "description": "Separate PHP major updates into their own PR",
       "matchCategories": ["php"],
       "matchUpdateTypes": ["major"],
@@ -87,12 +136,32 @@
       "commitMessageSuffix": "[php]"
     },
     {
+      "description": "Separate PHP major dev dependency updates into their own PR",
+      "matchCategories": ["php"],
+      "matchDepTypes": ["require-dev"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "PHP dev dependencies (major)",
+      "groupSlug": "php-dev-major",
+      "commitMessageSuffix": "[php]",
+      "semanticCommitType": "chore"
+    },
+    {
       "description": "Separate Python major updates into their own PR",
       "matchCategories": ["python"],
       "matchUpdateTypes": ["major"],
       "groupName": "Python dependencies (major)",
       "groupSlug": "python-major",
       "commitMessageSuffix": "[python]"
+    },
+    {
+      "description": "Separate Python major dev dependency updates into their own PR",
+      "matchCategories": ["python"],
+      "matchDepTypes": ["dev-dependencies"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "Python dev dependencies (major)",
+      "groupSlug": "python-dev-major",
+      "commitMessageSuffix": "[python]",
+      "semanticCommitType": "chore"
     },
     {
       "description": "Separate Elixir major updates into their own PR",
@@ -109,6 +178,16 @@
       "groupName": "Rust dependencies (major)",
       "groupSlug": "rust-major",
       "commitMessageSuffix": "[rust]"
+    },
+    {
+      "description": "Separate Rust major dev dependency updates into their own PR",
+      "matchCategories": ["rust"],
+      "matchDepTypes": ["dev-dependencies"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "Rust dev dependencies (major)",
+      "groupSlug": "rust-dev-major",
+      "commitMessageSuffix": "[rust]",
+      "semanticCommitType": "chore"
     },
     {
       "description": "Separate .NET major updates into their own PR",
