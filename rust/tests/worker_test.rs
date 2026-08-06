@@ -66,8 +66,8 @@ async fn test_worker_processes_job() {
 /// Regression test for https://github.com/taskforcesh/bullmq/issues/4512
 ///
 /// An idle worker must wake up and process a newly added job promptly via the
-/// marker -> BZPOPMIN -> notify_waiters chain, rather than waiting for the
-/// periodic empty-queue re-poll (`drain_delay`, default 5s). Previously the
+/// marker -> BZPOPMIN path, rather than waiting for the periodic empty-queue
+/// re-poll (`drain_delay`, default 5s). Previously the
 /// blocking connection inherited redis-rs's default 500ms response timeout,
 /// which aborted every BZPOPMIN before it could observe the marker, so idle
 /// workers only picked up jobs on the 5s poll.
@@ -101,9 +101,18 @@ async fn test_idle_worker_picks_up_new_job_quickly() {
         .await
         .unwrap();
 
-    // Let the worker go idle: its first fetch finds nothing and it parks on
-    // the blocking BZPOPMIN watcher.
-    tokio::time::sleep(Duration::from_secs(1)).await;
+    // Wait for the worker to reach idle/parked state before adding a job.
+    tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            match worker.next_event().await {
+                Some(WorkerEvent::Drained) => break,
+                Some(_) => {}
+                None => panic!("worker event channel closed"),
+            }
+        }
+    })
+    .await
+    .expect("timeout waiting for worker to become drained");
 
     let added_at = std::time::Instant::now();
     queue
@@ -131,19 +140,12 @@ async fn test_idle_worker_picks_up_new_job_quickly() {
     cleanup_queue(&queue).await;
 }
 
-/// Stress test for the marker -> `notify_waiters()` wake-up path.
-///
-/// `tokio::Notify::notify_waiters()` does **not** store a permit: if it fires
-/// after a worker's non-blocking fetch returns `Empty` but before that worker
-/// re-registers on `job_available.notified()`, the notification is lost. A lost
-/// wake-up would strand the job until the worker's periodic empty-queue re-poll
-/// (`drain_delay`, 5s), since the marker that triggered it has already been
-/// consumed by the watcher's `BZPOPMIN`.
+/// Stress test for the marker -> `BZPOPMIN` wake-up path.
 ///
 /// This drives many idle -> add -> process cycles, varying the delay between the
 /// worker going idle and the job being added (nanosecond-derived jitter) so the
-/// marker sometimes lands right inside that re-park window. Every job must be
-/// picked up promptly; any single stall near `drain_delay` fails the test.
+/// marker sometimes lands right as the worker re-parks. Every job must be picked
+/// up promptly; any single stall near `drain_delay` fails the test.
 #[tokio::test]
 async fn test_idle_worker_wakeup_is_not_lost_under_race() {
     let name = test_queue_name();
@@ -177,8 +179,18 @@ async fn test_idle_worker_wakeup_is_not_lost_under_race() {
         .await
         .unwrap();
 
-    // Let the worker reach its idle/parked state before the first add.
-    tokio::time::sleep(Duration::from_millis(300)).await;
+    // Wait for the worker to reach its idle/parked state before the first add.
+    tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            match worker.next_event().await {
+                Some(WorkerEvent::Drained) => break,
+                Some(_) => {}
+                None => panic!("worker event channel closed"),
+            }
+        }
+    })
+    .await
+    .expect("timeout waiting for worker to become drained");
 
     const ITERATIONS: usize = 60;
     let mut max_latency = Duration::ZERO;
@@ -186,8 +198,8 @@ async fn test_idle_worker_wakeup_is_not_lost_under_race() {
 
     for i in 0..ITERATIONS {
         // Jitter the gap between "worker is idle" and "job added" so the marker
-        // sometimes arrives exactly as the worker transitions back to parking —
-        // the window where a `notify_waiters()` wake-up could be lost. Derive it
+        // sometimes arrives exactly as the worker transitions back to parking.
+        // Derive it
         // from the wall-clock nanoseconds (0..=7ms) so timing varies per run.
         let jitter_us = (std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -202,7 +214,7 @@ async fn test_idle_worker_wakeup_is_not_lost_under_race() {
             .await
             .unwrap();
 
-        // Tight timeout: a healthy wake-up is ~instant. If a notify is lost the
+        // Tight timeout: a healthy wake-up is ~instant. If wake-up regresses, the
         // job only surfaces on the 5s poll, which this timeout catches.
         tokio::time::timeout(Duration::from_secs(4), rx.recv())
             .await

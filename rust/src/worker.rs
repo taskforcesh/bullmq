@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use tokio::sync::{broadcast, mpsc, Mutex, Notify, RwLock};
-use tokio::task::JoinHandle;
+use tokio::task::{JoinHandle, JoinSet};
 use tracing::{debug, error, warn};
 use uuid::Uuid;
 
@@ -873,9 +873,16 @@ impl Worker {
     /// the concurrency gate, giving parallel processing without waking many idle
     /// fetchers per job. This mirrors the Node.js single-driver `mainLoop`.
     async fn run_main_driver(ctx: Arc<LoopContext>, blocking_conn: BlockingRedisConnection) {
+        let mut processing_tasks = JoinSet::new();
         loop {
+            while let Some(_finished) = processing_tasks.try_join_next() {}
+
             if ctx.closing.load(Ordering::Relaxed) {
-                break;
+                if processing_tasks.is_empty() {
+                    break;
+                }
+                let _ = processing_tasks.join_next().await;
+                continue;
             }
 
             if ctx.paused.load(Ordering::Relaxed) {
@@ -924,7 +931,7 @@ impl Worker {
                     // immediately to fetch the next job, so fetching stays
                     // single-threaded while processing runs in parallel.
                     let task_ctx = ctx.clone();
-                    tokio::spawn(async move {
+                    processing_tasks.spawn(async move {
                         let _slot = slot_guard;
                         let mut next = Some(*job);
                         while let Some(current) = next.take() {
@@ -957,7 +964,12 @@ impl Worker {
                     let _ = ctx.event_tx.send(WorkerEvent::Drained);
                     // The queue is empty: park on the single blocking BZPOPMIN
                     // until a job's marker arrives or drain_delay elapses.
-                    Self::wait_for_marker(&blocking_conn, &ctx, ctx.opts.drain_delay * 1000).await;
+                    Self::wait_for_marker(
+                        &blocking_conn,
+                        &ctx,
+                        ctx.opts.drain_delay.saturating_mul(1000),
+                    )
+                    .await;
                 }
                 Err(e) => {
                     drop(slot_guard);
