@@ -1,3 +1,10 @@
+## [6.0.9](https://github.com/taskforcesh/bullmq/compare/v6.0.8...v6.0.9) (2026-08-07)
+
+
+### Bug Fixes
+
+* **events:** type completed event returnvalue as deserialized value ([#4441](https://github.com/taskforcesh/bullmq/issues/4441)) fixes [#4147](https://github.com/taskforcesh/bullmq/issues/4147) ([5910ccc](https://github.com/taskforcesh/bullmq/commit/5910cccfc8a773067621953087d0d055670e1e2a))
+
 ## [6.0.8](https://github.com/taskforcesh/bullmq/compare/v6.0.7...v6.0.8) (2026-08-05)
 
 
