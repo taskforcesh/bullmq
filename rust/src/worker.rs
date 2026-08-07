@@ -770,10 +770,22 @@ impl Worker {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
 
-        // Cancel background tasks
+        // Let the main loop finish gracefully so any in-flight processing tasks
+        // owned by its JoinSet can complete. Abort only if we run out of time.
         if let Some(handle) = self.main_loop_handle.lock().await.take() {
-            handle.abort();
+            let mut handle = handle;
+            let now = tokio::time::Instant::now();
+            if now < deadline {
+                let remaining = deadline - now;
+                if tokio::time::timeout(remaining, &mut handle).await.is_err() {
+                    warn!("close timeout reached while waiting for main loop to stop");
+                    handle.abort();
+                }
+            } else {
+                handle.abort();
+            }
         }
+        // Cancel remaining background tasks.
         if let Some(handle) = self.stalled_check_handle.lock().await.take() {
             handle.abort();
         }
