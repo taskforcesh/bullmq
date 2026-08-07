@@ -764,16 +764,30 @@ impl Worker {
                 break;
             }
             if tokio::time::Instant::now() >= deadline {
-                warn!("close timeout reached with active work remaining");
+                warn!(
+                    active_job_count,
+                    active_fetchers, "close timeout reached with active work remaining"
+                );
                 break;
             }
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
 
-        // Cancel background tasks
-        if let Some(handle) = self.main_loop_handle.lock().await.take() {
-            handle.abort();
+        // Let the main loop finish naturally so any in-flight processing tasks
+        // tracked by its JoinSet can complete and persist final job state.
+        if let Some(mut handle) = self.main_loop_handle.lock().await.take() {
+            let now = tokio::time::Instant::now();
+            if now < deadline {
+                let remaining = deadline - now;
+                if tokio::time::timeout(remaining, &mut handle).await.is_err() {
+                    warn!("close timeout reached while waiting for main loop");
+                    handle.abort();
+                }
+            } else {
+                handle.abort();
+            }
         }
+        // Cancel remaining background tasks.
         if let Some(handle) = self.stalled_check_handle.lock().await.take() {
             handle.abort();
         }
@@ -850,44 +864,29 @@ impl Worker {
         ));
 
         let blocking_conn = self.blocking_conn.clone();
-        let concurrency = self.opts.concurrency;
-        let job_available = Arc::new(Notify::new());
 
-        let handle = tokio::spawn(async move {
-            let mut worker_handles = Vec::with_capacity(concurrency + 1);
-
-            // Spawn N worker loops — each independently fetches and processes
-            for _ in 0..concurrency {
-                let ctx = ctx.clone();
-                let job_available = job_available.clone();
-                worker_handles.push(tokio::spawn(Self::run_worker_loop(ctx, job_available)));
-            }
-
-            // Blocking watcher: waits on BZPOPMIN and wakes idle workers
-            {
-                let closing = ctx.closing.clone();
-                let drain_delay = ctx.opts.drain_delay;
-                let marker_key = ctx.keys.marker();
-                let job_available = job_available.clone();
-                worker_handles.push(tokio::spawn(Self::run_blocking_watcher(
-                    closing,
-                    blocking_conn,
-                    marker_key,
-                    drain_delay,
-                    job_available,
-                )));
-            }
-
-            for h in worker_handles {
-                let _ = h.await;
-            }
-        });
+        // A single fetch-driver owns all blocking reads and job dispatch,
+        // mirroring the Node.js `mainLoop`. It fetches at most one job at a time
+        // (issuing at most one blocking `BZPOPMIN` when the queue is empty) and
+        // dispatches each fetched job to its own processing task, so up to
+        // `concurrency` jobs run in parallel — without a job arrival waking many
+        // idle fetch loops at once (the "thundering herd" the previous N-loop +
+        // notify_waiters design reintroduced, which Node deliberately avoids).
+        let handle = tokio::spawn(Self::run_main_driver(ctx, blocking_conn));
 
         *self.main_loop_handle.lock().await = Some(handle);
     }
 
-    /// A single worker's fetch-process loop. Runs until `closing` is set.
-    async fn run_worker_loop(ctx: Arc<LoopContext>, job_available: Arc<Notify>) {
+    /// The single fetch-and-dispatch driver. Runs until `closing` is set.
+    ///
+    /// Fetches at most one job at a time. When the queue is empty (or waiting on
+    /// a delayed job / rate limit) it issues a single blocking `BZPOPMIN` on the
+    /// marker key and parks until a marker arrives or the timeout elapses — so
+    /// exactly one blocking command is ever in flight regardless of
+    /// `concurrency`. Each fetched job is dispatched to its own task, bounded by
+    /// the concurrency gate, giving parallel processing without waking many idle
+    /// fetchers per job. This mirrors the Node.js single-driver `mainLoop`.
+    async fn run_main_driver(ctx: Arc<LoopContext>, blocking_conn: BlockingRedisConnection) {
         loop {
             if ctx.closing.load(Ordering::Relaxed) {
                 break;
@@ -898,15 +897,32 @@ impl Worker {
                 continue;
             }
 
-            // Wait for a concurrency slot
+            // Bound in-flight processing to the concurrency limit *before*
+            // fetching, so we never fetch a job we cannot immediately process.
+            // Blocks on the concurrency gate while all slots are busy.
             if !Self::acquire_concurrency_slot(&ctx).await {
-                break; // closing
+                // Closing was requested while we were waiting for a slot.
+                // Loop back so the closing branch can drain in-flight tasks.
+                continue;
             }
             let slot_guard = ConcurrencySlotGuard::new(ctx.clone());
 
+            // `acquire_concurrency_slot` can block while all slots are busy, so
+            // re-check state after it returns: the worker may have been closed or
+            // paused (and new jobs enqueued) while we waited. Without this we
+            // could fetch a job right after being paused.
+            if ctx.closing.load(Ordering::Relaxed) {
+                break;
+            }
+            if ctx.paused.load(Ordering::Relaxed) {
+                drop(slot_guard);
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                continue;
+            }
+
             let token = ctx.next_token();
 
-            // Try to fetch a job (non-blocking — script only)
+            // Non-blocking fetch (moveToActive script only).
             let fetch_result = Self::try_fetch_job_fast(
                 &ctx.conn,
                 &ctx.move_to_active_keys,
@@ -918,61 +934,80 @@ impl Worker {
 
             match fetch_result {
                 Ok(FetchResult::Job(job)) => {
-                    // Process the fetched job. When the finishing script fetches
-                    // the next job in the same round-trip, keep processing that
-                    // job directly (reusing the same token, as Node.js does)
-                    // until the chain runs dry — avoiding a `moveToActive` call
-                    // per job.
-                    let mut next = Some(*job);
-                    while let Some(current) = next.take() {
-                        next = Self::process_fetched_job(&ctx, current, &token).await;
-                    }
+                    // Dispatch processing to its own task, moving the concurrency
+                    // slot into it (released only when the task — including any
+                    // finish-script chained jobs — completes). The driver loops
+                    // immediately to fetch the next job, so fetching stays
+                    // single-threaded while processing runs in parallel.
+                    let task_ctx = ctx.clone();
+                    tokio::spawn(async move {
+                        let _slot = slot_guard;
+                        let mut next = Some(*job);
+                        while let Some(current) = next.take() {
+                            next = Self::process_fetched_job(&task_ctx, current, &token).await;
+                        }
+                    });
                 }
                 Ok(FetchResult::NextTimestamp(next_ts)) => {
                     drop(slot_guard);
-                    // No job ready, but there's a delayed job coming
+                    // No job ready, but there's a delayed job coming. Block on the
+                    // marker until it is promoted or the delay elapses.
                     let now = SystemTime::now()
                         .duration_since(UNIX_EPOCH)
                         .unwrap()
                         .as_millis() as u64;
                     if next_ts > now {
-                        // Cap the sleep to periodically re-check `closing`.
+                        // Cap the wait to periodically re-check `closing`.
                         let delay_ms = (next_ts - now).min(5_000);
-                        // Wait for either the delay or a notification
-                        tokio::select! {
-                            _ = tokio::time::sleep(Duration::from_millis(delay_ms)) => {}
-                            _ = job_available.notified() => {}
-                        }
+                        Self::wait_for_marker(&blocking_conn, &ctx, delay_ms).await;
                     }
-                    continue;
                 }
                 Ok(FetchResult::RateLimited(ttl_ms)) => {
                     drop(slot_guard);
-                    // Rate limited — wait for the TTL to expire (capped by maximumRateLimitDelay)
-                    let delay = ttl_ms.min(ctx.opts.maximum_rate_limit_delay);
-                    tokio::select! {
-                        _ = tokio::time::sleep(Duration::from_millis(delay)) => {}
-                        _ = job_available.notified() => {}
-                    }
-                    continue;
+                    // Rate limited — wait for the TTL (capped by maximumRateLimitDelay).
+                    let delay_ms = ttl_ms.min(ctx.opts.maximum_rate_limit_delay);
+                    Self::wait_for_marker(&blocking_conn, &ctx, delay_ms).await;
                 }
                 Ok(FetchResult::Empty) => {
                     drop(slot_guard);
                     let _ = ctx.event_tx.send(WorkerEvent::Drained);
-                    // Use select to allow periodic re-check of `closing` flag
-                    tokio::select! {
-                        _ = job_available.notified() => {}
-                        _ = tokio::time::sleep(Duration::from_millis(5_000)) => {}
-                    }
-                    continue;
+                    // The queue is empty: park on the single blocking BZPOPMIN
+                    // until a job's marker arrives or drain_delay elapses.
+                    Self::wait_for_marker(
+                        &blocking_conn,
+                        &ctx,
+                        ctx.opts.drain_delay.saturating_mul(1000),
+                    )
+                    .await;
                 }
                 Err(e) => {
                     drop(slot_guard);
                     let _ = ctx.event_tx.send(WorkerEvent::Error(e.to_string()));
                     tokio::time::sleep(Duration::from_millis(ctx.opts.run_retry_delay)).await;
-                    continue;
                 }
             };
+        }
+    }
+
+    /// Block on the marker key until a job/marker arrives or `timeout_ms`
+    /// elapses. This is the worker's only blocking Redis command; it replaces
+    /// the previous shared watcher + `Notify` fan-out. The response timeout is
+    /// disabled on the blocking connection (see [`BlockingRedisConnection::new`])
+    /// so the command is allowed to block for its full duration.
+    async fn wait_for_marker(
+        blocking_conn: &BlockingRedisConnection,
+        ctx: &LoopContext,
+        timeout_ms: u64,
+    ) {
+        // BZPOPMIN takes a timeout in (fractional) seconds. Guard against a zero
+        // timeout, which Redis interprets as "block forever".
+        let timeout_secs = (timeout_ms.max(1) as f64) / 1000.0;
+        if let Err(_e) = blocking_conn.bzpopmin(&ctx.marker_key, timeout_secs).await {
+            // Transient error (e.g. connection reset): back off briefly before
+            // the driver loops and retries, unless we are shutting down.
+            if !ctx.closing.load(Ordering::Relaxed) {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
         }
     }
 
@@ -1749,39 +1784,6 @@ impl Worker {
         match result {
             redis::Value::Int(code) if code < 0 => Err(Error::from_script_code(code)),
             _ => Ok(()),
-        }
-    }
-
-    /// Blocking watcher loop — uses BZPOPMIN to detect new/delayed jobs.
-    async fn run_blocking_watcher(
-        closing: Arc<AtomicBool>,
-        blocking_conn: BlockingRedisConnection,
-        marker_key: String,
-        drain_delay: u64,
-        job_available: Arc<Notify>,
-    ) {
-        loop {
-            if closing.load(Ordering::Relaxed) {
-                break;
-            }
-
-            match blocking_conn
-                .bzpopmin(&marker_key, drain_delay as f64)
-                .await
-            {
-                Ok(Some(_)) => {
-                    job_available.notify_waiters();
-                }
-                Ok(None) => {
-                    job_available.notify_waiters();
-                }
-                Err(_) => {
-                    if closing.load(Ordering::Relaxed) {
-                        break;
-                    }
-                    tokio::time::sleep(Duration::from_millis(100)).await;
-                }
-            }
         }
     }
 

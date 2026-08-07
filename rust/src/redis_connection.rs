@@ -1,5 +1,5 @@
 use redis::aio::MultiplexedConnection;
-use redis::{Client, ClientTlsConfig, TlsCertificates};
+use redis::{AsyncConnectionConfig, Client, ClientTlsConfig, TlsCertificates};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::debug;
@@ -138,8 +138,27 @@ struct BlockingInner {
 
 impl BlockingRedisConnection {
     /// Create a new blocking connection from a client.
+    ///
+    /// The connection is created with its response timeout **disabled**.
+    /// redis-rs applies a 500ms default response timeout to every multiplexed
+    /// connection. This connection is dedicated to blocking reads (`BZPOPMIN`
+    /// on the marker key) that must wait up to `drain_delay` seconds for a job
+    /// to appear. With the default timeout, the client abandons the in-flight
+    /// `BZPOPMIN` after 500ms — long before a marker is written for an idle
+    /// worker. When the marker eventually arrives, the server-side `BZPOPMIN`
+    /// pops it and replies, but the client has already discarded that request
+    /// slot, so the marker is silently consumed without waking the worker. The
+    /// worker then only picks up the job on its periodic empty-queue re-poll,
+    /// yielding 0–`drain_delay`s pickup latency (see issue #4512). Disabling
+    /// the response timeout lets the command block for its full duration so the
+    /// reply is always delivered to a live waiter. This mirrors the TypeScript
+    /// worker, whose stuck-connection watchdog fires at `blockTimeout + 1s`,
+    /// deliberately longer than the block rather than shorter.
     pub async fn new(client: &Client) -> Result<Self, Error> {
-        let conn = client.get_multiplexed_async_connection().await?;
+        let config = AsyncConnectionConfig::new().set_response_timeout(None);
+        let conn = client
+            .get_multiplexed_async_connection_with_config(&config)
+            .await?;
         Ok(Self {
             inner: Arc::new(BlockingInner {
                 conn: Mutex::new(conn),
