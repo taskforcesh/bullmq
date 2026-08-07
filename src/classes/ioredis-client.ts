@@ -1,20 +1,5 @@
+import type { Cluster, Redis, ChainableCommander } from 'ioredis';
 import { IRedisClient, IRedisTransaction } from '../interfaces/redis-client';
-
-type RedisTransactionLike = {
-  hset(...args: any[]): any;
-  hscan(...args: any[]): any;
-  sscan(...args: any[]): any;
-  [key: string]: any;
-};
-
-type RedisClientLike = {
-  isCluster?: boolean;
-  options?: any;
-  pipeline(...args: any[]): RedisTransactionLike;
-  multi(...args: any[]): RedisTransactionLike;
-  duplicate(...args: any[]): any;
-  [key: string]: any;
-};
 
 /**
  * Per-raw-client cache so repeated calls to `createIORedisClient` with the
@@ -43,7 +28,27 @@ const proxyCache = new WeakMap<object, IRedisClient>();
  * traps, with `this === target` so EventEmitter / Commander internals work
  * normally.
  */
-export function createIORedisClient<TClient extends RedisClientLike>(
+export function createIORedisClient<
+  TClient extends {
+    isCluster?: boolean;
+    options?: any;
+    pipeline(...args: any[]): {
+      hset(...args: any[]): any;
+      hscan(...args: any[]): any;
+      sscan(...args: any[]): any;
+      [key: string]: any;
+    };
+    multi(...args: any[]): {
+      hset(...args: any[]): any;
+      hscan(...args: any[]): any;
+      sscan(...args: any[]): any;
+      [key: string]: any;
+    };
+    duplicate(...args: any[]): any;
+    [key: string]: any;
+  },
+>(client: TClient): TClient & IRedisClient;
+export function createIORedisClient<TClient extends Redis | Cluster>(
   client: TClient,
 ): TClient & IRedisClient {
   // If the caller already passed a proxy produced by this function, return
@@ -301,7 +306,7 @@ export function createIORedisClient<TClient extends RedisClientLike>(
       // `defineCommand` and test-time spies set via `obj.method = spy`)
       // are bound fresh on each access so reassignment is honoured.
       if (Object.prototype.hasOwnProperty.call(target, prop)) {
-        return (value as any).bind(target);
+        return value.bind(target);
       }
       // Prototype methods (EventEmitter, Commander, ...) are cached so
       // identity is stable across accesses.
@@ -309,7 +314,7 @@ export function createIORedisClient<TClient extends RedisClientLike>(
       if (cachedBound !== undefined) {
         return cachedBound;
       }
-      const bound = (value as any).bind(target);
+      const bound = value.bind(target);
       boundCache.set(prop, bound);
       return bound;
     },
@@ -349,9 +354,7 @@ export function createIORedisClient<TClient extends RedisClientLike>(
  * Adds `runCommand` and structured overrides to an ioredis ChainableCommander
  * so it satisfies {@link IRedisTransaction}.
  */
-function augmentTransaction(
-  commander: RedisTransactionLike,
-): IRedisTransaction {
+function augmentTransaction(commander: ChainableCommander): IRedisTransaction {
   const transaction = commander as any;
   transaction.runCommand = function (name: string, args: any[]): any {
     transaction[name](args);
