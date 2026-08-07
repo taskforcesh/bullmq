@@ -773,15 +773,14 @@ impl Worker {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
 
-        // Let the main loop finish gracefully so any in-flight processing tasks
-        // owned by its JoinSet can complete. Abort only if we run out of time.
-        if let Some(handle) = self.main_loop_handle.lock().await.take() {
-            let mut handle = handle;
+        // Let the main loop finish naturally so any in-flight processing tasks
+        // tracked by its JoinSet can complete and persist final job state.
+        if let Some(mut handle) = self.main_loop_handle.lock().await.take() {
             let now = tokio::time::Instant::now();
             if now < deadline {
                 let remaining = deadline - now;
                 if tokio::time::timeout(remaining, &mut handle).await.is_err() {
-                    warn!("close timeout reached while waiting for main loop to stop");
+                    warn!("close timeout reached while waiting for main loop");
                     handle.abort();
                 }
             } else {
@@ -902,7 +901,9 @@ impl Worker {
             // fetching, so we never fetch a job we cannot immediately process.
             // Blocks on the concurrency gate while all slots are busy.
             if !Self::acquire_concurrency_slot(&ctx).await {
-                break; // closing
+                // Closing was requested while we were waiting for a slot.
+                // Loop back so the closing branch can drain in-flight tasks.
+                continue;
             }
             let slot_guard = ConcurrencySlotGuard::new(ctx.clone());
 
