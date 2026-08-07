@@ -587,4 +587,31 @@ describe('events', () => {
     await completed;
     await worker.close();
   });
+
+  it('emits completed global event with the deserialized return value', async () => {
+    const worker = new Worker(queueName, async () => ({ result: 42 }), {
+      connection,
+      prefix,
+    });
+
+    const completed = new Promise<void>((resolve, reject) => {
+      queueEvents.once<QueueEventsListener<{ result: number }>, 'completed'>(
+        'completed',
+        async function ({ jobId, returnvalue }) {
+          try {
+            expect(jobId).toBe('1');
+            expect(returnvalue).toEqual({ result: 42 });
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        },
+      );
+    });
+
+    await queue.add('test', {});
+
+    await completed;
+    await worker.close();
+  });
 });
