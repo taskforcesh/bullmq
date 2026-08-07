@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use tokio::sync::{broadcast, mpsc, Mutex, Notify, RwLock};
-use tokio::task::{JoinHandle, JoinSet};
+use tokio::task::JoinHandle;
 use tracing::{debug, error, warn};
 use uuid::Uuid;
 
@@ -764,7 +764,10 @@ impl Worker {
                 break;
             }
             if tokio::time::Instant::now() >= deadline {
-                warn!("close timeout reached with active work remaining");
+                warn!(
+                    active_job_count,
+                    active_fetchers, "close timeout reached with active work remaining"
+                );
                 break;
             }
             tokio::time::sleep(Duration::from_millis(100)).await;
@@ -885,16 +888,9 @@ impl Worker {
     /// the concurrency gate, giving parallel processing without waking many idle
     /// fetchers per job. This mirrors the Node.js single-driver `mainLoop`.
     async fn run_main_driver(ctx: Arc<LoopContext>, blocking_conn: BlockingRedisConnection) {
-        let mut processing_tasks = JoinSet::new();
         loop {
-            while let Some(_finished) = processing_tasks.try_join_next() {}
-
             if ctx.closing.load(Ordering::Relaxed) {
-                if processing_tasks.is_empty() {
-                    break;
-                }
-                let _ = processing_tasks.join_next().await;
-                continue;
+                break;
             }
 
             if ctx.paused.load(Ordering::Relaxed) {
@@ -943,7 +939,7 @@ impl Worker {
                     // immediately to fetch the next job, so fetching stays
                     // single-threaded while processing runs in parallel.
                     let task_ctx = ctx.clone();
-                    processing_tasks.spawn(async move {
+                    tokio::spawn(async move {
                         let _slot = slot_guard;
                         let mut next = Some(*job);
                         while let Some(current) = next.take() {
