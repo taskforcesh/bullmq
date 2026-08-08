@@ -70,9 +70,9 @@
       "semanticCommitType": "chore"
     },
     {
-      "description": "Use chore commit type for Python optional dev dependency updates",
+      "description": "Use chore commit type for Python optional dev/test dependency updates",
       "matchCategories": ["python"],
-      "matchDepTypes": ["optional-dependencies"],
+      "matchDepTypes": ["dev", "test"],
       "semanticCommitType": "chore",
       "commitMessageSuffix": "[python]"
     },
