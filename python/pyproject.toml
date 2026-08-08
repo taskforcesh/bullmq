@@ -32,7 +32,7 @@ dev = [
     "build==1.5.0",
     "types-redis==4.6.0.20241004",
     "pipenv==2026.7.1",
-    "virtualenv==21.7.1",
+    "virtualenv==21.7.2",
     "virtualenv-clone==0.5.7"
 ]
 test = [
