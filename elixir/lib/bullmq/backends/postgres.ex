@@ -841,8 +841,9 @@ defmodule BullMQ.Backends.Postgres do
   end
 
   @impl true
-  def get_counts_per_priority(%__MODULE__{}, _priorities) do
-    {:error, :unsupported_priority_counts}
+  def get_counts_per_priority(%__MODULE__{} = b, priorities) do
+    result = run(b, "get_counts_per_priority", [b.queue_name, priorities])
+    {:ok, Enum.map(maps(result), fn row -> to_int(row["cnt"]) end)}
   end
 
   defp count_lookup(b) do
