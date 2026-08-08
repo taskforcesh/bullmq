@@ -3,17 +3,14 @@
 
     Input:
       KEYS[1] wait key
-      KEYS[2] paused key
-      KEYS[3] meta key
-      KEYS[4] prioritized key
+      KEYS[2] prioritized key
 
       ARGV[1...] priorities
 ]]
 local rcall = redis.call
 local results = {}
 local waitKey = KEYS[1]
-local pausedKey = KEYS[2]
-local prioritizedKey = KEYS[4]
+local prioritizedKey = KEYS[2]
 
 for i = 1, #ARGV do
   local priority = tonumber(ARGV[i])
