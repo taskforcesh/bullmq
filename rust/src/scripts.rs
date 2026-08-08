@@ -254,8 +254,8 @@ impl ScriptRegistry {
             ("paginate", 1, include_str!("commands/paginate-1.lua")),
             (
                 "getCountsPerPriority",
-                4,
-                include_str!("commands/getCountsPerPriority-4.lua"),
+                2,
+                include_str!("commands/getCountsPerPriority-2.lua"),
             ),
             (
                 "getDependencyCounts",
