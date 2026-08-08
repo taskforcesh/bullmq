@@ -1458,7 +1458,7 @@ defmodule BullMQ.Scripts do
       Keys.prioritized(ctx),
       Keys.events(ctx),
       Keys.delayed(ctx),
-      Keys.marker(ctx),
+      Keys.marker(ctx)
     ]
 
     args = [if(paused?, do: "paused", else: "resumed"), "1"]
