@@ -840,6 +840,11 @@ defmodule BullMQ.Backends.Postgres do
     {:ok, Enum.map(types, fn type -> Map.get(lookup, normalize_type(type), 0) end)}
   end
 
+  @impl true
+  def get_counts_per_priority(%__MODULE__{}, _priorities) do
+    {:error, :unsupported_priority_counts}
+  end
+
   defp count_lookup(b) do
     row = first_map(run(b, "get_counts", [b.queue_name]))
     waiting = to_int(row["waiting"])
