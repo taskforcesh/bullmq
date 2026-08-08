@@ -1,3 +1,10 @@
+## [1.2.3](https://github.com/taskforcesh/bullmq/compare/vrs1.2.2...vrs1.2.3) (2026-08-07)
+
+
+### Bug Fixes
+
+* **worker:** resolve worker delay in picking up new jobs [rust] fixes [#4512](https://github.com/taskforcesh/bullmq/issues/4512)  ([#4523](https://github.com/taskforcesh/bullmq/issues/4523)) ([94d3286](https://github.com/taskforcesh/bullmq/commit/94d32867f9b4f439cd1fc57f9f8c3543dd913e42))
+
 ## [1.2.2](https://github.com/taskforcesh/bullmq/compare/vrs1.2.1...vrs1.2.2) (2026-08-01)
 
 
