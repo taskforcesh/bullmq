@@ -70,10 +70,24 @@
       "semanticCommitType": "chore"
     },
     {
+      "description": "Use chore commit type for Python optional dev/test dependency updates",
+      "matchCategories": ["python"],
+      "matchDepTypes": ["dev", "test"],
+      "semanticCommitType": "chore",
+      "commitMessageSuffix": "[python]"
+    },
+    {
       "description": "Group every Elixir (mix) update into a single PR",
       "matchCategories": ["elixir"],
       "groupName": "Elixir dependencies",
       "groupSlug": "elixir",
+      "commitMessageSuffix": "[elixir]"
+    },
+    {
+      "description": "Use chore commit type for Elixir dev/test dependency updates",
+      "matchCategories": ["elixir"],
+      "matchDepTypes": ["dev", "test"],
+      "semanticCommitType": "chore",
       "commitMessageSuffix": "[elixir]"
     },
     {
@@ -97,6 +111,17 @@
       "matchCategories": ["dotnet"],
       "groupName": ".NET dependencies",
       "groupSlug": "dotnet",
+      "commitMessageSuffix": "[dotnet]"
+    },
+    {
+      "description": "Use chore commit type for .NET test-only package updates",
+      "matchCategories": ["dotnet"],
+      "matchPackageNames": [
+        "Microsoft.NET.Test.Sdk",
+        "xunit",
+        "xunit.runner.visualstudio"
+      ],
+      "semanticCommitType": "chore",
       "commitMessageSuffix": "[dotnet]"
     },
     {
