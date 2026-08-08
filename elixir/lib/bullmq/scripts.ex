@@ -1461,7 +1461,7 @@ defmodule BullMQ.Scripts do
       Keys.marker(ctx),
     ]
 
-    args = [if(paused?, do: "paused", else: "resumed"), '1']
+    args = [if(paused?, do: "paused", else: "resumed"), "1"]
 
     execute(conn, :pause, keys, args)
   end
