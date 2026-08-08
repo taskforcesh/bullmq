@@ -231,12 +231,38 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
     assert {:ok, 1} = Job.get_dependencies_count(result.job)
   end
 
-  test "Queue.get_counts_per_priority returns a clear unsupported error", %{
+  test "Queue.get_counts_per_priority returns correct counts per priority", %{
     conn: conn,
     queue: queue
   } do
-    assert {:error, :unsupported_priority_counts} =
-             Queue.get_counts_per_priority(queue, [0, 1, 2], connection: conn, backend: Backends.Postgres)
+    for i <- 0..41 do
+      Queue.add(queue, "job#{i}", %{index: i},
+        connection: conn,
+        backend: Backends.Postgres,
+        priority: rem(i, 4)
+      )
+    end
+
+    {:ok, counts} =
+      Queue.get_counts_per_priority(queue, [0, 1, 2, 3],
+        connection: conn,
+        backend: Backends.Postgres
+      )
+
+    assert counts == %{0 => 11, 1 => 11, 2 => 10, 3 => 10}
+  end
+
+  test "Queue.get_counts_per_priority returns zero counts when queue is empty", %{
+    conn: conn,
+    queue: queue
+  } do
+    {:ok, counts} =
+      Queue.get_counts_per_priority(queue, [0, 1, 2, 3],
+        connection: conn,
+        backend: Backends.Postgres
+      )
+
+    assert counts == %{0 => 0, 1 => 0, 2 => 0, 3 => 0}
   end
 
   test "QueueEvents streams lifecycle events", %{conn: conn, queue: queue} do
