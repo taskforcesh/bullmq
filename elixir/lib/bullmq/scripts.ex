@@ -2127,7 +2127,7 @@ defmodule BullMQ.Scripts do
       %{}
       |> maybe_add_opt("del", Map.get(job_opts, :delay) || Map.get(job_opts, "delay") || delay, 0)
       |> maybe_add_opt(
-        "pri",
+        "priority",
         Map.get(job_opts, :priority) || Map.get(job_opts, "priority") || priority,
         0
       )
