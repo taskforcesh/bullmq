@@ -362,4 +362,38 @@ describe('node-redis adapter', () => {
       await cleanQueue(childQueueName);
     });
   });
+
+  describe('auto-detecting a raw node-redis client instance', () => {
+    it('should auto-wrap a raw createClient() instance passed as connection', async () => {
+      // No clientFactory involved and no manual createNodeRedisClient(): the
+      // raw node-redis client is passed straight through and BullMQ must detect
+      // it and wrap it with the node-redis adapter (never requiring ioredis).
+      const savedFactory = RedisConnection.clientFactory;
+      RedisConnection.clientFactory = undefined;
+
+      const raw = createClient({
+        url: `redis://${redisHost}:${redisPort}`,
+      }) as RedisClientType;
+      await raw.connect();
+
+      const queueName = `test-nr-autowrap-${randomUUID()}`;
+      const queue = new Queue(queueName, {
+        connection: raw as unknown as IRedisClient,
+        prefix,
+      });
+
+      try {
+        const job = await queue.add('auto', { hello: 'world' });
+        expect(job.id).toBeDefined();
+
+        const fetched = await Job.fromId(queue, job.id);
+        expect(fetched?.data).toEqual({ hello: 'world' });
+      } finally {
+        await queue.close();
+        await cleanQueue(queueName);
+        await raw.quit();
+        RedisConnection.clientFactory = savedFactory;
+      }
+    });
+  });
 });
