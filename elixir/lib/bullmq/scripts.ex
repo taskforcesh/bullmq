@@ -1456,12 +1456,12 @@ defmodule BullMQ.Scripts do
       Keys.paused(ctx),
       Keys.meta(ctx),
       Keys.prioritized(ctx),
-      Keys.pc(ctx),
+      Keys.events(ctx),
+      Keys.delayed(ctx),
       Keys.marker(ctx),
-      Keys.events(ctx)
     ]
 
-    args = [if(paused?, do: "paused", else: "resumed")]
+    args = [if(paused?, do: "paused", else: "resumed"), '1']
 
     execute(conn, :pause, keys, args)
   end
