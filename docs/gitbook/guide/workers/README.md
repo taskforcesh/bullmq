@@ -133,6 +133,33 @@ It is also possible to specify the data types for the Job data and return value 
 const worker = new Worker<MyData, MyReturn>(queueName, async (job: Job) => {});
 ```
 
+By default the job progress is typed as `string | boolean | number | object`. If you report progress with a specific shape, you can also specify a progress type so that `updateProgress` and the `progress` event are type-safe:
+
+```typescript
+import { Worker, RedisQueueBackend } from 'bullmq';
+
+type MyProgress = { percentage: number; message: string };
+
+const worker = new Worker<
+  MyData,
+  MyReturn,
+  string,
+  RedisQueueBackend,
+  MyProgress
+>(queueName, async job => {
+  // progress is checked against MyProgress
+  await job.updateProgress({ percentage: 42, message: 'halfway' });
+});
+
+worker.on('progress', (job, progress) => {
+  console.log(progress.percentage, progress.message);
+});
+```
+
+{% hint style="info" %}
+The progress type must be JSON-serializable, as progress is persisted in the queue's backend. Sandboxed processors always receive the default progress type, since the value crosses a process boundary.
+{% endhint %}
+
 ## Read more:
 
 - 💡 [Worker API Reference](https://docs.bullmq.io/api/classes/v6.Worker.html)
