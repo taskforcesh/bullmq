@@ -27,7 +27,7 @@ SCRIPT_DEFINITIONS = {
     "extendLock": "extendLock-2.lua",
     "extendLocks": "extendLocks-1.lua",
     "getCounts": "getCounts-1.lua",
-    "getCountsPerPriority": "getCountsPerPriority-4.lua",
+    "getCountsPerPriority": "getCountsPerPriority-2.lua",
     "getJobs": "getJobs-1.lua",
     "getRanges": "getRanges-1.lua",
     "getState": "getState-8.lua",

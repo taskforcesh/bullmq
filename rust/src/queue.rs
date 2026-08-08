@@ -1189,12 +1189,7 @@ impl Queue {
             }
         }
 
-        let keys = vec![
-            self.keys.wait(),
-            self.keys.paused(),
-            self.keys.meta(),
-            self.keys.prioritized(),
-        ];
+        let keys = vec![self.keys.wait(), self.keys.prioritized()];
         let prio_strs: Vec<String> = unique.iter().map(|p| p.to_string()).collect();
         let args: Vec<&[u8]> = prio_strs.iter().map(|s| s.as_bytes()).collect();
 

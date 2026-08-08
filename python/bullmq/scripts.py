@@ -517,8 +517,6 @@ class Scripts:
 
     def getCountsPerPriorityArgs(self, priorities):
         keys = [self.keys['wait'],
-                self.keys['paused'],
-                self.keys['meta'],
                 self.keys['prioritized']]
 
         args = priorities

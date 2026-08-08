@@ -1321,8 +1321,6 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
   ): (string | number)[] {
     const keys: (string | number)[] = [
       this.queue.keys.wait,
-      this.queue.keys.paused,
-      this.queue.keys.meta,
       this.queue.keys.prioritized,
     ];
 
