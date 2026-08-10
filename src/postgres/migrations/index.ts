@@ -10,6 +10,8 @@ export interface Migration {
   version: number;
   /** Human-readable name (matches the `.sql` filename without extension). */
   name: string;
+  /** Oldest BullMQ major version that can use the schema after this migration. */
+  minClientVersion: number;
   /** Loads this migration's SQL from its `.sql` file. */
   load(): string;
 }
@@ -22,19 +24,21 @@ export const MIGRATIONS: readonly Migration[] = [
   {
     version: 1,
     name: '0001_schema',
+    minClientVersion: 6,
     load: () => loadMigrationSql('0001_schema.sql'),
   },
   {
     version: 2,
     name: '0002_functions',
+    minClientVersion: 6,
     load: () => loadMigrationSql('0002_functions.sql'),
   },
 ];
 
 /**
- * The highest schema version this BullMQ build knows how to produce. Compared
- * against the version recorded in the database to decide whether to migrate
- * (database older), no-op (equal), or refuse to run (database newer).
+ * The highest schema version this BullMQ build knows how to produce. Explicit
+ * migration applies older pending versions; newer same-major schemas remain
+ * compatible according to their `min_client_version` ledger value.
  */
 export const LATEST_SCHEMA_VERSION: number =
   MIGRATIONS.length > 0 ? MIGRATIONS[MIGRATIONS.length - 1].version : 0;
