@@ -1,4 +1,4 @@
-import { Cluster, Redis, ChainableCommander } from 'ioredis';
+import type { Cluster, Redis, ChainableCommander } from 'ioredis';
 import { IRedisClient, IRedisTransaction } from '../interfaces/redis-client';
 
 /**
@@ -28,6 +28,26 @@ const proxyCache = new WeakMap<object, IRedisClient>();
  * traps, with `this === target` so EventEmitter / Commander internals work
  * normally.
  */
+export function createIORedisClient<
+  TClient extends {
+    isCluster?: boolean;
+    options?: any;
+    pipeline(...args: any[]): {
+      hset(...args: any[]): any;
+      hscan(...args: any[]): any;
+      sscan(...args: any[]): any;
+      [key: string]: any;
+    };
+    multi(...args: any[]): {
+      hset(...args: any[]): any;
+      hscan(...args: any[]): any;
+      sscan(...args: any[]): any;
+      [key: string]: any;
+    };
+    duplicate(...args: any[]): any;
+    [key: string]: any;
+  },
+>(client: TClient): TClient & IRedisClient;
 export function createIORedisClient<TClient extends Redis | Cluster>(
   client: TClient,
 ): TClient & IRedisClient {
@@ -180,8 +200,7 @@ export function createIORedisClient<TClient extends Redis | Cluster>(
       return (client as any).xadd(key, idOrModifier, fieldsOrArg, ...rest);
     }
     const options = rest[0] as
-      | { MAXLEN?: number; approximate?: boolean }
-      | undefined;
+      { MAXLEN?: number; approximate?: boolean } | undefined;
     const args: any[] = [key];
     if (options?.MAXLEN != null) {
       args.push('MAXLEN');
