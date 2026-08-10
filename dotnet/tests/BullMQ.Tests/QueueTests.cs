@@ -230,6 +230,26 @@ public abstract class QueueTestsBase
         Assert.Equal(0, await queue.GetWaitingCountAsync());
     }
 
+    [Fact]
+    public async Task Pause_SetsQueueToPaused()
+    {
+        var name = UniqueName();
+        await using var queue = new Queue(name, NewQueueOptions());
+
+        try
+        {
+            Assert.False(await queue.IsPausedAsync());
+
+            await queue.PauseAsync();
+
+            Assert.True(await queue.IsPausedAsync());
+        }
+        finally
+        {
+            await queue.ObliterateAsync(force: true);
+        }
+    }
+
     private static async Task<T> WaitForAsync<T>(Task<T> task, TimeSpan timeout)
     {
         var completed = await Task.WhenAny(task, Task.Delay(timeout));
