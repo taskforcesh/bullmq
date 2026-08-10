@@ -149,18 +149,36 @@ otherwise unqualified BullMQ queries will not resolve to BullMQ's tables.
 
 ## Migrations
 
-On the first `waitUntilReady()` of a connection, BullMQ automatically creates its
-schema and applies any pending migrations. This is:
+Connections do not apply migrations automatically. By default,
+`waitUntilReady()` performs a read-only compatibility check against the migration
+ledger. Initialize or upgrade the schema explicitly from one deployment step:
+
+```typescript
+const connection = new PostgresConnection({
+  connectionString: '******localhost:5432/mydb',
+  migrate: true,
+});
+
+await connection.waitUntilReady();
+await connection.close();
+```
+
+Explicit migration is:
 
 - **Idempotent** — running it again is a no-op.
 - **Concurrency-safe** — a transaction-scoped advisory lock (namespaced per
   schema) serializes concurrent starters, so many workers or instances booting
   at once still migrate exactly once.
 
-No manual migration step is required. If a database was migrated by a _newer_
-BullMQ release and an _older_ instance then connects, it refuses to operate
-(`SchemaVersionMismatchError`) rather than risk corruption — upgrade BullMQ to
-match.
+Set `skipMigrations: true` to make read-only intent explicit, for example for a
+monitoring client or a read replica. This mode never issues DDL or takes the
+migration advisory lock and reports an uninitialized or incompatible schema.
+
+Schema compatibility is scoped to BullMQ major versions. The migration ledger
+records the minimum client major required by the schema, so minor and patch
+releases within one major remain compatible even when a newer release adds an
+optional, backward-compatible migration. A client older than the recorded major
+fails with `SchemaVersionMismatchError`.
 
 {% hint style="danger" %}
 Schema downgrades are **not supported**.

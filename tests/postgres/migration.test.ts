@@ -184,14 +184,21 @@ describe('PostgreSQL migrations', () => {
       [futureVersion, 'future-compatible', BULLMQ_MAJOR_VERSION],
     );
 
-    const compatible = new PostgresConnection({
-      connectionString: url,
-      skipMigrations: true,
-    });
+    const compatible = new PostgresConnection({ connectionString: url });
     try {
       await expect(compatible.waitUntilReady()).resolves.toBeUndefined();
     } finally {
       await compatible.close();
+    }
+
+    const readOnly = new PostgresConnection({
+      connectionString: url,
+      skipMigrations: true,
+    });
+    try {
+      await expect(readOnly.waitUntilReady()).resolves.toBeUndefined();
+    } finally {
+      await readOnly.close();
     }
 
     await pool.query(
@@ -204,6 +211,7 @@ describe('PostgreSQL migrations', () => {
       connectionString: url,
       skipMigrations: true,
     });
+
     try {
       await expect(incompatible.waitUntilReady()).rejects.toBeInstanceOf(
         SchemaVersionMismatchError,
@@ -211,6 +219,17 @@ describe('PostgreSQL migrations', () => {
     } finally {
       await incompatible.close();
     }
+  });
+
+  it('rejects conflicting migration modes', () => {
+    expect(
+      () =>
+        new PostgresConnection({
+          connectionString: url,
+          migrate: true,
+          skipMigrations: true,
+        }),
+    ).toThrow(/cannot both be enabled/);
   });
 
   it('rolls back atomically when a migration fails', async () => {
