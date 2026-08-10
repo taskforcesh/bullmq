@@ -11,6 +11,7 @@ import {
 import { Pool } from 'pg';
 import {
   assertPostgresVersion,
+  assertSchemaCompatibility,
   BULLMQ_MAJOR_VERSION,
   DEFAULT_SCHEMA,
   LATEST_SCHEMA_VERSION,
@@ -310,5 +311,48 @@ describe('PostgreSQL server-version check', () => {
     } finally {
       warn.mockRestore();
     }
+  });
+});
+
+describe('PostgreSQL read-only schema check', () => {
+  it('uses one SELECT and accepts a newer same-major schema', async () => {
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          version: LATEST_SCHEMA_VERSION + 1,
+          min_client_version: BULLMQ_MAJOR_VERSION,
+          server_version_num: '160000',
+          server_version: '16.0',
+        },
+      ],
+    });
+
+    await expect(assertSchemaCompatibility({ query } as any)).resolves.toBe(
+      LATEST_SCHEMA_VERSION + 1,
+    );
+    expect(query).toHaveBeenCalledOnce();
+    expect(query.mock.calls[0][0]).toMatch(/^\s*SELECT\b/);
+    expect(query.mock.calls[0][0]).not.toMatch(
+      /\b(?:BEGIN|CREATE|ALTER|UPDATE|LOCK)\b/,
+    );
+  });
+
+  it('rejects a schema requiring a newer BullMQ major', async () => {
+    const client = {
+      query: vi.fn().mockResolvedValue({
+        rows: [
+          {
+            version: LATEST_SCHEMA_VERSION + 1,
+            min_client_version: BULLMQ_MAJOR_VERSION + 1,
+            server_version_num: '160000',
+            server_version: '16.0',
+          },
+        ],
+      }),
+    };
+
+    await expect(
+      assertSchemaCompatibility(client as any),
+    ).rejects.toBeInstanceOf(SchemaVersionMismatchError);
   });
 });
