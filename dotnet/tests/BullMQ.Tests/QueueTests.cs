@@ -250,6 +250,41 @@ public abstract class QueueTestsBase
         }
     }
 
+    [Fact]
+    public async Task GetCountsPerPriority_ReturnsCountsForEachPriority()
+    {
+        var name = UniqueName();
+        await using var queue = new Queue(name, NewQueueOptions());
+
+        try
+        {
+            // Waiting jobs with different priorities.
+            await queue.AddAsync("normal-1", new { });
+            await queue.AddAsync("normal-2", new { });
+            await queue.AddAsync(
+                "priority-1",
+                new { },
+                new JobsOptions { Priority = 1 });
+            await queue.AddAsync(
+                "priority-2",
+                new { },
+                new JobsOptions { Priority = 2 });
+            await queue.AddAsync(
+                "priority-2",
+                new { },
+                new JobsOptions { Priority = 2 });
+
+            var counts = await queue.GetCountsPerPriorityAsync(
+                new long[] { 0, 1, 2, 3 });
+
+            Assert.Equal(new long[] { 2, 1, 2, 0 }, counts);
+        }
+        finally
+        {
+            await queue.ObliterateAsync(force: true);
+        }
+    }
+
     private static async Task<T> WaitForAsync<T>(Task<T> task, TimeSpan timeout)
     {
         var completed = await Task.WhenAny(task, Task.Delay(timeout));
