@@ -168,6 +168,22 @@ describe('PostgreSQL migrations', () => {
     }
   });
 
+  it('supports deprecated skipMigrations: false as migrate-on-connect', async () => {
+    const connection = new PostgresConnection({
+      connectionString: url,
+      skipMigrations: false,
+    });
+    try {
+      await connection.waitUntilReady();
+      const { rows } = await pool.query<{ version: number }>(
+        `SELECT COALESCE(MAX(version), 0)::int AS version FROM "${schema}".migration`,
+      );
+      expect(rows[0].version).toBe(LATEST_SCHEMA_VERSION);
+    } finally {
+      await connection.close();
+    }
+  });
+
   it('accepts newer same-major schemas and rejects a newer required major', async () => {
     const bootstrap = new PostgresConnection({
       connectionString: url,
@@ -349,5 +365,26 @@ describe('PostgreSQL read-only schema check', () => {
     await expect(
       assertSchemaCompatibility(client as any),
     ).rejects.toBeInstanceOf(SchemaVersionMismatchError);
+  });
+});
+
+describe('PostgreSQL compatibility aliases and options', () => {
+  it('keeps legacy SchemaVersionMismatchError fields as aliases', () => {
+    const err = new SchemaVersionMismatchError(9, 8);
+    expect(err.minimumClientVersion).toBe(9);
+    expect(err.clientVersion).toBe(8);
+    expect(err.databaseVersion).toBe(9);
+    expect(err.supportedVersion).toBe(8);
+  });
+
+  it('rejects migrate and skipMigrations used together', () => {
+    expect(
+      () =>
+        new PostgresConnection({
+          connectionString: 'postgres://localhost:5432/mydb',
+          migrate: true,
+          skipMigrations: true,
+        }),
+    ).toThrow(/mutually exclusive/i);
   });
 });

@@ -157,7 +157,7 @@ import { Pool } from 'pg';
 import { runMigrations } from 'bullmq';
 
 const pool = new Pool({
-  connectionString: '******localhost:5432/mydb',
+  connectionString: 'postgres://localhost:5432/mydb',
 });
 const client = await pool.connect();
 try {

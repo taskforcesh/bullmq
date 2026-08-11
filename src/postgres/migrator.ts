@@ -109,6 +109,11 @@ export function quoteSchemaName(schema: string): string {
  * to upgrade BullMQ — schema downgrades are not supported.
  */
 export class SchemaVersionMismatchError extends Error {
+  /** @deprecated Use {@link minimumClientVersion}. */
+  public readonly databaseVersion: number;
+  /** @deprecated Use {@link clientVersion}. */
+  public readonly supportedVersion: number;
+
   constructor(
     public readonly minimumClientVersion: number,
     public readonly clientVersion: number,
@@ -119,6 +124,8 @@ export class SchemaVersionMismatchError extends Error {
         `${clientVersion}. Upgrade BullMQ to use this schema.`,
     );
     this.name = 'SchemaVersionMismatchError';
+    this.databaseVersion = minimumClientVersion;
+    this.supportedVersion = clientVersion;
   }
 }
 

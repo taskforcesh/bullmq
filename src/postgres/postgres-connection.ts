@@ -18,12 +18,14 @@ import {
 /**
  * A node-postgres pool config / connection string, optionally carrying the
  * BullMQ-specific `schema` (the connection-level namespace for all queues),
- * `migrate` (explicitly apply migrations), and `skipVersionCheck` options.
+ * `migrate` / `skipMigrations` (explicit migration mode), and
+ * `skipVersionCheck` options.
  */
 export type PostgresPoolConfig = PgPoolConfig & {
   schema?: string;
   skipVersionCheck?: boolean;
   migrate?: boolean;
+  skipMigrations?: boolean;
 };
 
 /**
@@ -148,18 +150,31 @@ export class PostgresConnection extends EventEmitter {
       this.listenClientConfig = undefined;
     } else {
       const pg = loadPgModule();
-      const { schema, skipVersionCheck, migrate, ...poolConfig } =
+      const {
+        schema,
+        skipVersionCheck,
+        migrate,
+        skipMigrations,
+        ...poolConfig
+      } =
         typeof connection === 'string'
           ? {
               schema: undefined,
               skipVersionCheck: undefined,
               migrate: undefined,
+              skipMigrations: undefined,
               connectionString: connection,
             }
           : connection;
+      if (migrate !== undefined && skipMigrations !== undefined) {
+        throw new Error(
+          'BullMQ: `migrate` and `skipMigrations` are mutually exclusive. Set only one.',
+        );
+      }
       this.schema = schema ?? DEFAULT_SCHEMA;
       this.skipVersionCheck = skipVersionCheck ?? false;
-      this.migrateOnConnect = migrate ?? false;
+      this.migrateOnConnect =
+        migrate ?? (skipMigrations === undefined ? false : !skipMigrations);
       // Validate early so a bad schema name fails fast (and before any DDL).
       const quotedSchema = quoteSchemaName(this.schema);
       // Pin every pooled connection's search_path to the schema so the `.sql`
