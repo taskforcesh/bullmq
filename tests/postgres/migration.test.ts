@@ -191,26 +191,13 @@ describe('PostgreSQL migrations', () => {
       await compatible.close();
     }
 
-    const readOnly = new PostgresConnection({
-      connectionString: url,
-      skipMigrations: true,
-    });
-    try {
-      await expect(readOnly.waitUntilReady()).resolves.toBeUndefined();
-    } finally {
-      await readOnly.close();
-    }
-
     await pool.query(
       `UPDATE "${schema}".migration
           SET min_client_version = $1
         WHERE version = $2`,
       [BULLMQ_MAJOR_VERSION + 1, futureVersion],
     );
-    const incompatible = new PostgresConnection({
-      connectionString: url,
-      skipMigrations: true,
-    });
+    const incompatible = new PostgresConnection({ connectionString: url });
 
     try {
       await expect(incompatible.waitUntilReady()).rejects.toBeInstanceOf(
@@ -219,17 +206,6 @@ describe('PostgreSQL migrations', () => {
     } finally {
       await incompatible.close();
     }
-  });
-
-  it('rejects conflicting migration modes', () => {
-    expect(
-      () =>
-        new PostgresConnection({
-          connectionString: url,
-          migrate: true,
-          skipMigrations: true,
-        }),
-    ).toThrow(/cannot both be enabled/);
   });
 
   it('rolls back atomically when a migration fails', async () => {

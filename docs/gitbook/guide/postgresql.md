@@ -149,18 +149,23 @@ otherwise unqualified BullMQ queries will not resolve to BullMQ's tables.
 
 ## Migrations
 
-Connections do not apply migrations automatically. By default,
-`waitUntilReady()` performs a read-only compatibility check against the migration
-ledger. Initialize or upgrade the schema explicitly from one deployment step:
+Connections do not apply migrations automatically. Initialize or upgrade the
+schema explicitly from one deployment step:
 
 ```typescript
-const connection = new PostgresConnection({
-  connectionString: '******localhost:5432/mydb',
-  migrate: true,
-});
+import { Pool } from 'pg';
+import { runMigrations } from 'bullmq';
 
-await connection.waitUntilReady();
-await connection.close();
+const pool = new Pool({
+  connectionString: '******localhost:5432/mydb',
+});
+const client = await pool.connect();
+try {
+  await runMigrations(client);
+} finally {
+  client.release();
+  await pool.end();
+}
 ```
 
 Explicit migration is:
@@ -170,14 +175,10 @@ Explicit migration is:
   schema) serializes concurrent starters, so many workers or instances booting
   at once still migrate exactly once.
 
-Set `skipMigrations: true` to make read-only intent explicit, for example for a
-monitoring client or a read replica. This mode never issues DDL or takes the
-migration advisory lock and reports an uninitialized or incompatible schema.
-
 Schema compatibility is scoped to BullMQ major versions. The migration ledger
-records the minimum client major required by the schema, so minor and patch
-releases within one major remain compatible even when a newer release adds an
-optional, backward-compatible migration. A client older than the recorded major
+records the minimum client major required by the schema. The initial migration
+split is a same-major exception; future schema migrations are breaking changes
+and require a new BullMQ major version. A client older than the recorded major
 fails with `SchemaVersionMismatchError`.
 
 {% hint style="danger" %}

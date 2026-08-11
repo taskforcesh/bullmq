@@ -30,6 +30,8 @@ export const MIGRATIONS: readonly Migration[] = [
   {
     version: 2,
     name: '0002_functions',
+    // This initial schema split is the sole same-major exception. Future schema
+    // migrations are breaking changes and require a new BullMQ major version.
     minClientVersion: 6,
     load: () => loadMigrationSql('0002_functions.sql'),
   },
@@ -37,8 +39,7 @@ export const MIGRATIONS: readonly Migration[] = [
 
 /**
  * The highest schema version this BullMQ build knows how to produce. Explicit
- * migration applies older pending versions; newer same-major schemas remain
- * compatible according to their `min_client_version` ledger value.
+ * migration applies older pending versions.
  */
 export const LATEST_SCHEMA_VERSION: number =
   MIGRATIONS.length > 0 ? MIGRATIONS[MIGRATIONS.length - 1].version : 0;
