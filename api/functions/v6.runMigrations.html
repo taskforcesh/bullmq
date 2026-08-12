@@ -17,12 +17,12 @@
 <div class="tsd-signature tsd-anchor-link" id="runmigrations"><span class="tsd-kind-call-signature">runMigrations</span><span class="tsd-signature-symbol">(</span><br/>    <span class="tsd-kind-parameter">client</span><span class="tsd-signature-symbol">:</span> <a href="../interfaces/v6.PgQueryable.html" class="tsd-signature-type tsd-kind-interface">PgQueryable</a><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">schema</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">options</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-symbol">{</span> <span class="tsd-kind-property">skipVersionCheck</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span> <span class="tsd-signature-symbol">}</span><span class="tsd-signature-symbol">,</span><br/><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span><a href="#runmigrations" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></div>
 <div class="tsd-description">
 <div class="tsd-comment tsd-typography"><p>Brings the database schema up to <a href="../variables/v6.LATEST_SCHEMA_VERSION.html" class="tsd-kind-variable">LATEST_SCHEMA_VERSION</a>.</p>
-<p>Run on the backend's first <code>waitUntilReady()</code> (a constructor cannot perform
-async I/O). Behaviour by current database version:</p>
+<p>Run explicitly with <code>runMigrations()</code> or by passing <code>migrate: true</code> on the
+connection. Behaviour by current database version:</p>
 <ul>
 <li><strong>older</strong> than supported → applies the pending migrations in order.</li>
 <li><strong>equal</strong> to supported → no-op.</li>
-<li><strong>newer</strong> than supported → throws <a href="../classes/v6.SchemaVersionMismatchError.html" class="tsd-kind-class">SchemaVersionMismatchError</a>.</li>
+<li><strong>newer</strong> than bundled → no-op if its minimum client major is compatible.</li>
 </ul>
 <h2 id="atomicity" class="tsd-anchor-link">Atomicity<a href="#atomicity" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h2>
 <p>The whole operation runs inside a <strong>single transaction</strong>: every pending
@@ -60,7 +60,7 @@ lock and the transaction share one connection.</p>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span></h4><p>the schema version the database is at after the call.</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/13e83d85e13cf29b0fd784fb4a4bd0491d6dd0b5/src/postgres/migrator.ts#L185">postgres/migrator.ts:185</a></li></ul></aside></div></li></ul></section></div>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/ee714dc803a43761eba921df3af5c8da0c2258cf/src/postgres/migrator.ts#L243">postgres/migrator.ts:243</a></li></ul></aside></div></li></ul></section></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">

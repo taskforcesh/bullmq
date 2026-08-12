@@ -11,13 +11,14 @@
 <li><a href="../modules/v6.html">v6</a></li>
 <li><a href="" aria-current="page">PostgresPoolConfig</a></li></ul>
 <h1>Type Alias PostgresPoolConfig</h1></div>
-<div class="tsd-signature"><span class="tsd-kind-type-alias">PostgresPoolConfig</span><span class="tsd-signature-symbol">:</span> <a href="../interfaces/v6.PgPoolConfig.html" class="tsd-signature-type tsd-kind-interface">PgPoolConfig</a> <span class="tsd-signature-symbol">&amp;</span> <span class="tsd-signature-symbol">{</span><br/>    <span class="tsd-kind-property">schema</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <span class="tsd-kind-property">skipVersionCheck</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div>
+<div class="tsd-signature"><span class="tsd-kind-type-alias">PostgresPoolConfig</span><span class="tsd-signature-symbol">:</span> <a href="../interfaces/v6.PgPoolConfig.html" class="tsd-signature-type tsd-kind-interface">PgPoolConfig</a> <span class="tsd-signature-symbol">&amp;</span> <span class="tsd-signature-symbol">{</span><br/>    <span class="tsd-kind-property">migrate</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">;</span><br/>    <span class="tsd-kind-property">schema</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <span class="tsd-kind-property">skipMigrations</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">;</span><br/>    <span class="tsd-kind-property">skipVersionCheck</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div>
 <div class="tsd-comment tsd-typography"><p>A node-postgres pool config / connection string, optionally carrying the
-BullMQ-specific <code>schema</code> (the connection-level namespace for all queues) and
-<code>skipVersionCheck</code> (bypass the minimum-server-version assertion).</p>
+BullMQ-specific <code>schema</code> (the connection-level namespace for all queues),
+<code>migrate</code> / <code>skipMigrations</code> (explicit migration mode), and
+<code>skipVersionCheck</code> options.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/13e83d85e13cf29b0fd784fb4a4bd0491d6dd0b5/src/postgres/postgres-connection.ts#L18">postgres/postgres-connection.ts:18</a></li></ul></aside></div>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/ee714dc803a43761eba921df3af5c8da0c2258cf/src/postgres/postgres-connection.ts#L24">postgres/postgres-connection.ts:24</a></li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">

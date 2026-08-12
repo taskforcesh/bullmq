@@ -12,12 +12,11 @@
 <li><a href="" aria-current="page">LATEST_SCHEMA_VERSION</a></li></ul>
 <h1>Variable LATEST_SCHEMA_VERSION<code class="tsd-tag">Const</code></h1></div>
 <div class="tsd-signature"><span class="tsd-kind-variable">LATEST_SCHEMA_VERSION</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol"> = ...</span></div>
-<div class="tsd-comment tsd-typography"><p>The highest schema version this BullMQ build knows how to produce. Compared
-against the version recorded in the database to decide whether to migrate
-(database older), no-op (equal), or refuse to run (database newer).</p>
+<div class="tsd-comment tsd-typography"><p>The highest schema version this BullMQ build knows how to produce. Explicit
+migration applies older pending versions.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/13e83d85e13cf29b0fd784fb4a4bd0491d6dd0b5/src/postgres/migrations/index.ts#L39">postgres/migrations/index.ts:39</a></li></ul></aside></div>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/ee714dc803a43761eba921df3af5c8da0c2258cf/src/postgres/migrations/index.ts#L44">postgres/migrations/index.ts:44</a></li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
