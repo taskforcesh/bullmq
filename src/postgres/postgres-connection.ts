@@ -8,16 +8,24 @@ import {
   PgPoolClient,
   PgPoolConfig,
 } from './pg-types';
-import { DEFAULT_SCHEMA, quoteSchemaName, runMigrations } from './migrator';
+import {
+  assertSchemaCompatibility,
+  DEFAULT_SCHEMA,
+  quoteSchemaName,
+  runMigrations,
+} from './migrator';
 
 /**
  * A node-postgres pool config / connection string, optionally carrying the
- * BullMQ-specific `schema` (the connection-level namespace for all queues) and
- * `skipVersionCheck` (bypass the minimum-server-version assertion).
+ * BullMQ-specific `schema` (the connection-level namespace for all queues),
+ * `migrate` / `skipMigrations` (explicit migration mode), and
+ * `skipVersionCheck` options.
  */
 export type PostgresPoolConfig = PgPoolConfig & {
   schema?: string;
   skipVersionCheck?: boolean;
+  migrate?: boolean;
+  skipMigrations?: boolean;
 };
 
 /**
@@ -72,10 +80,8 @@ function loadPgModule(): PgModule {
  *   "wait for job" primitive (lazily established).
  *
  * Lifecycle mirrors {@link RedisConnection}: it is an {@link EventEmitter} that
- * surfaces normalized `'ready' | 'error' | 'close'` events, exposes
- * {@link PostgresConnection.waitUntilReady} (which also runs the schema
- * migrations exactly once, on a dedicated checked-out client) and
- * {@link PostgresConnection.close}.
+ * surfaces normalized `'ready' | 'error' | 'close'` events and exposes
+ * {@link PostgresConnection.waitUntilReady} and {@link PostgresConnection.close}.
  */
 export class PostgresConnection extends EventEmitter {
   readonly pool: PgPool;
@@ -100,6 +106,7 @@ export class PostgresConnection extends EventEmitter {
    * connection string always run the check).
    */
   private readonly skipVersionCheck: boolean;
+  private readonly migrateOnConnect: boolean;
 
   private readyPromise: Promise<void> | undefined;
   private closing: Promise<void> | undefined;
@@ -138,20 +145,36 @@ export class PostgresConnection extends EventEmitter {
       this.ownsPool = false;
       this.schema = DEFAULT_SCHEMA;
       this.skipVersionCheck = false;
+      this.migrateOnConnect = false;
       this.pgModule = undefined;
       this.listenClientConfig = undefined;
     } else {
       const pg = loadPgModule();
-      const { schema, skipVersionCheck, ...poolConfig } =
+      const {
+        schema,
+        skipVersionCheck,
+        migrate,
+        skipMigrations,
+        ...poolConfig
+      } =
         typeof connection === 'string'
           ? {
               schema: undefined,
               skipVersionCheck: undefined,
+              migrate: undefined,
+              skipMigrations: undefined,
               connectionString: connection,
             }
           : connection;
+      if (migrate !== undefined && skipMigrations !== undefined) {
+        throw new Error(
+          'BullMQ: `migrate` and `skipMigrations` are mutually exclusive. Set only one.',
+        );
+      }
       this.schema = schema ?? DEFAULT_SCHEMA;
       this.skipVersionCheck = skipVersionCheck ?? false;
+      this.migrateOnConnect =
+        migrate ?? (skipMigrations === undefined ? false : !skipMigrations);
       // Validate early so a bad schema name fails fast (and before any DDL).
       const quotedSchema = quoteSchemaName(this.schema);
       // Pin every pooled connection's search_path to the schema so the `.sql`
@@ -192,11 +215,11 @@ export class PostgresConnection extends EventEmitter {
   }
 
   /**
-   * Resolves once the pool is reachable and the schema is up to date.
+   * Resolves once the pool is reachable and the schema is compatible.
    *
-   * Idempotent and memoized: the migration runs exactly once per connection,
-   * on a single dedicated client checked out of the pool (so the migration's
-   * advisory lock and transaction share one session — see {@link runMigrations}).
+   * Idempotent and memoized. By default this only reads the migration ledger.
+   * When `migrate: true` was configured, migrations run on one checked-out
+   * client so their advisory lock and transaction share a session.
    */
   async waitUntilReady(): Promise<void> {
     if (!this.readyPromise) {
@@ -208,9 +231,15 @@ export class PostgresConnection extends EventEmitter {
   private async bootstrap(): Promise<void> {
     const client = await this.pool.connect();
     try {
-      await runMigrations(client, this.schema, {
-        skipVersionCheck: this.skipVersionCheck,
-      });
+      if (this.migrateOnConnect) {
+        await runMigrations(client, this.schema, {
+          skipVersionCheck: this.skipVersionCheck,
+        });
+      } else {
+        await assertSchemaCompatibility(client, this.schema, {
+          skipVersionCheck: this.skipVersionCheck,
+        });
+      }
     } finally {
       client.release();
     }

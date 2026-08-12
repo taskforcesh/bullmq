@@ -27,7 +27,10 @@ describe('PostgreSQL Worker (end-to-end)', () => {
     setDefaultBackendFactory((name, opts, options) =>
       createPostgresBackend(
         name,
-        { ...opts, connection: { connectionString: url, schema } },
+        {
+          ...opts,
+          connection: { connectionString: url, schema, migrate: true },
+        },
         options,
       ),
     );
