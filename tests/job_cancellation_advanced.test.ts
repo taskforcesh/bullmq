@@ -1099,17 +1099,18 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       await worker.waitUntilReady();
 
-      const job = await queue.add('test', { foo: 'bar' });
-
-      await new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
+      const active = new Promise<void>(resolve => {
+        worker.once('active', () => resolve());
       });
-
-      await delay(50);
-
       const failed = new Promise<void>(resolve => {
         worker.once('failed', () => resolve());
       });
+
+      const job = await queue.add('test', { foo: 'bar' });
+
+      await active;
+
+      await delay(50);
 
       worker.cancelJob(job.id!);
       await failed;
@@ -1197,19 +1198,22 @@ describe('Job Cancellation - Advanced Scenarios', () => {
 
       await worker.waitUntilReady();
 
+      const active = new Promise<void>(resolve => {
+        worker.once('active', () => resolve());
+      });
+      const failed = new Promise<void>(resolve => {
+        worker.once('failed', () => resolve());
+      });
+
       const job = await queue.add('test', { foo: 'bar' });
 
-      await new Promise<void>(resolve => {
-        worker.on('active', () => resolve());
-      });
+      await active;
 
       await delay(50);
 
       worker.cancelJob(job.id!);
 
-      await new Promise<void>(resolve => {
-        worker.on('failed', () => resolve());
-      });
+      await failed;
 
       expect(apiCallStarted).toBe(true);
       expect(apiCallCompleted).toBe(false);
