@@ -998,6 +998,48 @@ defmodule BullMQ.Queue do
   end
 
   @doc """
+  Returns the number of jobs per priority level.
+
+  Mirrors the Node.js `getCountsPerPriority` method. Priority `0` counts jobs
+  in the waiting (wait) list; every other value counts jobs in the prioritized
+  sorted set within that priority's score range.
+
+  ## Parameters
+
+    * `queue` - Queue name (string), registered name (atom), or PID
+    * `priorities` - List of priority values to count (duplicates are ignored)
+
+  ## Examples
+
+      {:ok, counts} = BullMQ.Queue.get_counts_per_priority("my_queue", [0, 1, 2, 3], connection: :redis)
+      # %{0 => 11, 1 => 11, 2 => 10, 3 => 10}
+  """
+  @spec get_counts_per_priority(atom() | pid() | String.t(), [integer()], keyword()) ::
+          {:ok, %{integer() => non_neg_integer()}} | {:error, term()}
+  def get_counts_per_priority(queue, priorities, opts \\ [])
+
+  def get_counts_per_priority(queue, priorities, _opts) when is_atom(queue) or is_pid(queue) do
+    GenServer.call(queue, {:get_counts_per_priority, priorities})
+  end
+
+  def get_counts_per_priority(queue, priorities, opts) when is_binary(queue) do
+    unique_priorities = Enum.uniq(priorities)
+
+    case Backend.get_counts_per_priority(Backend.create(queue, opts), unique_priorities) do
+      {:ok, responses} ->
+        counts =
+          unique_priorities
+          |> Enum.with_index()
+          |> Map.new(fn {priority, index} -> {priority, Enum.at(responses, index) || 0} end)
+
+        {:ok, counts}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  @doc """
   Returns the number of jobs in the "waiting" or "paused" states.
 
   ## Examples
@@ -1756,6 +1798,11 @@ defmodule BullMQ.Queue do
   def handle_call({:get_job_count_by_types, types}, _from, state) do
     result = get_job_count_by_types(state.name, types, backend_opts(state))
 
+    {:reply, result, state}
+  end
+
+  def handle_call({:get_counts_per_priority, priorities}, _from, state) do
+    result = get_counts_per_priority(state.name, priorities, backend_opts(state))
     {:reply, result, state}
   end
 

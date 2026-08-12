@@ -822,7 +822,7 @@ public sealed class RedisBackend : IQueueBackend
 
     public async Task<long[]> GetCountsPerPriorityAsync(IReadOnlyList<long> priorities)
     {
-        var keys = MapKeys("wait", "paused", "meta", "prioritized");
+        var keys = MapKeys("wait", "prioritized");
         var args = priorities.Select(p => (RedisValue)p).ToArray();
         var result = await _connection.EvalAsync("getCountsPerPriority", keys, args).ConfigureAwait(false);
         var arr = (RedisResult[]?)result ?? Array.Empty<RedisResult>();

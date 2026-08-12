@@ -230,6 +230,55 @@ public abstract class QueueTestsBase
         Assert.Equal(0, await queue.GetWaitingCountAsync());
     }
 
+    [Fact]
+    public async Task Pause_SetsQueueToPaused()
+    {
+        var name = UniqueName();
+        await using var queue = new Queue(name, NewQueueOptions());
+
+        try
+        {
+            Assert.False(await queue.IsPausedAsync());
+
+            await queue.PauseAsync();
+
+            Assert.True(await queue.IsPausedAsync());
+        }
+        finally
+        {
+            await queue.ObliterateAsync(force: true);
+        }
+    }
+
+    [Fact]
+    public async Task GetCountsPerPriority_ReturnsJobCountsPerPriority()
+    {
+        var name = UniqueName();
+        await using var queue = new Queue(name, NewQueueOptions());
+
+        try
+        {
+            await queue.WaitUntilReadyAsync();
+
+            for (var index = 0; index < 42; index++)
+            {
+                await queue.AddAsync(
+                    "test",
+                    new { },
+                    new JobsOptions { Priority = index % 4 });
+            }
+
+            var counts = await queue.GetCountsPerPriorityAsync(
+                new long[] { 0, 1, 2, 3 });
+
+            Assert.Equal(new long[] { 11, 11, 10, 10 }, counts);
+        }
+        finally
+        {
+            await queue.ObliterateAsync(force: true);
+        }
+    }
+
     private static async Task<T> WaitForAsync<T>(Task<T> task, TimeSpan timeout)
     {
         var completed = await Task.WhenAny(task, Task.Delay(timeout));
