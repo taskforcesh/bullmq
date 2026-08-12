@@ -1,5 +1,6 @@
 import { LATEST_SCHEMA_VERSION, Migration, MIGRATIONS } from './migrations';
 import { PgQueryable } from './pg-types';
+import { version } from '../version';
 
 /**
  * Default PostgreSQL schema (namespace) the backend lives in. The schema is the
@@ -36,6 +37,9 @@ export const MINIMUM_POSTGRES_VERSION = 13;
  * (mirrors the Redis backend's `recommendedMinimumVersion`).
  */
 export const RECOMMENDED_POSTGRES_VERSION = 14;
+
+/** The BullMQ major version used for PostgreSQL schema compatibility checks. */
+export const BULLMQ_MAJOR_VERSION = parseInt(version.split('.')[0], 10);
 
 /**
  * Thrown when the connected PostgreSQL server is older than {@link
@@ -75,24 +79,7 @@ export async function assertPostgresVersion(
     `SELECT current_setting('server_version_num') AS num, ` +
       `current_setting('server_version') AS ver`,
   );
-  const major = Math.floor(parseInt(rows[0]?.num ?? '0', 10) / 10000);
-  const reported = rows[0]?.ver ?? 'unknown';
-  if (major < MINIMUM_POSTGRES_VERSION) {
-    throw new UnsupportedPostgresVersionError(
-      reported,
-      MINIMUM_POSTGRES_VERSION,
-    );
-  }
-  if (major < RECOMMENDED_POSTGRES_VERSION) {
-    const warned = (assertPostgresVersion as any)._warnedRecommendedVersion;
-    if (!warned) {
-      (assertPostgresVersion as any)._warnedRecommendedVersion = true;
-      console.warn(
-        `BullMQ: PostgreSQL ${RECOMMENDED_POSTGRES_VERSION} or newer is ` +
-          `recommended for the PostgreSQL backend (detected ${reported}).`,
-      );
-    }
-  }
+  assertPostgresVersionValues(rows[0]?.num ?? '0', rows[0]?.ver ?? 'unknown');
 }
 
 /**
@@ -122,29 +109,100 @@ export function quoteSchemaName(schema: string): string {
  * to upgrade BullMQ — schema downgrades are not supported.
  */
 export class SchemaVersionMismatchError extends Error {
+  /** @deprecated Use {@link minimumClientVersion}. */
+  public readonly databaseVersion: number;
+  /** @deprecated Use {@link clientVersion}. */
+  public readonly supportedVersion: number;
+
   constructor(
-    public readonly databaseVersion: number,
-    public readonly supportedVersion: number,
+    public readonly minimumClientVersion: number,
+    public readonly clientVersion: number,
   ) {
     super(
-      `BullMQ: the PostgreSQL schema is at version ${databaseVersion}, but this ` +
-        `version of BullMQ only supports schema versions up to ${supportedVersion}. ` +
-        `The database was migrated by a newer BullMQ release; upgrade BullMQ to ` +
-        `continue (schema downgrades are not supported).`,
+      `BullMQ: the PostgreSQL schema requires BullMQ major version ` +
+        `${minimumClientVersion} or newer, but this client is major version ` +
+        `${clientVersion}. Upgrade BullMQ to use this schema.`,
     );
     this.name = 'SchemaVersionMismatchError';
+    this.databaseVersion = minimumClientVersion;
+    this.supportedVersion = clientVersion;
   }
+}
+
+/** Thrown when a connection uses a schema that has not been initialized. */
+export class SchemaMigrationRequiredError extends Error {
+  constructor(public readonly schema: string) {
+    super(
+      `BullMQ: PostgreSQL schema ${JSON.stringify(schema)} is not initialized. ` +
+        'Run the migrations explicitly or pass `migrate: true` on the connection.',
+    );
+    this.name = 'SchemaMigrationRequiredError';
+  }
+}
+
+interface SchemaStateRow {
+  version: number;
+  min_client_version: number;
+  server_version_num: string;
+  server_version: string;
+}
+
+/**
+ * Checks schema and server compatibility with one read and without locks or DDL.
+ */
+export async function assertSchemaCompatibility(
+  client: PgQueryable,
+  schema: string = DEFAULT_SCHEMA,
+  options: { skipVersionCheck?: boolean } = {},
+): Promise<number> {
+  const quotedSchema = quoteSchemaName(schema);
+  let rows: SchemaStateRow[];
+  try {
+    ({ rows } = await client.query<SchemaStateRow>(
+      `SELECT COALESCE(MAX(version), 0)::int AS version,
+              COALESCE(
+                MAX((to_jsonb(migration)->>'min_client_version')::int),
+                $1
+              )::int AS min_client_version,
+              current_setting('server_version_num') AS server_version_num,
+              current_setting('server_version') AS server_version
+         FROM ${quotedSchema}.migration`,
+      [BULLMQ_MAJOR_VERSION],
+    ));
+  } catch (err) {
+    if ((err as { code?: string }).code === '42P01') {
+      throw new SchemaMigrationRequiredError(schema);
+    }
+    throw err;
+  }
+
+  const state = rows[0];
+  if (!options.skipVersionCheck) {
+    assertPostgresVersionValues(
+      state?.server_version_num ?? '0',
+      state?.server_version ?? 'unknown',
+    );
+  }
+  const minimumClientVersion =
+    state?.min_client_version ?? BULLMQ_MAJOR_VERSION;
+  if (minimumClientVersion > BULLMQ_MAJOR_VERSION) {
+    throw new SchemaVersionMismatchError(
+      minimumClientVersion,
+      BULLMQ_MAJOR_VERSION,
+    );
+  }
+  return state?.version ?? 0;
 }
 
 /**
  * Brings the database schema up to {@link LATEST_SCHEMA_VERSION}.
  *
- * Run on the backend's first `waitUntilReady()` (a constructor cannot perform
- * async I/O). Behaviour by current database version:
+ * Run explicitly with `runMigrations()` or by passing `migrate: true` on the
+ * connection. Behaviour by current database version:
  *
  * - **older** than supported → applies the pending migrations in order.
  * - **equal** to supported → no-op.
- * - **newer** than supported → throws {@link SchemaVersionMismatchError}.
+ * - **newer** than bundled → no-op if its minimum client major is compatible.
  *
  * ## Atomicity
  *
@@ -211,12 +269,11 @@ export async function runMigrations(
 
     await ensureLedgerTable(client);
     const currentVersion = await getCurrentSchemaVersion(client);
-
-    if (currentVersion > LATEST_SCHEMA_VERSION) {
-      // Rolled back by the catch below; nothing has been written anyway.
+    const minimumClientVersion = await getMinimumClientVersion(client);
+    if (minimumClientVersion > BULLMQ_MAJOR_VERSION) {
       throw new SchemaVersionMismatchError(
-        currentVersion,
-        LATEST_SCHEMA_VERSION,
+        minimumClientVersion,
+        BULLMQ_MAJOR_VERSION,
       );
     }
 
@@ -258,9 +315,29 @@ async function ensureLedgerTable(client: PgQueryable): Promise<void> {
     `CREATE TABLE IF NOT EXISTS migration (
        version    integer PRIMARY KEY,
        name       text NOT NULL,
+       min_client_version integer NOT NULL,
        applied_at timestamptz NOT NULL DEFAULT now()
      )`,
   );
+  await client.query(
+    'ALTER TABLE migration ADD COLUMN IF NOT EXISTS min_client_version integer',
+  );
+  await client.query(
+    'UPDATE migration SET min_client_version = $1 WHERE min_client_version IS NULL',
+    [BULLMQ_MAJOR_VERSION],
+  );
+  await client.query(
+    'ALTER TABLE migration ALTER COLUMN min_client_version SET NOT NULL',
+  );
+}
+
+async function getMinimumClientVersion(client: PgQueryable): Promise<number> {
+  const { rows } = await client.query<{ min_client_version: number }>(
+    `SELECT COALESCE(MAX(min_client_version), $1)::int AS min_client_version
+       FROM migration`,
+    [BULLMQ_MAJOR_VERSION],
+  );
+  return rows[0]?.min_client_version ?? BULLMQ_MAJOR_VERSION;
 }
 
 async function applyMigration(
@@ -268,8 +345,29 @@ async function applyMigration(
   migration: Migration,
 ): Promise<void> {
   await client.query(migration.load());
-  await client.query('INSERT INTO migration (version, name) VALUES ($1, $2)', [
-    migration.version,
-    migration.name,
-  ]);
+  await client.query(
+    `INSERT INTO migration (version, name, min_client_version)
+     VALUES ($1, $2, $3)`,
+    [migration.version, migration.name, migration.minClientVersion],
+  );
+}
+
+function assertPostgresVersionValues(num: string, reported: string): void {
+  const major = Math.floor(parseInt(num, 10) / 10000);
+  if (major < MINIMUM_POSTGRES_VERSION) {
+    throw new UnsupportedPostgresVersionError(
+      reported,
+      MINIMUM_POSTGRES_VERSION,
+    );
+  }
+  if (major < RECOMMENDED_POSTGRES_VERSION) {
+    const warned = (assertPostgresVersion as any)._warnedRecommendedVersion;
+    if (!warned) {
+      (assertPostgresVersion as any)._warnedRecommendedVersion = true;
+      console.warn(
+        `BullMQ: PostgreSQL ${RECOMMENDED_POSTGRES_VERSION} or newer is ` +
+          `recommended for the PostgreSQL backend (detected ${reported}).`,
+      );
+    }
+  }
 }

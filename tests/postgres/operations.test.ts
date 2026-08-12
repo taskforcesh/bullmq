@@ -34,7 +34,7 @@ describe('PostgreSQL backend operations', () => {
 
   const newBackend = (): IQueueBackend =>
     createPostgresBackend(`ops-${randomUUID()}`, {
-      connection: { connectionString: url, schema },
+      connection: { connectionString: url, schema, migrate: true },
     } as any);
 
   beforeAll(async () => {
