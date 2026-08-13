@@ -1,3 +1,10 @@
+## [1.2.4](https://github.com/taskforcesh/bullmq/compare/vrs1.2.3...vrs1.2.4) (2026-08-13)
+
+
+### Bug Fixes
+
+* **deps:** upgrade futures to v0.3.34 [rust] ([#4552](https://github.com/taskforcesh/bullmq/issues/4552)) ([beab7b5](https://github.com/taskforcesh/bullmq/commit/beab7b54fb0d441808f1549fc399482b320bfe43))
+
 ## [1.2.3](https://github.com/taskforcesh/bullmq/compare/vrs1.2.2...vrs1.2.3) (2026-08-07)
 
 
