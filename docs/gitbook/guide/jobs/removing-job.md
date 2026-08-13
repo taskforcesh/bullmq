@@ -40,8 +40,8 @@ let queue = Queue::new("paint", QueueOptions::default()).await?;
 
 let job = queue.add("wall", serde_json::json!({"color": 1}), None).await?;
 
-// Returns `Ok(true)` if the job was removed, or `Ok(false)` if it (or one of
-// its dependencies) is locked and could not be removed.
+// Returns `true` if the job was removed, or `false` if it (or one of its
+// dependencies) is locked and could not be removed.
 let removed = queue.remove(job.id()).await?;
 ```
 
@@ -49,7 +49,7 @@ let removed = queue.remove(job.id()).await?;
 {% endtabs %}
 
 {% hint style="warning" %}
-Locked jobs (in active state) can not be removed. In TypeScript and Python an
+Locked jobs (in active state) cannot be removed. In TypeScript and Python, an
 error will be thrown, while in Rust `Queue::remove` returns `Ok(false)`.
 {% endhint %}
 
