@@ -276,6 +276,104 @@ defmodule BullMQ.QueueGettersTest do
     end
   end
 
+  # ---------------------------------------------------------------------------
+  # Tests for get_counts_per_priority/3
+  # ---------------------------------------------------------------------------
+
+  describe "get_counts_per_priority/3" do
+    test "returns zero counts when no jobs exist", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
+      {:ok, counts} =
+        Queue.get_counts_per_priority(queue_name, [0, 1, 2, 3],
+          connection: conn,
+          prefix: prefix
+        )
+
+      assert counts == %{0 => 0, 1 => 0, 2 => 0, 3 => 0}
+    end
+
+    test "returns correct counts per priority", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
+      # Add 42 jobs distributed across priorities 0-3 (mirrors the Node.js test)
+      for i <- 0..41 do
+        Queue.add(queue_name, "job#{i}", %{index: i},
+          connection: conn,
+          prefix: prefix,
+          priority: rem(i, 4)
+        )
+      end
+
+      {:ok, counts} =
+        Queue.get_counts_per_priority(queue_name, [0, 1, 2, 3],
+          connection: conn,
+          prefix: prefix
+        )
+
+      assert counts == %{0 => 11, 1 => 11, 2 => 10, 3 => 10}
+    end
+
+    test "priority 0 counts jobs in the wait list", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
+      Queue.add(queue_name, "job1", %{}, connection: conn, prefix: prefix)
+      Queue.add(queue_name, "job2", %{}, connection: conn, prefix: prefix)
+
+      {:ok, counts} =
+        Queue.get_counts_per_priority(queue_name, [0], connection: conn, prefix: prefix)
+
+      assert counts == %{0 => 2}
+    end
+
+    test "deduplicates repeated priority values", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
+      Queue.add(queue_name, "job1", %{}, connection: conn, prefix: prefix, priority: 1)
+      Queue.add(queue_name, "job2", %{}, connection: conn, prefix: prefix, priority: 1)
+
+      {:ok, counts} =
+        Queue.get_counts_per_priority(queue_name, [1, 1, 2], connection: conn, prefix: prefix)
+
+      # Duplicates are collapsed — only one entry per unique priority
+      assert counts == %{1 => 2, 2 => 0}
+    end
+
+    test "returns correct counts when queue is paused", %{
+      conn: conn,
+      queue_name: queue_name,
+      prefix: prefix
+    } do
+      :ok = Queue.pause(queue_name, connection: conn, prefix: prefix)
+
+      for i <- 0..41 do
+        Queue.add(queue_name, "job#{i}", %{index: i},
+          connection: conn,
+          prefix: prefix,
+          priority: rem(i, 4)
+        )
+      end
+
+      {:ok, counts} =
+        Queue.get_counts_per_priority(queue_name, [0, 1, 2, 3],
+          connection: conn,
+          prefix: prefix
+        )
+
+      assert counts == %{0 => 11, 1 => 11, 2 => 10, 3 => 10}
+
+      :ok = Queue.resume(queue_name, connection: conn, prefix: prefix)
+    end
+  end
+
   describe "get_waiting_count/2" do
     test "returns 0 when no waiting jobs", %{conn: conn, queue_name: queue_name, prefix: prefix} do
       {:ok, count} = Queue.get_waiting_count(queue_name, connection: conn, prefix: prefix)

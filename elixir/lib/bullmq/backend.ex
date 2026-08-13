@@ -362,6 +362,10 @@ defmodule BullMQ.Backend do
   @callback get_counts_by_types(t, types :: [atom()]) ::
               {:ok, [non_neg_integer()]} | {:error, term()}
 
+  @doc "Returns the job count for each of the given `priorities`, in order."
+  @callback get_counts_per_priority(t, priorities :: [integer()]) ::
+              {:ok, [non_neg_integer()]} | {:error, term()}
+
   @doc "Returns a page of job ids for the given states/types."
   @callback get_ranges(t, types :: [atom() | String.t()], start :: integer(), stop :: integer()) ::
               {:ok, term()} | {:error, term()}
@@ -749,6 +753,10 @@ defmodule BullMQ.Backend do
 
   @spec get_counts_by_types(t, [atom()]) :: {:ok, [non_neg_integer()]} | {:error, term()}
   def get_counts_by_types(b, types), do: dispatch(b, :get_counts_by_types, [types])
+
+  @spec get_counts_per_priority(t, [integer()]) :: {:ok, [non_neg_integer()]} | {:error, term()}
+  def get_counts_per_priority(b, priorities),
+    do: dispatch(b, :get_counts_per_priority, [priorities])
 
   @spec get_ranges(t, [atom() | String.t()], integer(), integer()) ::
           {:ok, term()} | {:error, term()}

@@ -11,6 +11,8 @@ import {
 import { Pool } from 'pg';
 import {
   assertPostgresVersion,
+  assertSchemaCompatibility,
+  BULLMQ_MAJOR_VERSION,
   DEFAULT_SCHEMA,
   LATEST_SCHEMA_VERSION,
   MIGRATION_ADVISORY_LOCK_KEY,
@@ -18,6 +20,7 @@ import {
   PostgresConnection,
   RECOMMENDED_POSTGRES_VERSION,
   runMigrations,
+  SchemaMigrationRequiredError,
   SchemaVersionMismatchError,
   UnsupportedPostgresVersionError,
 } from '../../src/postgres';
@@ -42,8 +45,9 @@ describe('PostgreSQL migrations', () => {
 
   beforeAll(async () => {
     pool = new Pool({ connectionString: url });
-    await dropAll();
   });
+
+  beforeEach(dropAll);
 
   afterAll(async () => {
     await dropAll();
@@ -51,7 +55,10 @@ describe('PostgreSQL migrations', () => {
   });
 
   it('migrates a fresh database up to the latest schema version', async () => {
-    const connection = new PostgresConnection(url);
+    const connection = new PostgresConnection({
+      connectionString: url,
+      migrate: true,
+    });
     try {
       await connection.waitUntilReady();
 
@@ -71,7 +78,10 @@ describe('PostgreSQL migrations', () => {
   });
 
   it('creates the v2 core schema (tables, enums, indexes) in the namespace', async () => {
-    const connection = new PostgresConnection(url);
+    const connection = new PostgresConnection({
+      connectionString: url,
+      migrate: true,
+    });
     try {
       await connection.waitUntilReady();
 
@@ -115,7 +125,10 @@ describe('PostgreSQL migrations', () => {
 
   it('is idempotent (re-running does not change the version)', async () => {
     // First run.
-    const first = new PostgresConnection(url);
+    const first = new PostgresConnection({
+      connectionString: url,
+      migrate: true,
+    });
     await first.waitUntilReady();
     await first.close();
 
@@ -124,7 +137,10 @@ describe('PostgreSQL migrations', () => {
     );
 
     // Second run on a brand-new connection.
-    const second = new PostgresConnection(url);
+    const second = new PostgresConnection({
+      connectionString: url,
+      migrate: true,
+    });
     await second.waitUntilReady();
     await second.close();
 
@@ -136,28 +152,75 @@ describe('PostgreSQL migrations', () => {
     expect(after[0].n).toBe(before[0].n);
   });
 
-  it('throws when the database schema is newer than supported', async () => {
-    // Ensure the ledger exists, then record a version from the "future".
-    const bootstrap = new PostgresConnection(url);
+  it('does not create or migrate a schema by default', async () => {
+    const connection = new PostgresConnection(url);
+    try {
+      await expect(connection.waitUntilReady()).rejects.toBeInstanceOf(
+        SchemaMigrationRequiredError,
+      );
+      const { rows } = await pool.query<{ exists: boolean }>(
+        `SELECT to_regnamespace($1) IS NOT NULL AS exists`,
+        [schema],
+      );
+      expect(rows[0].exists).toBe(false);
+    } finally {
+      await connection.close();
+    }
+  });
+
+  it('supports deprecated skipMigrations: false as migrate-on-connect', async () => {
+    const connection = new PostgresConnection({
+      connectionString: url,
+      skipMigrations: false,
+    });
+    try {
+      await connection.waitUntilReady();
+      const { rows } = await pool.query<{ version: number }>(
+        `SELECT COALESCE(MAX(version), 0)::int AS version FROM "${schema}".migration`,
+      );
+      expect(rows[0].version).toBe(LATEST_SCHEMA_VERSION);
+    } finally {
+      await connection.close();
+    }
+  });
+
+  it('accepts newer same-major schemas and rejects a newer required major', async () => {
+    const bootstrap = new PostgresConnection({
+      connectionString: url,
+      migrate: true,
+    });
     await bootstrap.waitUntilReady();
     await bootstrap.close();
 
     const futureVersion = LATEST_SCHEMA_VERSION + 1;
     await pool.query(
-      `INSERT INTO "${schema}".migration (version, name) VALUES ($1, $2)`,
-      [futureVersion, 'future'],
+      `INSERT INTO "${schema}".migration
+         (version, name, min_client_version)
+       VALUES ($1, $2, $3)`,
+      [futureVersion, 'future-compatible', BULLMQ_MAJOR_VERSION],
     );
 
-    const client = await pool.connect();
+    const compatible = new PostgresConnection({ connectionString: url });
     try {
-      await expect(runMigrations(client, schema)).rejects.toBeInstanceOf(
+      await expect(compatible.waitUntilReady()).resolves.toBeUndefined();
+    } finally {
+      await compatible.close();
+    }
+
+    await pool.query(
+      `UPDATE "${schema}".migration
+          SET min_client_version = $1
+        WHERE version = $2`,
+      [BULLMQ_MAJOR_VERSION + 1, futureVersion],
+    );
+    const incompatible = new PostgresConnection({ connectionString: url });
+
+    try {
+      await expect(incompatible.waitUntilReady()).rejects.toBeInstanceOf(
         SchemaVersionMismatchError,
       );
     } finally {
-      client.release();
-      await pool.query(`DELETE FROM "${schema}".migration WHERE version = $1`, [
-        futureVersion,
-      ]);
+      await incompatible.close();
     }
   });
 
@@ -259,5 +322,69 @@ describe('PostgreSQL server-version check', () => {
     } finally {
       warn.mockRestore();
     }
+  });
+});
+
+describe('PostgreSQL read-only schema check', () => {
+  it('uses one SELECT and accepts a newer same-major schema', async () => {
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          version: LATEST_SCHEMA_VERSION + 1,
+          min_client_version: BULLMQ_MAJOR_VERSION,
+          server_version_num: '160000',
+          server_version: '16.0',
+        },
+      ],
+    });
+
+    await expect(assertSchemaCompatibility({ query } as any)).resolves.toBe(
+      LATEST_SCHEMA_VERSION + 1,
+    );
+    expect(query).toHaveBeenCalledOnce();
+    expect(query.mock.calls[0][0]).toMatch(/^\s*SELECT\b/);
+    expect(query.mock.calls[0][0]).not.toMatch(
+      /\b(?:BEGIN|CREATE|ALTER|UPDATE|LOCK)\b/,
+    );
+  });
+
+  it('rejects a schema requiring a newer BullMQ major', async () => {
+    const client = {
+      query: vi.fn().mockResolvedValue({
+        rows: [
+          {
+            version: LATEST_SCHEMA_VERSION + 1,
+            min_client_version: BULLMQ_MAJOR_VERSION + 1,
+            server_version_num: '160000',
+            server_version: '16.0',
+          },
+        ],
+      }),
+    };
+
+    await expect(
+      assertSchemaCompatibility(client as any),
+    ).rejects.toBeInstanceOf(SchemaVersionMismatchError);
+  });
+});
+
+describe('PostgreSQL compatibility aliases and options', () => {
+  it('keeps legacy SchemaVersionMismatchError fields as aliases', () => {
+    const err = new SchemaVersionMismatchError(9, 8);
+    expect(err.minimumClientVersion).toBe(9);
+    expect(err.clientVersion).toBe(8);
+    expect(err.databaseVersion).toBe(9);
+    expect(err.supportedVersion).toBe(8);
+  });
+
+  it('rejects migrate and skipMigrations used together', () => {
+    expect(
+      () =>
+        new PostgresConnection({
+          connectionString: 'postgres://localhost:5432/mydb',
+          migrate: true,
+          skipMigrations: true,
+        }),
+    ).toThrow(/mutually exclusive/i);
   });
 });

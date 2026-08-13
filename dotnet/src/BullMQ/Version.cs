@@ -4,5 +4,5 @@ namespace BullMQ;
 public static class Version
 {
     /// <summary>The current library version.</summary>
-    public const string Value = "0.0.0-dev";
+    public const string Value = "1.1.0";
 }

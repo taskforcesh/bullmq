@@ -36,14 +36,14 @@
     <!-- Detect accidental breaking changes to the public API across releases. -->
     <EnablePackageValidation>true</EnablePackageValidation>
     <!-- Version is stamped by the release pipeline; keep a dev default here. -->
-    <Version>0.0.0-dev</Version>
+    <Version>1.1.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="StackExchange.Redis" Version="2.13.17" />
     <PackageReference Include="Npgsql" Version="8.0.9" />
     <PackageReference Include="Cronos" Version="0.13.0" />
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.301" PrivateAssets="All" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.400" PrivateAssets="All" />
   </ItemGroup>
 
   <ItemGroup>
