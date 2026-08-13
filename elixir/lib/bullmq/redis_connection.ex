@@ -231,18 +231,63 @@ defmodule BullMQ.RedisConnection do
   # Loads all BullMQ Lua scripts into Redis script cache.
   # Called once during initialization - scripts are cached server-side in Redis,
   # so all pool connections can use EVALSHA to execute them efficiently.
+  #
+  # To keep startup fast (a cold `SCRIPT LOAD` of many large scripts can be slow
+  # on high-latency links), we first issue a single `SCRIPT EXISTS` call with the
+  # precomputed SHA1 of every script and then only `SCRIPT LOAD` the scripts that
+  # are not already present in the server-side cache.
   defp load_scripts(conn) do
-    scripts = Scripts.list_scripts()
-
-    # Use pipeline for efficiency - load all scripts in one round trip
-    commands =
-      Enum.map(scripts, fn script_name ->
+    scripts =
+      Scripts.list_scripts()
+      |> Enum.map(fn script_name ->
         case Scripts.get(script_name) do
-          {content, _key_count} -> ["SCRIPT", "LOAD", content]
+          {content, _key_count} -> {content, Scripts.get_sha(script_name)}
           nil -> nil
         end
       end)
       |> Enum.reject(&is_nil/1)
+
+    with {:ok, missing} <- missing_scripts(conn, scripts) do
+      load_missing_scripts(conn, missing)
+    else
+      {:error, reason} ->
+        Logger.warning(
+          "BullMQ: Failed to pre-load scripts for #{inspect(conn)}: #{inspect(reason)}. " <>
+            "Scripts will be loaded on first use via EVAL fallback."
+        )
+
+        :ok
+    end
+  end
+
+  # Returns the scripts that are not yet cached server-side, using a single
+  # SCRIPT EXISTS round trip. If any SHA is missing (or the check fails), the
+  # corresponding script is treated as not loaded.
+  defp missing_scripts(conn, scripts) do
+    shas = Enum.map(scripts, fn {_content, sha} -> sha end)
+
+    case command(conn, ["SCRIPT", "EXISTS" | shas]) do
+      {:ok, existing} ->
+        missing =
+          scripts
+          |> Enum.zip(Stream.concat(existing, Stream.cycle([0])))
+          |> Enum.reject(fn {_script, loaded} -> loaded == 1 end)
+          |> Enum.map(fn {{content, _sha}, _loaded} -> content end)
+
+        {:ok, missing}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp load_missing_scripts(conn, []) do
+    Logger.debug("BullMQ: All Lua scripts already cached in Redis for #{inspect(conn)}")
+    :ok
+  end
+
+  defp load_missing_scripts(conn, missing) do
+    commands = Enum.map(missing, fn content -> ["SCRIPT", "LOAD", content] end)
 
     case pipeline(conn, commands) do
       {:ok, _shas} ->
