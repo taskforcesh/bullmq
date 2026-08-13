@@ -82,7 +82,7 @@ impl RedisConnection {
     }
 
     /// Get the script registry.
-    pub fn scripts(&self) -> &ScriptRegistry {
+    pub(crate) fn scripts(&self) -> &ScriptRegistry {
         &self.inner.scripts
     }
 
