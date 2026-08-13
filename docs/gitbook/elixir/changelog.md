@@ -1,3 +1,10 @@
+# [2.1.0](https://github.com/taskforcesh/bullmq/compare/vex2.0.3...vex2.1.0) (2026-08-12)
+
+
+### Features
+
+* **queue:** support getCountsPerPriority method [elixir] [dotnet] ([#4535](https://github.com/taskforcesh/bullmq/issues/4535)) ([2f5ea2c](https://github.com/taskforcesh/bullmq/commit/2f5ea2c1648e526b1a689b581a7952fb5ee13610))
+
 ## [2.0.3](https://github.com/taskforcesh/bullmq/compare/vex2.0.2...vex2.0.3) (2026-08-02)
 
 

@@ -36,7 +36,7 @@
     <!-- Detect accidental breaking changes to the public API across releases. -->
     <EnablePackageValidation>true</EnablePackageValidation>
     <!-- Version is stamped by the release pipeline; keep a dev default here. -->
-    <Version>0.0.0-dev</Version>
+    <Version>1.1.0</Version>
   </PropertyGroup>
 
   <ItemGroup>

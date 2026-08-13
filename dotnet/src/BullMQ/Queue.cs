@@ -206,6 +206,13 @@ public sealed class Queue : IAsyncDisposable
         return jobs;
     }
 
+    /// <summary>Returns the number of jobs for each requested priority.</summary>
+    public async Task<long[]> GetCountsPerPriorityAsync(IReadOnlyList<long> priorities)
+    {
+        var backend = await _backend.Value.ConfigureAwait(false);
+        return await backend.GetCountsPerPriorityAsync(priorities).ConfigureAwait(false);
+    }
+
     /// <summary>Returns waiting jobs.</summary>
     public Task<IReadOnlyList<Job>> GetWaitingAsync(int start = 0, int end = -1) =>
         GetJobsAsync(new[] { "waiting" }, start, end, asc: true);

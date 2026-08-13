@@ -1456,12 +1456,12 @@ defmodule BullMQ.Scripts do
       Keys.paused(ctx),
       Keys.meta(ctx),
       Keys.prioritized(ctx),
-      Keys.pc(ctx),
-      Keys.marker(ctx),
-      Keys.events(ctx)
+      Keys.events(ctx),
+      Keys.delayed(ctx),
+      Keys.marker(ctx)
     ]
 
-    args = [if(paused?, do: "paused", else: "resumed")]
+    args = [if(paused?, do: "paused", else: "resumed"), "1"]
 
     execute(conn, :pause, keys, args)
   end
@@ -1777,6 +1777,27 @@ defmodule BullMQ.Scripts do
     args = []
 
     execute(conn, :get_counts, keys, args)
+  end
+
+  @doc """
+  Gets job counts per priority.
+
+  Returns a list of counts, one per requested priority, in the same order as
+  the input list.  Priority 0 counts jobs in the wait list (non-prioritized
+  jobs); every other priority value counts jobs in the prioritized sorted set
+  within the corresponding score range.
+
+  ## Parameters
+    * `conn` - Redis connection
+    * `ctx` - Queue context from Keys.new/2
+    * `priorities` - List of priority values to count
+  """
+  @spec get_counts_per_priority(atom(), queue_context(), [integer()]) :: script_result()
+  def get_counts_per_priority(conn, ctx, priorities) do
+    keys = [Keys.wait(ctx), Keys.prioritized(ctx)]
+    args = priorities
+
+    execute(conn, :get_counts_per_priority, keys, args)
   end
 
   @doc """
@@ -2106,7 +2127,7 @@ defmodule BullMQ.Scripts do
       %{}
       |> maybe_add_opt("del", Map.get(job_opts, :delay) || Map.get(job_opts, "delay") || delay, 0)
       |> maybe_add_opt(
-        "pri",
+        "priority",
         Map.get(job_opts, :priority) || Map.get(job_opts, "priority") || priority,
         0
       )

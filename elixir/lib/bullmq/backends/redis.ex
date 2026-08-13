@@ -618,6 +618,11 @@ defmodule BullMQ.Backends.Redis do
     do: Scripts.get_counts(conn, ctx)
 
   @impl true
+  def get_counts_per_priority(%__MODULE__{connection: conn, context: ctx}, priorities) do
+    Scripts.get_counts_per_priority(conn, ctx, priorities)
+  end
+
+  @impl true
   def get_counts_by_types(%__MODULE__{connection: conn, context: ctx}, types) do
     commands = Enum.map(types, &count_command(ctx, &1))
 

@@ -1,3 +1,10 @@
+# [6.1.0](https://github.com/taskforcesh/bullmq/compare/v6.0.11...v6.1.0) (2026-08-12)
+
+
+### Features
+
+* **postgres:** make schema migrations explicit ([#4544](https://github.com/taskforcesh/bullmq/issues/4544)) ([ee714dc](https://github.com/taskforcesh/bullmq/commit/ee714dc803a43761eba921df3af5c8da0c2258cf))
+
 ## [6.0.11](https://github.com/taskforcesh/bullmq/compare/v6.0.10...v6.0.11) (2026-08-10)
 
 

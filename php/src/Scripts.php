@@ -325,12 +325,10 @@ class Scripts
     {
         $keys = [
             $this->keys['wait'],
-            $this->keys['paused'],
-            $this->keys['meta'],
             $this->keys['prioritized'],
         ];
 
-        $result = $this->execScript('getCountsPerPriority-4.lua', $keys, $priorities);
+        $result = $this->execScript('getCountsPerPriority-2.lua', $keys, $priorities);
         
         return is_array($result) ? $result : [];
     }
