@@ -30,7 +30,7 @@ defmodule BullMQ.ScriptLoadingIntegrationTest do
     conn_name
   end
 
-  test "loads every script into the server-side cache when it is empty" do
+  test "does not preload scripts when the connection starts" do
     flush_script_cache()
 
     conn = start_pool()
@@ -39,22 +39,24 @@ defmodule BullMQ.ScriptLoadingIntegrationTest do
     {:ok, existing} = RedisConnection.command(conn, ["SCRIPT", "EXISTS" | shas])
 
     assert length(existing) == length(shas)
-    assert Enum.all?(existing, &(&1 == 1))
+    assert Enum.all?(existing, &(&1 == 0))
   end
 
-  test "leaves all scripts cached when starting with a warm script cache" do
+  test "loads only the requested scripts for pipelined operations" do
     flush_script_cache()
 
-    # Warm the cache with a first connection.
-    _first = start_pool()
+    conn = start_pool()
+    :ok = Scripts.ensure_scripts_loaded(conn, [:add_standard_job])
 
-    # A second connection must find the scripts already cached (only a single
-    # SCRIPT EXISTS round trip is needed) and must not remove or corrupt them.
-    second = start_pool()
+    {:ok, [add_standard_job, add_parent_job]} =
+      RedisConnection.command(conn, [
+        "SCRIPT",
+        "EXISTS",
+        Scripts.get_sha(:add_standard_job),
+        Scripts.get_sha(:add_parent_job)
+      ])
 
-    shas = all_script_shas()
-    {:ok, existing} = RedisConnection.command(second, ["SCRIPT", "EXISTS" | shas])
-
-    assert Enum.all?(existing, &(&1 == 1))
+    assert add_standard_job == 1
+    assert add_parent_job == 0
   end
 end

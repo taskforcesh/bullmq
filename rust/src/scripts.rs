@@ -1,6 +1,6 @@
 use redis::aio::MultiplexedConnection;
 use sha1::{Digest, Sha1};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use crate::error::Error;
@@ -71,7 +71,9 @@ impl LuaScript {
 
 /// Registry of all BullMQ Lua scripts.
 ///
-/// Scripts are loaded at startup and executed via EVALSHA for performance.
+/// Scripts execute via EVALSHA and lazily fall back to EVAL on NOSCRIPT.
+/// For pipelined operations where that fallback is not available, callers can
+/// ensure specific scripts are loaded ahead of time.
 #[derive(Debug, Clone)]
 pub struct ScriptRegistry {
     scripts: Arc<HashMap<String, LuaScript>>,
@@ -103,39 +105,24 @@ impl ScriptRegistry {
         self.scripts.keys().map(|s| s.as_str()).collect()
     }
 
-    /// Pre-load all scripts into Redis using SCRIPT LOAD.
+    /// Ensure the named scripts are loaded into Redis using SCRIPT LOAD.
     ///
-    /// This ensures EVALSHA calls will succeed (e.g., inside pipelines/MULTI
-    /// where NOSCRIPT fallback is not possible).
-    ///
-    /// To keep startup fast (especially over high-latency / WAN links where a
-    /// cold `SCRIPT LOAD` of many large scripts can be slow), we first issue a
-    /// single `SCRIPT EXISTS` call with the SHA1 of every script and then only
-    /// `SCRIPT LOAD` the ones that are not already present in the server-side
-    /// script cache.
-    pub async fn load_all(
+    /// This is intended for pipelined operations where EVALSHA must succeed
+    /// without a NOSCRIPT -> EVAL fallback round trip.
+    pub async fn ensure_loaded(
         &self,
         conn: &mut MultiplexedConnection,
+        names: &[&str],
     ) -> Result<(), crate::error::Error> {
-        let scripts: Vec<&LuaScript> = self.scripts.values().collect();
-        if scripts.is_empty() {
-            return Ok(());
-        }
-
-        // Single round trip to discover which scripts are already cached.
-        let mut exists_cmd = redis::cmd("SCRIPT");
-        exists_cmd.arg("EXISTS");
-        for script in &scripts {
-            exists_cmd.arg(script.sha.as_str());
-        }
-        let existing: Vec<bool> = exists_cmd.query_async(conn).await?;
-
-        // Load only the scripts that are missing from the cache. A missing
-        // entry in the response is treated as "not loaded" to stay safe.
-        for (i, script) in scripts.iter().enumerate() {
-            if existing.get(i).copied().unwrap_or(false) {
+        let mut seen = HashSet::new();
+        for name in names {
+            let Some(script) = self.scripts.get(*name) else {
+                continue;
+            };
+            if !seen.insert(script.sha.as_str()) {
                 continue;
             }
+
             redis::cmd("SCRIPT")
                 .arg("LOAD")
                 .arg(script.content.as_str())
@@ -358,7 +345,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_load_all_loads_every_script_when_cache_is_empty() {
+    async fn test_execute_falls_back_to_eval_and_caches_script() {
         let mut conn = test_conn().await;
         redis::cmd("SCRIPT")
             .arg("FLUSH")
@@ -367,25 +354,24 @@ mod tests {
             .await
             .expect("SCRIPT FLUSH");
 
-        let registry = ScriptRegistry::new();
-        registry.load_all(&mut conn).await.expect("load_all");
+        let script = LuaScript::new("test", 0, "return 1");
+        let keys: Vec<String> = Vec::new();
+        let args: Vec<String> = Vec::new();
 
-        let shas: Vec<&str> = registry
-            .scripts
-            .values()
-            .map(|script| script.sha.as_str())
-            .collect();
-        let existing = script_exists(&mut conn, &shas).await;
+        let result = script
+            .execute(&mut conn, &keys, &args)
+            .await
+            .expect("execute");
 
-        assert_eq!(existing.len(), shas.len());
-        assert!(
-            existing.iter().all(|&loaded| loaded),
-            "every script should be present in the server-side cache after load_all"
+        assert_eq!(result, redis::Value::Int(1));
+        assert_eq!(
+            script_exists(&mut conn, &[script.sha.as_str()]).await,
+            vec![true]
         );
     }
 
     #[tokio::test]
-    async fn test_load_all_is_idempotent_when_scripts_already_cached() {
+    async fn test_ensure_loaded_loads_only_requested_scripts() {
         let mut conn = test_conn().await;
         redis::cmd("SCRIPT")
             .arg("FLUSH")
@@ -395,57 +381,19 @@ mod tests {
             .expect("SCRIPT FLUSH");
 
         let registry = ScriptRegistry::new();
-        // Warm the cache.
-        registry.load_all(&mut conn).await.expect("first load_all");
-
-        // Second call must not error and must leave all scripts cached. When
-        // the cache is warm this only issues a single SCRIPT EXISTS round trip.
-        registry.load_all(&mut conn).await.expect("second load_all");
-
-        let shas: Vec<&str> = registry
-            .scripts
-            .values()
-            .map(|script| script.sha.as_str())
-            .collect();
-        let existing = script_exists(&mut conn, &shas).await;
-        assert!(existing.iter().all(|&loaded| loaded));
-    }
-
-    #[tokio::test]
-    async fn test_load_all_loads_only_missing_scripts() {
-        let mut conn = test_conn().await;
-        redis::cmd("SCRIPT")
-            .arg("FLUSH")
-            .arg("SYNC")
-            .query_async::<()>(&mut conn)
+        registry
+            .ensure_loaded(&mut conn, &["addStandardJob", "addStandardJob"])
             .await
-            .expect("SCRIPT FLUSH");
+            .expect("ensure_loaded");
 
-        let registry = ScriptRegistry::new();
+        let add_standard = registry.get("addStandardJob").expect("addStandardJob");
+        let add_parent = registry.get("addParentJob").expect("addParentJob");
+        let existing = script_exists(
+            &mut conn,
+            &[add_standard.sha.as_str(), add_parent.sha.as_str()],
+        )
+        .await;
 
-        // Pre-load a single script so it is already present in the cache.
-        let preloaded = registry
-            .scripts
-            .values()
-            .next()
-            .expect("at least one script");
-        redis::cmd("SCRIPT")
-            .arg("LOAD")
-            .arg(preloaded.content.as_str())
-            .query_async::<String>(&mut conn)
-            .await
-            .expect("preload single script");
-
-        // load_all should detect the already-cached script via SCRIPT EXISTS
-        // and still end up with the full set loaded.
-        registry.load_all(&mut conn).await.expect("load_all");
-
-        let shas: Vec<&str> = registry
-            .scripts
-            .values()
-            .map(|script| script.sha.as_str())
-            .collect();
-        let existing = script_exists(&mut conn, &shas).await;
-        assert!(existing.iter().all(|&loaded| loaded));
+        assert_eq!(existing, vec![true, false]);
     }
 }
