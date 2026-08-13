@@ -1634,14 +1634,30 @@ impl Queue {
         }
     }
 
-    /// Remove a job by its ID.
+    /// Remove a job by its ID, together with all of its dependencies.
+    ///
+    /// This mirrors the semantics of the Node.js `Queue#remove`, where the
+    /// numeric result `1`/`0` is represented here as a `bool`:
+    ///
+    /// - `Ok(true)` — the job was removed. This is also returned when the job
+    ///   no longer exists (for example, it never existed or was already
+    ///   auto-removed when it finished), because there is nothing left to
+    ///   remove.
+    /// - `Ok(false)` — the job could not be removed because it, or one of its
+    ///   dependencies, is locked (typically because it is being processed by a
+    ///   worker). This is a normal outcome, not an error.
+    /// - `Err(_)` — the removal could not be attempted, for example because the
+    ///   job belongs to a job scheduler (which must be removed via
+    ///   [`Queue::remove_job_scheduler`]), or because of an underlying
+    ///   script/Redis failure.
     pub async fn remove(&self, job_id: &str) -> Result<bool, Error> {
         self.remove_job(job_id, true).await
     }
 
     /// Remove a job without removing its children.
     ///
-    /// Children remain in their queues and lose their parent reference.
+    /// Children remain in their queues and lose their parent reference. The
+    /// return value follows the same semantics as [`Queue::remove`].
     pub async fn remove_without_children(&self, job_id: &str) -> Result<bool, Error> {
         self.remove_job(job_id, false).await
     }
