@@ -5,12 +5,18 @@
 
 * **postgres:** make schema migrations explicit ([#4544](https://github.com/taskforcesh/bullmq/issues/4544)) ([ee714dc](https://github.com/taskforcesh/bullmq/commit/ee714dc803a43761eba921df3af5c8da0c2258cf))
 
+## [6.0.11](https://github.com/taskforcesh/bullmq/compare/v6.0.10...v6.0.11) (2026-08-10)
+
+
+### Bug Fixes
+
+* **deps:** update security patches [security] ([#4539](https://github.com/taskforcesh/bullmq/issues/4539)) ([48c5426](https://github.com/taskforcesh/bullmq/commit/48c54268642b724b8823086db2c6d1a61c10c3cf))
+
 ## [6.0.10](https://github.com/taskforcesh/bullmq/compare/v6.0.9...v6.0.10) (2026-08-10)
 
 
 ### Bug Fixes
 
-* **deps:** update security patches [security] ([#4530](https://github.com/taskforcesh/bullmq/issues/4530)) ([7c94177](https://github.com/taskforcesh/bullmq/commit/7c941774ca9528bc25f628593cf1ccb2e92c261e))
 * make ioredis optional ([#4513](https://github.com/taskforcesh/bullmq/issues/4513)) ([30c2c75](https://github.com/taskforcesh/bullmq/commit/30c2c7518a8a754d6f688de3373df8113f4df7b1))
 
 ## [6.0.9](https://github.com/taskforcesh/bullmq/compare/v6.0.8...v6.0.9) (2026-08-07)
