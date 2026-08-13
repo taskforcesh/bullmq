@@ -944,32 +944,32 @@
     "@pnpm/network.ca-file" "^1.0.1"
     config-chain "^1.1.11"
 
-"@redis/bloom@6.2.0":
-  version "6.2.0"
-  resolved "https://registry.yarnpkg.com/@redis/bloom/-/bloom-6.2.0.tgz#fbd66dffbd7e2b1151f4195da461a8432cb686b3"
-  integrity sha512-ggQvzpeCKnybwUrEiMVVtE1Np4vWnRfpeAaIP2MdZiVw7PHOhJrF4cONVuLRn1TkMi6ehp2OPjTOMK+8XmiQSQ==
+"@redis/bloom@6.2.1":
+  version "6.2.1"
+  resolved "https://registry.yarnpkg.com/@redis/bloom/-/bloom-6.2.1.tgz#9aaffd5f51595fc4ff5bcd62ce9a31da82ce5cf4"
+  integrity sha512-huQgNLaCIZfQ9SeLn4q9124uOUd8HbZDYHwwUzNcRgHqCHiHKl2dDxMqJCeWh8cMqZAoWuHR8XnWbDMIf+o7ag==
 
-"@redis/client@6.2.0":
-  version "6.2.0"
-  resolved "https://registry.yarnpkg.com/@redis/client/-/client-6.2.0.tgz#5d21d880aa0c5c6ba2f54aa64486071b3a2dc7ea"
-  integrity sha512-HHszna68MTBRiDZV3Wo2wANH7Z5v/nuh+ZyCAGBce0PS8tDcg1/yzZ1vqbKbUyTdz1wB54kqZxXrnPwpR8Ivdw==
+"@redis/client@6.2.1":
+  version "6.2.1"
+  resolved "https://registry.yarnpkg.com/@redis/client/-/client-6.2.1.tgz#202d6c6bc88f1ed791fc50604d6d792ddf75438b"
+  integrity sha512-LzxBY7SIBvvJiyCgcaJZZakE3fJrZZ++i24+EDW9fKpCl68D35uJcKFpZZwCfOoG9WZTbyZlMzMeM0gtOAMU9Q==
   dependencies:
     cluster-key-slot "1.1.2"
 
-"@redis/json@6.2.0":
-  version "6.2.0"
-  resolved "https://registry.yarnpkg.com/@redis/json/-/json-6.2.0.tgz#5ddf42521fce7a34c7d5dc64e63f4560364d1dbe"
-  integrity sha512-oweO7PfHWYXkgVT88K+Fm3Wx98lKYKAEXaH162gVbw1kmBOBVQHxw0Yjh1p6BYBUIQMHqLyWwYe99eK7/hD1VQ==
+"@redis/json@6.2.1":
+  version "6.2.1"
+  resolved "https://registry.yarnpkg.com/@redis/json/-/json-6.2.1.tgz#1861fe4b3522b845fd29094f40e0bbb5907bcb00"
+  integrity sha512-AFIUJ8Gj0DaaSBHYuSt8+O0oYWM+50OK1c0OmodB7XERIA8+BbyV3O4v76f9iccWasd1/7qjfZTpuzexUaZtrQ==
 
-"@redis/search@6.2.0":
-  version "6.2.0"
-  resolved "https://registry.yarnpkg.com/@redis/search/-/search-6.2.0.tgz#65788d53e758e0557a603e0dc0b675c61353c43c"
-  integrity sha512-chLEQfalFW3+uCPE99XoIOZhcQ3eF7S3fGxgiiaPf6MMrOZHEiTvgMnXR4xXZX0yDecyoWjGYlQQKTYag/ZExg==
+"@redis/search@6.2.1":
+  version "6.2.1"
+  resolved "https://registry.yarnpkg.com/@redis/search/-/search-6.2.1.tgz#0c83c6611dc387fde102828bd200cd5d459f4be9"
+  integrity sha512-2vfOAOyYFE7UUw3sBBlkqqruBtOUS4HRY5MtW4hp83llrwvtrTE4r22CEqXddlV+54zkLxBE4nmsIJ/dpezQrQ==
 
-"@redis/time-series@6.2.0":
-  version "6.2.0"
-  resolved "https://registry.yarnpkg.com/@redis/time-series/-/time-series-6.2.0.tgz#57b2df20e1653c5a225afce3f681d72754593dda"
-  integrity sha512-/H/eE/lnhZLZYpHGpI+ZN7TePb7isEaub8b07oQcTDQptPslVKdUFwNhUm+hQHks781oh+F1Leiip1WHh4HfWw==
+"@redis/time-series@6.2.1":
+  version "6.2.1"
+  resolved "https://registry.yarnpkg.com/@redis/time-series/-/time-series-6.2.1.tgz#0e3d9ae4563714491e7a6516165f037833f3cd36"
+  integrity sha512-kiYniph04dJOole+L359B6C9E+jYS2uDP7hca6Onj0xF38ZIpyxARO0Iq0W4ZRn1e8Q6vqW00QFZVSMRA/2Ijw==
 
 "@rolldown/binding-android-arm64@1.2.3":
   version "1.2.3"
@@ -3361,10 +3361,10 @@ global-directory@^5.0.0:
   dependencies:
     ini "6.0.0"
 
-globals@17.9.0:
-  version "17.9.0"
-  resolved "https://registry.yarnpkg.com/globals/-/globals-17.9.0.tgz#e43f252d6bbe71508da43902a1709c8895a59f70"
-  integrity sha512-m/MvAW61QVU5VDNF1Vj8axt016h8w7L5TU1e9zlab7XIttAT2YAlCwl75K1fOqvMM9apmD7lbCIRhpfkhmxhCg==
+globals@17.11.0:
+  version "17.11.0"
+  resolved "https://registry.yarnpkg.com/globals/-/globals-17.11.0.tgz#d643485bb30220d7751e511cf4f68c73d3870d87"
+  integrity sha512-Z2I8hM+PbJDXQDq3Icgpzv+mPdwr68iZUU9d5WW4FuXfDUQfkZaZuvjMv42/5crNyw154+9+VWXbYrUgDXbxNw==
 
 globals@^14.0.0:
   version "14.0.0"
@@ -5459,16 +5459,16 @@ redis-parser@3.0.0:
   dependencies:
     redis-errors "^1.0.0"
 
-redis@6.2.0:
-  version "6.2.0"
-  resolved "https://registry.yarnpkg.com/redis/-/redis-6.2.0.tgz#38c599cd21c985921063b3d858a17030c2623e32"
-  integrity sha512-BShYVyT0Gx67CE80xry5XroSSv6Vxr60yKs0HRiBbUc7kHm+bY7gvSDBBgTjuiV/reWKeZWLyA1ebC5z359wRQ==
+redis@6.2.1:
+  version "6.2.1"
+  resolved "https://registry.yarnpkg.com/redis/-/redis-6.2.1.tgz#8f5f2aff8e59b57d169a6a03416cc90a1f0a9a5c"
+  integrity sha512-Z9VHtgYs48PiQC77X9O2Er8Hj4T+5BtFjT91/vi5Is1D04N72cA946ZslM1ImJw8ZctFBZWAVjM7S5wJNeHMpg==
   dependencies:
-    "@redis/bloom" "6.2.0"
-    "@redis/client" "6.2.0"
-    "@redis/json" "6.2.0"
-    "@redis/search" "6.2.0"
-    "@redis/time-series" "6.2.0"
+    "@redis/bloom" "6.2.1"
+    "@redis/client" "6.2.1"
+    "@redis/json" "6.2.1"
+    "@redis/search" "6.2.1"
+    "@redis/time-series" "6.2.1"
 
 regex-recursion@^6.0.2:
   version "6.0.2"
