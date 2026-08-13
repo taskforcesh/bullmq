@@ -242,15 +242,30 @@
       "allowedVersions": "<7"
     },
     {
-      "description": "🚨 Group all security vulnerabilities (OSV/GitHub alerts) into a single daily PR (overrides the per-runtime groups above)",
+      "description": "🚨 Group runtime security vulnerabilities (OSV/GitHub alerts) into a single daily PR (overrides the per-runtime groups above)",
+      "isVulnerabilityAlert": true,
       "matchUpdateTypes": ["major", "minor", "patch"],
-      "matchDepTypes": ["dependencies", "devDependencies"],
+      "matchDepTypes": ["dependencies"],
       "vulnerabilityFixVersion": true,
       "groupName": "security patches",
       "groupSlug": "security-patches",
       "prPriority": 100,
       "labels": ["security", "osv"],
       "commitMessageSuffix": "[SECURITY]",
+      "schedule": ["before 9am"]
+    },
+    {
+      "description": "🚨 Group dev-only security vulnerabilities into a single daily PR and mark them as chores",
+      "isVulnerabilityAlert": true,
+      "matchUpdateTypes": ["major", "minor", "patch"],
+      "matchDepTypes": ["devDependencies", "require-dev", "dev-dependencies", "dev", "test"],
+      "vulnerabilityFixVersion": true,
+      "groupName": "security dev patches",
+      "groupSlug": "security-dev-patches",
+      "prPriority": 100,
+      "labels": ["security", "osv"],
+      "commitMessageSuffix": "[SECURITY]",
+      "semanticCommitType": "chore",
       "schedule": ["before 9am"]
     },
     {
