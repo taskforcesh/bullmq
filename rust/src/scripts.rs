@@ -9,6 +9,7 @@ use crate::error::Error;
 #[derive(Debug, Clone)]
 pub struct LuaScript {
     /// The script name (e.g., "addStandardJob").
+    #[allow(dead_code)]
     pub name: String,
     /// Number of KEYS arguments the script expects.
     pub num_keys: usize,
@@ -98,11 +99,6 @@ impl ScriptRegistry {
     /// Get a script by name.
     pub fn get(&self, name: &str) -> Option<&LuaScript> {
         self.scripts.get(name)
-    }
-
-    /// Get all script names.
-    pub fn names(&self) -> Vec<&str> {
-        self.scripts.keys().map(|s| s.as_str()).collect()
     }
 
     /// Ensure the named scripts are loaded into Redis using SCRIPT LOAD.
