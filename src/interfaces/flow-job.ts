@@ -14,7 +14,8 @@ type FlowParentJobOpts = Omit<
 
 type FlowNestedLeafJobOpts = Omit<FlowJobOpts, 'parent' | 'repeat'>;
 
-type FlowRootLeafJobOpts = Omit<FlowJobOpts, 'repeat'>;
+type FlowRootJobOpts = Omit<FlowJobOpts, 'repeat'>;
+type FlowRootParentJobOpts = Omit<FlowJobOpts, 'deduplication' | 'repeat'>;
 
 export interface FlowJobBase<T> {
   name: string;
@@ -34,11 +35,15 @@ export type FlowParentJob = FlowJobBase<FlowParentJobOpts> & {
 
 export type FlowJobNode = FlowParentJob | FlowNestedLeafJob;
 
-export type FlowRootLeafJob = FlowJobBase<FlowRootLeafJobOpts> & {
+export type FlowRootLeafJob = FlowJobBase<FlowRootJobOpts> & {
   children?: never;
 };
 
-export type FlowJob = FlowRootLeafJob | FlowJobNode;
+export type FlowRootParentJob = FlowJobBase<FlowRootJobOpts> & {
+  children: FlowJobNode[];
+};
+
+export type FlowJob = FlowRootLeafJob | FlowRootParentJob;
 
 export type FlowQueuesOpts = Record<
   string,
