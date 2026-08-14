@@ -346,6 +346,11 @@ defmodule BullMQ.QueueEvents do
     end
   end
 
+  def handle_info({ref, _result}, %{closing: true} = state) when is_reference(ref) do
+    # Ignore late replies from in-flight consumer tasks that were cancelled during close/cleanup.
+    {:noreply, state}
+  end
+
   def handle_info({:DOWN, ref, :process, _pid, reason}, %{consumer_task: ref} = state) do
     # Consumer task crashed
     Logger.error("[BullMQ.QueueEvents] Consumer task crashed: #{inspect(reason)}")
