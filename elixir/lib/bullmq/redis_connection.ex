@@ -82,7 +82,6 @@ defmodule BullMQ.RedisConnection do
   require Logger
 
   alias BullMQ.RedisConnection.Pool
-  alias BullMQ.Scripts
 
   @default_pool_size 10
   @default_timeout 5000
