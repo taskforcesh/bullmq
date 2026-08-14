@@ -1,3 +1,10 @@
+## [6.1.1](https://github.com/taskforcesh/bullmq/compare/v6.1.0...v6.1.1) (2026-08-14)
+
+
+### Bug Fixes
+
+* **flow:** allow parent opts from root parent ([#4548](https://github.com/taskforcesh/bullmq/issues/4548)) fixes [#4547](https://github.com/taskforcesh/bullmq/issues/4547) ([ab7009d](https://github.com/taskforcesh/bullmq/commit/ab7009da8a732d8d5e8f13228e1ef81806422128))
+
 # [6.1.0](https://github.com/taskforcesh/bullmq/compare/v6.0.11...v6.1.0) (2026-08-12)
 
 
