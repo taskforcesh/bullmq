@@ -307,7 +307,10 @@ async fn test_remove_nonexistent_job() {
     };
 
     let queue = Queue::with_options(&name, opts).await.unwrap();
-    let _removed = queue.remove("does-not-exist").await.unwrap();
+    // Removing a job that does not exist is not an error and reports success,
+    // since there is nothing left to remove (mirrors Node.js semantics).
+    let removed = queue.remove("does-not-exist").await.unwrap();
+    assert!(removed);
 
     cleanup_queue(&queue).await;
 }
