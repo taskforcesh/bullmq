@@ -1,3 +1,10 @@
+## [2.1.2](https://github.com/taskforcesh/bullmq/compare/vex2.1.1...vex2.1.2) (2026-08-15)
+
+
+### Bug Fixes
+
+* **queue-events:** ignore late queue event task replies during close ([#4572](https://github.com/taskforcesh/bullmq/issues/4572)) [elixir] ([d464a51](https://github.com/taskforcesh/bullmq/commit/d464a51781177cc7ec23b011355f1df54385dab0))
+
 ## [2.1.1](https://github.com/taskforcesh/bullmq/compare/vex2.1.0...vex2.1.1) (2026-08-15)
 
 
