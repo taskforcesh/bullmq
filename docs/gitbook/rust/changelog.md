@@ -1,3 +1,10 @@
+## [1.2.5](https://github.com/taskforcesh/bullmq/compare/vrs1.2.4...vrs1.2.5) (2026-08-15)
+
+
+### Performance Improvements
+
+* check script existence before loading [rust] [elixir] ([#4563](https://github.com/taskforcesh/bullmq/issues/4563)) ([6df4589](https://github.com/taskforcesh/bullmq/commit/6df4589805aca2144eed9a9f24d4a9f52dcbbb7b))
+
 ## [1.2.4](https://github.com/taskforcesh/bullmq/compare/vrs1.2.3...vrs1.2.4) (2026-08-13)
 
 
