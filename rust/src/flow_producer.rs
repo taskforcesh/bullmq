@@ -301,6 +301,10 @@ impl FlowProducer {
         validate_flow_queue_names(&flow)?;
 
         let mut conn = self.conn.conn();
+        self.conn
+            .scripts()
+            .ensure_loaded(&mut conn, &Self::pipeline_script_names(&flow))
+            .await?;
 
         let mut pipe = redis::pipe();
         pipe.atomic();
@@ -354,6 +358,11 @@ impl FlowProducer {
         }
 
         let mut conn = self.conn.conn();
+        let script_names: Vec<&str> = flows.iter().flat_map(Self::pipeline_script_names).collect();
+        self.conn
+            .scripts()
+            .ensure_loaded(&mut conn, &script_names)
+            .await?;
 
         let mut pipe = redis::pipe();
         pipe.atomic();
@@ -699,6 +708,39 @@ impl FlowProducer {
             job,
             children: None,
         })
+    }
+
+    fn pipeline_script_names(node: &FlowJob) -> Vec<&'static str> {
+        let mut names = Vec::new();
+        Self::collect_pipeline_script_names(node, &mut names);
+        names
+    }
+
+    fn collect_pipeline_script_names(node: &FlowJob, names: &mut Vec<&'static str>) {
+        if let Some(children) = &node.children {
+            if !children.is_empty() {
+                names.push("addParentJob");
+                for child in children {
+                    Self::collect_pipeline_script_names(child, names);
+                }
+                return;
+            }
+        }
+
+        let script_name = if node.opts.as_ref().and_then(|opts| opts.delay).unwrap_or(0) > 0 {
+            "addDelayedJob"
+        } else if node
+            .opts
+            .as_ref()
+            .and_then(|opts| opts.priority)
+            .unwrap_or(0)
+            > 0
+        {
+            "addPrioritizedJob"
+        } else {
+            "addStandardJob"
+        };
+        names.push(script_name);
     }
 
     /// Add a parent job to the pipeline using the addParentJob Lua script.

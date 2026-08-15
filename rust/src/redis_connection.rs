@@ -40,7 +40,7 @@ fn build_client(opts: &RedisConnectionOptions, url: &str) -> Result<Client, Erro
     Ok(Client::build_with_tls(url, tls_certs)?)
 }
 
-/// A managed Redis connection that handles reconnection and script loading.
+/// A managed Redis connection that handles reconnection and script execution.
 ///
 /// This is designed to be cheaply cloneable (Arc-wrapped internals).
 /// `MultiplexedConnection` is internally multiplexed via channels,
@@ -62,8 +62,7 @@ impl RedisConnection {
         let url = opts.effective_url();
         let client = build_client(opts, &url)?;
         let scripts = ScriptRegistry::new();
-        let mut conn = client.get_multiplexed_async_connection().await?;
-        scripts.load_all(&mut conn).await?;
+        let conn = client.get_multiplexed_async_connection().await?;
 
         let inner = Arc::new(Inner {
             client,
@@ -83,7 +82,7 @@ impl RedisConnection {
     }
 
     /// Get the script registry.
-    pub fn scripts(&self) -> &ScriptRegistry {
+    pub(crate) fn scripts(&self) -> &ScriptRegistry {
         &self.inner.scripts
     }
 
