@@ -1,3 +1,10 @@
+## [2.1.1](https://github.com/taskforcesh/bullmq/compare/vex2.1.0...vex2.1.1) (2026-08-15)
+
+
+### Performance Improvements
+
+* check script existence before loading [rust] [elixir] ([#4563](https://github.com/taskforcesh/bullmq/issues/4563)) ([6df4589](https://github.com/taskforcesh/bullmq/commit/6df4589805aca2144eed9a9f24d4a9f52dcbbb7b))
+
 # [2.1.0](https://github.com/taskforcesh/bullmq/compare/vex2.0.3...vex2.1.0) (2026-08-12)
 
 
