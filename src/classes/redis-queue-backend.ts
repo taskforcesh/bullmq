@@ -2761,7 +2761,15 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       watchdog = setTimeout(
         () => {
           timedOut = true;
-          bclient.disconnect(false);
+          // Only abandon the command when the connection is actually alive.
+          // If IORedis is already reconnecting, `disconnect(false)` clears its
+          // pending retry timer without emitting a `close` event, leaving the
+          // client stuck in "reconnecting" forever (#4585). In that case we let
+          // IORedis finish its own reconnect; `reconnectBlocking()` in the
+          // `finally` block then correctly waits for it to become ready.
+          if (bclient.status === 'ready') {
+            bclient.disconnect(false);
+          }
           resolve(null);
         },
         roundedTimeout * 1000 + 1000,
@@ -2836,7 +2844,13 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
     const timeout = new Promise<null>(resolve => {
       watchdog = setTimeout(() => {
         timedOut = true;
-        client.disconnect(false);
+        // Only abandon the command when the connection is actually alive; if
+        // IORedis is already reconnecting, `disconnect(false)` parks it in
+        // "reconnecting" forever (#4585). Let it finish its own reconnect
+        // instead — `reconnect()` in the `finally` block waits for ready.
+        if (client.status === 'ready') {
+          client.disconnect(false);
+        }
         resolve(null);
       }, blockTimeout + 1000);
     });

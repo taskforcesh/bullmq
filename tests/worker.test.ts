@@ -1188,6 +1188,40 @@ describe('workers', () => {
         await worker.close();
       }
     });
+
+    it('does not disconnect a reconnecting blocking client (#4585)', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      const backend = worker.getBackend();
+      const bclient = (await backend.blockingClient)!;
+
+      // Reproduce the #4585 wedge: after an outage longer than the block
+      // timeout, IORedis is already in "reconnecting" (it has an armed retry
+      // timer but no live socket). Calling `disconnect(false)` here clears that
+      // timer without emitting a `close` event, parking the client in
+      // "reconnecting" forever. The watchdog must therefore only disconnect a
+      // "ready" client and otherwise let IORedis finish its own reconnect.
+      sandbox.stub(bclient, 'status').value('reconnecting');
+      const disconnect = sandbox.stub(bclient, 'disconnect');
+      sandbox.stub(bclient, 'bzpopmin').returns(new Promise(() => {}) as any);
+      const reconnectBlocking = sandbox
+        .stub(backend, 'reconnectBlocking')
+        .resolves();
+
+      try {
+        const result = await backend.waitForJob(0.001);
+        expect(result).toBe(null);
+        expect(disconnect.called).toBe(false);
+        expect(reconnectBlocking.calledOnce).toBe(true);
+      } finally {
+        await worker.close();
+      }
+    });
   });
 
   describe('when calling getBlockTimeout', () => {
