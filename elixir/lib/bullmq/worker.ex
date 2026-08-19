@@ -138,7 +138,7 @@ defmodule BullMQ.Worker do
                    doc: "Interval in ms to check for stalled jobs."
                  ],
                  max_stalled_count: [
-                   type: :pos_integer,
+                   type: :non_neg_integer,
                    default: @default_max_stalled_count,
                    doc: "Max times a job can stall before being moved to failed."
                  ],

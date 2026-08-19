@@ -2750,7 +2750,6 @@ defmodule BullMQ.WorkerIntegrationTest do
           connection: conn,
           prefix: @test_prefix,
           lock_duration: 1_000,
-          lock_renew_time: 3_000,
           stalled_interval: 100,
           processor: fn job ->
             if Agent.get(first, & &1) do
