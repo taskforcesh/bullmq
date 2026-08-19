@@ -1404,9 +1404,9 @@ defmodule BullMQ.Scripts do
     timestamp = Keyword.get(opts, :timestamp, System.system_time(:millisecond))
 
     args = [
-      # ARGV[2] max stalled count
+      # ARGV[1] max stalled count
       max_stalled_count,
-      # ARGV[1] prefix:queueName
+      # ARGV[2] prefix:queueName
       Keys.key(ctx),
       # ARGV[3] timestamp
       timestamp,
