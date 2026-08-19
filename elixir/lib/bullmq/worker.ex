@@ -1533,6 +1533,10 @@ defmodule BullMQ.Worker do
 
             {:continue, next_job}
 
+          {:error, reason} ->
+            error_msg = if is_binary(reason), do: reason, else: inspect(reason)
+            handle_job_result(job, {:error, error_msg, []}, ctx)
+
           _ ->
             # Emit on_completed callback even when no next job
             updated_job = %{job | attempts_made: job.attempts_made + 1}
@@ -1950,38 +1954,44 @@ defmodule BullMQ.Worker do
           )
       end
 
-    # Determine if this was a "soft" return (not a real completion)
-    is_soft_return =
-      match?({:delay, _}, return_value) or
-        match?({:rate_limit, _}, return_value) or
-        return_value == :waiting or
-        return_value == :waiting_children
+    case next_job_result do
+      {:error, reason} ->
+        handle_job_failure(job, reason, [], state)
 
-    # Update job's attempts_made to match Redis state (incremented during moveToFinished)
-    # This mirrors TypeScript behavior where job.attemptsMade += 1 after moveToCompleted
-    updated_job =
-      if is_soft_return do
-        job
-      else
-        %{job | attempts_made: job.attempts_made + 1}
-      end
+      _ ->
+        # Determine if this was a "soft" return (not a real completion)
+        is_soft_return =
+          match?({:delay, _}, return_value) or
+            match?({:rate_limit, _}, return_value) or
+            return_value == :waiting or
+            return_value == :waiting_children
 
-    # If this was a repeatable job, schedule the next iteration (only on actual completion)
-    unless is_soft_return do
-      # Emit completed event callback (soft returns are not completions)
-      emit_event(state.on_completed, [updated_job, return_value])
+        # Update job's attempts_made to match Redis state (incremented during moveToFinished)
+        # This mirrors TypeScript behavior where job.attemptsMade += 1 after moveToCompleted
+        updated_job =
+          if is_soft_return do
+            job
+          else
+            %{job | attempts_made: job.attempts_made + 1}
+          end
+
+        # If this was a repeatable job, schedule the next iteration (only on actual completion)
+        unless is_soft_return do
+          # Emit completed event callback (soft returns are not completions)
+          emit_event(state.on_completed, [updated_job, return_value])
+        end
+
+        # Untrack job from LockManager
+        if state.lock_manager do
+          LockManager.untrack_job(state.lock_manager, job.id)
+        end
+
+        # Remove completed job from active jobs and clean up cancellation token
+        new_state = cleanup_job_resources(job.id, state)
+
+        # Handle next job from moveToFinished result
+        handle_next_job_or_fetch(next_job_result, new_state)
     end
-
-    # Untrack job from LockManager
-    if state.lock_manager do
-      LockManager.untrack_job(state.lock_manager, job.id)
-    end
-
-    # Remove completed job from active jobs and clean up cancellation token
-    new_state = cleanup_job_resources(job.id, state)
-
-    # Handle next job from moveToFinished result
-    handle_next_job_or_fetch(next_job_result, new_state)
   end
 
   # Handle the result from moveToFinished which may contain the next job
