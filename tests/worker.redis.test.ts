@@ -69,65 +69,6 @@ describe('workers (redis-only)', () => {
     await connection.quit();
   });
 
-  describe('when the blocking connection is parked in "reconnecting" (#4585)', () => {
-    it('recovers and keeps processing jobs after a Redis outage longer than drainDelay', async () => {
-      // End-to-end regression for #4585 against the real ioredis reconnect path.
-      //
-      // When Redis is unavailable for longer than the blocking timeout, ioredis
-      // moves the blocking client to "reconnecting" (an armed retry timer, no
-      // live socket). The `waitForJob` watchdog used to call `disconnect(false)`
-      // unconditionally, which — while "reconnecting" — clears that retry timer
-      // without emitting a `close` event, parking the client in "reconnecting"
-      // forever: `reconnect()` then waits for a `ready` that never comes and the
-      // worker never resumes. The fix only disconnects a live ("ready") client.
-      const testQueue = new Queue(queueName, { connection, prefix });
-      await testQueue.waitUntilReady();
-
-      let processed = 0;
-      // A small `drainDelay` keeps the watchdog window short (~2s).
-      const worker = new Worker(
-        queueName,
-        async () => {
-          processed++;
-        },
-        { connection, prefix, drainDelay: 1 },
-      );
-      worker.on('error', () => {});
-      await worker.waitUntilReady();
-
-      try {
-        // Baseline: a job is processed while healthy.
-        await testQueue.add('before', {});
-        await delay(1500);
-        expect(processed).toBe(1);
-
-        // Simulate an outage that outlives the watchdog window: arm a reconnect
-        // delay longer than the watchdog (~2s), then destroy the live socket so
-        // ioredis enters "reconnecting" with a pending BZPOPMIN. The watchdog
-        // fires while the client is still reconnecting — the exact #4585 state.
-        const backend = worker.getBackend() as any;
-        const bclient = (await backend.blockingClient) as any;
-        bclient.options.retryStrategy = () => 2500;
-        bclient.stream.destroy(new Error('simulated redis outage'));
-
-        // Allow the watchdog (~2s) and ioredis' own reconnect (~2.5s) to run.
-        await delay(5000);
-
-        // The blocking client must have recovered instead of zombie-parking.
-        expect(bclient.status).toBe('ready');
-
-        // A job added after recovery must be picked up — proving the fetch loop
-        // resumed (this stays at 1 forever with the unfixed watchdog).
-        await testQueue.add('after', {});
-        await delay(4000);
-        expect(processed).toBe(2);
-      } finally {
-        await worker.close();
-        await testQueue.close();
-      }
-    }, 30000);
-  });
-
   it('should cap progress events', async () => {
     let processor;
 
