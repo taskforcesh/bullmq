@@ -69,6 +69,13 @@ describe('Jobs getters', () => {
   });
 
   describe('.getWorkers', () => {
+    const waitForWorkerReady = async (worker: Worker) =>
+      new Promise<void>(resolve => {
+        worker.once('ready', () => {
+          resolve();
+        });
+      });
+
     const waitForWorkers = async (
       targetQueue: Queue,
       expectedCount: number,
@@ -91,7 +98,7 @@ describe('Jobs getters', () => {
         connection,
         prefix,
       });
-      await worker.waitUntilReady();
+      await waitForWorkerReady(worker);
 
       const workers = await waitForWorkers(queue, 1);
       expect(workers).toHaveLength(1);
@@ -101,7 +108,7 @@ describe('Jobs getters', () => {
         connection,
         prefix,
       });
-      await worker2.waitUntilReady();
+      await waitForWorkerReady(worker2);
 
       const nextWorkers = await waitForWorkers(queue, 2);
       expect(nextWorkers).toHaveLength(2);
@@ -120,7 +127,7 @@ describe('Jobs getters', () => {
         prefix,
         name: 'worker1',
       });
-      await worker.waitUntilReady();
+      await waitForWorkerReady(worker);
 
       const workers = await waitForWorkers(queue, 1);
       expect(workers).toHaveLength(1);
@@ -134,7 +141,7 @@ describe('Jobs getters', () => {
         prefix,
         name: 'worker2',
       });
-      await worker2.waitUntilReady();
+      await waitForWorkerReady(worker2);
 
       const nextWorkers = await waitForWorkers(queue, 2);
       expect(nextWorkers).toHaveLength(2);
@@ -163,13 +170,13 @@ describe('Jobs getters', () => {
         connection,
         prefix,
       });
-      await worker.waitUntilReady();
+      await waitForWorkerReady(worker);
       const worker2 = new Worker(queueName2, async () => {}, {
         autorun: false,
         connection,
         prefix,
       });
-      await worker2.waitUntilReady();
+      await waitForWorkerReady(worker2);
 
       const workers = await waitForWorkers(queue, 1);
       expect(workers).toHaveLength(1);
@@ -199,7 +206,7 @@ describe('Jobs getters', () => {
           connection: localConnection,
           prefix,
         });
-        await worker.waitUntilReady();
+        await waitForWorkerReady(worker);
 
         const workers = await waitForWorkers(queue, 1);
         expect(workers).toHaveLength(1);
@@ -208,7 +215,7 @@ describe('Jobs getters', () => {
           connection: localConnection,
           prefix,
         });
-        await worker2.waitUntilReady();
+        await waitForWorkerReady(worker2);
 
         const nextWorkers = await waitForWorkers(queue, 2);
         expect(nextWorkers).toHaveLength(2);
