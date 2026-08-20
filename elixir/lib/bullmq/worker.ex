@@ -235,6 +235,7 @@ defmodule BullMQ.Worker do
           worker_pids: map(),
           in_flight_workers: MapSet.t(pid()),
           cancellation_tokens: map(),
+          lock_lost_jobs: MapSet.t(String.t()),
           keys: Keys.queue_context(),
           token: String.t(),
           stalled_timer: reference() | nil,
@@ -285,6 +286,9 @@ defmodule BullMQ.Worker do
     worker_pids: %{},
     in_flight_workers: MapSet.new(),
     cancellation_tokens: %{},
+    # Jobs whose lock was lost while their processor is still running.
+    # The stalled checker owns recovery for these jobs.
+    lock_lost_jobs: MapSet.new(),
     processor_supports_cancellation: false,
     # Track if we're currently doing a blocking wait for jobs
     waiting_for_jobs: false,
@@ -1043,12 +1047,14 @@ defmodule BullMQ.Worker do
     active_jobs = Map.delete(state.active_jobs, job_id)
     worker_pids = Map.delete(state.worker_pids, worker_pid)
     cancellation_tokens = Map.delete(state.cancellation_tokens, job_id)
+    lock_lost_jobs = MapSet.delete(state.lock_lost_jobs, job_id)
 
     new_state = %{
       state
       | active_jobs: active_jobs,
         worker_pids: worker_pids,
-        cancellation_tokens: cancellation_tokens
+        cancellation_tokens: cancellation_tokens,
+        lock_lost_jobs: lock_lost_jobs
     }
 
     # Check if we're closing and all jobs are done
@@ -1150,21 +1156,45 @@ defmodule BullMQ.Worker do
   end
 
   def handle_info({:cancel_jobs_lock_lost, job_ids}, state) do
-    # Cancel jobs whose locks failed to renew
-    # This prevents duplicate processing if another worker picks up the job
+    # The LockManager reports jobs whose lock could not be renewed. Record the
+    # loss independently of cancellation-token support because arity-1
+    # processors cannot be cancelled. The stalled checker remains responsible
+    # for recovering the Redis job.
+    lock_lost_jobs =
+      Enum.reduce(job_ids, state.lock_lost_jobs, fn job_id, acc ->
+        case Map.get(state.cancellation_tokens, job_id) do
+          nil ->
+            Logger.warning(
+              "[BullMQ.Worker] Lock lost for job #{job_id} but no cancellation token found"
+            )
+
+          {token, processor_pid} ->
+            Logger.warning("[BullMQ.Worker] Lock lost for job #{job_id}, cancelling processor")
+            CancellationToken.cancel(processor_pid, token, {:lock_lost, job_id})
+        end
+
+        # Notify the autonomous worker directly when we know which process owns
+        # the job. This is needed for processors that do not accept a cancellation token.
+        Enum.each(state.worker_pids, fn {worker_pid, active_job_id} ->
+          if active_job_id == job_id and Process.alive?(worker_pid) do
+            send(worker_pid, {:job_lock_lost, job_id})
+          end
+        end)
+
+        if state.max_stalled_count == 0 do
+          # Run recovery promptly. Cancel the currently scheduled check first
+          # so lock-loss recovery does not accumulate stalled-check timers.
+          if state.stalled_timer do
+            Process.cancel_timer(state.stalled_timer)
+          end
+
+          send(self(), :check_stalled)
+        end
+
+        MapSet.put(acc, job_id)
+      end)
+
     Enum.each(job_ids, fn job_id ->
-      case Map.get(state.cancellation_tokens, job_id) do
-        nil ->
-          Logger.warning(
-            "[BullMQ.Worker] Lock lost for job #{job_id} but no cancellation token found"
-          )
-
-        {token, processor_pid} ->
-          Logger.warning("[BullMQ.Worker] Lock lost for job #{job_id}, cancelling processor")
-          CancellationToken.cancel(processor_pid, token, {:lock_lost, job_id})
-      end
-
-      # Call the user's on_lock_renewal_failed callback if provided (regardless of token)
       if state.on_lock_renewal_failed do
         try do
           state.on_lock_renewal_failed.([job_id])
@@ -1177,7 +1207,7 @@ defmodule BullMQ.Worker do
       end
     end)
 
-    {:noreply, state}
+    {:noreply, %{state | lock_lost_jobs: lock_lost_jobs}}
   end
 
   def handle_info({:close_timeout, from}, state) do
@@ -1255,6 +1285,7 @@ defmodule BullMQ.Worker do
       processor: state.processor,
       processor_supports_cancellation: state.processor_supports_cancellation,
       lock_duration: state.lock_duration,
+      max_stalled_count: state.max_stalled_count,
       limiter: state.limiter,
       name: state.name,
       queue_name: state.queue_name,
@@ -1389,6 +1420,30 @@ defmodule BullMQ.Worker do
 
     # Process the job (pass the pre-created token)
     result = run_processor_sync(job, ctx, cancel_token)
+
+    # A lock can be lost while an arity-1 processor is still running. In that
+    # case there is no cancellation token to interrupt the processor. The
+    # coordinator notifies this process when the lock manager detects the loss.
+    # For max_stalled_count == 0 the stalled checker must own recovery, so do
+    # not attempt to finish the job with the expired token. For the normal
+    # default case, preserve the BullMQ behavior where the processor is allowed
+    # to finish after a stalled check.
+    job_id = job.id
+
+    lock_lost = receive do
+      {:job_lock_lost, ^job_id} ->
+        true
+    after
+      0 ->
+        false
+    end
+
+    result =
+      if lock_lost and ctx.max_stalled_count == 0 do
+        {:lock_lost, job.id}
+      else
+        result
+      end
 
     # Handle result and get next job
     case handle_job_result(job, result, ctx) do
@@ -1544,6 +1599,12 @@ defmodule BullMQ.Worker do
             :stop
         end
     end
+  end
+
+  # A lock-lost job must not be completed with an expired lock. The stalled
+  # checker will move it back to wait or mark it for deferred failure.
+  defp handle_job_result(_job, {:lock_lost, _job_id}, _ctx) do
+    :stop
   end
 
   # A deferred/unrecoverable failure must move the job straight to failed,
@@ -2302,7 +2363,8 @@ defmodule BullMQ.Worker do
     %{
       state
       | active_jobs: Map.delete(state.active_jobs, job_id),
-        cancellation_tokens: Map.delete(state.cancellation_tokens, job_id)
+        cancellation_tokens: Map.delete(state.cancellation_tokens, job_id),
+        lock_lost_jobs: MapSet.delete(state.lock_lost_jobs, job_id)
     }
   end
 
