@@ -692,8 +692,8 @@ defmodule BullMQ.IntegrationTest do
       {:ok, _} = Redix.command(conn, ["HSET", Keys.job(ctx, "job-2"), "name", "test"])
       {:ok, _} = Redix.command(conn, ["SET", Keys.lock(ctx, "job-2"), "token", "PX", 30_000])
 
-      # Phase 1 only marks lock-less active jobs into the stalled set (grace
-      # period) and returns []. It also arms the stalled-check mutex.
+      # Phase 1 marks all active jobs into the stalled set (grace period) and
+      # returns []. It also arms the stalled-check mutex.
       t1 = System.system_time(:millisecond)
 
       assert {:ok, first} =
