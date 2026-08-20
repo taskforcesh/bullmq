@@ -675,6 +675,65 @@ defmodule BullMQ.IntegrationTest do
       {:ok, last_check} = Redix.command(conn, ["GET", Keys.stalled_check(ctx)])
       assert String.to_integer(last_check) == now
     end
+
+    @tag :integration
+    test "move_stalled_jobs_to_wait reclaims lock-less jobs and sets stalled-check TTL (#4587)",
+         %{conn: conn} do
+      queue_name = "test-stalled-recover-#{System.unique_integer([:positive])}"
+      ctx = Keys.context(@test_prefix, queue_name)
+
+      # job-1: active with no lock -> genuinely stalled, must be reclaimed.
+      # job-2: active holding a valid lock -> must NOT be reclaimed. This also
+      # guards ARGV[2] (queue prefix): the script derives job-2's lock key as
+      # `<ARGV[2]><jobId>:lock`, so a missing trailing colon would look up the
+      # wrong key, see no lock and wrongly reclaim the running job.
+      {:ok, _} = Redix.command(conn, ["RPUSH", Keys.active(ctx), "job-1", "job-2"])
+      {:ok, _} = Redix.command(conn, ["HSET", Keys.job(ctx, "job-1"), "name", "test"])
+      {:ok, _} = Redix.command(conn, ["HSET", Keys.job(ctx, "job-2"), "name", "test"])
+      {:ok, _} = Redix.command(conn, ["SET", Keys.lock(ctx, "job-2"), "token", "PX", 30_000])
+
+      # Phase 1 only marks lock-less active jobs into the stalled set (grace
+      # period) and returns []. It also arms the stalled-check mutex.
+      t1 = System.system_time(:millisecond)
+
+      assert {:ok, first} =
+               Scripts.move_stalled_jobs_to_wait(conn, ctx, 5,
+                 timestamp: t1,
+                 max_check_time: 5_000
+               )
+
+      assert first == []
+
+      # The stalled-check mutex must carry a positive TTL. With the previous
+      # wrapper, ARGV[4] (max check time) was never sent, so `SET ... PX <nil>`
+      # errored (or left the key with no expiry), silently breaking every
+      # future stalled check.
+      {:ok, pttl} = Redix.command(conn, ["PTTL", Keys.stalled_check(ctx)])
+      assert pttl > 0 and pttl <= 5_000
+
+      {:ok, stalled_members} = Redix.command(conn, ["SMEMBERS", Keys.stalled(ctx)])
+      assert Enum.sort(stalled_members) == ["job-1", "job-2"]
+
+      # Clear the mutex so the next check runs (simulates the interval elapsing).
+      {:ok, _} = Redix.command(conn, ["DEL", Keys.stalled_check(ctx)])
+
+      # Phase 2: the lock-less job-1 is reclaimed to wait; the locked job-2
+      # stays active.
+      assert {:ok, reclaimed} =
+               Scripts.move_stalled_jobs_to_wait(conn, ctx, 5,
+                 timestamp: System.system_time(:millisecond),
+                 max_check_time: 5_000
+               )
+
+      assert reclaimed == ["job-1"]
+
+      {:ok, wait_list} = Redix.command(conn, ["LRANGE", Keys.wait(ctx), 0, -1])
+      assert "job-1" in wait_list
+
+      {:ok, active_list} = Redix.command(conn, ["LRANGE", Keys.active(ctx), 0, -1])
+      assert active_list == ["job-2"]
+      refute "job-1" in active_list
+    end
   end
 
   # ---------------------------------------------------------------------------
