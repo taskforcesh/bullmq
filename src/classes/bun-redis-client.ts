@@ -91,7 +91,7 @@ export interface BunRedisRawClient {
   // public connection info (no `url`/host/port/options). Optional so exotic
   // custom raw clients that don't implement it still satisfy the constraint;
   // the adapter falls back to URL-based reconstruction when it is absent.
-  duplicate?(): Promise<BunRedisRawClient>;
+  duplicate?(): Promise<this>;
   send<T = any>(command: string, args: RedisCommandArgument[]): Promise<T>;
   get(key: string): Promise<string | null | undefined>;
   smembers(key: string): Promise<unknown[] | null | undefined>;
@@ -471,10 +471,23 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
    */
   private async _duplicateRaw(src: TClient): Promise<TClient> {
     if (typeof src.duplicate === 'function') {
-      return (await src.duplicate()) as TClient;
+      return await src.duplicate();
     }
     const Ctor = src.constructor as BunRedisClientConstructor<TClient>;
     return new Ctor(src.url);
+  }
+
+  /**
+   * Return the raw client, materializing it first when this adapter is a
+   * lazily-initialized duplicate (created via `duplicate()` with a
+   * `rawFactory`). Command paths that touch `this.raw` directly use this so a
+   * duplicate can be used immediately without an explicit `connect()`.
+   */
+  async _ensureRaw(): Promise<TClient> {
+    if (!this.raw) {
+      await this.connect();
+    }
+    return this.raw;
   }
 
   duplicate(...args: any[]): IRedisClient {
@@ -606,6 +619,15 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
       return Promise.reject(new ConnectionClosedError('Connection is closed'));
     }
 
+    // A duplicate created via `duplicate()` builds its raw client lazily on the
+    // first `connect()` (Bun's native `duplicate()` is async). Materialize it
+    // here so commands issued before an explicit `connect()` don't throw on an
+    // undefined `raw` — matching other adapters where duplicates connect
+    // implicitly on first use.
+    if (!this.raw) {
+      return this.connect().then(() => this.sendCommand<T>(command, args));
+    }
+
     // Send directly to the underlying Bun client. Redis protocol guarantees
     // responses arrive in the same order as requests on a single connection,
     // so concurrent send() calls are safe and enable implicit pipelining
@@ -637,11 +659,11 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
   // ---------------------------------------------------------------
 
   multi(): IRedisTransaction {
-    return new BunRedisTransaction(this.raw, this.scripts, true, this);
+    return new BunRedisTransaction(this.scripts, true, this);
   }
 
   pipeline(): IRedisTransaction {
-    return new BunRedisTransaction(this.raw, this.scripts, false, this);
+    return new BunRedisTransaction(this.scripts, false, this);
   }
 
   // ---------------------------------------------------------------
@@ -850,7 +872,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     for (const [k, v] of Object.entries(fields)) {
       args.push(k, String(v));
     }
-    return await this.raw.send('XADD', args);
+    return await (await this._ensureRaw()).send('XADD', args);
   }
 
   async xread(
@@ -1133,7 +1155,6 @@ class BunRedisTransaction implements IRedisTransaction {
   private scriptsToLoad: LuaScript[] = [];
 
   constructor(
-    private readonly raw: any,
     private readonly scripts: Map<string, LuaScript>,
     private readonly transactional: boolean,
     private readonly adapter: BunRedisAdapter<any>,
@@ -1327,17 +1348,20 @@ class BunRedisTransaction implements IRedisTransaction {
     const swallow = (_: unknown) => {
       /* error surfaces via EXEC or the outer try/catch */
     };
+    // Materialize the raw client (a lazily-initialized duplicate may not have
+    // one yet) so the MULTI…EXEC frames can be written as a contiguous burst.
+    const raw = await this.adapter._ensureRaw();
     try {
       // Fire MULTI without awaiting — no round-trip needed before commands.
-      this.raw.send('MULTI', []).catch(swallow);
+      raw.send('MULTI', []).catch(swallow);
 
       // Fire all queued commands synchronously (no awaits).
       for (const { cmd, args } of this.commands) {
-        this.raw.send(cmd, args).catch(swallow);
+        raw.send(cmd, args).catch(swallow);
       }
 
       // EXEC is the only await — it returns the array of results.
-      const results = await this.raw.send('EXEC', []);
+      const results = await raw.send('EXEC', []);
 
       if (!results) {
         return null;
@@ -1355,7 +1379,7 @@ class BunRedisTransaction implements IRedisTransaction {
     } catch (err) {
       // Try to discard the MULTI state on error
       try {
-        await this.raw.send('DISCARD', []);
+        await raw.send('DISCARD', []);
       } catch {
         // ignore
       }
