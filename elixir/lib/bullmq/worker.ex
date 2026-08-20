@@ -1141,18 +1141,65 @@ defmodule BullMQ.Worker do
   end
 
   def handle_info(:check_stalled, state) do
-    # Run stalled job check
+    # Run stalled job check in a separate process (so it doesn't block the
+    # GenServer) but report the outcome back so on_stalled/on_failed fire.
+    # Previously the result was discarded entirely, so jobs that the sweep
+    # permanently failed (stall count > max_stalled_count) never triggered
+    # on_failed, and jobs merely requeued never triggered on_stalled.
+    coordinator = self()
+
     spawn(fn ->
-      Backend.move_stalled_jobs_to_wait(
-        state.backend,
-        state.max_stalled_count,
-        []
-      )
+      case Backend.move_stalled_jobs_to_wait(
+             state.backend,
+             state.max_stalled_count,
+             []
+           ) do
+        {:ok, result} ->
+          send(coordinator, {:stalled_check_result, result})
+
+        {:error, reason} ->
+          Logger.error("[BullMQ.Worker] Stalled job check failed: #{inspect(reason)}")
+      end
     end)
 
     # Schedule next check
     stalled_timer = schedule_stalled_check(state.stalled_interval)
     {:noreply, %{state | stalled_timer: stalled_timer}}
+  end
+
+  # Handles the outcome of a stalled-job sweep and fires the corresponding
+  # event callbacks.
+  #
+  # `result` is normalized from whatever shape the backend returns via
+  # `normalize_stalled_result/1` below. The Redis adapter is expected to
+  # mirror the Node.js Lua script's `[failed, stalled]` pair of job-id lists
+  # (see `BullMQ.Backends.Redis.move_stalled_jobs_to_wait/3`) — if your
+  # adapter returns something else, adjust `normalize_stalled_result/1`
+  # to match.
+  def handle_info({:stalled_check_result, result}, state) do
+    {failed_ids, stalled_ids} = normalize_stalled_result(result)
+
+    Enum.each(stalled_ids, fn job_id ->
+      emit_event(state.on_stalled, [job_id])
+    end)
+
+    Enum.each(failed_ids, fn job_id ->
+      reason = "job stalled more than allowable limit"
+
+      case fetch_job_for_event(state, job_id) do
+        {:ok, job} ->
+          updated_job = %{job | attempts_made: job.attempts_made + 1, failed_reason: reason}
+          emit_event(state.on_failed, [updated_job, reason])
+
+        :error ->
+          Logger.warning(
+            "[BullMQ.Worker] Job #{job_id} was failed by the stalled checker but could " <>
+              "not be reloaded to emit on_failed"
+          )
+      end
+    end)
+
+    {:noreply, state}
   end
 
   def handle_info({:cancel_jobs_lock_lost, job_ids}, state) do
@@ -1254,6 +1301,61 @@ defmodule BullMQ.Worker do
 
           {:noreply, %{state | active_jobs: active_jobs, worker_pids: worker_pids}}
       end
+    end
+  end
+
+  # Normalizes the return of `Backend.move_stalled_jobs_to_wait/3` into
+  # `{failed_job_ids, stalled_job_ids}`, mirroring the Node.js Lua script's
+  # `[failed, stalled]` result shape. Extend this to match your adapter's
+  # actual return value if it differs (e.g. a map with `:failed`/`:stalled`
+  # keys instead of a positional pair).
+  defp normalize_stalled_result({failed, stalled})
+       when is_list(failed) and is_list(stalled) do
+    {failed, stalled}
+  end
+
+  defp normalize_stalled_result([failed, stalled])
+       when is_list(failed) and is_list(stalled) do
+    {failed, stalled}
+  end
+
+  defp normalize_stalled_result(%{failed: failed, stalled: stalled}) do
+    {failed || [], stalled || []}
+  end
+
+  defp normalize_stalled_result(_other), do: {[], []}
+
+  # Reloads a job by id so the `on_failed` callback receives a real
+  # `Job.t()` rather than a bare id. Adjust the pattern match(es) here if
+  # `Backend.get_job_data/2` returns a different shape for your adapter
+  # (this assumes the same flat `[key, value, ...]` list format used
+  # elsewhere in this module via `list_to_job_map/1`).
+  defp fetch_job_for_event(state, job_id) do
+    case Backend.get_job_data(state.backend, job_id) do
+      {:ok, job_data} when is_list(job_data) and job_data != [] ->
+        job_map = list_to_job_map(job_data)
+
+        {:ok,
+         Job.from_redis(job_id, state.queue_name, job_map,
+           prefix: state.prefix,
+           token: "",
+           connection: state.connection,
+           backend: backend_module(state),
+           worker: self()
+         )}
+
+      {:ok, job_map} when is_map(job_map) and map_size(job_map) > 0 ->
+        {:ok,
+         Job.from_redis(job_id, state.queue_name, job_map,
+           prefix: state.prefix,
+           token: "",
+           connection: state.connection,
+           backend: backend_module(state),
+           worker: self()
+         )}
+
+      _ ->
+        :error
     end
   end
 
@@ -1438,8 +1540,15 @@ defmodule BullMQ.Worker do
         false
     end
 
+    # NOTE: previously this only fired when `ctx.max_stalled_count == 0`.
+    # That left the default (max_stalled_count > 0) case trying to finish the
+    # job with a token the stalled checker had already invalidated, which the
+    # backend rejects — leaving the job stuck in whatever state stalled
+    # recovery put it in instead of being cleanly reprocessed. The stalled
+    # checker owns recovery for a lost lock regardless of max_stalled_count,
+    # so bail out here unconditionally and let the worker fetch its next job.
     result =
-      if lock_lost and ctx.max_stalled_count == 0 do
+      if lock_lost do
         {:lock_lost, job.id}
       else
         result
@@ -1678,6 +1787,19 @@ defmodule BullMQ.Worker do
           )
 
         {:continue, next_job}
+
+      {:error, reason} ->
+        # The backend rejected the mutation — most commonly because this
+        # token no longer owns the job's lock (stalled-recovery already
+        # reclaimed it). Don't emit on_failed: we didn't actually fail the
+        # job in Redis, so firing the callback would report something that
+        # never happened. Just stop; whoever now owns the job is responsible
+        # for it.
+        Logger.warning(
+          "[BullMQ.Worker] move_to_failed rejected for job #{job.id}: #{inspect(reason)}"
+        )
+
+        :stop
 
       _ ->
         # Emit on_failed callback even when no next job
