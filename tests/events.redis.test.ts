@@ -80,6 +80,7 @@ describe('events (redis-only)', () => {
       let reconnectCalls = 0;
 
       const fakeClient = {
+        status: 'ready',
         xread: () => new Promise(() => {}), // never settles
         disconnect: (reconnect: boolean) => {
           disconnectedWithReconnect = reconnect;
