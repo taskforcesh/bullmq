@@ -1047,14 +1047,12 @@ defmodule BullMQ.Worker do
     active_jobs = Map.delete(state.active_jobs, job_id)
     worker_pids = Map.delete(state.worker_pids, worker_pid)
     cancellation_tokens = Map.delete(state.cancellation_tokens, job_id)
-    lock_lost_jobs = MapSet.delete(state.lock_lost_jobs, job_id)
 
     new_state = %{
       state
       | active_jobs: active_jobs,
         worker_pids: worker_pids,
-        cancellation_tokens: cancellation_tokens,
-        lock_lost_jobs: lock_lost_jobs
+        cancellation_tokens: cancellation_tokens
     }
 
     # Check if we're closing and all jobs are done
@@ -1206,39 +1204,36 @@ defmodule BullMQ.Worker do
     # loss independently of cancellation-token support because arity-1
     # processors cannot be cancelled. The stalled checker remains responsible
     # for recovering the Redis job.
-    lock_lost_jobs =
-      Enum.reduce(job_ids, state.lock_lost_jobs, fn job_id, acc ->
-        case Map.get(state.cancellation_tokens, job_id) do
-          nil ->
-            Logger.warning(
-              "[BullMQ.Worker] Lock lost for job #{job_id} but no cancellation token found"
-            )
+    Enum.each(job_ids, fn job_id ->
+      case Map.get(state.cancellation_tokens, job_id) do
+        nil ->
+          Logger.warning(
+            "[BullMQ.Worker] Lock lost for job #{job_id} but no cancellation token found"
+          )
 
-          {token, processor_pid} ->
-            Logger.warning("[BullMQ.Worker] Lock lost for job #{job_id}, cancelling processor")
-            CancellationToken.cancel(processor_pid, token, {:lock_lost, job_id})
+        {token, processor_pid} ->
+          Logger.warning("[BullMQ.Worker] Lock lost for job #{job_id}, cancelling processor")
+          CancellationToken.cancel(processor_pid, token, {:lock_lost, job_id})
+      end
+
+      # Notify the autonomous worker directly when we know which process owns
+      # the job. This is needed for processors that do not accept a cancellation token.
+      Enum.each(state.worker_pids, fn {worker_pid, active_job_id} ->
+        if active_job_id == job_id and Process.alive?(worker_pid) do
+          send(worker_pid, {:job_lock_lost, job_id})
         end
-
-        # Notify the autonomous worker directly when we know which process owns
-        # the job. This is needed for processors that do not accept a cancellation token.
-        Enum.each(state.worker_pids, fn {worker_pid, active_job_id} ->
-          if active_job_id == job_id and Process.alive?(worker_pid) do
-            send(worker_pid, {:job_lock_lost, job_id})
-          end
-        end)
-
-        if state.max_stalled_count == 0 do
-          # Run recovery promptly. Cancel the currently scheduled check first
-          # so lock-loss recovery does not accumulate stalled-check timers.
-          if state.stalled_timer do
-            Process.cancel_timer(state.stalled_timer)
-          end
-
-          send(self(), :check_stalled)
-        end
-
-        MapSet.put(acc, job_id)
       end)
+
+      if state.max_stalled_count == 0 do
+        # Run recovery promptly. Cancel the currently scheduled check first
+        # so lock-loss recovery does not accumulate stalled-check timers.
+        if state.stalled_timer do
+          Process.cancel_timer(state.stalled_timer)
+        end
+
+        send(self(), :check_stalled)
+      end
+    end)
 
     Enum.each(job_ids, fn job_id ->
       if state.on_lock_renewal_failed do
@@ -1253,7 +1248,7 @@ defmodule BullMQ.Worker do
       end
     end)
 
-    {:noreply, %{state | lock_lost_jobs: lock_lost_jobs}}
+    {:noreply, state}
   end
 
   def handle_info({:close_timeout, from}, state) do
