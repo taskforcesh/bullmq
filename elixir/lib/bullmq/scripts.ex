@@ -1406,8 +1406,8 @@ defmodule BullMQ.Scripts do
     args = [
       # ARGV[1] max stalled count
       max_stalled_count,
-      # ARGV[2] prefix:queueName
-      Keys.key(ctx),
+      # ARGV[2] prefix:queueName: (trailing colon — used to build jobKey directly)
+      Keys.key_prefix(ctx),
       # ARGV[3] timestamp
       timestamp,
       Keyword.get(opts, :stalled_interval, 30_000)
