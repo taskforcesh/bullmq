@@ -1537,13 +1537,14 @@ defmodule BullMQ.Worker do
     # to finish after a stalled check.
     job_id = job.id
 
-    lock_lost = receive do
-      {:job_lock_lost, ^job_id} ->
-        true
-    after
-      0 ->
-        false
-    end
+    lock_lost =
+      receive do
+        {:job_lock_lost, ^job_id} ->
+          true
+      after
+        0 ->
+          false
+      end
 
     # NOTE: previously this only fired when `ctx.max_stalled_count == 0`.
     # That left the default (max_stalled_count > 0) case trying to finish the
