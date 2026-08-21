@@ -20,10 +20,10 @@ classifiers=[
 ]
 keywords = ["python", "bullmq", "queues"]
 dependencies = [
-    "redis ==7.4.1",
+    "redis ==8.1.0",
     "msgpack ==1.2.1",
     "semver ==3.0.4",
-    "croniter ==2.0.7"
+    "croniter ==6.2.4"
 ]
 
 [project.optional-dependencies]
