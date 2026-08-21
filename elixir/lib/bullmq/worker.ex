@@ -1177,11 +1177,6 @@ defmodule BullMQ.Worker do
   # adapter returns something else, adjust `normalize_stalled_result/1`
   # to match.
   def handle_info({:stalled_check_result, result}, state) do
-    # TEMPORARY DIAGNOSTIC: log the raw shape so we can confirm/fix
-    # normalize_stalled_result/1 against what the backend actually returns.
-    # Remove once normalize_stalled_result/1 is confirmed correct.
-    Logger.debug("[BullMQ.Worker] raw stalled-check result: #{inspect(result)}")
-
     {failed_ids, stalled_ids} = normalize_stalled_result(result)
 
     Enum.each(stalled_ids, fn job_id ->
