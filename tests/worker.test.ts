@@ -24,6 +24,7 @@ import {
   WaitingChildrenError,
   DelayedError,
   WaitingError,
+  RedisQueueBackend,
 } from '../src/classes';
 import { MinimalJob, IRedisClient } from '../src/interfaces';
 import { JobsOptions, KeepJobs } from '../src/types';
@@ -287,6 +288,50 @@ describe('workers', () => {
 
     const worker = new Worker(queueName, processor, { connection, prefix });
     await worker.waitUntilReady();
+
+    await processing;
+
+    await worker.close();
+  });
+
+  it('process a job that updates progress with a typed progress generic', async () => {
+    type CustomProgress = { percentage: number; message: string };
+    const expected: CustomProgress = { percentage: 42, message: 'halfway' };
+
+    const job = await queue.add('test', { foo: 'bar' });
+    expect(job.id).toBeTruthy();
+    expect(job.data.foo).toEqual('bar');
+
+    const worker = new Worker<
+      { foo: string },
+      void,
+      string,
+      RedisQueueBackend,
+      CustomProgress
+    >(
+      queueName,
+      async job => {
+        expect(job.data.foo).toBe('bar');
+        // `progress` is typed as CustomProgress here, not JobProgress.
+        await job.updateProgress(expected);
+      },
+      { autorun: false, connection, prefix },
+    );
+    await worker.waitUntilReady();
+
+    const processing = new Promise<void>((resolve, reject) => {
+      worker.on('progress', (_job, progress) => {
+        try {
+          expect(progress.percentage).toEqual(42);
+          expect(progress.message).toEqual('halfway');
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+
+    worker.run();
 
     await processing;
 
