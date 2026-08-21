@@ -1170,12 +1170,11 @@ defmodule BullMQ.Worker do
   # Handles the outcome of a stalled-job sweep and fires the corresponding
   # event callbacks.
   #
-  # `result` is normalized from whatever shape the backend returns via
-  # `normalize_stalled_result/1` below. The Redis adapter is expected to
-  # mirror the Node.js Lua script's `[failed, stalled]` pair of job-id lists
-  # (see `BullMQ.Backends.Redis.move_stalled_jobs_to_wait/3`) — if your
-  # adapter returns something else, adjust `normalize_stalled_result/1`
-  # to match.
+  # `result` is whatever the backend returns from `move_stalled_jobs_to_wait/3`.
+  # For Redis (moveStalledJobsToWait-9.lua) this is a single list of stalled job ids.
+  # Jobs that exceed `max_stalled_count` are *marked* with a deferred failure reason
+  # (`defa`) and will fail on their next pickup rather than being returned separately here.
+  # If an adapter returns a different shape, adjust `normalize_stalled_result/1` accordingly.
   def handle_info({:stalled_check_result, result}, state) do
     {failed_ids, stalled_ids} = normalize_stalled_result(result)
 
