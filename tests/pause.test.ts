@@ -478,4 +478,48 @@ describe('Pause', () => {
       await worker!.close();
     });
   });
+
+  // Regression test for https://github.com/taskforcesh/bullmq/issues/4065
+  it('should successfully pause multiple workers without hanging', async () => {
+    const workers: Worker[] = [];
+
+    // Create multiple workers (issue reported at 4+ workers)
+    for (let i = 0; i < 5; i++) {
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await delay(10);
+        },
+        { connection, prefix },
+      );
+      workers.push(worker);
+      await worker.waitUntilReady();
+    }
+
+    // Pause all workers concurrently - this should not hang
+    // The fix adds a 5s timeout to prevent indefinite hangs
+    const pausePromises = workers.map(worker => worker.pause());
+
+    // Set a reasonable timeout (8s should be enough with the 5s safety timeout)
+    let timeoutHandle: ReturnType<typeof setTimeout>;
+    const timeout = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(
+        () => reject(new Error('Pause operation timed out')),
+        8000,
+      );
+    });
+
+    try {
+      await Promise.race([Promise.all(pausePromises), timeout]);
+
+      // Verify all workers are paused
+      for (const worker of workers) {
+        expect(worker.isPaused()).toBe(true);
+      }
+    } finally {
+      clearTimeout(timeoutHandle!);
+      // Cleanup — always runs, even if the race rejects
+      await Promise.all(workers.map(worker => worker.close()));
+    }
+  }, 10000);
 });
