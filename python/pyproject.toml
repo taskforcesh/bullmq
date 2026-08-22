@@ -31,7 +31,7 @@ dev = [
     "pre-commit==4.6.2",
     "build==1.5.0",
     "types-redis==4.6.0.20241004",
-    "pipenv==2026.7.1",
+    "pipenv==2026.8.0",
     "virtualenv==21.7.4",
     "virtualenv-clone==0.5.7"
 ]
