@@ -101,6 +101,7 @@
 - [Timeout jobs](patterns/timeout-jobs.md)
 - [Timeout for Sandboxed processors](patterns/timeout-for-sandboxed-processors.md)
 - [Redis Cluster](patterns/redis-cluster.md)
+- [Working with Batches](guide/patterns/batches.md)
 
 ## BullMQ Pro
 
