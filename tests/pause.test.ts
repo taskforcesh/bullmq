@@ -67,7 +67,19 @@ describe('Pause', () => {
     if (processed) {
       throw new Error('should not process delayed jobs in paused queue.');
     }
-    const counts2 = await queue.getJobCounts('waiting', 'delayed');
+    const start = Date.now();
+    let counts2 = await queue.getJobCounts('waiting', 'delayed');
+    while (
+      (counts2.waiting !== 1 || counts2.delayed !== 0) &&
+      Date.now() - start < 2000
+    ) {
+      if (processed) {
+        throw new Error('should not process delayed jobs in paused queue.');
+      }
+      await delay(50);
+      counts2 = await queue.getJobCounts('waiting', 'delayed');
+    }
+
     expect(counts2).toHaveProperty('waiting', 1);
     expect(counts2).toHaveProperty('delayed', 0);
 
