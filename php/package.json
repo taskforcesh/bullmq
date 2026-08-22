@@ -66,7 +66,7 @@
   },
   "packageManager": "yarn@1.22.22",
   "resolutions": {
-    "ajv": "8.18.0",
+    "ajv": "8.20.0",
     "brace-expansion": "5.0.9",
     "picomatch": "4.0.5",
     "tar": "7.5.22"
