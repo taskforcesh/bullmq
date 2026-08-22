@@ -131,7 +131,7 @@
     "@vitest/coverage-v8": "4.1.11",
     "coveralls-next": "6.0.2",
     "cpx2": "9.0.0",
-    "eslint": "10.8.1",
+    "eslint": "10.9.0",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-prettier": "5.5.6",
     "eslint-plugin-promise": "7.3.0",
