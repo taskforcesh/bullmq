@@ -1674,6 +1674,101 @@ describe('flows', () => {
     });
   });
 
+  describe('when queue is rate limited and parents fail with deferred failures', () => {
+    it('should not affect rate limit configuration', async () => {
+      const childrenQueueName = `children-queue-${randomUUID()}`;
+
+      const flow = new FlowProducer({ connection, prefix });
+
+      const childrenQueue = new Queue(childrenQueueName, {
+        connection,
+        prefix,
+      });
+
+      const childrenWorker = new Worker(
+        childrenQueueName,
+        async () => {
+          throw new Error('fail');
+        },
+        {
+          connection,
+          prefix,
+        },
+      );
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          throw new Error('fail');
+        },
+        { connection, limiter: { max: 1, duration: 10000 }, prefix },
+      );
+
+      const queueEvents = new QueueEvents(queueName, {
+        connection,
+        prefix,
+      });
+      await queueEvents.waitUntilReady();
+      await childrenWorker.waitUntilReady();
+      await worker.waitUntilReady();
+
+      const startTime = Date.now();
+      await flow.addBulk([
+        {
+          name: 'parent-job',
+          data: { idx: 0, foo: 'bar' },
+          queueName,
+          children: [
+            {
+              name: 'child-job',
+              data: { idx: 0, foo: 'bar' },
+              queueName: childrenQueueName,
+              opts: {
+                failParentOnFailure: true,
+              },
+            },
+          ],
+          opts: { jobId: 'first' },
+        },
+        {
+          name: 'parent-job',
+          data: { idx: 1, foo: 'baz' },
+          queueName,
+          children: [
+            {
+              name: 'child-job',
+              data: { idx: 1, foo: 'baz' },
+              queueName: childrenQueueName,
+              opts: {
+                failParentOnFailure: true,
+              },
+            },
+          ],
+          opts: { jobId: 'second' },
+        },
+      ]);
+
+      const failed = new Promise<void>(resolve => {
+        queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
+          if (jobId === 'second') {
+            expect(prev).toBe('active');
+            const endTime = Date.now();
+            expect(endTime - startTime).toBeLessThanOrEqual(1000);
+            resolve();
+          }
+        });
+      });
+
+      await failed;
+
+      await flow.close();
+      await worker.close();
+      await childrenWorker.close();
+      await childrenQueue.close();
+      await queueEvents.close();
+    });
+  });
+
   describe('when moving jobs from wait to active continuing', async () => {
     it('begins with attemptsMade as 1', async () => {
       let parentProcessor,
