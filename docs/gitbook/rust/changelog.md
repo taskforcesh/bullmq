@@ -1,3 +1,10 @@
+## [1.2.6](https://github.com/taskforcesh/bullmq/compare/vrs1.2.5...vrs1.2.6) (2026-08-23)
+
+
+### Bug Fixes
+
+* **deps:** update rust crate uuid to v1.25.0 [rust] ([#4610](https://github.com/taskforcesh/bullmq/issues/4610)) ([b875ca8](https://github.com/taskforcesh/bullmq/commit/b875ca8b36be10774253be0767b76cdf56f97e71))
+
 ## [1.2.5](https://github.com/taskforcesh/bullmq/compare/vrs1.2.4...vrs1.2.5) (2026-08-15)
 
 
