@@ -2761,15 +2761,9 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       watchdog = setTimeout(
         () => {
           timedOut = true;
-          // Only abandon the command when the connection is actually alive.
-          // If IORedis is already reconnecting, `disconnect(false)` clears its
-          // pending retry timer without emitting a `close` event, leaving the
-          // client stuck in "reconnecting" forever (#4585). In that case we let
-          // IORedis finish its own reconnect; `reconnectBlocking()` in the
-          // `finally` block then correctly waits for it to become ready.
-          if (bclient.status === 'ready') {
-            bclient.disconnect(false);
-          }
+          // Resolve the wait as a timeout so the worker loop always advances.
+          // The (possibly stuck) command is abandoned and the connection is
+          // re-established in the `finally` block — see the note there.
           resolve(null);
         },
         roundedTimeout * 1000 + 1000,
@@ -2787,13 +2781,29 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       return null;
     } finally {
       clearTimeout(watchdog);
-      // The watchdog disconnected the blocking connection without letting
-      // IORedis auto-resend the abandoned command. Since we resolved the wait
-      // as a timeout (rather than surfacing a rejection to the worker's own
-      // reconnect path), re-establish the dedicated blocking connection here so
-      // the next `waitForJob` starts from a healthy, unblocked connection.
+      // The watchdog resolved the wait as a timeout because the awaited command
+      // never settled. Re-establish the dedicated blocking connection so the
+      // next `waitForJob` starts from a healthy, unblocked connection.
+      //
+      // If the client is still `ready`, the command is genuinely stuck (under
+      // `maxRetriesPerRequest: null` IORedis silently re-sends interrupted
+      // blocking commands instead of rejecting them). We must tear the socket
+      // down AND wait for it to actually close (`disconnect(true)` awaits the
+      // `end` event) before reconnecting: IORedis closes the socket
+      // asynchronously, so a bare `disconnect(false)` leaves `status`
+      // transiently `ready`; `reconnect()` would then observe the stale status,
+      // return a no-op, and the pending close would kill the connection for good
+      // (#4585 ready-path race).
+      //
+      // If the client is already `reconnecting`, we must NOT disconnect it —
+      // that clears IORedis' own retry timer without emitting a `close` event
+      // and parks it in `reconnecting` forever (#4585). Leave it to self-heal;
+      // `reconnectBlocking()` waits for it to become ready.
       if (timedOut && !this.closing) {
         try {
+          if (bclient.status === 'ready') {
+            await (this.blockingConnection ?? this.connection).disconnect(true);
+          }
           await this.reconnectBlocking();
         } catch {
           // Ignored: the next waitForJob call will retry the reconnect.
@@ -2844,13 +2854,9 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
     const timeout = new Promise<null>(resolve => {
       watchdog = setTimeout(() => {
         timedOut = true;
-        // Only abandon the command when the connection is actually alive; if
-        // IORedis is already reconnecting, `disconnect(false)` parks it in
-        // "reconnecting" forever (#4585). Let it finish its own reconnect
-        // instead — `reconnect()` in the `finally` block waits for ready.
-        if (client.status === 'ready') {
-          client.disconnect(false);
-        }
+        // Resolve as a timeout so the consumer loop always advances. The
+        // (possibly stuck) command is abandoned and the connection
+        // re-established in the `finally` block — see the note there.
         resolve(null);
       }, blockTimeout + 1000);
     });
@@ -2859,11 +2865,18 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       return (await Promise.race([xread, timeout])) as StreamReadRaw;
     } finally {
       clearTimeout(watchdog);
-      // The watchdog disconnected the connection without letting IORedis
-      // auto-resend the abandoned command. Re-establish it here so the next
-      // read starts from a healthy, unblocked connection.
+      // Re-establish the connection so the next read starts healthy. Mirrors the
+      // `waitForJob` reset: only tear down a live (`ready`) connection, and wait
+      // for the socket to actually close (`disconnect(true)` awaits `end`)
+      // before reconnecting — otherwise `reconnect()` observes the stale `ready`
+      // status (IORedis closes asynchronously), no-ops, and the pending close
+      // kills the connection (#4585 ready-path race). A `reconnecting` client is
+      // left untouched so IORedis' own retry timer can recover it (#4585).
       if (timedOut && !this.closing) {
         try {
+          if (client.status === 'ready') {
+            await this.connection.disconnect(true);
+          }
           await this.connection.reconnect();
         } catch {
           // Ignored: the next readEvents call will retry the reconnect.

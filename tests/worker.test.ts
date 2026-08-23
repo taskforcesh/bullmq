@@ -15,10 +15,12 @@ import {
 } from 'vitest';
 
 import * as sinon from 'sinon';
+import { EventEmitter } from 'events';
 import {
   Queue,
   QueueEvents,
   Job,
+  RedisQueueBackend,
   UnrecoverableError,
   Worker,
   WaitingChildrenError,
@@ -1222,6 +1224,101 @@ describe('workers', () => {
         await worker.close();
       }
     });
+
+    it('reconnects a healthy connection torn down by the watchdog (#4585 ready-path race)', async () => {
+      // Models the second #4585 race (reported on 6.0.11): after a brief drop
+      // IORedis self-heals back to "ready" *before* the watchdog fires, so the
+      // watchdog fires against a live connection with a still-unsettled blocking
+      // command. It tears the connection down to abandon that command — but
+      // IORedis closes the socket asynchronously, so `status` is still "ready"
+      // for the current microtask run. If the reset then calls `reconnect()`
+      // (which early-returns on "ready") *before* the close lands, it no-ops and
+      // the pending close kills the connection for good.
+      //
+      // We call `RedisQueueBackend.prototype.waitForJob` with a fake context that
+      // faithfully models (a) IORedis' asynchronous socket close and (b) the real
+      // `RedisConnection.disconnect(true)` (close, then await "end") and
+      // `RedisConnection.reconnect()` (early-return on "ready") contracts.
+      const emitter = new EventEmitter();
+      let status = 'ready';
+      const client = {
+        get status() {
+          return status;
+        },
+        bzpopmin: () => new Promise(() => {}), // never settles
+        // IORedis closes the socket asynchronously: `status` stays "ready" for
+        // the current microtask run and only flips on a later macrotask.
+        disconnect: () => {
+          setTimeout(() => {
+            status = 'end';
+            emitter.emit('end');
+          }, 0);
+        },
+        connect: () => {
+          status = 'ready';
+          return Promise.resolve();
+        },
+        once: (ev: string, fn: () => void) => emitter.once(ev, fn),
+        removeListener: (ev: string, fn: () => void) =>
+          emitter.removeListener(ev, fn),
+      };
+
+      const connection = {
+        capabilities: { canDoubleTimeout: true },
+        client: Promise.resolve(client),
+        // Mirrors RedisConnection.disconnect(true): close, then await "end".
+        disconnect: async (wait = true) => {
+          if (status === 'end') {
+            return;
+          }
+          if (!wait) {
+            return client.disconnect();
+          }
+          const ended = new Promise<void>(res => client.once('end', res));
+          client.disconnect();
+          await ended;
+        },
+        // Mirrors RedisConnection.reconnect(): early-return on "ready".
+        reconnect: async () => {
+          for (;;) {
+            if (status === 'ready') {
+              return;
+            }
+            if (status === 'wait' || status === 'end') {
+              return client.connect();
+            }
+            await new Promise(r => setTimeout(r, 5));
+          }
+        },
+      };
+
+      const backend = {
+        closing: false,
+        blockingConnection: connection,
+        connection,
+        queue: {
+          keys: { marker: 'm' },
+          blockingClient: Promise.resolve(client),
+        },
+        reconnectBlocking() {
+          return connection.reconnect();
+        },
+      };
+
+      const result = await (
+        RedisQueueBackend.prototype.waitForJob as (
+          this: unknown,
+          blockTimeout: number,
+        ) => Promise<unknown>
+      ).call(backend, 0.001);
+
+      expect(result).toBe(null);
+      // Let any pending asynchronous close land.
+      await new Promise(r => setTimeout(r, 30));
+      // The blocking connection must be healthy again — not left dead by a
+      // reconnect() that raced the watchdog's disconnect.
+      expect(status).toBe('ready');
+    }, 10000);
   });
 
   describe('when calling getBlockTimeout', () => {
