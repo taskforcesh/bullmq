@@ -123,12 +123,12 @@
     "@types/lodash.isarguments": "3.1.9",
     "@types/msgpack": "0.0.34",
     "@types/node": "24.13.3",
-    "@types/pg": "8.21.0",
+    "@types/pg": "8.23.1",
     "@types/semver": "7.8.0",
     "@types/sinon": "22.0.0",
     "@typescript-eslint/eslint-plugin": "8.67.0",
     "@typescript-eslint/parser": "8.67.0",
-    "@vitest/coverage-v8": "4.1.10",
+    "@vitest/coverage-v8": "4.1.11",
     "coveralls-next": "6.0.2",
     "cpx2": "9.0.0",
     "eslint": "10.8.1",
@@ -158,7 +158,7 @@
     "typedoc": "0.28.20",
     "typescript": "5.9.3",
     "vitepress": "2.0.0-alpha.19",
-    "vitest": "4.1.10"
+    "vitest": "4.1.11"
   },
   "commitlint": {
     "extends": [

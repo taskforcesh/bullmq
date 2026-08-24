@@ -49,6 +49,7 @@ import {
   errorObject,
   getParentKey,
   isEmpty,
+  isRedisCluster,
   isRedisVersionLowerThan,
   objectToFlatArray,
   optsDecodeMap,
@@ -2801,7 +2802,10 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       // `reconnectBlocking()` waits for it to become ready.
       if (timedOut && !this.closing) {
         try {
-          if (bclient.status === 'ready') {
+          if (
+            bclient.status === 'ready' ||
+            (bclient.status === 'connect' && isRedisCluster(bclient))
+          ) {
             await (this.blockingConnection ?? this.connection).disconnect(true);
           }
           await this.reconnectBlocking();
@@ -2874,7 +2878,10 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       // left untouched so IORedis' own retry timer can recover it (#4585).
       if (timedOut && !this.closing) {
         try {
-          if (client.status === 'ready') {
+          if (
+            client.status === 'ready' ||
+            (client.status === 'connect' && isRedisCluster(client))
+          ) {
             await this.connection.disconnect(true);
           }
           await this.connection.reconnect();

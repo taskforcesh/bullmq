@@ -12,6 +12,7 @@
  */
 import { getRedisClient } from './utils/get-redis-client';
 import { after } from './utils/lodash';
+import { EventEmitter } from 'events';
 import {
   describe,
   beforeEach,
@@ -73,24 +74,29 @@ describe('events (redis-only)', () => {
       // `maxRetriesPerRequest: null` IORedis silently re-queues and re-sends an
       // interrupted blocking `XREAD` after a reconnect instead of rejecting it,
       // so the awaited read never settles. The watchdog must conclude the read
-      // as a timeout, abandon the stuck command (disconnect) and re-establish
-      // the connection. We drive `readEvents` against a fake client/connection
-      // so the never-settling read is deterministic and Redis-independent.
-      let disconnectedWithReconnect: boolean | undefined;
+      // as a timeout, tear the stuck connection down and re-establish it. We
+      // drive `readEvents` against a fake client/connection so the
+      // never-settling read is deterministic and Redis-independent.
+      let disconnected = false;
       let reconnectCalls = 0;
 
       const fakeClient = {
+        status: 'ready',
         xread: () => new Promise(() => {}), // never settles
-        disconnect: (reconnect: boolean) => {
-          disconnectedWithReconnect = reconnect;
-        },
       };
 
       const fakeBackend = {
         closing: false,
         connection: {
+          // The watchdog resets a live connection by disconnecting it (waiting
+          // for the socket to close) and then reconnecting.
+          disconnect: async () => {
+            disconnected = true;
+            fakeClient.status = 'end';
+          },
           reconnect: async () => {
             reconnectCalls++;
+            fakeClient.status = 'ready';
           },
         },
         queue: {
@@ -109,9 +115,142 @@ describe('events (redis-only)', () => {
       ).call(fakeBackend, '$', 50);
 
       expect(result).toBe(null);
-      // Abandoned without auto-resend so the stuck command is discarded.
-      expect(disconnectedWithReconnect).toBe(false);
+      // The stuck (live) connection was torn down and re-established.
+      expect(disconnected).toBe(true);
       expect(reconnectCalls).toBe(1);
+    });
+  });
+
+  describe('when the event-stream client is already reconnecting (#4585)', () => {
+    it('does not disconnect a reconnecting client, letting IORedis recover', async () => {
+      // Reproduce the #4585 wedge for the event-stream consumer: after an
+      // outage longer than the block timeout, IORedis is already in
+      // "reconnecting" (an armed retry timer but no live socket). Calling
+      // `disconnect(false)` here clears that timer without emitting a `close`
+      // event, parking the client in "reconnecting" forever. The watchdog must
+      // only disconnect a "ready" client and otherwise let IORedis finish its
+      // own reconnect; `reconnect()` in the `finally` block then waits for it.
+      let disconnectCalls = 0;
+      let reconnectCalls = 0;
+
+      const fakeClient = {
+        status: 'reconnecting',
+        xread: () => new Promise(() => {}), // never settles
+      };
+
+      const fakeBackend = {
+        closing: false,
+        connection: {
+          disconnect: async () => {
+            disconnectCalls++;
+          },
+          reconnect: async () => {
+            reconnectCalls++;
+          },
+        },
+        queue: {
+          client: Promise.resolve(fakeClient),
+          keys: { events: `${prefix}:${queueName}:events` },
+        },
+      };
+
+      const result = await (
+        RedisQueueBackend.prototype.readEvents as (
+          this: unknown,
+          id: string,
+          blockTimeout: number,
+        ) => Promise<unknown>
+      ).call(fakeBackend, '$', 50);
+
+      expect(result).toBe(null);
+      // The reconnecting client must be left untouched so its retry timer
+      // survives and IORedis can return it to "ready" on its own.
+      expect(disconnectCalls).toBe(0);
+      expect(reconnectCalls).toBe(1);
+    });
+  });
+
+  describe('when a healthy event-stream connection is torn down by the watchdog (#4585 ready-path race)', () => {
+    it('reconnects instead of racing the disconnect and dying', async () => {
+      // Models the second #4585 race for the event-stream consumer: IORedis has
+      // self-healed to "ready" before the watchdog fires, so the watchdog tears
+      // down a live connection to abandon the unsettled XREAD. IORedis closes
+      // the socket asynchronously (`status` stays "ready" for the current
+      // microtask run), so a reset that calls `reconnect()` (which early-returns
+      // on "ready") before the close lands no-ops, and the pending close then
+      // kills the connection. The fake below faithfully models IORedis' async
+      // close and the real disconnect(true)/reconnect() contracts.
+      const emitter = new EventEmitter();
+      let status = 'ready';
+      const client = {
+        get status() {
+          return status;
+        },
+        xread: () => new Promise(() => {}), // never settles
+        disconnect: () => {
+          setTimeout(() => {
+            status = 'end';
+            emitter.emit('end');
+          }, 0);
+        },
+        connect: () => {
+          status = 'ready';
+          return Promise.resolve();
+        },
+        once: (ev: string, fn: () => void) => emitter.once(ev, fn),
+        removeListener: (ev: string, fn: () => void) =>
+          emitter.removeListener(ev, fn),
+      };
+
+      const connection = {
+        client: Promise.resolve(client),
+        disconnect: async (wait = true) => {
+          if (status === 'end') {
+            return;
+          }
+          if (!wait) {
+            return client.disconnect();
+          }
+          const ended = new Promise<void>(res => client.once('end', res));
+          client.disconnect();
+          await ended;
+        },
+        reconnect: async () => {
+          for (;;) {
+            if (status === 'ready') {
+              return;
+            }
+            if (status === 'wait' || status === 'end') {
+              return client.connect();
+            }
+            await new Promise(r => setTimeout(r, 5));
+          }
+        },
+      };
+
+      const fakeBackend = {
+        closing: false,
+        connection,
+        queue: {
+          client: Promise.resolve(client),
+          keys: { events: `${prefix}:${queueName}:events` },
+        },
+      };
+
+      const result = await (
+        RedisQueueBackend.prototype.readEvents as (
+          this: unknown,
+          id: string,
+          blockTimeout: number,
+        ) => Promise<unknown>
+      ).call(fakeBackend, '$', 50);
+
+      expect(result).toBe(null);
+      // Let any pending asynchronous close land.
+      await new Promise(r => setTimeout(r, 30));
+      // The connection must be healthy again — not left dead by a reconnect()
+      // that raced the watchdog's disconnect.
+      expect(status).toBe('ready');
     });
   });
 
