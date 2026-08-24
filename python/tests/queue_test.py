@@ -89,6 +89,18 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
 
         await queue.close()
 
+    async def test_get_jobs_returns_an_empty_list_for_an_empty_queue(self):
+        """Regression: the non-Redis path used `asyncio.wait`, which raises
+        `ValueError: Set of Tasks/Futures is empty` when there is nothing to
+        fetch."""
+        queue_name = f"__test_queue__{uuid4().hex}"
+        queue = Queue(queue_name, {"prefix": prefix})
+        try:
+            self.assertEqual(await queue.getWaiting(), [])
+            self.assertEqual(await queue.getJobs(["waiting", "completed"]), [])
+        finally:
+            await queue.close()
+
     async def test_get_job_state(self):
         queue = Queue(queueName, {"prefix": prefix})
         job = await queue.add("test-job", {"foo": "bar"}, {})
@@ -423,8 +435,13 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.pause()
         await queue.retryJobs({'count': 2})
 
-        waiting_count = await queue.getJobCounts('waiting')
-        self.assertEqual(waiting_count['waiting'], job_count)
+        # Count 'waiting' + 'paused': a paused queue reports its pending jobs
+        # under 'waiting' on Redis (pause is an O(1) meta flag that leaves the
+        # wait list alone) but under 'paused' on PostgreSQL. The sum is what
+        # this test is really asserting -- that all 8 jobs were re-enqueued.
+        self.assertEqual(
+            await queue.getJobCountByTypes('waiting', 'paused'), job_count
+        )
 
         await queue.close()
         await worker.close()
@@ -715,15 +732,17 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         for i in range(1, max_jobs + 1):
             await queue.add("test", {"foo": "bar", "num": i}, {})
         
-        # Check initial count
-        initial_count = await queue.getJobCountByTypes("waiting")
+        # Check initial count. 'waiting' + 'paused' because a paused queue
+        # reports its pending jobs under 'waiting' on Redis and under 'paused'
+        # on PostgreSQL; the sum is the backend-agnostic pending count.
+        initial_count = await queue.getJobCountByTypes("waiting", "paused")
         self.assertEqual(initial_count, max_jobs)
         
         # Drain the queue
         await queue.drain()
         
         # Check that all jobs are removed
-        count_after_drain = await queue.getJobCountByTypes("waiting")
+        count_after_drain = await queue.getJobCountByTypes("waiting", "paused")
         self.assertEqual(count_after_drain, 0)
         
         await queue.close()

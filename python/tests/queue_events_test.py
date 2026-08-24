@@ -12,6 +12,11 @@ import redis.asyncio as redis
 
 from bullmq import Job, Queue, QueueEvents, QueueEventsProducer, Worker
 
+try:
+    from bullmq.backends.postgres_backend import PostgresBackend
+except ImportError:  # the optional 'postgres' extra (psycopg) is not installed
+    PostgresBackend = None
+
 
 prefix = os.environ.get("BULLMQ_TEST_PREFIX") or "bull"
 
@@ -176,6 +181,41 @@ class TestQueueEvents(unittest.IsolatedAsyncioTestCase):
         finally:
             await producer.close()
             await events.close()
+
+
+@unittest.skipIf(
+    PostgresBackend is None, "requires the optional 'postgres' extra (psycopg)"
+)
+class TestQueueEventsBackendSelection(unittest.IsolatedAsyncioTestCase):
+    """`QueueEvents` and `QueueEventsProducer` must honour `opts['backend']`
+    exactly like `Queue` and `Worker` do, instead of unconditionally building a
+    Redis connection (which fails outright on a PostgreSQL DSN)."""
+
+    # A syntactically valid DSN is enough: both classes build their backend
+    # lazily, so no server is contacted during construction or close.
+    OPTS = {
+        "backend": "postgres",
+        "connection": "postgresql://postgres:postgres@127.0.0.1:5432/postgres",
+        "schema": "bullmq_backend_selection",
+    }
+
+    async def test_queue_events_builds_the_postgres_backend(self):
+        events = QueueEvents(
+            "__test_qe_backend__", {**self.OPTS, "autorun": False}
+        )
+        try:
+            self.assertIsInstance(events.backend, PostgresBackend)
+            self.assertIsNone(events.redisConnection)
+        finally:
+            await events.close()
+
+    async def test_queue_events_producer_builds_the_postgres_backend(self):
+        producer = QueueEventsProducer("__test_qep_backend__", self.OPTS)
+        try:
+            self.assertIsInstance(producer.backend, PostgresBackend)
+            self.assertIsNone(producer.redisConnection)
+        finally:
+            await producer.close()
 
 
 if __name__ == "__main__":

@@ -127,7 +127,7 @@ class Backend(ABC):
         """Add many jobs in a single efficient operation. Returns the ids, in order."""
 
     @abstractmethod
-    async def addFlow(self, entries: list[dict]) -> list[str]:
+    async def addFlow(self, entries: list[dict]) -> list:
         """Atomically insert a flow (tree) of jobs that may span multiple queues.
 
         ``entries`` is a flat, topologically ordered list of
@@ -135,8 +135,9 @@ class Backend(ABC):
         self-describing (it carries its own queue and ``parent`` options), and
         ``is_parent`` marks nodes that have children (added as parent jobs).
         The whole insert is atomic (a Redis ``MULTI`` / a single SQL
-        transaction). Returns the created job ids, in the same order as
-        ``entries``.
+        transaction). Returns one entry per input, in order: the created job id
+        (a string), or a **negative integer** error/skip code for an entry that
+        was not inserted (e.g. ``-5`` when its parent does not exist).
         """
 
     # ============================================================
@@ -341,12 +342,63 @@ class Backend(ABC):
     # ============================================================
 
     @abstractmethod
+    async def setQueueMeta(self, values: dict) -> int:
+        """Upsert queue metadata fields (``concurrency``, ``max``, ``duration``, ...).
+
+        Returns the number of fields written.
+        """
+
+    @abstractmethod
+    async def getQueueMetaField(self, field: str) -> Optional[str]:
+        """Return a single queue metadata field's raw value, or ``None``."""
+
+    @abstractmethod
+    async def getQueueMetaFields(self, fields: list) -> list:
+        """Return several queue metadata values, in the order requested.
+        Missing fields come back as ``None``."""
+
+    @abstractmethod
+    async def removeQueueMetaFields(self, fields: list) -> int:
+        """Remove queue metadata fields. Returns how many were actually removed."""
+
+    @abstractmethod
+    async def setRateLimit(self, expire_time_ms: int) -> None:
+        """Force the rate-limit window open for ``expire_time_ms`` milliseconds."""
+
+    @abstractmethod
+    async def removeRateLimitKey(self) -> int:
+        """Clear the rate-limit window. Returns the number of entries removed (0 or 1)."""
+
+    @abstractmethod
     async def trimEvents(self, max_length: int) -> Any:
         """Trim the event stream to an approximate maximum length."""
 
     @abstractmethod
     async def removeDeprecatedPriorityKey(self) -> Any:
         """Remove the deprecated priority helper key."""
+
+    # ============================================================
+    # Event stream
+    # ============================================================
+
+    @abstractmethod
+    async def publishEvent(self, fields: dict, max_events: int) -> str:
+        """Append a custom event to the queue's event stream.
+
+        ``fields`` is the flat payload; its ``event`` entry names the channel
+        listeners subscribe to. Returns the id of the appended entry.
+        """
+
+    @abstractmethod
+    async def readEvents(self, id: str, block_timeout: int) -> Any:
+        """Block (up to ``block_timeout`` ms) reading the queue's event stream
+        for entries newer than ``id``.
+
+        ``id`` is a cursor, or ``'$'`` for "only events published from now on".
+        Returns the raw stream entries in the Redis ``XREAD`` shape --
+        ``[(stream_key, [(entry_id, {field: value, ...}), ...])]`` -- or a falsy
+        value when the block timeout elapses with no new events.
+        """
 
     # ============================================================
     # Worker blocking primitive

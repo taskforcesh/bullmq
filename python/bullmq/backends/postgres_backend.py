@@ -46,6 +46,16 @@ _CAPABILITIES = {"canBlockFor1Ms": True, "canDoubleTimeout": True}
 # carries the negative error code shared with the Redis backend.
 _BULLMQ_SQLSTATE = "BM001"
 
+# Max events fetched per `readEvents` round-trip (Redis XREAD has no such cap,
+# but a page keeps a long-idle consumer's catch-up read bounded).
+_EVENT_READ_BATCH = 100
+
+# Longest single LISTEN wait (seconds) inside a blocking `readEvents`. The
+# publisher coalesces NOTIFYs under concurrency (see `publish_event`), so a
+# wakeup may legitimately be skipped; re-reading the table on this cadence
+# bounds the resulting latency instead of stalling for the whole block timeout.
+_EVENT_POLL_INTERVAL = 0.25
+
 
 def _validate_prefix(prefix: Optional[str]) -> None:
     if prefix not in (None, "bull"):
@@ -99,6 +109,18 @@ def _json(value: Any) -> str:
 
 def _opt_str(value: Any) -> Optional[str]:
     return None if value is None else str(value)
+
+
+def _error_code(value: str) -> Optional[int]:
+    """`add_flow` returns a negative integer in the id column as an error/skip
+    sentinel (e.g. -5 = missing parent) rather than a job id, mirroring the
+    Redis `addJob` script's return convention. Returns the code, or ``None``
+    when the value is a real job id."""
+    try:
+        code = int(value)
+    except (TypeError, ValueError):
+        return None
+    return code if code < 0 else None
 
 
 def _to_int(value: Any) -> int:
@@ -222,6 +244,7 @@ class PostgresBackend(Backend):
         self.owns_connection = owns_connection
         self.schema = connection.schema
         self._ready = False
+        self._closing = False
 
     async def _run(self, command: str, params: list, *, op=None, job_id=None, parent_key=None, state=None):
         try:
@@ -242,6 +265,7 @@ class PostgresBackend(Backend):
         self._ready = True
 
     async def close(self, force: bool = False) -> None:
+        self._closing = True
         if self.owns_connection:
             await self.connection.close()
 
@@ -378,10 +402,17 @@ class PostgresBackend(Backend):
             jobs[index].id = job_id
         return ids
 
-    async def addFlow(self, entries: list[dict]) -> list[str]:
+    async def addFlow(self, entries: list[dict]) -> list:
         batch = [self._batch_entry(e["job"], e.get("is_parent", False)) for e in entries]
         result = await self._run("add_flow", [_jsonb(batch)], op="addJob")
-        ids = [str(row[0]) for row in result.rows]
+        ids: list = []
+        for row in result.rows:
+            value = str(row[0])
+            # Keep a negative sentinel an int: `FlowProducer` distinguishes an
+            # error code from a (deduplicated) string id by type, exactly as it
+            # does for the Redis backend's Lua return value.
+            code = _error_code(value)
+            ids.append(value if code is None else code)
         for index, job_id in enumerate(ids):
             entries[index]["job"].id = job_id
         return ids
@@ -739,11 +770,131 @@ class PostgresBackend(Backend):
     # Queue metadata & maintenance keys
     # ============================================================
 
+    async def setQueueMeta(self, values: dict) -> int:
+        if not values:
+            return 0
+        fields = list(values.keys())
+        result = await self._run(
+            "set_queue_meta",
+            [self.queue_name, fields, [str(values[f]) for f in fields]],
+        )
+        return result.rowcount if result.rowcount is not None else len(fields)
+
+    async def getQueueMetaField(self, field: str) -> Optional[str]:
+        row = (
+            await self._run("get_queue_meta_field", [self.queue_name, field])
+        ).first_map()
+        return None if row is None else _opt_str(row.get("value"))
+
+    async def getQueueMetaFields(self, fields: list) -> list:
+        if not fields:
+            return []
+        result = await self._run(
+            "get_queue_meta_fields", [self.queue_name, list(fields)]
+        )
+        found = {m["field"]: _opt_str(m.get("value")) for m in result.maps()}
+        return [found.get(field) for field in fields]
+
+    async def removeQueueMetaFields(self, fields: list) -> int:
+        if not fields:
+            return 0
+        result = await self._run(
+            "remove_queue_meta_fields", [self.queue_name, list(fields)]
+        )
+        return max(result.rowcount or 0, 0)
+
+    async def setRateLimit(self, expire_time_ms: int) -> None:
+        # Force the limiter window (mirrors Redis SET limiter=MAX PX expireTimeMs).
+        await self._run(
+            "set_rate_limit", [self.queue_name, expire_time_ms, _now_ms()]
+        )
+
+    async def removeRateLimitKey(self) -> int:
+        row = (await self._run("remove_rate_limit", [self.queue_name])).first_map() or {}
+        return _to_int(row.get("n"))
+
     async def trimEvents(self, max_length: int) -> Any:
         return None
 
     async def removeDeprecatedPriorityKey(self) -> Any:
         return None
+
+    # ============================================================
+    # Event stream
+    # ============================================================
+
+    async def publishEvent(self, fields: dict, max_events: int) -> str:
+        # `max_events` has no parameter here: the stream is trimmed server-side
+        # by `publish_event` using the queue's `opts.maxLenEvents` meta field.
+        payload = dict(fields)
+        event = payload.pop("event", None)
+        result = await self._run(
+            "publish_event", [self.queue_name, str(event), _jsonb(payload)]
+        )
+        row = result.first_map() or {}
+        return str(row.get("id"))
+
+    async def readEvents(self, id: str, block_timeout: int) -> Any:
+        if self._closing:
+            return None
+
+        # Resolve the cursor: '$' means "only events published from now on".
+        if id is None or str(id) == "$":
+            row = (
+                await self._run("read_events_max", [self.queue_name])
+            ).first_map() or {}
+            cursor = _to_int(row.get("max"))
+        else:
+            cursor = _to_int(id)
+
+        entries = await self._fetch_events(cursor)
+        if entries:
+            return [("events", entries)]
+
+        # Nothing pending: park on the events channel until something is
+        # published for this queue or the block timeout elapses.
+        deadline = time.monotonic() + max(block_timeout or 5000, 1) / 1000
+        while not self._closing:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            await self._wait_for_event(min(remaining, _EVENT_POLL_INTERVAL))
+            if self._closing:
+                return None
+            entries = await self._fetch_events(cursor)
+            if entries:
+                return [("events", entries)]
+        return None
+
+    async def _fetch_events(self, cursor: int) -> list:
+        """A page of events newer than ``cursor``, in the Redis XREAD entry
+        shape: ``[(entry_id, {field: value, ...}), ...]``."""
+        result = await self._run(
+            "read_events", [self.queue_name, cursor, _EVENT_READ_BATCH]
+        )
+        entries = []
+        for row in result.maps():
+            # The Redis stream stores every field as a string; mirror that so
+            # `QueueEvents` decodes identically on both backends.
+            fields = {"event": row["event"]}
+            for key, value in (row.get("data") or {}).items():
+                fields[key] = value if isinstance(value, str) else _json(value)
+            entries.append((str(row["id"]), fields))
+        return entries
+
+    async def _wait_for_event(self, timeout: float) -> None:
+        """Wait (up to ``timeout`` seconds) for a NOTIFY on the shared
+        ``bullmq_events`` channel naming this queue."""
+        try:
+            conn = await self.connection.ensure_events_channel()
+            async for notify in conn.notifies(timeout=timeout, stop_after=1):
+                if notify.payload == self.queue_name:
+                    return
+        except psycopg.Error:
+            # The listen connection dropped; rebuild it on the next wait and
+            # back off briefly so a persistent failure cannot spin hot.
+            await self.connection.reset_events_channel()
+            await asyncio.sleep(min(timeout, _EVENT_POLL_INTERVAL))
 
     # ============================================================
     # Worker blocking primitive
