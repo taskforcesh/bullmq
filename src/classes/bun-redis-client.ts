@@ -146,6 +146,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
   private maxReconnectDelay = 20000; // cap at 20s (matches ioredis default)
+  private ready = false;
 
   get status(): string {
     if (this.statusOverride) {
@@ -156,8 +157,11 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     }
     // `raw` may not exist yet on a duplicate whose raw client is created
     // lazily (via `rawFactory`) on first connect.
-    if (this.raw?.connected) {
+    if (this.ready) {
       return 'ready';
+    }
+    if (this.raw?.connected) {
+      return 'connect';
     }
     return this.hasConnected ? 'end' : 'wait';
   }
@@ -215,6 +219,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     // see the name already applied.
     this.raw.onconnect = () => {
       this.hasConnected = true;
+      this.ready = false;
       this.closed = false;
       this.closing = false;
       this.reconnecting = false;
@@ -225,14 +230,23 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
       this.loadedScriptShas.clear();
       if (this.connectionName) {
         this.clientSetName(this.connectionName).then(
-          () => this.emit('ready'),
-          () => this.emit('ready'), // emit ready even if setName fails
+          () => {
+            this.ready = true;
+            this.emit('ready');
+          },
+          () => {
+            // emit ready even if setName fails
+            this.ready = true;
+            this.emit('ready');
+          },
         );
       } else {
+        this.ready = true;
         this.emit('ready');
       }
     };
     this.raw.onclose = (error?: Error) => {
+      this.ready = false;
       if (this.closing) {
         // User-initiated close – no reconnect
         this.closed = true;
