@@ -26,7 +26,6 @@ import {
   WaitingChildrenError,
   DelayedError,
   WaitingError,
-  RedisQueueBackend,
 } from '../src/classes';
 import { MinimalJob, IRedisClient } from '../src/interfaces';
 import { JobsOptions, KeepJobs } from '../src/types';
