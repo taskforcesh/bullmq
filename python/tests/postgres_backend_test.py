@@ -480,6 +480,17 @@ class TestPostgresBackendEventStream(unittest.IsolatedAsyncioTestCase):
             "publish_event", ["queue", "custom", '{"foo":"bar","n":7}']
         )
 
+    async def test_publish_event_rejects_a_payload_with_no_event_name(self):
+        """Both failure modes are silent -- Postgres would persist the literal
+        'None' as the event name -- so the contract is enforced up front."""
+        backend = PostgresBackend("queue", SimpleNamespace(schema="bullmq"))
+        backend._run = AsyncMock()
+
+        for payload in ({}, {"jobId": "1"}, {"event": None}, {"event": ""}):
+            with self.assertRaises(ValueError):
+                await backend.publishEvent(payload, 1000)
+        backend._run.assert_not_awaited()
+
     async def test_read_events_resolves_the_dollar_cursor_to_the_current_max(self):
         backend = PostgresBackend("queue", SimpleNamespace(schema="bullmq"))
         backend._run = AsyncMock(

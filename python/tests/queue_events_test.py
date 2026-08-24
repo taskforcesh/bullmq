@@ -153,6 +153,19 @@ class TestQueueEvents(unittest.IsolatedAsyncioTestCase):
         await events.close()
         self.assertTrue(events.closed)
 
+    async def test_producer_rejects_a_publish_without_an_event_name(self):
+        """`eventName` is required; the backend re-checks the `event` field it
+        maps to, so neither layer can publish an event that never dispatches."""
+        queue_name = f"__test_qe_producer_bad__{uuid4().hex}"
+        producer = QueueEventsProducer(queue_name, {"prefix": prefix})
+        try:
+            with self.assertRaises(ValueError):
+                await producer.publishEvent({"foo": "bar"})
+            with self.assertRaises(ValueError):
+                await producer.backend.publishEvent({"foo": "bar"}, 1000)
+        finally:
+            await producer.close()
+
     async def test_producer_publishes_custom_event(self):
         """`QueueEventsProducer.publishEvent` writes to the same
         stream `QueueEvents` consumes; the custom event must round

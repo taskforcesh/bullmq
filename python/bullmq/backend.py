@@ -30,6 +30,22 @@ if TYPE_CHECKING:
     from bullmq.job import Job
 
 
+def require_event_field(fields: dict) -> str:
+    """Validate a :meth:`Backend.publishEvent` payload; return its event name.
+
+    Every adapter enforces this at the contract boundary because both failure
+    modes are silent: ``QueueEvents._dispatch_entry`` drops an entry that
+    carries no ``event``, so a caller that omits it would publish an event that
+    simply never arrives.
+    """
+    event = fields.get("event") if fields else None
+    if event is None or str(event) == "":
+        raise ValueError(
+            "publishEvent requires a non-empty 'event' field naming the event"
+        )
+    return str(event)
+
+
 class Backend(ABC):
     """Abstract queue backend.
 
@@ -386,7 +402,8 @@ class Backend(ABC):
         """Append a custom event to the queue's event stream.
 
         ``fields`` is the flat payload; its ``event`` entry names the channel
-        listeners subscribe to. Returns the id of the appended entry.
+        listeners subscribe to and is required (see :func:`require_event_field`).
+        Returns the id of the appended entry.
         """
 
     @abstractmethod

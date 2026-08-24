@@ -19,7 +19,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Optional, TYPE_CHECKING
 
-from bullmq.backend import Backend
+from bullmq.backend import Backend, require_event_field
 from bullmq.redis_connection import RedisConnection
 from bullmq.scripts import Scripts
 from bullmq.utils import (
@@ -446,6 +446,7 @@ class RedisBackend(Backend):
     # ============================================================
 
     async def publishEvent(self, fields: dict, max_events: int) -> str:
+        require_event_field(fields)
         return await self.conn.xadd(
             self.keys["events"],
             fields,

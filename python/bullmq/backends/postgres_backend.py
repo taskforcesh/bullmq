@@ -22,7 +22,7 @@ from typing import Any, Optional, TYPE_CHECKING
 
 import psycopg
 
-from bullmq.backend import Backend
+from bullmq.backend import Backend, require_event_field
 from bullmq.backends.postgres_connection import PostgresConnection
 from bullmq.custom_errors import UnrecoverableError
 from bullmq.postgres import sql_loader
@@ -826,10 +826,11 @@ class PostgresBackend(Backend):
     async def publishEvent(self, fields: dict, max_events: int) -> str:
         # `max_events` has no parameter here: the stream is trimmed server-side
         # by `publish_event` using the queue's `opts.maxLenEvents` meta field.
+        event = require_event_field(fields)
         payload = dict(fields)
-        event = payload.pop("event", None)
+        payload.pop("event", None)
         result = await self._run(
-            "publish_event", [self.queue_name, str(event), _jsonb(payload)]
+            "publish_event", [self.queue_name, event, _jsonb(payload)]
         )
         row = result.first_map() or {}
         return str(row.get("id"))
