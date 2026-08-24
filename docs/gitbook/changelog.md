@@ -1,3 +1,10 @@
+# [6.2.0](https://github.com/taskforcesh/bullmq/compare/v6.1.2...v6.2.0) (2026-08-21)
+
+
+### Features
+
+* **types:** add generic ProgressType parameter to Job and Worker ([#4529](https://github.com/taskforcesh/bullmq/issues/4529)) fixes [#3721](https://github.com/taskforcesh/bullmq/issues/3721) ([c06b51c](https://github.com/taskforcesh/bullmq/commit/c06b51cd3aacd0d9ee65e2544220c89f24d2479c))
+
 ## [6.1.2](https://github.com/taskforcesh/bullmq/compare/v6.1.1...v6.1.2) (2026-08-16)
 
 
