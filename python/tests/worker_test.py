@@ -27,7 +27,10 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         connection = redis.Redis(host='localhost')
-        await connection.flushdb()
+        try:
+            await connection.flushdb()
+        finally:
+            await connection.aclose()
 
     async def test_process_jobs(self):
         queue = Queue(queueName, {"prefix": prefix})
@@ -224,35 +227,58 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_process_jobs_fail(self):
-        queue = Queue(queueName, {"prefix": prefix})
-        data = {"foo": "bar"}
-        job = await queue.add("test-job", data, {"removeOnComplete": False})
+        failure_messages = [
+            "Failed",
+            'quoted "value" and backslash \\',
+            "Unicode: 你好 🌍",
+            '{"code":"E_FAIL","retryable":false}',
+        ]
 
-        failedReason = "Failed"
+        for failedReason in failure_messages:
+            with self.subTest(failedReason=failedReason):
+                test_queue_name = f"__failed_reason_protocol__{uuid4().hex}"
+                queue = Queue(test_queue_name, {"prefix": prefix})
+                worker = None
+                try:
+                    data = {"foo": "bar"}
+                    job = await queue.add("test-job", data, {"removeOnComplete": False})
 
-        async def process(job: Job, token: str):
-            print("Processing job", job)
-            raise Exception(failedReason)
+                    async def process(job: Job, token: str):
+                        print("Processing job", job)
+                        raise Exception(failedReason)
 
-        worker = Worker(queueName, process, {"prefix": prefix})
+                    worker = Worker(test_queue_name, process, {"prefix": prefix})
+                    processing = Future()
+                    worker.on("failed", lambda job, result: processing.set_result(None))
 
-        processing = Future()
-        worker.on("failed", lambda job, result: processing.set_result(None))
+                    await processing
 
-        await processing
+                    failedJob = await Job.fromId(queue, job.id)
+                    self.assertIsNotNone(failedJob)
+                    assert failedJob is not None
+                    storedFailedReason = None
+                    if queue.redisConnection is not None:
+                        connection = redis.Redis(host="localhost", decode_responses=True)
+                        try:
+                            storedFailedReason = await connection.hget(
+                                queue.toKey(job.id), "failedReason"
+                            )
+                        finally:
+                            await connection.aclose()
 
-        failedJob = await Job.fromId(queue, job.id)
-
-        self.assertEqual(failedJob.id, job.id)
-        self.assertEqual(failedJob.attemptsMade, 1)
-        self.assertEqual(failedJob.data, data)
-        self.assertEqual(failedJob.failedReason, f'"{failedReason}"')
-        self.assertEqual(len(failedJob.stacktrace), 1)
-        self.assertEqual(failedJob.returnvalue, None)
-        self.assertNotEqual(failedJob.finishedOn, None)
-
-        await worker.close()
-        await queue.close()
+                    self.assertEqual(failedJob.id, job.id)
+                    self.assertEqual(failedJob.attemptsMade, 1)
+                    self.assertEqual(failedJob.data, data)
+                    self.assertEqual(failedJob.failedReason, failedReason)
+                    if queue.redisConnection is not None:
+                        self.assertEqual(storedFailedReason, failedReason)
+                    self.assertEqual(len(failedJob.stacktrace), 1)
+                    self.assertEqual(failedJob.returnvalue, None)
+                    self.assertNotEqual(failedJob.finishedOn, None)
+                finally:
+                    if worker is not None:
+                        await worker.close()
+                    await queue.close()
 
     async def test_process_renews_lock(self):
         queue = Queue(queueName, {"prefix": prefix})

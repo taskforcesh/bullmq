@@ -1,6 +1,7 @@
 import unittest
 import time
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock, patch
 
 import psycopg
@@ -66,6 +67,38 @@ class TestPostgresBackendJobMapping(unittest.TestCase):
 
         self.assertEqual(backend.clientName(), "tenant_a:queue")
         self.assertEqual(backend.clientName(":w:worker"), "tenant_a:queue:w:worker")
+
+
+class TestPostgresBackendFailedReason(unittest.IsolatedAsyncioTestCase):
+    async def test_move_to_failed_keeps_failed_reason_as_raw_text(self):
+        backend = PostgresBackend(
+            "queue", cast(PostgresConnection, SimpleNamespace(schema="bull"))
+        )
+        backend._run = AsyncMock(return_value=SimpleNamespace())
+        backend._collect_metrics = AsyncMock()
+        job = cast(
+            Job,
+            SimpleNamespace(
+                id="job-1",
+                queue=SimpleNamespace(opts={}),
+            ),
+        )
+        failed_reason = '{"code":"E_FAIL","message":"你好 🌍"}'
+
+        await backend.moveToFailed(
+            job,
+            failed_reason,
+            False,
+            "token",
+            fetch_next=False,
+            fields_to_update={"stacktrace": "[]"},
+        )
+
+        call = backend._run.await_args
+        self.assertIsNotNone(call)
+        assert call is not None
+        params = call.args[1]
+        self.assertEqual(params[3], failed_reason)
 
 
 class _FakeCursor:

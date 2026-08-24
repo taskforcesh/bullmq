@@ -441,8 +441,7 @@ class PostgresBackend(Backend):
         remove_all, keep_age, keep_count = _normalize_keep(remove_on_fail)
         finished_on = _now_ms()
         stacktrace = (fields_to_update or {}).get("stacktrace")
-        # The Redis backend stores the reason JSON-encoded (a quoted string).
-        reason = json.dumps(str(failed_reason), separators=(",", ":"))
+        reason = str(failed_reason)
         opts = getattr(getattr(job, "queue", None), "opts", {}) or {}
         if fetch_next:
             lock_duration = opts.get("lockDuration", 30000)
