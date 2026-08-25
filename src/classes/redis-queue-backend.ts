@@ -347,6 +347,15 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
   }
 
   /**
+   * Longest block timeout (seconds) to ask `BZPOPMIN` for. Kept at 10s so a
+   * dropped connection is noticed quickly.
+   * reference: https://github.com/taskforcesh/bullmq/issues/1658
+   */
+  get maximumBlockTimeout(): number {
+    return 10;
+  }
+
+  /**
    * Interrupts the in-flight blocking wait by disconnecting the dedicated
    * blocking connection. No-op if there is none.
    */

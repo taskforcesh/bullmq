@@ -1321,6 +1321,67 @@ describe('workers', () => {
           await worker.close();
         });
       });
+
+      describe('when blockUntil is further away than the backend allows', () => {
+        it('caps the block timeout at the backend maximum', async () => {
+          const worker = new Worker(queueName, NoopProc, {
+            connection,
+            prefix,
+            autorun: false,
+          });
+          await worker.waitUntilReady();
+
+          expect(worker.maximumBlockTimeout).toBe(10);
+          expect(worker['getBlockTimeout'](Date.now() + 60_000)).toBe(
+            worker.maximumBlockTimeout,
+          );
+
+          await worker.close();
+        });
+
+        it('blocks for the whole delay when the backend allows longer waits', async () => {
+          const worker = new Worker(queueName, NoopProc, {
+            connection,
+            prefix,
+            autorun: false,
+          });
+          await worker.waitUntilReady();
+
+          // A backend that can wait an hour (like PostgreSQL) should wait out
+          // the delay instead of waking every 10s to find nothing due.
+          Object.defineProperty(worker['backend'], 'maximumBlockTimeout', {
+            configurable: true,
+            get: () => 3600,
+          });
+
+          expect(
+            worker['getBlockTimeout'](Date.now() + 60_000),
+          ).toBeGreaterThan(59);
+
+          await worker.close();
+        });
+
+        it('falls back to 10s for a backend that declares no maximum', async () => {
+          const worker = new Worker(queueName, NoopProc, {
+            connection,
+            prefix,
+            autorun: false,
+          });
+          await worker.waitUntilReady();
+
+          // The member is optional, so third-party backends keep compiling and
+          // keep their previous behaviour.
+          Object.defineProperty(worker['backend'], 'maximumBlockTimeout', {
+            configurable: true,
+            get: () => undefined,
+          });
+
+          expect(worker.maximumBlockTimeout).toBe(10);
+          expect(worker['getBlockTimeout'](Date.now() + 60_000)).toBe(10);
+
+          await worker.close();
+        });
+      });
     });
   });
 

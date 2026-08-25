@@ -386,6 +386,19 @@ export class PostgresQueueBackend
     return 0.001;
   }
 
+  /**
+   * `LISTEN`/`NOTIFY` has no protocol limit, and {@link waitForJob} already
+   * shortens its timer to the next due delayed job, so a long wait never delays
+   * a scheduled job. Waiting an hour instead of re-polling every 10s is what
+   * lets an idle serverless database suspend.
+   *
+   * Must stay finite: {@link waitForJob} passes this to `setTimeout`, which
+   * fires immediately beyond ~24.8 days.
+   */
+  get maximumBlockTimeout(): number {
+    return 3600;
+  }
+
   forQueue(queueName: string, _prefix?: string): IQueueBackend {
     // The namespace is the connection's schema, shared by all queues, so a
     // sibling backend only needs a different queue name. BullMQ's per-queue

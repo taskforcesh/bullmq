@@ -29,4 +29,16 @@ describe('PostgresQueueBackend', () => {
     ]);
     expect(failed).toEqual(['job-2', 'job-3']);
   });
+
+  it('allows a far longer block than the Redis BZPOPMIN cap', () => {
+    const backend = Object.create(
+      PostgresQueueBackend.prototype,
+    ) as PostgresQueueBackend;
+
+    // Longer waits are safe: waitForJob shortens its timer to the next due
+    // delayed job anyway.
+    expect(backend.maximumBlockTimeout).toBeGreaterThan(10);
+    // But it must fit in setTimeout, which fires immediately beyond ~24.8 days.
+    expect(backend.maximumBlockTimeout * 1000).toBeLessThan(2 ** 31 - 1);
+  });
 });

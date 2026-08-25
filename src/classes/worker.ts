@@ -45,8 +45,11 @@ import {
 } from './job-scheduler';
 import { LockManager } from './lock-manager';
 
-// 10 seconds is the maximum time a BZPOPMIN can block.
-const maximumBlockTimeout = 10;
+/**
+ * Used when a backend does not set its own maximum. Matches the Redis backend,
+ * so third-party backends keep the behaviour they had before.
+ */
+const DEFAULT_MAXIMUM_BLOCK_TIMEOUT = 10;
 
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
@@ -776,6 +779,10 @@ export class Worker<
     return this.backend.minimumBlockTimeout;
   }
 
+  get maximumBlockTimeout(): number {
+    return this.backend.maximumBlockTimeout ?? DEFAULT_MAXIMUM_BLOCK_TIMEOUT;
+  }
+
   private isRateLimited(): boolean {
     return this.limitUntil > Date.now();
   }
@@ -855,10 +862,9 @@ export class Worker<
       } else if (blockDelay < this.minimumBlockTimeout * 1000) {
         return this.minimumBlockTimeout;
       } else {
-        // We restrict the maximum block timeout to 10 second to avoid
-        // blocking the connection for too long in the case of reconnections
-        // reference: https://github.com/taskforcesh/bullmq/issues/1658
-        return Math.min(blockDelay / 1000, maximumBlockTimeout);
+        // The limit belongs to the backend: Redis must not block for long,
+        // while PostgreSQL's LISTEN-based wait can.
+        return Math.min(blockDelay / 1000, this.maximumBlockTimeout);
       }
     } else {
       return Math.max(opts.drainDelay, this.minimumBlockTimeout);

@@ -107,6 +107,15 @@ export interface IQueueBackend {
   readonly minimumBlockTimeout: number;
 
   /**
+   * Longest block timeout (in seconds) supported by the backend's blocking
+   * primitive. Used by workers to bound `waitForJob` when the next delayed job
+   * is due further away than this.
+   *
+   * Optional: backends that do not set it fall back to 10 seconds.
+   */
+  readonly maximumBlockTimeout?: number;
+
+  /**
    * Subscribes to normalized backend lifecycle events (`'ready'`, `'error'`,
    * `'close'`), derived from the underlying connection(s).
    */
