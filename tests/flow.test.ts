@@ -1670,6 +1670,8 @@ describe('flows', () => {
         await worker.close();
         await grandchildrenWorker.close();
         await queueEvents.close();
+        await cleanupQueue(childrenQueueName);
+        await cleanupQueue(grandchildrenQueueName);
       });
     });
   });
@@ -1748,14 +1750,18 @@ describe('flows', () => {
         },
       ]);
 
-      const failed = new Promise<void>(resolve => {
+      const failed = new Promise<void>((resolve, reject) => {
         queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
           if (jobId === 'second') {
-            expect(prev).toBe('active');
-            const ttl = await queue.getRateLimitTtl();
-            expect(ttl).toBe(0);
-            expect(Date.now() - startTime).toBeLessThanOrEqual(5000);
-            resolve();
+            try {
+              expect(prev).toBe('active');
+              const ttl = await queue.getRateLimitTtl();
+              expect(ttl).toBe(-2);
+              expect(Date.now() - startTime).toBeLessThanOrEqual(5000);
+              resolve();
+            } catch (error) {
+              reject(error);
+            }
           }
         });
       });
@@ -1766,8 +1772,8 @@ describe('flows', () => {
       await worker.close();
       await childrenWorker.close();
       await childrenQueue.close();
-      await cleanupQueue(childrenQueueName);
       await queueEvents.close();
+      await cleanupQueue(childrenQueueName);
     });
   });
 
