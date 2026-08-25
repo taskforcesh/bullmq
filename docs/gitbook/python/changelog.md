@@ -1,3 +1,10 @@
+## [3.0.5](https://github.com/taskforcesh/bullmq/compare/vpy3.0.4...vpy3.0.5) (2026-08-25)
+
+
+### Bug Fixes
+
+* **worker:** store failed reason without extra JSON encoding [python] ([#4615](https://github.com/taskforcesh/bullmq/issues/4615)) fixes [#4596](https://github.com/taskforcesh/bullmq/issues/4596) ([57b6b43](https://github.com/taskforcesh/bullmq/commit/57b6b4362d5f967813f713f6651f414ffa1416d4))
+
 ## [3.0.4](https://github.com/taskforcesh/bullmq/compare/vpy3.0.3...vpy3.0.4) (2026-08-05)
 
 
