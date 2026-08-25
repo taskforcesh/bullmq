@@ -1,3 +1,10 @@
+## [6.2.1](https://github.com/taskforcesh/bullmq/compare/v6.2.0...v6.2.1) (2026-08-25)
+
+
+### Bug Fixes
+
+* **stalled:** provide right key values in move_stalled_jobs_to_wait ([#4589](https://github.com/taskforcesh/bullmq/issues/4589)) ([ec1c812](https://github.com/taskforcesh/bullmq/commit/ec1c812ab2d365354d332fa6769fa4e277771f62))
+
 # [6.2.0](https://github.com/taskforcesh/bullmq/compare/v6.1.2...v6.2.0) (2026-08-21)
 
 
