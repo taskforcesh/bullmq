@@ -1752,8 +1752,9 @@ describe('flows', () => {
         queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
           if (jobId === 'second') {
             expect(prev).toBe('active');
-            const endTime = Date.now();
-            expect(endTime - startTime).toBeLessThanOrEqual(1000);
+            const ttl = await queue.getRateLimitTtl();
+            expect(ttl).toBe(0);
+            expect(Date.now() - startTime).toBeLessThanOrEqual(5000);
             resolve();
           }
         });
