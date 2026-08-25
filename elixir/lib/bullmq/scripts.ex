@@ -1411,13 +1411,14 @@ defmodule BullMQ.Scripts do
     ]
 
     timestamp = Keyword.get(opts, :timestamp, System.system_time(:millisecond))
-    max_check_time = Keyword.get(opts, :max_check_time, 30_000)
+    max_check_time =
+      Keyword.get(opts, :stalled_interval, Keyword.get(opts, :max_check_time, 30_000))
 
     args = [
       # ARGV[1] max stalled count
       max_stalled_count,
-      # ARGV[2] queue.toKey('') — prefix:queueName with trailing colon
-      Keys.key(ctx) <> ":",
+      # ARGV[2] prefix:queueName: (trailing colon — used to build jobKey directly)
+      Keys.key_prefix(ctx),
       # ARGV[3] timestamp
       timestamp,
       # ARGV[4] max check time
