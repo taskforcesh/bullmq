@@ -138,7 +138,7 @@ defmodule BullMQ.Worker do
                    doc: "Interval in ms to check for stalled jobs."
                  ],
                  max_stalled_count: [
-                   type: :pos_integer,
+                   type: :non_neg_integer,
                    default: @default_max_stalled_count,
                    doc: "Max times a job can stall before being moved to failed."
                  ],
@@ -235,6 +235,7 @@ defmodule BullMQ.Worker do
           worker_pids: map(),
           in_flight_workers: MapSet.t(pid()),
           cancellation_tokens: map(),
+          lock_lost_jobs: MapSet.t(String.t()),
           keys: Keys.queue_context(),
           token: String.t(),
           stalled_timer: reference() | nil,
@@ -285,6 +286,9 @@ defmodule BullMQ.Worker do
     worker_pids: %{},
     in_flight_workers: MapSet.new(),
     cancellation_tokens: %{},
+    # Jobs whose lock was lost while their processor is still running.
+    # The stalled checker owns recovery for these jobs.
+    lock_lost_jobs: MapSet.new(),
     processor_supports_cancellation: false,
     # Track if we're currently doing a blocking wait for jobs
     waiting_for_jobs: false,
@@ -1135,13 +1139,25 @@ defmodule BullMQ.Worker do
   end
 
   def handle_info(:check_stalled, state) do
-    # Run stalled job check
+    # Run stalled job check in a separate process (so it doesn't block the
+    # GenServer) but report the outcome back so on_stalled/on_failed fire.
+    # Previously the result was discarded entirely, so jobs that the sweep
+    # permanently failed (stall count > max_stalled_count) never triggered
+    # on_failed, and jobs merely requeued never triggered on_stalled.
+    coordinator = self()
+
     spawn(fn ->
-      Backend.move_stalled_jobs_to_wait(
-        state.backend,
-        state.max_stalled_count,
-        []
-      )
+      case Backend.move_stalled_jobs_to_wait(
+             state.backend,
+             state.max_stalled_count,
+             stalled_interval: state.stalled_interval
+           ) do
+        {:ok, result} ->
+          send(coordinator, {:stalled_check_result, result})
+
+        {:error, reason} ->
+          Logger.error("[BullMQ.Worker] Stalled job check failed: #{inspect(reason)}")
+      end
     end)
 
     # Schedule next check
@@ -1149,9 +1165,45 @@ defmodule BullMQ.Worker do
     {:noreply, %{state | stalled_timer: stalled_timer}}
   end
 
+  # Handles the outcome of a stalled-job sweep and fires the corresponding
+  # event callbacks.
+  #
+  # `result` is whatever the backend returns from `move_stalled_jobs_to_wait/3`.
+  # For Redis (moveStalledJobsToWait-9.lua) this is a single list of stalled job ids.
+  # Jobs that exceed `max_stalled_count` are *marked* with a deferred failure reason
+  # (`defa`) and will fail on their next pickup rather than being returned separately here.
+  # If an adapter returns a different shape, adjust `normalize_stalled_result/1` accordingly.
+  def handle_info({:stalled_check_result, result}, state) do
+    {failed_ids, stalled_ids} = normalize_stalled_result(result)
+
+    Enum.each(stalled_ids, fn job_id ->
+      emit_event(state.on_stalled, [job_id])
+    end)
+
+    Enum.each(failed_ids, fn job_id ->
+      reason = "job stalled more than allowable limit"
+
+      case fetch_job_for_event(state, job_id) do
+        {:ok, job} ->
+          updated_job = %{job | attempts_made: job.attempts_made + 1, failed_reason: reason}
+          emit_event(state.on_failed, [updated_job, reason])
+
+        :error ->
+          Logger.warning(
+            "[BullMQ.Worker] Job #{job_id} was failed by the stalled checker but could " <>
+              "not be reloaded to emit on_failed"
+          )
+      end
+    end)
+
+    {:noreply, state}
+  end
+
   def handle_info({:cancel_jobs_lock_lost, job_ids}, state) do
-    # Cancel jobs whose locks failed to renew
-    # This prevents duplicate processing if another worker picks up the job
+    # The LockManager reports jobs whose lock could not be renewed. Record the
+    # loss independently of cancellation-token support because arity-1
+    # processors cannot be cancelled. The stalled checker remains responsible
+    # for recovering the Redis job.
     Enum.each(job_ids, fn job_id ->
       case Map.get(state.cancellation_tokens, job_id) do
         nil ->
@@ -1164,7 +1216,26 @@ defmodule BullMQ.Worker do
           CancellationToken.cancel(processor_pid, token, {:lock_lost, job_id})
       end
 
-      # Call the user's on_lock_renewal_failed callback if provided (regardless of token)
+      # Notify the autonomous worker directly when we know which process owns
+      # the job. This is needed for processors that do not accept a cancellation token.
+      Enum.each(state.worker_pids, fn {worker_pid, active_job_id} ->
+        if active_job_id == job_id and Process.alive?(worker_pid) do
+          send(worker_pid, {:job_lock_lost, job_id})
+        end
+      end)
+
+      if state.max_stalled_count == 0 do
+        # Run recovery promptly. Cancel the currently scheduled check first
+        # so lock-loss recovery does not accumulate stalled-check timers.
+        if state.stalled_timer do
+          Process.cancel_timer(state.stalled_timer)
+        end
+
+        send(self(), :check_stalled)
+      end
+    end)
+
+    Enum.each(job_ids, fn job_id ->
       if state.on_lock_renewal_failed do
         try do
           state.on_lock_renewal_failed.([job_id])
@@ -1227,6 +1298,61 @@ defmodule BullMQ.Worker do
     end
   end
 
+  # Normalizes the return of `Backend.move_stalled_jobs_to_wait/3` into
+  # `{failed_job_ids, stalled_job_ids}`, mirroring the Node.js Lua script's
+  # `[failed, stalled]` result shape. Extend this to match your adapter's
+  # actual return value if it differs (e.g. a map with `:failed`/`:stalled`
+  # keys instead of a positional pair).
+  defp normalize_stalled_result({failed, stalled})
+       when is_list(failed) and is_list(stalled) do
+    {failed, stalled}
+  end
+
+  defp normalize_stalled_result([failed, stalled])
+       when is_list(failed) and is_list(stalled) do
+    {failed, stalled}
+  end
+
+  defp normalize_stalled_result(%{failed: failed, stalled: stalled}) do
+    {failed || [], stalled || []}
+  end
+
+  defp normalize_stalled_result(_other), do: {[], []}
+
+  # Reloads a job by id so the `on_failed` callback receives a real
+  # `Job.t()` rather than a bare id. Adjust the pattern match(es) here if
+  # `Backend.get_job_data/2` returns a different shape for your adapter
+  # (this assumes the same flat `[key, value, ...]` list format used
+  # elsewhere in this module via `list_to_job_map/1`).
+  defp fetch_job_for_event(state, job_id) do
+    case Backend.get_job_data(state.backend, job_id) do
+      {:ok, job_data} when is_list(job_data) and job_data != [] ->
+        job_map = list_to_job_map(job_data)
+
+        {:ok,
+         Job.from_redis(job_id, state.queue_name, job_map,
+           prefix: state.prefix,
+           token: "",
+           connection: state.connection,
+           backend: backend_module(state),
+           worker: self()
+         )}
+
+      {:ok, job_map} when is_map(job_map) and map_size(job_map) > 0 ->
+        {:ok,
+         Job.from_redis(job_id, state.queue_name, job_map,
+           prefix: state.prefix,
+           token: "",
+           connection: state.connection,
+           backend: backend_module(state),
+           worker: self()
+         )}
+
+      _ ->
+        :error
+    end
+  end
+
   defp worker_client_name(state) do
     case state.name do
       nil -> "#{state.prefix}:#{state.queue_name}"
@@ -1255,6 +1381,7 @@ defmodule BullMQ.Worker do
       processor: state.processor,
       processor_supports_cancellation: state.processor_supports_cancellation,
       lock_duration: state.lock_duration,
+      max_stalled_count: state.max_stalled_count,
       limiter: state.limiter,
       name: state.name,
       queue_name: state.queue_name,
@@ -1389,6 +1516,38 @@ defmodule BullMQ.Worker do
 
     # Process the job (pass the pre-created token)
     result = run_processor_sync(job, ctx, cancel_token)
+
+    # A lock can be lost while an arity-1 processor is still running. In that
+    # case there is no cancellation token to interrupt the processor. The
+    # coordinator notifies this process when the lock manager detects the loss.
+    # For max_stalled_count == 0 the stalled checker must own recovery, so do
+    # not attempt to finish the job with the expired token. For the normal
+    # default case, preserve the BullMQ behavior where the processor is allowed
+    # to finish after a stalled check.
+    job_id = job.id
+
+    lock_lost =
+      receive do
+        {:job_lock_lost, ^job_id} ->
+          true
+      after
+        0 ->
+          false
+      end
+
+    # NOTE: previously this only fired when `ctx.max_stalled_count == 0`.
+    # That left the default (max_stalled_count > 0) case trying to finish the
+    # job with a token the stalled checker had already invalidated, which the
+    # backend rejects — leaving the job stuck in whatever state stalled
+    # recovery put it in instead of being cleanly reprocessed. The stalled
+    # checker owns recovery for a lost lock regardless of max_stalled_count,
+    # so bail out here unconditionally and let the worker fetch its next job.
+    result =
+      if lock_lost do
+        {:lock_lost, job.id}
+      else
+        result
+      end
 
     # Handle result and get next job
     case handle_job_result(job, result, ctx) do
@@ -1533,6 +1692,10 @@ defmodule BullMQ.Worker do
 
             {:continue, next_job}
 
+          {:error, reason} ->
+            error_msg = if is_binary(reason), do: reason, else: inspect(reason)
+            handle_job_result(job, {:error, error_msg, []}, ctx)
+
           _ ->
             # Emit on_completed callback even when no next job
             updated_job = %{job | attempts_made: job.attempts_made + 1}
@@ -1540,6 +1703,12 @@ defmodule BullMQ.Worker do
             :stop
         end
     end
+  end
+
+  # A lock-lost job must not be completed with an expired lock. The stalled
+  # checker will move it back to wait or mark it for deferred failure.
+  defp handle_job_result(_job, {:lock_lost, _job_id}, _ctx) do
+    :stop
   end
 
   # A deferred/unrecoverable failure must move the job straight to failed,
@@ -1613,6 +1782,19 @@ defmodule BullMQ.Worker do
           )
 
         {:continue, next_job}
+
+      {:error, reason} ->
+        # The backend rejected the mutation — most commonly because this
+        # token no longer owns the job's lock (stalled-recovery already
+        # reclaimed it). Don't emit on_failed: we didn't actually fail the
+        # job in Redis, so firing the callback would report something that
+        # never happened. Just stop; whoever now owns the job is responsible
+        # for it.
+        Logger.warning(
+          "[BullMQ.Worker] move_to_failed rejected for job #{job.id}: #{inspect(reason)}"
+        )
+
+        :stop
 
       _ ->
         # Emit on_failed callback even when no next job
@@ -1950,38 +2132,44 @@ defmodule BullMQ.Worker do
           )
       end
 
-    # Determine if this was a "soft" return (not a real completion)
-    is_soft_return =
-      match?({:delay, _}, return_value) or
-        match?({:rate_limit, _}, return_value) or
-        return_value == :waiting or
-        return_value == :waiting_children
+    case next_job_result do
+      {:error, reason} ->
+        handle_job_failure(job, reason, [], state)
 
-    # Update job's attempts_made to match Redis state (incremented during moveToFinished)
-    # This mirrors TypeScript behavior where job.attemptsMade += 1 after moveToCompleted
-    updated_job =
-      if is_soft_return do
-        job
-      else
-        %{job | attempts_made: job.attempts_made + 1}
-      end
+      _ ->
+        # Determine if this was a "soft" return (not a real completion)
+        is_soft_return =
+          match?({:delay, _}, return_value) or
+            match?({:rate_limit, _}, return_value) or
+            return_value == :waiting or
+            return_value == :waiting_children
 
-    # If this was a repeatable job, schedule the next iteration (only on actual completion)
-    unless is_soft_return do
-      # Emit completed event callback (soft returns are not completions)
-      emit_event(state.on_completed, [updated_job, return_value])
+        # Update job's attempts_made to match Redis state (incremented during moveToFinished)
+        # This mirrors TypeScript behavior where job.attemptsMade += 1 after moveToCompleted
+        updated_job =
+          if is_soft_return do
+            job
+          else
+            %{job | attempts_made: job.attempts_made + 1}
+          end
+
+        # If this was a repeatable job, schedule the next iteration (only on actual completion)
+        unless is_soft_return do
+          # Emit completed event callback (soft returns are not completions)
+          emit_event(state.on_completed, [updated_job, return_value])
+        end
+
+        # Untrack job from LockManager
+        if state.lock_manager do
+          LockManager.untrack_job(state.lock_manager, job.id)
+        end
+
+        # Remove completed job from active jobs and clean up cancellation token
+        new_state = cleanup_job_resources(job.id, state)
+
+        # Handle next job from moveToFinished result
+        handle_next_job_or_fetch(next_job_result, new_state)
     end
-
-    # Untrack job from LockManager
-    if state.lock_manager do
-      LockManager.untrack_job(state.lock_manager, job.id)
-    end
-
-    # Remove completed job from active jobs and clean up cancellation token
-    new_state = cleanup_job_resources(job.id, state)
-
-    # Handle next job from moveToFinished result
-    handle_next_job_or_fetch(next_job_result, new_state)
   end
 
   # Handle the result from moveToFinished which may contain the next job
@@ -2292,7 +2480,8 @@ defmodule BullMQ.Worker do
     %{
       state
       | active_jobs: Map.delete(state.active_jobs, job_id),
-        cancellation_tokens: Map.delete(state.cancellation_tokens, job_id)
+        cancellation_tokens: Map.delete(state.cancellation_tokens, job_id),
+        lock_lost_jobs: MapSet.delete(state.lock_lost_jobs, job_id)
     }
   end
 

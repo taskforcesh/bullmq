@@ -1393,7 +1393,6 @@ defmodule BullMQ.Scripts do
       Keys.stalled(ctx),
       Keys.wait(ctx),
       Keys.active(ctx),
-      Keys.failed(ctx),
       Keys.stalled_check(ctx),
       Keys.meta(ctx),
       Keys.paused(ctx),
@@ -1405,12 +1404,13 @@ defmodule BullMQ.Scripts do
     timestamp = Keyword.get(opts, :timestamp, System.system_time(:millisecond))
 
     args = [
-      # ARGV[1] prefix:queueName
-      Keys.key(ctx),
-      # ARGV[2] max stalled count
+      # ARGV[1] max stalled count
       max_stalled_count,
+      # ARGV[2] prefix:queueName: (trailing colon — used to build jobKey directly)
+      Keys.key_prefix(ctx),
       # ARGV[3] timestamp
-      timestamp
+      timestamp,
+      Keyword.get(opts, :stalled_interval, 30_000)
     ]
 
     execute(conn, :move_stalled_jobs_to_wait, keys, args)
