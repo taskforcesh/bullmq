@@ -1766,6 +1766,7 @@ describe('flows', () => {
       await worker.close();
       await childrenWorker.close();
       await childrenQueue.close();
+      await cleanupQueue(childrenQueueName);
       await queueEvents.close();
     });
   });
