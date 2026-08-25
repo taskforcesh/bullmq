@@ -380,6 +380,31 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     }
 
     await this.connecting;
+
+    // Bun may report the socket as connected before this adapter transitions
+    // to ready (for example while applying CLIENT SETNAME on duplicates).
+    // Keep connect() aligned with ioredis semantics by waiting until the
+    // adapter is either ready or closed.
+    if (!this.ready && !this.closed && !this.closing && this.raw?.connected) {
+      await new Promise<void>(resolve => {
+        const cleanup = () => {
+          this.off('ready', onDone);
+          this.off('close', onDone);
+          this.off('end', onDone);
+        };
+        const onDone = () => {
+          cleanup();
+          resolve();
+        };
+        this.on('ready', onDone);
+        this.on('close', onDone);
+        this.on('end', onDone);
+
+        if (this.ready || this.closed || this.closing || !this.raw?.connected) {
+          onDone();
+        }
+      });
+    }
   }
 
   private _closeRaw(): void {
