@@ -1,3 +1,10 @@
+## [6.2.2](https://github.com/taskforcesh/bullmq/compare/v6.2.1...v6.2.2) (2026-08-25)
+
+
+### Performance Improvements
+
+* **queue:** do not affect rate limit when processing deferred failures (python) (elixir) (rust) (dotnet) ([#4607](https://github.com/taskforcesh/bullmq/issues/4607)) ([ec4be04](https://github.com/taskforcesh/bullmq/commit/ec4be04c04725f5e341920ddef98adf7874a41d5))
+
 ## [6.2.1](https://github.com/taskforcesh/bullmq/compare/v6.2.0...v6.2.1) (2026-08-25)
 
 
