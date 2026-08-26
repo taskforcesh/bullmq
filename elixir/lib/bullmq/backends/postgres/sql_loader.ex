@@ -15,7 +15,10 @@ defmodule BullMQ.Backends.Postgres.SqlLoader do
   `:persistent_term` after the first read.
   """
 
-  @priv_dir Path.expand("../../../../priv/postgres", __DIR__)
+  # Fallback used only when developing inside the bullmq repo, where the SQL
+  # lives under `src/postgres` and may not have been copied into `priv` yet.
+  # Resolved at compile time relative to this file — acceptable because it is a
+  # dev-only fallback, never used from a packaged/released dependency.
   @src_dir Path.expand("../../../../../src/postgres", __DIR__)
 
   @doc "Loads a runtime command's SQL by name (without the `.sql` extension)."
@@ -29,10 +32,26 @@ defmodule BullMQ.Backends.Postgres.SqlLoader do
   @doc "Returns the base directory the SQL is loaded from (priv or src)."
   @spec base_dir() :: String.t()
   def base_dir do
+    priv = priv_dir()
+
     cond do
-      dir_has_sql?(Path.join(@priv_dir, "commands")) -> @priv_dir
+      priv && dir_has_sql?(Path.join(priv, "commands")) -> priv
       File.dir?(Path.join(@src_dir, "commands")) -> @src_dir
-      true -> @priv_dir
+      # Prefer the (possibly not-yet-populated) priv path for the error message;
+      # fall back to src only when priv can't be resolved at all.
+      priv -> priv
+      true -> @src_dir
+    end
+  end
+
+  # Resolve `priv/postgres` at RUNTIME so it works inside a Mix release (where the
+  # app lives under `.../lib/bullmq-<vsn>/priv`) as well as in dev/test. Using a
+  # compile-time `__DIR__` path fails in releases because the original build
+  # directory (e.g. `/build/.../deps/bullmq`) no longer exists at runtime.
+  defp priv_dir do
+    case :code.priv_dir(:bullmq) do
+      {:error, _} -> nil
+      dir -> Path.join(to_string(dir), "postgres")
     end
   end
 
