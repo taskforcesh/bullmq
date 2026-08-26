@@ -164,7 +164,8 @@ defmodule BullMQ.Backends.Postgres.Connection do
             ssl
         end
 
-      :error -> ssl_from_url(url)
+      :error ->
+        ssl_from_url(url)
     end
   end
 
