@@ -18,6 +18,11 @@ defmodule BullMQ.Backends.Postgres.Connection do
     * `:hostname`/`:port`/`:database`/`:username`/`:password` — discrete opts.
     * `:schema` — the namespace for all queues (default `"bullmq"`).
     * `:pool_size` — pool size (default `10`).
+    * `:ssl` — SSL options forwarded to `Postgrex`. Accepts `true`, `false`, or a
+      keyword list such as `[verify: :verify_none]` or
+      `[verify: :verify_peer, cacertfile: "…"]`. When omitted, `sslmode=require`
+      in the `:url` enables SSL with `verify: :verify_none`. The `verify-ca` and
+      `verify-full` modes require explicit `:ssl` certificate verification options.
     * `:skip_version_check` — bypass the minimum-server-version assertion.
     * `:skip_migrations` — do not run migrations (assume already applied).
   """
@@ -108,9 +113,13 @@ defmodule BullMQ.Backends.Postgres.Connection do
   defp notif_name(name), do: :"#{name}_pg_notifications"
 
   # -- opts building --
-  defp build_postgrex_opts(opts, schema) do
+  @doc false
+  # Exposed for testing; builds the keyword list passed to Postgrex.
+  def build_postgrex_opts(opts, schema) do
+    url = Keyword.get(opts, :url)
+
     base =
-      case Keyword.get(opts, :url) do
+      case url do
         nil ->
           [
             hostname: Keyword.get(opts, :hostname, "localhost"),
@@ -134,8 +143,58 @@ defmodule BullMQ.Backends.Postgres.Connection do
         Postgrex.query!(conn, "SET search_path TO #{quoted}", [])
       end
     )
+    |> put_ssl(resolve_ssl(opts, url))
     |> Enum.reject(fn {_k, v} -> is_nil(v) end)
   end
+
+  # Explicit `:ssl` wins; otherwise fall back to the URL's `sslmode`.
+  defp resolve_ssl(opts, url) do
+    case Keyword.fetch(opts, :ssl) do
+      {:ok, ssl} ->
+        case sslmode_from_url(url) do
+          mode when mode in ["verify-ca", "verify-full"] ->
+            unless Keyword.keyword?(ssl) and Keyword.get(ssl, :verify) == :verify_peer do
+              raise ArgumentError,
+                    "sslmode=#{mode} requires explicit :ssl options with verify: :verify_peer"
+            end
+
+            ssl
+
+          _ ->
+            ssl
+        end
+
+      :error ->
+        ssl_from_url(url)
+    end
+  end
+
+  defp ssl_from_url(nil), do: nil
+
+  defp ssl_from_url(url) do
+    case sslmode_from_url(url) do
+      "require" ->
+        [verify: :verify_none]
+
+      mode when mode in ["verify-ca", "verify-full"] ->
+        raise ArgumentError,
+              "sslmode=#{mode} requires explicit :ssl options with verify: :verify_peer"
+
+      _ ->
+        nil
+    end
+  end
+
+  defp sslmode_from_url(nil), do: nil
+
+  defp sslmode_from_url(url) do
+    query = URI.parse(url).query
+    is_binary(query) && URI.decode_query(query)["sslmode"]
+  end
+
+  # nil means "not configured" — leave Postgrex opts untouched (no SSL).
+  defp put_ssl(pg_opts, nil), do: pg_opts
+  defp put_ssl(pg_opts, ssl), do: Keyword.put(pg_opts, :ssl, ssl)
 
   defp parse_url(url) do
     uri = URI.parse(url)
