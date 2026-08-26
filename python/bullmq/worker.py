@@ -5,7 +5,7 @@ from redis.exceptions import (
     ConnectionError as RedisConnectionError,
     TimeoutError as RedisTimeoutError,
 )
-from bullmq.custom_errors import UnrecoverableError, WaitingChildrenError
+from bullmq.custom_errors import DelayedError, UnrecoverableError, WaitingChildrenError
 from bullmq.backends import RedisBackend, create_backend
 from bullmq.event_emitter import EventEmitter
 from bullmq.job import Job
@@ -419,7 +419,7 @@ class Worker(EventEmitter):
                 job.returnvalue = result
                 job.attemptsMade = job.attemptsMade + 1
             self.emit("completed", job, result)
-        except WaitingChildrenError:
+        except (DelayedError, WaitingChildrenError):
             return
         except Exception as err:
             try:
