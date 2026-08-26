@@ -20,10 +20,9 @@ defmodule BullMQ.Backends.Postgres.Connection do
     * `:pool_size` — pool size (default `10`).
     * `:ssl` — SSL options forwarded to `Postgrex`. Accepts `true`, `false`, or a
       keyword list such as `[verify: :verify_none]` or
-      `[verify: :verify_peer, cacertfile: "…"]`. Required when the server enforces
-      SSL (e.g. AWS RDS with `rds.force_ssl=1`). When omitted, an `sslmode` in the
-      `:url` query (`require`/`verify-ca`/`verify-full`) enables SSL with
-      `verify: :verify_none`; pass `:ssl` explicitly for certificate verification.
+      `[verify: :verify_peer, cacertfile: "…"]`. When omitted, `sslmode=require`
+      in the `:url` enables SSL with `verify: :verify_none`. The `verify-ca` and
+      `verify-full` modes require explicit `:ssl` certificate verification options.
     * `:skip_version_check` — bypass the minimum-server-version assertion.
     * `:skip_migrations` — do not run migrations (assume already applied).
   """
@@ -151,7 +150,20 @@ defmodule BullMQ.Backends.Postgres.Connection do
   # Explicit `:ssl` wins; otherwise fall back to the URL's `sslmode`.
   defp resolve_ssl(opts, url) do
     case Keyword.fetch(opts, :ssl) do
-      {:ok, ssl} -> ssl
+      {:ok, ssl} ->
+        case sslmode_from_url(url) do
+          mode when mode in ["verify-ca", "verify-full"] ->
+            unless Keyword.keyword?(ssl) and Keyword.get(ssl, :verify) == :verify_peer do
+              raise ArgumentError,
+                    "sslmode=#{mode} requires explicit :ssl options with verify: :verify_peer"
+            end
+
+            ssl
+
+          _ ->
+            ssl
+        end
+
       :error -> ssl_from_url(url)
     end
   end
@@ -159,15 +171,24 @@ defmodule BullMQ.Backends.Postgres.Connection do
   defp ssl_from_url(nil), do: nil
 
   defp ssl_from_url(url) do
-    with query when is_binary(query) <- URI.parse(url).query,
-         mode when mode in ["require", "verify-ca", "verify-full"] <-
-           URI.decode_query(query)["sslmode"] do
-      # Encrypt the connection. Certificate verification requires a cacertfile,
-      # so URL-driven SSL uses verify_none; pass `:ssl` explicitly to verify.
-      [verify: :verify_none]
-    else
-      _ -> nil
+    case sslmode_from_url(url) do
+      "require" ->
+        [verify: :verify_none]
+
+      mode when mode in ["verify-ca", "verify-full"] ->
+        raise ArgumentError,
+              "sslmode=#{mode} requires explicit :ssl options with verify: :verify_peer"
+
+      _ ->
+        nil
     end
+  end
+
+  defp sslmode_from_url(nil), do: nil
+
+  defp sslmode_from_url(url) do
+    query = URI.parse(url).query
+    is_binary(query) && URI.decode_query(query)["sslmode"]
   end
 
   # nil means "not configured" — leave Postgrex opts untouched (no SSL).

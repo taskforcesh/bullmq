@@ -46,8 +46,8 @@ defmodule BullMQ.Backends.Postgres.ConnectionTest do
       assert Keyword.get(opts, :ssl) == [verify: :verify_none]
     end
 
-    test "derives SSL from the URL sslmode when :ssl is not given" do
-      for mode <- ["require", "verify-ca", "verify-full"] do
+    test "derives SSL from URL sslmode=require when :ssl is not given" do
+      for mode <- ["require"] do
         opts =
           Connection.build_postgrex_opts(
             [url: "postgres://u:p@host:5432/db?sslmode=#{mode}"],
@@ -57,6 +57,42 @@ defmodule BullMQ.Backends.Postgres.ConnectionTest do
         assert Keyword.get(opts, :ssl) == [verify: :verify_none],
                "expected sslmode=#{mode} to enable SSL"
       end
+    end
+
+    test "requires explicit :ssl options for URL certificate verification modes" do
+      for mode <- ["verify-ca", "verify-full"] do
+        assert_raise ArgumentError,
+                     "sslmode=#{mode} requires explicit :ssl options with verify: :verify_peer",
+                     fn ->
+                       Connection.build_postgrex_opts(
+                         [url: "postgres://host:5432/db?sslmode=#{mode}"],
+                         "bullmq"
+                       )
+                     end
+      end
+    end
+
+    test "accepts verification modes with explicit certificate verification options" do
+      ssl = [verify: :verify_peer, cacertfile: "/path/to/ca.pem"]
+
+      opts =
+        Connection.build_postgrex_opts(
+          [url: "postgres://host:5432/db?sslmode=verify-full", ssl: ssl],
+          "bullmq"
+        )
+
+      assert Keyword.get(opts, :ssl) == ssl
+    end
+
+    test "rejects verification modes with explicit non-verifying SSL options" do
+      assert_raise ArgumentError,
+                   "sslmode=verify-ca requires explicit :ssl options with verify: :verify_peer",
+                   fn ->
+                     Connection.build_postgrex_opts(
+                       [url: "postgres://host:5432/db?sslmode=verify-ca", ssl: true],
+                       "bullmq"
+                     )
+                   end
     end
 
     test "does not enable SSL for sslmode=disable" do
