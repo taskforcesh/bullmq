@@ -1,3 +1,10 @@
+# [6.3.0](https://github.com/taskforcesh/bullmq/compare/v6.2.2...v6.3.0) (2026-08-26)
+
+
+### Features
+
+* **postgres:** forward :ssl option to Postgrex connection ([#4631](https://github.com/taskforcesh/bullmq/issues/4631)) (elixir) ([bb569b8](https://github.com/taskforcesh/bullmq/commit/bb569b824154028c4d76aba86c0cfb0986928f3d))
+
 ## [6.2.2](https://github.com/taskforcesh/bullmq/compare/v6.2.1...v6.2.2) (2026-08-25)
 
 
