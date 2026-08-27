@@ -153,7 +153,7 @@ export class FlowProducer extends EventEmitter {
     }
   }
 
-  protected createScripts(queue: MinimalQueue) {
+  protected createScripts(queue: MinimalQueue): Scripts {
     // Reuse the queue's long-lived Scripts instance. It is bound to the same
     // queue keys and connection, so a per-Job instance is pure duplication.
     // The built-in Queue, Worker and FlowProducer always provide one; the
