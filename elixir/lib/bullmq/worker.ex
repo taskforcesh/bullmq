@@ -1360,6 +1360,15 @@ defmodule BullMQ.Worker do
     end
   end
 
+  # The worker's registration `name` is an atom (or nil). It is also forwarded to
+  # the backend as data (e.g. the Postgres `application_name` and `move_to_active`
+  # parameters), which must be a binary — passing a raw atom raises a
+  # `DBConnection.EncodeError` on the Postgres backend. Coerce to a string so both
+  # the Redis and Postgres backends accept it.
+  defp name_as_string(nil), do: nil
+  defp name_as_string(name) when is_binary(name), do: name
+  defp name_as_string(name), do: to_string(name)
+
   @impl true
   def terminate(_reason, state) do
     cleanup(state)
@@ -1383,7 +1392,7 @@ defmodule BullMQ.Worker do
       lock_duration: state.lock_duration,
       max_stalled_count: state.max_stalled_count,
       limiter: state.limiter,
-      name: state.name,
+      name: name_as_string(state.name),
       queue_name: state.queue_name,
       prefix: state.prefix,
       telemetry: state.telemetry,
@@ -1469,7 +1478,7 @@ defmodule BullMQ.Worker do
     opts = [
       lock_duration: ctx.lock_duration,
       limiter: ctx.limiter,
-      name: ctx.name && Atom.to_string(ctx.name)
+      name: name_as_string(ctx.name)
     ]
 
     case Backend.move_to_active(ctx.backend, ctx.token, opts) do
@@ -1816,7 +1825,7 @@ defmodule BullMQ.Worker do
     [
       lock_duration: ctx.lock_duration,
       fetch_next: true,
-      name: ctx.name,
+      name: name_as_string(ctx.name),
       attempts: get_job_opt(job, :attempts, "attempts", 0),
       limiter: ctx.limiter,
       remove_on_complete: ctx.remove_on_complete,
@@ -1837,7 +1846,7 @@ defmodule BullMQ.Worker do
     script_opts = [
       lock_duration: state.lock_duration,
       limiter: state.limiter,
-      name: state.name && Atom.to_string(state.name)
+      name: name_as_string(state.name)
     ]
 
     case Backend.move_to_active(state.backend, token, script_opts) do
@@ -2437,7 +2446,7 @@ defmodule BullMQ.Worker do
     [
       lock_duration: state.lock_duration,
       fetch_next: true,
-      name: state.name,
+      name: name_as_string(state.name),
       attempts: get_job_opt(job, :attempts, "attempts", 0),
       limiter: state.limiter,
       remove_on_complete: state.remove_on_complete || %{"count" => -1},
