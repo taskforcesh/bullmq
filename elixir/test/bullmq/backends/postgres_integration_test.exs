@@ -115,8 +115,12 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
 
   defp eventually(fun, retries \\ 50, sleep_ms \\ 100) do
     cond do
-      fun.() -> true
-      retries <= 0 -> false
+      fun.() ->
+        true
+
+      retries <= 0 ->
+        false
+
       true ->
         Process.sleep(sleep_ms)
         eventually(fun, retries - 1, sleep_ms)
