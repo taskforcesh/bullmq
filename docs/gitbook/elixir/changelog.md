@@ -1,3 +1,10 @@
+## [2.2.2](https://github.com/taskforcesh/bullmq/compare/vex2.2.1...vex2.2.2) (2026-08-27)
+
+
+### Bug Fixes
+
+* **worker:** coerce worker name to string before backend calls [elixir] ([#4643](https://github.com/taskforcesh/bullmq/issues/4643)) ([61a7cc5](https://github.com/taskforcesh/bullmq/commit/61a7cc570a14c1164a74ca5fbf93547595f69820))
+
 ## [2.2.1](https://github.com/taskforcesh/bullmq/compare/vex2.2.0...vex2.2.1) (2026-08-27)
 
 

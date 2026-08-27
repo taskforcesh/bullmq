@@ -1,7 +1,7 @@
 defmodule BullMQ.MixProject do
   use Mix.Project
 
-  @version "2.2.1"
+  @version "2.2.2"
   @source_url "https://github.com/taskforcesh/bullmq"
   @description "A powerful, fast, and robust job queue for Elixir backed by Redis"
 
