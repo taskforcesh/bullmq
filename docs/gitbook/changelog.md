@@ -1,3 +1,10 @@
+## [6.3.1](https://github.com/taskforcesh/bullmq/compare/v6.3.0...v6.3.1) (2026-08-27)
+
+
+### Bug Fixes
+
+* **postgres:** resolve priv SQL dir at runtime for Mix releases ([#4636](https://github.com/taskforcesh/bullmq/issues/4636)) ([9d737e9](https://github.com/taskforcesh/bullmq/commit/9d737e9d0e467eeacf6f6a43f3f806fa2873ee1b))
+
 # [6.3.0](https://github.com/taskforcesh/bullmq/compare/v6.2.2...v6.3.0) (2026-08-26)
 
 
