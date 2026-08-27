@@ -153,6 +153,15 @@ export class FlowProducer extends EventEmitter {
     }
   }
 
+  protected createScripts(queue: MinimalQueue) {
+    // Reuse the queue's long-lived Scripts instance. It is bound to the same
+    // queue keys and connection, so a per-Job instance is pure duplication.
+    // The built-in Queue, Worker and FlowProducer always provide one; the
+    // fallback only covers custom queue-like objects that don't carry a
+    // Scripts instance.
+    return queue.scripts ?? createScripts(queue);
+  }
+
   emit<U extends keyof FlowProducerListener>(
     event: U,
     ...args: Parameters<FlowProducerListener[U]>
@@ -631,7 +640,7 @@ export class FlowProducer extends EventEmitter {
     // Build the shared Scripts instance once per queue so that every job
     // created from this queue-like object reuses it instead of allocating
     // its own.
-    queue.scripts = createScripts(queue);
+    queue.scripts = this.createScripts(queue);
     this.queues.set(cacheKey, queue);
 
     return queue;
