@@ -1,3 +1,10 @@
+# [2.2.0](https://github.com/taskforcesh/bullmq/compare/vex2.1.3...vex2.2.0) (2026-08-26)
+
+
+### Features
+
+* **postgres:** forward :ssl option to Postgrex connection ([#4631](https://github.com/taskforcesh/bullmq/issues/4631)) (elixir) ([bb569b8](https://github.com/taskforcesh/bullmq/commit/bb569b824154028c4d76aba86c0cfb0986928f3d))
+
 ## [2.1.3](https://github.com/taskforcesh/bullmq/compare/vex2.1.2...vex2.1.3) (2026-08-25)
 
 
