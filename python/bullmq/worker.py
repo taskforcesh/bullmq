@@ -23,7 +23,9 @@ import traceback
 import time
 import math
 
-maximum_block_timeout = 10
+# Default ceiling (in seconds) used when a backend does not delegate its own
+# `maximumBlockTimeout`. 10 seconds is the maximum time a BZPOPMIN can block.
+default_maximum_block_timeout = 10
 # 1 millisecond is chosen because the granularity of our timestamps are milliseconds.
 # Obviously we can still process much faster than 1 job per millisecond but delays and
 # rate limits will never work with more accuracy than 1ms.
@@ -378,16 +380,28 @@ class Worker(EventEmitter):
                 return self.minimumBlockTimeout
             else:
                 block_timeout = block_delay / 1000
-            # We restrict the maximum block timeout to 10 second to avoid
-            # blocking the connection for too long in the case of reconnections
-            # reference: https://github.com/taskforcesh/bullmq/issues/1658
-            return min(block_timeout, maximum_block_timeout)
+            # We restrict the maximum block timeout to avoid blocking the
+            # connection for too long in the case of reconnections. The ceiling
+            # is backend-specific: Redis caps it at 10s (see #1658), whereas a
+            # backend that keeps the connection open and re-arms to the next due
+            # job can allow a much larger value so an idle worker stops
+            # re-polling.
+            return min(block_timeout, self.maximumBlockTimeout)
         else:
             return max(self.opts.get("drainDelay", 5), self.minimumBlockTimeout)
 
     @property
     def minimumBlockTimeout(self):
         return self.backend.minimumBlockTimeout
+
+    @property
+    def maximumBlockTimeout(self):
+        backend_maximum = getattr(self.backend, "maximumBlockTimeout", None)
+        return (
+            backend_maximum
+            if backend_maximum is not None
+            else default_maximum_block_timeout
+        )
 
     async def processJob(self, job: Job, token: str):
         try:

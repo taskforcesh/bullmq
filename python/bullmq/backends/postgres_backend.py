@@ -260,6 +260,16 @@ class PostgresBackend(Backend):
         return minimum_block_timeout
 
     @property
+    def maximumBlockTimeout(self) -> float:
+        # PostgreSQL LISTEN/NOTIFY keeps the connection open and re-arms the
+        # wait to the next due delayed job, so there is no cheap-reconnect
+        # reason to cap the block at 10s like Redis. A large ceiling lets an
+        # idle worker go quiet instead of re-polling every 10s (important for
+        # serverless Postgres that suspends when idle). 3600s stays well under
+        # the timer ceiling that a larger delay would overflow.
+        return 3600
+
+    @property
     def capabilities(self) -> dict:
         return _CAPABILITIES
 

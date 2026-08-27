@@ -310,6 +310,19 @@ export class PostgresQueueBackend
       this.connection.on('error', err => this.emit('error', err));
       this.connection.on('ready', () => this.emit('ready'));
       this.connection.on('close', () => this.emit('close'));
+
+      // When the shared LISTEN client drops, the connection rebuilds it and
+      // emits `'listenerinvalidated'`. Re-issue our LISTENs on the fresh client
+      // and wake any in-flight wait (parked on the now-dead client) so the
+      // worker loop re-enters waitForJob/readEvents and re-subscribes. Only the
+      // connection-owning backend blocks (and thus LISTENs); non-owning
+      // `forQueue` siblings never do.
+      this.connection.on('listenerinvalidated', () => {
+        this.listening = false;
+        this.listeningEvents = false;
+        this.cancelWait?.();
+        this.cancelEventWait?.();
+      });
     }
   }
 
@@ -384,6 +397,18 @@ export class PostgresQueueBackend
    */
   get minimumBlockTimeout(): number {
     return 0.001;
+  }
+
+  /**
+   * PostgreSQL `LISTEN`/`NOTIFY` keeps the connection open and re-arms the wait
+   * to the next due delayed job, so there is no cheap-reconnect reason to cap
+   * the block at 10s like Redis. A large ceiling lets an idle worker go quiet
+   * instead of re-polling every 10s (important for serverless Postgres that
+   * suspends when idle). 3600s stays well under the 32-bit `setTimeout` ms
+   * ceiling (~24.8 days) that a larger delay would overflow.
+   */
+  get maximumBlockTimeout(): number {
+    return 3600;
   }
 
   forQueue(queueName: string, _prefix?: string): IQueueBackend {

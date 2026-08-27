@@ -264,15 +264,24 @@ export class PostgresConnection extends EventEmitter {
     if (!this.listenClientPromise) {
       this.listenClientPromise = (async () => {
         if (this.pgModule && this.listenClientConfig) {
-          const client = new this.pgModule.Client(this.listenClientConfig);
+          const client = new this.pgModule.Client({
+            ...this.listenClientConfig,
+            // A LISTEN subscription is bound to one physical connection. Enable
+            // TCP keepalive so a silently dropped connection surfaces as a
+            // socket `'error'` (and is then rebuilt below) instead of going
+            // unnoticed until the next poll — which, with a large
+            // `maximumBlockTimeout`, could be up to an hour away.
+            keepAlive: true,
+            keepAliveInitialDelayMillis: 10000,
+          });
           await client.connect();
-          client.on('error', err => this.emitError(err));
+          client.on('error', err => this.handleListenClientError(client, err));
           this.listenClientIsStandalone = true;
           this.listenClient = client;
           return client;
         } else {
           const client = await this.pool.connect();
-          client.on('error', err => this.emitError(err));
+          client.on('error', err => this.handleListenClientError(client, err));
           this.listenClientIsStandalone = false;
           this.listenClient = client;
           return client;
@@ -280,6 +289,45 @@ export class PostgresConnection extends EventEmitter {
       })();
     }
     return this.listenClientPromise;
+  }
+
+  /**
+   * Handles a fatal error on the dedicated `LISTEN` client.
+   *
+   * A `LISTEN` subscription lives on one specific physical connection: once that
+   * connection drops, the memoized client is dead and every re-`LISTEN` issued
+   * on it is silently lost — so a blocked worker would stop receiving NOTIFYs
+   * until its next poll. Invalidate the memo (and tear the dead client down) so
+   * the next {@link getListenClient} establishes a fresh connection, and emit
+   * `'listenerinvalidated'` so subscribed backends re-`LISTEN` and wake any
+   * in-flight blocking wait (which is parked on the now-dead client).
+   *
+   * Guarded so a stale error from an already-replaced client — or one racing an
+   * in-progress {@link close} (which owns teardown) — does not disturb the
+   * current client; the error is still forwarded either way.
+   */
+  private handleListenClientError(client: PgListenClient, err: Error): void {
+    if (this.listenClient === client && !this.closing) {
+      const wasStandalone = this.listenClientIsStandalone;
+      this.listenClient = undefined;
+      this.listenClientPromise = undefined;
+      // Drop orphaned notification listeners from in-flight waits; keep the
+      // 'error' listener so a follow-up error from the dying client is still
+      // swallowed via `emitError` rather than crashing the process.
+      client.removeAllListeners('notification');
+      try {
+        if (wasStandalone) {
+          void (client as PgClient).end().catch((): undefined => undefined);
+        } else {
+          // Destroy (rather than return) the broken pooled client.
+          (client as PgPoolClient).release(true);
+        }
+      } catch {
+        // Best-effort teardown of an already-broken client.
+      }
+      this.emit('listenerinvalidated');
+    }
+    this.emitError(err);
   }
 
   /**
