@@ -57,6 +57,39 @@ function makeStandaloneConnection(): {
   return { connection, createdClients };
 }
 
+/**
+ * Builds a `PostgresConnection` wired to a fake user-supplied `pg.Pool`, whose
+ * checked-out client exposes (or not) an underlying socket.
+ */
+function makePooledConnection({ withSocket = true } = {}): {
+  connection: PostgresConnection;
+  socket: { setKeepAlive: ReturnType<typeof vi.fn> };
+} {
+  const connection = Object.create(
+    PostgresConnection.prototype,
+  ) as PostgresConnection;
+  EventEmitter.call(connection);
+
+  const socket = { setKeepAlive: vi.fn() };
+  class FakePoolClient extends EventEmitter {
+    query = vi.fn().mockResolvedValue({ rows: [] });
+    release = vi.fn();
+    connection = withSocket ? { stream: socket } : undefined;
+  }
+
+  const anyConn = connection as any;
+  anyConn.pgModule = undefined;
+  anyConn.listenClientConfig = undefined;
+  anyConn.listenClientPromise = undefined;
+  anyConn.listenClient = undefined;
+  anyConn.listenClientIsStandalone = false;
+  anyConn.listenClientKeepAlive = false;
+  anyConn.closing = undefined;
+  anyConn.pool = { connect: async () => new FakePoolClient() };
+
+  return { connection, socket };
+}
+
 describe('PostgresConnection LISTEN client recovery', () => {
   it('enables TCP keepAlive on the dedicated standalone LISTEN client', async () => {
     const { connection, createdClients } = makeStandaloneConnection();
@@ -65,6 +98,40 @@ describe('PostgresConnection LISTEN client recovery', () => {
 
     expect(createdClients).toHaveLength(1);
     expect(createdClients[0].config).toMatchObject({ keepAlive: true });
+    expect(connection.hasListenClientKeepAlive).toBe(true);
+  });
+
+  it('enables TCP keepAlive on a client checked out of a user-supplied pool', async () => {
+    const { connection, socket } = makePooledConnection();
+
+    await connection.getListenClient();
+
+    expect(socket.setKeepAlive).toHaveBeenCalledWith(true, expect.any(Number));
+    expect(connection.hasListenClientKeepAlive).toBe(true);
+  });
+
+  it('reports no keepalive when a pooled client socket cannot be adjusted', async () => {
+    const { connection } = makePooledConnection({ withSocket: false });
+
+    await connection.getListenClient();
+
+    // The backend must then fall back to a conservative block timeout.
+    expect(connection.hasListenClientKeepAlive).toBe(false);
+  });
+
+  it('re-applies the LISTEN client name after the client is rebuilt', async () => {
+    const { connection, createdClients } = makeStandaloneConnection();
+
+    await connection.setListenClientName('worker-name');
+    const first = await connection.getListenClient();
+    first.emit('error', new Error('drop'));
+
+    const second = (await connection.getListenClient()) as FakeStandaloneClient;
+    expect(createdClients).toHaveLength(2);
+    expect(second.query).toHaveBeenCalledWith(
+      `SELECT set_config('application_name', $1, false)`,
+      ['worker-name'],
+    );
   });
 
   it('invalidates the memoized client and rebuilds it after a fatal error', async () => {
@@ -168,5 +235,30 @@ describe('PostgresQueueBackend LISTEN client recovery', () => {
     // worker loop re-enters waitForJob/readEvents.
     expect(cancelWait).toHaveBeenCalledTimes(1);
     expect(cancelEventWait).toHaveBeenCalledTimes(1);
+  });
+
+  it('caps maximumBlockTimeout when the LISTEN connection has no keepalive', () => {
+    const connection = new EventEmitter() as unknown as PostgresConnection;
+    (connection as any).schema = 'bullmq';
+    (connection as any).listenClientKeepAlive = true;
+    Object.defineProperty(connection, 'hasListenClientKeepAlive', {
+      get() {
+        return (this as any).listenClientKeepAlive;
+      },
+    });
+
+    const backend = new PostgresQueueBackend(
+      connection,
+      'test-queue',
+      {} as any,
+      true,
+    );
+
+    expect(backend.maximumBlockTimeout).toBe(3600);
+
+    // Without keepalive a silent drop could go unnoticed for the whole block,
+    // so the ceiling falls back to the conservative Redis-like 10s.
+    (connection as any).listenClientKeepAlive = false;
+    expect(backend.maximumBlockTimeout).toBe(10);
   });
 });

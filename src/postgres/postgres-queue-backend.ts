@@ -383,12 +383,11 @@ export class PostgresQueueBackend
     // PostgreSQL analogue of Redis `CLIENT SETNAME`. This is the long-lived
     // connection a worker / QueueEvents holds, so it appears (under this name)
     // in pg_stat_activity and is therefore discoverable by getWorkers /
-    // getQueueEvents via getClientList.
+    // getQueueEvents via getClientList. The connection remembers the name and
+    // re-applies it whenever it has to rebuild the LISTEN client (a fresh
+    // connection would otherwise start unnamed, i.e. undiscoverable).
     await this.connection.waitUntilReady();
-    const client = await this.connection.getListenClient();
-    await client.query(`SELECT set_config('application_name', $1, false)`, [
-      name,
-    ]);
+    await this.connection.setListenClientName(name);
   }
 
   /**
@@ -406,9 +405,15 @@ export class PostgresQueueBackend
    * instead of re-polling every 10s (important for serverless Postgres that
    * suspends when idle). 3600s stays well under the 32-bit `setTimeout` ms
    * ceiling (~24.8 days) that a larger delay would overflow.
+   *
+   * This relies on a dropped LISTEN connection being *detected* (TCP keepalive)
+   * and rebuilt; when keepalive could not be enabled — a user-supplied
+   * `pg.Pool` configured without it, whose checked-out client we could not
+   * adjust — a silent drop would go unnoticed for the whole block, so the
+   * ceiling stays at the conservative Redis-like 10s instead.
    */
   get maximumBlockTimeout(): number {
-    return 3600;
+    return this.connection.hasListenClientKeepAlive ? 3600 : 10;
   }
 
   forQueue(queueName: string, _prefix?: string): IQueueBackend {

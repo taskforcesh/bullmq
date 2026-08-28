@@ -266,7 +266,10 @@ class PostgresBackend(Backend):
         # reason to cap the block at 10s like Redis. A large ceiling lets an
         # idle worker go quiet instead of re-polling every 10s (important for
         # serverless Postgres that suspends when idle). 3600s stays well under
-        # the timer ceiling that a larger delay would overflow.
+        # the timer ceiling that a larger delay would overflow. `waitForJob`
+        # blocks purely on LISTEN/NOTIFY (no polling) for the same reason, and
+        # relies on TCP keepalive to detect (and rebuild) a dropped LISTEN
+        # connection.
         return 3600
 
     @property
@@ -777,10 +780,14 @@ class PostgresBackend(Backend):
             base_ms = min(due_in, base_ms)
 
         deadline = time.monotonic() + base_ms / 1000
-        # A NOTIFY on the shared channel wakes us instantly; a short poll of the
-        # claimable-job probe is a robust fallback (delivery of a NOTIFY that
-        # fires between waits is not guaranteed to reach a blocked reader).
-        poll = 0.25
+        # A NOTIFY on the shared channel wakes us instantly, so we simply block
+        # on the LISTEN connection for the whole window: polling the claimable
+        # -job probe on a short interval would keep the database busy for the
+        # entire (now potentially hour-long) wait, which is exactly what stops a
+        # serverless PostgreSQL from ever suspending. Robustness comes from
+        # re-probing whenever the LISTEN connection has to be re-established —
+        # a drop, which TCP keepalive surfaces as an error, is the only way a
+        # NOTIFY can be missed once we are subscribed.
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
@@ -790,20 +797,19 @@ class PostgresBackend(Backend):
                         return marker
                     return ["bullmq_jobs", self.queue_name, _now_ms() + due_in]
                 return None
-            wait = min(poll, remaining)
-            checked_waiting_job = False
             try:
-                async for notify in listen_conn.notifies(timeout=wait, stop_after=1):
+                async for notify in listen_conn.notifies(timeout=remaining, stop_after=1):
                     payload = notify.payload
                     if payload == self.queue_name:
-                        checked_waiting_job = True
                         if await self._has_waiting_job():
                             return marker
             except psycopg.Error:
+                # The LISTEN connection dropped: rebuild it, re-subscribe, and
+                # re-probe, since any NOTIFY sent meanwhile was lost with it.
                 await self.connection.reset_job_channel()
                 listen_conn = await self.connection.ensure_job_channel()
-            if not checked_waiting_job and await self._has_waiting_job():
-                return marker
+                if await self._has_waiting_job():
+                    return marker
 
     # ============================================================
     # Job schedulers (repeatable job factories)
