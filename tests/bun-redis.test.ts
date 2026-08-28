@@ -175,6 +175,50 @@ describe('bun redis adapter', () => {
       await dup.quit();
     });
 
+    it('duplicate() reports ready when Bun returns an already-connected client', async () => {
+      class FakeRaw {
+        connected = false;
+        onconnect: (() => void) | null = null;
+        onclose: (() => void) | null = null;
+        onerror: (() => void) | null = null;
+        async connect() {
+          this.connected = true;
+          this.onconnect?.();
+        }
+        close() {
+          this.connected = false;
+        }
+        async duplicate() {
+          const duplicate = new FakeRaw();
+          duplicate.connected = true;
+          return duplicate;
+        }
+        async send() {
+          return null;
+        }
+        async get() {
+          return null;
+        }
+        async smembers() {
+          return [];
+        }
+        async incr() {
+          return 0;
+        }
+      }
+
+      const primary = createBunRedisClient(new FakeRaw() as any);
+      await primary.connect();
+
+      const dup = primary.duplicate();
+      await dup.connect();
+
+      expect(dup.status).toBe('ready');
+
+      await primary.quit();
+      await dup.quit();
+    });
+
     it('should explicitly reconnect while an automatic reconnect is pending', async () => {
       const { client: reconnectingClient } = await createConnectedClient();
 

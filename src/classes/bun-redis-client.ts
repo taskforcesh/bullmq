@@ -147,6 +147,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
   private reconnectAttempts = 0;
   private maxReconnectDelay = 20000; // cap at 20s (matches ioredis default)
   private ready = false;
+  private readying?: Promise<void>;
 
   get status(): string {
     if (this.statusOverride) {
@@ -218,32 +219,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     // event until CLIENT SETNAME completes so callers waiting for 'ready'
     // see the name already applied.
     this.raw.onconnect = () => {
-      this.hasConnected = true;
-      this.ready = false;
-      this.closed = false;
-      this.closing = false;
-      this.reconnecting = false;
-      this.reconnectAttempts = 0;
-      this.statusOverride = undefined;
-      // The server-side SCRIPT cache is gone for this (possibly new) raw
-      // connection. Force re-loading on next use.
-      this.loadedScriptShas.clear();
-      if (this.connectionName) {
-        this.clientSetName(this.connectionName).then(
-          () => {
-            this.ready = true;
-            this.emit('ready');
-          },
-          () => {
-            // emit ready even if setName fails
-            this.ready = true;
-            this.emit('ready');
-          },
-        );
-      } else {
-        this.ready = true;
-        this.emit('ready');
-      }
+      this._handleConnected();
     };
     this.raw.onclose = (error?: Error) => {
       this.ready = false;
@@ -265,6 +241,36 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
 
       this._scheduleReconnect();
     };
+  }
+
+  private _handleConnected(): Promise<void> {
+    this.hasConnected = true;
+    this.ready = false;
+    this.closed = false;
+    this.closing = false;
+    this.reconnecting = false;
+    this.reconnectAttempts = 0;
+    this.statusOverride = undefined;
+    // The server-side SCRIPT cache is gone for this (possibly new) raw
+    // connection. Force re-loading on next use.
+    this.loadedScriptShas.clear();
+
+    const markReady = () => {
+      this.ready = true;
+      this.emit('ready');
+    };
+
+    const readying = this.connectionName
+      ? this.clientSetName(this.connectionName).then(markReady, markReady)
+      : (markReady(), Promise.resolve());
+
+    this.readying = readying.finally(() => {
+      if (this.readying === readying) {
+        this.readying = undefined;
+      }
+    });
+
+    return this.readying;
   }
 
   /**
@@ -350,6 +356,9 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
       this.closed = false;
       this.closing = false;
       this.statusOverride = undefined;
+      if (!this.ready) {
+        await (this.readying ?? this._handleConnected());
+      }
       return;
     }
 
@@ -380,6 +389,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     }
 
     await this.connecting;
+    await this.readying;
 
     // Bun may report the socket as connected before this adapter transitions
     // to ready (for example while applying CLIENT SETNAME on duplicates).
