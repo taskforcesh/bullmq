@@ -16,4 +16,4 @@ from bullmq.job_scheduler import JobScheduler
 from bullmq.abort_controller import AbortController, AbortSignal, AbortError
 from bullmq.queue_events import QueueEvents
 from bullmq.queue_events_producer import QueueEventsProducer
-from bullmq.custom_errors import WaitingChildrenError, UnrecoverableError
+from bullmq.custom_errors import WaitingChildrenError, UnrecoverableError, DelayedError

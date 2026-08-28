@@ -6,7 +6,7 @@ https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 
 from asyncio import Future
 import redis.asyncio as redis
-from bullmq import Queue, Worker, Job, WaitingChildrenError
+from bullmq import Queue, Worker, Job, DelayedError, WaitingChildrenError
 from bullmq.worker import getCompleted
 from uuid import uuid4
 from enum import Enum
@@ -883,6 +883,133 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(jobs, [])
         self.assertEqual(pending, set())
+
+    async def test_move_to_delayed_from_processor(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        job = await queue.add("test", {"foo": "bar"})
+
+        delayed = Future()
+        failed_events = []
+
+        async def process(job: Job, token: str):
+            await job.moveToDelayed(round(time.time() * 1000) + 3000, token)
+            delayed.set_result(None)
+            raise DelayedError()
+
+        worker = Worker(queueName, process, {"prefix": prefix})
+        worker.on("failed", lambda job, err: failed_events.append(err))
+        worker.on("error", lambda *args: failed_events.append(args))
+
+        await delayed
+        # give the worker a chance to react to the DelayedError
+        await asyncio.sleep(0.3)
+
+        is_delayed = await job.isDelayed()
+        self.assertEqual(is_delayed, True)
+
+        counts = await queue.getJobCounts("delayed", "active", "failed", "completed")
+        self.assertEqual(counts.get("delayed"), 1)
+        self.assertEqual(counts.get("active"), 0)
+        self.assertEqual(counts.get("failed"), 0)
+        self.assertEqual(counts.get("completed"), 0)
+        self.assertEqual(failed_events, [])
+
+        await worker.close(force=True)
+        await queue.close()
+
+    async def test_move_to_delayed_in_one_step_keeping_current_step(self):
+        queue = Queue(queueName, {"prefix": prefix})
+
+        class Step(int, Enum):
+            Initial = 1
+            Second = 2
+            Finish = 3
+
+        delay = 200
+        processed_ids = []
+
+        async def process(job: Job, token: str):
+            processed_ids.append(job.id)
+            step = job.data.get("step")
+            if step == Step.Initial:
+                await job.moveToDelayed(round(time.time() * 1000) + delay, token)
+                await job.updateData({"step": Step.Second})
+                raise DelayedError()
+            elif step == Step.Second:
+                await job.updateData({"step": Step.Finish})
+                return Step.Finish
+            else:
+                raise Exception("invalid step")
+
+        worker = Worker(queueName, process, {"prefix": prefix})
+
+        error_events = []
+        failed_events = []
+        worker.on("error", lambda *args: error_events.append(args))
+        worker.on("failed", lambda job, err: failed_events.append(err))
+
+        completed_events = Future()
+        worker.on("completed", lambda job, result: completed_events.set_result(None))
+
+        start = round(time.time() * 1000)
+        job = await queue.add("test", {"step": Step.Initial})
+
+        await completed_events
+
+        elapse = round(time.time() * 1000) - start
+        self.assertGreater(elapse, delay)
+
+        # The very same job is re-processed, no new job is created.
+        self.assertEqual(processed_ids, [job.id, job.id])
+
+        completed_job = await Job.fromId(queue, job.id)
+        self.assertEqual(completed_job.returnvalue, Step.Finish)
+        self.assertEqual(completed_job.data, {"step": Step.Finish})
+        # skipAttempt: moving to delayed manually does not consume an attempt.
+        self.assertEqual(completed_job.attemptsMade, 1)
+        self.assertEqual(completed_job.attemptsStarted, 2)
+
+        self.assertEqual(failed_events, [])
+        self.assertEqual(error_events, [])
+
+        await worker.close()
+        await queue.close()
+
+    async def test_delayed_error_without_moving_job_does_not_finish_job(self):
+        # DelayedError only tells the worker to walk away; it is the
+        # moveToDelayed call that parks the job. Without it the job stays
+        # active and is left to the stalled checker, it is never completed
+        # nor failed behind our back.
+        queue = Queue(queueName, {"prefix": prefix})
+        job = await queue.add("test", {"foo": "bar"})
+
+        processed = Future()
+        events = []
+
+        async def process(job: Job, token: str):
+            processed.set_result(None)
+            raise DelayedError()
+
+        worker = Worker(queueName, process, {"prefix": prefix})
+        worker.on("completed", lambda job, result: events.append("completed"))
+        worker.on("failed", lambda job, err: events.append("failed"))
+
+        await processed
+        await asyncio.sleep(0.5)
+
+        self.assertEqual(events, [])
+
+        counts = await queue.getJobCounts("active", "delayed", "failed", "completed")
+        self.assertEqual(counts.get("active"), 1)
+        self.assertEqual(counts.get("delayed"), 0)
+        self.assertEqual(counts.get("failed"), 0)
+        self.assertEqual(counts.get("completed"), 0)
+
+        state = await job.getState()
+        self.assertEqual(state, "active")
+
+        await worker.close(force=True)
+        await queue.close()
 
 if __name__ == '__main__':
     unittest.main()
