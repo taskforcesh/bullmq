@@ -1,3 +1,10 @@
+# [3.1.0](https://github.com/taskforcesh/bullmq/compare/vpy3.0.6...vpy3.1.0) (2026-08-28)
+
+
+### Features
+
+* **job:** add DelayedError and Job.moveToDelayed for processor-controlled delays [python] ([#4635](https://github.com/taskforcesh/bullmq/issues/4635)) ([5251710](https://github.com/taskforcesh/bullmq/commit/5251710a161a676f1509b751c92a10128d057cdc))
+
 ## [3.0.6](https://github.com/taskforcesh/bullmq/compare/vpy3.0.5...vpy3.0.6) (2026-08-25)
 
 
