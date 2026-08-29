@@ -278,6 +278,22 @@ class Job:
             elif self.opts.get("stackTraceLimit"):
                 self.stacktrace = self.stacktrace[-(stackTraceLimit-1):stackTraceLimit]
 
+    async def moveToDelayed(self, timestamp: int, token: str):
+        """
+        Moves the job to the delay set. Only allowed while the job is active, i.e.
+        called from inside a processor, and a DelayedError must be raised afterwards
+        so that the worker does not try to complete or fail the job.
+
+        @param timestamp: timestamp when the job should be moved back to "wait"
+        @param token: token to check job is locked by current worker
+        """
+        now = round(time.time() * 1000)
+        delay = timestamp - now if timestamp > now else 0
+
+        await self.backend.moveToDelayed(self.id, now, delay, token, {"skipAttempt": True})
+
+        self.delay = delay
+
     async def moveToWaitingChildren(self, token, opts:dict) -> bool | None:
         return await self.backend.moveToWaitingChildren(self.id, token, opts)
 

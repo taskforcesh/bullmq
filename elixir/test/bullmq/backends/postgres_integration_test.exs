@@ -75,6 +75,58 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
     Worker.close(worker)
   end
 
+  # Regression: a worker registered with an atom `name` must still process jobs on
+  # the Postgres backend. The worker forwards its `name` to the backend as a SQL
+  # parameter (application_name / move_to_completed_fetch). A raw atom raised
+  # `DBConnection.EncodeError: expected a binary, got <atom>` inside the spawned
+  # autonomous worker while completing-and-fetching the next job — the jobs then
+  # stayed stuck in "active". We assert on the final job STATE (not the
+  # on_completed callback, which can fire before the crashing move). Multiple jobs
+  # ensure the complete-and-fetch-next path (which carries `name`) is exercised.
+  # See `name_as_string/1` in BullMQ.Worker.
+  test "worker with an atom name completes jobs (name coerced to a string for the backend)",
+       %{conn: conn, queue: queue} do
+    {:ok, worker} =
+      Worker.start_link(
+        queue: queue,
+        connection: conn,
+        name: :"named_worker_#{System.unique_integer([:positive])}",
+        processor: fn job -> {:ok, job.data["value"] * 2} end
+      )
+
+    job_ids =
+      for i <- 1..3 do
+        {:ok, job} = Queue.add(queue, "double", %{value: i}, connection: conn)
+        job.id
+      end
+
+    # Poll until all jobs settle. Without the fix the autonomous workers crash and
+    # the jobs remain "active" forever, so this eventually fails.
+    assert eventually(fn ->
+             Enum.all?(job_ids, fn id ->
+               Queue.get_job_state(queue, id, connection: conn) == {:ok, "completed"}
+             end)
+           end),
+           "expected all jobs to reach \"completed\"; got " <>
+             inspect(Enum.map(job_ids, &Queue.get_job_state(queue, &1, connection: conn)))
+
+    Worker.close(worker)
+  end
+
+  defp eventually(fun, retries \\ 50, sleep_ms \\ 100) do
+    cond do
+      fun.() ->
+        true
+
+      retries <= 0 ->
+        false
+
+      true ->
+        Process.sleep(sleep_ms)
+        eventually(fun, retries - 1, sleep_ms)
+    end
+  end
+
   test "worker processes a bulk batch", %{conn: conn, queue: queue} do
     test_pid = self()
 

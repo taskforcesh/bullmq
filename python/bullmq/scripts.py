@@ -716,7 +716,11 @@ class Scripts:
 
     def moveToFinishedArgs(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str,
         fetchNext=True, fields_to_update = None) -> list[Any] | None:
-        transformed_value = json.dumps(val, separators=(',', ':'), allow_nan=False)
+        transformed_value = (
+            val
+            if propVal == 'failedReason'
+            else json.dumps(val, separators=(',', ':'), allow_nan=False)
+        )
         timestamp = round(time.time() * 1000)
         metricsKey = self.toKey('metrics:' + target)
 
