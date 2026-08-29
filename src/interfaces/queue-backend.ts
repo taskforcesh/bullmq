@@ -107,6 +107,19 @@ export interface IQueueBackend {
   readonly minimumBlockTimeout: number;
 
   /**
+   * Largest meaningful block timeout (in seconds) supported by the backend's
+   * blocking primitive. Used by workers to bound `waitForJob` when there are
+   * delayed jobs pending.
+   *
+   * Optional so existing custom backends keep compiling; the worker falls back
+   * to the Redis-derived default (10s) when a backend does not specify one. A
+   * backend whose blocking primitive keeps the connection open and re-arms to
+   * the next due job (e.g. PostgreSQL `LISTEN`/`NOTIFY`) can return a much
+   * larger value so an idle worker stops re-polling.
+   */
+  readonly maximumBlockTimeout?: number;
+
+  /**
    * Subscribes to normalized backend lifecycle events (`'ready'`, `'error'`,
    * `'close'`), derived from the underlying connection(s).
    */
