@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "embedded-postgres": [
+        "./node_modules/embedded-postgres/dist/index.js",
+        "./node_modules/embedded-postgres/dist/index.d.ts"
+      ]
+    }
+  }
+}
