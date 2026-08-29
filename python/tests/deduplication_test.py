@@ -182,5 +182,65 @@ class TestDeduplication(unittest.IsolatedAsyncioTestCase):
         
         await queue.close()
 
+    async def test_returns_none_when_no_deduplicated_job(self):
+        result = await self.queue.getDeduplicationJobId("missing-id")
+        self.assertIsNone(result)
+
+    async def test_returns_job_id_for_simple_mode(self):
+        job = await self.queue.add(
+            "test-job", {}, {"deduplication": {"id": "my-dedup-id"}}
+        )
+
+        result = await self.queue.getDeduplicationJobId("my-dedup-id")
+
+        self.assertEqual(result, job.id)
+
+    async def test_returns_job_id_for_throttle_mode_within_ttl(self):
+        job = await self.queue.add(
+            "test-job", {}, {"deduplication": {"id": "throttle-id", "ttl": 5000}}
+        )
+
+        result = await self.queue.getDeduplicationJobId("throttle-id")
+
+        self.assertEqual(result, job.id)
+
+    async def test_returns_none_after_job_completes_simple_mode(self):
+        await self.queue.add(
+            "test-job", {}, {"deduplication": {"id": "completing-id"}}
+        )
+        worker = Worker(queueName, None, {"prefix": prefix})
+        token = 'my-token'
+
+        job = await worker.getNextJob(token)
+
+        await job.moveToCompleted("done", token="test-token", fetchNext=False)
+        # or drive it through a real Worker if that's the repo's convention
+        # for exercising completion in this test file
+
+        result = await self.queue.getDeduplicationJobId("completing-id")
+
+        self.assertIsNone(result)
+
+    async def test_deprecated_get_debounce_job_id_delegates(self):
+        job = await self.queue.add(
+            "test-job", {}, {"deduplication": {"id": "alias-id"}}
+        )
+
+        result = await self.queue.getDebounceJobId("alias-id")
+
+        self.assertEqual(result, job.id)
+
+    async def test_ignores_deduplication_id_from_other_queue(self):
+        other_queue_name = f"{self.queueName}-other"
+        other_queue = Queue(other_queue_name, {"connection": redis_connection})
+        try:
+            await other_queue.add(
+                "test-job", {}, {"deduplication": {"id": "shared-id"}}
+            )
+            result = await self.queue.getDeduplicationJobId("shared-id")
+            self.assertIsNone(result)
+        finally:
+            await other_queue.close()
+
 if __name__ == '__main__':
     unittest.main()

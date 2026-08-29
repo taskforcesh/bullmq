@@ -265,7 +265,15 @@ class Queue(EventEmitter):
         @param asc: If true, the jobs will be returned in ascending order.
         """
         return await self.backend.getJobLogs(job_id, start, end, asc)
-   
+
+    async def getDeduplicationJobId(self, id: str):
+        """
+        Get jobId from deduplicated state.
+
+        @param id: deduplication identifier
+        """
+        return await self.backend.getDeduplicationJobId(id)
+
     async def obliterate(self, force: bool = False):
         """
         Completely destroys the queue and all of its contents irreversibly.
