@@ -1,3 +1,11 @@
+## [3.1.1](https://github.com/taskforcesh/bullmq/compare/vpy3.1.0...vpy3.1.1) (2026-08-29)
+
+
+### Bug Fixes
+
+* **deps:** update python dependencies [python] ([#4650](https://github.com/taskforcesh/bullmq/issues/4650)) ([a0467eb](https://github.com/taskforcesh/bullmq/commit/a0467eb8fd6b5a53489231b62d5a44a2c5a5c705))
+* **worker:** delegate maximumBlockTimeout to the backend (python) ([#4644](https://github.com/taskforcesh/bullmq/issues/4644)) ([ea4543c](https://github.com/taskforcesh/bullmq/commit/ea4543cc78aa11935ed5e9af7d4b47fd3e23aea0))
+
 # [3.1.0](https://github.com/taskforcesh/bullmq/compare/vpy3.0.6...vpy3.1.0) (2026-08-28)
 
 
