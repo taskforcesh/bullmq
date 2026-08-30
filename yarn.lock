@@ -1452,6 +1452,13 @@
     "@tufjs/canonical-json" "2.0.0"
     minimatch "^10.1.1"
 
+"@types/bun@^1.4.0":
+  version "1.4.0"
+  resolved "https://registry.yarnpkg.com/@types/bun/-/bun-1.4.0.tgz#d9e37d973448b437e9cbf3cea42c801b6662c777"
+  integrity sha512-K+lZULY23vRgK/CfTjFIV+tyifaNdSMlPh9j+6mQ/cLfpOznLyAuzgV/JQysyECpkBQLVMSyvjlr2fBUSA9wFQ==
+  dependencies:
+    bun-types "1.4.0"
+
 "@types/chai@^5.2.2":
   version "5.2.3"
   resolved "https://registry.yarnpkg.com/@types/chai/-/chai-5.2.3.tgz#8e9cd9e1c3581fa6b341a5aed5588eb285be0b4a"
@@ -2207,6 +2214,13 @@ buffer@^5.5.0:
   dependencies:
     base64-js "^1.3.1"
     ieee754 "^1.1.13"
+
+bun-types@1.4.0:
+  version "1.4.0"
+  resolved "https://registry.yarnpkg.com/bun-types/-/bun-types-1.4.0.tgz#2097c0712a18d86f7c9425c2538c65eb18638b13"
+  integrity sha512-iIKw23BspnQQYd3prITOBxeUsxBHnwzX6YJfGMuNOZzeNcMmVqzIIVGRm1l69ogaPQmb4wB6BN8mA5bE9YuC5Q==
+  dependencies:
+    "@types/node" "*"
 
 cacache@^20.0.0, cacache@^20.0.1, cacache@^20.0.4:
   version "20.0.4"
