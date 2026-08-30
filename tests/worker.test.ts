@@ -1450,6 +1450,61 @@ describe('workers', () => {
           await worker.close();
         });
       });
+
+      describe('when blockDelay exceeds the backend maximumBlockTimeout', () => {
+        it("caps the block timeout at the backend's maximumBlockTimeout", async () => {
+          const worker = new Worker(queueName, NoopProc, {
+            connection,
+            prefix,
+            autorun: false,
+          });
+          await worker.waitUntilReady();
+
+          // A blockUntil far enough in the future that blockDelay clearly
+          // exceeds any backend ceiling (100 days). The result must be the
+          // backend-delegated maximum: 10s on Redis, larger on Postgres.
+          const farFuture = Date.now() + 100 * 24 * 60 * 60 * 1000;
+          expect(worker['getBlockTimeout'](farFuture)).toBe(
+            worker.maximumBlockTimeout,
+          );
+
+          await worker.close();
+        });
+      });
+    });
+  });
+
+  describe('when reading maximumBlockTimeout', () => {
+    it('delegates to the backend value', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        connection,
+        prefix,
+        autorun: false,
+      });
+      await worker.waitUntilReady();
+
+      const backend = worker.getBackend();
+      sandbox.stub(backend, 'maximumBlockTimeout').get(() => 1234);
+
+      expect(worker.maximumBlockTimeout).toBe(1234);
+
+      await worker.close();
+    });
+
+    it('falls back to the default (10s) when the backend does not specify one', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        connection,
+        prefix,
+        autorun: false,
+      });
+      await worker.waitUntilReady();
+
+      const backend = worker.getBackend();
+      sandbox.stub(backend, 'maximumBlockTimeout').get(() => undefined);
+
+      expect(worker.maximumBlockTimeout).toBe(10);
+
+      await worker.close();
     });
   });
 

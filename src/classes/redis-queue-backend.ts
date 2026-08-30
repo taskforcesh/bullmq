@@ -348,6 +348,15 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
   }
 
   /**
+   * Largest meaningful block timeout (seconds). Capped at 10s because a
+   * `BZPOPMIN` blocked longer than this risks issues on reconnection
+   * (see #1658).
+   */
+  get maximumBlockTimeout(): number {
+    return 10;
+  }
+
+  /**
    * Interrupts the in-flight blocking wait by disconnecting the dedicated
    * blocking connection. No-op if there is none.
    */

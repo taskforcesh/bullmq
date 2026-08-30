@@ -32,6 +32,16 @@ MIGRATION_ADVISORY_LOCK_KEY = 0x42554C4C  # 1112493644
 # Lowest supported PostgreSQL major version.
 MINIMUM_POSTGRES_VERSION = 13
 
+# libpq TCP keepalive settings applied to the dedicated LISTEN connection so a
+# silently dropped connection is detected within seconds (the OS default idle
+# time is typically two hours, far longer than a worker's block).
+_LISTEN_KEEPALIVE_PARAMS = {
+    "keepalives": 1,
+    "keepalives_idle": 10,
+    "keepalives_interval": 10,
+    "keepalives_count": 3,
+}
+
 # The shared ``.sql`` command files use native ``$1`` numbered placeholders;
 # psycopg binds ``%s``. This rewrites ``$N`` to ``%s`` (preserving occurrence
 # order and repeats) and escapes any literal ``%``.
@@ -222,7 +232,15 @@ class PostgresConnection:
         """The dedicated autocommit connection used for LISTEN/NOTIFY waits."""
         if self._listen_conn is None or self._listen_conn.closed:
             self._listen_conn = await psycopg.AsyncConnection.connect(
-                self.conninfo, autocommit=True, options=self._options
+                self.conninfo,
+                autocommit=True,
+                options=self._options,
+                # A LISTEN subscription is bound to one physical connection, and
+                # a worker may now block on it for up to an hour. Probe often so
+                # a silently dropped connection surfaces as an error (which the
+                # wait recovers from) instead of going unnoticed until the OS
+                # default keepalive idle time (typically two hours) elapses.
+                **_LISTEN_KEEPALIVE_PARAMS,
             )
             if self._application_name:
                 await self._listen_conn.execute(

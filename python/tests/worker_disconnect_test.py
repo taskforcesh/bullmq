@@ -238,6 +238,51 @@ class TestWorkerInitialization(unittest.TestCase):
         finally:
             asyncio.run(worker.close(force=True))
 
+    def test_worker_uses_backend_maximum_block_timeout(self):
+        backend = SimpleNamespace(
+            qualifiedName="test-queue",
+            clientName=lambda suffix=None: f"tenant_a:test-queue{suffix or ''}",
+            close=AsyncMock(),
+            capabilities={"canBlockFor1Ms": True},
+            minimumBlockTimeout=0.001,
+            maximumBlockTimeout=3600,
+        )
+
+        with patch("bullmq.worker.create_backend", return_value=backend):
+            worker = Worker(
+                "test-queue",
+                None,
+                {"backend": "postgres", "autorun": False},
+            )
+
+        try:
+            self.assertEqual(worker.maximumBlockTimeout, 3600)
+        finally:
+            asyncio.run(worker.close(force=True))
+
+    def test_worker_falls_back_to_default_maximum_block_timeout(self):
+        # Backend without a `maximumBlockTimeout` attribute (e.g. an older
+        # custom backend) must fall back to the default 10s ceiling.
+        backend = SimpleNamespace(
+            qualifiedName="test-queue",
+            clientName=lambda suffix=None: f"tenant_a:test-queue{suffix or ''}",
+            close=AsyncMock(),
+            capabilities={"canBlockFor1Ms": True},
+            minimumBlockTimeout=0.001,
+        )
+
+        with patch("bullmq.worker.create_backend", return_value=backend):
+            worker = Worker(
+                "test-queue",
+                None,
+                {"backend": "postgres", "autorun": False},
+            )
+
+        try:
+            self.assertEqual(worker.maximumBlockTimeout, 10)
+        finally:
+            asyncio.run(worker.close(force=True))
+
 
 class TestQueueInitialization(unittest.TestCase):
     def test_queue_redis_compatibility_handle_is_none_for_non_redis_backends(self):
