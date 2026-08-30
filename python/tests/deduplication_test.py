@@ -183,27 +183,34 @@ class TestDeduplication(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_returns_none_when_no_deduplicated_job(self):
-        result = await self.queue.getDeduplicationJobId("missing-id")
-        self.assertIsNone(result)
+        queue = Queue(queueName, {"prefix": prefix})
+        try:
+            result = await queue.getDeduplicationJobId("missing-id")
+            self.assertIsNone(result)
+        finally:
+            await queue.close()
 
     async def test_returns_job_id_for_simple_mode(self):
-        job = await self.queue.add(
-            "test-job", {}, {"deduplication": {"id": "my-dedup-id"}}
-        )
-
-        result = await self.queue.getDeduplicationJobId("my-dedup-id")
-
-        self.assertEqual(result, job.id)
+        queue = Queue(queueName, {"prefix": prefix})
+        try:
+            job = await queue.add(
+                "test-job", {}, {"deduplication": {"id": "my-dedup-id"}}
+            )
+            result = await queue.getDeduplicationJobId("my-dedup-id")
+            self.assertEqual(result, job.id)
+        finally:
+            await queue.close()
 
     async def test_returns_job_id_for_throttle_mode_within_ttl(self):
-        job = await self.queue.add(
-            "test-job", {}, {"deduplication": {"id": "throttle-id", "ttl": 5000}}
-        )
-
-        result = await self.queue.getDeduplicationJobId("throttle-id")
-
-        self.assertEqual(result, job.id)
-
+        queue = Queue(queueName, {"prefix": prefix})
+        try:
+            job = await queue.add(
+                "test-job", {}, {"deduplication": {"id": "throttle-id", "ttl": 5000}}
+            )
+            result = await queue.getDeduplicationJobId("throttle-id")
+            self.assertEqual(result, job.id)
+        finally:
+            await queue.close()
     async def test_returns_none_after_job_completes_simple_mode(self):
         await self.queue.add(
             "test-job", {}, {"deduplication": {"id": "completing-id"}}
