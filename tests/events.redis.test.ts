@@ -168,6 +168,54 @@ describe('events (redis-only)', () => {
       expect(disconnectCalls).toBe(0);
       expect(reconnectCalls).toBe(1);
     });
+
+    it('drops the abandoned read once the client is live again', async () => {
+      // Waiting for the reconnect is not enough: under
+      // `maxRetriesPerRequest: null` IORedis re-queues and re-sends the
+      // interrupted XREAD, so it would be served ahead of the next read. Once
+      // the client reaches a live state the socket must be torn down (and
+      // re-established) so the abandoned command is actually gone.
+      const disconnectedWhileLive: boolean[] = [];
+      let reconnectCalls = 0;
+
+      const fakeClient = {
+        status: 'reconnecting',
+        xread: () => new Promise(() => {}), // never settles
+      };
+
+      const fakeBackend = {
+        closing: false,
+        connection: {
+          disconnect: async () => {
+            disconnectedWhileLive.push(fakeClient.status === 'ready');
+            fakeClient.status = 'end';
+          },
+          reconnect: async () => {
+            reconnectCalls++;
+            fakeClient.status = 'ready';
+          },
+        },
+        queue: {
+          client: Promise.resolve(fakeClient),
+          keys: { events: `${prefix}:${queueName}:events` },
+        },
+      };
+
+      const result = await (
+        RedisQueueBackend.prototype.readEvents as (
+          this: unknown,
+          id: string,
+          blockTimeout: number,
+        ) => Promise<unknown>
+      ).call(fakeBackend, '$', 50);
+
+      expect(result).toBe(null);
+      // First the retry timer is left alone until the client is live again,
+      // then the live socket is torn down and re-established.
+      expect(disconnectedWhileLive).toEqual([true]);
+      expect(reconnectCalls).toBe(2);
+      expect(fakeClient.status).toBe('ready');
+    });
   });
 
   describe('when a healthy event-stream connection is torn down by the watchdog (#4585 ready-path race)', () => {

@@ -1268,6 +1268,51 @@ describe('workers', () => {
       }
     });
 
+    it('drops the abandoned blocking command once the client is live again (#4585)', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      const backend = worker.getBackend();
+      const bclient = (await backend.blockingClient)!;
+
+      // Waiting for IORedis to finish its own reconnect is not enough: under
+      // `maxRetriesPerRequest: null` it re-queues and re-sends the interrupted
+      // blocking command, so it would be served ahead of the next
+      // `waitForJob`. Once the client is live again the socket must be torn
+      // down (and re-established) so the abandoned command is actually gone.
+      let status = 'reconnecting';
+      sandbox.stub(bclient, 'status').get(() => status);
+      sandbox.stub(bclient, 'bzpopmin').returns(new Promise(() => {}) as any);
+
+      const disconnectedWhileLive: boolean[] = [];
+      sandbox
+        .stub(backend.blockingConnection!, 'disconnect')
+        .callsFake(async () => {
+          disconnectedWhileLive.push(status === 'ready');
+          status = 'end';
+        });
+      const reconnectBlocking = sandbox
+        .stub(backend, 'reconnectBlocking')
+        .callsFake(async () => {
+          status = 'ready';
+        });
+
+      try {
+        const result = await backend.waitForJob(0.001);
+        expect(result).toBe(null);
+        // First the retry timer is left alone until the client is live again,
+        // then the live socket is torn down and re-established.
+        expect(disconnectedWhileLive).toEqual([true]);
+        expect(reconnectBlocking.callCount).toBe(2);
+      } finally {
+        await worker.close();
+      }
+    });
+
     it('reconnects a healthy connection torn down by the watchdog (#4585 ready-path race)', async () => {
       // Models the second #4585 race (reported on 6.0.11): after a brief drop
       // IORedis self-heals back to "ready" *before* the watchdog fires, so the
