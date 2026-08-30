@@ -239,15 +239,17 @@ class TestDeduplication(unittest.IsolatedAsyncioTestCase):
 
     async def test_ignores_deduplication_id_from_other_queue(self):
         other_queue_name = f"{self.queueName}-other"
-        other_queue = Queue(other_queue_name, {"connection": redis_connection})
+        queue = Queue(queueName, {"prefix": prefix})
+        other_queue = Queue(other_queue_name, {"prefix": prefix})
         try:
             await other_queue.add(
                 "test-job", {}, {"deduplication": {"id": "shared-id"}}
             )
-            result = await self.queue.getDeduplicationJobId("shared-id")
+            result = await queue.getDeduplicationJobId("shared-id")
             self.assertIsNone(result)
         finally:
             await other_queue.close()
+            await queue.close()
 
 if __name__ == '__main__':
     unittest.main()
