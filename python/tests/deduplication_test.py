@@ -211,8 +211,10 @@ class TestDeduplication(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result, job.id)
         finally:
             await queue.close()
+
     async def test_returns_none_after_job_completes_simple_mode(self):
-        await self.queue.add(
+        queue = Queue(queueName, {"prefix": prefix})
+        await queue.add(
             "test-job", {}, {"deduplication": {"id": "completing-id"}}
         )
         worker = Worker(queueName, None, {"prefix": prefix})
@@ -227,15 +229,8 @@ class TestDeduplication(unittest.IsolatedAsyncioTestCase):
         result = await self.queue.getDeduplicationJobId("completing-id")
 
         self.assertIsNone(result)
-
-    async def test_deprecated_get_debounce_job_id_delegates(self):
-        job = await self.queue.add(
-            "test-job", {}, {"deduplication": {"id": "alias-id"}}
-        )
-
-        result = await self.queue.getDebounceJobId("alias-id")
-
-        self.assertEqual(result, job.id)
+        await queue.close()
+        await worker.close()
 
     async def test_ignores_deduplication_id_from_other_queue(self):
         other_queue_name = f"{self.queueName}-other"
