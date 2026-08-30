@@ -222,7 +222,7 @@ class TestDeduplication(unittest.IsolatedAsyncioTestCase):
 
         job = await worker.getNextJob(token)
 
-        await job.moveToCompleted("done", token="test-token", fetchNext=False)
+        await job.moveToCompleted("done", token=token, fetchNext=False)
         # or drive it through a real Worker if that's the repo's convention
         # for exercising completion in this test file
 
@@ -233,7 +233,7 @@ class TestDeduplication(unittest.IsolatedAsyncioTestCase):
         await worker.close()
 
     async def test_ignores_deduplication_id_from_other_queue(self):
-        other_queue_name = f"{self.queueName}-other"
+        other_queue_name = f"__test_queue__{uuid4().hex}"
         queue = Queue(queueName, {"prefix": prefix})
         other_queue = Queue(other_queue_name, {"prefix": prefix})
         try:
