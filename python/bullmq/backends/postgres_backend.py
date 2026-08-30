@@ -652,12 +652,12 @@ class PostgresBackend(Backend):
 
         @param deduplication_id: deduplication identifier
         """
-        result = await self.run(
+        result = await self._run(
             "get_deduplication_job_id",
-            [self.queueName, deduplication_id, int(time.time() * 1000)],
+            [self.queue_name, deduplication_id, int(time.time() * 1000)],
         )
         rows = result.rows if hasattr(result, "rows") else result
-    return rows[0]["job_id"] if rows else None
+        return rows[0]["job_id"] if rows else None
 
     async def getState(self, job_id: str) -> str:
         row = (await self._run("get_state", [self.queue_name, job_id])).first_map()
