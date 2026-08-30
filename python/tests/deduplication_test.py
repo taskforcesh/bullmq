@@ -226,7 +226,7 @@ class TestDeduplication(unittest.IsolatedAsyncioTestCase):
         # or drive it through a real Worker if that's the repo's convention
         # for exercising completion in this test file
 
-        result = await self.queue.getDeduplicationJobId("completing-id")
+        result = await queue.getDeduplicationJobId("completing-id")
 
         self.assertIsNone(result)
         await queue.close()
