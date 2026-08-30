@@ -42,6 +42,17 @@ export interface PgNotification {
  * notifications on it — never to release/end it (the {@link PgPool} owner does).
  */
 export interface PgListenClient extends PgQueryable {
+  /**
+   * node-postgres' internal connection wrapper. Only used to reach the
+   * underlying socket so TCP keepalive can be enabled on a client that was
+   * checked out of a pool we did not configure. Optional (and defensively
+   * typed) because it is an implementation detail of `pg`.
+   */
+  connection?: {
+    stream?: {
+      setKeepAlive?(enable: boolean, initialDelay?: number): unknown;
+    };
+  };
   on(event: 'notification', listener: (msg: PgNotification) => void): this;
   on(event: 'error', listener: (err: Error) => void): this;
   on(event: 'end', listener: () => void): this;

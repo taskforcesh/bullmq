@@ -1,3 +1,11 @@
+## [6.3.2](https://github.com/taskforcesh/bullmq/compare/v6.3.1...v6.3.2) (2026-08-29)
+
+
+### Bug Fixes
+
+* **deps:** upgrade msgpackr to 2.1.0 and uuid to 1.26.0 (rust) ([#4621](https://github.com/taskforcesh/bullmq/issues/4621)) ([74987e9](https://github.com/taskforcesh/bullmq/commit/74987e914f22e7647662406861e2ad3101b883d4))
+* **worker:** delegate maximumBlockTimeout to the backend (python) ([#4644](https://github.com/taskforcesh/bullmq/issues/4644)) ([ea4543c](https://github.com/taskforcesh/bullmq/commit/ea4543cc78aa11935ed5e9af7d4b47fd3e23aea0))
+
 ## [6.3.1](https://github.com/taskforcesh/bullmq/compare/v6.3.0...v6.3.1) (2026-08-27)
 
 
