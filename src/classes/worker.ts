@@ -45,8 +45,9 @@ import {
 } from './job-scheduler';
 import { LockManager } from './lock-manager';
 
-// 10 seconds is the maximum time a BZPOPMIN can block.
-const maximumBlockTimeout = 10;
+// 10 seconds is the maximum time a BZPOPMIN can block, so it is the default
+// ceiling used when a backend does not delegate its own `maximumBlockTimeout`.
+const defaultMaximumBlockTimeout = 10;
 
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
@@ -776,6 +777,10 @@ export class Worker<
     return this.backend.minimumBlockTimeout;
   }
 
+  get maximumBlockTimeout(): number {
+    return this.backend.maximumBlockTimeout ?? defaultMaximumBlockTimeout;
+  }
+
   private isRateLimited(): boolean {
     return this.limitUntil > Date.now();
   }
@@ -855,10 +860,13 @@ export class Worker<
       } else if (blockDelay < this.minimumBlockTimeout * 1000) {
         return this.minimumBlockTimeout;
       } else {
-        // We restrict the maximum block timeout to 10 second to avoid
-        // blocking the connection for too long in the case of reconnections
-        // reference: https://github.com/taskforcesh/bullmq/issues/1658
-        return Math.min(blockDelay / 1000, maximumBlockTimeout);
+        // We restrict the maximum block timeout to avoid blocking the
+        // connection for too long in the case of reconnections. The ceiling is
+        // backend-specific: Redis caps it at 10s (a `BZPOPMIN` blocked longer
+        // risks issues on reconnection, see #1658), whereas a backend that
+        // keeps the connection open and re-arms to the next due job can allow a
+        // much larger value so an idle worker stops re-polling.
+        return Math.min(blockDelay / 1000, this.maximumBlockTimeout);
       }
     } else {
       return Math.max(opts.drainDelay, this.minimumBlockTimeout);

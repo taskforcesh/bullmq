@@ -1,3 +1,25 @@
+## [3.1.1](https://github.com/taskforcesh/bullmq/compare/vpy3.1.0...vpy3.1.1) (2026-08-29)
+
+
+### Bug Fixes
+
+* **deps:** update python dependencies [python] ([#4650](https://github.com/taskforcesh/bullmq/issues/4650)) ([a0467eb](https://github.com/taskforcesh/bullmq/commit/a0467eb8fd6b5a53489231b62d5a44a2c5a5c705))
+* **worker:** delegate maximumBlockTimeout to the backend (python) ([#4644](https://github.com/taskforcesh/bullmq/issues/4644)) ([ea4543c](https://github.com/taskforcesh/bullmq/commit/ea4543cc78aa11935ed5e9af7d4b47fd3e23aea0))
+
+# [3.1.0](https://github.com/taskforcesh/bullmq/compare/vpy3.0.6...vpy3.1.0) (2026-08-28)
+
+
+### Features
+
+* **job:** add DelayedError and Job.moveToDelayed for processor-controlled delays [python] ([#4635](https://github.com/taskforcesh/bullmq/issues/4635)) ([5251710](https://github.com/taskforcesh/bullmq/commit/5251710a161a676f1509b751c92a10128d057cdc))
+
+## [3.0.6](https://github.com/taskforcesh/bullmq/compare/vpy3.0.5...vpy3.0.6) (2026-08-25)
+
+
+### Performance Improvements
+
+* **queue:** do not affect rate limit when processing deferred failures (python) (elixir) (rust) (dotnet) ([#4607](https://github.com/taskforcesh/bullmq/issues/4607)) ([ec4be04](https://github.com/taskforcesh/bullmq/commit/ec4be04c04725f5e341920ddef98adf7874a41d5))
+
 ## [3.0.5](https://github.com/taskforcesh/bullmq/compare/vpy3.0.4...vpy3.0.5) (2026-08-25)
 
 

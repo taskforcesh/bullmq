@@ -1,3 +1,4 @@
+import asyncio
 import unittest
 import time
 from types import SimpleNamespace
@@ -245,6 +246,24 @@ class TestPostgresConnection(unittest.IsolatedAsyncioTestCase):
             ("tenant_a:queue:w:1",),
         )
 
+    async def test_listen_connection_enables_tcp_keepalives(self):
+        # A worker may block on the LISTEN connection for up to an hour, so a
+        # silent drop must be detected in seconds, not after the OS default
+        # keepalive idle time.
+        listen_conn = SimpleNamespace(closed=False, execute=AsyncMock())
+        connect = AsyncMock(return_value=listen_conn)
+        connection = PostgresConnection()
+
+        with patch(
+            "bullmq.backends.postgres_connection.psycopg.AsyncConnection.connect",
+            connect,
+        ):
+            await connection.listen_connection()
+
+        kwargs = connect.await_args.kwargs
+        self.assertEqual(kwargs["keepalives"], 1)
+        self.assertEqual(kwargs["keepalives_idle"], 10)
+
     async def test_set_application_name_updates_existing_listen_connection(self):
         main_cursor = SimpleNamespace(execute=AsyncMock())
         main_conn = SimpleNamespace(
@@ -292,11 +311,14 @@ class _FailingNotifiesConnection:
 
 
 class _IdleNotifiesConnection:
+    """A LISTEN connection that never receives a NOTIFY (blocks until timeout)."""
+
     def __init__(self):
         self.closed = False
 
     def notifies(self, timeout=None, stop_after=None):
         async def _iter():
+            await asyncio.sleep(timeout or 0)
             if False:
                 yield
 
@@ -316,7 +338,9 @@ class TestPostgresBackendWaitForJob(unittest.IsolatedAsyncioTestCase):
     async def test_wait_for_job_reconnects_listen_channel_after_psycopg_error(self):
         connection = _FakeWaitConnection()
         backend = PostgresBackend("queue", connection)
-        backend._has_waiting_job = AsyncMock(side_effect=[False, False, True])
+        # No claimable job when the wait starts; after the dropped LISTEN
+        # connection is rebuilt the probe finds the job whose NOTIFY was lost.
+        backend._has_waiting_job = AsyncMock(side_effect=[False, True])
         backend._next_delay_ms = AsyncMock(return_value=None)
 
         marker = await backend.waitForJob(0.2)
@@ -324,6 +348,24 @@ class TestPostgresBackendWaitForJob(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(marker, ["bullmq_jobs", "queue", 0])
         connection.reset_job_channel.assert_awaited_once()
         self.assertEqual(connection.ensure_job_channel.await_count, 2)
+
+    async def test_wait_for_job_does_not_poll_while_blocked(self):
+        # The whole point of the large Postgres `maximumBlockTimeout` is that an
+        # idle worker lets the database go quiet, so the wait must rely on
+        # LISTEN/NOTIFY only — no periodic claimable-job probing.
+        connection = SimpleNamespace(
+            schema="bullmq",
+            ensure_job_channel=AsyncMock(return_value=_IdleNotifiesConnection()),
+            reset_job_channel=AsyncMock(),
+        )
+        backend = PostgresBackend("queue", connection)
+        backend._has_waiting_job = AsyncMock(return_value=False)
+        backend._next_delay_ms = AsyncMock(return_value=None)
+
+        marker = await backend.waitForJob(0.2)
+
+        self.assertIsNone(marker)
+        self.assertEqual(backend._has_waiting_job.await_count, 1)
 
     async def test_wait_for_job_returns_future_marker_when_only_delayed_jobs_exist(self):
         connection = SimpleNamespace(

@@ -1,6 +1,6 @@
 {
   "name": "bullmq",
-  "version": "6.2.1",
+  "version": "6.3.2",
   "description": "Queue for messages and jobs based on Redis",
   "homepage": "https://bullmq.io/",
   "main": "./dist/cjs/index.js",
@@ -82,7 +82,7 @@
   },
   "dependencies": {
     "cron-parser": "5.10.0",
-    "msgpackr": "2.0.5",
+    "msgpackr": "2.1.0",
     "node-abort-controller": "3.1.1",
     "semver": "7.8.5",
     "tslib": "2.8.1"
@@ -140,7 +140,7 @@
     "globals": "17.11.0",
     "husky": "9.1.7",
     "ioredis": "5.11.1",
-    "lint-staged": "17.3.0",
+    "lint-staged": "17.4.1",
     "madge": "8.0.0",
     "minimatch": "10.2.6",
     "moment": "2.30.1",
