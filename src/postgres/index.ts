@@ -1,8 +1,8 @@
 export { createPostgresBackend } from './create-postgres-backend';
 export {
   PostgresConnection,
-  PostgresConnectionOptions,
-  PostgresPoolConfig,
+  type PostgresConnectionOptions,
+  type PostgresPoolConfig,
 } from './postgres-connection';
 export { PostgresQueueBackend } from './postgres-queue-backend';
 export {
@@ -20,7 +20,7 @@ export {
   quoteSchemaName,
 } from './migrator';
 export { LATEST_SCHEMA_VERSION } from './migrations';
-export {
+export type {
   PgPool,
   PgPoolClient,
   PgPoolConfig,
@@ -28,5 +28,6 @@ export {
   PgQueryable,
   PgQueryResult,
   PgNotification,
-  isPgPool,
 } from './pg-types';
+
+export { isPgPool } from './pg-types';

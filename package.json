@@ -76,7 +76,7 @@
     "test:bun": "bun node_modules/vitest/dist/cli.js run --no-file-parallelism --config vitest.bun.config.ts",
     "test:bun:smoke": "bun test --timeout 20000 tests/bun-redis.test.ts tests/bun-adapter-suite.test.ts",
     "test:watch": "vitest --watch",
-    "test:parity": "tsx --tsconfig tsconfig-parity.json parity/runner.ts",
+    "test:parity": "tsx --tsconfig tsconfig-parity.json parity/main.ts",
     "transform:commands": "node ./scripts/commandTransform.js ./rawScripts ./src/scripts",
     "tsc": "tsc",
     "tsc:all": "tsc && tsc -p tsconfig-cjs.json"
