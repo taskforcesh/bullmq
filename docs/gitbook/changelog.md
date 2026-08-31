@@ -1,3 +1,11 @@
+## [6.3.3](https://github.com/taskforcesh/bullmq/compare/v6.3.2...v6.3.3) (2026-08-31)
+
+
+### Bug Fixes
+
+* **bun:** duplicate() and reconnect target the correct server ([#4591](https://github.com/taskforcesh/bullmq/issues/4591)) ([e9b5679](https://github.com/taskforcesh/bullmq/commit/e9b5679864e428c9791ed18901d3dc50bf401e84))
+* **worker:** keep blocking client alive when parked in reconnecting ([#4586](https://github.com/taskforcesh/bullmq/issues/4586)) ([8fd4850](https://github.com/taskforcesh/bullmq/commit/8fd48506030d83841a0cacf993ff85c7e56ab7de))
+
 ## [6.3.2](https://github.com/taskforcesh/bullmq/compare/v6.3.1...v6.3.2) (2026-08-29)
 
 
