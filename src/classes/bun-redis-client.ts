@@ -22,8 +22,7 @@ import { ConnectionClosedError } from './errors/connection-closed-error';
  * import { RedisClient } from 'bun';
  * import { createBunRedisClient } from 'bullmq';
  *
- * const raw = new RedisClient('redis://localhost:6379');
- * const client = createBunRedisClient(raw);
+ * const client = createBunRedisClient(RedisClient, 'redis://localhost:6379');
  * await client.connect();
  * ```
  */
@@ -73,7 +72,6 @@ export type RedisCommandArgument = string | Buffer;
 
 export interface BunRedisRawClient {
   connected: boolean;
-  url?: string;
   // Bun's RedisClient types these callbacks as nullable (`... | null`) and
   // passes a bound `this`, so we accept `((...args: any[]) => void) | null`
   // to stay assignable from Bun's actual `RedisClient` type. Using a stricter
@@ -84,6 +82,7 @@ export interface BunRedisRawClient {
   onerror?: ((...args: any[]) => void) | null;
 
   connect(): Promise<void>;
+  duplicate(): Promise<BunRedisRawClient>;
   close(): void;
   send<T = any>(command: string, args: RedisCommandArgument[]): Promise<T>;
   get(key: string): Promise<string | null | undefined>;
@@ -96,10 +95,11 @@ type BunRedisClientConstructor<TClient extends BunRedisRawClient> = new (
 ) => TClient;
 
 export function createBunRedisClient<TClient extends BunRedisRawClient>(
-  client: TClient,
+  constructor: BunRedisClientConstructor<TClient>,
+  url?: string,
   opts?: { lazyConnect?: boolean },
 ): IRedisClient {
-  return new BunRedisAdapter(client, opts);
+  return new BunRedisAdapter(constructor, url, opts);
 }
 
 /**
@@ -133,6 +133,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
   private maxReconnectDelay = 20000; // cap at 20s (matches ioredis default)
+  private raw: TClient;
 
   get status(): string {
     if (this.statusOverride) {
@@ -165,10 +166,12 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
   }
 
   constructor(
-    private raw: TClient,
+    private BunRedisClient: BunRedisClientConstructor<TClient>,
+    private url?: string,
     opts?: { lazyConnect?: boolean },
   ) {
     super();
+    this.raw = this.newRawClient();
 
     this._setupCallbacks();
 
@@ -179,6 +182,10 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
         // Connection errors will be emitted via the 'error' event.
       });
     }
+  }
+
+  private newRawClient() {
+    return new this.BunRedisClient(this.url);
   }
 
   /**
@@ -254,10 +261,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
       }
 
       try {
-        // Create a fresh raw client with the same URL
-        const BunRedisClient = this.raw
-          .constructor as BunRedisClientConstructor<TClient>;
-        const newRaw = new BunRedisClient(this.raw.url);
+        const newRaw = this.newRawClient();
 
         // Swap the raw client reference
         this.raw = newRaw;
@@ -309,9 +313,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
       // If the raw client was previously closed, Bun doesn't support
       // reconnecting on the same instance. Create a fresh raw client.
       if (replaceRaw) {
-        const BunRedisClient = this.raw
-          .constructor as BunRedisClientConstructor<TClient>;
-        this.raw = new BunRedisClient(this.raw.url);
+        this.raw = this.newRawClient();
         this._setupCallbacks();
       }
 
@@ -417,14 +419,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
   }
 
   duplicate(...args: any[]): IRedisClient {
-    // Bun's duplicate() is async, but IRedisClient.duplicate() is sync.
-    // We create a new RedisClient with the same URL/options instead.
-    // The raw client constructor in Bun doesn't connect until connect() or
-    // first command, so this is safe.
-    const BunRedisClient = this.raw
-      .constructor as BunRedisClientConstructor<TClient>;
-    const dup = new BunRedisClient(this.raw.url);
-    const adapter = new BunRedisAdapter(dup);
+    const adapter = new BunRedisAdapter(this.BunRedisClient, this.url);
 
     // Copy registered scripts to the duplicate
     for (const [name, script] of this.scripts) {

@@ -32,18 +32,13 @@ const prefix = `bull-bun-${process.pid}`;
 let rawClient: RedisClient;
 let client: IRedisClient;
 
-function createRawClient(host = redisHost, port = redisPort): RedisClient {
-  return new RedisClient(`redis://${host}:${port}`);
-}
-
-async function createConnectedClient(): Promise<{
-  raw: RedisClient;
-  client: IRedisClient;
-}> {
-  const raw = createRawClient();
-  const wrapped = createBunRedisClient(raw);
+async function createConnectedClient(): Promise<IRedisClient> {
+  const wrapped = createBunRedisClient(
+    RedisClient,
+    `redis://${redisHost}:${redisPort}`,
+  );
   await wrapped.connect();
-  return { raw, client: wrapped };
+  return wrapped;
 }
 
 async function cleanQueue(name: string) {
@@ -66,16 +61,14 @@ async function cleanQueue(name: string) {
 }
 
 beforeAll(async () => {
-  const result = await createConnectedClient();
-  rawClient = result.raw;
-  client = result.client;
-
   RedisConnection.clientFactory = opts => {
     const host = opts?.host ?? redisHost;
     const port = opts?.port ?? redisPort;
-    const raw = createRawClient(host, port);
-    return createBunRedisClient(raw);
+    return createBunRedisClient(RedisClient, `redis://${host}:${port}`);
   };
+  rawClient = new RedisClient(`redis://${redisHost}:${redisPort}`);
+  await client.connect();
+  client = RedisConnection.clientFactory!({});
 });
 
 afterAll(async () => {
@@ -129,7 +122,7 @@ describe('bun redis adapter', () => {
     });
 
     it('should explicitly reconnect while an automatic reconnect is pending', async () => {
-      const { client: reconnectingClient } = await createConnectedClient();
+      const reconnectingClient = await createConnectedClient();
 
       reconnectingClient.disconnect(true);
       await reconnectingClient.connect();
@@ -242,13 +235,11 @@ describe('bun redis adapter', () => {
     });
   });
 
-  describe('shared connection teardown via bun adapter', () => {
-    it('should not flood ConnectionClosedError when the shared connection is closed via the adapter', async () => {
+  describe('connection teardown via bun adapter', () => {
+    it('should not flood ConnectionClosedError when the connection is closed via the adapter', async () => {
       const queueName = `test-bun-shared-${randomUUID()}`;
 
-      const sharedRaw = createRawClient();
-      const sharedConnection = createBunRedisClient(sharedRaw);
-      await sharedConnection.connect();
+      const sharedConnection = await createConnectedClient();
 
       const connectionClosedErrors: unknown[] = [];
       const onUnhandled = (err: unknown) => {

@@ -143,7 +143,15 @@ function wrapRedisInstance(instance: any): IRedisClient {
     typeof instance.send === 'function' &&
     'connected' in instance
   ) {
-    return createBunRedisClient(instance);
+    // Throw an error
+    //  - bun's redis client instance does not expose the url which presents a problem when duplicating the wrapper
+    //  - createBunRedisClient(instance.constructor) would still work in cases where:
+    //    - Redis is running on `localhost:6379`
+    //    - `REDIS_URL` or `VALKEY_URL` is set as the environment variable
+    //  - Other cases will cause a failure making such an implementation unstable
+    throw new Error(
+      "Use `createBunRedisClient(RedisClient, url)` to create a connection using bun's built in RedisClient",
+    );
   }
 
   // Default: treat as an ioredis instance (backwards compatible).
