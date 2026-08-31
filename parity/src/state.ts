@@ -1,6 +1,6 @@
-import { TestReportBuilder } from './report';
-import { RunCommandAs } from './script';
+import { ParityScriptType } from './script';
 import {
+  OneSidedScripResults,
   ParityEventType,
   ParityTestCase,
   ParityTestData,
@@ -11,23 +11,24 @@ export class RunnerState {
   private testCases: TestCaseState[];
   private unknown_events: { type: ParityEventType; data: ParityTestData }[] =
     [];
+  private isSupported = true;
+  private launched = false;
 
-  constructor(definitions: ParityTestCase[]) {
+  constructor(definitions: ParityTestCase[], signal: AbortSignal) {
     this.testCases = definitions.map(
-      definition => new TestCaseState(definition),
+      definition => new TestCaseState(definition, signal),
     );
   }
 
   start() {
+    this.launched = true;
     for (const testCase of this.testCases) {
       testCase.start();
     }
   }
 
-  abort() {
-    for (const testCase of this.testCases) {
-      testCase.abort();
-    }
+  skipUnsupported() {
+    this.isSupported = false;
   }
 
   producerOk(): boolean {
@@ -42,7 +43,7 @@ export class RunnerState {
   }
 
   recordEvent(
-    from: RunCommandAs,
+    from: ParityScriptType,
     event_type: ParityEventType,
     data: ParityTestData,
   ) {
@@ -51,57 +52,58 @@ export class RunnerState {
     );
     if (!test_case) {
       this.unknown_events.push({ type: event_type, data });
-      this.abort();
       return;
     }
 
     test_case.recordEvent(from, event_type, data);
   }
 
-  async evaluateAndReport(title: string): Promise<boolean> {
-    const report = new TestReportBuilder(title);
+  async evaluateResults(title: string): Promise<OneSidedScripResults> {
+    if (!this.isSupported || !this.launched) {
+      return {
+        launched: this.launched,
+        isSupported: this.isSupported,
+        caseResults: [],
+        unknownEvents: 0,
+      };
+    }
 
     let failed = 0;
-    const per_case_results = await Promise.all(
+    const caseResults = await Promise.all(
       this.testCases.map(tc => tc.evaluateResults(title)),
     );
 
     const log_lines: string[] = [];
     for (let i = 0; i < this.testCases.length; i++) {
-      const result = per_case_results[i];
+      const result = caseResults[i];
       const testCase = this.testCases[i];
 
       if (result.status === 'failure') {
         failed++;
       }
 
-      report.addResult(testCase.definition, result);
       const symbol = result.status === 'success' ? '✓' : 'Ｘ';
       log_lines.push(
-        `  ${symbol} ${testCase.definition.title} - ${result.comment}`,
+        `  ${symbol} ${testCase.definition.name}(${testCase.definition.id}) - ${result.comment}`,
       );
     }
 
     const passed = failed === 0 && this.unknown_events.length === 0;
-    const comments = [];
 
-    const pass_count = this.testCases.length - failed;
-    const message = `${pass_count}/${this.testCases.length} tests passed parity check`;
-
+    console.log(`${passed ? '✓' : 'Ｘ'} ${title}\n${log_lines.join('\n')}`);
     if (this.unknown_events.length > 0) {
       console.log(
         `${title} UNIDENTIFIED_EVENTS - received ${this.unknown_events.length} that didn't match any test-case`,
         this.unknown_events,
       );
-      comments.push(
-        `Received ${this.unknown_events.length} that didn't match any test-case`,
-      );
     }
 
-    await report.buildAndWrite(passed, message, comments);
-
-    console.log(`${passed ? '✅' : '❌'} ${title}\n${log_lines.join('\n')}`);
-    return passed;
+    return {
+      caseResults,
+      launched: this.launched,
+      isSupported: this.isSupported,
+      unknownEvents: this.unknown_events.length,
+    };
   }
 }
 
@@ -111,9 +113,11 @@ class TestCaseState {
     [];
   private processingTimer?: Promise<void>;
   private done = false;
-  private controller: AbortController = new AbortController();
 
-  constructor(public definition: ParityTestCase) {
+  constructor(
+    public definition: ParityTestCase,
+    private signal: AbortSignal,
+  ) {
     this.jobs = new Array(definition.job.count)
       .fill(null)
       .map((_, index) => new TestCaseJobState(`job-${index}`));
@@ -133,17 +137,13 @@ class TestCaseState {
         this.definition.outcomes.wait_time.max +
         this.definition.outcomes.processing_time.max;
 
-      const timeout = setTimeout(() => finalize, test_time);
+      const timeout = setTimeout(finalize, test_time);
 
-      this.controller.signal.addEventListener('abort', () => {
+      this.signal.addEventListener('abort', () => {
         clearTimeout(timeout);
         finalize();
       });
     });
-  }
-
-  abort() {
-    this.controller.abort();
   }
 
   getJob(name: string) {
@@ -151,7 +151,7 @@ class TestCaseState {
   }
 
   recordEvent(
-    from: RunCommandAs,
+    from: ParityScriptType,
     event_type: ParityEventType,
     data: ParityTestData,
   ) {
@@ -171,25 +171,19 @@ class TestCaseState {
       (is_consumer_event && from === 'producer')
     ) {
       this.unknown_events.push({ type: event_type, data });
-      this.abort();
       return;
     }
 
-    let stillValid = false;
     switch (event_type) {
       case 'job-created':
-        stillValid = state.recordCreation(data);
+        state.recordCreation(data);
         break;
       case 'job-started':
-        stillValid = state.recordStart(data);
+        state.recordStart(data);
         break;
       case 'job-completed':
-        stillValid = state.recordCompletion(data);
+        state.recordCompletion(data);
         break;
-    }
-
-    if (!stillValid) {
-      this.abort();
     }
   }
 
@@ -323,20 +317,16 @@ class TestCaseJobState {
 
   constructor(public name: string) {}
 
-  recordCreation(data: ParityTestData): boolean {
+  recordCreation(data: ParityTestData) {
     this.createEvents.push(data);
-
-    return this.createEvents.length === 1;
   }
 
-  recordStart(data: ParityTestData): boolean {
+  recordStart(data: ParityTestData) {
     this.startEvents.push(data);
-    return this.checkSecretsMatch();
   }
 
-  recordCompletion(data: ParityTestData): boolean {
+  recordCompletion(data: ParityTestData) {
     this.completeEvents.push(data);
-    return this.checkSecretsMatch();
   }
 
   checkSecretsMatch(): boolean {

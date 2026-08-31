@@ -1,15 +1,15 @@
-import { spawn } from 'node:child_process';
+import { exec, spawn } from 'node:child_process';
 import {
   PARITY_EVENT_TYPES,
   ParityEvent,
   ParityEventType,
   ParityTestData,
 } from './types';
-import { time } from 'node:console';
 
 export type ParityTestBackend = 'Postgres' | 'Redis';
 
 interface LaunchSpecs {
+  command: string;
   args: string[];
   timeout?: number;
 }
@@ -20,35 +20,30 @@ export interface ParityTestImplementation {
   producer: LaunchSpecs;
 }
 
-export type RunCommandAs = 'producer' | 'consumer';
+export type ParityScriptType = 'producer' | 'consumer';
 
 export class ParityTestScript {
   constructor(
-    public backend: ParityTestBackend,
-    public base: ParityTestImplementation,
-    public alternate: ParityTestImplementation,
+    public base: ParityTestImplementation, // Assumes primary role as producer
+    public alternate: ParityTestImplementation, // Assumes primary role as consumer
   ) {}
 
-  title(flipped: boolean) {
-    if (flipped) {
-      // When flipped: command[1] is the producer command[0] is the consumer
-      return `${this.alternate.name}(Producer) - ${this.backend}`;
-    }
-    return `${this.alternate.name}(Consumer) - ${this.backend}`;
+  title(backend: ParityTestBackend) {
+    return `${this.alternate.name} - ${backend}`;
   }
 
-  private getCommand(
-    as: RunCommandAs,
-    flipped: boolean,
+  private getLaunchSpecs(
+    scriptType: ParityScriptType,
+    switchRoles: boolean,
   ): [string, LaunchSpecs] {
-    if (as === 'producer') {
-      if (flipped) {
+    if (scriptType === 'producer') {
+      if (switchRoles) {
         return [this.alternate.name, this.alternate.producer];
       }
       return [this.base.name, this.base.producer];
     }
 
-    if (flipped) {
+    if (switchRoles) {
       return [this.base.name, this.base.consumer];
     }
     return [this.alternate.name, this.alternate.consumer];
@@ -65,35 +60,43 @@ export class ParityTestScript {
    * @param handlers - Functions to handle
    * @returns - A function that can be used to kill the script
    */
-  run(
-    as: RunCommandAs,
-    flipped: boolean,
-    backend_port: number,
+  async launch(
+    scriptType: ParityScriptType,
+    backend: ParityTestBackend,
+    switchRoles: boolean,
+    backendPort: number,
     handlers: {
-      onReady: () => void;
+      onReady: (status: 'ready' | 'not-supported') => void;
       onClose: () => void;
       onUpdate: (type: ParityEventType, data: ParityTestData) => void;
     },
+    abortSignal: AbortSignal,
   ) {
     const run_id = crypto.randomUUID();
-    const [name, specs] = this.getCommand(as, flipped);
+    const [name, specs] = this.getLaunchSpecs(scriptType, switchRoles);
+    const logPrefix = `[${name}:${backend}:${scriptType}]`;
 
-    const child = spawn('bash', specs.args, {
+    // Spawn expects the full path of the command - this finds the full path on unix based systems
+    const command = await new Promise<string>(resolve =>
+      exec(`which ${specs.command}`, (err, stdout, stderr) => {
+        resolve(stdout.trim());
+      }),
+    );
+
+    const child = spawn(command, specs.args, {
       env: {
         PARITY_RUN_ID: run_id,
-        PARITY_BACKEND: this.backend.toLowerCase(),
-        PARITY_BACKEND_PORT: backend_port.toString(),
+        PARITY_BACKEND: backend.toLowerCase(),
+        PARITY_BACKEND_PORT: backendPort.toString(),
       },
     });
-
-    const logPrefix = `[${name}:${this.backend}:${as.toUpperCase()}]`;
 
     const timeout = specs.timeout ?? 3000;
 
     const readiness_timeout = setTimeout(() => {
-      console.error(`${logPrefix} - Killed, wasn't ready after ${timeout}ms`);
+      console.error(`TIMEOUT ${timeout}ms ${logPrefix}`);
       child.kill();
-    });
+    }, timeout);
 
     let partialLine = '';
 
@@ -110,7 +113,7 @@ export class ParityTestScript {
         try {
           const event: ParityEvent = JSON.parse(line);
           if (typeof event?.type !== 'string') {
-            console.log(`${logPrefix} - ${line}`);
+            console.log(`${logPrefix} ${line}`);
             continue;
           }
 
@@ -118,22 +121,21 @@ export class ParityTestScript {
             !PARITY_EVENT_TYPES.includes(event?.type) ||
             event?.run_id !== run_id
           ) {
-            console.log(`${logPrefix} - ${line}`);
+            console.log(`${logPrefix} ${line}`);
             continue;
           }
 
-          switch (event.type) {
-            case 'ready':
-              clearTimeout(readiness_timeout);
-              handlers.onReady();
-              break;
-            default:
-              handlers.onUpdate(event.type, event.data);
-              break;
+          if (event?.type === 'ready' || event?.type === 'not-supported') {
+            clearTimeout(readiness_timeout);
+            console.log(`${event.type.toUpperCase()} ${logPrefix}`);
+            handlers.onReady(event.type);
+            continue;
           }
+
+          handlers.onUpdate(event.type, event.data);
         } catch (err) {
           // Each update event is expected to be valid JSON, simply ignore parsing errors
-          console.log(`${logPrefix} - ${line}`);
+          console.log(`${logPrefix} ${line}`);
         }
       }
     };
@@ -142,17 +144,18 @@ export class ParityTestScript {
     child.stderr.on('data', chunk => processOutput(chunk.toString()));
 
     child.on('close', () => {
+      clearTimeout(readiness_timeout);
+      console.log(`CLOSED - ${logPrefix}`);
       // Process the last line completed
       processOutput(partialLine + '\n');
 
       handlers.onClose();
     });
 
-    return () => {
-      if (child.killed) {
-        return;
+    abortSignal.addEventListener('abort', () => {
+      if (!child.killed) {
+        child.kill('SIGKILL');
       }
-      child.kill();
-    };
+    });
   }
 }

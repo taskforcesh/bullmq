@@ -1,13 +1,13 @@
 [
   {
     "id": "simple-worker-test",
-    "title": "Simple Worker",
+    "name": "Simple Worker",
     "description": "Tests a simple worker that picks up jobs from a queue and processes them",
     "job": {
       "count": 10
     },
     "worker": {},
-    "simulation_details": {},
+    "simulation": {},
     "outcomes": {
       "wait_time": {
         "min": 0,
@@ -32,7 +32,7 @@
       "delay": 5000
     },
     "worker": {},
-    "simulation_details": {},
+    "simulation": {},
     "outcomes": {
       "wait_time": {
         "min": 5000,
@@ -58,7 +58,7 @@
     "worker": {
       "concurrency": 10
     },
-    "execution_details": {
+    "simulation": {
       "sleep": 1500
     },
     "outcomes": {

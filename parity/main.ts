@@ -5,10 +5,12 @@ import { ParityTestImplementation, ParityTestScript } from './src/script';
 const baseImplementation: ParityTestImplementation = {
   name: 'Node.JS',
   consumer: {
-    args: [],
+    command: 'node',
+    args: ['--import', 'tsx', 'tests/parity/node-consumer.ts'],
   },
   producer: {
-    args: [],
+    command: 'node',
+    args: ['--import', 'tsx', 'tests/parity/node-producer.ts'],
   },
 };
 
@@ -16,30 +18,32 @@ const otherImplementations: ParityTestImplementation[] = [
   {
     name: 'Bun Native',
     consumer: {
-      args: [],
+      command: 'bun',
+      args: ['tests/parity/bun-consumer.ts'],
     },
     producer: {
-      args: [],
+      command: 'bun',
+      args: ['tests/parity/bun-producer.ts'],
     },
   },
-  {
-    name: 'Rust',
-    consumer: {
-      args: [],
-    },
-    producer: {
-      args: [],
-    },
-  },
-  {
-    name: 'Python',
-    consumer: {
-      args: [],
-    },
-    producer: {
-      args: [],
-    },
-  },
+  // {
+  //   name: 'Rust',
+  //   consumer: {
+  //     args: [],
+  //   },
+  //   producer: {
+  //     args: [],
+  //   },
+  // },
+  // {
+  //   name: 'Python',
+  //   consumer: {
+  //     args: [],
+  //   },
+  //   producer: {
+  //     args: [],
+  //   },
+  // },
 ];
 
 const REPORT_HEADER = `# Feature Alignment Report
@@ -49,28 +53,20 @@ const REPORT_HEADER = `# Feature Alignment Report
 `;
 
 async function main() {
-  const title = `Parity Alignment Report`;
   await writeFile('./parity/REPORT.md', REPORT_HEADER);
 
   let exitCode = 0;
   for (const alternateImplementation of otherImplementations) {
-    const redisScript = new ParityTestScript(
-      'Redis',
-      baseImplementation,
-      alternateImplementation,
-    );
-    const postgresScript = new ParityTestScript(
-      'Postgres',
+    const script = new ParityTestScript(
       baseImplementation,
       alternateImplementation,
     );
     // Test both scripts as producer and consumer in parallel
     const results = await Promise.all([
-      runScript(redisScript, false),
-      runScript(redisScript, true),
-      runScript(postgresScript, false),
-      runScript(postgresScript, true),
+      runScript(script, 'Redis'),
+      runScript(script, 'Postgres'),
     ]);
+
     for (const result of results) {
       if (!result) {
         exitCode = 1;

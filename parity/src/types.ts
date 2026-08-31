@@ -1,6 +1,6 @@
 export interface ParityTestCase {
   id: string;
-  title: string;
+  name: string;
   description: string;
   job: {
     count: number;
@@ -38,6 +38,7 @@ export const PARITY_EVENT_TYPES = [
   'job-started',
   'job-completed',
   'ready',
+  'not-supported', // Emitted when a backend is not supported by a specific port
 ] as const;
 export type ParityEventType = (typeof PARITY_EVENT_TYPES)[number];
 
@@ -58,4 +59,11 @@ export interface ParityTestData {
 export interface TestCaseEvaluationResult {
   status: 'success' | 'failure';
   comment: string;
+}
+
+export interface OneSidedScripResults {
+  launched: boolean;
+  isSupported: boolean;
+  caseResults: TestCaseEvaluationResult[];
+  unknownEvents: number;
 }

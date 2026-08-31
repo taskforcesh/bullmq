@@ -2,78 +2,120 @@
  * Parity runner implementation
  */
 import { readFile } from 'node:fs/promises';
-import { ParityTestCase } from './types';
+import { OneSidedScripResults, ParityTestCase } from './types';
 import { RunnerState } from './state';
-import { ParityTestScript } from './script';
+import { ParityTestBackend, ParityTestScript } from './script';
 import { startBackend } from './backend';
+import { TestReportBuilder } from './report';
 
-export async function runScript(script: ParityTestScript, flipped: boolean) {
-  const definitions: ParityTestCase[] = JSON.parse(
-    await readFile('./parity/definitions.json', 'utf-8'),
-  );
+async function runOneSidedScript(
+  script: ParityTestScript,
+  backend: ParityTestBackend,
+  switchRoles: boolean,
+  definitions: ParityTestCase[],
+): Promise<OneSidedScripResults> {
+  const abortController = new AbortController();
 
-  const killFunctions: { producer?: () => void; consumer?: () => void } = {};
-
-  const backendInstance = await startBackend(script.backend);
-  const state = new RunnerState(definitions);
+  const backendPort = await startBackend(backend, abortController.signal);
+  const state = new RunnerState(definitions, abortController.signal);
 
   // Called after the consumer is ready
   // The resolve function should be called when ready or closed
   // confirming that the test can proceed to waiting and evaluation
   const runProducer = (resolve: () => void) => {
-    killFunctions.producer = script.run(
+    script.launch(
       'producer',
-      flipped,
-      backendInstance.port,
+      backend,
+      switchRoles,
+      backendPort,
       {
         onClose: () => {
           resolve();
 
           // Partially evaluate the tests for producer related outcomes - if there's a failure, no point to proceed
           if (!state.producerOk()) {
-            state.abort();
+            abortController.abort();
           }
         },
-        onReady: () => {
+        onReady: status => {
+          if (status === 'ready') {
+            // Start timing the tests for evaluation
+            state.start();
+          } else {
+            state.skipUnsupported();
+          }
           resolve();
-          // Start timing the tests for evaluation
-          state.start();
         },
         onUpdate: (event_type, data) =>
           state.recordEvent('producer', event_type, data),
       },
+      abortController.signal,
     );
   };
 
   // Wait for the consumer and producer to be ready
   await new Promise<void>(resolve => {
-    killFunctions.consumer = script.run(
+    script.launch(
       'consumer',
-      flipped,
-      backendInstance.port,
+      backend,
+      switchRoles,
+      backendPort,
       {
         onClose: () => {
           // Resolve to allow the test to proceed
           resolve();
           // Kill any pending timers and proceed with evaluation
-          state.abort();
+          abortController.abort();
         },
-        onReady: () => runProducer(resolve),
+        onReady: status => {
+          if (status === 'ready') {
+            runProducer(resolve);
+          } else {
+            state.skipUnsupported();
+            resolve();
+          }
+        },
         onUpdate: (event_type, data) =>
           state.recordEvent('consumer', event_type, data),
       },
+      abortController.signal,
     );
   });
 
+  console.log('Waiting for results');
   // Waits until all the timers run out or the test is aborted
-  const passed = await state.evaluateAndReport(script.title(flipped));
+  const results = await state.evaluateResults(
+    `${script.title(backend)} as ${switchRoles ? 'Producer' : 'Consumer'}`,
+  );
 
+  console.log('All tests complete, killing runners');
   // Kill scripts if they're still running
-  killFunctions.consumer?.();
-  killFunctions.producer?.();
+  abortController.abort();
 
-  // Kill in memory servers
-  await backendInstance.close();
+  return results;
+}
 
-  return passed;
+export async function runScript(
+  script: ParityTestScript,
+  backend: ParityTestBackend,
+) {
+  const definitions: ParityTestCase[] = JSON.parse(
+    await readFile('./parity/definitions.json', 'utf-8'),
+  );
+
+  const [consumerResult, producerResult] = await Promise.all([
+    runOneSidedScript(script, backend, false, definitions),
+    runOneSidedScript(script, backend, true, definitions),
+  ]);
+
+  const report = new TestReportBuilder(
+    script.title(backend),
+    definitions,
+    consumerResult,
+    producerResult,
+  );
+
+  await report.buildAndWrite();
+
+  return report.hasPassed();
 }

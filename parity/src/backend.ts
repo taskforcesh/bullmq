@@ -2,21 +2,20 @@ import { RedisMemoryServer } from 'redis-memory-server';
 import EmbeddedPostgres from 'embedded-postgres';
 import { ParityTestBackend } from './script';
 import { runMigrations } from '../../src';
-import { unlink } from 'node:fs/promises';
 
 export async function startBackend(
   backend: ParityTestBackend,
-): Promise<{ port: number; close: () => Promise<void> }> {
+  signal: AbortSignal,
+): Promise<number> {
   if (backend === 'Redis') {
     const redisServer = await RedisMemoryServer.create();
 
     const port = await redisServer.getPort();
-    return {
-      port,
-      close: async () => {
-        await redisServer.stop();
-      },
-    };
+
+    signal.addEventListener('abort', () => {
+      redisServer.stop();
+    });
+    return port;
   }
 
   if (backend === 'Postgres') {
@@ -43,12 +42,11 @@ export async function startBackend(
 
     await client.end();
 
-    return {
-      port,
-      close: async () => {
-        await postgresServer.stop();
-      },
-    };
+    signal.addEventListener('abort', () => {
+      postgresServer.stop();
+    });
+
+    return port;
   }
 
   throw new Error(`${backend} Parity Backend not implemented`);

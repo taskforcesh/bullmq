@@ -62,7 +62,7 @@ The scripts start up and read `definitions.json` then logs the following events 
 If the implementation doesn't support the backend specified in `PARITY_BACKEND`, it can emit the event below and the test will be skipped
 
 ```json
-{ "type": "unsupported", "run_id": "xxx" }
+{ "type": "not-supported", "run_id": "xxx" }
 ```
 
 Each script must log the ready event within 3 seconds of launch, the script will be killed and the test considered as failed.
