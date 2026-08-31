@@ -4,7 +4,7 @@ Tests for deduplication functionality.
 Tests simple mode, throttle mode, and debounce mode deduplication.
 """
 
-from bullmq import Queue
+from bullmq import Queue, Worker
 from uuid import uuid4
 
 import asyncio
@@ -181,6 +181,70 @@ class TestDeduplication(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(job1.id, job2.id)
         
         await queue.close()
+
+    async def test_returns_none_when_no_deduplicated_job(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        try:
+            result = await queue.getDeduplicationJobId("missing-id")
+            self.assertIsNone(result)
+        finally:
+            await queue.close()
+
+    async def test_returns_job_id_for_simple_mode(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        try:
+            job = await queue.add(
+                "test-job", {}, {"deduplication": {"id": "my-dedup-id"}}
+            )
+            result = await queue.getDeduplicationJobId("my-dedup-id")
+            self.assertEqual(result, job.id)
+        finally:
+            await queue.close()
+
+    async def test_returns_job_id_for_throttle_mode_within_ttl(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        try:
+            job = await queue.add(
+                "test-job", {}, {"deduplication": {"id": "throttle-id", "ttl": 5000}}
+            )
+            result = await queue.getDeduplicationJobId("throttle-id")
+            self.assertEqual(result, job.id)
+        finally:
+            await queue.close()
+
+    async def test_returns_none_after_job_completes_simple_mode(self):
+        queue = Queue(queueName, {"prefix": prefix})
+        await queue.add(
+            "test-job", {}, {"deduplication": {"id": "completing-id"}}
+        )
+        worker = Worker(queueName, None, {"prefix": prefix})
+        token = 'my-token'
+
+        job = await worker.getNextJob(token)
+
+        await job.moveToCompleted("done", token=token, fetchNext=False)
+        # or drive it through a real Worker if that's the repo's convention
+        # for exercising completion in this test file
+
+        result = await queue.getDeduplicationJobId("completing-id")
+
+        self.assertIsNone(result)
+        await queue.close()
+        await worker.close()
+
+    async def test_ignores_deduplication_id_from_other_queue(self):
+        other_queue_name = f"__test_queue__{uuid4().hex}"
+        queue = Queue(queueName, {"prefix": prefix})
+        other_queue = Queue(other_queue_name, {"prefix": prefix})
+        try:
+            await other_queue.add(
+                "test-job", {}, {"deduplication": {"id": "shared-id"}}
+            )
+            result = await queue.getDeduplicationJobId("shared-id")
+            self.assertIsNone(result)
+        finally:
+            await other_queue.close()
+            await queue.close()
 
 if __name__ == '__main__':
     unittest.main()
