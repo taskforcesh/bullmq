@@ -340,6 +340,17 @@ class RedisBackend(Backend):
     async def getState(self, job_id: str) -> str:
         return await self.scripts.getState(job_id)
 
+    async def getDeduplicationJobId(self, id: str):
+        """
+        Get jobId from deduplicated state.
+
+        Mirrors Queue#getDeduplicationJobId in the Node.js client: a plain
+        GET against the `de` (deduplication) key namespace.
+
+        @param id: deduplication identifier
+        """
+        return await self.connection.conn.get(f"{self.keys['de']}:{id}")
+
     async def isJobInState(self, state: str, job_id: str) -> bool:
         if state in _ZSET_STATES:
             score = await self.connection.conn.zscore(self.toKey(state), job_id)
