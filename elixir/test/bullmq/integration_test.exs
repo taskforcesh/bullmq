@@ -699,7 +699,7 @@ defmodule BullMQ.IntegrationTest do
       assert {:ok, first} =
                Scripts.move_stalled_jobs_to_wait(conn, ctx, 5,
                  timestamp: t1,
-                 max_check_time: 5_000
+                 stalled_interval: 5_000
                )
 
       assert first == []
@@ -722,7 +722,7 @@ defmodule BullMQ.IntegrationTest do
       assert {:ok, reclaimed} =
                Scripts.move_stalled_jobs_to_wait(conn, ctx, 5,
                  timestamp: System.system_time(:millisecond),
-                 max_check_time: 5_000
+                 stalled_interval: 5_000
                )
 
       assert reclaimed == ["job-1"]

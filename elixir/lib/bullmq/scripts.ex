@@ -1412,8 +1412,7 @@ defmodule BullMQ.Scripts do
 
     timestamp = Keyword.get(opts, :timestamp, System.system_time(:millisecond))
 
-    max_check_time =
-      Keyword.get(opts, :stalled_interval, Keyword.get(opts, :max_check_time, 30_000))
+    max_check_time = Keyword.get(opts, :stalled_interval, 30_000)
 
     args = [
       # ARGV[1] max stalled count
