@@ -1,5 +1,6 @@
 import { produceEvents } from './producer';
-import { getBackend, logEvent } from './utils';
+import { logEvent } from './utils/shared';
+import { getBackend } from './utils/node';
 
 async function main() {
   const backend = getBackend();

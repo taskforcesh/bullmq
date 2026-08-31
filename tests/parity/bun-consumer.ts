@@ -1,5 +1,6 @@
 import { setUpWorkers } from './consumer';
-import { getBunRedisBackendConnection, logEvent } from './utils';
+import { logEvent } from './utils/shared';
+import { getBunRedisBackendConnection } from './utils/bun';
 
 async function main() {
   if (process.env.PARITY_BACKEND === 'postgres') {
@@ -9,7 +10,7 @@ async function main() {
 
   const connection = await getBunRedisBackendConnection();
 
-  setUpWorkers({ connection });
+  await setUpWorkers({ connection });
 
   // Consumer creates workers first, then sends a ready event
   logEvent('ready');

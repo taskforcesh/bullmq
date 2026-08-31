@@ -1,4 +1,4 @@
-import { logEvent, readDefinitons } from './utils';
+import { logEvent, readDefinitons } from './utils/shared';
 import { BackendFactory, Queue, QueueOptions } from '../../src';
 
 // Only what the producer needs to know about the test case

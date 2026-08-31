@@ -1,4 +1,4 @@
-import { logEvent, readDefinitons } from './utils';
+import { logEvent, readDefinitons } from './utils/shared';
 import { BackendFactory, QueueOptions, Worker } from '../../src';
 import { setTimeout } from 'node:timers/promises';
 
@@ -55,7 +55,7 @@ export async function setUpWorkers(
       },
       {
         ...options,
-        concurrency: definition.worker.concurrency,
+        concurrency: definition.worker.concurrency ?? 1,
       },
       backendFactory,
     );

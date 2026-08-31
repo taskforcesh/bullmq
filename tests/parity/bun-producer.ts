@@ -1,7 +1,13 @@
 import { produceEvents } from './producer';
-import { getBunRedisBackendConnection, logEvent } from './utils';
+import { logEvent } from './utils/shared';
+import { getBunRedisBackendConnection } from './utils/bun';
 
 async function main() {
+  if (process.env.PARITY_BACKEND === 'postgres') {
+    logEvent('not-supported');
+    return;
+  }
+
   const connection = await getBunRedisBackendConnection();
   // Producer sends a ready event, then creates the jobs
   logEvent('ready');
