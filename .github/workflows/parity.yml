@@ -1,0 +1,73 @@
+name: Feature Parity Tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  run-parity-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 'current'
+          cache: 'yarn'
+
+      - name: Install Node.js Packages
+        run: yarn install --ignore-engines --frozen-lockfile --non-interactive
+
+      # Also generates the necessary raw scripts
+      - name: Build Node.js
+        run: yarn build
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: 3.14
+
+      - name: Install python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 mypy
+          pip install -e "python/[dev,test]"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache Cargo registry and build
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Copy scripts
+        run: |
+          yarn copy:lua:python
+          yarn copy:sql:python
+          yarn copy:lua:rust
+
+      - name: Run Parity Scripts
+        run: yarn test:parity
+
+      - name: Comment on Pull Request
+        if: always()
+        uses: marocchino/sticky-pull-request-comment@v3
+        with:
+          path: parity/REPORT.md
