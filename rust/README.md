@@ -61,7 +61,9 @@ async fn main() -> bullmq::Result<()> {
         })
     });
 
-    let worker = Worker::new("my-queue", processor, WorkerOptions::default()).await?;
+    let worker = Worker::new("my-queue", processor).await?;
+    // OR
+    let worker = Worker::with_options("my-queue", processor, WorkerOptions::default()).await?;
 
     // Worker processes jobs automatically...
     tokio::time::sleep(std::time::Duration::from_secs(5)).await;

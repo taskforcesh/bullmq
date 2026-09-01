@@ -26,21 +26,28 @@ const otherImplementations: ParityTestImplementation[] = [
       args: ['tests/parity/bun-producer.ts'],
     },
   },
-  // {
-  //   name: 'Rust',
-  //   consumer: {
-  //     args: [],
-  //   },
-  //   producer: {
-  //     args: [],
-  //   },
-  // },
+  {
+    name: 'Rust',
+    consumer: {
+      build: 'cargo build',
+      command: 'cargo',
+      args: ['run', '--', '--consumer'],
+      cwd: 'rust/tests/parity',
+    },
+    producer: {
+      build: 'cargo build',
+      command: 'cargo',
+      args: ['run', '--', '--producer'],
+      cwd: 'rust/tests/parity',
+    },
+  },
   {
     name: 'Python',
     consumer: {
       command: 'poetry',
       args: ['run', 'python', 'tests/parity/consumer.py'],
       cwd: 'python',
+      timeout: 15000,
     },
     producer: {
       command: 'poetry',

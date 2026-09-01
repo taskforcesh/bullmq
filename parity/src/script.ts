@@ -9,6 +9,7 @@ import {
 export type ParityTestBackend = 'Postgres' | 'Redis';
 
 interface LaunchSpecs {
+  build?: string;
   command: string;
   args: string[];
   timeout?: number;
@@ -19,6 +20,7 @@ interface LaunchSpecs {
 
 export interface ParityTestImplementation {
   name: string;
+  build?: string;
   consumer: LaunchSpecs;
   producer: LaunchSpecs;
 }
@@ -77,6 +79,34 @@ export class ParityTestScript {
     const run_id = crypto.randomUUID();
     const [name, specs] = this.getLaunchSpecs(scriptType, switchRoles);
     const logPrefix = `[${name}:${backend}:${scriptType}]`;
+
+    if (specs.build) {
+      const success = await new Promise<boolean>(resolve => {
+        exec(
+          specs.build as string,
+          {
+            cwd: specs.cwd,
+          },
+          (err, stdout, stderr) => {
+            if (!err) {
+              resolve(true);
+              return;
+            }
+
+            console.log(`BUILD_ERROR ${logPrefix}`, err);
+            console.log(stdout);
+            console.log(stderr);
+            resolve(false);
+          },
+        );
+      });
+
+      // Notify this run won't proceed
+      if (!success) {
+        handlers.onClose();
+        return;
+      }
+    }
 
     // Spawn expects the full path of the command - this finds the full path on unix based systems
     const command = await new Promise<string>(resolve =>
