@@ -1,3 +1,10 @@
+## [6.3.4](https://github.com/taskforcesh/bullmq/compare/v6.3.3...v6.3.4) (2026-09-01)
+
+
+### Bug Fixes
+
+* **deps:** update rust crate croner to v4 [security] ([#4666](https://github.com/taskforcesh/bullmq/issues/4666)) ([fd33926](https://github.com/taskforcesh/bullmq/commit/fd33926ce3fe35a9c896f0f37b6c167bba193dc6))
+
 ## [6.3.3](https://github.com/taskforcesh/bullmq/compare/v6.3.2...v6.3.3) (2026-08-31)
 
 
