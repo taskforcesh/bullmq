@@ -1065,11 +1065,11 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         # Should not process while paused
         self.assertEqual(len(processed), 0)
 
-        worker.resume()
-        self.assertFalse(worker.paused)
-
         completed = Future()
         worker.on("completed", lambda job, res: completed.set_result(None))
+
+        worker.resume()
+        self.assertFalse(worker.paused)
 
         await completed
         self.assertEqual(processed, [1])
