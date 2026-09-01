@@ -1011,5 +1011,99 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         await worker.close(force=True)
         await queue.close()
 
+    async def test_close_idle_worker_is_fast(self):
+        """Test that closing an idle worker does not hang for drainDelay."""
+        async def process(job: Job, token: str):
+            pass
+
+        worker = Worker(queueName, process, {"prefix": prefix, "drainDelay": 5})
+        # Allow the worker loop to enter the idle bzpopmin wait
+        await asyncio.sleep(0.2)
+
+        start = time.monotonic()
+        await worker.close()
+        duration = time.monotonic() - start
+
+        self.assertLess(duration, 1.0)
+
+    async def test_pause_and_close_idle_worker(self):
+        """Test that pausing and closing an idle worker completes quickly without hanging."""
+        async def process(job: Job, token: str):
+            pass
+
+        worker = Worker(queueName, process, {"prefix": prefix, "drainDelay": 5})
+        await asyncio.sleep(0.2)
+
+        start = time.monotonic()
+        await worker.pause()
+        pause_duration = time.monotonic() - start
+        self.assertLess(pause_duration, 1.0)
+        self.assertTrue(worker.paused)
+
+        start = time.monotonic()
+        await worker.close()
+        close_duration = time.monotonic() - start
+        self.assertLess(close_duration, 1.0)
+        self.assertTrue(worker.closed)
+
+    async def test_pause_and_resume_processing(self):
+        """Test that pausing stops processing and resume restarts it."""
+        queue = Queue(queueName, {"prefix": prefix})
+        processed = []
+
+        async def process(job: Job, token: str):
+            processed.append(job.data["idx"])
+            return job.data["idx"]
+
+        worker = Worker(queueName, process, {"prefix": prefix})
+
+        await worker.pause()
+        self.assertTrue(worker.paused)
+
+        await queue.add("test", {"idx": 1})
+        await asyncio.sleep(0.5)
+        # Should not process while paused
+        self.assertEqual(len(processed), 0)
+
+        worker.resume()
+        self.assertFalse(worker.paused)
+
+        completed = Future()
+        worker.on("completed", lambda job, res: completed.set_result(None))
+
+        await completed
+        self.assertEqual(processed, [1])
+
+        await worker.close()
+        await queue.close()
+
+    async def test_close_completes_despite_external_cancellation(self):
+        """Test that close() finishes cleanup even if its own task is cancelled
+        externally while waiting for active jobs to finish."""
+        async def process(job: Job, token: str):
+            # Sleep long enough that the job is guaranteed to still be active
+            # when close() is cancelled from outside (well within the 30s timeout)
+            await asyncio.sleep(5)
+
+        worker = Worker(queueName, process, {"prefix": prefix, "concurrency": 2})
+        queue = Queue(queueName, {"prefix": prefix})
+        await queue.add("test", {"idx": 1})
+        await asyncio.sleep(0.5)  # let the job start processing
+
+        close_task = asyncio.ensure_future(worker.close())
+        await asyncio.sleep(0.3)  # give close() time to reach asyncio.wait(self.processing, ...)
+        close_task.cancel()
+
+        try:
+            await close_task
+        except asyncio.CancelledError:
+            pass
+
+        await asyncio.sleep(0.1)  # give cleanup a moment to settle
+        self.assertTrue(worker.closed)
+
+        await queue.close()
+
+
 if __name__ == '__main__':
     unittest.main()
