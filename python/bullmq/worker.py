@@ -247,8 +247,8 @@ class Worker(EventEmitter):
                 if self.blockUntil <= 0 or self.blockUntil <= timestamp:
                     job_instance = await self.moveToActive(token)
             except asyncio.CancelledError:
-                self.waiting = None
-                raise
+                # Expected when pause()/close() cancels the idle BZPOPMIN wait.
+                return None
             finally:
                 self.waiting = None
         else:
@@ -606,11 +606,12 @@ class Worker(EventEmitter):
             self.lockManager.cancel_all_jobs("worker force-closed")
             self.cancelProcessing()
 
+        cancelled = False
         if not force and len(self.processing) > 0:
             try:
                 await asyncio.wait(self.processing, return_when=asyncio.ALL_COMPLETED)
             except asyncio.CancelledError:
-                pass
+                cancelled = True
 
         await self.lockManager.close()
 
@@ -622,12 +623,16 @@ class Worker(EventEmitter):
         self.closed = True
         self.emit('closed')
 
+        if cancelled:
+            raise asyncio.CancelledError()
+
     async def pause(self, do_not_wait_active: bool = False):
         """
         Pauses the worker, preventing it from processing new jobs.
 
         This method waits for current jobs to finalize before returning.
         """
+        cancelled = False
         if not self.paused:
             self.paused = True
             self.resume_event.clear()
@@ -637,8 +642,11 @@ class Worker(EventEmitter):
                 try:
                     await asyncio.wait(self.processing, return_when=asyncio.ALL_COMPLETED)
                 except asyncio.CancelledError:
-                    pass
+                    cancelled = True
         self.emit('paused')
+
+        if cancelled:
+            raise asyncio.CancelledError()
 
     def resume(self):
         """
