@@ -111,7 +111,8 @@ export class ParityTestScript {
     // Spawn expects the full path of the command - this finds the full path on unix based systems
     const command = await new Promise<string>((resolve, reject) =>
       exec(`which ${specs.command}`, (err, stdout, stderr) => {
-        const executablePath = stdout.trim();
+        // In some cases - the result is on stderr - e.g. github actions
+        const executablePath = stdout.trim() || stderr.trim();
         if (!err && executablePath) {
           resolve(executablePath);
         }
