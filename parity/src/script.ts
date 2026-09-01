@@ -115,16 +115,18 @@ export class ParityTestScript {
         const executablePath = stdout.trim() || stderr.trim();
         if (!err && executablePath) {
           resolve(executablePath);
+        } else {
+          console.log(
+            `EXECUTABLE PATH NOT FOUND ${logPrefix} ${specs.command}`,
+            {
+              err,
+              stdout,
+              stderr,
+            },
+          );
+
+          reject(err);
         }
-
-        console.log(
-          `EXECUTABLE PATH NOT FOUND ${logPrefix} ${specs.command}`,
-          err,
-        );
-        console.log(stdout);
-        console.log(stderr);
-
-        reject(err);
       }),
     );
 
