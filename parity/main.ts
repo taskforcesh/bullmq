@@ -30,14 +30,14 @@ const otherImplementations: ParityTestImplementation[] = [
     name: 'Rust',
     consumer: {
       build: 'cargo build',
-      command: 'cargo',
-      args: ['run', '--', '--consumer'],
+      command: 'target/debug/bullmq-parity-tests',
+      args: ['--consumer'],
       cwd: 'rust/tests/parity',
     },
     producer: {
       build: 'cargo build',
-      command: 'cargo',
-      args: ['run', '--', '--producer'],
+      command: 'target/debug/bullmq-parity-tests',
+      args: ['--producer'],
       cwd: 'rust/tests/parity',
     },
   },

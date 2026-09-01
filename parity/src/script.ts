@@ -110,24 +110,28 @@ export class ParityTestScript {
 
     // Spawn expects the full path of the command - this finds the full path on unix based systems
     const command = await new Promise<string>((resolve, reject) =>
-      exec(`which ${specs.command}`, (err, stdout, stderr) => {
-        // In some cases - the result is on stderr - e.g. github actions
-        const executablePath = stdout.trim() || stderr.trim();
-        if (!err && executablePath) {
-          resolve(executablePath);
-        } else {
-          console.log(
-            `EXECUTABLE PATH NOT FOUND ${logPrefix} ${specs.command}`,
-            {
-              err,
-              stdout,
-              stderr,
-            },
-          );
+      exec(
+        `which ${specs.command}`,
+        { cwd: specs.cwd },
+        (err, stdout, stderr) => {
+          // In some cases - the result is on stderr - e.g. github actions
+          const executablePath = stdout.trim() || stderr.trim();
+          if (!err && executablePath) {
+            resolve(executablePath);
+          } else {
+            console.log(
+              `EXECUTABLE PATH NOT FOUND ${logPrefix} ${specs.command}`,
+              {
+                err,
+                stdout,
+                stderr,
+              },
+            );
 
-          reject(err);
-        }
-      }),
+            reject(err);
+          }
+        },
+      ),
     );
 
     let cwd = process.cwd();

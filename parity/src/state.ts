@@ -279,7 +279,8 @@ class TestCaseState {
 
     const wait = first_start - first_create;
     const { min: wait_min, max: wait_max } = definition.outcomes.wait_time;
-    if (wait < wait_min || wait > wait_max) {
+    // Due to differences in timestamp handling accross languages, allow a variance of up to 50ms
+    if (wait < wait_min - 50 || wait > wait_max + 50) {
       return {
         pass: false,
         issues: [
