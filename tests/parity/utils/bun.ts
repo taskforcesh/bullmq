@@ -3,10 +3,9 @@ import { createBunRedisClient } from '../../../src';
 
 export async function getBunRedisBackendConnection() {
   const port = process.env.PARITY_BACKEND_PORT;
-  const connection = createBunRedisClient(
-    RedisClient,
-    `redis://localhost:${port}`,
-  );
+
+  const client = new RedisClient(`redis://localhost:${port}`);
+  const connection = createBunRedisClient(client);
 
   return connection;
 }

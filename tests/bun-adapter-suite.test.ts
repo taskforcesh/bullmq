@@ -17,11 +17,13 @@ const prefix = `bull-bun-suite-${process.pid}`;
 
 let client: IRedisClient;
 
+function createRawClient(host = redisHost, port = redisPort): RedisClient {
+  return new RedisClient(`redis://${host}:${port}`);
+}
+
 async function createConnectedClient(): Promise<IRedisClient> {
-  const wrapped = createBunRedisClient(
-    RedisClient,
-    `redis://${redisHost}:${redisPort}`,
-  );
+  const raw = createRawClient();
+  const wrapped = createBunRedisClient(raw);
   await wrapped.connect();
   return wrapped;
 }
@@ -51,7 +53,8 @@ beforeAll(async () => {
   RedisConnection.clientFactory = opts => {
     const host = opts?.host ?? redisHost;
     const port = opts?.port ?? redisPort;
-    return createBunRedisClient(RedisClient, `redis://${host}:${port}`);
+    const raw = createRawClient(host, port);
+    return createBunRedisClient(raw);
   };
 });
 

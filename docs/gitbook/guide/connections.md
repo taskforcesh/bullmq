@@ -85,20 +85,22 @@ const myWorker = new Worker('myqueue', async job => {}, { connection });
 
 ### Using Bun's Redis client
 
-Bun has a built-in Redis client. You can use it by passing a Bun Redis client constructor and a redis connection url to `createBunRedisClient` then passing the returned connection BullMQ.
+Bun has a built-in Redis client. Wrap it with `createBunRedisClient` before passing it to BullMQ.
 
 ```typescript
 import { RedisClient } from 'bun';
 import { Queue, Worker, createBunRedisClient } from 'bullmq';
 
-const connection = createBunRedisClient(RedisClient, 'redis://localhost:6379');
+const rawClient = new RedisClient('redis://localhost:6379');
+const connection = createBunRedisClient(rawClient);
 
 const myQueue = new Queue('myqueue', { connection });
 const myWorker = new Worker('myqueue', async job => {}, { connection });
 ```
 
-BullMQ accepts Bun Redis client constructor, instantiates for you and wraps it in a custom adapter which facilitates internal actions such as duplication and graceful shutdown of connections.
-Closing the connection from the wrapper returned by `createBunRedisClient` (for example `connection.disconnect()` or `await connection.quit()`) drains those commands cleanly, just like `quit()` does with ioredis.
+BullMQ does not instantiate Bun's client for you. Create the raw Bun client in your application and wrap it with `createBunRedisClient`.
+
+When you share a single wrapped connection across many Queues and Workers, close it through the wrapper returned by `createBunRedisClient` (for example `connection.disconnect()` or `await connection.quit()`) once every Queue/Worker has been closed. Do **not** call `close()` on the raw Bun `RedisClient` directly: the wrapper cannot flag that shutdown as intentional, so in-flight commands reject with `ConnectionClosedError` and the wrapper attempts to reconnect. Closing through the wrapper drains those commands cleanly, just like `quit()` does with ioredis.
 
 ```typescript
 // Graceful shutdown
@@ -168,8 +170,9 @@ import { Queue, RedisConnection, createBunRedisClient } from 'bullmq';
 RedisConnection.clientFactory = opts => {
   const host = opts?.host ?? 'localhost';
   const port = opts?.port ?? 6379;
+  const rawClient = new RedisClient(`redis://${host}:${port}`);
 
-  return createBunRedisClient(RedisClient, `redis://${host}:${port}`);
+  return createBunRedisClient(rawClient);
 };
 
 const myQueue = new Queue('myqueue', {
