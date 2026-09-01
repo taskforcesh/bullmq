@@ -5,10 +5,15 @@ import {
   TestCaseEvaluationResult,
 } from './types';
 
+interface CaseIssue {
+  description: string;
+  job_issues: string[];
+}
+
 export class TestReportBuilder {
   private rows: string[] = [];
-  private producerIssues: string[] = [];
-  private consumerIssues: string[] = [];
+  private producerIssues: CaseIssue[] = [];
+  private consumerIssues: CaseIssue[] = [];
   private passed = 0;
   private failed = 0;
 
@@ -21,26 +26,38 @@ export class TestReportBuilder {
     this.processResults();
   }
 
+  private generateIssue(
+    definition: ParityTestCase,
+    result: TestCaseEvaluationResult,
+  ) {
+    const job_issues = result.issues.splice(0, 3);
+    if (result.issues.length > 0) {
+      job_issues.push(`... ${result.issues.length} more, see logs`);
+    }
+
+    return {
+      description: `${definition.name} - ${definition.id}`,
+      job_issues,
+    };
+  }
+
   private addResultItem(
     definition: ParityTestCase,
     consumerResult: TestCaseEvaluationResult,
     producerResult: TestCaseEvaluationResult,
   ) {
-    const consumerMark = consumerResult.status === 'success' ? '✓' : 'x';
-    const producerMark = producerResult.status === 'success' ? '✓' : 'x';
+    const consumerMark = consumerResult.pass ? '✓' : 'x';
+    const producerMark = producerResult.pass ? '✓' : 'x';
     const { id, name, description } = definition;
     const row = `| ${id} | ${name} | ${consumerMark} | ${[producerMark]} | ${description} |`;
     this.rows.push(row);
-    if (consumerResult.status === 'failure') {
-      this.consumerIssues.push(`\`${id}\` - ${consumerResult.comment}`);
+    if (!consumerResult.pass) {
+      this.consumerIssues.push(this.generateIssue(definition, consumerResult));
     }
-    if (producerResult.status === 'failure') {
-      this.producerIssues.push(`\`${id}\` - ${producerResult.comment}`);
+    if (!producerResult.pass) {
+      this.producerIssues.push(this.generateIssue(definition, producerResult));
     }
-    if (
-      consumerResult.status === 'success' &&
-      producerResult.status === 'success'
-    ) {
+    if (consumerResult.pass && producerResult.pass) {
       this.passed++;
     } else {
       this.failed++;
@@ -140,29 +157,41 @@ export class TestReportBuilder {
 
       if (this.consumerIssues.length > 0) {
         outputSections.push(
-          '<details>',
-          '<summary>Issues as Consumer</summary>',
-          '<ul>',
-          ...this.consumerIssues.map(issue => `<li>${issue}</li>`),
-          '</ul>',
-          '</details>',
-          '',
+          ...this.renderIssues(
+            'Issues as Consumer from Node.JS',
+            this.consumerIssues,
+          ),
         );
       }
 
       if (this.producerIssues.length > 0) {
         outputSections.push(
-          '<details>',
-          '<summary>Issues as Producer</summary>',
-          '<ul>',
-          ...this.producerIssues.map(issue => `<li>${issue}</li>`),
-          '</ul>',
-          '</details>',
-          '',
+          ...this.renderIssues(
+            'Issues as Producer to Node.JS',
+            this.producerIssues,
+          ),
         );
       }
     }
 
     await appendFile('./parity/REPORT.md', outputSections.join('\n'), 'utf-8');
+  }
+
+  renderIssues(title: string, issues: CaseIssue[]): string[] {
+    const sections = ['<details>', `<summary>${title}</summary>`, '<ul>'];
+
+    for (const caseIssue of issues) {
+      sections.push(
+        `\t<li>`,
+        caseIssue.description,
+        '\t\t<ul>',
+        ...caseIssue.job_issues.map(issue => `\t\t\t<li>${issue}</li>`),
+        '\t\t</ul>',
+        '\t</li>',
+      );
+    }
+
+    sections.push('</ul>', '</details>', '');
+    return sections;
   }
 }

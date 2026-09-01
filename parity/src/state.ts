@@ -34,7 +34,7 @@ export class RunnerState {
   producerOk(): boolean {
     for (const testCase of this.testCases) {
       const result = testCase.evaluateProducer();
-      if (result.status === 'failure') {
+      if (!result.pass) {
         return false;
       }
     }
@@ -78,13 +78,14 @@ export class RunnerState {
       const result = caseResults[i];
       const testCase = this.testCases[i];
 
-      if (result.status === 'failure') {
+      if (!result.pass) {
         failed++;
       }
 
-      const symbol = result.status === 'success' ? '✓' : 'Ｘ';
+      const symbol = result.pass ? '✓' : 'Ｘ';
       log_lines.push(
-        `  ${symbol} ${testCase.definition.name}(${testCase.definition.id}) - ${result.comment}`,
+        `  ${symbol} ${testCase.definition.name}(${testCase.definition.id})`,
+        ...result.issues.map(issue => `    - ${issue}`),
       );
     }
 
@@ -189,19 +190,26 @@ class TestCaseState {
 
   // Checks producer specific outcomes only to allow for early test exits
   evaluateProducer(): TestCaseEvaluationResult {
+    const issues: string[] = [];
+
     for (const job of this.jobs) {
       if (job.createEvents.length !== 1) {
-        return {
-          status: 'failure',
-          comment: `expected ${job.name} to be created once, found ${job.createEvents.length} create events`,
-        };
+        issues.push(
+          `expected ${job.name} to be created once, found ${job.createEvents.length} create events`,
+        );
       }
+    }
+    if (issues.length > 0) {
+      return {
+        pass: false,
+        issues,
+      };
     }
 
     if (new Set(this.jobs.map(job => job.createEvent().test_secret)).size > 1) {
       return {
-        status: 'failure',
-        comment: 'test created jobs with multiple test secrets',
+        pass: false,
+        issues: ['test created jobs with multiple test secrets'],
       };
     }
 
@@ -210,14 +218,14 @@ class TestCaseState {
       this.definition.job.count
     ) {
       return {
-        status: 'failure',
-        comment: 'expected each job to have a unique job secret',
+        pass: false,
+        issues: ['expected each job to have a unique job secret'],
       };
     }
 
     return {
-      status: 'success',
-      comment: 'Producer Passed',
+      pass: true,
+      issues: [],
     };
   }
 
@@ -226,16 +234,16 @@ class TestCaseState {
 
     // Producer events don't depend on the timer
     const producer_result = this.evaluateProducer();
-    if (producer_result.status === 'failure') {
+    if (!producer_result.pass) {
       return producer_result;
     }
 
     const exec_counts = this.definition.outcomes.exec_counts;
-    const failure_reasons: string[] = [];
+    const issues: string[] = [];
     for (const job_state of this.jobs) {
       // Start counts must match
       if (job_state.startEvents.length !== exec_counts.start) {
-        failure_reasons.push(
+        issues.push(
           `${job_state.name}: started ${job_state.startEvents.length}/${exec_counts.start} times`,
         );
         continue;
@@ -243,24 +251,24 @@ class TestCaseState {
 
       // Completion counts must match
       if (job_state.completeEvents.length !== exec_counts.complete) {
-        failure_reasons.push(
+        issues.push(
           `${job_state.name}: completed ${job_state.completeEvents.length}/${exec_counts.complete} times`,
         );
         continue;
       }
 
       if (!job_state.checkSecretsMatch()) {
-        failure_reasons.push(
+        issues.push(
           `${job_state.name}: secrets mismatch between create and start/complete events`,
         );
       }
     }
 
-    if (failure_reasons.length > 0) {
+    if (issues.length > 0) {
       // Only log the first 5 reasons ignoring the rest
       return {
-        status: 'failure',
-        comment: failure_reasons.splice(0, 5).join(', '),
+        pass: false,
+        issues,
       };
     }
 
@@ -273,8 +281,10 @@ class TestCaseState {
     const { min: wait_min, max: wait_max } = definition.outcomes.wait_time;
     if (wait < wait_min || wait > wait_max) {
       return {
-        status: 'failure',
-        comment: `wait time out of bounds ${wait_min} !<= ${wait} !<= ${wait_max}`,
+        pass: false,
+        issues: [
+          `wait time out of bounds ${wait_min} !<= ${wait} !<= ${wait_max}`,
+        ],
       };
     }
 
@@ -284,8 +294,10 @@ class TestCaseState {
       definition.outcomes.processing_time;
     if (processing < processing_min || processing > processing_max) {
       return {
-        status: 'failure',
-        comment: `processing time out of bounds ${processing_min} !<= ${processing} !<= ${processing_max}`,
+        pass: false,
+        issues: [
+          `processing time out of bounds ${processing_min} !<= ${processing} !<= ${processing_max}`,
+        ],
       };
     }
 
@@ -298,14 +310,14 @@ class TestCaseState {
       );
 
       return {
-        status: 'failure',
-        comment: `received ${unknown_events.length} that didn't match any job`,
+        pass: false,
+        issues: [`received ${unknown_events.length} that didn't match any job`],
       };
     }
 
     return {
-      status: 'success',
-      comment: 'Test Passed',
+      pass: true,
+      issues: [],
     };
   }
 }

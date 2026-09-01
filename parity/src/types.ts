@@ -57,8 +57,8 @@ export interface ParityTestData {
 }
 
 export interface TestCaseEvaluationResult {
-  status: 'success' | 'failure';
-  comment: string;
+  pass: boolean;
+  issues: string[];
 }
 
 export interface OneSidedScripResults {

@@ -82,13 +82,11 @@ async function runOneSidedScript(
     );
   });
 
-  console.log('Waiting for results');
   // Waits until all the timers run out or the test is aborted
   const results = await state.evaluateResults(
     `${script.title(backend)} as ${switchRoles ? 'Producer' : 'Consumer'}`,
   );
 
-  console.log('All tests complete, killing runners');
   // Kill scripts if they're still running
   abortController.abort();
 

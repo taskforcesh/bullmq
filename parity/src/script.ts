@@ -12,6 +12,9 @@ interface LaunchSpecs {
   command: string;
   args: string[];
   timeout?: number;
+  // Optional - set a working directory relative to the root of the project
+  cwd?: string;
+  debug?: boolean; // Prints events from the command to console
 }
 
 export interface ParityTestImplementation {
@@ -58,7 +61,6 @@ export class ParityTestScript {
    * @param flipped - In a flipped scenario, command 0 and command 1 switch the roles of producer and consumer
    * @param backend_port - The port to use to connect to the inmemory backend
    * @param handlers - Functions to handle
-   * @returns - A function that can be used to kill the script
    */
   async launch(
     scriptType: ParityScriptType,
@@ -83,12 +85,18 @@ export class ParityTestScript {
       }),
     );
 
+    let cwd = process.cwd();
+    if (specs.cwd) {
+      cwd = `${cwd}/${specs.cwd}`;
+    }
+
     const child = spawn(command, specs.args, {
       env: {
         PARITY_RUN_ID: run_id,
         PARITY_BACKEND: backend.toLowerCase(),
         PARITY_BACKEND_PORT: backendPort.toString(),
       },
+      cwd,
     });
 
     const timeout = specs.timeout ?? 3000;
@@ -132,6 +140,9 @@ export class ParityTestScript {
             continue;
           }
 
+          if (specs.debug) {
+            console.log(`DEBUG ${logPrefix} ${line}`);
+          }
           handlers.onUpdate(event.type, event.data);
         } catch (err) {
           // Each update event is expected to be valid JSON, simply ignore parsing errors
