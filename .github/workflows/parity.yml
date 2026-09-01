@@ -30,6 +30,9 @@ jobs:
       - name: Build Node.js
         run: yarn build
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
       - name: Install Poetry
         run: pipx install poetry
 
