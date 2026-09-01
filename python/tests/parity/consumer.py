@@ -1,6 +1,6 @@
 import asyncio
 import signal
-from datetime import datetime
+import time
 from typing import Any
 
 from bullmq.job import Job
@@ -13,7 +13,7 @@ def createWorker(definition: dict[str, Any], backendOptions):
         logEvent(
             "job-started",
             {
-                "timestamp": int(datetime.now().timestamp() * 1000),
+                "timestamp": int(time.time() * 1000),
                 "test_id": str(definition.get("id")),
                 "job_name": job.name,
                 "test_secret": job.data.get("test_secret"),
@@ -31,7 +31,7 @@ def createWorker(definition: dict[str, Any], backendOptions):
         logEvent(
             "job-completed",
             {
-                "timestamp": int(datetime.now().timestamp() * 1000),
+                "timestamp": int(time.time() * 1000),
                 "test_id": str(definition.get("id")),
                 "job_name": job.name,
                 "test_secret": job.data.get("test_secret"),
