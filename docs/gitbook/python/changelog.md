@@ -1,3 +1,10 @@
+## [3.2.1](https://github.com/taskforcesh/bullmq/compare/vpy3.2.0...vpy3.2.1) (2026-09-01)
+
+
+### Bug Fixes
+
+* **deps:** update dependency psycopg to v3.3.5 [python] ([#4668](https://github.com/taskforcesh/bullmq/issues/4668)) ([63cee3f](https://github.com/taskforcesh/bullmq/commit/63cee3f977a13304a4e6b07262db15bfad3eb436))
+
 # [3.2.0](https://github.com/taskforcesh/bullmq/compare/vpy3.1.1...vpy3.2.0) (2026-08-31)
 
 
