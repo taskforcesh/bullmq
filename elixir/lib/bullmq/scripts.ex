@@ -1390,18 +1390,29 @@ defmodule BullMQ.Scripts do
           script_result()
   def move_stalled_jobs_to_wait(conn, ctx, max_stalled_count, opts \\ []) do
     keys = [
+      # KEYS[1] stalled
       Keys.stalled(ctx),
+      # KEYS[2] wait
       Keys.wait(ctx),
+      # KEYS[3] active
       Keys.active(ctx),
+      # KEYS[4] stalled-check
       Keys.stalled_check(ctx),
+      # KEYS[5] meta
       Keys.meta(ctx),
+      # KEYS[6] paused
       Keys.paused(ctx),
+      # KEYS[7] marker
       Keys.marker(ctx),
+      # KEYS[8] event stream
       Keys.events(ctx),
+      # KEYS[9] repeat
       Keys.repeat(ctx)
     ]
 
     timestamp = Keyword.get(opts, :timestamp, System.system_time(:millisecond))
+
+    max_check_time = Keyword.get(opts, :stalled_interval, 30_000)
 
     args = [
       # ARGV[1] max stalled count
@@ -1410,7 +1421,8 @@ defmodule BullMQ.Scripts do
       Keys.key_prefix(ctx),
       # ARGV[3] timestamp
       timestamp,
-      Keyword.get(opts, :stalled_interval, 30_000)
+      # ARGV[4] max check time
+      max_check_time
     ]
 
     execute(conn, :move_stalled_jobs_to_wait, keys, args)

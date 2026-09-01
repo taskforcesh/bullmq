@@ -121,6 +121,97 @@ describe('bun redis adapter', () => {
       await dup.quit();
     });
 
+    it('duplicate() targets the same server, not Bun default (#4582)', async () => {
+      const target = 'redis://localhost:16379';
+
+      class FakeRaw {
+        connected = false;
+        onconnect: (() => void) | null = null;
+        onclose: (() => void) | null = null;
+        onerror: (() => void) | null = null;
+        constructor(public target = 'redis://DEFAULT:6379') {}
+        async connect() {
+          this.connected = true;
+          this.onconnect?.();
+        }
+        close() {
+          this.connected = false;
+        }
+        async duplicate() {
+          // Native duplicate preserves the connection target.
+          return new FakeRaw(this.target);
+        }
+        async send() {
+          return null;
+        }
+        async get() {
+          return null;
+        }
+        async smembers() {
+          return [];
+        }
+        async incr() {
+          return 0;
+        }
+      }
+
+      const primary = createBunRedisClient(new FakeRaw(target) as any);
+      await primary.connect();
+
+      const dup = primary.duplicate();
+      await dup.connect();
+
+      expect((dup as any).raw.target).toBe(target);
+      expect((dup as any).raw.target).not.toBe('redis://DEFAULT:6379');
+
+      await primary.quit();
+      await dup.quit();
+    });
+
+    it('duplicate() reports ready when Bun returns an already-connected client', async () => {
+      class FakeRaw {
+        connected = false;
+        onconnect: (() => void) | null = null;
+        onclose: (() => void) | null = null;
+        onerror: (() => void) | null = null;
+        async connect() {
+          this.connected = true;
+          this.onconnect?.();
+        }
+        close() {
+          this.connected = false;
+        }
+        async duplicate() {
+          const duplicate = new FakeRaw();
+          duplicate.connected = true;
+          return duplicate;
+        }
+        async send() {
+          return null;
+        }
+        async get() {
+          return null;
+        }
+        async smembers() {
+          return [];
+        }
+        async incr() {
+          return 0;
+        }
+      }
+
+      const primary = createBunRedisClient(new FakeRaw() as any);
+      await primary.connect();
+
+      const dup = primary.duplicate();
+      await dup.connect();
+
+      expect(dup.status).toBe('ready');
+
+      await primary.quit();
+      await dup.quit();
+    });
+
     it('should explicitly reconnect while an automatic reconnect is pending', async () => {
       const reconnectingClient = await createConnectedClient();
 

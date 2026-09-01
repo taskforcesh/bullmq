@@ -1,3 +1,10 @@
+## [1.2.8](https://github.com/taskforcesh/bullmq/compare/vrs1.2.7...vrs1.2.8) (2026-08-30)
+
+
+### Bug Fixes
+
+* **deps:** upgrade msgpackr to 2.1.0 and uuid to 1.26.0 (rust) ([#4621](https://github.com/taskforcesh/bullmq/issues/4621)) ([74987e9](https://github.com/taskforcesh/bullmq/commit/74987e914f22e7647662406861e2ad3101b883d4))
+
 ## [1.2.7](https://github.com/taskforcesh/bullmq/compare/vrs1.2.6...vrs1.2.7) (2026-08-25)
 
 
