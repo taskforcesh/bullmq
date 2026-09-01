@@ -35,15 +35,19 @@ const otherImplementations: ParityTestImplementation[] = [
   //     args: [],
   //   },
   // },
-  // {
-  //   name: 'Python',
-  //   consumer: {
-  //     args: [],
-  //   },
-  //   producer: {
-  //     args: [],
-  //   },
-  // },
+  {
+    name: 'Python',
+    consumer: {
+      command: 'poetry',
+      args: ['run', 'python', 'tests/parity/consumer.py'],
+      cwd: 'python',
+    },
+    producer: {
+      command: 'poetry',
+      args: ['run', 'python', 'tests/parity/producer.py'],
+      cwd: 'python',
+    },
+  },
 ];
 
 const REPORT_HEADER = `# Feature Alignment Report
