@@ -84,6 +84,7 @@
   - [Bull to BullMQ](guide/migrations/bull-to-bullmq.md)
   - [Migrate from v5 to v6](guide/migrations/migrate-from-v5-to-v6.md)
 - [Troubleshooting](guide/troubleshooting.md)
+- [Testing](guide/testing.md)
 
 ## Patterns
 
