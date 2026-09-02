@@ -191,6 +191,8 @@ export class RedisConnection extends EventEmitter {
 
   private readonly opts: RedisOptions;
   private readonly initializing: Promise<RedisClient>;
+  private readonly closingSignal: Promise<void>;
+  private resolveClosingSignal: () => void;
 
   private version: string;
   protected packageVersion = packageVersion;
@@ -277,6 +279,10 @@ export class RedisConnection extends EventEmitter {
       this.emit('ready');
     };
 
+    this.closingSignal = new Promise(resolve => {
+      this.resolveClosingSignal = resolve;
+    });
+
     this.initializing = this.init();
     this.initializing.catch(err => {
       // Only emit if there is an `error` listener attached. `EventEmitter.emit`
@@ -309,7 +315,10 @@ export class RedisConnection extends EventEmitter {
    * Waits for a redis client to be ready.
    * @param redis - client
    */
-  static async waitUntilReady(client: RedisClient): Promise<void> {
+  static async waitUntilReady(
+    client: RedisClient,
+    closing?: Promise<void>,
+  ): Promise<void> {
     if (client.status === 'ready') {
       return;
     }
@@ -323,7 +332,8 @@ export class RedisConnection extends EventEmitter {
     }
 
     if (client.status === 'wait') {
-      return client.connect();
+      const connecting = client.connect();
+      return closing ? Promise.race([connecting, closing]) : connecting;
     }
 
     if (client.status === 'end') {
@@ -334,7 +344,7 @@ export class RedisConnection extends EventEmitter {
     let handleEnd: () => void;
     let handleError: (e: Error) => void;
     try {
-      await new Promise<void>((resolve, reject) => {
+      const ready = new Promise<void>((resolve, reject) => {
         let lastError: Error;
 
         handleError = (err: Error) => {
@@ -367,6 +377,7 @@ export class RedisConnection extends EventEmitter {
         client.on('end', handleEnd);
         client.once('error', handleError);
       });
+      await (closing ? Promise.race([ready, closing]) : ready);
     } finally {
       client.removeListener('end', handleEnd);
       client.removeListener('error', handleError);
@@ -423,7 +434,11 @@ export class RedisConnection extends EventEmitter {
     this.patchBlockingClusterClient();
 
     if (!this.extraOptions.skipWaitingForReady) {
-      await RedisConnection.waitUntilReady(this._client);
+      await RedisConnection.waitUntilReady(this._client, this.closingSignal);
+    }
+
+    if (this.closing) {
+      return this._client;
     }
 
     this.loadCommands(this.packageVersion);
@@ -758,6 +773,7 @@ export class RedisConnection extends EventEmitter {
       const status = this.status;
       this.status = 'closing';
       this.closing = true;
+      this.resolveClosingSignal();
       this.disableBlockingClusterReconnect();
 
       try {
@@ -766,7 +782,11 @@ export class RedisConnection extends EventEmitter {
           await this.initializing;
         }
         if (!this.extraOptions.shared) {
-          if (status == 'initializing' || force) {
+          const clientIsReady =
+            this._client.status === 'ready' ||
+            (this._client.status === 'connect' && isRedisCluster(this._client));
+
+          if (status == 'initializing' || force || !clientIsReady) {
             // If we have not still connected to Redis, we need to disconnect.
             this._client.disconnect();
             // Suppress any rejection from the in-flight init() so it doesn't
