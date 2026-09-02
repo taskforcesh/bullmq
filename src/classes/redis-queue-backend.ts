@@ -1611,7 +1611,6 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       queueKeys.stalled,
       queueKeys.wait,
       queueKeys.limiter,
-      queueKeys.paused,
       queueKeys.pc,
     ];
 

@@ -213,7 +213,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- Make sure job exists
     -- and not rate limited.
     if (ARGV[6] == "1") then
         local result = fetchNextJob(KEYS[1], KEYS[2], KEYS[3], eventStreamKey,
-            KEYS[6], KEYS[7], KEYS[8], metaKey, KEYS[10], KEYS[14], prefix,
+            KEYS[6], KEYS[7], metaKey, KEYS[10], KEYS[14], prefix,
             timestamp, opts)
         if result then
             return result

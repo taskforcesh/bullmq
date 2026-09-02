@@ -459,7 +459,6 @@ public sealed class RedisBackend : IQueueBackend
             _keys["stalled"],
             _keys["wait"],
             _keys["limiter"],
-            _keys["paused"],
             _keys["pc"],
         };
 
