@@ -64,11 +64,9 @@
       "description": "Group every Python optional dependency update into a single PR",
       "matchCategories": ["python"],
       "matchManagers": ["pep621"],
-      "matchDepTypes": ["project.optional-dependencies"],
-      "groupName": "Python optional dependencies",
-      "groupSlug": "python-optional",
-      "commitMessageSuffix": "[python]",
-      "semanticCommitType": "chore"
+      "groupName": "Python dependencies",
+      "groupSlug": "python",
+      "commitMessageSuffix": "[python]"
     },
     {
       "description": "Use chore commit type for Python optional dependency updates",
