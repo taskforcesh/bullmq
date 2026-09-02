@@ -61,7 +61,7 @@
       "commitMessageSuffix": "[python]"
     },
     {
-      "description": "Group every Python optional dependency update into a single PR",
+      "description": "Group every Python dependency update into a single PR",
       "matchCategories": ["python"],
       "matchManagers": ["pep621"],
       "groupName": "Python dependencies",
