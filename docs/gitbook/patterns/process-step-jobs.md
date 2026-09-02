@@ -252,9 +252,9 @@ var worker = new Worker(
       {
         case Step.Initial:
           await doInitialStepStuff();
+          await job.UpdateDataAsync(new { step = (int)Step.Second });
           await job.MoveToDelayedAsync(
             DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + 200);
-          await job.UpdateDataAsync(new { step = (int)Step.Second });
           throw new DelayedException();
 
         case Step.Second:
