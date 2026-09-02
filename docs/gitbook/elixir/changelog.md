@@ -10,7 +10,7 @@
 
 ### Bug Fixes
 
-* **postgres:** resolve priv SQL dir at runtime for Mix release [elixir] ([#4629](https://github.com/taskforcesh/bullmq/issues/4629)) ([66c29c8](https://github.com/taskforcesh/bullmq/commit/66c29c8d8c562662790a350d0d1ae1753f62592c))
+* **postgres:** resolve priv SQL dir at runtime for Mix releases ([#4636](https://github.com/taskforcesh/bullmq/issues/4636)) ([9d737e9](https://github.com/taskforcesh/bullmq/commit/9d737e9d0e467eeacf6f6a43f3f806fa2873ee1b))
 
 # [2.2.0](https://github.com/taskforcesh/bullmq/compare/vex2.1.3...vex2.2.0) (2026-08-26)
 
