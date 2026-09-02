@@ -1080,18 +1080,22 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
     async def test_close_completes_despite_external_cancellation(self):
         """Test that close() finishes cleanup even if its own task is cancelled
         externally while waiting for active jobs to finish."""
+        job_started = asyncio.Event()
+        job_finished = False
+
         async def process(job: Job, token: str):
-            # Sleep long enough that the job is guaranteed to still be active
-            # when close() is cancelled from outside (well within the 30s timeout)
-            await asyncio.sleep(5)
+            nonlocal job_finished
+            job_started.set()
+            await asyncio.sleep(0.5)
+            job_finished = True
 
         worker = Worker(queueName, process, {"prefix": prefix, "concurrency": 2})
         queue = Queue(queueName, {"prefix": prefix})
         await queue.add("test", {"idx": 1})
-        await asyncio.sleep(0.5)  # let the job start processing
+        await job_started.wait()  # wait until the job processor has actively started
 
         close_task = asyncio.ensure_future(worker.close())
-        await asyncio.sleep(0.3)  # give close() time to reach asyncio.wait(self.processing, ...)
+        await asyncio.sleep(0.1)  # give close() time to reach asyncio.wait(self.processing, ...)
         close_task.cancel()
 
         try:
@@ -1099,10 +1103,83 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         except asyncio.CancelledError:
             pass
 
-        await asyncio.sleep(0.1)  # give cleanup a moment to settle
+        self.assertTrue(job_finished)  # confirms active in-flight job was allowed to finish
         self.assertTrue(worker.closed)
 
         await queue.close()
+
+    async def test_close_completes_despite_repeated_external_cancellation(self):
+        """Test that close() finishes cleanup even when its task is cancelled
+        multiple times while waiting for active jobs — exercises the while loop."""
+        job_started = asyncio.Event()
+        job_finished = False
+
+        async def process(job: Job, token: str):
+            nonlocal job_finished
+            job_started.set()
+            await asyncio.sleep(0.5)
+            job_finished = True
+
+        worker = Worker(queueName, process, {"prefix": prefix, "concurrency": 2})
+        queue = Queue(queueName, {"prefix": prefix})
+        await queue.add("test", {"idx": 1})
+        await job_started.wait()  # wait until the job processor has actively started
+
+        close_task = asyncio.ensure_future(worker.close())
+        await asyncio.sleep(0.1)  # give close() time to reach asyncio.wait(self.processing, ...)
+
+        # Cancel the close task 3 times to exercise the while loop
+        for _ in range(3):
+            close_task.cancel()
+            await asyncio.sleep(0)  # yield to let the CancelledError be delivered
+
+        try:
+            await close_task
+        except asyncio.CancelledError:
+            pass
+
+        self.assertTrue(job_finished)   # in-flight job completed despite repeated cancellation
+        self.assertTrue(worker.closed)  # cleanup always ran to completion
+
+        await queue.close()
+
+    async def test_external_run_cancellation_propagates(self):
+        """Test that cancelling the run() task from outside (not via pause/close)
+        propagates CancelledError correctly instead of being swallowed into return None.
+
+        When CancelledError is re-raised (correct), it propagates through retryIfFailed
+        (which catches only Exception, not BaseException) and out of the run() loop,
+        causing the finally block to set self.running = False.
+
+        When CancelledError is swallowed with return None (incorrect), the worker
+        silently continues fetching jobs and self.running stays True.
+        """
+        async def process(job: Job, token: str):
+            pass
+
+        worker = Worker(queueName, process, {"prefix": prefix})
+        # Let the worker enter the idle BZPOPMIN wait
+        await asyncio.sleep(0.2)
+
+        # Confirm the worker is actually sitting in the idle wait
+        self.assertTrue(worker.running)
+        self.assertIsNotNone(worker.waiting)
+
+        # Cancel the idle waiting task directly — not via pause()/close().
+        # At this point worker.paused=False and worker.closing=False,
+        # so the re-raise branch (not self.paused and not self.closing) should fire.
+        worker.waiting.cancel()
+
+        # Give the event loop time to deliver the CancelledError through the run() loop
+        await asyncio.sleep(0.2)
+
+        # Key assertion: if CancelledError was correctly re-raised, it propagates
+        # through retryIfFailed → out of run() → finally sets self.running = False.
+        # If it was swallowed (return None), the worker keeps running and this fails.
+        self.assertFalse(worker.running)
+        self.assertFalse(worker.closed)  # close() was never called
+
+        await worker.close()
 
 
 if __name__ == '__main__':

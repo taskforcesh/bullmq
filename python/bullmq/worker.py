@@ -247,6 +247,8 @@ class Worker(EventEmitter):
                 if self.blockUntil <= 0 or self.blockUntil <= timestamp:
                     job_instance = await self.moveToActive(token)
             except asyncio.CancelledError:
+                if not self.paused and not self.closing:
+                    raise
                 # Expected when pause()/close() cancels the idle BZPOPMIN wait.
                 return None
             finally:
@@ -608,10 +610,15 @@ class Worker(EventEmitter):
 
         cancelled = False
         if not force and len(self.processing) > 0:
-            try:
-                await asyncio.wait(self.processing, return_when=asyncio.ALL_COMPLETED)
-            except asyncio.CancelledError:
-                cancelled = True
+            # Ensure close() actually waits for in-flight jobs to finish before
+            # tearing down connections, even if this task is cancelled (once or
+            # repeatedly) while waiting.
+            while True:
+                try:
+                    await asyncio.shield(asyncio.wait(self.processing, return_when=asyncio.ALL_COMPLETED))
+                    break
+                except asyncio.CancelledError:
+                    cancelled = True
 
         await self.lockManager.close()
 
@@ -639,10 +646,14 @@ class Worker(EventEmitter):
             if self.waiting:
                 self.waiting.cancel()
             if not do_not_wait_active and len(self.processing) > 0:
-                try:
-                    await asyncio.wait(self.processing, return_when=asyncio.ALL_COMPLETED)
-                except asyncio.CancelledError:
-                    cancelled = True
+                # Ensure in-flight jobs finish before 'paused' is emitted, even if
+                # this task is cancelled (once or repeatedly) while waiting.
+                while True:
+                    try:
+                        await asyncio.shield(asyncio.wait(self.processing, return_when=asyncio.ALL_COMPLETED))
+                        break
+                    except asyncio.CancelledError:
+                        cancelled = True
         self.emit('paused')
 
         if cancelled:
