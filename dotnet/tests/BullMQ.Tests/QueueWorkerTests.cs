@@ -431,6 +431,93 @@ public abstract class QueueWorkerTestsBase
             await queue.ObliterateAsync(force: true);
         }
     }
+
+    [Fact]
+    public async Task Worker_ManualMoveToDelayed_ThrowDelayedException_DoesNotFailJob()
+    {
+        var name = UniqueName();
+        await using var queue = new Queue(name, NewQueueOptions());
+        var completed = new TaskCompletionSource<Job>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var failed = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var movedToDelayed = 0;
+
+        var worker = new Worker(
+            name,
+            async (job, _) =>
+            {
+                if (Interlocked.CompareExchange(ref movedToDelayed, 1, 0) == 0)
+                {
+                    await job.MoveToDelayedAsync(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + 200)
+                        .ConfigureAwait(false);
+                    throw new DelayedException();
+                }
+
+                return "done";
+            },
+            NewWorkerOptions());
+
+        worker.Completed += (job, _) => completed.TrySetResult(job);
+        worker.Failed += (_, error) => failed.TrySetResult(error);
+
+        try
+        {
+            var added = await queue.AddAsync("manual-delay", new { x = 1 });
+            _ = worker.RunAsync();
+
+            var finished = await WaitForAsync(completed.Task, TimeSpan.FromSeconds(20));
+            Assert.Equal(added.Id, finished.Id);
+            Assert.False(failed.Task.IsCompleted, "manual delayed flow should not emit failed event");
+            Assert.Equal(JobState.Completed, await added.GetStateAsync());
+            Assert.Equal(0, await queue.GetFailedCountAsync());
+        }
+        finally
+        {
+            await worker.CloseAsync(force: true);
+            await queue.ObliterateAsync(force: true);
+        }
+    }
+
+    [Fact]
+    public async Task Worker_ManualMoveToDelayed_WithoutToken_UsesJobToken()
+    {
+        var name = UniqueName();
+        await using var queue = new Queue(name, NewQueueOptions());
+        var completed = new TaskCompletionSource<Job>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var movedToDelayed = 0;
+
+        var worker = new Worker(
+            name,
+            async (job, _) =>
+            {
+                if (Interlocked.CompareExchange(ref movedToDelayed, 1, 0) == 0)
+                {
+                    // Omits token on purpose to validate job.Token fallback.
+                    await job.MoveToDelayedAsync(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + 100)
+                        .ConfigureAwait(false);
+                    throw new DelayedException();
+                }
+
+                return "done";
+            },
+            NewWorkerOptions());
+
+        worker.Completed += (job, _) => completed.TrySetResult(job);
+
+        try
+        {
+            var added = await queue.AddAsync("manual-delay-token", new { x = 2 });
+            _ = worker.RunAsync();
+
+            var finished = await WaitForAsync(completed.Task, TimeSpan.FromSeconds(20));
+            Assert.Equal(added.Id, finished.Id);
+            Assert.Equal(JobState.Completed, await added.GetStateAsync());
+        }
+        finally
+        {
+            await worker.CloseAsync(force: true);
+            await queue.ObliterateAsync(force: true);
+        }
+    }
 }
 
 /// <summary>Runs the Queue/Worker end-to-end suite against the Redis backend.</summary>
