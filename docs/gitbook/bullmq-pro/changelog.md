@@ -64,7 +64,7 @@
 
 ### Bug Fixes
 
-* **queue:** consider groups when using removeOphanedJobs method ([#432](https://github.com/taskforcesh/bullmq-pro/issues/432)) ([c191e6b](https://github.com/taskforcesh/bullmq-pro/commit/c191e6b2c047fc4b90f116780ee8449413367852))
+* **queue:** consider groups when using removeOrphanedJobs method ([#432](https://github.com/taskforcesh/bullmq-pro/issues/432)) ([c191e6b](https://github.com/taskforcesh/bullmq-pro/commit/c191e6b2c047fc4b90f116780ee8449413367852))
 
 # [7.46.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.45.1...v7.46.0) (2026-05-21)
 
