@@ -3,7 +3,7 @@
 
 ### Bug Fixes
 
-* Nothing changed, triggered by a rust version release
+* Nothing changed, triggered by a Rust version release
 
 ## [6.3.3](https://github.com/taskforcesh/bullmq/compare/v6.3.2...v6.3.3) (2026-08-31)
 
