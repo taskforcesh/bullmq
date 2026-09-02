@@ -16,7 +16,7 @@ When a job is added to a queue it can be in one of three states:
 - **“delayed”**: implies that the job is waiting for some timeout or to be promoted for being processed. These jobs are not processed directly, but instead are placed at the beginning of the waiting list, or in a prioritized set, and processed as soon as a worker is idle.
 
 {% hint style="warning" %}
-Note that prioritized jobs use values from `1` to `2^21`, where a lower number is always a higher priority than higher numbers. This follows a similar standard as processed in Unix (https://en.wikipedia.org/wiki/Nice_(Unix), where a higher number means less priority). A `priority` of `0` means no priority, so those jobs stay in the **“wait”** state and are processed before prioritized jobs.
+Note that prioritized jobs use values from `1` to `2^21`, where a lower number is always a higher priority than higher numbers. This follows a similar standard as processed in Unix (https://en.wikipedia.org/wiki/Nice_(Unix), where a higher number means less priority). A `priority` of `0` means no explicit priority is set, but since those jobs are always processed before any prioritized job, you can effectively think of `0` as the highest priority of all.
 {% endhint %}
 
 The next state for a job is the **“active”** state. The active state is represented by a set, and are jobs that are currently being processed (i.e. they are running in the `process` function explained in the previous chapter). A job can be in the active state for an unlimited amount of time until the process is completed or an exception is thrown so that the job will end in either the **“completed”** or the **“failed”** status.
