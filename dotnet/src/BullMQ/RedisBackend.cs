@@ -448,7 +448,12 @@ public sealed class RedisBackend : IQueueBackend
     }
 
     public async Task<NextJobData?> MoveToDelayedAsync(
-        string jobId, long timestamp, long delay, string token = "0", bool fetchNext = false)
+        string jobId,
+        long timestamp,
+        long delay,
+        string token = "0",
+        bool fetchNext = false,
+        bool skipAttempt = false)
     {
         var keys = MapKeys("marker", "active", "prioritized", "delayed");
         var keyList = new List<RedisKey>(keys)
@@ -469,7 +474,7 @@ public sealed class RedisBackend : IQueueBackend
             jobId,
             token,
             delay,
-            "0", // skipAttempt
+            skipAttempt ? "1" : "0",
             string.Empty, // fieldsToUpdate placeholder
             fetchNext ? "1" : "0",
         };

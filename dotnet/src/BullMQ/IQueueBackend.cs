@@ -94,9 +94,18 @@ public interface IQueueBackend : IAsyncDisposable
         Job job, string failedReason, object? removeOnFail, string token, bool fetchNext,
         string? stackTraceJson = null);
 
-    /// <summary>Moves a job to the delayed state, scheduling it after <paramref name="delay"/> ms.</summary>
+    /// <summary>
+    /// Moves a job to the delayed state, scheduling it after <paramref name="delay"/> ms.
+    /// Set <paramref name="skipAttempt"/> to true for manual-delay control flow
+    /// where delaying must not consume an attempt.
+    /// </summary>
     Task<NextJobData?> MoveToDelayedAsync(
-        string jobId, long timestamp, long delay, string token = "0", bool fetchNext = false);
+        string jobId,
+        long timestamp,
+        long delay,
+        string token = "0",
+        bool fetchNext = false,
+        bool skipAttempt = false);
 
     /// <summary>Moves a parent job to the waiting-children state. Returns true if moved.</summary>
     Task<bool> MoveToWaitingChildrenAsync(string jobId, string token, string? childKey = null);

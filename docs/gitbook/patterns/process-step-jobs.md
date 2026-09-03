@@ -52,12 +52,9 @@ const worker = new Worker(
 using System.Text.Json;
 using BullMQ;
 
-enum Step
-{
-  Initial = 0,
-  Second = 1,
-  Finish = 2,
-}
+const int StepInitial = 0;
+const int StepSecond = 1;
+const int StepFinish = 2;
 
 var worker = new Worker(
   "queueName",
@@ -65,23 +62,23 @@ var worker = new Worker(
   {
     var step = job.Data is JsonElement data &&
            data.TryGetProperty("step", out var rawStep)
-      ? (Step)rawStep.GetInt32()
-      : Step.Initial;
+      ? rawStep.GetInt32()
+      : StepInitial;
 
-    while (step != Step.Finish)
+    while (step != StepFinish)
     {
       switch (step)
       {
-        case Step.Initial:
+        case StepInitial:
           await doInitialStepStuff();
-          await job.UpdateDataAsync(new { step = (int)Step.Second });
-          step = Step.Second;
+          await job.UpdateDataAsync(new { step = StepSecond });
+          step = StepSecond;
           break;
 
-        case Step.Second:
+        case StepSecond:
           await doSecondStepStuff();
-          await job.UpdateDataAsync(new { step = (int)Step.Finish });
-          return Step.Finish;
+          await job.UpdateDataAsync(new { step = StepFinish });
+          return StepFinish;
 
         default:
           throw new Exception("invalid step");
@@ -230,12 +227,9 @@ const worker = new Worker(
 using System.Text.Json;
 using BullMQ;
 
-enum Step
-{
-  Initial = 0,
-  Second = 1,
-  Finish = 2,
-}
+const int StepInitial = 0;
+const int StepSecond = 1;
+const int StepFinish = 2;
 
 var worker = new Worker(
   "queueName",
@@ -243,24 +237,24 @@ var worker = new Worker(
   {
     var step = job.Data is JsonElement data &&
            data.TryGetProperty("step", out var rawStep)
-      ? (Step)rawStep.GetInt32()
-      : Step.Initial;
+      ? rawStep.GetInt32()
+      : StepInitial;
 
-    while (step != Step.Finish)
+    while (step != StepFinish)
     {
       switch (step)
       {
-        case Step.Initial:
+        case StepInitial:
           await doInitialStepStuff();
-          await job.UpdateDataAsync(new { step = (int)Step.Second });
+          await job.UpdateDataAsync(new { step = StepSecond });
           await job.MoveToDelayedAsync(
             DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + 200);
           throw new DelayedException();
 
-        case Step.Second:
+        case StepSecond:
           await doSecondStepStuff();
-          await job.UpdateDataAsync(new { step = (int)Step.Finish });
-          return Step.Finish;
+          await job.UpdateDataAsync(new { step = StepFinish });
+          return StepFinish;
 
         default:
           throw new Exception("invalid step");
