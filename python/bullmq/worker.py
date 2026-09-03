@@ -613,9 +613,12 @@ class Worker(EventEmitter):
             # Ensure close() actually waits for in-flight jobs to finish before
             # tearing down connections, even if this task is cancelled (once or
             # repeatedly) while waiting.
+            wait_for_processing = asyncio.ensure_future(
+                asyncio.wait(self.processing, return_when=asyncio.ALL_COMPLETED)
+            )
             while True:
                 try:
-                    await asyncio.shield(asyncio.wait(self.processing, return_when=asyncio.ALL_COMPLETED))
+                    await asyncio.shield(wait_for_processing)
                     break
                 except asyncio.CancelledError:
                     cancelled = True
@@ -648,9 +651,12 @@ class Worker(EventEmitter):
             if not do_not_wait_active and len(self.processing) > 0:
                 # Ensure in-flight jobs finish before 'paused' is emitted, even if
                 # this task is cancelled (once or repeatedly) while waiting.
+                wait_for_processing = asyncio.ensure_future(
+                    asyncio.wait(self.processing, return_when=asyncio.ALL_COMPLETED)
+                )
                 while True:
                     try:
-                        await asyncio.shield(asyncio.wait(self.processing, return_when=asyncio.ALL_COMPLETED))
+                        await asyncio.shield(wait_for_processing)
                         break
                     except asyncio.CancelledError:
                         cancelled = True
