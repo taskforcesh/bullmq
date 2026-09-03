@@ -794,7 +794,6 @@ impl Job {
         let state_key = ctx.keys.get(state);
         let wait_key = ctx.keys.wait();
         let meta_key = ctx.keys.meta();
-        let paused_key = ctx.keys.paused();
         let active_key = ctx.keys.active();
         let marker_key = ctx.keys.marker();
 
@@ -820,7 +819,7 @@ impl Job {
         };
 
         let keys = vec![
-            job_key, events_key, state_key, wait_key, meta_key, paused_key, active_key, marker_key,
+            job_key, events_key, state_key, wait_key, meta_key, active_key, marker_key,
         ];
         let args: Vec<&[u8]> = vec![
             self.id.as_bytes(),
