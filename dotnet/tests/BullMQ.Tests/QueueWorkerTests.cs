@@ -498,7 +498,7 @@ public abstract class QueueWorkerTestsBase
                     // Omits token on purpose to validate job.Token fallback.
                     await job.MoveToDelayedAsync(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + 100)
                         .ConfigureAwait(false);
-                    throw new DelayedException();
+                    throw new Exception(DelayedException.DefaultMessage);
                 }
 
                 return "done";
