@@ -469,6 +469,10 @@ public abstract class QueueWorkerTestsBase
             Assert.False(failed.Task.IsCompleted, "manual delayed flow should not emit failed event");
             Assert.Equal(JobState.Completed, await added.GetStateAsync());
             Assert.Equal(0, await queue.GetFailedCountAsync());
+
+            var stored = await queue.GetJobAsync(added.Id!);
+            Assert.NotNull(stored);
+            Assert.Equal(1, stored!.AttemptsMade);
         }
         finally
         {

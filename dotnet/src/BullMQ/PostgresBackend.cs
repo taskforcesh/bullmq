@@ -255,12 +255,17 @@ public sealed class PostgresBackend : IQueueBackend
     }
 
     public async Task<NextJobData?> MoveToDelayedAsync(
-        string jobId, long timestamp, long delay, string token = "0", bool fetchNext = false)
+        string jobId,
+        long timestamp,
+        long delay,
+        string token = "0",
+        bool fetchNext = false,
+        bool skipAttempt = false)
     {
         var processAt = timestamp + delay;
         await RunAsync(
             "move_to_delayed",
-            new object?[] { Name, jobId, string.IsNullOrEmpty(token) ? "0" : token, processAt, delay, false, null, null },
+            new object?[] { Name, jobId, string.IsNullOrEmpty(token) ? "0" : token, processAt, delay, skipAttempt, null, null },
             op: "moveToFinished", jobId: jobId, state: "active").ConfigureAwait(false);
 
         if (fetchNext && token != "0" && !string.IsNullOrEmpty(token))

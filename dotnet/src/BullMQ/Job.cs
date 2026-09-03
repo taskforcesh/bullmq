@@ -197,7 +197,13 @@ public class Job
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var delay = Math.Max(timestamp - now, 0);
         await _backend
-            .MoveToDelayedAsync(Id!, now, delay, token ?? Token ?? "0", fetchNext: false)
+            .MoveToDelayedAsync(
+                Id!,
+                now,
+                delay,
+                token ?? Token ?? "0",
+                fetchNext: false,
+                skipAttempt: true)
             .ConfigureAwait(false);
         Delay = delay;
     }
