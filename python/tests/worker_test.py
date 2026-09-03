@@ -1098,10 +1098,8 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0.1)  # give close() time to reach asyncio.wait(self.processing, ...)
         close_task.cancel()
 
-        try:
+        with self.assertRaises(asyncio.CancelledError):
             await close_task
-        except asyncio.CancelledError:
-            pass
 
         self.assertTrue(job_finished)  # confirms active in-flight job was allowed to finish
         self.assertTrue(worker.closed)
@@ -1133,14 +1131,76 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
             close_task.cancel()
             await asyncio.sleep(0)  # yield to let the CancelledError be delivered
 
-        try:
+        with self.assertRaises(asyncio.CancelledError):
             await close_task
-        except asyncio.CancelledError:
-            pass
 
         self.assertTrue(job_finished)   # in-flight job completed despite repeated cancellation
         self.assertTrue(worker.closed)  # cleanup always ran to completion
 
+        await queue.close()
+
+    async def test_pause_completes_despite_external_cancellation(self):
+        """Test that pause() finishes waiting for in-flight jobs even if its task
+        is cancelled externally, and properly propagates CancelledError."""
+        job_started = asyncio.Event()
+        job_finished = False
+
+        async def process(job: Job, token: str):
+            nonlocal job_finished
+            job_started.set()
+            await asyncio.sleep(0.5)
+            job_finished = True
+
+        worker = Worker(queueName, process, {"prefix": prefix, "concurrency": 2})
+        queue = Queue(queueName, {"prefix": prefix})
+        await queue.add("test", {"idx": 1})
+        await job_started.wait()  # wait until the job processor has actively started
+
+        pause_task = asyncio.ensure_future(worker.pause())
+        await asyncio.sleep(0.1)  # give pause() time to reach asyncio.wait(self.processing, ...)
+        pause_task.cancel()
+
+        with self.assertRaises(asyncio.CancelledError):
+            await pause_task
+
+        self.assertTrue(job_finished)   # in-flight job completed despite cancellation
+        self.assertTrue(worker.paused)  # paused state remains set
+
+        await worker.close()
+        await queue.close()
+
+    async def test_pause_completes_despite_repeated_external_cancellation(self):
+        """Test that pause() finishes waiting for in-flight jobs even when its task
+        is cancelled repeatedly while waiting — exercises the while loop."""
+        job_started = asyncio.Event()
+        job_finished = False
+
+        async def process(job: Job, token: str):
+            nonlocal job_finished
+            job_started.set()
+            await asyncio.sleep(0.5)
+            job_finished = True
+
+        worker = Worker(queueName, process, {"prefix": prefix, "concurrency": 2})
+        queue = Queue(queueName, {"prefix": prefix})
+        await queue.add("test", {"idx": 1})
+        await job_started.wait()  # wait until the job processor has actively started
+
+        pause_task = asyncio.ensure_future(worker.pause())
+        await asyncio.sleep(0.1)  # give pause() time to reach asyncio.wait(self.processing, ...)
+
+        # Cancel the pause task 3 times to exercise the while loop
+        for _ in range(3):
+            pause_task.cancel()
+            await asyncio.sleep(0)  # yield to let the CancelledError be delivered
+
+        with self.assertRaises(asyncio.CancelledError):
+            await pause_task
+
+        self.assertTrue(job_finished)   # in-flight job completed despite repeated cancellation
+        self.assertTrue(worker.paused)  # paused state remains set
+
+        await worker.close()
         await queue.close()
 
     async def test_external_run_cancellation_propagates(self):
