@@ -3,7 +3,7 @@
 
 ### Bug Fixes
 
-* **deps:** update rust crate croner to v4 [security] ([#4666](https://github.com/taskforcesh/bullmq/issues/4666)) ([fd33926](https://github.com/taskforcesh/bullmq/commit/fd33926ce3fe35a9c896f0f37b6c167bba193dc6))
+* Nothing changed, triggered by a Rust version release
 
 ## [6.3.3](https://github.com/taskforcesh/bullmq/compare/v6.3.2...v6.3.3) (2026-08-31)
 
@@ -26,7 +26,7 @@
 
 ### Bug Fixes
 
-* **postgres:** resolve priv SQL dir at runtime for Mix releases ([#4636](https://github.com/taskforcesh/bullmq/issues/4636)) ([9d737e9](https://github.com/taskforcesh/bullmq/commit/9d737e9d0e467eeacf6f6a43f3f806fa2873ee1b))
+* Nothing changed, triggered by a elixir version release
 
 # [6.3.0](https://github.com/taskforcesh/bullmq/compare/v6.2.2...v6.3.0) (2026-08-26)
 

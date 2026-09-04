@@ -61,18 +61,18 @@
       "commitMessageSuffix": "[python]"
     },
     {
-      "description": "Group every Python dev dependency update into a single PR",
+      "description": "Group every Python dependency update into a single PR",
       "matchCategories": ["python"],
-      "matchDepTypes": ["dev-dependencies"],
-      "groupName": "Python dev dependencies",
-      "groupSlug": "python-dev",
-      "commitMessageSuffix": "[python]",
-      "semanticCommitType": "chore"
+      "matchManagers": ["pep621"],
+      "groupName": "Python dependencies",
+      "groupSlug": "python",
+      "commitMessageSuffix": "[python]"
     },
     {
-      "description": "Use chore commit type for Python optional dev/test dependency updates",
+      "description": "Use chore commit type for Python optional dependency updates",
       "matchCategories": ["python"],
-      "matchDepTypes": ["dev", "test"],
+      "matchManagers": ["pep621"],
+      "matchDepTypes": ["project.optional-dependencies"],
       "semanticCommitType": "chore",
       "commitMessageSuffix": "[python]"
     },
@@ -258,7 +258,13 @@
       "description": "🚨 Group dev-only security vulnerabilities into a single daily PR and mark them as chores",
       "isVulnerabilityAlert": true,
       "matchUpdateTypes": ["major", "minor", "patch"],
-      "matchDepTypes": ["devDependencies", "require-dev", "dev-dependencies", "dev", "test"],
+      "matchDepTypes": [
+        "devDependencies",
+        "require-dev",
+        "dev-dependencies",
+        "dev",
+        "test"
+      ],
       "vulnerabilityFixVersion": true,
       "groupName": "security dev patches",
       "groupSlug": "security-dev-patches",
