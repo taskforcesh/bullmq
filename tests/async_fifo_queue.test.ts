@@ -1,4 +1,4 @@
-import { AsyncFifoQueue } from '../src/classes/async-fifo-queue';
+import { AsyncFifoQueue } from '../src/classes';
 import { describe, it, expect } from 'vitest';
 
 describe('AsyncFIFOQueue', () => {
