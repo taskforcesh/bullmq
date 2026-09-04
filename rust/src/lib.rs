@@ -71,8 +71,10 @@ pub use options::{
 };
 pub use queue::AddJob;
 pub use queue::BulkJob;
+pub use queue::DependencyItem;
 pub use queue::JobCountRecorder;
 pub use queue::Queue;
+pub use queue::QueueDependencies;
 pub use queue_events::{QueueEvent, QueueEventEntry, QueueEvents, QueueEventsOptions};
 pub use types::{
     DependenciesCount, DependenciesResult, JobProgress, JobState, Metrics, MetricsMeta, QueueMeta,

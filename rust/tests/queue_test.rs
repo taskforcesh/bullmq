@@ -161,6 +161,146 @@ async fn test_add_job_with_parent_queue_name() {
 }
 
 #[tokio::test]
+async fn test_get_dependencies_pending() {
+    let name = test_queue_name();
+    let opts = QueueOptions {
+        connection: test_connection(),
+        ..Default::default()
+    };
+
+    let queue = Queue::with_options(&name, opts).await.unwrap();
+    let parent = queue
+        .add("parent", serde_json::json!({}))
+        .options(JobOptions {
+            job_id: Some("parent-pending".to_string()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    for i in 0..4 {
+        queue
+            .add("child", serde_json::json!({"idx": i}))
+            .options(JobOptions {
+                parent: Some(bullmq::ParentOptions {
+                    queue: name.clone(),
+                    id: parent.id().to_string(),
+                    wait_children: None,
+                }),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+    }
+
+    let result = queue
+        .get_dependencies(parent.id(), "pending", 0, -1)
+        .await
+        .unwrap();
+    assert_eq!(result.items.len(), 4);
+    assert_eq!(result.jobs.len(), 4);
+    assert_eq!(result.total, 4);
+    assert!(result.items.iter().all(|item| item.v.is_none()));
+    assert!(result.items.iter().all(|item| item.err.is_none()));
+
+    let partial = queue
+        .get_dependencies(parent.id(), "pending", 0, 2)
+        .await
+        .unwrap();
+    assert_eq!(partial.items.len(), 3);
+    assert_eq!(partial.total, 4);
+
+    cleanup_queue(&queue).await;
+}
+
+#[tokio::test]
+async fn test_get_dependencies_processed() {
+    let name = test_queue_name();
+    let conn = test_connection();
+
+    let queue = Queue::with_options(
+        &name,
+        QueueOptions {
+            connection: conn.clone(),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let parent = queue
+        .add("parent", serde_json::json!({}))
+        .options(JobOptions {
+            job_id: Some("parent-processed".to_string()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    for i in 0..4 {
+        queue
+            .add("child", serde_json::json!({"idx": i}))
+            .options(JobOptions {
+                parent: Some(bullmq::ParentOptions {
+                    queue: name.clone(),
+                    id: parent.id().to_string(),
+                    wait_children: None,
+                }),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+    }
+
+    let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {
+        Box::pin(async move { Ok(serde_json::Value::Null) })
+    });
+    let worker = Worker::with_options(
+        &name,
+        processor,
+        WorkerOptions {
+            connection: conn,
+            autorun: true,
+            drain_delay: 1,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let settled = tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let counts = queue.get_dependencies_count(parent.id()).await.unwrap();
+            if counts.processed >= 4 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await;
+    assert!(settled.is_ok(), "children did not complete in time");
+
+    let pending = queue
+        .get_dependencies(parent.id(), "pending", 0, -1)
+        .await
+        .unwrap();
+    assert_eq!(pending.items.len(), 0);
+    assert_eq!(pending.total, 0);
+
+    let processed = queue
+        .get_dependencies(parent.id(), "processed", 0, -1)
+        .await
+        .unwrap();
+    assert_eq!(processed.items.len(), 4);
+    assert_eq!(processed.jobs.len(), 4);
+    assert_eq!(processed.total, 4);
+    assert!(processed.items.iter().all(|item| item.v.is_some()));
+
+    worker.close(5000).await.unwrap();
+    cleanup_queue(&queue).await;
+}
+
+#[tokio::test]
 async fn test_add_bulk_jobs() {
     let name = test_queue_name();
     let opts = QueueOptions {
