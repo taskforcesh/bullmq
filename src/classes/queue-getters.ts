@@ -322,6 +322,22 @@ export class QueueGetters<
   }
 
   /**
+   * Returns the ready-timestamp (ms since epoch) of the oldest pending job
+   * across the "wait" state, every priority level currently populated in
+   * the "prioritized" state, and any "delayed" job whose delay has already
+   * elapsed. A job's ready-timestamp is when its `timestamp + delay` has
+   * elapsed, i.e. when it became eligible to run.
+   *
+   * Unlike {@link getCountsPerPriority}, callers don't need to know which
+   * priority levels are in use: the backend discovers them on the fly.
+   *
+   * @returns the timestamp, or null if there are no matching pending jobs.
+   */
+  async getOldestJobTimestamp(): Promise<number | null> {
+    return this.backend.getOldestJobTimestamp();
+  }
+
+  /**
    * Returns the number of jobs in waiting or paused statuses.
    */
   getWaitingCount(): Promise<number> {
