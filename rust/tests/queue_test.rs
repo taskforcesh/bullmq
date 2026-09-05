@@ -431,6 +431,7 @@ async fn test_get_dependencies_processed_cross_queue_child_context() {
         processor,
         WorkerOptions {
             connection: conn,
+            prefix: "tenant:regression".to_string(),
             autorun: true,
             drain_delay: 1,
             ..Default::default()
@@ -471,11 +472,16 @@ async fn test_get_dependencies_processed_cross_queue_child_context() {
     // Regression guard: this state lookup must use child queue keys.
     assert_eq!(dep_child.get_state().await.unwrap(), JobState::Completed);
 
+    // Stop worker first so the retried job remains in waiting state deterministically.
+    worker.close(5000).await.unwrap();
+
     // Additional guard: a mutating child operation should also route to child keys.
     dep_child.retry("completed", None).await.unwrap();
-    assert!(child_queue.get_waiting_count().await.unwrap() >= 1);
+    assert_eq!(
+        child_queue.get_job_state(child.id()).await.unwrap(),
+        JobState::Waiting
+    );
 
-    worker.close(5000).await.unwrap();
     cleanup_queue(&child_queue).await;
     cleanup_queue(&parent_queue).await;
 }
@@ -574,11 +580,16 @@ async fn test_get_dependencies_processed_cross_prefix_child_context() {
     // Regression guard: this lookup must use child queue keys (child prefix).
     assert_eq!(dep_child.get_state().await.unwrap(), JobState::Completed);
 
+    // Stop worker first so the retried job remains in waiting state deterministically.
+    worker.close(5000).await.unwrap();
+
     // Additional guard: mutating op should also target child-prefix keys.
     dep_child.retry("completed", None).await.unwrap();
-    assert!(child_queue.get_waiting_count().await.unwrap() >= 1);
+    assert_eq!(
+        child_queue.get_job_state(dep_child.id()).await.unwrap(),
+        JobState::Waiting
+    );
 
-    worker.close(5000).await.unwrap();
     flow_producer.close().await;
     cleanup_queue(&child_queue).await;
     cleanup_queue(&parent_queue).await;
