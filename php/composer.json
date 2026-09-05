@@ -33,7 +33,7 @@
         "rybakit/msgpack": "^0.9"
     },
     "require-dev": {
-        "phpunit/phpunit": "10.5.64",
+        "phpunit/phpunit": "13.3.2",
         "phpstan/phpstan": "2.2.13",
         "squizlabs/php_codesniffer": "4.0.4"
     },
