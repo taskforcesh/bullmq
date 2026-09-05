@@ -10,6 +10,7 @@ use crate::error::Error;
 use crate::job::{Job, ScriptContext};
 use crate::keys::{resolve_parent_queue_key, validate_queue_name, QueueKeys};
 use crate::options::{DeduplicationOptions, JobOptions, ParentOptions, QueueOptions};
+use crate::paginate::{paginate_item_key, parse_paginate_reply, value_to_string};
 use crate::redis_connection::RedisConnection;
 use crate::types::{
     BackoffStrategy, DependenciesCount, JobCounts, JobState, QueueMeta, RemoveOnFinish,
@@ -334,10 +335,15 @@ impl Queue {
     /// Per-job options take precedence over defaults.
     /// Create a ScriptContext for jobs returned by queue methods.
     fn make_script_context(&self) -> ScriptContext {
+        self.make_script_context_for_keys(self.keys.clone())
+    }
+
+    /// Create a ScriptContext for jobs that belong to `keys`.
+    fn make_script_context_for_keys(&self, keys: QueueKeys) -> ScriptContext {
         let (progress_tx, _) = tokio::sync::broadcast::channel(1);
         ScriptContext {
             conn: self.conn.clone(),
-            keys: self.keys.clone(),
+            keys,
             progress_tx,
             token: String::new(),
             lock_duration: 0,
@@ -1575,17 +1581,19 @@ impl Queue {
 
             let raw = script.execute(&mut conn, &[&key], &args).await?;
             let (next_cursor, next_offset, mut page_items, page_total, raw_jobs) =
-                Self::parse_paginate_reply(raw)?;
+                parse_paginate_reply(&raw)?;
 
             if total == 0 {
                 total = page_total;
             }
 
             for (item, raw_job) in page_items.iter().zip(raw_jobs.iter()) {
-                let Some(qualified_key) = Self::paginate_item_id(item) else {
+                let Some(qualified_key) = paginate_item_key(item) else {
                     continue;
                 };
-                let Some(job_id) = qualified_key.rsplit(':').next() else {
+                let Some((prefix, queue_name, job_id)) =
+                    Self::parse_qualified_job_key(&qualified_key)
+                else {
                     continue;
                 };
 
@@ -1595,7 +1603,8 @@ impl Queue {
                 }
 
                 let mut job = Job::from_redis_hash(job_id, &fields)?;
-                job.set_context(self.make_script_context());
+                let keys = QueueKeys::new(queue_name, Some(prefix));
+                job.set_context(self.make_script_context_for_keys(keys));
                 jobs.push(job);
             }
 
@@ -2773,54 +2782,24 @@ impl Queue {
         map
     }
 
-    /// Parse paginate reply `[cursor, offset, items, total, jobs]`.
-    fn parse_paginate_reply(
-        value: redis::Value,
-    ) -> Result<(String, i64, Vec<redis::Value>, u64, Vec<redis::Value>), Error> {
-        let arr = match value {
-            redis::Value::Array(items) => items,
-            _ => {
-                return Err(Error::MsgPack(
-                    "unexpected paginate reply: not an array".to_string(),
-                ))
-            }
-        };
-
-        let cursor = arr
-            .first()
-            .and_then(Self::value_to_string)
-            .unwrap_or_else(|| "0".to_string());
-        let offset = arr.get(1).and_then(Self::value_as_i64).unwrap_or(0);
-        let items = match arr.get(2) {
-            Some(redis::Value::Array(items)) => items.clone(),
-            _ => Vec::new(),
-        };
-        let total = arr.get(3).and_then(Self::value_as_i64).unwrap_or(0).max(0) as u64;
-        let jobs = match arr.get(4) {
-            Some(redis::Value::Array(jobs)) => jobs.clone(),
-            _ => Vec::new(),
-        };
-
-        Ok((cursor, offset, items, total, jobs))
-    }
-
-    /// Extract dependency item id from paginate item (set member or hash pair).
-    fn paginate_item_id(item: &redis::Value) -> Option<String> {
-        match item {
-            redis::Value::Array(pair) => pair.first().and_then(Self::value_to_string),
-            other => Self::value_to_string(other),
+    /// Parse `<prefix>:<queueName>:<jobId>` from a qualified job key.
+    ///
+    /// Splits from the right so prefixes containing `:` remain intact.
+    fn parse_qualified_job_key(key: &str) -> Option<(&str, &str, &str)> {
+        let (queue_key, job_id) = key.rsplit_once(':')?;
+        let (prefix, queue_name) = queue_key.rsplit_once(':')?;
+        if prefix.is_empty() || queue_name.is_empty() || job_id.is_empty() {
+            return None;
         }
+        Some((prefix, queue_name, job_id))
     }
 
     /// Decode one dependency item, matching Node.js `Queue.getDependencies`.
     fn decode_dependency_item(item: &redis::Value) -> Option<DependencyItem> {
         match item {
             redis::Value::Array(pair) => {
-                let id = pair.first().and_then(Self::value_to_string)?;
-                let raw = pair
-                    .get(1)
-                    .and_then(Self::value_to_string)
-                    .unwrap_or_default();
+                let id = pair.first().and_then(value_to_string)?;
+                let raw = pair.get(1).and_then(value_to_string).unwrap_or_default();
                 match serde_json::from_str::<serde_json::Value>(&raw) {
                     Ok(v) => Some(DependencyItem {
                         id,
@@ -2835,31 +2814,13 @@ impl Queue {
                 }
             }
             other => {
-                let id = Self::value_to_string(other)?;
+                let id = value_to_string(other)?;
                 Some(DependencyItem {
                     id,
                     v: None,
                     err: None,
                 })
             }
-        }
-    }
-
-    fn value_to_string(value: &redis::Value) -> Option<String> {
-        match value {
-            redis::Value::BulkString(b) => Some(String::from_utf8_lossy(b).to_string()),
-            redis::Value::SimpleString(s) => Some(s.clone()),
-            redis::Value::Int(n) => Some(n.to_string()),
-            _ => None,
-        }
-    }
-
-    fn value_as_i64(value: &redis::Value) -> Option<i64> {
-        match value {
-            redis::Value::Int(n) => Some(*n),
-            redis::Value::BulkString(b) => String::from_utf8_lossy(b).parse().ok(),
-            redis::Value::SimpleString(s) => s.parse().ok(),
-            _ => None,
         }
     }
 
