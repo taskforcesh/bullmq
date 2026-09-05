@@ -26,9 +26,9 @@
     }
   ],
   "require": {
-    "php": "^8.1",
-    "predis/predis": "^3.0",
-    "ramsey/uuid": "^4.7",
+    "php": "8.5.10",
+    "predis/predis": "3.6.0",
+    "ramsey/uuid": "4.9.3",
     "rybakit/msgpack": "^0.9"
   },
   "autoload": {
