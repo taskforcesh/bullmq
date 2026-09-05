@@ -10,6 +10,7 @@ use crate::error::Error;
 use crate::job::{Job, ScriptContext};
 use crate::keys::{resolve_parent_queue_key, validate_queue_name, QueueKeys};
 use crate::options::{DeduplicationOptions, JobOptions, ParentOptions, QueueOptions};
+use crate::paginate::{paginate_item_key, parse_paginate_reply, value_to_string};
 use crate::redis_connection::RedisConnection;
 use crate::types::{
     BackoffStrategy, DependenciesCount, JobCounts, JobState, QueueMeta, RemoveOnFinish,
@@ -26,6 +27,38 @@ const GET_JOBS_MAX_BACKFILL_ITERATIONS: usize = 5;
 /// [`Queue::record_job_counts_metric`]. This is the integration point for
 /// forwarding job-count gauges to a metrics/telemetry backend.
 pub type JobCountRecorder<'a> = &'a dyn Fn(&str, u64);
+
+/// One dependency entry returned by [`Queue::get_dependencies`].
+///
+/// For `pending` dependencies, only `id` is populated.
+/// For `processed` dependencies, `v` contains the parsed JSON return value,
+/// or `err` contains the parse error message when the stored value is not
+/// valid JSON.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct DependencyItem {
+    /// Qualified child job key (`<prefix>:<queue>:<id>`).
+    pub id: String,
+    /// Parsed child return value (processed dependencies only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub v: Option<serde_json::Value>,
+    /// JSON parse error for `v` (processed dependencies only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub err: Option<String>,
+}
+
+/// Paginated dependencies view returned by [`Queue::get_dependencies`].
+///
+/// Mirrors Node.js `Queue.getDependencies` and includes both dependency items
+/// and the fetched child jobs.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct QueueDependencies {
+    /// Dependency entries (pending keys or processed key/value pairs).
+    pub items: Vec<DependencyItem>,
+    /// Child jobs fetched for the returned `items`.
+    pub jobs: Vec<Job>,
+    /// Total number of entries in the dependency collection.
+    pub total: u64,
+}
 
 /// A Queue is the main entry point for adding jobs to be processed.
 ///
@@ -302,10 +335,15 @@ impl Queue {
     /// Per-job options take precedence over defaults.
     /// Create a ScriptContext for jobs returned by queue methods.
     fn make_script_context(&self) -> ScriptContext {
+        self.make_script_context_for_keys(self.keys.clone())
+    }
+
+    /// Create a ScriptContext for jobs that belong to `keys`.
+    fn make_script_context_for_keys(&self, keys: QueueKeys) -> ScriptContext {
         let (progress_tx, _) = tokio::sync::broadcast::channel(1);
         ScriptContext {
             conn: self.conn.clone(),
-            keys: self.keys.clone(),
+            keys,
             progress_tx,
             token: String::new(),
             lock_duration: 0,
@@ -1477,6 +1515,116 @@ impl Queue {
         Ok(metrics)
     }
 
+    /// Return dependencies of a parent job with pagination.
+    ///
+    /// Mirrors Node.js `Queue.getDependencies(parentId, type, start, end)`:
+    ///
+    /// - `dependency_type`: `"pending"` (dependencies set) or
+    ///   `"processed"` (processed hash)
+    /// - `start` / `end`: zero-based inclusive range (`-1` means all)
+    ///
+    /// Returns dependency items, fetched child jobs and total number of
+    /// dependency entries.
+    pub async fn get_dependencies(
+        &self,
+        parent_id: &str,
+        dependency_type: &str,
+        start: i64,
+        end: i64,
+    ) -> Result<QueueDependencies, Error> {
+        let script = self
+            .conn
+            .scripts()
+            .get("paginate")
+            .ok_or_else(|| Error::InvalidConfig("paginate script not found".to_string()))?
+            .clone();
+
+        let parent_key = self.keys.job_key(parent_id);
+        let key = match dependency_type {
+            "processed" => format!("{}:processed", parent_key),
+            "pending" => format!("{}:dependencies", parent_key),
+            other => {
+                return Err(Error::InvalidConfig(format!(
+                    "invalid dependency type: {other} (expected 'processed' or 'pending')"
+                )))
+            }
+        };
+
+        let page_size = if end >= 0 {
+            end.saturating_sub(start).saturating_add(1) as usize
+        } else {
+            usize::MAX
+        };
+
+        let mut cursor = "0".to_string();
+        let mut offset: i64 = 0;
+        let mut total: u64 = 0;
+        let mut collected_items: Vec<redis::Value> = Vec::new();
+        let mut jobs: Vec<Job> = Vec::new();
+        let mut conn = self.conn.conn();
+
+        loop {
+            let start_arg = (start + collected_items.len() as i64).to_string();
+            let end_arg = end.to_string();
+            let offset_arg = offset.to_string();
+            let max_iterations = "5".to_string();
+            let fetch_jobs = "1".to_string();
+
+            let args: Vec<&[u8]> = vec![
+                start_arg.as_bytes(),
+                end_arg.as_bytes(),
+                cursor.as_bytes(),
+                offset_arg.as_bytes(),
+                max_iterations.as_bytes(),
+                fetch_jobs.as_bytes(),
+            ];
+
+            let raw = script.execute(&mut conn, &[&key], &args).await?;
+            let (next_cursor, next_offset, mut page_items, page_total, raw_jobs) =
+                parse_paginate_reply(&raw)?;
+
+            if total == 0 {
+                total = page_total;
+            }
+
+            for (item, raw_job) in page_items.iter().zip(raw_jobs.iter()) {
+                let Some(qualified_key) = paginate_item_key(item) else {
+                    continue;
+                };
+                let Some((prefix, queue_name, job_id)) =
+                    Self::parse_qualified_job_key(&qualified_key)
+                else {
+                    continue;
+                };
+
+                let fields = Self::parse_hash_array(raw_job);
+                if fields.is_empty() {
+                    continue;
+                }
+
+                let mut job = Job::from_redis_hash(job_id, &fields)?;
+                let keys = QueueKeys::new(queue_name, Some(prefix));
+                job.set_context(self.make_script_context_for_keys(keys));
+                jobs.push(job);
+            }
+
+            collected_items.append(&mut page_items);
+            cursor = next_cursor;
+            offset = next_offset;
+
+            if cursor == "0" || collected_items.len() >= page_size {
+                break;
+            }
+        }
+
+        let items = collected_items
+            .iter()
+            .filter_map(Self::decode_dependency_item)
+            .collect();
+
+        Ok(QueueDependencies { items, jobs, total })
+    }
+
     /// Get return values of all completed children of a parent job.
     pub async fn get_children_values(
         &self,
@@ -2632,6 +2780,48 @@ impl Queue {
             }
         }
         map
+    }
+
+    /// Parse `<prefix>:<queueName>:<jobId>` from a qualified job key.
+    ///
+    /// Splits from the right so prefixes containing `:` remain intact.
+    fn parse_qualified_job_key(key: &str) -> Option<(&str, &str, &str)> {
+        let (queue_key, job_id) = key.rsplit_once(':')?;
+        let (prefix, queue_name) = queue_key.rsplit_once(':')?;
+        if prefix.is_empty() || queue_name.is_empty() || job_id.is_empty() {
+            return None;
+        }
+        Some((prefix, queue_name, job_id))
+    }
+
+    /// Decode one dependency item, matching Node.js `Queue.getDependencies`.
+    fn decode_dependency_item(item: &redis::Value) -> Option<DependencyItem> {
+        match item {
+            redis::Value::Array(pair) => {
+                let id = pair.first().and_then(value_to_string)?;
+                let raw = pair.get(1).and_then(value_to_string).unwrap_or_default();
+                match serde_json::from_str::<serde_json::Value>(&raw) {
+                    Ok(v) => Some(DependencyItem {
+                        id,
+                        v: Some(v),
+                        err: None,
+                    }),
+                    Err(err) => Some(DependencyItem {
+                        id,
+                        v: None,
+                        err: Some(err.to_string()),
+                    }),
+                }
+            }
+            other => {
+                let id = value_to_string(other)?;
+                Some(DependencyItem {
+                    id,
+                    v: None,
+                    err: None,
+                })
+            }
+        }
     }
 
     /// Pack job options from a JobOptions struct into msgpack (for template opts).
