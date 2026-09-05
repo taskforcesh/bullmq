@@ -45,6 +45,8 @@ pub mod job_scheduler;
 pub mod keys;
 /// Configuration options for queues, workers, and jobs.
 pub mod options;
+/// Shared pagination parsing helpers for Lua `paginate` replies.
+mod paginate;
 /// Queue management and job submission.
 pub mod queue;
 /// Cross-process queue event listener (stream-based).
