@@ -573,7 +573,6 @@ public sealed class RedisBackend : IQueueBackend
             _keys[state],
             _keys["wait"],
             _keys["meta"],
-            _keys["paused"],
             _keys["active"],
             _keys["marker"],
         };

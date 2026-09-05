@@ -43,7 +43,7 @@ SCRIPT_DEFINITIONS = {
     "promote": "promote-9.lua",
     "removeJob": "removeJob-2.lua",
     "removeJobScheduler": "removeJobScheduler-3.lua",
-    "reprocessJob": "reprocessJob-8.lua",
+    "reprocessJob": "reprocessJob-7.lua",
     "retryJob": "retryJob-11.lua",
     "moveJobsToWait": "moveJobsToWait-8.lua",
     "saveStacktrace": "saveStacktrace-1.lua",
