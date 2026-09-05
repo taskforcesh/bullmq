@@ -46,6 +46,55 @@ const worker = new Worker(
 
 {% endtab %}
 
+{% tab title=".NET" %}
+
+```csharp
+using System.Text.Json;
+using BullMQ;
+
+const int StepInitial = 0;
+const int StepSecond = 1;
+const int StepFinish = 2;
+
+var worker = new Worker(
+  "queueName",
+  async (job, _) =>
+  {
+    var step = job.Data is JsonElement data &&
+           data.TryGetProperty("step", out var rawStep)
+      ? rawStep.GetInt32()
+      : StepInitial;
+
+    while (step != StepFinish)
+    {
+      switch (step)
+      {
+        case StepInitial:
+          await doInitialStepStuff();
+          await job.UpdateDataAsync(new { step = StepSecond });
+          step = StepSecond;
+          break;
+
+        case StepSecond:
+          await doSecondStepStuff();
+          await job.UpdateDataAsync(new { step = StepFinish });
+          return StepFinish;
+
+        default:
+          throw new Exception("invalid step");
+      }
+    }
+
+    return null;
+  },
+  new WorkerOptions
+  {
+    Connection = connection,
+  });
+```
+
+{% endtab %}
+
 {% tab title="Python" %}
 
 ```python
@@ -127,6 +176,9 @@ There are situations when it is useful to delay a job when it is being processed
 
 This can be handled using the `moveToDelayed` method. However, it is important to note that when a job is being processed by a worker, the worker keeps a lock on this job with a certain token value. For the `moveToDelayed` method to work, we need to pass said token so that it can unlock without error. Finally, we need to exit from the processor by throwing a special error (`DelayedError`) that will signal to the worker that the job has been delayed so that it does not try to complete (or fail the job) instead.
 
+{% tabs %}
+{% tab title="TypeScript" %}
+
 ```typescript
 import { DelayedError, Worker } from 'bullmq';
 
@@ -166,6 +218,59 @@ const worker = new Worker(
   { connection },
 );
 ```
+
+{% endtab %}
+
+{% tab title=".NET" %}
+
+```csharp
+using System.Text.Json;
+using BullMQ;
+
+const int StepInitial = 0;
+const int StepSecond = 1;
+const int StepFinish = 2;
+
+var worker = new Worker(
+  "queueName",
+  async (job, _) =>
+  {
+    var step = job.Data is JsonElement data &&
+           data.TryGetProperty("step", out var rawStep)
+      ? rawStep.GetInt32()
+      : StepInitial;
+
+    while (step != StepFinish)
+    {
+      switch (step)
+      {
+        case StepInitial:
+          await doInitialStepStuff();
+          await job.UpdateDataAsync(new { step = StepSecond });
+          await job.MoveToDelayedAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + 200);
+          throw new DelayedException();
+
+        case StepSecond:
+          await doSecondStepStuff();
+          await job.UpdateDataAsync(new { step = StepFinish });
+          return StepFinish;
+
+        default:
+          throw new Exception("invalid step");
+      }
+    }
+
+    return null;
+  },
+  new WorkerOptions
+  {
+    Connection = connection,
+  });
+```
+
+{% endtab %}
+{% endtabs %}
 
 ## Waiting Children
 
