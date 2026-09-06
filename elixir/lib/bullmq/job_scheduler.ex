@@ -450,51 +450,41 @@ defmodule BullMQ.JobScheduler do
       # Next cron execution
       next = BullMQ.JobScheduler.calculate_next_millis(%{pattern: "0 * * * *"}, now)
   """
-  @spec calculate_next_millis(repeat_opts(), non_neg_integer()) :: non_neg_integer() | nil
+  @spec calculate_next_millis(repeat_opts() | map(), non_neg_integer()) :: non_neg_integer() | nil
   def calculate_next_millis(repeat_opts, reference_time \\ System.system_time(:millisecond))
 
-  def calculate_next_millis(%{immediately: true}, reference_time) do
-    reference_time
-  end
+  def calculate_next_millis(opts, reference_time) when is_map(opts) do
+    immediately = Map.get(opts, :immediately) || Map.get(opts, "immediately")
 
-  def calculate_next_millis(%{every: every} = opts, reference_time) when is_integer(every) do
-    start_date = normalize_date(Map.get(opts, :start_date))
-    offset = Map.get(opts, :offset, 0)
-    prev_millis = Map.get(opts, :prev_millis)
+    cond do
+      immediately ->
+        reference_time
 
-    next_millis =
-      cond do
-        prev_millis ->
-          next = prev_millis + every
-          # Check if we missed some iterations
-          if next < reference_time do
-            div(reference_time, every) * every + every + offset
-          else
-            next
-          end
+      (pattern = Map.get(opts, :pattern) || Map.get(opts, "pattern")) != nil ->
+        calculate_pattern_next_millis(pattern, opts, reference_time)
 
-        start_date && start_date > reference_time ->
-          start_date
+      (every = Map.get(opts, :every) || Map.get(opts, "every")) != nil ->
+        calculate_every_next_millis(parse_int(every), opts, reference_time)
 
-        true ->
-          # Default: next execution is reference_time + every
-          reference_time + every
-      end
-
-    # Check end date
-    end_date = normalize_date(Map.get(opts, :end_date))
-
-    if end_date && next_millis > end_date do
-      nil
-    else
-      next_millis
+      true ->
+        nil
     end
   end
 
-  def calculate_next_millis(%{pattern: pattern} = opts, reference_time) do
-    tz = Map.get(opts, :tz, "Etc/UTC")
-    start_date = normalize_date(Map.get(opts, :start_date))
-    end_date = normalize_date(Map.get(opts, :end_date))
+  def calculate_next_millis(_, _), do: nil
+
+  defp calculate_pattern_next_millis(pattern, opts, reference_time) do
+    tz = Map.get(opts, :tz) || Map.get(opts, "tz", "Etc/UTC")
+
+    start_date =
+      normalize_date(
+        Map.get(opts, :start_date) || Map.get(opts, "startDate") || Map.get(opts, "start_date")
+      )
+
+    end_date =
+      normalize_date(
+        Map.get(opts, :end_date) || Map.get(opts, "endDate") || Map.get(opts, "end_date")
+      )
 
     # Use start_date as reference if it's in the future
     effective_reference =
@@ -518,7 +508,52 @@ defmodule BullMQ.JobScheduler do
     end
   end
 
-  def calculate_next_millis(_, _), do: nil
+  defp calculate_every_next_millis(every, opts, reference_time) when is_integer(every) do
+    start_date =
+      normalize_date(
+        Map.get(opts, :start_date) || Map.get(opts, "startDate") || Map.get(opts, "start_date")
+      )
+
+    end_date =
+      normalize_date(
+        Map.get(opts, :end_date) || Map.get(opts, "endDate") || Map.get(opts, "end_date")
+      )
+
+    offset = parse_int(Map.get(opts, :offset) || Map.get(opts, "offset", 0)) || 0
+
+    prev_millis =
+      parse_int(
+        Map.get(opts, :prev_millis) || Map.get(opts, "prevMillis") || Map.get(opts, "prev_millis")
+      )
+
+    next_millis =
+      cond do
+        prev_millis ->
+          next = prev_millis + every
+          # Check if we missed some iterations
+          if next < reference_time do
+            div(reference_time, every) * every + every + offset
+          else
+            next
+          end
+
+        start_date && start_date > reference_time ->
+          start_date
+
+        true ->
+          # Default: next execution is reference_time + every
+          reference_time + every
+      end
+
+    # Check end date
+    if end_date && next_millis > end_date do
+      nil
+    else
+      next_millis
+    end
+  end
+
+  defp calculate_every_next_millis(_, _, _), do: nil
 
   # ---------------------------------------------------------------------------
   # Private Functions
@@ -853,13 +888,33 @@ defmodule BullMQ.JobScheduler do
     # Convert reference time to DateTime
     reference_dt = DateTime.from_unix!(reference_time, :millisecond)
 
-    # Parse cron expression
-    case Crontab.CronExpression.Parser.parse(pattern) do
+    field_count = pattern |> String.split(" ", trim: true) |> length()
+    extended = field_count >= 6
+
+    # Parse cron expression (extended: true enables seconds field)
+    case Crontab.CronExpression.Parser.parse(pattern, extended) do
       {:ok, cron} ->
         # Get next run date
         case Crontab.Scheduler.get_next_run_date(cron, reference_dt) do
           {:ok, next_dt} ->
-            {:ok, DateTime.to_unix(next_dt, :millisecond)}
+            next_time = DateTime.to_unix(next_dt, :millisecond)
+
+            # Crontab includes reference_dt if it matches the cron pattern.
+            # If next_time <= reference_time, get the occurrence strictly after reference_time.
+            if next_time <= reference_time do
+              advance_step = 1
+              advanced_dt = DateTime.add(reference_dt, advance_step, :second)
+
+              case Crontab.Scheduler.get_next_run_date(cron, advanced_dt) do
+                {:ok, strictly_next_dt} ->
+                  {:ok, DateTime.to_unix(strictly_next_dt, :millisecond)}
+
+                error ->
+                  error
+              end
+            else
+              {:ok, next_time}
+            end
 
           error ->
             error

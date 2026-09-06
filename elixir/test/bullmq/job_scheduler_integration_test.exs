@@ -856,6 +856,38 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
       assert result == nil
     end
 
+    test "pattern with string keys calculates next cron time" do
+      now = System.system_time(:millisecond)
+      result = JobScheduler.calculate_next_millis(%{"pattern" => "0 * * * *"}, now)
+
+      assert result > now
+      assert result <= now + 3_600_000
+    end
+
+    test "every with string keys calculates next interval" do
+      now = 1_000_000_000
+      result = JobScheduler.calculate_next_millis(%{"every" => 5000}, now)
+      assert result == now + 5000
+    end
+
+    test "6-field cron with seconds calculates next run correctly" do
+      dt = ~U[2026-09-06 12:00:10.000000Z]
+      ms = DateTime.to_unix(dt, :millisecond)
+      result = JobScheduler.calculate_next_millis(%{pattern: "*/10 * * * * *"}, ms)
+
+      expected_ms = DateTime.to_unix(~U[2026-09-06 12:00:20.000000Z], :millisecond)
+      assert result == expected_ms
+    end
+
+    test "5-field cron at exact boundary advances to next occurrence" do
+      dt = ~U[2026-09-06 12:00:00.000000Z]
+      ms = DateTime.to_unix(dt, :millisecond)
+      result = JobScheduler.calculate_next_millis(%{pattern: "*/5 * * * *"}, ms)
+
+      expected_ms = DateTime.to_unix(~U[2026-09-06 12:05:00.000000Z], :millisecond)
+      assert result == expected_ms
+    end
+
     test "no pattern or every returns nil" do
       result = JobScheduler.calculate_next_millis(%{limit: 5}, 0)
       assert result == nil

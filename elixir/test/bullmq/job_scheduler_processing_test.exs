@@ -414,6 +414,72 @@ defmodule BullMQ.JobSchedulerProcessingTest do
       QueueEvents.close(events)
       :ets.delete(processed)
     end
+
+    @tag :processing
+    @tag timeout: 10_000
+    test "pattern-based scheduler schedules next iteration based on cron pattern",
+         %{
+           conn: conn,
+           raw_conn: raw_conn,
+           queue_name: queue_name
+         } do
+      processed = :ets.new(:processed, [:bag, :public])
+
+      {:ok, events} =
+        QueueEvents.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix
+        )
+
+      QueueEvents.subscribe(events)
+
+      {:ok, worker} =
+        Worker.start_link(
+          queue: queue_name,
+          connection: conn,
+          prefix: @test_prefix,
+          processor: fn job ->
+            :ets.insert(processed, {:job, job.name})
+            :ok
+          end
+        )
+
+      # Create scheduler with hourly pattern that runs immediately
+      scheduler_id = "cron-hourly-test"
+
+      {:ok, _} =
+        JobScheduler.upsert(
+          raw_conn,
+          queue_name,
+          scheduler_id,
+          %{pattern: "0 * * * *", immediately: true},
+          "hourly-job",
+          %{},
+          prefix: @test_prefix
+        )
+
+      wait_for_completions(1, 5_000)
+
+      # Wait briefly for spawn process in worker to update scheduler
+      Process.sleep(300)
+
+      now = System.system_time(:millisecond)
+      {:ok, scheduler} = JobScheduler.get(conn, queue_name, scheduler_id, prefix: @test_prefix)
+
+      assert scheduler != nil
+      assert scheduler.next != nil
+
+      # The next execution must be at least 50 seconds away (next hour), NOT ~1 second
+      time_until_next = scheduler.next - now
+
+      assert time_until_next > 50_000,
+             "Expected next iteration to be scheduled at next hour (>50s), but was #{time_until_next}ms away"
+
+      Worker.close(worker)
+      QueueEvents.close(events)
+      :ets.delete(processed)
+    end
   end
 
   # ---------------------------------------------------------------------------
