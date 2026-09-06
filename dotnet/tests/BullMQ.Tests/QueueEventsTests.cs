@@ -28,9 +28,17 @@ public abstract class QueueEventsTestsBase
         await events.WaitUntilReadyAsync();
 
         var completed = new TaskCompletionSource<QueueEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var eventReceived = new TaskCompletionSource<QueueEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
         var seen = new ConcurrentBag<string>();
 
-        events.EventReceived += e => seen.Add(e.Name);
+        events.EventReceived += e =>
+        {
+            seen.Add(e.Name);
+            if (e.Name == "completed")
+            {
+                eventReceived.TrySetResult(e);
+            }
+        };
         events.Completed += e => completed.TrySetResult(e);
 
         _ = events.RunAsync();
@@ -46,6 +54,8 @@ public abstract class QueueEventsTestsBase
             Assert.Equal("completed", evt.Name);
             Assert.Equal(job.Id, evt.JobId);
             Assert.False(string.IsNullOrEmpty(evt.Id));
+            var received = await WaitForAsync(eventReceived.Task, TimeSpan.FromSeconds(5));
+            Assert.Equal(evt.Id, received.Id);
             Assert.Contains("completed", seen);
         }
         finally
