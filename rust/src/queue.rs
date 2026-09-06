@@ -1591,16 +1591,19 @@ impl Queue {
                 let Some(qualified_key) = paginate_item_key(item) else {
                     continue;
                 };
-                let Some((prefix, queue_name, job_id)) =
-                    Self::parse_qualified_job_key(&qualified_key)
-                else {
-                    continue;
-                };
-
                 let fields = Self::parse_hash_array(raw_job);
                 if fields.is_empty() {
                     continue;
                 }
+                let custom_job_id = fields
+                    .get("opts")
+                    .and_then(|opts| serde_json::from_str::<JobOptions>(opts).ok())
+                    .and_then(|opts| opts.job_id);
+                let Some((prefix, queue_name, job_id)) =
+                    Self::parse_qualified_job_key(&qualified_key, custom_job_id.as_deref())
+                else {
+                    continue;
+                };
 
                 let mut job = Job::from_redis_hash(job_id, &fields)?;
                 let keys = QueueKeys::new(queue_name, Some(prefix));
@@ -2784,9 +2787,19 @@ impl Queue {
 
     /// Parse `<prefix>:<queueName>:<jobId>` from a qualified job key.
     ///
-    /// Splits from the right so prefixes containing `:` remain intact.
-    fn parse_qualified_job_key(key: &str) -> Option<(&str, &str, &str)> {
-        let (queue_key, job_id) = key.rsplit_once(':')?;
+    /// The serialized job options disambiguate custom IDs containing `:`
+    /// from prefixes containing `:`.
+    fn parse_qualified_job_key(
+        key: &str,
+        custom_job_id: Option<&str>,
+    ) -> Option<(&str, &str, String)> {
+        let (queue_key, job_id) = match custom_job_id {
+            Some(job_id) => (key.strip_suffix(&format!(":{job_id}"))?, job_id.to_string()),
+            None => {
+                let (queue_key, job_id) = key.rsplit_once(':')?;
+                (queue_key, job_id.to_string())
+            }
+        };
         let (prefix, queue_name) = queue_key.rsplit_once(':')?;
         if prefix.is_empty() || queue_name.is_empty() || job_id.is_empty() {
             return None;
@@ -3224,5 +3237,26 @@ mod progress_serialization_tests {
     fn serializes_regular_values_as_json() {
         let serialized = serialize_progress_for_script(&JobProgress::Number(42.0)).unwrap();
         assert_eq!(serialized, "42.0");
+    }
+}
+
+#[cfg(test)]
+mod dependency_key_tests {
+    use super::Queue;
+
+    #[test]
+    fn preserves_colons_in_custom_job_ids() {
+        assert_eq!(
+            Queue::parse_qualified_job_key("bull:queue:job:1", Some("job:1")),
+            Some(("bull", "queue", "job:1".to_string()))
+        );
+    }
+
+    #[test]
+    fn preserves_colons_in_prefixes() {
+        assert_eq!(
+            Queue::parse_qualified_job_key("tenant:region:queue:1", None),
+            Some(("tenant:region", "queue", "1".to_string()))
+        );
     }
 }
