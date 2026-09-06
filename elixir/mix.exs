@@ -95,7 +95,7 @@ defmodule BullMQ.MixProject do
       {:opentelemetry_api, "== 1.5.0", optional: true},
 
       # Development and test dependencies
-      {:dialyxir, "== 1.4.7", only: [:dev, :test], runtime: false},
+      {:dialyxir, "== 1.4.8", only: [:dev, :test], runtime: false},
       {:ex_doc, "== 0.40.4", only: :dev, runtime: false},
       {:credo, "== 1.7.19", only: [:dev, :test], runtime: false},
       {:excoveralls, "== 0.18.5", only: :test},
