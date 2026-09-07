@@ -1605,7 +1605,7 @@ impl Queue {
                     continue;
                 };
 
-                let mut job = Job::from_redis_hash(job_id, &fields)?;
+                let mut job = Job::from_redis_hash(&job_id, &fields)?;
                 let keys = QueueKeys::new(queue_name, Some(prefix));
                 job.set_context(self.make_script_context_for_keys(keys));
                 jobs.push(job);
@@ -2789,10 +2789,10 @@ impl Queue {
     ///
     /// The serialized job options disambiguate custom IDs containing `:`
     /// from prefixes containing `:`.
-    fn parse_qualified_job_key(
-        key: &str,
+    fn parse_qualified_job_key<'a>(
+        key: &'a str,
         custom_job_id: Option<&str>,
-    ) -> Option<(&str, &str, String)> {
+    ) -> Option<(&'a str, &'a str, String)> {
         let (queue_key, job_id) = match custom_job_id {
             Some(job_id) => (key.strip_suffix(&format!(":{job_id}"))?, job_id.to_string()),
             None => {
