@@ -28,6 +28,7 @@ defmodule BullMQ.Backends.Postgres do
   @behaviour BullMQ.Backend
 
   alias BullMQ.Backends.Postgres.{Connection, SqlLoader}
+  alias BullMQ.Utils
 
   @minimum_block_timeout 0.001
   @event_read_batch 100
@@ -443,12 +444,12 @@ defmodule BullMQ.Backends.Postgres do
 
   defp build_next_job_result(b, [], limiter_max, now) do
     sig = first_map(run(b, "next_signal", [b.queue_name, limiter_max, now]))
-    ttl = to_int(sig["rate_limit_ttl"])
+    ttl = parse_int(sig["rate_limit_ttl"])
 
     if ttl > 0 do
       [nil, "", ttl, 0]
     else
-      [nil, "", 0, to_int(sig["next_delay"])]
+      [nil, "", 0, parse_int(sig["next_delay"])]
     end
   end
 
@@ -596,7 +597,7 @@ defmodule BullMQ.Backends.Postgres do
     %{"n" => n} =
       first_map(run(b, "move_active_to_wait", [b.queue_name, job_id, token || "0", now_ms()]))
 
-    {:ok, to_int(n)}
+    {:ok, parse_int(n)}
   end
 
   @impl true
@@ -726,7 +727,7 @@ defmodule BullMQ.Backends.Postgres do
     %{"n" => n} =
       first_map(run(b, "extend_lock", [b.queue_name, job_id, token, duration, now_ms()]))
 
-    {:ok, to_int(n)}
+    {:ok, parse_int(n)}
   end
 
   @impl true
@@ -762,7 +763,7 @@ defmodule BullMQ.Backends.Postgres do
   @impl true
   def add_log(%__MODULE__{} = b, job_id, log_row, keep_logs) do
     %{"idx" => idx} = first_map(run(b, "add_log", [b.queue_name, job_id, log_row]))
-    count = to_int(idx) + 1
+    count = parse_int(idx) + 1
 
     if keep_logs && count > keep_logs do
       run(b, "trim_logs", [b.queue_name, job_id, count - keep_logs])
@@ -775,7 +776,7 @@ defmodule BullMQ.Backends.Postgres do
   @impl true
   def remove(%__MODULE__{} = b, job_id, remove_children) do
     %{"n" => n} = first_map(run(b, "remove", [b.queue_name, job_id, remove_children]))
-    {:ok, to_int(n)}
+    {:ok, parse_int(n)}
   end
 
   @impl true
@@ -826,7 +827,7 @@ defmodule BullMQ.Backends.Postgres do
   def get_rate_limit_ttl(%__MODULE__{} = b, opts) do
     max_jobs = Keyword.get(opts, :max_jobs, 0)
     %{"ttl" => ttl} = first_map(run(b, "get_rate_limit_ttl", [b.queue_name, max_jobs, now_ms()]))
-    {:ok, to_int(ttl)}
+    {:ok, parse_int(ttl)}
   end
 
   @impl true
@@ -843,24 +844,24 @@ defmodule BullMQ.Backends.Postgres do
   @impl true
   def get_counts_per_priority(%__MODULE__{} = b, priorities) do
     result = run(b, "get_counts_per_priority", [b.queue_name, priorities])
-    {:ok, Enum.map(maps(result), fn row -> to_int(row["cnt"]) end)}
+    {:ok, Enum.map(maps(result), fn row -> parse_int(row["cnt"]) end)}
   end
 
   defp count_lookup(b) do
     row = first_map(run(b, "get_counts", [b.queue_name]))
-    waiting = to_int(row["waiting"])
-    prioritized = to_int(row["prioritized"])
+    waiting = parse_int(row["waiting"])
+    prioritized = parse_int(row["prioritized"])
     is_paused = row["paused"] == "1"
 
     %{
-      "active" => to_int(row["active"]),
-      "completed" => to_int(row["completed"]),
-      "failed" => to_int(row["failed"]),
-      "delayed" => to_int(row["delayed"]),
+      "active" => parse_int(row["active"]),
+      "completed" => parse_int(row["completed"]),
+      "failed" => parse_int(row["failed"]),
+      "delayed" => parse_int(row["delayed"]),
       "wait" => if(is_paused, do: 0, else: waiting),
       "waiting" => if(is_paused, do: 0, else: waiting),
       "prioritized" => prioritized,
-      "waiting-children" => to_int(row["waiting-children"]),
+      "waiting-children" => parse_int(row["waiting-children"]),
       "paused" => if(is_paused, do: waiting, else: 0)
     }
   end
@@ -885,7 +886,7 @@ defmodule BullMQ.Backends.Postgres do
   @impl true
   def get_job_logs(%__MODULE__{} = b, job_id, start, stop, asc) do
     %{"count" => count} = first_map(run(b, "get_job_logs_count", [b.queue_name, job_id]))
-    count = to_int(count)
+    count = parse_int(count)
 
     from = if start < 0, do: max(count + start, 0), else: start
     to = if stop < 0, do: count + stop, else: stop
@@ -1048,7 +1049,7 @@ defmodule BullMQ.Backends.Postgres do
     # Mirrors the Redis backend's `SCARD` on the pending-dependencies set: the
     # number of not-yet-processed children.
     m = first_map(run(b, "get_dependency_counts", [b.queue_name, job_id]))
-    {:ok, to_int((m && (m["unprocessed"] || m["pending"] || m["count"])) || 0)}
+    {:ok, parse_int((m && (m["unprocessed"] || m["pending"] || m["count"])) || 0)}
   end
 
   # ============================================================
@@ -1082,7 +1083,7 @@ defmodule BullMQ.Backends.Postgres do
 
     case first_map(result) do
       %{"job_id" => job_id, "delay" => delay} when not is_nil(job_id) ->
-        {:ok, [to_string(job_id), to_int(delay)]}
+        {:ok, [to_string(job_id), parse_int(delay)]}
 
       _ ->
         {:ok, nil}
@@ -1118,7 +1119,7 @@ defmodule BullMQ.Backends.Postgres do
   @impl true
   def remove_job_scheduler(%__MODULE__{} = b, scheduler_id) do
     m = first_map(run(b, "remove_job_scheduler", [b.queue_name, scheduler_id]))
-    {:ok, to_int(m && m["removed"])}
+    {:ok, parse_int(m && m["removed"])}
   end
 
   @impl true
@@ -1143,7 +1144,7 @@ defmodule BullMQ.Backends.Postgres do
   @impl true
   def get_job_schedulers_count(%__MODULE__{} = b) do
     m = first_map(run(b, "get_job_schedulers_count", [b.queue_name]))
-    {:ok, to_int(m && m["count"])}
+    {:ok, parse_int(m && m["count"])}
   end
 
   # Mirrors NodeJS `mapSchedulerRow`: builds the Redis-hash-shaped scheduler map
@@ -1218,9 +1219,9 @@ defmodule BullMQ.Backends.Postgres do
   def read_events(%__MODULE__{} = b, id, block_ms) do
     cursor =
       if id == "$" do
-        to_int(first_map(run(b, "read_events_max", [b.queue_name]))["max"])
+        parse_int(first_map(run(b, "read_events_max", [b.queue_name]))["max"])
       else
-        to_int(id)
+        parse_int(id)
       end
 
     events =
@@ -1363,7 +1364,7 @@ defmodule BullMQ.Backends.Postgres do
   defp next_delay_ms(b) do
     case first_map(run(b, "next_delay", [b.queue_name])) do
       %{"next_delay" => nil} -> nil
-      %{"next_delay" => next} -> to_int(next) - now_ms()
+      %{"next_delay" => next} -> parse_int(next) - now_ms()
       _ -> nil
     end
   end
@@ -1372,14 +1373,5 @@ defmodule BullMQ.Backends.Postgres do
   # Helpers
   # ============================================================
 
-  defp to_int(nil), do: 0
-  defp to_int(n) when is_integer(n), do: n
-  defp to_int(n) when is_float(n), do: trunc(n)
-
-  defp to_int(s) when is_binary(s) do
-    case Integer.parse(s) do
-      {i, _} -> i
-      :error -> 0
-    end
-  end
+  defp parse_int(v), do: Utils.parse_int(v)
 end

@@ -85,7 +85,7 @@ defmodule BullMQ.Worker do
 
   use GenServer
 
-  alias BullMQ.{Backend, CancellationToken, Job, Keys, LockManager, Types}
+  alias BullMQ.{Backend, CancellationToken, Job, Keys, LockManager, Types, Utils}
 
   require Logger
 
@@ -1673,7 +1673,7 @@ defmodule BullMQ.Worker do
 
       _ ->
         # Complete job and get next
-        move_opts = build_worker_move_opts(ctx, job)
+        move_opts = build_move_opts(ctx, job)
 
         case Backend.move_to_completed(
                ctx.backend,
@@ -1770,7 +1770,7 @@ defmodule BullMQ.Worker do
 
   # Move a job to the failed set and fetch the next job (no retry).
   defp move_job_to_failed(job, error_msg, stacktrace, ctx) do
-    move_opts = build_worker_move_opts(ctx, job) ++ [stacktrace: format_stacktrace(stacktrace)]
+    move_opts = build_move_opts(ctx, job) ++ [stacktrace: format_stacktrace(stacktrace)]
 
     case Backend.move_to_failed(ctx.backend, job.id, job.token, error_msg, move_opts) do
       {:ok, [job_data, job_id, _limit_delay, _delay_until]}
@@ -1821,26 +1821,6 @@ defmodule BullMQ.Worker do
   defp normalize_result(:waiting_children), do: :waiting_children
   defp normalize_result(other), do: other
 
-  defp build_worker_move_opts(ctx, job) do
-    [
-      lock_duration: ctx.lock_duration,
-      fetch_next: true,
-      name: name_as_string(ctx.name),
-      attempts: get_job_opt(job, :attempts, "attempts", 0),
-      limiter: ctx.limiter,
-      remove_on_complete: ctx.remove_on_complete,
-      remove_on_fail: ctx.remove_on_fail,
-      fail_parent_on_failure:
-        get_job_opt(job, :fail_parent_on_failure, "fail_parent_on_failure", false),
-      continue_parent_on_failure:
-        get_job_opt(job, :continue_parent_on_failure, "continue_parent_on_failure", false),
-      ignore_dependency_on_failure:
-        get_job_opt(job, :ignore_dependency_on_failure, "ignore_dependency_on_failure", false),
-      remove_dependency_on_failure:
-        get_job_opt(job, :remove_dependency_on_failure, "remove_dependency_on_failure", false)
-    ]
-  end
-
   # Fetch next job for manual processing with a custom token
   defp fetch_next_job_with_token(state, token) do
     script_opts = [
@@ -1887,17 +1867,7 @@ defmodule BullMQ.Worker do
   end
 
   # Convert flat list [key1, val1, key2, val2, ...] to map
-  defp list_to_job_map(list) when is_list(list) do
-    list
-    |> Enum.chunk_every(2)
-    |> Enum.map(fn
-      [k, v] -> {k, v}
-      [k] -> {k, nil}
-    end)
-    |> Map.new()
-  end
-
-  defp list_to_job_map(data), do: data
+  defp list_to_job_map(data), do: Utils.parse_hash_data(data)
 
   defp start_job_processing(job, state) do
     worker_pid = self()
@@ -2442,42 +2412,37 @@ defmodule BullMQ.Worker do
   end
 
   # Build options for move_to_finished/completed/failed calls
-  defp build_move_opts(state, job) do
+  defp build_move_opts(target, job) do
     [
-      lock_duration: state.lock_duration,
+      lock_duration: target.lock_duration,
       fetch_next: true,
-      name: name_as_string(state.name),
-      attempts: get_job_opt(job, :attempts, "attempts", 0),
-      limiter: state.limiter,
-      remove_on_complete: state.remove_on_complete || %{"count" => -1},
-      remove_on_fail: state.remove_on_fail || %{"count" => -1},
+      name: name_as_string(target.name),
+      attempts: Utils.get_opt(job.opts, [:attempts, "attempts"], 0),
+      limiter: target.limiter,
+      remove_on_complete: target.remove_on_complete || %{"count" => -1},
+      remove_on_fail: target.remove_on_fail || %{"count" => -1},
       fail_parent_on_failure:
-        get_job_opt(job, :fail_parent_on_failure, "fail_parent_on_failure", false),
+        Utils.get_opt(job.opts, [:fail_parent_on_failure, "fail_parent_on_failure"], false),
       continue_parent_on_failure:
-        get_job_opt(job, :continue_parent_on_failure, "continue_parent_on_failure", false),
+        Utils.get_opt(
+          job.opts,
+          [:continue_parent_on_failure, "continue_parent_on_failure"],
+          false
+        ),
       ignore_dependency_on_failure:
-        get_job_opt(job, :ignore_dependency_on_failure, "ignore_dependency_on_failure", false),
+        Utils.get_opt(
+          job.opts,
+          [:ignore_dependency_on_failure, "ignore_dependency_on_failure"],
+          false
+        ),
       remove_dependency_on_failure:
-        get_job_opt(job, :remove_dependency_on_failure, "remove_dependency_on_failure", false)
+        Utils.get_opt(
+          job.opts,
+          [:remove_dependency_on_failure, "remove_dependency_on_failure"],
+          false
+        )
     ]
   end
-
-  # Helper to extract a value from job.opts supporting both atom and string keys
-  defp get_job_opt(%Job{opts: opts}, atom_key, string_key, default) when is_map(opts) do
-    case Map.get(opts, atom_key) do
-      nil -> Map.get(opts, string_key, default)
-      value -> value
-    end
-  end
-
-  defp get_job_opt(%Job{opts: opts}, atom_key, _string_key, default) when is_list(opts) do
-    case Keyword.get(opts, atom_key) do
-      nil -> default
-      value -> value
-    end
-  end
-
-  defp get_job_opt(_, _, _, default), do: default
 
   defp find_job_by_ref(active_jobs, ref) do
     Enum.find(active_jobs, fn {_id, {_job, task_ref}} -> task_ref == ref end)
@@ -2603,8 +2568,9 @@ defmodule BullMQ.Worker do
       repeat_opts = get_repeat_opts(job)
 
       # Check if we've hit the iteration limit
-      count = Map.get(repeat_opts, "count", 0)
-      limit = Map.get(repeat_opts, "limit")
+      count = Utils.get_opt(repeat_opts, ["count", :count], 0)
+      limit = Utils.get_opt(repeat_opts, ["limit", :limit])
+      end_date = Utils.get_opt(repeat_opts, ["endDate", :end_date, "end_date", :endDate])
       next_count = count + 1
 
       cond do
@@ -2612,8 +2578,7 @@ defmodule BullMQ.Worker do
           # Limit reached, don't schedule next job
           :ok
 
-        Map.get(repeat_opts, "endDate") &&
-            System.system_time(:millisecond) > Map.get(repeat_opts, "endDate") ->
+        end_date && System.system_time(:millisecond) > end_date ->
           # End date passed, don't schedule next job
           :ok
 
@@ -2700,22 +2665,22 @@ defmodule BullMQ.Worker do
     # Build the repeat sub-options with the updated count
     repeat =
       %{
-        "every" => Map.get(repeat_opts, "every") || Map.get(repeat_opts, :every),
-        "pattern" => Map.get(repeat_opts, "pattern") || Map.get(repeat_opts, :pattern),
-        "offset" => Map.get(repeat_opts, "offset") || Map.get(repeat_opts, :offset),
-        "count" => next_count || Map.get(repeat_opts, "count", 0) + 1,
-        "limit" => Map.get(repeat_opts, "limit") || Map.get(repeat_opts, :limit),
-        "endDate" => Map.get(repeat_opts, "endDate") || Map.get(repeat_opts, :end_date)
+        "every" => Utils.get_opt(repeat_opts, ["every", :every]),
+        "pattern" => Utils.get_opt(repeat_opts, ["pattern", :pattern]),
+        "offset" => Utils.get_opt(repeat_opts, ["offset", :offset]),
+        "count" => next_count || Utils.get_opt(repeat_opts, ["count", :count], 0) + 1,
+        "limit" => Utils.get_opt(repeat_opts, ["limit", :limit]),
+        "endDate" => Utils.get_opt(repeat_opts, ["endDate", :end_date, "end_date", :endDate])
       }
       |> Enum.reject(fn {_k, v} -> is_nil(v) end)
       |> Map.new()
 
     %{
       "repeat" => repeat,
-      "attempts" => opts["attempts"] || opts[:attempts],
-      "backoff" => opts["backoff"] || opts[:backoff],
-      "removeOnComplete" => opts["removeOnComplete"] || opts[:remove_on_complete],
-      "removeOnFail" => opts["removeOnFail"] || opts[:remove_on_fail]
+      "attempts" => Utils.get_opt(opts, ["attempts", :attempts]),
+      "backoff" => Utils.get_opt(opts, ["backoff", :backoff]),
+      "removeOnComplete" => Utils.get_opt(opts, ["removeOnComplete", :remove_on_complete]),
+      "removeOnFail" => Utils.get_opt(opts, ["removeOnFail", :remove_on_fail])
     }
     |> Enum.reject(fn {_k, v} -> is_nil(v) end)
     |> Map.new()

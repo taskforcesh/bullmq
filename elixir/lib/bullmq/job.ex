@@ -57,7 +57,7 @@ defmodule BullMQ.Job do
       end
   """
 
-  alias BullMQ.{Backend, Keys, Types}
+  alias BullMQ.{Backend, Keys, Types, Utils}
 
   # Mapping for encoding option names to short keys (for Redis storage)
   # Elixir uses snake_case, which gets encoded to short keys for Node.js compatibility
@@ -211,18 +211,18 @@ defmodule BullMQ.Job do
       queue_name: queue_name,
       opts: decode_opts(Map.get(data, "opts", "{}")),
       prefix: Keyword.get(opts, :prefix, "bull"),
-      timestamp: parse_int(Map.get(data, "timestamp", "0")),
-      delay: parse_int(Map.get(data, "delay", "0")),
-      priority: parse_int(Map.get(data, "priority", "0")),
-      processed_on: parse_int_or_nil(Map.get(data, "processedOn")),
-      finished_on: parse_int_or_nil(Map.get(data, "finishedOn")),
+      timestamp: Utils.parse_int(Map.get(data, "timestamp", "0")),
+      delay: Utils.parse_int(Map.get(data, "delay", "0")),
+      priority: Utils.parse_int(Map.get(data, "priority", "0")),
+      processed_on: Utils.parse_int_or_nil(Map.get(data, "processedOn")),
+      finished_on: Utils.parse_int_or_nil(Map.get(data, "finishedOn")),
       progress: decode_progress(Map.get(data, "progress")),
       return_value: decode_json_or_nil(Map.get(data, "returnvalue")),
       failed_reason: Map.get(data, "failedReason"),
       stacktrace: decode_stacktrace(Map.get(data, "stacktrace")),
-      attempts_made: parse_int(Map.get(data, "attemptsMade") || Map.get(data, "atm", "0")),
-      attempts_started: parse_int(Map.get(data, "ats", "0")),
-      stalled_counter: parse_int(Map.get(data, "stc", "0")),
+      attempts_made: Utils.parse_int(Map.get(data, "attemptsMade") || Map.get(data, "atm", "0")),
+      attempts_started: Utils.parse_int(Map.get(data, "ats", "0")),
+      stalled_counter: Utils.parse_int(Map.get(data, "stc", "0")),
       parent_key: Map.get(data, "parentKey"),
       parent: decode_json_or_nil(Map.get(data, "parent")),
       processed_by: Map.get(data, "processedBy"),
@@ -1014,20 +1014,6 @@ defmodule BullMQ.Job do
       _ -> []
     end
   end
-
-  defp parse_int(str) when is_binary(str) do
-    case Integer.parse(str) do
-      {int, _} -> int
-      :error -> 0
-    end
-  end
-
-  defp parse_int(int) when is_integer(int), do: int
-  defp parse_int(_), do: 0
-
-  defp parse_int_or_nil(nil), do: nil
-  defp parse_int_or_nil(""), do: nil
-  defp parse_int_or_nil(str), do: parse_int(str)
 
   defp maybe_put(map, _key, value, default) when value == default, do: map
 
