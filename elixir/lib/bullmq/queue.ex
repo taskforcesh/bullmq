@@ -1914,23 +1914,7 @@ defmodule BullMQ.Queue do
     end
   end
 
-  defp encode_job_opts(opts) do
-    opts
-    |> Map.take([
-      :attempts,
-      :backoff,
-      :lifo,
-      :timeout,
-      :remove_on_complete,
-      :remove_on_fail,
-      :repeat,
-      :deduplication,
-      :fail_parent_on_failure,
-      :ignore_dependency,
-      :remove_dependency
-    ])
-    |> Map.reject(fn {_k, v} -> is_nil(v) end)
-  end
+  defp encode_job_opts(opts), do: Utils.encode_job_opts(opts)
 
   # Sanitize job types - if :waiting is included, also include :paused
   defp sanitize_job_types(types) do

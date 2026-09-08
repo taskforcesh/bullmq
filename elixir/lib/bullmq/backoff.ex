@@ -52,6 +52,8 @@ defmodule BullMQ.Backoff do
 
   use Agent
 
+  alias BullMQ.Utils
+
   @type strategy :: :fixed | :exponential | atom()
   @type backoff_fn :: (non_neg_integer(), non_neg_integer(), term(), map() -> non_neg_integer())
 
@@ -160,28 +162,61 @@ defmodule BullMQ.Backoff do
   end
 
   @doc """
-  Calculates backoff from a backoff configuration map.
+  Calculates backoff from a backoff configuration map or integer delay.
+
+  Supports both atom and string keys for `:type`, `:delay`, and `:jitter`.
 
   ## Examples
 
       config = %{type: :exponential, delay: 1000, jitter: 0.1}
       BullMQ.Backoff.calculate_from_config(config, 3)
       #=> ~4000
+
+      config = %{"type" => "exponential", "delay" => 1000}
+      BullMQ.Backoff.calculate_from_config(config, 2)
+      #=> 2000
   """
-  @spec calculate_from_config(map(), non_neg_integer(), keyword()) :: non_neg_integer()
+  @spec calculate_from_config(map() | integer() | nil, non_neg_integer(), keyword()) :: non_neg_integer()
   def calculate_from_config(config, attempt, opts \\ [])
 
   def calculate_from_config(nil, _attempt, _opts), do: 0
 
-  def calculate_from_config(%{type: type, delay: delay} = config, attempt, opts) do
-    jitter = Map.get(config, :jitter, 0)
-    merged_opts = Keyword.merge(opts, jitter: jitter)
-    calculate(type, attempt, delay, merged_opts)
-  end
-
-  def calculate_from_config(%{delay: delay}, _attempt, _opts), do: delay
-
   def calculate_from_config(delay, _attempt, _opts) when is_integer(delay), do: delay
+
+  def calculate_from_config(config, attempt, opts) when is_map(config) do
+    type_raw = Utils.get_opt(config, [:type, "type"])
+    delay = Utils.get_opt(config, [:delay, "delay"])
+    jitter = Utils.get_opt(config, [:jitter, "jitter"], 0)
+
+    type =
+      case type_raw do
+        "fixed" -> :fixed
+        "exponential" -> :exponential
+        t when is_atom(t) and not is_nil(t) -> t
+        t when is_binary(t) ->
+          try do
+            String.to_existing_atom(t)
+          rescue
+            ArgumentError -> :fixed
+          end
+        _ -> nil
+      end
+
+    cond do
+      is_nil(type) and is_integer(delay) ->
+        delay
+
+      is_nil(delay) ->
+        0
+
+      is_integer(delay) or is_float(delay) ->
+        merged_opts = Keyword.merge(opts, jitter: jitter)
+        calculate(type || :fixed, attempt, delay, merged_opts)
+
+      true ->
+        0
+    end
+  end
 
   def calculate_from_config(_, _attempt, _opts), do: 0
 

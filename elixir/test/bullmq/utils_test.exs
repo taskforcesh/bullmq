@@ -169,5 +169,85 @@ defmodule BullMQ.UtilsTest do
       assert Utils.parse_hash_data(map) == map
     end
   end
+
+  describe "encode_job_opts/1" do
+    test "takes only whitelisted keys and removes nil values" do
+      input = %{
+        attempts: 3,
+        backoff: %{type: :exponential, delay: 1000},
+        lifo: false,
+        timeout: nil,
+        remove_on_complete: true,
+        remove_on_fail: false,
+        repeat: %{every: 5000},
+        deduplication: %{id: "custom-id"},
+        fail_parent_on_failure: true,
+        ignore_dependency: true,
+        ignore_dependency_on_failure: false,
+        remove_dependency: true,
+        unknown_key: "should_be_removed",
+        extra_opt: 123
+      }
+
+      encoded = Utils.encode_job_opts(input)
+
+      assert encoded == %{
+               attempts: 3,
+               backoff: %{type: :exponential, delay: 1000},
+               lifo: false,
+               remove_on_complete: true,
+               remove_on_fail: false,
+               repeat: %{every: 5000},
+               deduplication: %{id: "custom-id"},
+               fail_parent_on_failure: true,
+               ignore_dependency: true,
+               ignore_dependency_on_failure: false,
+               remove_dependency: true
+             }
+
+      refute Map.has_key?(encoded, :timeout)
+      refute Map.has_key?(encoded, :unknown_key)
+      refute Map.has_key?(encoded, :extra_opt)
+    end
+
+    test "preserves boolean false for lifo, remove_on_fail, etc." do
+      input = %{lifo: false, remove_on_fail: false}
+      assert Utils.encode_job_opts(input) == %{lifo: false, remove_on_fail: false}
+    end
+
+    test "works with keyword list" do
+      input = [attempts: 5, unknown: "test", timeout: nil]
+      assert Utils.encode_job_opts(input) == %{attempts: 5}
+    end
+
+    test "returns empty map for nil or non-map" do
+      assert Utils.encode_job_opts(nil) == %{}
+      assert Utils.encode_job_opts("invalid") == %{}
+    end
+  end
+
+  describe "parse_client_info/1" do
+    test "parses key=value pairs separated by spaces" do
+      line = "id=123 addr=127.0.0.1:5432 name=bullmq_worker age=45"
+
+      assert Utils.parse_client_info(line) == %{
+               "id" => "123",
+               "addr" => "127.0.0.1:5432",
+               "name" => "bullmq_worker",
+               "age" => "45"
+             }
+    end
+
+    test "handles extra spaces between pairs" do
+      line = "id=1   addr=127.0.0.1:5432   name=bullmq"
+      assert Utils.parse_client_info(line) == %{"id" => "1", "addr" => "127.0.0.1:5432", "name" => "bullmq"}
+    end
+
+    test "returns empty map for nil, empty string, or non-binary" do
+      assert Utils.parse_client_info(nil) == %{}
+      assert Utils.parse_client_info("") == %{}
+      assert Utils.parse_client_info(123) == %{}
+    end
+  end
 end
 
