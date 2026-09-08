@@ -21,7 +21,7 @@ defmodule BullMQ.Backends.Redis do
 
   @behaviour BullMQ.Backend
 
-  alias BullMQ.{Keys, RedisConnection, Scripts, Telemetry, Version}
+  alias BullMQ.{Keys, RedisConnection, Scripts, Telemetry, Utils, Version}
 
   @minimum_block_timeout 0.001
 
@@ -565,7 +565,7 @@ defmodule BullMQ.Backends.Redis do
   def get_job_data(%__MODULE__{connection: conn, context: ctx}, job_id) do
     case RedisConnection.command(conn, ["HGETALL", Keys.job(ctx, job_id)]) do
       {:ok, []} -> {:ok, nil}
-      {:ok, data} -> {:ok, parse_hash_data(data)}
+      {:ok, data} -> {:ok, Utils.parse_hash_data(data)}
       {:error, _} = error -> error
     end
   end
@@ -776,7 +776,7 @@ defmodule BullMQ.Backends.Redis do
   @impl true
   def get_queue_meta(%__MODULE__{connection: conn, context: ctx}) do
     case RedisConnection.command(conn, ["HGETALL", Keys.meta(ctx)]) do
-      {:ok, data} -> {:ok, parse_hash_data(data)}
+      {:ok, data} -> {:ok, Utils.parse_hash_data(data)}
       {:error, _} = error -> error
     end
   end
@@ -992,12 +992,6 @@ defmodule BullMQ.Backends.Redis do
       :waiting_children -> ["ZRANGE", Keys.waiting_children(ctx), start, stop]
       _ -> nil
     end
-  end
-
-  defp parse_hash_data(data) do
-    data
-    |> Enum.chunk_every(2)
-    |> Enum.into(%{}, fn [k, v] -> {k, v} end)
   end
 
   # Silence unused alias warning if Version becomes unused during incremental work.
