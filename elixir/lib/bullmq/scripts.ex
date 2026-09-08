@@ -1882,7 +1882,6 @@ defmodule BullMQ.Scripts do
       if(state == :failed, do: Keys.failed(ctx), else: Keys.completed(ctx)),
       Keys.wait(ctx),
       Keys.meta(ctx),
-      Keys.paused(ctx),
       Keys.active(ctx),
       Keys.marker(ctx)
     ]
