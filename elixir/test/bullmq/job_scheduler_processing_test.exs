@@ -448,12 +448,16 @@ defmodule BullMQ.JobSchedulerProcessingTest do
       # Create scheduler with hourly pattern that runs immediately
       scheduler_id = "cron-hourly-test"
 
+      now_dt = DateTime.utc_now()
+      target_minute = rem(now_dt.minute + 2, 60)
+      pattern = "#{target_minute} * * * *"
+
       {:ok, _} =
         JobScheduler.upsert(
           raw_conn,
           queue_name,
           scheduler_id,
-          %{pattern: "0 * * * *", immediately: true},
+          %{pattern: pattern, immediately: true},
           "hourly-job",
           %{},
           prefix: @test_prefix

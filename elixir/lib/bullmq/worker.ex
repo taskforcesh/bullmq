@@ -2611,7 +2611,7 @@ defmodule BullMQ.Worker do
         parse_opt_int(
           Map.get(repeat_opts, "endDate") ||
             Map.get(repeat_opts, :end_date) ||
-            Map.get(repeat_opts, "endDate"),
+            Map.get(repeat_opts, "end_date"),
           nil
         )
 
@@ -2654,15 +2654,17 @@ defmodule BullMQ.Worker do
         prev_millis = get_job_prev_millis(job)
         base_time = max(now, prev_millis)
 
+        calc_opts = Map.put(repeat_opts, "prevMillis", prev_millis)
+
         next_millis =
           cond do
             pattern ->
-              JobScheduler.calculate_next_millis(repeat_opts, base_time)
+              JobScheduler.calculate_next_millis(calc_opts, base_time)
 
             every ->
               # For 'every', Lua script / Postgres backend will recalculate based on interval,
               # but calculate here as well for consistency.
-              JobScheduler.calculate_next_millis(repeat_opts, base_time) ||
+              JobScheduler.calculate_next_millis(calc_opts, base_time) ||
                 now + parse_opt_int(every, 1000)
 
             true ->
