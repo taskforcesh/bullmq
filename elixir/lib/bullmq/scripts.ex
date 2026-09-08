@@ -14,7 +14,7 @@ defmodule BullMQ.Scripts do
   will be copied automatically during CI builds.
   """
 
-  alias BullMQ.{Keys, RedisConnection}
+  alias BullMQ.{Keys, RedisConnection, Utils}
 
   # Path to the scripts directory
   # First try priv/scripts (for CI and production), fallback to rawScripts (for local dev)
@@ -1930,11 +1930,11 @@ defmodule BullMQ.Scripts do
         {:ok,
          %{
            meta: %{
-             count: parse_int(count_str || "0"),
-             prev_ts: parse_int(prev_ts_str || "0"),
-             prev_count: parse_int(prev_count_str || "0")
+             count: Utils.parse_int(count_str),
+             prev_ts: Utils.parse_int(prev_ts_str),
+             prev_count: Utils.parse_int(prev_count_str)
            },
-           data: Enum.map(data || [], fn point -> parse_int(point || "0") end),
+           data: Enum.map(data || [], fn point -> Utils.parse_int(point) end),
            count: count || 0
          }}
 
@@ -1943,16 +1943,6 @@ defmodule BullMQ.Scripts do
 
       {:error, _} = error ->
         error
-    end
-  end
-
-  defp parse_int(nil), do: 0
-  defp parse_int(val) when is_integer(val), do: val
-
-  defp parse_int(val) when is_binary(val) do
-    case Integer.parse(val) do
-      {int, _} -> int
-      :error -> 0
     end
   end
 

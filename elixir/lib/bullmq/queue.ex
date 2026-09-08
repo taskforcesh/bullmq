@@ -68,7 +68,7 @@ defmodule BullMQ.Queue do
 
   use GenServer
 
-  alias BullMQ.{Backend, Job, Keys, Scripts, Types, Version}
+  alias BullMQ.{Backend, Job, Keys, Scripts, Types, Utils, Version}
 
   require Logger
 
@@ -644,10 +644,10 @@ defmodule BullMQ.Queue do
          %{
            paused: meta_map["paused"] == "1",
            version: meta_map["version"],
-           concurrency: parse_int_or_nil(meta_map["concurrency"]),
-           max: parse_int_or_nil(meta_map["max"]),
-           duration: parse_int_or_nil(meta_map["duration"]),
-           max_len_events: parse_int_or_nil(meta_map["opts.maxLenEvents"]) || 10_000
+           concurrency: Utils.parse_int_or_nil(meta_map["concurrency"]),
+           max: Utils.parse_int_or_nil(meta_map["max"]),
+           duration: Utils.parse_int_or_nil(meta_map["duration"]),
+           max_len_events: Utils.parse_int_or_nil(meta_map["opts.maxLenEvents"]) || 10_000
          }}
 
       {:error, _} = error ->
@@ -790,7 +790,7 @@ defmodule BullMQ.Queue do
               if MapSet.member?(seen, job_id) do
                 {acc, seen}
               else
-                job_data = parse_hash_data(fields)
+                job_data = Utils.parse_hash_data(fields)
                 job = Job.from_redis(job_id, queue, job_data, prefix: prefix, connection: conn)
                 {[job | acc], MapSet.put(seen, job_id)}
               end
@@ -1090,7 +1090,7 @@ defmodule BullMQ.Queue do
   def get_global_concurrency(queue, opts) when is_binary(queue) do
     case Backend.get_queue_meta_field(Backend.create(queue, opts), "concurrency") do
       {:ok, nil} -> {:ok, nil}
-      {:ok, value} -> {:ok, parse_int_or_nil(value)}
+      {:ok, value} -> {:ok, Utils.parse_int_or_nil(value)}
       {:error, _} = error -> error
     end
   end
@@ -1116,7 +1116,7 @@ defmodule BullMQ.Queue do
   def get_global_rate_limit(queue, opts) when is_binary(queue) do
     case Backend.get_queue_meta_fields(Backend.create(queue, opts), ["max", "duration"]) do
       {:ok, [max, duration]} when not is_nil(max) and not is_nil(duration) ->
-        {:ok, %{max: parse_int_or_nil(max), duration: parse_int_or_nil(duration)}}
+        {:ok, %{max: Utils.parse_int_or_nil(max), duration: Utils.parse_int_or_nil(duration)}}
 
       {:ok, _} ->
         {:ok, nil}
@@ -1932,15 +1932,6 @@ defmodule BullMQ.Queue do
     |> Map.reject(fn {_k, v} -> is_nil(v) end)
   end
 
-  defp parse_int_or_nil(nil), do: nil
-
-  defp parse_int_or_nil(str) when is_binary(str) do
-    case Integer.parse(str) do
-      {int, ""} -> int
-      _ -> nil
-    end
-  end
-
   # Sanitize job types - if :waiting is included, also include :paused
   defp sanitize_job_types(types) do
     types = List.wrap(types)
@@ -1967,12 +1958,6 @@ defmodule BullMQ.Queue do
   defp map_state_to_lua_type(:failed), do: {"failed", true}
   defp map_state_to_lua_type(:waiting_children), do: {"waiting-children", true}
   defp map_state_to_lua_type(_), do: nil
-
-  defp parse_hash_data(data) do
-    data
-    |> Enum.chunk_every(2)
-    |> Enum.into(%{}, fn [key, value] -> {key, value} end)
-  end
 
   # Telemetry helpers
 

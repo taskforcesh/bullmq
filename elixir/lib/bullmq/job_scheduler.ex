@@ -92,7 +92,7 @@ defmodule BullMQ.JobScheduler do
     * `"0 0 * * 7"` - Every Sunday at midnight (Elixir only)
   """
 
-  alias BullMQ.{Backend, Keys, Job}
+  alias BullMQ.{Backend, Keys, Job, Utils}
 
   require Logger
 
@@ -302,7 +302,7 @@ defmodule BullMQ.JobScheduler do
         {:ok, nil}
 
       {:ok, [raw_data, score]} when is_list(raw_data) ->
-        scheduler = transform_scheduler_data(scheduler_id, array_to_map(raw_data), score)
+        scheduler = transform_scheduler_data(scheduler_id, Utils.parse_hash_data(raw_data), score)
         {:ok, scheduler}
 
       {:ok, _} ->
@@ -355,7 +355,7 @@ defmodule BullMQ.JobScheduler do
           |> Enum.map(fn [scheduler_id, score] ->
             case get(conn, queue_name, scheduler_id, opts) do
               {:ok, scheduler} when not is_nil(scheduler) ->
-                %{scheduler | next: parse_int(score)}
+                %{scheduler | next: Utils.parse_int_or_nil(score)}
 
               _ ->
                 nil
@@ -735,7 +735,7 @@ defmodule BullMQ.JobScheduler do
 
     scheduler =
       if score do
-        Map.put(scheduler, :next, parse_int(score))
+        Map.put(scheduler, :next, Utils.parse_int_or_nil(score))
       else
         scheduler
       end
@@ -743,25 +743,25 @@ defmodule BullMQ.JobScheduler do
     scheduler =
       case Map.get(raw_data, "ic") do
         nil -> scheduler
-        ic -> Map.put(scheduler, :iteration_count, parse_int(ic))
+        ic -> Map.put(scheduler, :iteration_count, Utils.parse_int_or_nil(ic))
       end
 
     scheduler =
       case Map.get(raw_data, "limit") do
         nil -> scheduler
-        limit -> Map.put(scheduler, :limit, parse_int(limit))
+        limit -> Map.put(scheduler, :limit, Utils.parse_int_or_nil(limit))
       end
 
     scheduler =
       case Map.get(raw_data, "startDate") do
         nil -> scheduler
-        sd -> Map.put(scheduler, :start_date, parse_int(sd))
+        sd -> Map.put(scheduler, :start_date, Utils.parse_int_or_nil(sd))
       end
 
     scheduler =
       case Map.get(raw_data, "endDate") do
         nil -> scheduler
-        ed -> Map.put(scheduler, :end_date, parse_int(ed))
+        ed -> Map.put(scheduler, :end_date, Utils.parse_int_or_nil(ed))
       end
 
     scheduler =
@@ -779,13 +779,13 @@ defmodule BullMQ.JobScheduler do
     scheduler =
       case Map.get(raw_data, "every") do
         nil -> scheduler
-        every -> Map.put(scheduler, :every, parse_int(every))
+        every -> Map.put(scheduler, :every, Utils.parse_int_or_nil(every))
       end
 
     scheduler =
       case Map.get(raw_data, "offset") do
         nil -> scheduler
-        offset -> Map.put(scheduler, :offset, parse_int(offset))
+        offset -> Map.put(scheduler, :offset, Utils.parse_int_or_nil(offset))
       end
 
     # Build template if data or opts exist
@@ -827,22 +827,6 @@ defmodule BullMQ.JobScheduler do
       scheduler
     end
   end
-
-  defp array_to_map(array) when is_list(array) do
-    array
-    |> Enum.chunk_every(2)
-    |> Enum.into(%{}, fn
-      [k, v] -> {k, v}
-      [k] -> {k, nil}
-    end)
-  end
-
-  defp array_to_map(_), do: %{}
-
-  defp parse_int(nil), do: nil
-  defp parse_int(n) when is_integer(n), do: n
-  defp parse_int(s) when is_binary(s), do: String.to_integer(s)
-  defp parse_int(f) when is_float(f), do: round(f)
 
   defp normalize_date(nil), do: nil
   defp normalize_date(ms) when is_integer(ms), do: ms

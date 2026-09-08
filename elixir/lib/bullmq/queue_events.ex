@@ -77,7 +77,7 @@ defmodule BullMQ.QueueEvents do
 
   use GenServer
 
-  alias BullMQ.{Backend, Keys, Types}
+  alias BullMQ.{Backend, Keys, Types, Utils}
 
   require Logger
 
@@ -406,7 +406,7 @@ defmodule BullMQ.QueueEvents do
 
   defp process_events(events, state) do
     Enum.reduce(events, state, fn [event_id, fields], acc ->
-      event_data = parse_event_fields(fields)
+      event_data = Utils.parse_hash_data(fields)
       event_type = parse_event_type(Map.get(event_data, "event"))
 
       # Notify subscribers
@@ -427,12 +427,6 @@ defmodule BullMQ.QueueEvents do
 
       %{acc | last_event_id: event_id, handler_state: new_handler_state}
     end)
-  end
-
-  defp parse_event_fields(fields) do
-    fields
-    |> Enum.chunk_every(2)
-    |> Enum.into(%{}, fn [k, v] -> {k, v} end)
   end
 
   defp parse_event_type("added"), do: :added
