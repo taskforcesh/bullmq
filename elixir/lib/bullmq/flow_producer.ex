@@ -73,7 +73,7 @@ defmodule BullMQ.FlowProducer do
 
   """
 
-  alias BullMQ.{Backend, Job, Keys}
+  alias BullMQ.{Backend, Job, Keys, Utils}
 
   require Logger
 
@@ -463,22 +463,7 @@ defmodule BullMQ.FlowProducer do
   defp normalize_opts(opts) when is_map(opts), do: opts
   defp normalize_opts(_), do: %{}
 
-  defp encode_job_opts(opts) do
-    opts
-    |> Map.take([
-      :attempts,
-      :backoff,
-      :lifo,
-      :timeout,
-      :remove_on_complete,
-      :remove_on_fail,
-      :deduplication,
-      :fail_parent_on_failure,
-      :ignore_dependency_on_failure,
-      :remove_dependency
-    ])
-    |> Map.reject(fn {_k, v} -> is_nil(v) end)
-  end
+  defp encode_job_opts(opts), do: Utils.encode_job_opts(opts)
 
   defp generate_id do
     Base.encode16(:crypto.strong_rand_bytes(12), case: :lower)

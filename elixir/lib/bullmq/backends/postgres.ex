@@ -399,16 +399,7 @@ defmodule BullMQ.Backends.Postgres do
     end
   end
 
-  # Reads `key` (atom or its string form) from an options map, falling back to
-  # `default` when absent or nil.
-  defp opt(opts, key, default) when is_map(opts) do
-    case Map.get(opts, key, Map.get(opts, to_string(key))) do
-      nil -> default
-      value -> value
-    end
-  end
-
-  defp opt(_opts, _key, default), do: default
+  defp opt(opts, key, default), do: Utils.get_opt(opts, [key, to_string(key)], default)
 
   # ============================================================
   # Job state transitions
@@ -954,17 +945,7 @@ defmodule BullMQ.Backends.Postgres do
     {:ok, workers}
   end
 
-  # Parses a `key=value key=value` client-list line into a string-keyed map.
-  defp parse_client_info(line) do
-    line
-    |> String.split(" ", trim: true)
-    |> Enum.reduce(%{}, fn kv, acc ->
-      case String.split(kv, "=", parts: 2) do
-        [key, value] -> Map.put(acc, key, value)
-        _ -> acc
-      end
-    end)
-  end
+  defp parse_client_info(line), do: Utils.parse_client_info(line)
 
   # ============================================================
   # Queue metadata
@@ -1368,10 +1349,6 @@ defmodule BullMQ.Backends.Postgres do
       _ -> nil
     end
   end
-
-  # ============================================================
-  # Helpers
-  # ============================================================
 
   defp parse_int(v), do: Utils.parse_int(v)
 end

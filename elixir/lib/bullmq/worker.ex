@@ -1326,27 +1326,8 @@ defmodule BullMQ.Worker do
   # elsewhere in this module via `list_to_job_map/1`).
   defp fetch_job_for_event(state, job_id) do
     case Backend.get_job_data(state.backend, job_id) do
-      {:ok, job_data} when is_list(job_data) and job_data != [] ->
-        job_map = list_to_job_map(job_data)
-
-        {:ok,
-         Job.from_redis(job_id, state.queue_name, job_map,
-           prefix: state.prefix,
-           token: "",
-           connection: state.connection,
-           backend: backend_module(state),
-           worker: self()
-         )}
-
-      {:ok, job_map} when is_map(job_map) and map_size(job_map) > 0 ->
-        {:ok,
-         Job.from_redis(job_id, state.queue_name, job_map,
-           prefix: state.prefix,
-           token: "",
-           connection: state.connection,
-           backend: backend_module(state),
-           worker: self()
-         )}
+      {:ok, data} when (is_list(data) and data != []) or (is_map(data) and map_size(data) > 0) ->
+        {:ok, build_job(state, job_id, data, token: "", worker: self())}
 
       _ ->
         :error
@@ -1491,18 +1472,7 @@ defmodule BullMQ.Worker do
 
       {:ok, [job_data, job_id, _limit_delay, _delay_until]}
       when is_list(job_data) and job_data != [] ->
-        job_map = list_to_job_map(job_data)
-
-        job =
-          Job.from_redis(to_string(job_id), ctx.queue_name, job_map,
-            prefix: ctx.prefix,
-            token: ctx.token,
-            connection: ctx.connection,
-            backend: backend_module(ctx),
-            worker: ctx.coordinator
-          )
-
-        {:ok, job}
+        {:ok, build_job(ctx, job_id, job_data)}
 
       {:error, _} = error ->
         error
@@ -1747,16 +1717,7 @@ defmodule BullMQ.Worker do
            ) do
         {:ok, [job_data, job_id, _limit_delay, _delay_until]}
         when is_list(job_data) and job_data != [] ->
-          job_map = list_to_job_map(job_data)
-
-          next_job =
-            Job.from_redis(to_string(job_id), ctx.queue_name, job_map,
-              prefix: ctx.prefix,
-              token: ctx.token,
-              connection: ctx.connection,
-              backend: backend_module(ctx),
-              worker: ctx.coordinator
-            )
+          next_job = build_job(ctx, job_id, job_data)
 
           {:continue, next_job}
 
@@ -1779,16 +1740,7 @@ defmodule BullMQ.Worker do
         updated_job = %{job | attempts_made: job.attempts_made + 1, failed_reason: error_msg}
         emit_event(ctx.on_failed, [updated_job, error_msg])
 
-        job_map = list_to_job_map(job_data)
-
-        next_job =
-          Job.from_redis(to_string(job_id), ctx.queue_name, job_map,
-            prefix: ctx.prefix,
-            token: ctx.token,
-            connection: ctx.connection,
-            backend: backend_module(ctx),
-            worker: ctx.coordinator
-          )
+        next_job = build_job(ctx, job_id, job_data)
 
         {:continue, next_job}
 
@@ -1842,18 +1794,7 @@ defmodule BullMQ.Worker do
       # Job available
       {:ok, [job_data, job_id, _limit_delay, _delay_until]}
       when is_list(job_data) and job_data != [] ->
-        job_map = list_to_job_map(job_data)
-
-        job =
-          Job.from_redis(to_string(job_id), state.queue_name, job_map,
-            prefix: state.prefix,
-            token: token,
-            connection: state.connection,
-            backend: backend_module(state),
-            worker: self()
-          )
-
-        {:ok, job}
+        {:ok, build_job(state, job_id, job_data, token: token, worker: self())}
 
       {:error, _} = error ->
         error
@@ -1868,6 +1809,20 @@ defmodule BullMQ.Worker do
 
   # Convert flat list [key1, val1, key2, val2, ...] to map
   defp list_to_job_map(data), do: Utils.parse_hash_data(data)
+
+  defp build_job(target, job_id, raw_job_data, overrides \\ []) do
+    job_map = Utils.parse_hash_data(raw_job_data)
+    token = Keyword.get(overrides, :token, target.token)
+    worker = Keyword.get(overrides, :worker, Map.get(target, :coordinator, self()))
+
+    Job.from_redis(to_string(job_id), target.queue_name, job_map,
+      prefix: target.prefix,
+      token: token,
+      connection: target.connection,
+      backend: backend_module(target),
+      worker: worker
+    )
+  end
 
   defp start_job_processing(job, state) do
     worker_pid = self()
@@ -2164,20 +2119,10 @@ defmodule BullMQ.Worker do
     check_closing_or_fetch(state)
   end
 
-  # Next job returned from moveToFinished
   defp handle_next_job_or_fetch({:ok, [job_data, job_id, _limit_delay, _delay_until]}, state)
        when is_list(job_data) and job_data != [] do
     # Parse and process the next job
-    job_map = list_to_job_map(job_data)
-
-    next_job =
-      Job.from_redis(to_string(job_id), state.queue_name, job_map,
-        prefix: state.prefix,
-        token: state.token,
-        connection: state.connection,
-        backend: backend_module(state),
-        worker: self()
-      )
+    next_job = build_job(state, job_id, job_data)
 
     # Start processing the next job
     new_state = start_job_processing(next_job, state)
@@ -2218,18 +2163,7 @@ defmodule BullMQ.Worker do
              ) do
           {:ok, [job_data, job_id, _limit_delay, _delay_until]}
           when is_list(job_data) and job_data != [] ->
-            job_map = list_to_job_map(job_data)
-
-            next_job =
-              Job.from_redis(to_string(job_id), state.queue_name, job_map,
-                prefix: state.prefix,
-                token: state.token,
-                connection: state.connection,
-                backend: backend_module(state),
-                worker: self()
-              )
-
-            next_job
+            build_job(state, job_id, job_data)
 
           _ ->
             nil

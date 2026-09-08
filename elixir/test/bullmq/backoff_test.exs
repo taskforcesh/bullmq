@@ -42,6 +42,16 @@ defmodule BullMQ.BackoffTest do
       assert Backoff.calculate_from_config(config, 3) == 2000
     end
 
+    test "accepts map configuration with string keys" do
+      config_fixed = %{"type" => "fixed", "delay" => 3000}
+      assert Backoff.calculate_from_config(config_fixed, 1) == 3000
+
+      config_exp = %{"type" => "exponential", "delay" => 500}
+      assert Backoff.calculate_from_config(config_exp, 1) == 500
+      assert Backoff.calculate_from_config(config_exp, 2) == 1000
+      assert Backoff.calculate_from_config(config_exp, 3) == 2000
+    end
+
     test "handles nil config" do
       assert Backoff.calculate_from_config(nil, 1) == 0
     end

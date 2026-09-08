@@ -57,7 +57,7 @@ defmodule BullMQ.Job do
       end
   """
 
-  alias BullMQ.{Backend, Keys, Types, Utils}
+  alias BullMQ.{Backend, Backoff, Keys, Types, Utils}
 
   # Mapping for encoding option names to short keys (for Redis storage)
   # Elixir uses snake_case, which gets encoded to short keys for Node.js compatibility
@@ -378,8 +378,7 @@ defmodule BullMQ.Job do
   """
   @spec should_retry?(t()) :: boolean()
   def should_retry?(%__MODULE__{opts: opts, attempts_made: attempts_made}) do
-    # Handle both atom and string keys (string keys come from JSON decode)
-    max_attempts = get_opt(opts, :attempts, "attempts", 1)
+    max_attempts = Utils.get_opt(opts, [:attempts, "attempts"], 1)
     attempts_made + 1 < max_attempts
   end
 
@@ -388,49 +387,8 @@ defmodule BullMQ.Job do
   """
   @spec calculate_backoff(t()) :: Types.duration_ms()
   def calculate_backoff(%__MODULE__{opts: opts, attempts_made: attempts_made}) do
-    # Handle both atom and string keys (string keys come from JSON decode)
-    backoff = get_opt(opts, :backoff, "backoff", nil)
-
-    case backoff do
-      nil ->
-        0
-
-      %{type: :fixed, delay: delay} ->
-        delay
-
-      %{"type" => "fixed", "delay" => delay} ->
-        delay
-
-      %{type: :exponential, delay: delay} ->
-        jitter = get_in(backoff, [:jitter]) || 0
-        calculate_exponential_backoff(delay, attempts_made, jitter)
-
-      %{"type" => "exponential", "delay" => delay} ->
-        jitter = get_in(backoff, ["jitter"]) || 0
-        calculate_exponential_backoff(delay, attempts_made, jitter)
-
-      %{type: type, delay: delay} when is_atom(type) ->
-        # Custom backoff type - return base delay
-        delay
-
-      %{"type" => _type, "delay" => delay} ->
-        # Custom backoff type with string keys - return base delay
-        delay
-
-      delay when is_integer(delay) ->
-        delay
-
-      _ ->
-        0
-    end
-  end
-
-  # Helper to get option value with both atom and string keys
-  defp get_opt(opts, atom_key, string_key, default) do
-    case Map.get(opts, atom_key) do
-      nil -> Map.get(opts, string_key, default)
-      value -> value
-    end
+    backoff = Utils.get_opt(opts, [:backoff, "backoff"])
+    Backoff.calculate_from_config(backoff, attempts_made)
   end
 
   @doc """
@@ -508,16 +466,6 @@ defmodule BullMQ.Job do
     "#{prefix}:#{queue}:#{id}"
   end
 
-  defp calculate_exponential_backoff(delay, attempts, jitter) when jitter > 0 do
-    base_delay = trunc(:math.pow(2, attempts - 1) * delay)
-    min_delay = trunc(base_delay * (1 - jitter))
-    jitter_range = trunc(base_delay * jitter)
-    min_delay + :rand.uniform(jitter_range + 1) - 1
-  end
-
-  defp calculate_exponential_backoff(delay, attempts, _jitter) do
-    trunc(:math.pow(2, attempts - 1) * delay)
-  end
 
   defp encode_json(nil), do: "null"
   defp encode_json(data), do: Jason.encode!(data)
@@ -965,8 +913,8 @@ defmodule BullMQ.Job do
   # Helper to parse HGETALL result into a map with JSON-decoded values
   defp parse_hash_result(data) do
     data
-    |> Enum.chunk_every(2)
-    |> Enum.into(%{}, fn [k, v] ->
+    |> Utils.parse_hash_data()
+    |> Map.new(fn {k, v} ->
       value =
         case Jason.decode(v) do
           {:ok, decoded} -> decoded
