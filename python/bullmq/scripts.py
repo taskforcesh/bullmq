@@ -597,7 +597,6 @@ class Scripts:
         keys.append(self.keys[state])
         keys.append(self.keys['wait'])
         keys.append(self.keys['meta'])
-        keys.append(self.keys['paused'])
         keys.append(self.keys['active'])
         keys.append(self.keys['marker'])
 

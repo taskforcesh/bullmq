@@ -7,9 +7,8 @@
     KEYS[3] job state
     KEYS[4] wait key
     KEYS[5] meta
-    KEYS[6] paused key
-    KEYS[7] active key
-    KEYS[8] marker key
+    KEYS[6] active key
+    KEYS[7] marker key
 
     ARGV[1] job.id
     ARGV[2] (job.opts.lifo ? 'R' : 'L') + 'PUSH'
@@ -46,8 +45,8 @@ if rcall("EXISTS", jobKey) == 1 then
 
     rcall("HDEL", jobKey, "finishedOn", "processedOn", ARGV[3], unpack(attributesToRemove))
 
-    local isPausedOrMaxed = isQueuePausedOrMaxed(KEYS[5], KEYS[7])
-    addJobInTargetList(KEYS[4], KEYS[8], ARGV[2], isPausedOrMaxed, jobId)
+    local isPausedOrMaxed = isQueuePausedOrMaxed(KEYS[5], KEYS[6])
+    addJobInTargetList(KEYS[4], KEYS[7], ARGV[2], isPausedOrMaxed, jobId)
 
     local parentKey = rcall("HGET", jobKey, "parentKey")
 
