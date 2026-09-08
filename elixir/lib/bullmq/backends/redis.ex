@@ -260,23 +260,7 @@ defmodule BullMQ.Backends.Redis do
   callers building bulk entries can reuse the same encoding.
   """
   @spec encode_job_opts(map()) :: map()
-  def encode_job_opts(opts) do
-    opts
-    |> Map.take([
-      :attempts,
-      :backoff,
-      :lifo,
-      :timeout,
-      :remove_on_complete,
-      :remove_on_fail,
-      :repeat,
-      :deduplication,
-      :fail_parent_on_failure,
-      :ignore_dependency,
-      :remove_dependency
-    ])
-    |> Map.reject(fn {_k, v} -> is_nil(v) end)
-  end
+  def encode_job_opts(opts), do: Utils.encode_job_opts(opts)
 
   # ============================================================
   # Job state transitions
@@ -739,16 +723,7 @@ defmodule BullMQ.Backends.Redis do
     end
   end
 
-  defp parse_client_info(line) do
-    line
-    |> String.split(" ")
-    |> Enum.reduce(%{}, fn kv, acc ->
-      case String.split(kv, "=", parts: 2) do
-        [key, value] -> Map.put(acc, key, value)
-        _ -> acc
-      end
-    end)
-  end
+  defp parse_client_info(line), do: Utils.parse_client_info(line)
 
   # ============================================================
   # Queue metadata & maintenance keys

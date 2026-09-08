@@ -176,5 +176,67 @@ defmodule BullMQ.Utils do
 
   def parse_hash_data(map) when is_map(map), do: map
   def parse_hash_data(_), do: %{}
+
+  @doc """
+  Filters a map or keyword list of job options against the standard BullMQ
+  job option whitelist, rejecting any `nil` values.
+
+  ## Examples
+
+      iex> BullMQ.Utils.encode_job_opts(%{attempts: 3, unknown: "val", timeout: nil})
+      %{attempts: 3}
+
+  """
+  @job_opts_whitelist [
+    :attempts,
+    :backoff,
+    :lifo,
+    :timeout,
+    :remove_on_complete,
+    :remove_on_fail,
+    :repeat,
+    :deduplication,
+    :fail_parent_on_failure,
+    :ignore_dependency,
+    :ignore_dependency_on_failure,
+    :remove_dependency
+  ]
+
+  @spec encode_job_opts(map() | keyword() | nil) :: map()
+  def encode_job_opts(nil), do: %{}
+  def encode_job_opts(opts) when is_list(opts), do: opts |> Map.new() |> encode_job_opts()
+
+  def encode_job_opts(opts) when is_map(opts) do
+    opts
+    |> Map.take(@job_opts_whitelist)
+    |> Map.reject(fn {_k, v} -> is_nil(v) end)
+  end
+
+  def encode_job_opts(_), do: %{}
+
+  @doc """
+  Parses a `key=value key=value` client-list line into a string-keyed map.
+
+  ## Examples
+
+      iex> BullMQ.Utils.parse_client_info("id=1 addr=127.0.0.1:5000 name=bullmq")
+      %{"id" => "1", "addr" => "127.0.0.1:5000", "name" => "bullmq"}
+
+  """
+  @spec parse_client_info(String.t() | nil) :: map()
+  def parse_client_info(nil), do: %{}
+
+  def parse_client_info(line) when is_binary(line) do
+    line
+    |> String.split(" ", trim: true)
+    |> Enum.reduce(%{}, fn kv, acc ->
+      case String.split(kv, "=", parts: 2) do
+        [key, value] -> Map.put(acc, key, value)
+        _ -> acc
+      end
+    end)
+  end
+
+  def parse_client_info(_), do: %{}
 end
 
