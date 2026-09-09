@@ -6,7 +6,7 @@ defmodule BullMQ.WorkerCancellationTest do
 
   @moduletag :integration
 
-  alias BullMQ.{Queue, Worker, CancellationToken}
+  alias BullMQ.{CancellationToken, Queue, Worker}
 
   @redis_url BullMQ.TestHelper.redis_url()
   @test_prefix BullMQ.TestHelper.test_prefix() <> "_cancel"

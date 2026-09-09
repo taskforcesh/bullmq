@@ -12,6 +12,7 @@ defmodule BullMQ.Backends.PostgresTest do
 
   @moduletag :postgres
 
+  alias BullMQ.Backends.Postgres.Connection, as: PostgresConnection
   alias BullMQ.{Backend, Backends, Job}
 
   @postgres_url System.get_env("POSTGRES_URL", "postgres://localhost:5432/bullmq_test")
@@ -20,9 +21,9 @@ defmodule BullMQ.Backends.PostgresTest do
     conn = :"pg_conn_#{System.unique_integer([:positive])}"
 
     {:ok, _} =
-      Backends.Postgres.Connection.start_link(name: conn, url: @postgres_url, schema: "bullmq")
+      PostgresConnection.start_link(name: conn, url: @postgres_url, schema: "bullmq")
 
-    on_exit(fn -> Backends.Postgres.Connection.close(conn) end)
+    on_exit(fn -> PostgresConnection.close(conn) end)
     {:ok, conn: conn}
   end
 

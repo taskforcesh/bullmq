@@ -7,7 +7,7 @@ defmodule BullMQ.MultiWorkerTest do
   worker that fetches sequentially.
   """
   use ExUnit.Case, async: false
-  alias BullMQ.{Queue, Worker, RedisConnection}
+  alias BullMQ.{Queue, RedisConnection, Worker}
 
   @redis_opts [host: "localhost", port: 6379]
   @moduletag timeout: 300_000

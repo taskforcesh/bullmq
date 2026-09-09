@@ -15,11 +15,11 @@ defmodule BullMQ.UtilsTest do
     end
 
     test "supports multiple fallback keys (e.g. camelCase and snake_case)" do
-      opts1 = %{"endDate" => 12345}
-      assert Utils.get_opt(opts1, ["endDate", :end_date, "end_date", :endDate]) == 12345
+      opts1 = %{"endDate" => 12_345}
+      assert Utils.get_opt(opts1, ["endDate", :end_date, "end_date", :endDate]) == 12_345
 
-      opts2 = %{end_date: 67890}
-      assert Utils.get_opt(opts2, ["endDate", :end_date, "end_date", :endDate]) == 67890
+      opts2 = %{end_date: 67_890}
+      assert Utils.get_opt(opts2, ["endDate", :end_date, "end_date", :endDate]) == 67_890
     end
 
     test "preserves false values and does not fall back" do

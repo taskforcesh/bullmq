@@ -208,7 +208,7 @@ defmodule BullMQ.IntegrationTest do
       now = System.system_time(:millisecond)
 
       # Add delayed jobs with different timestamps
-      delays = [1000, 5000, 3000, 10000, 2000]
+      delays = [1000, 5000, 3000, 10_000, 2000]
 
       for {delay, i} <- Enum.with_index(delays, 1) do
         score = now + delay
@@ -307,7 +307,7 @@ defmodule BullMQ.IntegrationTest do
       token = "worker-token-abc"
 
       # Acquire lock
-      {:ok, result} = Redix.command(conn, ["SET", Keys.lock(ctx, job_id), token, "PX", 30000, "NX"])
+      {:ok, result} = Redix.command(conn, ["SET", Keys.lock(ctx, job_id), token, "PX", 30_000, "NX"])
       assert result == "OK"
 
       # Verify lock exists
@@ -316,7 +316,7 @@ defmodule BullMQ.IntegrationTest do
 
       # Try to acquire again (should fail)
       {:ok, result} =
-        Redix.command(conn, ["SET", Keys.lock(ctx, job_id), "other-token", "PX", 30000, "NX"])
+        Redix.command(conn, ["SET", Keys.lock(ctx, job_id), "other-token", "PX", 30_000, "NX"])
 
       assert result == nil
 
@@ -325,7 +325,7 @@ defmodule BullMQ.IntegrationTest do
 
       # Now can acquire again
       {:ok, result} =
-        Redix.command(conn, ["SET", Keys.lock(ctx, job_id), "new-token", "PX", 30000, "NX"])
+        Redix.command(conn, ["SET", Keys.lock(ctx, job_id), "new-token", "PX", 30_000, "NX"])
 
       assert result == "OK"
     end
@@ -515,7 +515,7 @@ defmodule BullMQ.IntegrationTest do
       # Add jobs to different states
       {:ok, _} = Redix.command(conn, ["RPUSH", Keys.wait(ctx), "w1", "w2", "w3"])
       {:ok, _} = Redix.command(conn, ["RPUSH", Keys.active(ctx), "a1", "a2"])
-      {:ok, _} = Redix.command(conn, ["ZADD", Keys.delayed(ctx), now + 10000, "d1"])
+      {:ok, _} = Redix.command(conn, ["ZADD", Keys.delayed(ctx), now + 10_000, "d1"])
 
       {:ok, _} =
         Redix.command(conn, [
@@ -555,7 +555,7 @@ defmodule BullMQ.IntegrationTest do
 
       # Add completed jobs with different ages
       # 1 hour ago
-      old_time = now - 3600_000
+      old_time = now - 3_600_000
 
       {:ok, _} = Redix.command(conn, ["ZADD", Keys.completed(ctx), old_time, "old-1"])
       {:ok, _} = Redix.command(conn, ["ZADD", Keys.completed(ctx), old_time + 100, "old-2"])
@@ -563,7 +563,7 @@ defmodule BullMQ.IntegrationTest do
       {:ok, _} = Redix.command(conn, ["ZADD", Keys.completed(ctx), now + 100, "new-2"])
 
       # Remove jobs older than 30 minutes
-      grace = now - 1800_000
+      grace = now - 1_800_000
       {:ok, removed} = Redix.command(conn, ["ZREMRANGEBYSCORE", Keys.completed(ctx), "-inf", grace])
 
       assert removed == 2
@@ -648,7 +648,7 @@ defmodule BullMQ.IntegrationTest do
       {:ok, _} = Redix.command(conn, ["RPUSH", Keys.active(ctx), "job-1", "job-2", "job-3"])
 
       # Only job-1 has a lock
-      {:ok, _} = Redix.command(conn, ["SET", Keys.lock(ctx, "job-1"), "token", "PX", 30000])
+      {:ok, _} = Redix.command(conn, ["SET", Keys.lock(ctx, "job-1"), "token", "PX", 30_000])
 
       # Check which jobs have locks
       active_jobs = ["job-1", "job-2", "job-3"]
@@ -847,7 +847,7 @@ defmodule BullMQ.IntegrationTest do
       dedup_id = "unique-operation-123"
 
       # Set dedup key with job ID
-      {:ok, _} = Redix.command(conn, ["SET", Keys.dedup(ctx, dedup_id), "job-1", "PX", 60000])
+      {:ok, _} = Redix.command(conn, ["SET", Keys.dedup(ctx, dedup_id), "job-1", "PX", 60_000])
 
       # Check if deduplicated
       {:ok, existing} = Redix.command(conn, ["GET", Keys.dedup(ctx, dedup_id)])
@@ -889,7 +889,7 @@ defmodule BullMQ.IntegrationTest do
       config =
         Jason.encode!(%{
           name: "send-email",
-          every: 60000,
+          every: 60_000,
           data: %{template: "welcome"},
           opts: %{attempts: 3}
         })
@@ -907,7 +907,7 @@ defmodule BullMQ.IntegrationTest do
       now = System.system_time(:millisecond)
 
       # Add scheduled jobs
-      {:ok, _} = Redix.command(conn, ["ZADD", Keys.job_scheduler(ctx), now + 60000, "job:1"])
+      {:ok, _} = Redix.command(conn, ["ZADD", Keys.job_scheduler(ctx), now + 60_000, "job:1"])
       {:ok, _} = Redix.command(conn, ["ZADD", Keys.job_scheduler(ctx), now + 120_000, "job:2"])
 
       # Get next scheduled

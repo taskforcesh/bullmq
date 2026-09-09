@@ -1,7 +1,7 @@
 defmodule BullMQ.FlowProducerTest do
   use ExUnit.Case, async: false
 
-  alias BullMQ.{FlowProducer, Queue, Worker, Job, Keys, RedisConnection}
+  alias BullMQ.{FlowProducer, Job, Keys, Queue, RedisConnection, Worker}
 
   @moduletag timeout: 120_000
 
