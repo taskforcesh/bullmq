@@ -435,7 +435,7 @@ defmodule BullMQ.Scripts do
   Ensures scripts are loaded into Redis cache by executing a dummy SCRIPT LOAD.
   Call this before using pipelined operations to avoid NOSCRIPT errors.
   """
-  @spec ensure_scripts_loaded(atom(), [script_name()]) :: :ok | {:error, term()}
+  @spec ensure_scripts_loaded(atom(), [script_name()]) :: :ok
   def ensure_scripts_loaded(conn, script_names) do
     Enum.each(script_names, fn script_name ->
       case get(script_name) do
@@ -530,7 +530,7 @@ defmodule BullMQ.Scripts do
   Used for pipelining multiple job additions.
   """
   @spec build_add_standard_job_command(queue_context(), map() | struct(), map()) ::
-          {:ok, [String.t()]}
+          {:ok, [String.t()]} | {:error, term()}
   def build_add_standard_job_command(ctx, job, opts) do
     keys = [
       Keys.wait(ctx),
@@ -764,7 +764,7 @@ defmodule BullMQ.Scripts do
   Used for building flow transactions where all jobs are added atomically.
   """
   @spec build_add_parent_job_command(queue_context(), map() | struct(), map()) ::
-          {:ok, [String.t()]}
+          {:ok, [String.t()]} | {:error, term()}
   def build_add_parent_job_command(ctx, job, opts) do
     keys = [
       # KEYS[1] 'meta'
@@ -1872,7 +1872,13 @@ defmodule BullMQ.Scripts do
       * -1: Job does not exist
       * -3: Job was not found in the expected state
   """
-  @spec reprocess_job(atom(), queue_context(), String.t(), atom(), keyword()) :: script_result()
+  @spec reprocess_job(
+          atom(),
+          queue_context(),
+          String.t(),
+          :completed | :failed,
+          keyword()
+        ) :: script_result()
   def reprocess_job(conn, ctx, job_id, state, opts \\ []) when state in [:failed, :completed] do
     state_str = to_string(state)
     lifo = Keyword.get(opts, :lifo, false)
