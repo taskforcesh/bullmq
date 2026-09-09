@@ -266,7 +266,7 @@ public sealed class PostgresBackend : IQueueBackend
         await RunAsync(
             "move_to_delayed",
             new object?[] { Name, jobId, string.IsNullOrEmpty(token) ? "0" : token, processAt, delay, skipAttempt, null, null },
-            op: "moveToFinished", jobId: jobId, state: "active").ConfigureAwait(false);
+            op: "moveToDelayed", jobId: jobId, state: "active").ConfigureAwait(false);
 
         if (fetchNext && token != "0" && !string.IsNullOrEmpty(token))
         {

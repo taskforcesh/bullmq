@@ -288,7 +288,7 @@ public sealed class Worker : IAsyncDisposable
             // it is recovered as stalled (and retried) later. Failing a job merely
             // because the worker shut down is not BullMQ's intended semantics.
         }
-        catch (Exception ex) when (ex is DelayedException || ex.Message == DelayedException.DefaultMessage)
+        catch (DelayedException)
         {
             // Manual processors can move the job to delayed explicitly and then
             // throw DelayedException to stop the normal completion path without
