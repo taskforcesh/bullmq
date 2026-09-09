@@ -272,8 +272,8 @@ impl ScriptRegistry {
             ("getMetrics", 2, include_str!("commands/getMetrics-2.lua")),
             (
                 "reprocessJob",
-                8,
-                include_str!("commands/reprocessJob-8.lua"),
+                7,
+                include_str!("commands/reprocessJob-7.lua"),
             ),
             (
                 "removeChildDependency",

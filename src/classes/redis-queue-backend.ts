@@ -1952,7 +1952,6 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
       this.queue.toKey(state),
       this.queue.keys.wait,
       this.queue.keys.meta,
-      this.queue.keys.paused,
       this.queue.keys.active,
       this.queue.keys.marker,
     ];
