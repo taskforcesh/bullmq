@@ -747,7 +747,8 @@ defmodule BullMQ.Worker do
     {:reply, {:ok, nil}, state}
   end
 
-  def handle_call({:get_next_job, _token, _opts}, _from, %{closing: true} = state) do
+  def handle_call({:get_next_job, _token, _opts}, _from, %{closing: closing} = state)
+      when closing not in [false, nil] do
     {:reply, {:ok, nil}, state}
   end
 
