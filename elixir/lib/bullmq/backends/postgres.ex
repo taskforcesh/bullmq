@@ -809,7 +809,7 @@ defmodule BullMQ.Backends.Postgres do
   end
 
   @impl true
-  def is_maxed(%__MODULE__{} = b) do
+  def maxed?(%__MODULE__{} = b) do
     %{"maxed" => maxed} = first_map(run(b, "is_maxed", [b.queue_name]))
     {:ok, maxed}
   end

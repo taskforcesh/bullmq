@@ -92,8 +92,8 @@ defmodule BullMQ.LockManager do
   @doc """
   Checks if a specific job is being tracked.
   """
-  @spec is_tracked?(pid(), String.t()) :: boolean()
-  def is_tracked?(manager, job_id) do
+  @spec tracked?(pid(), String.t()) :: boolean()
+  def tracked?(manager, job_id) do
     GenServer.call(manager, {:is_tracked, job_id})
   end
 
@@ -102,11 +102,9 @@ defmodule BullMQ.LockManager do
   """
   @spec stop(pid()) :: :ok
   def stop(manager) do
-    try do
-      GenServer.stop(manager)
-    catch
-      :exit, _ -> :ok
-    end
+    GenServer.stop(manager)
+  catch
+    :exit, _ -> :ok
   end
 
   # Server callbacks

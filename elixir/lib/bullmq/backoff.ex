@@ -232,11 +232,9 @@ defmodule BullMQ.Backoff do
   # Private functions
 
   defp get_custom_strategy(name) do
-    try do
-      Agent.get(__MODULE__, fn strategies -> Map.get(strategies, name) end)
-    catch
-      :exit, _ -> nil
-    end
+    Agent.get(__MODULE__, fn strategies -> Map.get(strategies, name) end)
+  catch
+    :exit, _ -> nil
   end
 
   defp apply_jitter(delay, 0), do: delay

@@ -1815,8 +1815,8 @@ defmodule BullMQ.Scripts do
   @doc """
   Checks if the queue is at its max limit.
   """
-  @spec is_maxed(atom(), queue_context()) :: script_result()
-  def is_maxed(conn, ctx) do
+  @spec maxed?(atom(), queue_context()) :: script_result()
+  def maxed?(conn, ctx) do
     keys = [
       Keys.limiter(ctx),
       Keys.meta(ctx)

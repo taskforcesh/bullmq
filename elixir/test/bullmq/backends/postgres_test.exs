@@ -12,8 +12,8 @@ defmodule BullMQ.Backends.PostgresTest do
 
   @moduletag :postgres
 
-  alias BullMQ.Backends.Postgres.Connection, as: PostgresConnection
   alias BullMQ.{Backend, Backends, Job}
+  alias BullMQ.Backends.Postgres.Connection, as: PostgresConnection
 
   @postgres_url System.get_env("POSTGRES_URL", "postgres://localhost:5432/bullmq_test")
 
@@ -417,8 +417,8 @@ defmodule BullMQ.Backends.PostgresTest do
     assert {:ok, [_, _, 0]} = Backend.get_counts_by_types(b, [:waiting, :active, :completed])
   end
 
-  test "is_maxed, get_rate_limit_ttl, get_metrics return sane shapes", %{backend: b} do
-    assert {:ok, maxed} = Backend.is_maxed(b)
+  test "maxed?, get_rate_limit_ttl, get_metrics return sane shapes", %{backend: b} do
+    assert {:ok, maxed} = Backend.maxed?(b)
     assert is_boolean(maxed)
 
     assert {:ok, ttl} = Backend.get_rate_limit_ttl(b, max_jobs: 10)

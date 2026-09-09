@@ -372,24 +372,25 @@ defmodule BullMQ.Queue do
         end
       end
 
-    with {:ok, standard_results} <- standard_results do
-      # For other jobs (delayed/prioritized), fall back to sequential
-      other_results =
-        Enum.map(other_jobs, fn {name, data, job_opts} ->
-          merged_opts = Keyword.merge(opts, job_opts)
-          job = Job.new(queue, name, data, merged_opts)
-          add_job(conn, ctx, job)
-        end)
+    case standard_results do
+      {:ok, standard_results} ->
+        # For other jobs (delayed/prioritized), fall back to sequential
+        other_results =
+          Enum.map(other_jobs, fn {name, data, job_opts} ->
+            merged_opts = Keyword.merge(opts, job_opts)
+            job = Job.new(queue, name, data, merged_opts)
+            add_job(conn, ctx, job)
+          end)
 
-      all_results = standard_results ++ other_results
-      errors = Enum.filter(all_results, &match?({:error, _}, &1))
+        all_results = standard_results ++ other_results
+        errors = Enum.filter(all_results, &match?({:error, _}, &1))
 
-      if Enum.empty?(errors) do
-        {:ok, Enum.map(all_results, fn {:ok, job} -> job end)}
-      else
-        {:error, {:partial_failure, all_results}}
-      end
-    else
+        if Enum.empty?(errors) do
+          {:ok, Enum.map(all_results, fn {:ok, job} -> job end)}
+        else
+          {:error, {:partial_failure, all_results}}
+        end
+
       {:error, _} = error ->
         error
     end

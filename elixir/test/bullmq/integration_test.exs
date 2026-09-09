@@ -307,7 +307,9 @@ defmodule BullMQ.IntegrationTest do
       token = "worker-token-abc"
 
       # Acquire lock
-      {:ok, result} = Redix.command(conn, ["SET", Keys.lock(ctx, job_id), token, "PX", 30_000, "NX"])
+      {:ok, result} =
+        Redix.command(conn, ["SET", Keys.lock(ctx, job_id), token, "PX", 30_000, "NX"])
+
       assert result == "OK"
 
       # Verify lock exists
