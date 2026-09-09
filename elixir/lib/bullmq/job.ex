@@ -466,7 +466,6 @@ defmodule BullMQ.Job do
     "#{prefix}:#{queue}:#{id}"
   end
 
-
   defp encode_json(nil), do: "null"
   defp encode_json(data), do: Jason.encode!(data)
 
