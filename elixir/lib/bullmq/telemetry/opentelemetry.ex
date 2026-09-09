@@ -410,61 +410,12 @@ defmodule BullMQ.Telemetry.OpenTelemetry do
           result
         when result: term()
   def trace(name, opts \\ [], fun) do
-    parent_metadata = Keyword.get(opts, :parent_metadata)
     propagate = Keyword.get(opts, :propagate, false)
-
-    # If we have parent metadata, deserialize and use it as parent
-    parent_ctx =
-      if parent_metadata do
-        deserialize_context(parent_metadata)
-      else
-        nil
-      end
-
-    span_opts =
-      opts
-      |> Keyword.delete(:parent_metadata)
-      |> Keyword.delete(:propagate)
-      |> Keyword.put(:parent, parent_ctx)
-
-    span = start_span(name, span_opts)
-
-    # Get context for propagation if requested
-    dst_metadata =
-      case span do
-        {:noop, nil} ->
-          nil
-
-        {ctx, span_data} when span_data != nil ->
-          if propagate and available?() do
-            try do
-              span_ctx = :otel_tracer.set_current_span(ctx, span_data)
-              serialize_context(span_ctx)
-            rescue
-              _ -> nil
-            catch
-              _, _ -> nil
-            end
-          else
-            nil
-          end
-
-        _ ->
-          nil
-      end
+    span = start_span(name, build_span_opts(opts))
+    dst_metadata = get_dst_metadata(span, propagate)
 
     try do
-      result =
-        if propagate do
-          with_span_context(span, fn ->
-            fun.(span, dst_metadata)
-          end)
-        else
-          with_span_context(span, fn ->
-            fun.(span)
-          end)
-        end
-
+      result = invoke_traced_fun(fun, span, dst_metadata, propagate)
       end_span(span, :ok)
       result
     rescue
@@ -477,6 +428,44 @@ defmodule BullMQ.Telemetry.OpenTelemetry do
         end_span(span, {:error, inspect(reason)})
         :erlang.raise(kind, reason, __STACKTRACE__)
     end
+  end
+
+  defp build_span_opts(opts) do
+    parent_ctx =
+      case Keyword.get(opts, :parent_metadata) do
+        nil -> nil
+        metadata -> deserialize_context(metadata)
+      end
+
+    opts
+    |> Keyword.delete(:parent_metadata)
+    |> Keyword.delete(:propagate)
+    |> Keyword.put(:parent, parent_ctx)
+  end
+
+  defp get_dst_metadata({ctx, span_data}, true) when span_data != nil do
+    if available?() do
+      try do
+        span_ctx = :otel_tracer.set_current_span(ctx, span_data)
+        serialize_context(span_ctx)
+      rescue
+        _ -> nil
+      catch
+        _, _ -> nil
+      end
+    else
+      nil
+    end
+  end
+
+  defp get_dst_metadata(_span, _propagate), do: nil
+
+  defp invoke_traced_fun(fun, span, dst_metadata, true) do
+    with_span_context(span, fn -> fun.(span, dst_metadata) end)
+  end
+
+  defp invoke_traced_fun(fun, span, _dst_metadata, false) do
+    with_span_context(span, fn -> fun.(span) end)
   end
 
   # Run function with span set as current
