@@ -474,11 +474,11 @@ defmodule BullMQ.JobSchedulerProcessingTest do
       assert scheduler != nil
       assert scheduler.next != nil
 
-      # The next execution must be at least 50 seconds away (next hour), NOT ~1 second
+      # The next execution must be at least 50 seconds away (next cron occurrence), NOT ~1 second
       time_until_next = scheduler.next - now
 
       assert time_until_next > 50_000,
-             "Expected next iteration to be scheduled at next hour (>50s), but was #{time_until_next}ms away"
+             "Expected next iteration to be scheduled at the next cron occurrence (>50s), but was #{time_until_next}ms away"
 
       Worker.close(worker)
       QueueEvents.close(events)
