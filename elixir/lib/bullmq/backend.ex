@@ -136,12 +136,7 @@ defmodule BullMQ.Backend do
               t,
               scheduler_id :: String.t(),
               next_millis :: integer(),
-              scheduler_opts :: map(),
-              template_data :: String.t(),
-              template_opts :: map(),
-              delayed_opts :: map(),
-              now :: integer(),
-              producer_id :: String.t() | nil
+              opts :: map() | keyword()
             ) :: {:ok, term()} | {:error, term()}
 
   # ============================================================
@@ -450,7 +445,7 @@ defmodule BullMQ.Backend do
     add_flow: 3,
     build_add_standard_command: 3,
     build_add_parent_command: 3,
-    add_job_scheduler: 9,
+    add_job_scheduler: 4,
     update_job_scheduler: 6,
     remove_job_scheduler: 2,
     get_job_scheduler: 2,
@@ -549,35 +544,11 @@ defmodule BullMQ.Backend do
           t,
           String.t(),
           integer(),
-          map(),
-          String.t(),
-          map(),
-          map(),
-          integer(),
-          String.t() | nil
+          map() | keyword()
         ) ::
           {:ok, term()} | {:error, term()}
-  def add_job_scheduler(
-        b,
-        scheduler_id,
-        next_millis,
-        scheduler_opts,
-        template_data,
-        template_opts,
-        delayed_opts,
-        now,
-        producer_id \\ nil
-      ) do
-    dispatch(b, :add_job_scheduler, [
-      scheduler_id,
-      next_millis,
-      scheduler_opts,
-      template_data,
-      template_opts,
-      delayed_opts,
-      now,
-      producer_id
-    ])
+  def add_job_scheduler(b, scheduler_id, next_millis, opts) do
+    dispatch(b, :add_job_scheduler, [scheduler_id, next_millis, opts])
   end
 
   # -- State transitions --

@@ -622,12 +622,12 @@ defmodule BullMQ.JobScheduler do
              backend,
              scheduler_id,
              next_millis,
-             scheduler_opts,
-             template_data,
-             template_opts,
-             delayed_opts,
-             now,
-             nil
+             scheduler_opts: scheduler_opts,
+             template_data: template_data,
+             template_opts: template_opts,
+             delayed_opts: delayed_opts,
+             now: now,
+             producer_id: nil
            ) do
         {:ok, [job_id, delay]} when is_binary(job_id) ->
           delay = if is_binary(delay), do: String.to_integer(delay), else: delay
