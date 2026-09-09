@@ -165,38 +165,29 @@ defmodule BullMQ.LockManager do
   end
 
   @impl true
+  def handle_info(:extend_locks, %{closed: true} = state) do
+    {:noreply, state}
+  end
+
   def handle_info(:extend_locks, state) do
-    if state.closed do
-      {:noreply, state}
-    else
-      now = System.system_time(:millisecond)
-      threshold = div(state.lock_renew_time, 2)
+    now = System.system_time(:millisecond)
+    threshold = div(state.lock_renew_time, 2)
 
-      # Find jobs whose locks need extension (older than threshold)
-      {jobs_to_extend, updated_tracked} =
-        Enum.reduce(state.tracked_jobs, {[], %{}}, fn {job_id, info}, {to_extend, tracked} ->
-          if info.ts + threshold < now do
-            # This job needs lock extension
-            updated_info = %{info | ts: now}
-            {[{job_id, info.token} | to_extend], Map.put(tracked, job_id, updated_info)}
-          else
-            # Job lock is still fresh
-            {to_extend, Map.put(tracked, job_id, info)}
-          end
-        end)
+    # Find jobs whose locks need extension (older than threshold)
+    {jobs_to_extend, updated_tracked} =
+      partition_jobs_for_renewal(state.tracked_jobs, threshold, now)
 
-      # Extend locks if there are jobs to process
-      new_state =
-        if jobs_to_extend != [] do
-          extend_locks(jobs_to_extend, %{state | tracked_jobs: updated_tracked})
-        else
-          %{state | tracked_jobs: updated_tracked}
-        end
+    # Extend locks if there are jobs to process
+    new_state =
+      if jobs_to_extend != [] do
+        extend_locks(jobs_to_extend, %{state | tracked_jobs: updated_tracked})
+      else
+        %{state | tracked_jobs: updated_tracked}
+      end
 
-      # Schedule next renewal
-      timer_ref = schedule_renewal(state.lock_renew_time)
-      {:noreply, %{new_state | timer_ref: timer_ref}}
-    end
+    # Schedule next renewal
+    timer_ref = schedule_renewal(state.lock_renew_time)
+    {:noreply, %{new_state | timer_ref: timer_ref}}
   end
 
   def handle_info(_msg, state) do
@@ -220,6 +211,23 @@ defmodule BullMQ.LockManager do
     Process.send_after(self(), :extend_locks, interval)
   end
 
+  defp partition_jobs_for_renewal(tracked_jobs, threshold, now) do
+    Enum.reduce(tracked_jobs, {[], %{}}, fn {job_id, info}, {to_extend, tracked} ->
+      renew_or_keep_job(job_id, info, threshold, now, to_extend, tracked)
+    end)
+  end
+
+  defp renew_or_keep_job(job_id, info, threshold, now, to_extend, tracked) do
+    if info.ts + threshold < now do
+      # This job needs lock extension
+      updated_info = %{info | ts: now}
+      {[{job_id, info.token} | to_extend], Map.put(tracked, job_id, updated_info)}
+    else
+      # Job lock is still fresh
+      {to_extend, Map.put(tracked, job_id, info)}
+    end
+  end
+
   defp extend_locks(jobs_to_extend, state) do
     job_ids = Enum.map(jobs_to_extend, fn {id, _token} -> id end)
     tokens = Enum.map(jobs_to_extend, fn {_id, token} -> token end)
@@ -238,20 +246,7 @@ defmodule BullMQ.LockManager do
         succeeded_ids = job_ids -- failed_ids
 
         # Update state with failed jobs removed
-        updated_state =
-          if failed_ids != [] do
-            emit_callback(state.on_lock_renewal_failed, [failed_ids])
-
-            # Untrack failed jobs (lock was lost)
-            Enum.each(failed_ids, fn job_id ->
-              Logger.warning("[BullMQ.LockManager] Lost lock for job #{job_id}")
-            end)
-
-            tracked_jobs = Enum.reduce(failed_ids, state.tracked_jobs, &Map.delete(&2, &1))
-            %{state | tracked_jobs: tracked_jobs}
-          else
-            state
-          end
+        updated_state = handle_failed_extensions(state, failed_ids)
 
         if succeeded_ids != [] do
           emit_callback(state.on_locks_renewed, [succeeded_ids])
@@ -264,9 +259,23 @@ defmodule BullMQ.LockManager do
         state
 
       {:error, reason} ->
-        Logger.error("[BullMQ.LockManager] Error extending locks: #{inspect(reason)}")
+        Logger.warning("[BullMQ.LockManager] Failed to extend locks: #{inspect(reason)}")
         state
     end
+  end
+
+  defp handle_failed_extensions(state, []), do: state
+
+  defp handle_failed_extensions(state, failed_ids) do
+    emit_callback(state.on_lock_renewal_failed, [failed_ids])
+
+    # Untrack failed jobs (lock was lost)
+    Enum.each(failed_ids, fn job_id ->
+      Logger.warning("[BullMQ.LockManager] Lost lock for job #{job_id}")
+    end)
+
+    tracked_jobs = Enum.reduce(failed_ids, state.tracked_jobs, &Map.delete(&2, &1))
+    %{state | tracked_jobs: tracked_jobs}
   end
 
   defp emit_callback(nil, _args), do: :ok
