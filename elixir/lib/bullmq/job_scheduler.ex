@@ -92,7 +92,7 @@ defmodule BullMQ.JobScheduler do
     * `"0 0 * * 7"` - Every Sunday at midnight (Elixir only)
   """
 
-  alias BullMQ.{Backend, Keys, Job, Utils}
+  alias BullMQ.{Backend, Job, Keys, Utils}
 
   require Logger
 
