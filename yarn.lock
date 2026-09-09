@@ -2623,10 +2623,10 @@ coveralls-next@6.0.2:
     js-yaml "4.2.0"
     lcov-parse "1.0.0"
 
-cpx2@9.0.2:
-  version "9.0.2"
-  resolved "https://registry.yarnpkg.com/cpx2/-/cpx2-9.0.2.tgz#c567a1f0f60f0b4238361a29742a6c8f030a6989"
-  integrity sha512-9k/+5lzpDdNGB6UwfSEfJxF/v2TsuOBZtF3xf8DFxpqtLTlWZo4svf/oOxQ0E7Of7mhVw8mQZkDz7nlCXtc1ig==
+cpx2@9.0.3:
+  version "9.0.3"
+  resolved "https://registry.yarnpkg.com/cpx2/-/cpx2-9.0.3.tgz#95a0025b8449d05cea2a40ab08e02c3ce7eb4755"
+  integrity sha512-SHeJspK34eVoLWuCrBW6YdcflnZwJifgADJNRkitsuZN2bi4+iby4slavs1qANeNiiZnIWRFG4vNcHp8UHrE5g==
   dependencies:
     debounce "^3.0.0"
     glob "^13.0.0"
