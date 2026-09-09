@@ -574,8 +574,8 @@ defmodule BullMQ.Backends.Redis do
   end
 
   @impl true
-  def is_maxed(%__MODULE__{connection: conn, context: ctx}),
-    do: Scripts.is_maxed(conn, ctx)
+  def maxed?(%__MODULE__{connection: conn, context: ctx}),
+    do: Scripts.maxed?(conn, ctx)
 
   @impl true
   def get_processed_children_values(%__MODULE__{connection: conn, context: ctx}, job_id),

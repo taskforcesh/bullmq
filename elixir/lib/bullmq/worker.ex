@@ -1411,34 +1411,32 @@ defmodule BullMQ.Worker do
 
   # Separate function to run the worker logic - allows proper try/catch with ctx in scope
   defp autonomous_worker_run(ctx) do
-    try do
-      maybe_handle_autonomous_shutdown(ctx)
+    maybe_handle_autonomous_shutdown(ctx)
 
-      case do_fetch_job(ctx) do
-        {:ok, nil} ->
-          # No jobs available
-          send(ctx.coordinator, {:worker_stopped, self()})
+    case do_fetch_job(ctx) do
+      {:ok, nil} ->
+        # No jobs available
+        send(ctx.coordinator, {:worker_stopped, self()})
 
-        {:ok, job} ->
-          # Create cancellation token if processor supports it (need to register before processing)
-          cancel_token =
-            if ctx.processor_supports_cancellation, do: CancellationToken.new(), else: nil
+      {:ok, job} ->
+        # Create cancellation token if processor supports it (need to register before processing)
+        cancel_token =
+          if ctx.processor_supports_cancellation, do: CancellationToken.new(), else: nil
 
-          # Notify coordinator that we got a job (include token for cancellation support)
-          send(ctx.coordinator, {:worker_got_job, self(), job, cancel_token})
-          autonomous_worker_loop(job, ctx, cancel_token)
+        # Notify coordinator that we got a job (include token for cancellation support)
+        send(ctx.coordinator, {:worker_got_job, self(), job, cancel_token})
+        autonomous_worker_loop(job, ctx, cancel_token)
 
-        {:rate_limited, _delay} ->
-          # Rate limited on first fetch, notify and exit
-          send(ctx.coordinator, {:worker_stopped, self()})
+      {:rate_limited, _delay} ->
+        # Rate limited on first fetch, notify and exit
+        send(ctx.coordinator, {:worker_stopped, self()})
 
-        {:error, _reason} ->
-          send(ctx.coordinator, {:worker_stopped, self()})
-      end
-    catch
-      :exit, reason ->
-        exit(reason)
+      {:error, _reason} ->
+        send(ctx.coordinator, {:worker_stopped, self()})
     end
+  catch
+    :exit, reason ->
+      exit(reason)
   end
 
   defp maybe_handle_autonomous_shutdown(_ctx) do
