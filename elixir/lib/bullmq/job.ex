@@ -398,7 +398,7 @@ defmodule BullMQ.Job do
   """
   @spec delay_until(t()) :: Types.timestamp_ms()
   def delay_until(%__MODULE__{timestamp: timestamp, delay: delay}) do
-    timestamp + delay
+    round(timestamp + delay)
   end
 
   @doc """
