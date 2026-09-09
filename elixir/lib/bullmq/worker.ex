@@ -2551,7 +2551,7 @@ defmodule BullMQ.Worker do
   end
 
   # Extract repeat options from job opts
-  defp get_repeat_opts(%Job{opts: opts}) when is_map(opts) do
+  defp get_repeat_opts(%Job{opts: opts}) do
     case opts do
       %{"repeat" => repeat} when is_map(repeat) -> repeat
       %{repeat: repeat} when is_map(repeat) -> repeat
@@ -2559,11 +2559,9 @@ defmodule BullMQ.Worker do
     end
   end
 
-  defp get_repeat_opts(_), do: %{}
-
   # Build job options for the next scheduler iteration
   defp build_scheduler_job_opts(job, next_count) do
-    opts = job.opts || %{}
+    opts = job.opts
     repeat_opts = get_repeat_opts(job)
 
     # Build the repeat sub-options with the updated count
@@ -2572,7 +2570,7 @@ defmodule BullMQ.Worker do
         "every" => Utils.get_opt(repeat_opts, ["every", :every]),
         "pattern" => Utils.get_opt(repeat_opts, ["pattern", :pattern]),
         "offset" => Utils.get_opt(repeat_opts, ["offset", :offset]),
-        "count" => next_count || Utils.get_opt(repeat_opts, ["count", :count], 0) + 1,
+        "count" => next_count,
         "limit" => Utils.get_opt(repeat_opts, ["limit", :limit]),
         "endDate" => Utils.get_opt(repeat_opts, ["endDate", :end_date, "end_date", :endDate])
       }
