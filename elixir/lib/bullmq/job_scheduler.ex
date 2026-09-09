@@ -884,46 +884,76 @@ defmodule BullMQ.JobScheduler do
   defp normalize_date(%DateTime{} = dt), do: DateTime.to_unix(dt, :millisecond)
   defp normalize_date(_), do: nil
 
-  defp parse_cron_next(pattern, reference_time, _tz) do
-    # Convert reference time to DateTime
+  defp resolve_time_zone(tz) when tz in ["UTC", "utc", nil], do: "Etc/UTC"
+  defp resolve_time_zone(tz), do: tz
+
+  defp time_zone_database do
+    case Calendar.get_time_zone_database() do
+      Calendar.UTCOnlyTimeZoneDatabase ->
+        if Code.ensure_loaded?(Tz.TimeZoneDatabase) do
+          Tz.TimeZoneDatabase
+        else
+          Calendar.UTCOnlyTimeZoneDatabase
+        end
+
+      custom_db ->
+        custom_db
+    end
+  end
+
+  defp parse_cron_next(pattern, reference_time, tz) do
+    # Convert reference time to UTC DateTime
     reference_dt = DateTime.from_unix!(reference_time, :millisecond)
+    tz_name = resolve_time_zone(tz)
+    tz_db = time_zone_database()
 
     field_count = pattern |> String.split(" ", trim: true) |> length()
     extended = field_count >= 6
 
-    # Parse cron expression (extended: true enables seconds field)
-    case Crontab.CronExpression.Parser.parse(pattern, extended) do
-      {:ok, cron} ->
-        # Get next run date
-        case Crontab.Scheduler.get_next_run_date(cron, reference_dt) do
-          {:ok, next_dt} ->
-            next_time = DateTime.to_unix(next_dt, :millisecond)
+    with {:ok, zoned_dt} <- DateTime.shift_zone(reference_dt, tz_name, tz_db),
+         naive_dt <- DateTime.to_naive(zoned_dt),
+         {:ok, cron} <- Crontab.CronExpression.Parser.parse(pattern, extended),
+         {:ok, candidate_naive} <- Crontab.Scheduler.get_next_run_date(cron, naive_dt),
+         {:ok, next_time} <- to_unix_millis(candidate_naive, tz_name, tz_db, reference_time) do
+      # Crontab includes naive_dt if it matches the cron pattern.
+      # If next_time <= reference_time, get the occurrence strictly after reference_time.
+      if next_time <= reference_time do
+        advance_step = 1
+        advanced_naive = NaiveDateTime.add(naive_dt, advance_step, :second)
 
-            # Crontab includes reference_dt if it matches the cron pattern.
-            # If next_time <= reference_time, get the occurrence strictly after reference_time.
-            if next_time <= reference_time do
-              advance_step = 1
-              advanced_dt = DateTime.add(reference_dt, advance_step, :second)
-
-              case Crontab.Scheduler.get_next_run_date(cron, advanced_dt) do
-                {:ok, strictly_next_dt} ->
-                  {:ok, DateTime.to_unix(strictly_next_dt, :millisecond)}
-
-                error ->
-                  error
-              end
-            else
-              {:ok, next_time}
-            end
-
-          error ->
-            error
+        with {:ok, strictly_next_naive} <-
+               Crontab.Scheduler.get_next_run_date(cron, advanced_naive),
+             {:ok, strictly_next_time} <-
+               to_unix_millis(strictly_next_naive, tz_name, tz_db, reference_time) do
+          {:ok, strictly_next_time}
         end
-
-      error ->
-        error
+      else
+        {:ok, next_time}
+      end
     end
   rescue
     e -> {:error, e}
+  end
+
+  defp to_unix_millis(naive_dt, tz_name, tz_db, reference_time) do
+    case DateTime.from_naive(naive_dt, tz_name, tz_db) do
+      {:ok, dt} ->
+        {:ok, DateTime.to_unix(dt, :millisecond)}
+
+      {:ambiguous, earlier_dt, later_dt} ->
+        earlier_ms = DateTime.to_unix(earlier_dt, :millisecond)
+
+        if earlier_ms > reference_time do
+          {:ok, earlier_ms}
+        else
+          {:ok, DateTime.to_unix(later_dt, :millisecond)}
+        end
+
+      {:gap, _just_before_dt, just_after_dt} ->
+        {:ok, DateTime.to_unix(just_after_dt, :millisecond)}
+
+      {:error, _} = error ->
+        error
+    end
   end
 end

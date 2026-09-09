@@ -888,6 +888,45 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
       assert result == expected_ms
     end
 
+    test "pattern with timezone evaluates next occurrence in that timezone" do
+      # 10:00:00 UTC on 2026-09-09
+      ref_dt = ~U[2026-09-09 10:00:00.000000Z]
+      ref_ms = DateTime.to_unix(ref_dt, :millisecond)
+
+      # In America/New_York (EDT = UTC-4), it is 06:00:00 on 2026-09-09.
+      # Next 9:00 AM NY time is today 2026-09-09 09:00:00 EDT = 13:00:00 UTC.
+      ny_res =
+        JobScheduler.calculate_next_millis(
+          %{pattern: "0 9 * * *", tz: "America/New_York"},
+          ref_ms
+        )
+
+      assert ny_res == DateTime.to_unix(~U[2026-09-09 13:00:00.000000Z], :millisecond)
+
+      # In UTC, 09:00:00 has already passed today at 10:00:00 UTC.
+      # Next 9:00 AM UTC is tomorrow 2026-09-10 09:00:00 UTC.
+      utc_res =
+        JobScheduler.calculate_next_millis(%{pattern: "0 9 * * *", tz: "UTC"}, ref_ms)
+
+      assert utc_res == DateTime.to_unix(~U[2026-09-10 09:00:00.000000Z], :millisecond)
+
+      # In Asia/Tokyo (JST = UTC+9), it is 19:00:00 on 2026-09-09.
+      # Next 9:00 AM JST is tomorrow 2026-09-10 09:00:00 JST = 2026-09-10 00:00:00 UTC.
+      tokyo_res =
+        JobScheduler.calculate_next_millis(%{pattern: "0 9 * * *", tz: "Asia/Tokyo"}, ref_ms)
+
+      assert tokyo_res == DateTime.to_unix(~U[2026-09-10 00:00:00.000000Z], :millisecond)
+    end
+
+    test "pattern with invalid timezone returns nil" do
+      now = System.system_time(:millisecond)
+
+      result =
+        JobScheduler.calculate_next_millis(%{pattern: "0 9 * * *", tz: "Invalid/Zone"}, now)
+
+      assert result == nil
+    end
+
     test "no pattern or every returns nil" do
       result = JobScheduler.calculate_next_millis(%{limit: 5}, 0)
       assert result == nil
@@ -900,7 +939,10 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
 
   describe "Timezone handling" do
     @tag :integration
-    test "stores timezone in scheduler", %{conn: conn, queue_name: queue_name} do
+    test "stores timezone in scheduler and calculates next in timezone", %{
+      conn: conn,
+      queue_name: queue_name
+    } do
       {:ok, _} =
         JobScheduler.upsert(
           conn,
@@ -914,6 +956,13 @@ defmodule BullMQ.JobSchedulerIntegrationTest do
 
       {:ok, scheduler} = JobScheduler.get(conn, queue_name, "tz-test", prefix: @test_prefix)
       assert scheduler.tz == "America/New_York"
+      assert is_integer(scheduler.next)
+
+      next_dt = DateTime.from_unix!(scheduler.next, :millisecond)
+      {:ok, zoned_dt} = DateTime.shift_zone(next_dt, "America/New_York")
+      assert zoned_dt.hour == 9
+      assert zoned_dt.minute == 0
+      assert zoned_dt.second == 0
     end
   end
 

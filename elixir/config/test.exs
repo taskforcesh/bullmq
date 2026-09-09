@@ -11,3 +11,5 @@ config :bullmq,
   ]
 
 config :logger, level: :warning
+
+config :elixir, :time_zone_database, Tz.TimeZoneDatabase
