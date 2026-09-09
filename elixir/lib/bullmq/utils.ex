@@ -239,4 +239,3 @@ defmodule BullMQ.Utils do
 
   def parse_client_info(_), do: %{}
 end
-

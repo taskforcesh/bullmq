@@ -240,7 +240,12 @@ defmodule BullMQ.UtilsTest do
 
     test "handles extra spaces between pairs" do
       line = "id=1   addr=127.0.0.1:5432   name=bullmq"
-      assert Utils.parse_client_info(line) == %{"id" => "1", "addr" => "127.0.0.1:5432", "name" => "bullmq"}
+
+      assert Utils.parse_client_info(line) == %{
+               "id" => "1",
+               "addr" => "127.0.0.1:5432",
+               "name" => "bullmq"
+             }
     end
 
     test "returns empty map for nil, empty string, or non-binary" do
@@ -250,4 +255,3 @@ defmodule BullMQ.UtilsTest do
     end
   end
 end
-
