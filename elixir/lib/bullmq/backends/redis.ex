@@ -197,20 +197,12 @@ defmodule BullMQ.Backends.Redis do
   # Execute bulk add commands using either MULTI/EXEC (atomic) or plain pipeline,
   # optionally spread across a connection pool for higher throughput.
   defp execute_bulk_commands(conn, commands, max_pipeline, nil, atomic) do
-    execute_fn = if atomic, do: &Scripts.execute_transaction/2, else: &Scripts.execute_pipeline/2
-
-    commands
-    |> Enum.chunk_every(max_pipeline)
-    |> Enum.flat_map(fn batch ->
-      case execute_fn.(conn, batch) do
-        {:ok, results} -> results
-        {:error, reason} -> Enum.map(batch, fn _ -> {:error, reason} end)
-      end
-    end)
+    execute_fn = bulk_execute_fn(atomic)
+    execute_command_batches(conn, commands, max_pipeline, execute_fn)
   end
 
   defp execute_bulk_commands(_conn, commands, max_pipeline, pool, atomic) when is_list(pool) do
-    execute_fn = if atomic, do: &Scripts.execute_transaction/2, else: &Scripts.execute_pipeline/2
+    execute_fn = bulk_execute_fn(atomic)
     pool_size = length(pool)
     chunk_size = max(div(length(commands), pool_size), 1)
 
@@ -220,21 +212,29 @@ defmodule BullMQ.Backends.Redis do
     |> Task.async_stream(
       fn {chunk, idx} ->
         pool_conn = Enum.at(pool, rem(idx, pool_size))
-
-        chunk
-        |> Enum.chunk_every(max_pipeline)
-        |> Enum.flat_map(fn batch ->
-          case execute_fn.(pool_conn, batch) do
-            {:ok, results} -> results
-            {:error, reason} -> Enum.map(batch, fn _ -> {:error, reason} end)
-          end
-        end)
+        execute_command_batches(pool_conn, chunk, max_pipeline, execute_fn)
       end,
       max_concurrency: pool_size,
       timeout: 120_000,
       ordered: true
     )
     |> Enum.flat_map(fn {:ok, results} -> results end)
+  end
+
+  defp bulk_execute_fn(true), do: &Scripts.execute_transaction/2
+  defp bulk_execute_fn(false), do: &Scripts.execute_pipeline/2
+
+  defp execute_command_batches(conn, commands, max_pipeline, execute_fn) do
+    commands
+    |> Enum.chunk_every(max_pipeline)
+    |> Enum.flat_map(&run_command_batch(conn, &1, execute_fn))
+  end
+
+  defp run_command_batch(conn, batch, execute_fn) do
+    case execute_fn.(conn, batch) do
+      {:ok, results} -> results
+      {:error, reason} -> Enum.map(batch, fn _ -> {:error, reason} end)
+    end
   end
 
   @impl true
@@ -346,32 +346,32 @@ defmodule BullMQ.Backends.Redis do
     limit = Keyword.get(opts, :limit, 1000)
     timestamp = System.system_time(:millisecond) - grace
 
-    key =
-      case state do
-        :completed -> Keys.completed(ctx)
-        :failed -> Keys.failed(ctx)
-        _ -> nil
-      end
+    case clean_state_key(state, ctx) do
+      nil -> {:error, :unsupported_state}
+      key -> remove_expired_state_jobs(conn, ctx, key, timestamp, limit)
+    end
+  end
 
-    if key do
-      case RedisConnection.command(conn, [
-             "ZRANGEBYSCORE",
-             key,
-             "-inf",
-             timestamp,
-             "LIMIT",
-             "0",
-             limit
-           ]) do
-        {:ok, job_ids} ->
-          Enum.each(job_ids, fn job_id -> Scripts.remove_job(conn, ctx, job_id, false) end)
-          {:ok, job_ids}
+  defp clean_state_key(:completed, ctx), do: Keys.completed(ctx)
+  defp clean_state_key(:failed, ctx), do: Keys.failed(ctx)
+  defp clean_state_key(_state, _ctx), do: nil
 
-        {:error, _} = error ->
-          error
-      end
-    else
-      {:error, :unsupported_state}
+  defp remove_expired_state_jobs(conn, ctx, key, timestamp, limit) do
+    case RedisConnection.command(conn, [
+           "ZRANGEBYSCORE",
+           key,
+           "-inf",
+           timestamp,
+           "LIMIT",
+           "0",
+           limit
+         ]) do
+      {:ok, job_ids} ->
+        Enum.each(job_ids, fn job_id -> Scripts.remove_job(conn, ctx, job_id, false) end)
+        {:ok, job_ids}
+
+      {:error, _} = error ->
+        error
     end
   end
 
@@ -499,13 +499,16 @@ defmodule BullMQ.Backends.Redis do
         %__MODULE__{connection: conn, context: ctx},
         scheduler_id,
         next_millis,
-        scheduler_opts,
-        template_data,
-        template_opts,
-        delayed_opts,
-        now,
-        producer_id
+        opts
       ) do
+    opts_map = Map.new(opts)
+    scheduler_opts = Map.fetch!(opts_map, :scheduler_opts)
+    template_data = Map.fetch!(opts_map, :template_data)
+    template_opts = Map.fetch!(opts_map, :template_opts)
+    delayed_opts = Map.fetch!(opts_map, :delayed_opts)
+    now = Map.fetch!(opts_map, :now)
+    producer_id = Map.get(opts_map, :producer_id)
+
     {script, key_count} = Scripts.get(:add_job_scheduler)
 
     keys = [
@@ -665,61 +668,71 @@ defmodule BullMQ.Backends.Redis do
       name == client_name_prefix or String.starts_with?(name, "#{client_name_prefix}:w:")
     end
 
-    client_list_result =
-      case cluster_connections do
-        connections when is_list(connections) and connections != [] ->
-          lists =
-            Enum.reduce(connections, [], fn connection, acc ->
-              case RedisConnection.command(connection, ["CLIENT", "LIST"]) do
-                {:ok, list} when is_binary(list) ->
-                  parsed =
-                    list
-                    |> String.split(~r/\r?\n/, trim: true)
-                    |> Enum.map(&parse_client_info/1)
-                    |> Enum.filter(matcher)
+    raw_result = fetch_raw_client_list(conn, cluster_connections, matcher)
+    format_client_list_result(raw_result, ctx.name, matcher)
+  end
 
-                  [parsed | acc]
+  defp fetch_raw_client_list(_conn, connections, matcher)
+       when is_list(connections) and connections != [] do
+    fetch_cluster_client_list(connections, matcher)
+  end
 
-                _ ->
-                  acc
-              end
-            end)
+  defp fetch_raw_client_list(conn, _cluster_connections, _matcher) do
+    RedisConnection.command(conn, ["CLIENT", "LIST"])
+  end
 
-          case lists do
-            [] -> {:ok, ""}
-            _ -> {:ok, Enum.max_by(lists, &length/1)}
-          end
+  defp fetch_cluster_client_list(connections, matcher) do
+    lists =
+      Enum.reduce(connections, [], fn connection, acc ->
+        case RedisConnection.command(connection, ["CLIENT", "LIST"]) do
+          {:ok, list} when is_binary(list) ->
+            [filter_client_list(list, matcher) | acc]
 
-        _ ->
-          RedisConnection.command(conn, ["CLIENT", "LIST"])
-      end
-
-    case client_list_result do
-      {:ok, list} when is_list(list) ->
-        {:ok, Enum.map(list, fn client -> Map.put(client, "queue", ctx.name) end)}
-
-      {:ok, client_list} when is_binary(client_list) ->
-        workers =
-          client_list
-          |> String.split(~r/\r?\n/, trim: true)
-          |> Enum.map(&parse_client_info/1)
-          |> Enum.filter(matcher)
-          |> Enum.map(fn client -> Map.put(client, "queue", ctx.name) end)
-
-        {:ok, workers}
-
-      {:ok, _} ->
-        {:ok, []}
-
-      {:error, %Redix.Error{message: message}} ->
-        if String.contains?(message, "unknown command") or String.contains?(message, "CLIENT") do
-          {:ok, [%{"name" => "CLIENT LIST not supported"}]}
-        else
-          {:error, message}
+          _ ->
+            acc
         end
+      end)
 
-      {:error, _} = error ->
-        error
+    case lists do
+      [] -> {:ok, ""}
+      _ -> {:ok, Enum.max_by(lists, &length/1)}
+    end
+  end
+
+  defp filter_client_list(list, matcher) do
+    list
+    |> String.split(~r/\r?\n/, trim: true)
+    |> Enum.map(&parse_client_info/1)
+    |> Enum.filter(matcher)
+  end
+
+  defp format_client_list_result({:ok, list}, queue_name, _matcher) when is_list(list) do
+    {:ok, Enum.map(list, &Map.put(&1, "queue", queue_name))}
+  end
+
+  defp format_client_list_result({:ok, client_list}, queue_name, matcher)
+       when is_binary(client_list) do
+    workers =
+      client_list
+      |> filter_client_list(matcher)
+      |> Enum.map(&Map.put(&1, "queue", queue_name))
+
+    {:ok, workers}
+  end
+
+  defp format_client_list_result({:ok, _}, _queue_name, _matcher), do: {:ok, []}
+
+  defp format_client_list_result({:error, %Redix.Error{message: message}}, _queue_name, _matcher) do
+    handle_client_list_error(message)
+  end
+
+  defp format_client_list_result({:error, _} = error, _queue_name, _matcher), do: error
+
+  defp handle_client_list_error(message) do
+    if String.contains?(message, "unknown command") or String.contains?(message, "CLIENT") do
+      {:ok, [%{"name" => "CLIENT LIST not supported"}]}
+    else
+      {:error, message}
     end
   end
 
@@ -942,32 +955,30 @@ defmodule BullMQ.Backends.Redis do
   end
 
   defp count_command(ctx, type) do
-    case type do
-      t when t in [:waiting, :wait] -> ["LLEN", Keys.wait(ctx)]
-      :active -> ["LLEN", Keys.active(ctx)]
-      :paused -> ["LLEN", Keys.paused(ctx)]
-      :delayed -> ["ZCARD", Keys.delayed(ctx)]
-      :prioritized -> ["ZCARD", Keys.prioritized(ctx)]
-      :completed -> ["ZCARD", Keys.completed(ctx)]
-      :failed -> ["ZCARD", Keys.failed(ctx)]
-      :waiting_children -> ["ZCARD", Keys.waiting_children(ctx)]
-      _ -> ["LLEN", "nonexistent_key"]
+    case state_key_and_type(ctx, type) do
+      {:list, key} -> ["LLEN", key]
+      {:zset, key} -> ["ZCARD", key]
+      :unknown -> ["LLEN", "nonexistent_key"]
     end
   end
 
   defp state_range_command(ctx, state, start, stop) do
-    case state do
-      s when s in [:waiting, :wait] -> ["LRANGE", Keys.wait(ctx), start, stop]
-      :active -> ["LRANGE", Keys.active(ctx), start, stop]
-      :paused -> ["LRANGE", Keys.paused(ctx), start, stop]
-      :delayed -> ["ZRANGE", Keys.delayed(ctx), start, stop]
-      :prioritized -> ["ZRANGE", Keys.prioritized(ctx), start, stop]
-      :completed -> ["ZRANGE", Keys.completed(ctx), start, stop]
-      :failed -> ["ZRANGE", Keys.failed(ctx), start, stop]
-      :waiting_children -> ["ZRANGE", Keys.waiting_children(ctx), start, stop]
-      _ -> nil
+    case state_key_and_type(ctx, state) do
+      {:list, key} -> ["LRANGE", key, start, stop]
+      {:zset, key} -> ["ZRANGE", key, start, stop]
+      :unknown -> nil
     end
   end
+
+  defp state_key_and_type(ctx, state) when state in [:waiting, :wait], do: {:list, Keys.wait(ctx)}
+  defp state_key_and_type(ctx, :active), do: {:list, Keys.active(ctx)}
+  defp state_key_and_type(ctx, :paused), do: {:list, Keys.paused(ctx)}
+  defp state_key_and_type(ctx, :delayed), do: {:zset, Keys.delayed(ctx)}
+  defp state_key_and_type(ctx, :prioritized), do: {:zset, Keys.prioritized(ctx)}
+  defp state_key_and_type(ctx, :completed), do: {:zset, Keys.completed(ctx)}
+  defp state_key_and_type(ctx, :failed), do: {:zset, Keys.failed(ctx)}
+  defp state_key_and_type(ctx, :waiting_children), do: {:zset, Keys.waiting_children(ctx)}
+  defp state_key_and_type(_ctx, _state), do: :unknown
 
   # Silence unused alias warning if Version becomes unused during incremental work.
   @doc false

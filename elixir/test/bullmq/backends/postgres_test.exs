@@ -180,12 +180,12 @@ defmodule BullMQ.Backends.PostgresTest do
                b,
                "sched-1",
                next,
-               scheduler_opts,
-               Jason.encode!(%{"n" => 1}),
-               %{},
-               %{"delay" => 5000, "timestamp" => now},
-               now,
-               nil
+               scheduler_opts: scheduler_opts,
+               template_data: Jason.encode!(%{"n" => 1}),
+               template_opts: %{},
+               delayed_opts: %{"delay" => 5000, "timestamp" => now},
+               now: now,
+               producer_id: nil
              )
 
     assert is_binary(job_id)
@@ -496,12 +496,12 @@ defmodule BullMQ.Backends.PostgresTest do
         b,
         "s1",
         now + 1000,
-        %{"name" => "t", "every" => 1000},
-        Jason.encode!(%{}),
-        %{},
-        %{"delay" => 1000, "timestamp" => now},
-        now,
-        nil
+        scheduler_opts: %{"name" => "t", "every" => 1000},
+        template_data: Jason.encode!(%{}),
+        template_opts: %{},
+        delayed_opts: %{"delay" => 1000, "timestamp" => now},
+        now: now,
+        producer_id: nil
       )
 
     assert is_binary(job_id)
