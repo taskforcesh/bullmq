@@ -1,3 +1,9 @@
+## [5.81.4](https://github.com/taskforcesh/bullmq/compare/v5.81.3...v5.81.4) (2026-08-27)
+
+### Bug Fixes
+
+- **flow-producer:** add createScripts method for extension ([#4641](https://github.com/taskforcesh/bullmq/issues/4641)) ([9884e09](https://github.com/taskforcesh/bullmq/commit/9884e09e41f7b22a0e822b89f138b5134089cffc))
+
 ## [5.81.3](https://github.com/taskforcesh/bullmq/compare/v5.81.2...v5.81.3) (2026-07-30)
 
 
