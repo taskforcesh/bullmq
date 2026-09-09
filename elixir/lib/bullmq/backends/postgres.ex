@@ -270,14 +270,6 @@ defmodule BullMQ.Backends.Postgres do
   defp job_attempts(opts), do: opts[:attempts] || 1
 
   defp deduplication_id(%{deduplication: %{} = dedup}), do: dedup[:id] || dedup["id"]
-
-  defp deduplication_id(opts) when is_list(opts) do
-    case opts[:deduplication] do
-      %{} = dedup -> dedup[:id] || dedup["id"]
-      _ -> nil
-    end
-  end
-
   defp deduplication_id(_opts), do: nil
 
   defp parent_queue_key(job) do
