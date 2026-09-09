@@ -24,12 +24,12 @@ defmodule BullMQ.StressTest do
 
     # Clean up
     {:ok, keys} = RedisConnection.command(conn_name, ["KEYS", "bull:#{queue_name}*"])
-    if length(keys) > 0, do: RedisConnection.command(conn_name, ["DEL" | keys])
+    if keys != [], do: RedisConnection.command(conn_name, ["DEL" | keys])
 
     on_exit(fn ->
       try do
         {:ok, keys} = RedisConnection.command(conn_name, ["KEYS", "bull:#{queue_name}*"])
-        if length(keys) > 0, do: RedisConnection.command(conn_name, ["DEL" | keys])
+        if keys != [], do: RedisConnection.command(conn_name, ["DEL" | keys])
       rescue
         _ -> :ok
       catch

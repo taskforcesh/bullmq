@@ -178,7 +178,7 @@ defmodule BullMQ.ObliterateTest do
 
     # Verify keys still exist
     keys = get_keys(queue_name)
-    assert length(keys) > 0
+    assert keys != []
 
     GenServer.stop(worker)
     Agent.stop(first_job)
