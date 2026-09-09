@@ -1,6 +1,6 @@
 defmodule BullMQ.ConcurrencyDiagnosticTest do
   use ExUnit.Case, async: false
-  alias BullMQ.{Worker, Queue, RedisConnection}
+  alias BullMQ.{Queue, RedisConnection, Worker}
 
   @moduletag timeout: 120_000
   @moduletag :slow
@@ -146,7 +146,7 @@ defmodule BullMQ.ConcurrencyDiagnosticTest do
           count = :counters.get(processed, 1)
           elapsed = System.monotonic_time(:millisecond) - start_time
 
-          if count >= 100 or elapsed > 10000 do
+          if count >= 100 or elapsed > 10_000 do
             {count, elapsed}
           else
             Process.sleep(10)
