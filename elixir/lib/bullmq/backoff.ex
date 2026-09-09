@@ -185,51 +185,37 @@ defmodule BullMQ.Backoff do
   def calculate_from_config(delay, _attempt, _opts) when is_integer(delay), do: delay
 
   def calculate_from_config(config, attempt, opts) when is_map(config) do
-    type_raw = Utils.get_opt(config, [:type, "type"])
+    type = parse_config_type(Utils.get_opt(config, [:type, "type"]))
     delay = Utils.get_opt(config, [:delay, "delay"])
     jitter = Utils.get_opt(config, [:jitter, "jitter"], 0)
 
-    type =
-      case type_raw do
-        "fixed" ->
-          :fixed
-
-        "exponential" ->
-          :exponential
-
-        t when is_atom(t) and not is_nil(t) ->
-          t
-
-        t when is_binary(t) ->
-          try do
-            String.to_existing_atom(t)
-          rescue
-            ArgumentError -> :fixed
-          end
-
-        _ ->
-          nil
-      end
-
-    cond do
-      is_nil(type) and is_integer(delay) ->
-        delay
-
-      is_nil(delay) ->
-        0
-
-      is_integer(delay) or is_float(delay) ->
-        merged_opts = Keyword.merge(opts, jitter: jitter)
-        calculate(type || :fixed, attempt, delay, merged_opts)
-
-      true ->
-        0
-    end
+    calculate_delay(type, delay, attempt, Keyword.merge(opts, jitter: jitter))
   end
 
   def calculate_from_config(_, _attempt, _opts), do: 0
 
   # Private functions
+
+  defp parse_config_type("fixed"), do: :fixed
+  defp parse_config_type("exponential"), do: :exponential
+  defp parse_config_type(t) when is_atom(t) and not is_nil(t), do: t
+
+  defp parse_config_type(t) when is_binary(t) do
+    String.to_existing_atom(t)
+  rescue
+    ArgumentError -> :fixed
+  end
+
+  defp parse_config_type(_), do: nil
+
+  defp calculate_delay(nil, delay, _attempt, _opts) when is_integer(delay), do: delay
+  defp calculate_delay(_type, delay, _attempt, _opts) when is_nil(delay), do: 0
+
+  defp calculate_delay(type, delay, attempt, opts) when is_number(delay) do
+    calculate(type || :fixed, attempt, delay, opts)
+  end
+
+  defp calculate_delay(_type, _delay, _attempt, _opts), do: 0
 
   defp get_custom_strategy(name) do
     Agent.get(__MODULE__, fn strategies -> Map.get(strategies, name) end)

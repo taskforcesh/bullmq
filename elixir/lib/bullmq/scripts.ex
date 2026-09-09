@@ -972,6 +972,7 @@ defmodule BullMQ.Scripts do
   """
   @spec move_to_finished(atom(), queue_context(), String.t(), String.t(), any(), atom(), keyword()) ::
           script_result()
+  # credo:disable-for-next-line Credo.Check.Refactor.FunctionArity
   def move_to_finished(conn, ctx, job_id, token, result, target, opts \\ []) do
     target_str = to_string(target)
     metrics_key = Keys.metrics(ctx, target_str)
@@ -1566,6 +1567,7 @@ defmodule BullMQ.Scripts do
           boolean(),
           integer()
         ) :: script_result()
+  # credo:disable-for-next-line Credo.Check.Refactor.FunctionArity
   def get_jobs(
         conn,
         ctx,
@@ -1671,6 +1673,7 @@ defmodule BullMQ.Scripts do
           binary(),
           String.t()
         ) :: script_result()
+  # credo:disable-for-next-line Credo.Check.Refactor.FunctionArity
   def update_job_scheduler(
         conn,
         ctx,
@@ -2007,45 +2010,53 @@ defmodule BullMQ.Scripts do
     %{"id" => parent_id, "queueKey" => queue_key}
     |> maybe_add_opt(
       "fpof",
-      Map.get(job_opts, :fail_parent_on_failure) ||
-        Map.get(job_opts, "fail_parent_on_failure") ||
-        Map.get(job_opts, "failParentOnFailure") ||
-        Map.get(job_opts, :fpof) ||
-        Map.get(job_opts, "fpof"),
+      Utils.get_opt(job_opts, [
+        :fail_parent_on_failure,
+        "fail_parent_on_failure",
+        "failParentOnFailure",
+        :fpof,
+        "fpof"
+      ]),
       nil
     )
     |> maybe_add_opt(
       "cpof",
-      Map.get(job_opts, :continue_parent_on_failure) ||
-        Map.get(job_opts, "continue_parent_on_failure") ||
-        Map.get(job_opts, "continueParentOnFailure") ||
-        Map.get(job_opts, :cpof) ||
-        Map.get(job_opts, "cpof"),
+      Utils.get_opt(job_opts, [
+        :continue_parent_on_failure,
+        "continue_parent_on_failure",
+        "continueParentOnFailure",
+        :cpof,
+        "cpof"
+      ]),
       nil
     )
     |> maybe_add_opt(
       "idof",
-      Map.get(job_opts, :ignore_dependency_on_failure) ||
-        Map.get(job_opts, "ignore_dependency_on_failure") ||
-        Map.get(job_opts, "ignoreDependencyOnFailure") ||
-        Map.get(job_opts, :idof) ||
-        Map.get(job_opts, "idof"),
+      Utils.get_opt(job_opts, [
+        :ignore_dependency_on_failure,
+        "ignore_dependency_on_failure",
+        "ignoreDependencyOnFailure",
+        :idof,
+        "idof"
+      ]),
       nil
     )
     |> maybe_add_opt(
       "rdof",
-      Map.get(job_opts, :remove_dependency_on_failure) ||
-        Map.get(job_opts, "remove_dependency_on_failure") ||
-        Map.get(job_opts, "removeDependencyOnFailure") ||
-        Map.get(job_opts, :rdof) ||
-        Map.get(job_opts, "rdof"),
+      Utils.get_opt(job_opts, [
+        :remove_dependency_on_failure,
+        "remove_dependency_on_failure",
+        "removeDependencyOnFailure",
+        :rdof,
+        "rdof"
+      ]),
       nil
     )
   end
 
   defp build_parent_key(parent) when is_map(parent) do
-    queue_key = Map.get(parent, :queue_key) || Map.get(parent, "queueKey") || ""
-    id = Map.get(parent, :id) || Map.get(parent, "id") || ""
+    queue_key = Utils.get_opt(parent, [:queue_key, "queueKey"], "")
+    id = Utils.get_opt(parent, [:id, "id"], "")
 
     if queue_key != "" and id != "" do
       "#{queue_key}:#{id}"
@@ -2146,48 +2157,31 @@ defmodule BullMQ.Scripts do
     end
   end
 
+  @dedup_key_mappings [
+    {"id", [:id, "id"]},
+    {"ttl", [:ttl, "ttl"]},
+    {"extend", [:extend, "extend"]},
+    {"replace", [:replace, "replace"]},
+    {"keepLastIfActive", [:keep_last_if_active, "keepLastIfActive", "keep_last_if_active"]}
+  ]
+
   defp get_deduplication_opts(opts) do
-    dedup = Utils.get_opt(opts, [:deduplication, "deduplication"])
+    opts
+    |> Utils.get_opt([:deduplication, "deduplication"])
+    |> build_dedup_map()
+  end
 
-    case dedup do
-      d when is_map(d) ->
-        # Convert Elixir-style keys to the short keys expected by Lua scripts
-        result = %{}
+  defp build_dedup_map(dedup) when is_map(dedup) do
+    result = Enum.reduce(@dedup_key_mappings, %{}, &extract_dedup_opt(dedup, &1, &2))
+    if map_size(result) > 0, do: result, else: nil
+  end
 
-        result =
-          case Utils.get_opt(d, [:id, "id"]) do
-            nil -> result
-            v -> Map.put(result, "id", v)
-          end
+  defp build_dedup_map(_), do: nil
 
-        result =
-          case Utils.get_opt(d, [:ttl, "ttl"]) do
-            nil -> result
-            v -> Map.put(result, "ttl", v)
-          end
-
-        result =
-          case Utils.get_opt(d, [:extend, "extend"]) do
-            nil -> result
-            v -> Map.put(result, "extend", v)
-          end
-
-        result =
-          case Utils.get_opt(d, [:replace, "replace"]) do
-            nil -> result
-            v -> Map.put(result, "replace", v)
-          end
-
-        result =
-          case Utils.get_opt(d, [:keep_last_if_active, "keepLastIfActive", "keep_last_if_active"]) do
-            nil -> result
-            v -> Map.put(result, "keepLastIfActive", v)
-          end
-
-        if map_size(result) > 0, do: result, else: nil
-
-      _ ->
-        nil
+  defp extract_dedup_opt(dedup, {target_key, source_keys}, acc) do
+    case Utils.get_opt(dedup, source_keys) do
+      nil -> acc
+      val -> Map.put(acc, target_key, val)
     end
   end
 
