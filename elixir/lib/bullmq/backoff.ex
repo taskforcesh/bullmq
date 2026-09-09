@@ -176,7 +176,8 @@ defmodule BullMQ.Backoff do
       BullMQ.Backoff.calculate_from_config(config, 2)
       #=> 2000
   """
-  @spec calculate_from_config(map() | integer() | nil, non_neg_integer(), keyword()) :: non_neg_integer()
+  @spec calculate_from_config(map() | integer() | nil, non_neg_integer(), keyword()) ::
+          non_neg_integer()
   def calculate_from_config(config, attempt, opts \\ [])
 
   def calculate_from_config(nil, _attempt, _opts), do: 0
@@ -190,16 +191,24 @@ defmodule BullMQ.Backoff do
 
     type =
       case type_raw do
-        "fixed" -> :fixed
-        "exponential" -> :exponential
-        t when is_atom(t) and not is_nil(t) -> t
+        "fixed" ->
+          :fixed
+
+        "exponential" ->
+          :exponential
+
+        t when is_atom(t) and not is_nil(t) ->
+          t
+
         t when is_binary(t) ->
           try do
             String.to_existing_atom(t)
           rescue
             ArgumentError -> :fixed
           end
-        _ -> nil
+
+        _ ->
+          nil
       end
 
     cond do
