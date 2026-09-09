@@ -237,29 +237,48 @@ defmodule BullMQ.Backends.Postgres do
   @impl true
   def add_job(%__MODULE__{} = b, job, _opts) do
     opts = job.opts || %{}
-
-    result =
-      run(b, "add_job", [
-        b.queue_name,
-        job.id || "",
-        job.name,
-        to_jsonb(job.data),
-        to_jsonb(opts),
-        job.priority || opts[:priority] || 0,
-        job.delay || opts[:delay] || 0,
-        job.timestamp || now_ms(),
-        opts[:attempts] || 1,
-        parent_queue_key(job),
-        parent_id(job),
-        job.parent_key,
-        opts[:deduplication] && (opts[:deduplication][:id] || opts[:deduplication]["id"]),
-        job.repeat_job_key,
-        opts[:lifo] || false
-      ])
+    args = build_add_job_args(b.queue_name, job, opts)
+    result = run(b, "add_job", args)
 
     %{"id" => id} = first_map(result)
     {:ok, to_string(id)}
   end
+
+  defp build_add_job_args(queue_name, job, opts) do
+    [
+      queue_name,
+      job.id || "",
+      job.name,
+      to_jsonb(job.data),
+      to_jsonb(opts),
+      job_priority(job, opts),
+      job_delay(job, opts),
+      job_timestamp(job),
+      job_attempts(opts),
+      parent_queue_key(job),
+      parent_id(job),
+      job.parent_key,
+      deduplication_id(opts),
+      job.repeat_job_key,
+      opts[:lifo] || false
+    ]
+  end
+
+  defp job_priority(job, opts), do: job.priority || opts[:priority] || 0
+  defp job_delay(job, opts), do: job.delay || opts[:delay] || 0
+  defp job_timestamp(job), do: job.timestamp || now_ms()
+  defp job_attempts(opts), do: opts[:attempts] || 1
+
+  defp deduplication_id(%{deduplication: %{} = dedup}), do: dedup[:id] || dedup["id"]
+
+  defp deduplication_id(opts) when is_list(opts) do
+    case opts[:deduplication] do
+      %{} = dedup -> dedup[:id] || dedup["id"]
+      _ -> nil
+    end
+  end
+
+  defp deduplication_id(_opts), do: nil
 
   defp parent_queue_key(job) do
     case job.parent do
@@ -1042,13 +1061,16 @@ defmodule BullMQ.Backends.Postgres do
         %__MODULE__{} = b,
         scheduler_id,
         next_millis,
-        scheduler_opts,
-        template_data,
-        template_opts,
-        delayed_opts,
-        now,
-        producer_id
+        opts
       ) do
+    opts_map = Map.new(opts)
+    scheduler_opts = Map.fetch!(opts_map, :scheduler_opts)
+    template_data = Map.fetch!(opts_map, :template_data)
+    template_opts = Map.fetch!(opts_map, :template_opts)
+    delayed_opts = Map.fetch!(opts_map, :delayed_opts)
+    now = Map.fetch!(opts_map, :now)
+    producer_id = Map.get(opts_map, :producer_id)
+
     result =
       run(b, "add_job_scheduler", [
         b.queue_name,
