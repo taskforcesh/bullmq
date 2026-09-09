@@ -7,7 +7,7 @@ defmodule BullMQ.StressTest do
   """
   use ExUnit.Case, async: false
 
-  alias BullMQ.{Queue, Worker, RedisConnection}
+  alias BullMQ.{Queue, RedisConnection, Worker}
 
   @moduletag :stress
   # 5 minutes max

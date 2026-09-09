@@ -1,6 +1,6 @@
 defmodule BullMQ.ConcurrencyVerificationTest do
   use ExUnit.Case, async: false
-  alias BullMQ.{Queue, Worker, RedisConnection}
+  alias BullMQ.{Queue, RedisConnection, Worker}
 
   @redis_opts [host: "localhost", port: 6379]
   @moduletag timeout: 60_000

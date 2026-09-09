@@ -15,7 +15,7 @@ defmodule BullMQ.JobSchedulerProcessingTest do
   @moduletag :integration
   @moduletag :processing
 
-  alias BullMQ.{JobScheduler, Worker, QueueEvents, Keys}
+  alias BullMQ.{JobScheduler, Keys, QueueEvents, Worker}
 
   @redis_url BullMQ.TestHelper.redis_url()
   @test_prefix BullMQ.TestHelper.test_prefix()
@@ -248,7 +248,7 @@ defmodule BullMQ.JobSchedulerProcessingTest do
         )
 
       job_data = %{
-        user_id: 12345,
+        user_id: 12_345,
         action: "sync",
         options: %{full: true, retry: 3}
       }
@@ -270,7 +270,7 @@ defmodule BullMQ.JobSchedulerProcessingTest do
       assert length(jobs) >= 2
 
       for job_data <- jobs do
-        assert job_data["user_id"] == 12345
+        assert job_data["user_id"] == 12_345
         assert job_data["action"] == "sync"
         assert job_data["options"] == %{"full" => true, "retry" => 3}
       end
