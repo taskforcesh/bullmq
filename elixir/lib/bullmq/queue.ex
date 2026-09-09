@@ -351,21 +351,7 @@ defmodule BullMQ.Queue do
 
         case Backend.add_jobs(Backend.create(queue, opts), jobs_with_opts, opts) do
           {:ok, results} ->
-            # Match results with jobs
-            mapped_results =
-              Enum.zip(jobs_list, results)
-              |> Enum.map(fn
-                {job, {:ok, job_id}} when is_binary(job_id) or is_integer(job_id) ->
-                  {:ok, %{job | id: to_string(job_id)}}
-
-                {_job, {:error, _} = err} ->
-                  err
-
-                {job, {:ok, other}} ->
-                  {:ok, %{job | id: to_string(other)}}
-              end)
-
-            {:ok, mapped_results}
+            {:ok, map_pipelined_results(jobs_list, results)}
 
           {:error, _} = error ->
             error
@@ -749,79 +735,104 @@ defmodule BullMQ.Queue do
   end
 
   def get_jobs(queue, states, opts) when is_binary(queue) do
+    state_list = if is_list(states), do: states, else: [states]
+    backend = Backend.create(queue, opts)
+
+    case backend do
+      %BullMQ.Backends.Redis{connection: conn, context: ctx} ->
+        get_redis_jobs(conn, ctx, queue, state_list, opts)
+
+      _ ->
+        get_generic_backend_jobs(backend, queue, state_list, opts)
+    end
+  end
+
+  defp get_redis_jobs(conn, ctx, queue, state_list, opts) do
     prefix = Keyword.get(opts, :prefix, "bull")
     start_idx = Keyword.get(opts, :start, 0)
     end_idx = Keyword.get(opts, :end, -1)
     asc_override = Keyword.get(opts, :asc)
 
-    # Normalize states to always be a list
-    state_list = if is_list(states), do: states, else: [states]
+    entries =
+      Enum.flat_map(
+        state_list,
+        &fetch_state_entries(conn, ctx, &1, start_idx, end_idx, asc_override)
+      )
 
-    backend = Backend.create(queue, opts)
+    jobs = hydrate_redis_jobs(entries, queue, prefix, conn)
+    {:ok, jobs}
+  end
 
-    case backend do
-      %BullMQ.Backends.Redis{connection: conn, context: ctx} ->
-        # For each requested state, read the ids and their job hashes in a single
-        # Lua script call. The script skips ids whose job hash is missing (deleted
-        # jobs, and the deprecated wait list marker as a side effect) and backfills
-        # skipped ids for bounded ranges, so the returned entries never reference a
-        # vanished job. The per-state `asc` flag preserves the historical ordering:
-        # list states keep their native head-to-tail order and sorted-set states are
-        # returned in ascending score order.
-        entries =
-          Enum.flat_map(state_list, fn state ->
-            case map_state_to_lua_type(state) do
-              nil ->
-                []
+  defp fetch_state_entries(conn, ctx, state, start_idx, end_idx, asc_override) do
+    case map_state_to_lua_type(state) do
+      nil ->
+        []
 
-              {lua_type, default_asc} ->
-                asc = if is_boolean(asc_override), do: asc_override, else: default_asc
+      {lua_type, default_asc} ->
+        asc = if is_boolean(asc_override), do: asc_override, else: default_asc
 
-                case Scripts.get_jobs(conn, ctx, [lua_type], start_idx, end_idx, asc) do
-                  {:ok, [state_entries]} when is_list(state_entries) -> state_entries
-                  _ -> []
-                end
-            end
-          end)
-
-        # Hydrate jobs, de-duplicating by id across states while preserving order.
-        {jobs, _seen} =
-          Enum.reduce(entries, {[], MapSet.new()}, fn
-            [job_id, fields], {acc, seen} when is_binary(job_id) and is_list(fields) ->
-              if MapSet.member?(seen, job_id) do
-                {acc, seen}
-              else
-                job_data = Utils.parse_hash_data(fields)
-                job = Job.from_redis(job_id, queue, job_data, prefix: prefix, connection: conn)
-                {[job | acc], MapSet.put(seen, job_id)}
-              end
-
-            _, {acc, seen} ->
-              {acc, seen}
-          end)
-
-        {:ok, Enum.reverse(jobs)}
-
-      _ ->
-        # Get (deduplicated) job IDs from the active backend and hydrate them via
-        # the generic job loader so non-Redis backends keep working.
-        case Backend.get_ranges(backend, state_list, start_idx, end_idx) do
-          {:ok, all_job_ids} ->
-            jobs =
-              Enum.map(all_job_ids, fn job_id ->
-                case get_job(queue, job_id, opts) do
-                  {:ok, job} when not is_nil(job) -> job
-                  _ -> nil
-                end
-              end)
-              |> Enum.reject(&is_nil/1)
-
-            {:ok, jobs}
-
-          {:error, _} = error ->
-            error
+        case Scripts.get_jobs(conn, ctx, [lua_type], start_idx, end_idx, asc) do
+          {:ok, [state_entries]} when is_list(state_entries) -> state_entries
+          _ -> []
         end
     end
+  end
+
+  defp hydrate_redis_jobs(entries, queue, prefix, conn) do
+    {jobs, _seen} =
+      Enum.reduce(entries, {[], MapSet.new()}, fn
+        [job_id, fields], {acc, seen} when is_binary(job_id) and is_list(fields) ->
+          if MapSet.member?(seen, job_id) do
+            {acc, seen}
+          else
+            job_data = Utils.parse_hash_data(fields)
+            job = Job.from_redis(job_id, queue, job_data, prefix: prefix, connection: conn)
+            {[job | acc], MapSet.put(seen, job_id)}
+          end
+
+        _, {acc, seen} ->
+          {acc, seen}
+      end)
+
+    Enum.reverse(jobs)
+  end
+
+  defp get_generic_backend_jobs(backend, queue, state_list, opts) do
+    start_idx = Keyword.get(opts, :start, 0)
+    end_idx = Keyword.get(opts, :end, -1)
+
+    case Backend.get_ranges(backend, state_list, start_idx, end_idx) do
+      {:ok, all_job_ids} ->
+        {:ok, load_jobs_by_ids(queue, all_job_ids, opts)}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  defp load_jobs_by_ids(queue, job_ids, opts) do
+    Enum.reduce(job_ids, [], fn job_id, acc ->
+      case get_job(queue, job_id, opts) do
+        {:ok, job} when not is_nil(job) -> [job | acc]
+        _ -> acc
+      end
+    end)
+    |> Enum.reverse()
+  end
+
+  defp map_pipelined_results(jobs_list, results) do
+    Enum.zip(jobs_list, results)
+    |> Enum.map(&format_pipelined_result/1)
+  end
+
+  defp format_pipelined_result({job, {:ok, job_id}}) when is_binary(job_id) or is_integer(job_id) do
+    {:ok, %{job | id: to_string(job_id)}}
+  end
+
+  defp format_pipelined_result({_job, {:error, _} = err}), do: err
+
+  defp format_pipelined_result({job, {:ok, other}}) do
+    {:ok, %{job | id: to_string(other)}}
   end
 
   # ---------------------------------------------------------------------------
@@ -1359,9 +1370,7 @@ defmodule BullMQ.Queue do
         ]
 
         variables_str =
-          global_vars
-          |> Enum.map(fn {k, v} -> ", #{k}=\"#{v}\"" end)
-          |> Enum.join("")
+          Enum.map_join(global_vars, "", fn {k, v} -> ", #{k}=\"#{v}\"" end)
 
         count_lines =
           counts
@@ -1995,21 +2004,19 @@ defmodule BullMQ.Queue do
   defp maybe_propagate_telemetry_context(opts, nil), do: opts
 
   defp maybe_propagate_telemetry_context(opts, telemetry_mod) do
-    # Check if omit_context is set
     if Map.get(opts, :omit_context, false) do
       opts
     else
-      # Get current context and serialize it
-      ctx = telemetry_mod.get_current_context()
+      inject_serialized_context(opts, telemetry_mod)
+    end
+  end
 
-      if ctx do
-        case telemetry_mod.serialize_context(ctx) do
-          nil -> opts
-          metadata -> Map.put(opts, :telemetry_metadata, metadata)
-        end
-      else
-        opts
-      end
+  defp inject_serialized_context(opts, telemetry_mod) do
+    with ctx when not is_nil(ctx) <- telemetry_mod.get_current_context(),
+         metadata when not is_nil(metadata) <- telemetry_mod.serialize_context(ctx) do
+      Map.put(opts, :telemetry_metadata, metadata)
+    else
+      _ -> opts
     end
   end
 end
