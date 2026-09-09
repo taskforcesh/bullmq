@@ -108,7 +108,7 @@ defmodule BullMQ.HighConcurrencyTest do
     # Clean redis
     {:ok, keys} = RedisConnection.command(conn_name, ["KEYS", "bull:#{queue_name}:*"])
 
-    if length(keys) > 0 do
+    if keys != [] do
       RedisConnection.command(conn_name, ["DEL" | keys])
     end
 

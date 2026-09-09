@@ -189,7 +189,7 @@ defmodule BullMQ.LockManager do
 
       # Extend locks if there are jobs to process
       new_state =
-        if length(jobs_to_extend) > 0 do
+        if jobs_to_extend != [] do
           extend_locks(jobs_to_extend, %{state | tracked_jobs: updated_tracked})
         else
           %{state | tracked_jobs: updated_tracked}
@@ -241,7 +241,7 @@ defmodule BullMQ.LockManager do
 
         # Update state with failed jobs removed
         updated_state =
-          if length(failed_ids) > 0 do
+          if failed_ids != [] do
             emit_callback(state.on_lock_renewal_failed, [failed_ids])
 
             # Untrack failed jobs (lock was lost)
@@ -255,7 +255,7 @@ defmodule BullMQ.LockManager do
             state
           end
 
-        if length(succeeded_ids) > 0 do
+        if succeeded_ids != [] do
           emit_callback(state.on_locks_renewed, [succeeded_ids])
         end
 

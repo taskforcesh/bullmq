@@ -667,7 +667,7 @@ defmodule BullMQ.Backends.Redis do
 
     client_list_result =
       case cluster_connections do
-        connections when is_list(connections) and length(connections) > 0 ->
+        connections when is_list(connections) and connections != [] ->
           lists =
             Enum.reduce(connections, [], fn connection, acc ->
               case RedisConnection.command(connection, ["CLIENT", "LIST"]) do

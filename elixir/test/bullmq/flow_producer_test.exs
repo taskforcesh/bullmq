@@ -18,7 +18,7 @@ defmodule BullMQ.FlowProducerTest do
     # Clean up any existing data
     {:ok, keys} = RedisConnection.command(conn_name, ["KEYS", "bull:#{queue_name}*"])
 
-    if length(keys) > 0 do
+    if keys != [] do
       RedisConnection.command(conn_name, ["DEL" | keys])
     end
 
@@ -27,7 +27,7 @@ defmodule BullMQ.FlowProducerTest do
       try do
         {:ok, keys} = RedisConnection.command(conn_name, ["KEYS", "bull:#{queue_name}*"])
 
-        if length(keys) > 0 do
+        if keys != [] do
           RedisConnection.command(conn_name, ["DEL" | keys])
         end
       rescue
@@ -270,7 +270,7 @@ defmodule BullMQ.FlowProducerTest do
       # Cleanup other queue
       {:ok, keys} = RedisConnection.command(conn, ["KEYS", "bull:#{other_queue}*"])
 
-      if length(keys) > 0 do
+      if keys != [] do
         RedisConnection.command(conn, ["DEL" | keys])
       end
     end
