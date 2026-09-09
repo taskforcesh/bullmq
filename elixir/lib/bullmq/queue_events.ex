@@ -320,19 +320,19 @@ defmodule BullMQ.QueueEvents do
     case result do
       {:ok, nil} ->
         # Timeout, no events
-        if not state.closing do
-          {:noreply, schedule_consume(new_state)}
-        else
+        if state.closing do
           {:noreply, new_state}
+        else
+          {:noreply, schedule_consume(new_state)}
         end
 
       {:ok, [[_key, events]]} ->
         processed_state = process_events(events, new_state)
 
-        if not state.closing do
-          {:noreply, schedule_consume(processed_state)}
-        else
+        if state.closing do
           {:noreply, processed_state}
+        else
+          {:noreply, schedule_consume(processed_state)}
         end
 
       {:error, reason} ->
@@ -415,18 +415,19 @@ defmodule BullMQ.QueueEvents do
       end)
 
       # Call handler if present
-      new_handler_state =
-        if acc.handler do
-          case acc.handler.handle_event(event_type, event_data, acc.handler_state) do
-            {:ok, new_state} -> new_state
-            _ -> acc.handler_state
-          end
-        else
-          acc.handler_state
-        end
+      new_handler_state = maybe_handle_event(acc.handler, event_type, event_data, acc.handler_state)
 
       %{acc | last_event_id: event_id, handler_state: new_handler_state}
     end)
+  end
+
+  defp maybe_handle_event(nil, _event_type, _event_data, handler_state), do: handler_state
+
+  defp maybe_handle_event(handler, event_type, event_data, handler_state) do
+    case handler.handle_event(event_type, event_data, handler_state) do
+      {:ok, new_state} -> new_state
+      _ -> handler_state
+    end
   end
 
   defp parse_event_type("added"), do: :added
