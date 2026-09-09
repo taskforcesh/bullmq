@@ -139,7 +139,7 @@ defmodule BullMQ.RedisConnection do
   @doc """
   Closes the Redis connection pool.
   """
-  @spec close(connection(), timeout()) :: :ok | {:error, term()}
+  @spec close(connection(), timeout()) :: :ok
   def close(conn, timeout \\ 5000) do
     # Clean up persistent_term entries
     :persistent_term.erase({__MODULE__, :redis_opts, conn})
@@ -484,8 +484,11 @@ defmodule BullMQ.RedisConnection do
         Registry.register(Pool.registry_name(conn), {:blocking, self()}, pid)
         {:ok, pid}
 
-      error ->
+      {:error, _} = error ->
         error
+
+      :ignore ->
+        {:error, :ignore}
     end
   end
 

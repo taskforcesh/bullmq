@@ -1321,7 +1321,7 @@ defmodule BullMQ.Queue do
       {:ok, count} = BullMQ.Queue.get_workers_count("my_queue", connection: :redis)
   """
   @spec get_workers_count(atom() | pid() | String.t(), keyword()) ::
-          {:ok, integer()} | {:error, term()}
+          {:ok, non_neg_integer()} | {:error, term()}
   def get_workers_count(queue, opts \\ []) do
     case get_workers(queue, opts) do
       {:ok, workers} -> {:ok, length(workers)}
