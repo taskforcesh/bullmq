@@ -226,18 +226,14 @@ defmodule BullMQ.Telemetry.OpenTelemetry do
     if available?() and context != nil do
       try do
         # Use W3C Trace Context propagator to inject trace context into headers
-        # The inject_from function takes: Context, Carrier, CarrierSetFun
-        # CarrierSetFun has signature: (Key, Value, Carrier) -> Carrier
-        # We build a map to match Node.js bullmq-otel format: {"traceparent": "...", ...}
-        headers =
-          :otel_propagator_text_map.inject_from(context, %{}, fn key, value, carrier ->
-            Map.put(carrier, key, value)
-          end)
+        # inject_from/2 takes (Context, Carrier). Default carrier is a list of {key, value} tuples.
+        # We convert to a map to match Node.js bullmq-otel format: {"traceparent": "...", ...}
+        headers = :otel_propagator_text_map.inject_from(context, [])
 
-        if headers == %{} do
+        if headers == [] do
           nil
         else
-          Jason.encode!(headers)
+          headers |> Map.new() |> Jason.encode!()
         end
       rescue
         _ -> nil
