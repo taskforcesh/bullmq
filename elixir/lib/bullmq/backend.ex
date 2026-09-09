@@ -300,7 +300,7 @@ defmodule BullMQ.Backend do
               scheduler_id :: String.t(),
               next_millis :: integer(),
               template_data :: term(),
-              delayed_job_opts :: map(),
+              delayed_job_opts :: map() | binary(),
               producer_id :: String.t() | nil
             ) :: {:ok, term()} | {:error, term()}
 
@@ -653,8 +653,14 @@ defmodule BullMQ.Backend do
     do: dispatch(b, :delete_deduplication_key, [deduplication_id])
 
   # -- Job schedulers --
-  @spec update_job_scheduler(t, String.t(), integer(), term(), map(), String.t() | nil) ::
-          {:ok, term()} | {:error, term()}
+  @spec update_job_scheduler(
+          t,
+          String.t(),
+          integer(),
+          term(),
+          map() | binary(),
+          String.t() | nil
+        ) :: {:ok, term()} | {:error, term()}
   def update_job_scheduler(
         b,
         scheduler_id,
