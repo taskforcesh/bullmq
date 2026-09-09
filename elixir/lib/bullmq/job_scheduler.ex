@@ -723,12 +723,14 @@ defmodule BullMQ.JobScheduler do
   end
 
   defp maybe_decode_json_field(map, _key, nil), do: map
+
   defp maybe_decode_json_field(map, key, val) when is_binary(val) do
     case Jason.decode(val) do
       {:ok, decoded} -> Map.put(map, key, decoded)
       _ -> map
     end
   end
+
   defp maybe_decode_json_field(map, key, val), do: Map.put(map, key, val)
 
   defp normalize_date(nil), do: nil
