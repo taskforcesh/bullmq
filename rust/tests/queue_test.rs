@@ -215,6 +215,50 @@ async fn test_get_dependencies_pending() {
 }
 
 #[tokio::test]
+async fn test_get_dependencies_with_end_before_start_returns_empty_page() {
+    let name = test_queue_name();
+    let opts = QueueOptions {
+        connection: test_connection(),
+        ..Default::default()
+    };
+
+    let queue = Queue::with_options(&name, opts).await.unwrap();
+    let parent = queue
+        .add("parent", serde_json::json!({}))
+        .options(JobOptions {
+            job_id: Some("parent-empty-page".to_string()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    for i in 0..4 {
+        queue
+            .add("child", serde_json::json!({"idx": i}))
+            .options(JobOptions {
+                parent: Some(bullmq::ParentOptions {
+                    queue: name.clone(),
+                    id: parent.id().to_string(),
+                    wait_children: None,
+                }),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+    }
+
+    let result = queue
+        .get_dependencies(parent.id(), "pending", 3, 2)
+        .await
+        .unwrap();
+    assert!(result.items.is_empty());
+    assert!(result.jobs.is_empty());
+    assert_eq!(result.total, 4);
+
+    cleanup_queue(&queue).await;
+}
+
+#[tokio::test]
 async fn test_get_dependencies_processed() {
     let name = test_queue_name();
     let conn = test_connection();

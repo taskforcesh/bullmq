@@ -1551,7 +1551,11 @@ impl Queue {
         };
 
         let page_size = if end >= 0 {
-            end.saturating_sub(start).saturating_add(1) as usize
+            if end < start {
+                0
+            } else {
+                end.saturating_sub(start).saturating_add(1) as usize
+            }
         } else {
             usize::MAX
         };
@@ -1564,7 +1568,12 @@ impl Queue {
         let mut conn = self.conn.conn();
 
         loop {
-            let start_arg = (start + collected_items.len() as i64).to_string();
+            let collected_len = i64::try_from(collected_items.len())
+                .map_err(|_| Error::InvalidConfig("dependency pagination overflow".to_string()))?;
+            let start_arg = start
+                .checked_add(collected_len)
+                .ok_or_else(|| Error::InvalidConfig("dependency pagination overflow".to_string()))?
+                .to_string();
             let end_arg = end.to_string();
             let offset_arg = offset.to_string();
             let max_iterations = "5".to_string();
