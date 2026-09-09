@@ -106,7 +106,7 @@ defmodule BullMQ.ConcurrencyScalingTest do
 
     # Cleanup
     {:ok, keys} = RedisConnection.command(conn_name, ["KEYS", "bull:#{queue_name}*"])
-    if length(keys) > 0, do: RedisConnection.command(conn_name, ["DEL" | keys])
+    if keys != [], do: RedisConnection.command(conn_name, ["DEL" | keys])
 
     %{elapsed: elapsed, max_concurrent: stats.max}
   end

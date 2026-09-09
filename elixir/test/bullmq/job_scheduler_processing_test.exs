@@ -135,7 +135,7 @@ defmodule BullMQ.JobSchedulerProcessingTest do
       wait_for_completions(1, 5_000)
 
       jobs = :ets.lookup(processed, :job) |> Enum.map(fn {:job, j} -> j end)
-      assert length(jobs) >= 1
+      assert jobs != []
 
       [first_job | _] = jobs
       assert first_job.name == "test-job"
@@ -407,7 +407,7 @@ defmodule BullMQ.JobSchedulerProcessingTest do
       wait_for_completions(1, 5_000)
 
       jobs = :ets.lookup(processed, :job) |> Enum.map(fn {:job, name} -> name end)
-      assert length(jobs) >= 1
+      assert jobs != []
       assert "cron-job" in jobs
 
       Worker.close(worker)
