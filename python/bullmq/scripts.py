@@ -327,7 +327,6 @@ class Scripts:
         keys.append(self.keys['stalled'])
         keys.append(self.keys['wait'])
         keys.append(self.keys['limiter'])
-        keys.append(self.keys['paused'])
         keys.append(self.keys['pc'])
 
         fetch_next = opts.get("fetchNext", False)
