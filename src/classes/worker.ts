@@ -20,6 +20,7 @@ import {
   DELAY_TIME_1,
   forwardConnectionError,
   isNotConnectionError,
+  isRedisCluster,
   isRedisInstance,
   randomUUID,
 } from '../utils';
@@ -45,6 +46,13 @@ import { LockManager } from './lock-manager';
 
 // 10 seconds is the maximum time a BZPOPMIN can block.
 const maximumBlockTimeout = 10;
+
+function isClientLive(client: RedisClient): boolean {
+  return (
+    client.status === 'ready' ||
+    (client.status === 'connect' && isRedisCluster(client))
+  );
+}
 
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
@@ -821,18 +829,39 @@ will never work with more accuracy than 1ms. */
           // We cannot trust that the blocking connection stays blocking forever
           // due to issues in Redis and IORedis, so we will reconnect if we
           // don't get a response in the expected time.
-          timeout = setTimeout(
-            async () => {
-              bclient.disconnect(!this.closing);
-            },
-            blockTimeout * 1000 + 1000,
-          );
+          let timedOut = false;
+          const watchdog = new Promise<null>(resolve => {
+            timeout = setTimeout(
+              () => {
+                timedOut = true;
+                resolve(null);
+              },
+              blockTimeout * 1000 + 1000,
+            );
+          });
 
           this.updateDelays(); // reset delays to avoid reusing same values in next iteration
 
           // Markers should only be used for un-blocking, so we will handle them in this
           // function only.
-          const result = await bclient.bzpopmin(this.keys.marker, blockTimeout);
+          const result = await Promise.race([
+            bclient.bzpopmin(this.keys.marker, blockTimeout),
+            watchdog,
+          ]);
+          if (timedOut && !this.closing) {
+            // Disconnecting a socketless ioredis client cancels its retry timer.
+            // Let it reconnect first, then drop the auto-resent blocking command.
+            if (!isClientLive(bclient)) {
+              await this.blockingConnection.reconnect();
+            }
+            if (isClientLive(bclient) && !this.closing) {
+              // Await the socket close so reconnect cannot observe stale "ready".
+              await this.blockingConnection.disconnect(true);
+              if (!this.closing) {
+                await this.blockingConnection.reconnect();
+              }
+            }
+          }
           if (result) {
             const [, member, score] = result;
 
@@ -854,8 +883,7 @@ will never work with more accuracy than 1ms. */
       if (isNotConnectionError(<Error>error)) {
         this.emit('error', <Error>error);
       }
-      // The watchdog must abort every overdue blocking command, but doing so
-      // during socketless Sentinel resolution can leave ioredis terminally ended.
+      // Recover terminal clients, including failed Sentinel resolution.
       if (!this.closing && bclient.status === 'end') {
         try {
           await bclient.connect();

@@ -17,6 +17,7 @@ import {
   QueueBase,
   FlowProducer,
   RedisConnection,
+  ConnectionClosedError,
 } from '../src/classes';
 import { randomUUID, removeAllQueueData } from '../src/utils';
 
@@ -494,6 +495,33 @@ describe('RedisConnection', () => {
       await connection.reconnect();
 
       expect(client.connect.calledOnce).toBe(true);
+    });
+
+    it('does not reconnect a closed connection', async () => {
+      const client = createClient('end');
+      const connection = createConnection(client);
+      connection.closing = true;
+
+      await expect(connection.reconnect()).rejects.toBeInstanceOf(
+        ConnectionClosedError,
+      );
+      expect(client.connect.called).toBe(false);
+    });
+
+    it('stops reconnecting when the connection closes while waiting', async () => {
+      const client = createClient('reconnecting');
+      const connection = createConnection(client);
+      const reconnecting = connection.reconnect();
+      const rejected = expect(reconnecting).rejects.toBeInstanceOf(
+        ConnectionClosedError,
+      );
+      await Promise.resolve();
+      connection.closing = true;
+      client.status = 'end';
+      client.emit('end');
+
+      await rejected;
+      expect(client.connect.called).toBe(false);
     });
 
     it.each(['connecting', 'connect', 'reconnecting'])(
@@ -976,6 +1004,110 @@ describe('connection', () => {
     await processing;
     await worker.close();
   });
+
+  it('does not reopen a force-closed worker during blocking watchdog recovery', async () => {
+    const sandbox = sinon.createSandbox();
+    const worker = new Worker(queueName, async () => {}, {
+      autorun: false,
+      connection: {
+        host: redisHost,
+        maxRetriesPerRequest: null,
+        retryStrategy: () => 10000,
+      },
+      prefix,
+      drainDelay: 1,
+    });
+    await worker.waitUntilReady();
+    const blockingConnection = worker['blockingConnection'];
+    const bclient = await blockingConnection.client;
+    const bzpopmin = sandbox.spy(bclient, 'bzpopmin');
+    const reconnect = sandbox.spy(blockingConnection, 'reconnect');
+    const connect = sandbox.spy(bclient, 'connect');
+
+    try {
+      const running = worker.run();
+      await expect.poll(() => bzpopmin.called).toBe(true);
+      bclient.disconnect(true);
+      await expect.poll(() => reconnect.called, { timeout: 5000 }).toBe(true);
+      expect(bclient.status).toBe('reconnecting');
+
+      await worker.close(true);
+      // A socketless disconnect may not emit end; model a late socket-close
+      // event to ensure the pending reconnect cannot reopen the closed client.
+      bclient.emit('end');
+      await running;
+      expect(connect.called).toBe(false);
+      expect(bclient.status).toBe('end');
+      expect(blockingConnection.status).toBe('closed');
+    } finally {
+      sandbox.restore();
+      await worker.close(true);
+    }
+  });
+
+  it.each(['reconnecting', 'ready'])(
+    'keeps processing after the blocking watchdog fires while %s (#4707)',
+    async status => {
+      const sandbox = sinon.createSandbox();
+      let processed = 0;
+      const worker = new Worker(
+        queueName,
+        async () => {
+          processed++;
+        },
+        {
+          autorun: false,
+          connection: {
+            host: redisHost,
+            maxRetriesPerRequest: null,
+            retryStrategy: () => 2500,
+          },
+          prefix,
+          drainDelay: 1,
+        },
+      );
+      const errors: Error[] = [];
+      worker.on('error', error => errors.push(error));
+      await worker.waitUntilReady();
+      const blockingConnection = worker['blockingConnection'];
+      const bclient = await blockingConnection.client;
+      const reconnect = sandbox.spy(blockingConnection, 'reconnect');
+      const bzpopmin = sandbox.stub(bclient, 'bzpopmin').callThrough();
+      if (status === 'ready') {
+        // Model an interrupted command that ioredis silently re-sends forever.
+        bzpopmin.onFirstCall().returns(new Promise(() => {}));
+      }
+
+      try {
+        await queue.add('before', {});
+        const running = worker.run();
+        await expect.poll(() => processed).toBe(1);
+        await expect.poll(() => bzpopmin.called).toBe(true);
+
+        if (status === 'reconnecting') {
+          // Keep ioredis socketless longer than the watchdog's two-second limit.
+          bclient.disconnect(true);
+          await expect.poll(() => bclient.status).toBe('reconnecting');
+        }
+
+        await expect.poll(() => reconnect.called, { timeout: 5000 }).toBe(true);
+        await expect
+          .poll(() => bclient.status, { timeout: 5000 })
+          .toBe('ready');
+        await queue.add('after', {});
+        await expect.poll(() => processed, { timeout: 5000 }).toBe(2);
+        await queue.add('still-processing', {});
+        await expect.poll(() => processed, { timeout: 5000 }).toBe(3);
+        expect(errors).toEqual([]);
+        await worker.close();
+        await running;
+      } finally {
+        sandbox.restore();
+        await worker.close(true);
+      }
+    },
+    20000,
+  );
 
   it('should handle jobs added before and after a redis disconnect', async () => {
     let count = 0;
