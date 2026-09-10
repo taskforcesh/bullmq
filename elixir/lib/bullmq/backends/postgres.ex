@@ -1170,8 +1170,7 @@ defmodule BullMQ.Backends.Postgres do
     count = if stop < 0, do: nil, else: stop - start + 1
     result = run(b, "get_job_schedulers_range", [b.queue_name, asc, start, count])
 
-    {:ok,
-     Enum.flat_map(maps(result), fn r -> [r["scheduler_id"], to_string(r["next_run_ms"])] end)}
+    {:ok, Enum.flat_map(maps(result), fn r -> [r["scheduler_id"], to_string(r["next_run_ms"])] end)}
   end
 
   @impl true
