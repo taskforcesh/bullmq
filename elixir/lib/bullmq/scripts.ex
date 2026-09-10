@@ -970,7 +970,15 @@ defmodule BullMQ.Scripts do
   @doc """
   Moves a job to finished (completed/failed) state.
   """
-  @spec move_to_finished(atom(), queue_context(), String.t(), String.t(), any(), atom(), keyword()) ::
+  @spec move_to_finished(
+          atom(),
+          queue_context(),
+          String.t(),
+          String.t(),
+          any(),
+          atom(),
+          keyword()
+        ) ::
           script_result()
   # credo:disable-for-next-line Credo.Check.Refactor.FunctionArity
   def move_to_finished(conn, ctx, job_id, token, result, target, opts \\ []) do
@@ -1821,8 +1829,8 @@ defmodule BullMQ.Scripts do
   @spec maxed?(atom(), queue_context()) :: script_result()
   def maxed?(conn, ctx) do
     keys = [
-      Keys.limiter(ctx),
-      Keys.meta(ctx)
+      Keys.meta(ctx),
+      Keys.active(ctx)
     ]
 
     args = []

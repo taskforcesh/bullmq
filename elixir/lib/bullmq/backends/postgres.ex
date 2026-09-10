@@ -604,7 +604,9 @@ defmodule BullMQ.Backends.Postgres do
 
   @impl true
   def move_to_waiting_children(%__MODULE__{} = b, job_id, token, _opts) do
-    %{"code" => code} = first_map(run(b, "move_to_waiting_children", [b.queue_name, job_id, token]))
+    %{"code" => code} =
+      first_map(run(b, "move_to_waiting_children", [b.queue_name, job_id, token]))
+
     {:ok, code == 1}
   end
 
@@ -822,7 +824,7 @@ defmodule BullMQ.Backends.Postgres do
   @impl true
   def maxed?(%__MODULE__{} = b) do
     %{"maxed" => maxed} = first_map(run(b, "is_maxed", [b.queue_name]))
-    {:ok, maxed}
+    maxed == true
   end
 
   @impl true
@@ -1019,7 +1021,9 @@ defmodule BullMQ.Backends.Postgres do
     result = run(b, "get_processed_children_values", [b.queue_name, job_id])
 
     {:ok,
-     Enum.flat_map(maps(result), fn m -> [m["child_key"] || m["k"], json(m["value"] || m["v"])] end)}
+     Enum.flat_map(maps(result), fn m ->
+       [m["child_key"] || m["k"], json(m["value"] || m["v"])]
+     end)}
   end
 
   @impl true
@@ -1133,6 +1137,7 @@ defmodule BullMQ.Backends.Postgres do
   def get_job_schedulers_range(%__MODULE__{} = b, start, stop, asc) do
     count = if stop < 0, do: nil, else: stop - start + 1
     result = run(b, "get_job_schedulers_range", [b.queue_name, asc, start, count])
+
     {:ok, Enum.flat_map(maps(result), fn r -> [r["scheduler_id"], to_string(r["next_run_ms"])] end)}
   end
 

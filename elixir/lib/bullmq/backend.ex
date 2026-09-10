@@ -345,7 +345,7 @@ defmodule BullMQ.Backend do
   @callback get_dependencies_count(t, job_id) :: {:ok, non_neg_integer()} | {:error, term()}
 
   @doc "Returns whether the queue has reached its concurrency limit."
-  @callback maxed?(t) :: {:ok, boolean()} | {:error, term()}
+  @callback maxed?(t) :: boolean()
 
   @doc "Returns the ttl (ms) of the current rate-limit window."
   @callback get_rate_limit_ttl(t, opts :: keyword()) :: {:ok, term()} | {:error, term()}
@@ -705,7 +705,7 @@ defmodule BullMQ.Backend do
   def get_job_logs(b, job_id, start, stop, asc),
     do: dispatch(b, :get_job_logs, [job_id, start, stop, asc])
 
-  @spec maxed?(t) :: {:ok, boolean()} | {:error, term()}
+  @spec maxed?(t) :: boolean()
   def maxed?(b), do: dispatch(b, :maxed?, [])
 
   @spec get_processed_children_values(t, job_id) :: {:ok, [String.t()]} | {:error, term()}
