@@ -1236,7 +1236,10 @@ describe('workers', () => {
   });
 
   describe('when waiting for a job', () => {
-    async function runBlockingConnectionWatchdog(status: string) {
+    async function runBlockingConnectionWatchdog(
+      status: string,
+      isCluster = false,
+    ) {
       const worker = new Worker(queueName, NoopProc, {
         autorun: false,
         connection,
@@ -1244,40 +1247,107 @@ describe('workers', () => {
       });
       await worker.waitUntilReady();
 
-      const disconnect = sandbox.stub();
-      const bclient = {
-        bzpopmin: sandbox.stub().resolves(null),
-        disconnect,
-        status,
-      } as unknown as IRedisClient;
-      const setTimeoutStub = sandbox
-        .stub(global, 'setTimeout')
-        .callsFake(callback => {
-          callback();
-          return 0 as unknown as NodeJS.Timeout;
+      const blockingConnection = worker['blockingConnection'];
+      const bclient = new Proxy(await blockingConnection.client, {
+        get(target, property, receiver) {
+          return property === 'isCluster'
+            ? isCluster
+            : Reflect.get(target, property, receiver);
+        },
+      });
+      const calls: string[] = [];
+      sandbox.stub(bclient, 'status').get(() => status);
+      sandbox.stub(bclient, 'bzpopmin').returns(new Promise(() => {}));
+      const clientDisconnect = sandbox.stub(bclient, 'disconnect');
+      const disconnect = sandbox
+        .stub(blockingConnection, 'disconnect')
+        .callsFake(async wait => {
+          expect(wait).toBe(true);
+          calls.push(`disconnect:${status}`);
+          // A real socket closes asynchronously; reconnect must await it.
+          await new Promise(resolve => setTimeout(resolve, 1));
+          status = 'end';
         });
+      sandbox.stub(blockingConnection, 'reconnect').callsFake(async () => {
+        calls.push(`reconnect:${status}`);
+        status = 'ready';
+      });
+      const clock = sandbox.useFakeTimers({
+        toFake: ['setTimeout', 'clearTimeout'],
+      });
 
       try {
-        await worker['waitForJob'](bclient, 0);
-        return disconnect;
+        let settled = false;
+        const waiting = worker['waitForJob'](bclient, 0).then(result => {
+          settled = true;
+          return result;
+        });
+        await clock.tickAsync(6001);
+        expect(clientDisconnect.called).toBe(false);
+        expect(settled).toBe(true);
+        expect(await waiting).toBe(0);
+        expect(disconnect.calledOnce).toBe(true);
+        expect(status).toBe('ready');
+        return calls;
       } finally {
-        setTimeoutStub.restore();
+        sandbox.restore();
         await worker.close();
       }
     }
 
+    it.each(['wait', 'connecting', 'connect', 'close', 'reconnecting', 'end'])(
+      'waits for a %s blocking client before resetting it',
+      async status => {
+        const calls = await runBlockingConnectionWatchdog(status);
+        expect(calls).toEqual([
+          `reconnect:${status}`,
+          'disconnect:ready',
+          'reconnect:end',
+        ]);
+      },
+    );
+
     it.each([
-      'wait',
-      'connecting',
-      'connect',
-      'ready',
-      'close',
-      'reconnecting',
-      'end',
-      'custom',
-    ])('disconnects a blocking client with status %s', async status => {
-      const disconnect = await runBlockingConnectionWatchdog(status);
-      expect(disconnect.calledOnceWith(true)).toBe(true);
+      ['ready', false],
+      ['connect', true],
+    ] as const)(
+      'awaits socket close before reconnecting a live client (%s, cluster: %s)',
+      async (status, isCluster) => {
+        const calls = await runBlockingConnectionWatchdog(status, isCluster);
+        expect(calls).toEqual([`disconnect:${status}`, 'reconnect:end']);
+      },
+    );
+
+    it('surfaces watchdog recovery errors and retries', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      const bclient = await worker['blockingConnection'].client;
+      const error = new Error('watchdog recovery failed');
+      const onError = sandbox.spy();
+      worker.on('error', onError);
+      sandbox.stub(bclient, 'status').value('reconnecting');
+      sandbox.stub(bclient, 'bzpopmin').returns(new Promise(() => {}));
+      sandbox.stub(worker['blockingConnection'], 'reconnect').rejects(error);
+      const workerDelay = sandbox.stub(worker, 'delay').resolves();
+      const clock = sandbox.useFakeTimers({
+        toFake: ['setTimeout', 'clearTimeout'],
+      });
+
+      try {
+        const waiting = worker['waitForJob'](bclient, 0);
+        await clock.tickAsync(6000);
+        expect(await waiting).toBe(Infinity);
+        expect(onError.calledOnceWith(error)).toBe(true);
+        expect(workerDelay.calledOnce).toBe(true);
+      } finally {
+        sandbox.restore();
+        await worker.close();
+      }
     });
 
     it('reconnects a terminal blocking client after a connection error', async () => {
