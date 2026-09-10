@@ -7,7 +7,7 @@ pub(crate) fn parse_paginate_reply(value: &redis::Value) -> Result<PaginateReply
     let arr = match value {
         redis::Value::Array(items) => items,
         _ => {
-            return Err(Error::MsgPack(
+            return Err(Error::InvalidConfig(
                 "unexpected paginate reply: not an array".to_string(),
             ))
         }
