@@ -827,7 +827,8 @@ defmodule BullMQ.Backends.Postgres do
     maxed == true
   end
 
-  @deprecated "Use maxed?/2 instead"
+  @impl true
+  @deprecated "Use maxed?/1 instead"
   def is_maxed(%__MODULE__{} = b) do
     case first_map(run(b, "is_maxed", [b.queue_name])) do
       %{"maxed" => true} -> {:ok, true}
@@ -1095,6 +1096,29 @@ defmodule BullMQ.Backends.Postgres do
       _ ->
         {:ok, nil}
     end
+  end
+
+  @impl true
+  @deprecated "Use add_job_scheduler/4 instead"
+  def add_job_scheduler(
+        %__MODULE__{} = b,
+        scheduler_id,
+        next_millis,
+        scheduler_opts,
+        template_data,
+        template_opts,
+        delayed_opts,
+        now,
+        producer_id \\ nil
+      ) do
+    add_job_scheduler(b, scheduler_id, next_millis,
+      scheduler_opts: scheduler_opts,
+      template_data: template_data,
+      template_opts: template_opts,
+      delayed_opts: delayed_opts,
+      now: now,
+      producer_id: producer_id
+    )
   end
 
   @impl true

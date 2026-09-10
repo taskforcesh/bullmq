@@ -1842,8 +1842,9 @@ defmodule BullMQ.Scripts do
   @spec is_maxed(pid(), String.t()) :: {:ok, boolean()} | {:error, term()}
   def is_maxed(conn, ctx) do
     case maxed?(conn, ctx) do
-      true -> {:ok, true}
-      false -> {:error, false}
+      {:ok, res} when res in [1, true, "1"] -> {:ok, true}
+      {:ok, _} -> {:ok, false}
+      {:error, _} = error -> error
     end
   end
 
