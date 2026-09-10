@@ -827,6 +827,14 @@ defmodule BullMQ.Backends.Postgres do
     maxed == true
   end
 
+  @deprecated "Use maxed?/2 instead"
+  def is_maxed(%__MODULE__{} = b) do
+    case first_map(run(b, "is_maxed", [b.queue_name])) do
+      %{"maxed" => true} -> {:ok, true}
+      _ -> {:ok, false}
+    end
+  end
+
   @impl true
   def get_rate_limit_ttl(%__MODULE__{} = b, opts) do
     max_jobs = Keyword.get(opts, :max_jobs, 0)
@@ -1138,7 +1146,8 @@ defmodule BullMQ.Backends.Postgres do
     count = if stop < 0, do: nil, else: stop - start + 1
     result = run(b, "get_job_schedulers_range", [b.queue_name, asc, start, count])
 
-    {:ok, Enum.flat_map(maps(result), fn r -> [r["scheduler_id"], to_string(r["next_run_ms"])] end)}
+    {:ok,
+     Enum.flat_map(maps(result), fn r -> [r["scheduler_id"], to_string(r["next_run_ms"])] end)}
   end
 
   @impl true
