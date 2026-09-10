@@ -130,7 +130,7 @@
     "@typescript-eslint/parser": "8.70.0",
     "@vitest/coverage-v8": "4.1.11",
     "coveralls-next": "6.0.2",
-    "cpx2": "9.0.2",
+    "cpx2": "9.0.3",
     "eslint": "10.10.0",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-prettier": "5.5.6",
@@ -239,7 +239,6 @@
   "packageManager": "yarn@1.22.22",
   "resolutions": {
     "brace-expansion": "5.0.9",
-    "esbuild": "~0.25.0",
     "js-yaml": "5.2.3",
     "picomatch": "4.0.5",
     "tar": "7.5.22",
