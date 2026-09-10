@@ -1838,6 +1838,15 @@ defmodule BullMQ.Scripts do
     execute(conn, :is_maxed, keys, args)
   end
 
+  @deprecated "Use maxed?/2 instead"
+  @spec is_maxed(pid(), String.t()) :: {:ok, boolean()} | {:error, term()}
+  def is_maxed(conn, ctx) do
+    case maxed?(conn, ctx) do
+      true -> {:ok, true}
+      false -> {:error, false}
+    end
+  end
+
   @doc """
   Gets the rate limit TTL.
 
