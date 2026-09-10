@@ -130,7 +130,7 @@ defmodule BullMQ.Backoff do
       #=> 4000
 
       BullMQ.Backoff.calculate(:exponential, 3, 1000, jitter: 0.2)
-      #=> ~4000 (with +/- 20% randomness)
+      #=> between 3200 and 4000 (with up to 20% jitter)
   """
   @spec calculate(strategy(), non_neg_integer(), non_neg_integer(), keyword()) ::
           non_neg_integer()
@@ -229,7 +229,7 @@ defmodule BullMQ.Backoff do
 
   defp apply_jitter(delay, jitter) when jitter > 0 and jitter <= 1 do
     min_delay = trunc(delay * (1 - jitter))
-    jitter_range = trunc(delay * jitter * 2)
+    jitter_range = trunc(delay * jitter)
     min_delay + :rand.uniform(jitter_range + 1) - 1
   end
 
