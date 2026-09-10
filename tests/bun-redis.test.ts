@@ -175,6 +175,52 @@ describe('bun redis adapter', () => {
       await dup.quit();
     });
 
+    it('nested duplicate().duplicate() materializes the grandchild (#4706)', async () => {
+      class FakeRaw {
+        connected = false;
+        onconnect: (() => void) | null = null;
+        onclose: (() => void) | null = null;
+        onerror: (() => void) | null = null;
+        constructor(public target = 'redis://localhost:6379') {}
+        async connect() {
+          this.connected = true;
+          this.onconnect?.();
+        }
+        close() {
+          this.connected = false;
+        }
+        async duplicate() {
+          return new FakeRaw(this.target);
+        }
+        async send() {
+          return 'PONG';
+        }
+        async get() {
+          return null;
+        }
+        async smembers() {
+          return [];
+        }
+        async incr() {
+          return 0;
+        }
+      }
+
+      const primary = createBunRedisClient(new FakeRaw() as any);
+      await primary.connect();
+
+      const grandchild = primary.duplicate().duplicate();
+      await grandchild.connect();
+
+      expect(grandchild.status).toBe('ready');
+      expect((grandchild as any).raw).toBeDefined();
+      expect((grandchild as any).raw.target).toBe('redis://localhost:6379');
+      expect(await grandchild.sendCommand('PING', [])).toBe('PONG');
+
+      await primary.quit();
+      await grandchild.quit();
+    });
+
     it('duplicate() reports ready when Bun returns an already-connected client', async () => {
       class FakeRaw {
         connected = false;
