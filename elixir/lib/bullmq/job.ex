@@ -388,7 +388,7 @@ defmodule BullMQ.Job do
   @spec calculate_backoff(t()) :: Types.duration_ms()
   def calculate_backoff(%__MODULE__{opts: opts, attempts_made: attempts_made}) do
     backoff = Utils.get_opt(opts, [:backoff, "backoff"])
-    Backoff.calculate_from_config(backoff, attempts_made)
+    Backoff.calculate_from_config(backoff, attempts_made + 1)
   end
 
   @doc """
