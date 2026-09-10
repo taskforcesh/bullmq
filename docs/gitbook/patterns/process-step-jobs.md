@@ -174,7 +174,7 @@ By saving the next step value every time we complete the previous step (here, sa
 
 There are situations when it is useful to delay a job when it is being processed.
 
-This can be handled using the `moveToDelayed` method. However, it is important to note that when a job is being processed by a worker, the worker keeps a lock on this job with a certain token value. For the TypeScript `moveToDelayed` method to work, we need to pass said token so that it can unlock without error. The .NET `MoveToDelayedAsync` method uses the job's token automatically when no token is provided. Finally, we need to exit from the processor by throwing a special error (`DelayedError` in TypeScript or `DelayedException` in .NET) that will signal to the worker that the job has been delayed so that it does not try to complete (or fail the job) instead.
+This can be handled using the `moveToDelayed` method. However, it is important to note that when a job is being processed by a worker, the worker keeps a lock on this job with a certain token value. For the TypeScript `moveToDelayed` method to work, we need to pass said token so that it can unlock without error. In .NET, `job.MoveToDelayedAsync` uses the job's token automatically when no token is provided. Finally, we need to exit from the processor by throwing a special error (`DelayedError` in TypeScript or `DelayedException` in .NET) that will signal to the worker that the job has been delayed so that it does not try to complete (or fail the job) instead.
 
 {% tabs %}
 {% tab title="TypeScript" %}
