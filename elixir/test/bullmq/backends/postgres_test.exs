@@ -222,7 +222,10 @@ defmodule BullMQ.Backends.PostgresTest do
     assert {:ok, [3, 0, 0]} = Backend.get_counts_by_types(b, [:waiting, :active, :completed])
   end
 
-  test "add_jobs does not double-emit events for existing or duplicate ids", %{backend: b, queue: q} do
+  test "add_jobs does not double-emit events for existing or duplicate ids", %{
+    backend: b,
+    queue: q
+  } do
     # A job that already exists, added on its own first.
     {:ok, "x1"} = Backend.add_job(b, Job.new(q, "a", %{}, job_id: "x1"))
     assert {:ok, [1, 0, 0]} = Backend.get_counts_by_types(b, [:waiting, :active, :completed])
@@ -418,8 +421,7 @@ defmodule BullMQ.Backends.PostgresTest do
   end
 
   test "maxed?, get_rate_limit_ttl, get_metrics return sane shapes", %{backend: b} do
-    assert {:ok, maxed} = Backend.maxed?(b)
-    assert is_boolean(maxed)
+    assert is_boolean(Backend.maxed?(b))
 
     assert {:ok, ttl} = Backend.get_rate_limit_ttl(b, max_jobs: 10)
     assert is_integer(ttl)
