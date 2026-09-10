@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/taskforcesh/bullmq/compare/vnet1.1.0...vnet1.1.1) (2026-08-25)
+
+
+### Performance Improvements
+
+* **queue:** do not affect rate limit when processing deferred failures (python) (elixir) (rust) (dotnet) ([#4607](https://github.com/taskforcesh/bullmq/issues/4607)) ([ec4be04](https://github.com/taskforcesh/bullmq/commit/ec4be04c04725f5e341920ddef98adf7874a41d5))
+
 # [1.1.0](https://github.com/taskforcesh/bullmq/compare/vnet1.0.0...vnet1.1.0) (2026-08-12)
 
 

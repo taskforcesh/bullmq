@@ -1,3 +1,46 @@
+## [3.2.1](https://github.com/taskforcesh/bullmq/compare/vpy3.2.0...vpy3.2.1) (2026-09-01)
+
+
+### Bug Fixes
+
+* **deps:** update dependency psycopg to v3.3.5 [python] ([#4668](https://github.com/taskforcesh/bullmq/issues/4668)) ([63cee3f](https://github.com/taskforcesh/bullmq/commit/63cee3f977a13304a4e6b07262db15bfad3eb436))
+
+# [3.2.0](https://github.com/taskforcesh/bullmq/compare/vpy3.1.1...vpy3.2.0) (2026-08-31)
+
+
+### Features
+
+* **queue:** support getDeduplicationJobId method [python] ([#4655](https://github.com/taskforcesh/bullmq/issues/4655)) ref [#4647](https://github.com/taskforcesh/bullmq/issues/4647) ([903f017](https://github.com/taskforcesh/bullmq/commit/903f0171a2da4983ec3d23a978dc3e9ab19e85e6))
+
+## [3.1.1](https://github.com/taskforcesh/bullmq/compare/vpy3.1.0...vpy3.1.1) (2026-08-29)
+
+
+### Bug Fixes
+
+* **deps:** update python dependencies [python] ([#4650](https://github.com/taskforcesh/bullmq/issues/4650)) ([a0467eb](https://github.com/taskforcesh/bullmq/commit/a0467eb8fd6b5a53489231b62d5a44a2c5a5c705))
+* **worker:** delegate maximumBlockTimeout to the backend (python) ([#4644](https://github.com/taskforcesh/bullmq/issues/4644)) ([ea4543c](https://github.com/taskforcesh/bullmq/commit/ea4543cc78aa11935ed5e9af7d4b47fd3e23aea0))
+
+# [3.1.0](https://github.com/taskforcesh/bullmq/compare/vpy3.0.6...vpy3.1.0) (2026-08-28)
+
+
+### Features
+
+* **job:** add DelayedError and Job.moveToDelayed for processor-controlled delays [python] ([#4635](https://github.com/taskforcesh/bullmq/issues/4635)) ([5251710](https://github.com/taskforcesh/bullmq/commit/5251710a161a676f1509b751c92a10128d057cdc))
+
+## [3.0.6](https://github.com/taskforcesh/bullmq/compare/vpy3.0.5...vpy3.0.6) (2026-08-25)
+
+
+### Performance Improvements
+
+* **queue:** do not affect rate limit when processing deferred failures (python) (elixir) (rust) (dotnet) ([#4607](https://github.com/taskforcesh/bullmq/issues/4607)) ([ec4be04](https://github.com/taskforcesh/bullmq/commit/ec4be04c04725f5e341920ddef98adf7874a41d5))
+
+## [3.0.5](https://github.com/taskforcesh/bullmq/compare/vpy3.0.4...vpy3.0.5) (2026-08-25)
+
+
+### Bug Fixes
+
+* **worker:** store failed reason without extra JSON encoding [python] ([#4615](https://github.com/taskforcesh/bullmq/issues/4615)) fixes [#4596](https://github.com/taskforcesh/bullmq/issues/4596) ([57b6b43](https://github.com/taskforcesh/bullmq/commit/57b6b4362d5f967813f713f6651f414ffa1416d4))
+
 ## [3.0.4](https://github.com/taskforcesh/bullmq/compare/vpy3.0.3...vpy3.0.4) (2026-08-05)
 
 

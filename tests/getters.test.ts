@@ -69,19 +69,38 @@ describe('Jobs getters', () => {
   });
 
   describe('.getWorkers', () => {
+    const waitForWorkerReady = async (worker: Worker) =>
+      new Promise<void>(resolve => {
+        worker.once('ready', () => {
+          resolve();
+        });
+      });
+
+    const waitForWorkers = async (
+      targetQueue: Queue,
+      expectedCount: number,
+      timeout = 2000,
+    ) => {
+      const start = Date.now();
+      let workers = await targetQueue.getWorkers();
+
+      while (workers.length !== expectedCount && Date.now() - start < timeout) {
+        await delay(50);
+        workers = await targetQueue.getWorkers();
+      }
+
+      return workers;
+    };
+
     it('gets all workers for this queue only', async () => {
       const worker = new Worker(queueName, async () => {}, {
         autorun: false,
         connection,
         prefix,
       });
-      await new Promise<void>(resolve => {
-        worker.on('ready', () => {
-          resolve();
-        });
-      });
+      await waitForWorkerReady(worker);
 
-      const workers = await queue.getWorkers();
+      const workers = await waitForWorkers(queue, 1);
       expect(workers).toHaveLength(1);
 
       const worker2 = new Worker(queueName, async () => {}, {
@@ -89,13 +108,9 @@ describe('Jobs getters', () => {
         connection,
         prefix,
       });
-      await new Promise<void>(resolve => {
-        worker2.on('ready', () => {
-          resolve();
-        });
-      });
+      await waitForWorkerReady(worker2);
 
-      const nextWorkers = await queue.getWorkers();
+      const nextWorkers = await waitForWorkers(queue, 2);
       expect(nextWorkers).toHaveLength(2);
 
       const nextWorkersCount = await queue.getWorkersCount();
@@ -112,9 +127,9 @@ describe('Jobs getters', () => {
         prefix,
         name: 'worker1',
       });
-      await worker.waitUntilReady();
+      await waitForWorkerReady(worker);
 
-      const workers = await queue.getWorkers();
+      const workers = await waitForWorkers(queue, 1);
       expect(workers).toHaveLength(1);
 
       const workersCount = await queue.getWorkersCount();
@@ -126,9 +141,9 @@ describe('Jobs getters', () => {
         prefix,
         name: 'worker2',
       });
-      await worker2.waitUntilReady();
+      await waitForWorkerReady(worker2);
 
-      const nextWorkers = await queue.getWorkers();
+      const nextWorkers = await waitForWorkers(queue, 2);
       expect(nextWorkers).toHaveLength(2);
 
       const nextWorkersCount = await queue.getWorkersCount();
@@ -155,29 +170,21 @@ describe('Jobs getters', () => {
         connection,
         prefix,
       });
-      await new Promise<void>(resolve => {
-        worker.on('ready', () => {
-          resolve();
-        });
-      });
+      await waitForWorkerReady(worker);
       const worker2 = new Worker(queueName2, async () => {}, {
         autorun: false,
         connection,
         prefix,
       });
-      await new Promise<void>(resolve => {
-        worker2.on('ready', () => {
-          resolve();
-        });
-      });
+      await waitForWorkerReady(worker2);
 
-      const workers = await queue.getWorkers();
+      const workers = await waitForWorkers(queue, 1);
       expect(workers).toHaveLength(1);
 
       const workersCount = await queue.getWorkersCount();
       expect(workersCount).toBe(1);
 
-      const workers2 = await queue2.getWorkers();
+      const workers2 = await waitForWorkers(queue2, 1);
       expect(workers2).toHaveLength(1);
 
       const workersCount2 = await queue2.getWorkersCount();
@@ -199,30 +206,18 @@ describe('Jobs getters', () => {
           connection: localConnection,
           prefix,
         });
-        await new Promise<void>(async resolve => {
-          worker.on('ready', () => {
-            resolve();
-          });
-          await delay(1000);
-          resolve();
-        });
+        await waitForWorkerReady(worker);
 
-        const workers = await queue.getWorkers();
+        const workers = await waitForWorkers(queue, 1);
         expect(workers).toHaveLength(1);
 
         const worker2 = new Worker(queueName, async () => {}, {
           connection: localConnection,
           prefix,
         });
-        await new Promise<void>(async resolve => {
-          worker2.on('ready', () => {
-            resolve();
-          });
-          await delay(1000);
-          resolve();
-        });
+        await waitForWorkerReady(worker2);
 
-        const nextWorkers = await queue.getWorkers();
+        const nextWorkers = await waitForWorkers(queue, 2);
         expect(nextWorkers).toHaveLength(2);
 
         await worker.close();

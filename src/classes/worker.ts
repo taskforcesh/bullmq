@@ -45,8 +45,9 @@ import {
 } from './job-scheduler';
 import { LockManager } from './lock-manager';
 
-// 10 seconds is the maximum time a BZPOPMIN can block.
-const maximumBlockTimeout = 10;
+// 10 seconds is the maximum time a BZPOPMIN can block, so it is the default
+// ceiling used when a backend does not delegate its own `maximumBlockTimeout`.
+const defaultMaximumBlockTimeout = 10;
 
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
@@ -55,13 +56,17 @@ export interface WorkerListener<
   DataType = any,
   ResultType = any,
   NameType extends string = string,
+  ProgressType extends JobProgress = JobProgress,
 > extends IoredisListener {
   /**
    * Listen to 'active' event.
    *
    * This event is triggered when a job enters the 'active' state.
    */
-  active: (job: Job<DataType, ResultType, NameType>, prev: string) => void;
+  active: (
+    job: Job<DataType, ResultType, NameType, ProgressType>,
+    prev: string,
+  ) => void;
 
   /**
    * Listen to 'closed' event.
@@ -83,7 +88,7 @@ export interface WorkerListener<
    * This event is triggered when a job has successfully completed.
    */
   completed: (
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<DataType, ResultType, NameType, ProgressType>,
     result: ResultType,
     prev: string,
   ) => void;
@@ -112,7 +117,7 @@ export interface WorkerListener<
    * reaches the stalled limit and it is deleted by the removeOnFail option.
    */
   failed: (
-    job: Job<DataType, ResultType, NameType> | undefined,
+    job: Job<DataType, ResultType, NameType, ProgressType> | undefined,
     error: Error,
     prev: string,
   ) => void;
@@ -133,8 +138,8 @@ export interface WorkerListener<
    * world.
    */
   progress: (
-    job: Job<DataType, ResultType, NameType>,
-    progress: JobProgress,
+    job: Job<DataType, ResultType, NameType, ProgressType>,
+    progress: ProgressType,
   ) => void;
 
   /**
@@ -180,12 +185,21 @@ export interface WorkerListener<
  * As soon as the class is instantiated and a connection to Redis is established
  * it will start processing jobs.
  *
+ * @typeParam DataType - The type of the data that the job will process.
+ * @typeParam ResultType - The type of the result of the job.
+ * @typeParam NameType - The type of the name of the job.
+ * @typeParam B - The queue backend used by this worker.
+ * @typeParam ProgressType - The type of the job progress. Defaults to
+ * {@link JobProgress}. Must be JSON-serializable, as progress is persisted
+ * in the backend.
+ *
  */
 export class Worker<
   DataType = any,
   ResultType = any,
   NameType extends string = string,
   B extends IQueueBackend = RedisQueueBackend,
+  ProgressType extends JobProgress = JobProgress,
 > extends QueueBase<B> {
   declare readonly opts: WorkerOptions;
   readonly id: string;
@@ -206,7 +220,7 @@ export class Worker<
   protected _jobScheduler: JobScheduler;
 
   protected paused: boolean;
-  protected processFn: Processor<DataType, ResultType, NameType>;
+  protected processFn: Processor<DataType, ResultType, NameType, ProgressType>;
   protected running = false;
   protected mainLoopRunning: Promise<void> | null = null;
 
@@ -216,7 +230,11 @@ export class Worker<
 
   constructor(
     name: string,
-    processor?: string | URL | null | Processor<DataType, ResultType, NameType>,
+    processor?:
+      | string
+      | URL
+      | null
+      | Processor<DataType, ResultType, NameType, ProgressType>,
     opts?: WorkerOptions,
     backendFactory?: BackendFactory<B>,
   ) {
@@ -401,39 +419,69 @@ export class Worker<
     return this.backend.extendLocks(jobIds, tokens, duration);
   }
 
-  emit<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
+  emit<
+    U extends keyof WorkerListener<
+      DataType,
+      ResultType,
+      NameType,
+      ProgressType
+    >,
+  >(
     event: U,
-    ...args: Parameters<WorkerListener<DataType, ResultType, NameType>[U]>
+    ...args: Parameters<
+      WorkerListener<DataType, ResultType, NameType, ProgressType>[U]
+    >
   ): boolean {
     return super.emit(event, ...args);
   }
 
-  off<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
+  off<
+    U extends keyof WorkerListener<
+      DataType,
+      ResultType,
+      NameType,
+      ProgressType
+    >,
+  >(
     eventName: U,
-    listener: WorkerListener<DataType, ResultType, NameType>[U],
+    listener: WorkerListener<DataType, ResultType, NameType, ProgressType>[U],
   ): this {
     super.off(eventName, listener);
     return this;
   }
 
-  on<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
+  on<
+    U extends keyof WorkerListener<
+      DataType,
+      ResultType,
+      NameType,
+      ProgressType
+    >,
+  >(
     event: U,
-    listener: WorkerListener<DataType, ResultType, NameType>[U],
+    listener: WorkerListener<DataType, ResultType, NameType, ProgressType>[U],
   ): this {
     super.on(event, listener);
     return this;
   }
 
-  once<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
+  once<
+    U extends keyof WorkerListener<
+      DataType,
+      ResultType,
+      NameType,
+      ProgressType
+    >,
+  >(
     event: U,
-    listener: WorkerListener<DataType, ResultType, NameType>[U],
+    listener: WorkerListener<DataType, ResultType, NameType, ProgressType>[U],
   ): this {
     super.once(event, listener);
     return this;
   }
 
   protected callProcessJob(
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<DataType, ResultType, NameType, ProgressType>,
     token: string,
     signal?: AbortSignal,
   ): Promise<ResultType> {
@@ -443,11 +491,12 @@ export class Worker<
   protected createJob(
     data: JobJson,
     jobId: string,
-  ): Job<DataType, ResultType, NameType> {
+  ): Job<DataType, ResultType, NameType, ProgressType> {
     return this.Job.fromJSON(this as MinimalQueue, data, jobId) as Job<
       DataType,
       ResultType,
-      NameType
+      NameType,
+      ProgressType
     >;
   }
 
@@ -567,7 +616,8 @@ export class Worker<
     const asyncFifoQueue = new AsyncFifoQueue<void | Job<
       DataType,
       ResultType,
-      NameType
+      NameType,
+      ProgressType
     >>();
 
     let tokenPostfix = 0;
@@ -589,7 +639,8 @@ export class Worker<
         const fetchedJob = this.retryIfFailed<void | Job<
           DataType,
           ResultType,
-          NameType
+          NameType,
+          ProgressType
         >>(() => this._getNextJob(token, { block: true }), {
           delayInMs: this.opts.runRetryDelay,
           onlyEmitError: true,
@@ -619,7 +670,7 @@ export class Worker<
 
       // Since there can be undefined jobs in the queue (when a job fails or queue is empty)
       // we iterate until we find a job.
-      let job: Job<DataType, ResultType, NameType> | void;
+      let job: Job<DataType, ResultType, NameType, ProgressType> | void;
       do {
         job = await asyncFifoQueue.fetch();
       } while (!job && asyncFifoQueue.numQueued() > 0);
@@ -628,7 +679,7 @@ export class Worker<
         const token = job.token;
         asyncFifoQueue.add(
           this.processJob(
-            <Job<DataType, ResultType, NameType>>job,
+            <Job<DataType, ResultType, NameType, ProgressType>>job,
             token,
             () => asyncFifoQueue.numTotal() <= this._concurrency,
           ),
@@ -647,7 +698,9 @@ export class Worker<
   async getNextJob(token: string, { block = true }: GetNextJobOptions = {}) {
     const nextJob = await this._getNextJob(token, { block });
 
-    return this.trace<Job<DataType, ResultType, NameType> | undefined>(
+    return this.trace<
+      Job<DataType, ResultType, NameType, ProgressType> | undefined
+    >(
       SpanKind.INTERNAL,
       'getNextJob',
       this.name,
@@ -669,7 +722,7 @@ export class Worker<
   private async _getNextJob(
     token: string,
     { block = true }: GetNextJobOptions = {},
-  ): Promise<Job<DataType, ResultType, NameType> | undefined> {
+  ): Promise<Job<DataType, ResultType, NameType, ProgressType> | undefined> {
     if (this.paused) {
       return;
     }
@@ -678,7 +731,7 @@ export class Worker<
       return;
     }
 
-    let job: Job<DataType, ResultType, NameType> | undefined;
+    let job: Job<DataType, ResultType, NameType, ProgressType> | undefined;
     if (this.drained && block && !this.limitUntil && !this.waiting) {
       this.waiting = this.waitForJob(this.blockUntil);
       try {
@@ -724,6 +777,10 @@ export class Worker<
     return this.backend.minimumBlockTimeout;
   }
 
+  get maximumBlockTimeout(): number {
+    return this.backend.maximumBlockTimeout ?? defaultMaximumBlockTimeout;
+  }
+
   private isRateLimited(): boolean {
     return this.limitUntil > Date.now();
   }
@@ -731,7 +788,7 @@ export class Worker<
   protected async moveToActive(
     token: string,
     name?: string,
-  ): Promise<Job<DataType, ResultType, NameType>> {
+  ): Promise<Job<DataType, ResultType, NameType, ProgressType>> {
     const [jobData, id, rateLimitDelay, delayUntil] =
       await this.backend.moveToActive(token, name);
     this.updateDelays(rateLimitDelay, delayUntil);
@@ -803,10 +860,13 @@ export class Worker<
       } else if (blockDelay < this.minimumBlockTimeout * 1000) {
         return this.minimumBlockTimeout;
       } else {
-        // We restrict the maximum block timeout to 10 second to avoid
-        // blocking the connection for too long in the case of reconnections
-        // reference: https://github.com/taskforcesh/bullmq/issues/1658
-        return Math.min(blockDelay / 1000, maximumBlockTimeout);
+        // We restrict the maximum block timeout to avoid blocking the
+        // connection for too long in the case of reconnections. The ceiling is
+        // backend-specific: Redis caps it at 10s (a `BZPOPMIN` blocked longer
+        // risks issues on reconnection, see #1658), whereas a backend that
+        // keeps the connection open and re-arms to the next due job can allow a
+        // much larger value so an idle worker stops re-polling.
+        return Math.min(blockDelay / 1000, this.maximumBlockTimeout);
       }
     } else {
       return Math.max(opts.drainDelay, this.minimumBlockTimeout);
@@ -844,7 +904,7 @@ export class Worker<
     jobData?: JobJson,
     jobId?: string,
     token?: string,
-  ): Promise<Job<DataType, ResultType, NameType>> {
+  ): Promise<Job<DataType, ResultType, NameType, ProgressType>> {
     if (!jobData) {
       if (!this.drained) {
         this.emit('drained');
@@ -922,13 +982,13 @@ export class Worker<
   }
 
   async processJob(
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<DataType, ResultType, NameType, ProgressType>,
     token: string,
     fetchNextCallback = () => true,
-  ): Promise<void | Job<DataType, ResultType, NameType>> {
+  ): Promise<void | Job<DataType, ResultType, NameType, ProgressType>> {
     const srcPropagationMetadata = job.opts?.telemetry?.metadata;
 
-    return this.trace<void | Job<DataType, ResultType, NameType>>(
+    return this.trace<void | Job<DataType, ResultType, NameType, ProgressType>>(
       SpanKind.CONSUMER,
       'process',
       this.name,
@@ -954,7 +1014,8 @@ export class Worker<
             const failed = await this.retryIfFailed<void | Job<
               DataType,
               ResultType,
-              NameType
+              NameType,
+              ProgressType
             >>(
               () => {
                 this.lockManager.untrackJob(job.id);
@@ -981,7 +1042,8 @@ export class Worker<
           return await this.retryIfFailed<void | Job<
             DataType,
             ResultType,
-            NameType
+            NameType,
+            ProgressType
           >>(
             () => {
               this.lockManager.untrackJob(job.id);
@@ -999,7 +1061,8 @@ export class Worker<
           const failed = await this.retryIfFailed<void | Job<
             DataType,
             ResultType,
-            NameType
+            NameType,
+            ProgressType
           >>(
             () => {
               this.lockManager.untrackJob(job.id);
@@ -1030,7 +1093,7 @@ export class Worker<
   }
 
   private getUnrecoverableErrorMessage(
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<DataType, ResultType, NameType, ProgressType>,
   ) {
     if (job.deferredFailure) {
       return job.deferredFailure;
@@ -1045,7 +1108,7 @@ export class Worker<
 
   protected async handleCompleted(
     result: ResultType,
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<DataType, ResultType, NameType, ProgressType>,
     token: string,
     fetchNextCallback = () => true,
     span?: Span,
@@ -1077,7 +1140,7 @@ export class Worker<
 
   protected async handleFailed(
     err: Error,
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<DataType, ResultType, NameType, ProgressType>,
     token: string,
     fetchNextCallback = () => true,
     span?: Span,
@@ -1413,7 +1476,7 @@ export class Worker<
   }
 
   private moveLimitedBackToWait(
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<DataType, ResultType, NameType, ProgressType>,
     token: string,
   ) {
     return job.moveToWait(token);

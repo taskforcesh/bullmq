@@ -1,3 +1,39 @@
+## [1.2.9](https://github.com/taskforcesh/bullmq/compare/vrs1.2.8...vrs1.2.9) (2026-09-10)
+
+
+### Bug Fixes
+
+* **deps:** update crate uuid to v1.26.1 [rust] ([#4712](https://github.com/taskforcesh/bullmq/issues/4712)) ([201747a](https://github.com/taskforcesh/bullmq/commit/201747a6e32a31a1ec83e6821f862e16442ac886))
+* **deps:** update rust crate redis to v1.7.0 [rust] ([#4690](https://github.com/taskforcesh/bullmq/issues/4690)) ([8bc6d02](https://github.com/taskforcesh/bullmq/commit/8bc6d02f857cde517204dcc289998902717f8ea9))
+
+## [1.2.8](https://github.com/taskforcesh/bullmq/compare/vrs1.2.7...vrs1.2.8) (2026-08-30)
+
+
+### Bug Fixes
+
+* **deps:** upgrade msgpackr to 2.1.0 and uuid to 1.26.0 (rust) ([#4621](https://github.com/taskforcesh/bullmq/issues/4621)) ([74987e9](https://github.com/taskforcesh/bullmq/commit/74987e914f22e7647662406861e2ad3101b883d4))
+
+## [1.2.7](https://github.com/taskforcesh/bullmq/compare/vrs1.2.6...vrs1.2.7) (2026-08-25)
+
+
+### Performance Improvements
+
+* **queue:** do not affect rate limit when processing deferred failures (python) (elixir) (rust) (dotnet) ([#4607](https://github.com/taskforcesh/bullmq/issues/4607)) ([ec4be04](https://github.com/taskforcesh/bullmq/commit/ec4be04c04725f5e341920ddef98adf7874a41d5))
+
+## [1.2.6](https://github.com/taskforcesh/bullmq/compare/vrs1.2.5...vrs1.2.6) (2026-08-23)
+
+
+### Bug Fixes
+
+* **deps:** update rust crate uuid to v1.25.0 [rust] ([#4610](https://github.com/taskforcesh/bullmq/issues/4610)) ([b875ca8](https://github.com/taskforcesh/bullmq/commit/b875ca8b36be10774253be0767b76cdf56f97e71))
+
+## [1.2.5](https://github.com/taskforcesh/bullmq/compare/vrs1.2.4...vrs1.2.5) (2026-08-15)
+
+
+### Performance Improvements
+
+* check script existence before loading [rust] [elixir] ([#4563](https://github.com/taskforcesh/bullmq/issues/4563)) ([6df4589](https://github.com/taskforcesh/bullmq/commit/6df4589805aca2144eed9a9f24d4a9f52dcbbb7b))
+
 ## [1.2.4](https://github.com/taskforcesh/bullmq/compare/vrs1.2.3...vrs1.2.4) (2026-08-13)
 
 

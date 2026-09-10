@@ -19,6 +19,11 @@ class TestImports(unittest.TestCase):
         from bullmq import WaitingChildrenError
         self.assertIs(WaitingChildrenError, bullmq.custom_errors.WaitingChildrenError)
 
+    def test_delayed_error_importable_from_package_root(self):
+        """Ensure DelayedError can be imported directly from bullmq."""
+        from bullmq import DelayedError
+        self.assertIs(DelayedError, bullmq.custom_errors.DelayedError)
+
 
 if __name__ == '__main__':
     unittest.main()

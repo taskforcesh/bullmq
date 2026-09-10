@@ -52,7 +52,7 @@ pub mod queue_events;
 /// Redis connection handling.
 pub mod redis_connection;
 /// Lua script registry and execution.
-pub mod scripts;
+mod scripts;
 /// Shared types: job state, progress, backoff strategies.
 pub mod types;
 /// Worker implementation for processing jobs...

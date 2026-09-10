@@ -74,6 +74,17 @@ class Backend(ABC):
         """Smallest meaningful blocking timeout (in seconds) for the blocking primitive."""
 
     @property
+    def maximumBlockTimeout(self) -> float:
+        """Largest meaningful blocking timeout (in seconds) for the blocking primitive.
+
+        Defaults to the Redis-derived ceiling (10s). Backends whose blocking
+        primitive keeps the connection open and re-arms to the next due job
+        (e.g. PostgreSQL ``LISTEN``/``NOTIFY``) can override this with a much
+        larger value so an idle worker stops re-polling.
+        """
+        return 10
+
+    @property
     @abstractmethod
     def capabilities(self) -> dict:
         """Datastore capability flags (e.g. ``canBlockFor1Ms``, ``canDoubleTimeout``)."""

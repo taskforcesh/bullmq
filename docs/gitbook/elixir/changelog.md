@@ -1,3 +1,45 @@
+## [2.2.2](https://github.com/taskforcesh/bullmq/compare/vex2.2.1...vex2.2.2) (2026-08-27)
+
+
+### Bug Fixes
+
+* **worker:** coerce worker name to string before backend calls [elixir] ([#4643](https://github.com/taskforcesh/bullmq/issues/4643)) ([61a7cc5](https://github.com/taskforcesh/bullmq/commit/61a7cc570a14c1164a74ca5fbf93547595f69820))
+
+## [2.2.1](https://github.com/taskforcesh/bullmq/compare/vex2.2.0...vex2.2.1) (2026-08-27)
+
+
+### Bug Fixes
+
+* **postgres:** resolve priv SQL dir at runtime for Mix releases ([#4636](https://github.com/taskforcesh/bullmq/issues/4636)) ([9d737e9](https://github.com/taskforcesh/bullmq/commit/9d737e9d0e467eeacf6f6a43f3f806fa2873ee1b))
+
+# [2.2.0](https://github.com/taskforcesh/bullmq/compare/vex2.1.3...vex2.2.0) (2026-08-26)
+
+
+### Features
+
+* **postgres:** forward :ssl option to Postgrex connection ([#4631](https://github.com/taskforcesh/bullmq/issues/4631)) (elixir) ([bb569b8](https://github.com/taskforcesh/bullmq/commit/bb569b824154028c4d76aba86c0cfb0986928f3d))
+
+## [2.1.3](https://github.com/taskforcesh/bullmq/compare/vex2.1.2...vex2.1.3) (2026-08-25)
+
+
+### Performance Improvements
+
+* **queue:** do not affect rate limit when processing deferred failures (python) (elixir) (rust) (dotnet) ([#4607](https://github.com/taskforcesh/bullmq/issues/4607)) ([ec4be04](https://github.com/taskforcesh/bullmq/commit/ec4be04c04725f5e341920ddef98adf7874a41d5))
+
+## [2.1.2](https://github.com/taskforcesh/bullmq/compare/vex2.1.1...vex2.1.2) (2026-08-15)
+
+
+### Bug Fixes
+
+* **queue-events:** ignore late queue event task replies during close ([#4572](https://github.com/taskforcesh/bullmq/issues/4572)) [elixir] ([d464a51](https://github.com/taskforcesh/bullmq/commit/d464a51781177cc7ec23b011355f1df54385dab0))
+
+## [2.1.1](https://github.com/taskforcesh/bullmq/compare/vex2.1.0...vex2.1.1) (2026-08-15)
+
+
+### Performance Improvements
+
+* check script existence before loading [rust] [elixir] ([#4563](https://github.com/taskforcesh/bullmq/issues/4563)) ([6df4589](https://github.com/taskforcesh/bullmq/commit/6df4589805aca2144eed9a9f24d4a9f52dcbbb7b))
+
 # [2.1.0](https://github.com/taskforcesh/bullmq/compare/vex2.0.3...vex2.1.0) (2026-08-12)
 
 

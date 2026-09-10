@@ -1,6 +1,6 @@
 {
   "name": "bullmq",
-  "version": "6.1.0",
+  "version": "6.3.4",
   "description": "Queue for messages and jobs based on Redis",
   "homepage": "https://bullmq.io/",
   "main": "./dist/cjs/index.js",
@@ -81,8 +81,8 @@
     "tsc:all": "tsc && tsc -p tsconfig-cjs.json"
   },
   "dependencies": {
-    "cron-parser": "5.8.1",
-    "msgpackr": "2.0.5",
+    "cron-parser": "5.10.0",
+    "msgpackr": "2.1.0",
     "node-abort-controller": "3.1.1",
     "semver": "7.8.5",
     "tslib": "2.8.1"
@@ -108,9 +108,9 @@
     }
   },
   "devDependencies": {
-    "@commitlint/cli": "21.2.1",
-    "@commitlint/config-conventional": "21.2.0",
-    "@eslint/eslintrc": "3.3.6",
+    "@commitlint/cli": "21.2.2",
+    "@commitlint/config-conventional": "21.2.2",
+    "@eslint/eslintrc": "3.3.7",
     "@eslint/js": "10.0.1",
     "@semantic-release/changelog": "7.0.0",
     "@semantic-release/commit-analyzer": "13.0.1",
@@ -123,24 +123,24 @@
     "@types/lodash.isarguments": "3.1.9",
     "@types/msgpack": "0.0.34",
     "@types/node": "24.13.3",
-    "@types/pg": "8.21.0",
+    "@types/pg": "8.23.1",
     "@types/semver": "7.8.0",
     "@types/sinon": "22.0.0",
-    "@typescript-eslint/eslint-plugin": "8.67.0",
-    "@typescript-eslint/parser": "8.67.0",
-    "@vitest/coverage-v8": "4.1.10",
+    "@typescript-eslint/eslint-plugin": "8.70.0",
+    "@typescript-eslint/parser": "8.70.0",
+    "@vitest/coverage-v8": "4.1.11",
     "coveralls-next": "6.0.2",
-    "cpx2": "9.0.0",
-    "eslint": "10.8.1",
+    "cpx2": "9.0.3",
+    "eslint": "10.10.0",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-prettier": "5.5.6",
     "eslint-plugin-promise": "7.3.0",
     "eslint-plugin-tsdoc": "0.5.2",
     "fast-glob": "3.3.3",
-    "globals": "17.11.0",
+    "globals": "17.12.0",
     "husky": "9.1.7",
     "ioredis": "5.11.1",
-    "lint-staged": "17.3.0",
+    "lint-staged": "17.5.0",
     "madge": "8.0.0",
     "minimatch": "10.2.6",
     "moment": "2.30.1",
@@ -157,8 +157,8 @@
     "ts-node": "10.9.2",
     "typedoc": "0.28.20",
     "typescript": "5.9.3",
-    "vitepress": "2.0.0-alpha.19",
-    "vitest": "4.1.10"
+    "vitepress": "2.0.0-alpha.20",
+    "vitest": "4.1.11"
   },
   "commitlint": {
     "extends": [
@@ -239,7 +239,6 @@
   "packageManager": "yarn@1.22.22",
   "resolutions": {
     "brace-expansion": "5.0.9",
-    "esbuild": "~0.25.0",
     "js-yaml": "5.2.3",
     "picomatch": "4.0.5",
     "tar": "7.5.22",

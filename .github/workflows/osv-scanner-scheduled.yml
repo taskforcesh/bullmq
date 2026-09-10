@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   scan-scheduled:
-    uses: 'google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.5.0'
+    uses: 'google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.5.1'
     with:
       # fail the build only on the scheduled full scan, not on every push to master
       fail-on-vuln: ${{ github.event_name == 'schedule' }}

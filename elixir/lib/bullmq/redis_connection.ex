@@ -58,15 +58,10 @@ defmodule BullMQ.RedisConnection do
 
   ## Lua Script Loading
 
-  BullMQ uses Lua scripts for atomic Redis operations. All scripts are
-  automatically loaded into Redis's script cache when the connection starts.
-  This ensures the connection is fully ready for BullMQ operations (Worker,
-  Queue, QueueEvents, etc.) before it's used.
-
-  Unlike Node.js BullMQ which uses ioredis's `defineCommand` to register scripts
-  on the client, the Elixir version loads scripts via `SCRIPT LOAD` during
-  initialization and uses `EVALSHA` for execution with automatic `EVAL` fallback
-  on `NOSCRIPT` errors (in case Redis was restarted and lost its script cache).
+  BullMQ uses Lua scripts for atomic Redis operations. Scripts execute with
+  `EVALSHA` and lazily fall back to `EVAL` on `NOSCRIPT`, matching the Node.js
+  ports. For pipelined or transactional paths where that fallback is not
+  available, BullMQ loads only the specific scripts needed just before use.
 
   ## Options
 
@@ -87,7 +82,6 @@ defmodule BullMQ.RedisConnection do
   require Logger
 
   alias BullMQ.RedisConnection.Pool
-  alias BullMQ.Scripts
 
   @default_pool_size 10
   @default_timeout 5000
@@ -112,10 +106,8 @@ defmodule BullMQ.RedisConnection do
 
     case Supervisor.start_link(__MODULE__, opts, name: Pool.supervisor_name(name)) do
       {:ok, pid} ->
-        # Check Redis version before loading scripts
+        # Check Redis version before the connection is used
         check_redis_version!(name)
-        # Load scripts synchronously - connection isn't ready until scripts are loaded
-        load_scripts(name)
         {:ok, pid}
 
       error ->
@@ -225,40 +217,6 @@ defmodule BullMQ.RedisConnection do
       min1 > min2 -> false
       patch1 < patch2 -> true
       true -> false
-    end
-  end
-
-  # Loads all BullMQ Lua scripts into Redis script cache.
-  # Called once during initialization - scripts are cached server-side in Redis,
-  # so all pool connections can use EVALSHA to execute them efficiently.
-  defp load_scripts(conn) do
-    scripts = Scripts.list_scripts()
-
-    # Use pipeline for efficiency - load all scripts in one round trip
-    commands =
-      Enum.map(scripts, fn script_name ->
-        case Scripts.get(script_name) do
-          {content, _key_count} -> ["SCRIPT", "LOAD", content]
-          nil -> nil
-        end
-      end)
-      |> Enum.reject(&is_nil/1)
-
-    case pipeline(conn, commands) do
-      {:ok, _shas} ->
-        Logger.debug(
-          "BullMQ: Loaded #{length(commands)} Lua scripts into Redis cache for #{inspect(conn)}"
-        )
-
-        :ok
-
-      {:error, reason} ->
-        Logger.warning(
-          "BullMQ: Failed to pre-load scripts for #{inspect(conn)}: #{inspect(reason)}. " <>
-            "Scripts will be loaded on first use via EVAL fallback."
-        )
-
-        :ok
     end
   end
 

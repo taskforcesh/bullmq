@@ -1,7 +1,7 @@
 defmodule BullMQ.MixProject do
   use Mix.Project
 
-  @version "2.1.0"
+  @version "2.2.2"
   @source_url "https://github.com/taskforcesh/bullmq"
   @description "A powerful, fast, and robust job queue for Elixir backed by Redis"
 
@@ -65,7 +65,7 @@ defmodule BullMQ.MixProject do
   defp deps do
     [
       # Redis client
-      {:redix, "== 1.6.0"},
+      {:redix, "== 1.9.0"},
 
       # PostgreSQL client (optional backend)
       {:postgrex, "== 0.22.4", optional: true},
@@ -95,11 +95,11 @@ defmodule BullMQ.MixProject do
       {:opentelemetry_api, "== 1.5.0", optional: true},
 
       # Development and test dependencies
-      {:dialyxir, "== 1.4.7", only: [:dev, :test], runtime: false},
-      {:ex_doc, "== 0.40.3", only: :dev, runtime: false},
+      {:dialyxir, "== 1.4.8", only: [:dev, :test], runtime: false},
+      {:ex_doc, "== 0.40.4", only: :dev, runtime: false},
       {:credo, "== 1.7.19", only: [:dev, :test], runtime: false},
       {:excoveralls, "== 0.18.5", only: :test},
-      {:mox, "== 1.2.0", only: :test},
+      {:mox, "== 1.3.1", only: :test},
       {:stream_data, "== 1.4.0", only: [:dev, :test]}
     ]
   end
