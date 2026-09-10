@@ -540,6 +540,29 @@ defmodule BullMQ.Backends.Redis do
     RedisConnection.command(conn, ["EVAL", script, key_count | keys ++ args])
   end
 
+  @impl true
+  @deprecated "Use add_job_scheduler/4 instead"
+  def add_job_scheduler(
+        %__MODULE__{} = b,
+        scheduler_id,
+        next_millis,
+        scheduler_opts,
+        template_data,
+        template_opts,
+        delayed_opts,
+        now,
+        producer_id \\ nil
+      ) do
+    add_job_scheduler(b, scheduler_id, next_millis,
+      scheduler_opts: scheduler_opts,
+      template_data: template_data,
+      template_opts: template_opts,
+      delayed_opts: delayed_opts,
+      now: now,
+      producer_id: producer_id
+    )
+  end
+
   # ============================================================
   # Queue / job queries
   # ============================================================
@@ -584,11 +607,13 @@ defmodule BullMQ.Backends.Redis do
     end
   end
 
-  @deprecated "Use maxed?/2 instead"
+  @impl true
+  @deprecated "Use maxed?/1 instead"
   def is_maxed(%__MODULE__{connection: conn, context: ctx}) do
     case Scripts.maxed?(conn, ctx) do
       {:ok, res} when res in [1, true, "1"] -> {:ok, true}
-      _ -> {:error, false}
+      {:ok, _} -> {:ok, false}
+      {:error, _} = error -> error
     end
   end
 
