@@ -239,7 +239,6 @@
   "packageManager": "yarn@1.22.22",
   "resolutions": {
     "brace-expansion": "5.0.9",
-    "esbuild": "~0.25.0",
     "js-yaml": "5.2.3",
     "picomatch": "4.0.5",
     "tar": "7.5.22",
