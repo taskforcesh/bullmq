@@ -139,6 +139,19 @@ defmodule BullMQ.Backend do
               opts :: map() | keyword()
             ) :: {:ok, term()} | {:error, term()}
 
+  @doc false
+  @callback add_job_scheduler(
+              t,
+              scheduler_id :: String.t(),
+              next_millis :: integer(),
+              scheduler_opts :: map(),
+              template_data :: String.t(),
+              template_opts :: map(),
+              delayed_opts :: map(),
+              now :: integer(),
+              producer_id :: String.t() | nil
+            ) :: {:ok, term()} | {:error, term()}
+
   # ============================================================
   # Job state transitions
   # ============================================================
@@ -347,6 +360,9 @@ defmodule BullMQ.Backend do
   @doc "Returns whether the queue has reached its concurrency limit."
   @callback maxed?(t) :: boolean()
 
+  @doc false
+  @callback is_maxed(t) :: {:ok, boolean()} | {:error, term()}
+
   @doc "Returns the ttl (ms) of the current rate-limit window."
   @callback get_rate_limit_ttl(t, opts :: keyword()) :: {:ok, term()} | {:error, term()}
 
@@ -446,6 +462,7 @@ defmodule BullMQ.Backend do
     build_add_standard_command: 3,
     build_add_parent_command: 3,
     add_job_scheduler: 4,
+    add_job_scheduler: 9,
     update_job_scheduler: 6,
     remove_job_scheduler: 2,
     get_job_scheduler: 2,
@@ -454,6 +471,7 @@ defmodule BullMQ.Backend do
     get_workers: 2,
     check_stalled_jobs: 2,
     has_job_lock?: 2,
+    is_maxed: 1,
     read_events: 3,
     publish_event: 3,
     wait_for_job: 2,
@@ -547,8 +565,69 @@ defmodule BullMQ.Backend do
           map() | keyword()
         ) ::
           {:ok, term()} | {:error, term()}
-  def add_job_scheduler(b, scheduler_id, next_millis, opts) do
-    dispatch(b, :add_job_scheduler, [scheduler_id, next_millis, opts])
+  def add_job_scheduler(%mod{} = b, scheduler_id, next_millis, opts) do
+    if function_exported?(mod, :add_job_scheduler, 4) do
+      dispatch(b, :add_job_scheduler, [scheduler_id, next_millis, opts])
+    else
+      opts_map = Map.new(opts)
+
+      dispatch(b, :add_job_scheduler, [
+        scheduler_id,
+        next_millis,
+        Map.fetch!(opts_map, :scheduler_opts),
+        Map.fetch!(opts_map, :template_data),
+        Map.fetch!(opts_map, :template_opts),
+        Map.fetch!(opts_map, :delayed_opts),
+        Map.fetch!(opts_map, :now),
+        Map.get(opts_map, :producer_id)
+      ])
+    end
+  end
+
+  @deprecated "Use add_job_scheduler/4 instead"
+  @spec add_job_scheduler(
+          t,
+          String.t(),
+          integer(),
+          map(),
+          String.t(),
+          map(),
+          map(),
+          integer(),
+          String.t() | nil
+        ) :: {:ok, term()} | {:error, term()}
+  def add_job_scheduler(
+        %mod{} = b,
+        scheduler_id,
+        next_millis,
+        scheduler_opts,
+        template_data,
+        template_opts,
+        delayed_opts,
+        now,
+        producer_id \\ nil
+      ) do
+    if function_exported?(mod, :add_job_scheduler, 9) do
+      dispatch(b, :add_job_scheduler, [
+        scheduler_id,
+        next_millis,
+        scheduler_opts,
+        template_data,
+        template_opts,
+        delayed_opts,
+        now,
+        producer_id
+      ])
+    else
+      add_job_scheduler(b, scheduler_id, next_millis,
+        scheduler_opts: scheduler_opts,
+        template_data: template_data,
+        template_opts: template_opts,
+        delayed_opts: delayed_opts,
+        now: now,
+        producer_id: producer_id
+      )
+    end
   end
 
   # -- State transitions --
@@ -706,7 +785,26 @@ defmodule BullMQ.Backend do
     do: dispatch(b, :get_job_logs, [job_id, start, stop, asc])
 
   @spec maxed?(t) :: boolean()
-  def maxed?(b), do: dispatch(b, :maxed?, [])
+  def maxed?(%mod{} = b) do
+    if function_exported?(mod, :maxed?, 1) do
+      dispatch(b, :maxed?, [])
+    else
+      case dispatch(b, :is_maxed, []) do
+        {:ok, maxed} -> maxed == true
+        _ -> false
+      end
+    end
+  end
+
+  @deprecated "Use maxed?/1 instead"
+  @spec is_maxed(t) :: {:ok, boolean()} | {:error, term()}
+  def is_maxed(%mod{} = b) do
+    if function_exported?(mod, :is_maxed, 1) do
+      dispatch(b, :is_maxed, [])
+    else
+      {:ok, maxed?(b)}
+    end
+  end
 
   @spec get_processed_children_values(t, job_id) :: {:ok, [String.t()]} | {:error, term()}
   def get_processed_children_values(b, job_id),
