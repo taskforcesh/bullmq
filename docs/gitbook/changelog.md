@@ -1,3 +1,10 @@
+## [5.81.5](https://github.com/taskforcesh/bullmq/compare/v5.81.4...v5.81.5) (2026-09-10)
+
+
+### Bug Fixes
+
+* **worker:** backport blocking client recovery to v5.x ([#4722](https://github.com/taskforcesh/bullmq/issues/4722)) ([9767238](https://github.com/taskforcesh/bullmq/commit/9767238add02cfa383673ded41e717985dd05825))
+
 ## [5.81.4](https://github.com/taskforcesh/bullmq/compare/v5.81.3...v5.81.4) (2026-08-27)
 
 
