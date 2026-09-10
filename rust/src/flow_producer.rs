@@ -12,6 +12,7 @@ use crate::error::Error;
 use crate::job::{Job, ScriptContext};
 use crate::keys::{resolve_parent_queue_key, validate_queue_name, QueueKeys};
 use crate::options::JobOptions;
+use crate::paginate::{paginate_item_key, parse_paginate_reply};
 use crate::queue::Queue;
 use crate::redis_connection::RedisConnection;
 use crate::types::ParentKeys;
@@ -583,58 +584,15 @@ impl FlowProducer {
     /// `(cursor, offset, item_keys)`. For hashes each item is a `[field, value]`
     /// pair; only the field (child key) is kept.
     fn parse_paginate_result(value: &redis::Value) -> Result<(String, i64, Vec<String>), Error> {
-        let arr = match value {
-            redis::Value::Array(a) => a,
-            _ => {
-                return Err(Error::MsgPack(
-                    "unexpected paginate reply: not an array".to_string(),
-                ))
-            }
-        };
-
-        let cursor = arr
-            .first()
-            .and_then(Self::value_to_string)
-            .unwrap_or_else(|| "0".to_string());
-        let offset = arr.get(1).and_then(Self::value_as_i64).unwrap_or(0);
-
+        let (cursor, offset, items, _total, _jobs) = parse_paginate_reply(value)?;
         let mut keys = Vec::new();
-        if let Some(redis::Value::Array(items)) = arr.get(2) {
-            for item in items {
-                if let Some(k) = Self::paginate_item_key(item) {
-                    keys.push(k);
-                }
+        for item in &items {
+            if let Some(k) = paginate_item_key(item) {
+                keys.push(k);
             }
         }
 
         Ok((cursor, offset, keys))
-    }
-
-    /// Extract the key from a paginate item: a bare member (set) or the field of
-    /// a `[field, value]` pair (hash).
-    fn paginate_item_key(item: &redis::Value) -> Option<String> {
-        match item {
-            redis::Value::Array(pair) => pair.first().and_then(Self::value_to_string),
-            other => Self::value_to_string(other),
-        }
-    }
-
-    fn value_to_string(value: &redis::Value) -> Option<String> {
-        match value {
-            redis::Value::BulkString(b) => Some(String::from_utf8_lossy(b).to_string()),
-            redis::Value::SimpleString(s) => Some(s.clone()),
-            redis::Value::Int(n) => Some(n.to_string()),
-            _ => None,
-        }
-    }
-
-    fn value_as_i64(value: &redis::Value) -> Option<i64> {
-        match value {
-            redis::Value::Int(n) => Some(*n),
-            redis::Value::BulkString(b) => String::from_utf8_lossy(b).parse().ok(),
-            redis::Value::SimpleString(s) => s.parse().ok(),
-            _ => None,
-        }
     }
 
     /// Recursively add a node (job) to the pipeline.
