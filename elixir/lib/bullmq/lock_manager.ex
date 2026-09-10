@@ -97,6 +97,10 @@ defmodule BullMQ.LockManager do
     GenServer.call(manager, {:is_tracked, job_id})
   end
 
+  @deprecated "Use tracked?/2 instead"
+  @spec is_tracked?(pid(), String.t()) :: boolean()
+  def is_tracked?(manager, job_id), do: tracked?(manager, job_id)
+
   @doc """
   Stops the lock manager.
   """
