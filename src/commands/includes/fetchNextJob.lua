@@ -10,7 +10,6 @@
     eventStreamKey - event stream key
     rateLimiterKey - rate limiter key
     delayedKey - delayed sorted set key
-    pausedKey - paused list key
     metaKey - meta hash key
     pcKey - priority counter key
     markerKey - marker key
@@ -31,7 +30,7 @@
 --- @include "promoteDelayedJobs"
 
 local function fetchNextJob(waitKey, activeKey, prioritizedKey, eventStreamKey,
-    rateLimiterKey, delayedKey, pausedKey, metaKey, pcKey, markerKey, prefix,
+    rateLimiterKey, delayedKey, metaKey, pcKey, markerKey, prefix,
     timestamp, opts)
 
     local isPausedOrMaxed, rateLimitMax, rateLimitDuration =
