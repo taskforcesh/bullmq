@@ -373,9 +373,7 @@ defmodule BullMQ.JobTest do
 
     test "respects jitter upper bound" do
       job =
-        Job.new("queue", "task", %{},
-          backoff: %{type: :fixed, delay: 1000, jitter: 0.5}
-        )
+        Job.new("queue", "task", %{}, backoff: %{type: :fixed, delay: 1000, jitter: 0.5})
 
       delays = for _ <- 1..50, do: Job.calculate_backoff(job)
       assert Enum.min(delays) >= 500
