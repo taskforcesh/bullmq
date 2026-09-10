@@ -10,13 +10,9 @@
  * To test a different adapter, change the `createTestClient()` factory below.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { createClient, type RedisClientType } from 'redis';
-import { createNodeRedisClient } from '../src/classes/node-redis-client';
-import {
-  IRedisClient,
-  IRedisTransaction,
-} from '../src/interfaces/redis-client';
-import { randomUUID } from '../src/utils';
+import { createClient } from 'redis';
+import { createNodeRedisClient } from '../src/classes';
+import { IRedisClient } from '../src/interfaces';
 import { Readable } from 'stream';
 
 // ---------------------------------------------------------------------------

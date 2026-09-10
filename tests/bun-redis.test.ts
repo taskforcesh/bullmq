@@ -15,14 +15,14 @@ import {
 } from 'bun:test';
 import { RedisClient } from 'bun';
 import {
+  createBunRedisClient,
   FlowProducer,
   Job,
   Queue,
   RedisConnection,
   Worker,
 } from '../src/classes';
-import { createBunRedisClient } from '../src/classes/bun-redis-client';
-import { IRedisClient } from '../src/interfaces/redis-client';
+import { IRedisClient } from '../src/interfaces';
 import { randomUUID } from '../src/utils';
 
 const redisHost = process.env.REDIS_HOST || 'localhost';
