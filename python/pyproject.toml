@@ -29,7 +29,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pre-commit==4.6.2",
-    "build==1.6.0",
+    "build==1.6.1",
     "types-redis==4.6.0.20241004",
     "pipenv==2026.8.0",
     "virtualenv==21.7.9",
