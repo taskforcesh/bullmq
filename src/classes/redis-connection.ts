@@ -695,7 +695,24 @@ export class RedisConnection extends EventEmitter {
   }
 
   async disconnect(wait = true): Promise<void> {
-    const client = await this.client;
+    let client: RedisClient;
+    try {
+      client = await Promise.race([
+        this.client,
+        new Promise<RedisClient>((_, reject) => {
+          const t = setTimeout(
+            () => reject(new Error('BullMQ: timed out waiting for connection to initialize before disconnect')),
+            5000,
+          );
+          t.unref?.();
+        }),
+      ]);
+    } catch {
+      // Connection never became ready (e.g. Redis unreachable). Force-disconnect
+      // the raw client directly instead of waiting on a promise that will never resolve.
+      this._client?.disconnect();
+      return;
+    }
     if (client.status !== 'end') {
       let _resolve, _reject;
 
@@ -715,7 +732,13 @@ export class RedisConnection extends EventEmitter {
       client.disconnect();
 
       try {
-        await disconnecting;
+        await Promise.race([
+          disconnecting,
+          new Promise<void>(resolve => {
+            const t = setTimeout(resolve, 5000);
+            t.unref?.();
+          }),
+        ]);
       } finally {
         decreaseMaxListeners(client, 2);
 
@@ -768,12 +791,25 @@ export class RedisConnection extends EventEmitter {
         if (!this.extraOptions.shared) {
           if (status == 'initializing' || force) {
             // If we have not still connected to Redis, we need to disconnect.
+            // Stop ioredis from scheduling any further reconnect attempts.
+            const ioredisClient = this._client as any;
+            ioredisClient.options.retryStrategy = null;
+            if (ioredisClient.reconnectTimeout) {
+              clearTimeout(ioredisClient.reconnectTimeout);
+              ioredisClient.reconnectTimeout = null;
+            }
             this._client.disconnect();
             // Suppress any rejection from the in-flight init() so it doesn't
             // become an unhandled rejection after we close the connection.
             this.initializing?.catch(() => {});
           } else {
-            await this._client.quit();
+            await Promise.race([
+              this._client.quit(),
+              new Promise<void>(resolve => {
+                const t = setTimeout(resolve, 5000);
+                t.unref?.();
+              }),
+            ]);
           }
           // As IORedis does not update this status properly, we do it ourselves.
           this._client['status'] = 'end';

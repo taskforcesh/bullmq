@@ -1307,12 +1307,24 @@ export class Worker<
 
           // Define the async cleanup functions
           const asyncCleanups = [
-            () => {
-              return force || this.whenCurrentJobsFinished(false);
+            async () => {
+              await Promise.race([
+                force || this.whenCurrentJobsFinished(false),
+                new Promise<void>(resolve => {
+                  const t = setTimeout(resolve, 5000);
+                  t.unref?.();
+                }),
+              ]);
             },
             () => this.lockManager.close(),
             () => this.childPool?.clean(),
-            () => this.backend.close(force),
+            () => Promise.race([
+              this.backend.close(force),
+              new Promise<void>(resolve => {
+                const t = setTimeout(resolve, 5000);
+                t.unref?.();
+              }),
+            ]),
           ];
 
           // Run cleanup functions sequentially and make sure all are run despite any errors

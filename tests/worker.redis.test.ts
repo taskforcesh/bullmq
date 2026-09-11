@@ -1014,4 +1014,42 @@ describe('workers (redis-only)', () => {
       await removeAllQueueData(createTestConnection(), parentQueueName);
     });
   });
+  it('should resolve worker.close() without hanging when Redis is unreachable', async () => {
+    const worker = new Worker('probe', async () => {}, {
+      connection: { host: '127.0.0.1', port: 6399, maxRetriesPerRequest: 0 },
+    });
+
+    await delay(300);
+
+    const result = await Promise.race([
+      worker.close().then(() => 'closed' as const),
+      new Promise<'timeout'>(resolve => {
+        const t = setTimeout(() => resolve('timeout'), 8000);
+        t.unref();
+      }),
+    ]);
+
+    expect(result).toBe('closed');
+  });
+
+
+  it('should resolve worker.close() without hanging when Redis is unreachable', async () => {
+    const worker = new Worker('probe', async () => {}, {
+      connection: { host: '127.0.0.1', port: 6399, maxRetriesPerRequest: 0 },
+    });
+
+    await delay(300);
+
+    const result = await Promise.race([
+      worker.close().then(() => 'closed' as const),
+      new Promise<'timeout'>(resolve => {
+        const t = setTimeout(() => resolve('timeout'), 8000);
+        t.unref();
+      }),
+    ]);
+
+    expect(result).toBe('closed');
+  });
+
+
 });
