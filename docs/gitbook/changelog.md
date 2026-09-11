@@ -1,3 +1,18 @@
+## [6.3.4](https://github.com/taskforcesh/bullmq/compare/v6.3.3...v6.3.4) (2026-09-01)
+
+
+### Bug Fixes
+
+* Nothing changed, triggered by a Rust version release
+
+## [6.3.3](https://github.com/taskforcesh/bullmq/compare/v6.3.2...v6.3.3) (2026-08-31)
+
+
+### Bug Fixes
+
+* **bun:** duplicate() and reconnect target the correct server ([#4591](https://github.com/taskforcesh/bullmq/issues/4591)) ([e9b5679](https://github.com/taskforcesh/bullmq/commit/e9b5679864e428c9791ed18901d3dc50bf401e84))
+* **worker:** keep blocking client alive when parked in reconnecting ([#4586](https://github.com/taskforcesh/bullmq/issues/4586)) ([8fd4850](https://github.com/taskforcesh/bullmq/commit/8fd48506030d83841a0cacf993ff85c7e56ab7de))
+
 ## [6.3.2](https://github.com/taskforcesh/bullmq/compare/v6.3.1...v6.3.2) (2026-08-29)
 
 
@@ -11,7 +26,7 @@
 
 ### Bug Fixes
 
-* **postgres:** resolve priv SQL dir at runtime for Mix releases ([#4636](https://github.com/taskforcesh/bullmq/issues/4636)) ([9d737e9](https://github.com/taskforcesh/bullmq/commit/9d737e9d0e467eeacf6f6a43f3f806fa2873ee1b))
+* Nothing changed, triggered by a elixir version release
 
 # [6.3.0](https://github.com/taskforcesh/bullmq/compare/v6.2.2...v6.3.0) (2026-08-26)
 

@@ -85,6 +85,13 @@ export interface BunRedisRawClient {
 
   connect(): Promise<void>;
   close(): void;
+  // Bun's native `duplicate()` creates a new client to the *same* server with
+  // the same options. It is async (returns a Promise) and is the only reliable
+  // way to clone the connection target, since Bun's RedisClient exposes no
+  // public connection info (no `url`/host/port/options). Optional so exotic
+  // custom raw clients that don't implement it still satisfy the constraint;
+  // the adapter falls back to URL-based reconstruction when it is absent.
+  duplicate?(): Promise<this>;
   send<T = any>(command: string, args: RedisCommandArgument[]): Promise<T>;
   get(key: string): Promise<string | null | undefined>;
   smembers(key: string): Promise<unknown[] | null | undefined>;
@@ -128,11 +135,19 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
   private closing = false;
   private connecting?: Promise<void>;
   private connectionName: string | undefined;
+  // Factory that lazily creates the raw client on first connect. Used by
+  // `duplicate()`, whose IRedisClient contract is synchronous while Bun's
+  // native `duplicate()` (the only way to preserve the connection target) is
+  // async. The duplicate adapter is created immediately with a `rawFactory`
+  // and resolves its raw client when it connects.
+  private rawFactory?: () => Promise<TClient>;
   // Auto-reconnect state
   private reconnecting = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
   private maxReconnectDelay = 20000; // cap at 20s (matches ioredis default)
+  private ready = false;
+  private readying?: Promise<void>;
 
   get status(): string {
     if (this.statusOverride) {
@@ -141,8 +156,13 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     if (this.closed) {
       return 'end';
     }
-    if (this.raw.connected) {
+    // `raw` may not exist yet on a duplicate whose raw client is created
+    // lazily (via `rawFactory`) on first connect.
+    if (this.ready) {
       return 'ready';
+    }
+    if (this.raw?.connected) {
+      return 'connect';
     }
     return this.hasConnected ? 'end' : 'wait';
   }
@@ -166,11 +186,20 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
 
   constructor(
     private raw: TClient,
-    opts?: { lazyConnect?: boolean },
+    opts?: {
+      lazyConnect?: boolean;
+      rawFactory?: () => Promise<TClient>;
+    },
   ) {
     super();
 
-    this._setupCallbacks();
+    this.rawFactory = opts?.rawFactory;
+
+    // When a `rawFactory` is provided the raw client is created lazily on the
+    // first `connect()`; callbacks are wired up there once it exists.
+    if (this.raw) {
+      this._setupCallbacks();
+    }
 
     // ioredis auto-connects by default. Mimic that behavior unless
     // lazyConnect is set.
@@ -190,25 +219,10 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     // event until CLIENT SETNAME completes so callers waiting for 'ready'
     // see the name already applied.
     this.raw.onconnect = () => {
-      this.hasConnected = true;
-      this.closed = false;
-      this.closing = false;
-      this.reconnecting = false;
-      this.reconnectAttempts = 0;
-      this.statusOverride = undefined;
-      // The server-side SCRIPT cache is gone for this (possibly new) raw
-      // connection. Force re-loading on next use.
-      this.loadedScriptShas.clear();
-      if (this.connectionName) {
-        this.clientSetName(this.connectionName).then(
-          () => this.emit('ready'),
-          () => this.emit('ready'), // emit ready even if setName fails
-        );
-      } else {
-        this.emit('ready');
-      }
+      this._handleConnected();
     };
     this.raw.onclose = (error?: Error) => {
+      this.ready = false;
       if (this.closing) {
         // User-initiated close – no reconnect
         this.closed = true;
@@ -227,6 +241,36 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
 
       this._scheduleReconnect();
     };
+  }
+
+  private _handleConnected(): Promise<void> {
+    this.hasConnected = true;
+    this.ready = false;
+    this.closed = false;
+    this.closing = false;
+    this.reconnecting = false;
+    this.reconnectAttempts = 0;
+    this.statusOverride = undefined;
+    // The server-side SCRIPT cache is gone for this (possibly new) raw
+    // connection. Force re-loading on next use.
+    this.loadedScriptShas.clear();
+
+    const markReady = () => {
+      this.ready = true;
+      this.emit('ready');
+    };
+
+    const readying = this.connectionName
+      ? this.clientSetName(this.connectionName).then(markReady, markReady)
+      : (markReady(), Promise.resolve());
+
+    this.readying = readying.finally(() => {
+      if (this.readying === readying) {
+        this.readying = undefined;
+      }
+    });
+
+    return this.readying;
   }
 
   /**
@@ -254,10 +298,16 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
       }
 
       try {
-        // Create a fresh raw client with the same URL
-        const BunRedisClient = this.raw
-          .constructor as BunRedisClientConstructor<TClient>;
-        const newRaw = new BunRedisClient(this.raw.url);
+        // Create a fresh raw client aimed at the *same* server. Bun's native
+        // `duplicate()` preserves the connection target and options; the old
+        // `new BunRedisClient(this.raw.url)` produced a client pointed at Bun's
+        // default target because `url` is always undefined (#4582). If the raw
+        // client was never created (a duplicate reconnecting before its first
+        // connect), fall back to its lazy factory.
+        const newRaw = this.raw
+          ? await this._duplicateRaw(this.raw)
+          : await this.rawFactory!();
+        this.rawFactory = undefined;
 
         // Swap the raw client reference
         this.raw = newRaw;
@@ -284,6 +334,14 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
   // ---------------------------------------------------------------
 
   async connect(): Promise<void> {
+    // A duplicate created with a `rawFactory` builds its raw client lazily on
+    // the first connect (Bun's native `duplicate()` is async).
+    if (!this.raw && this.rawFactory) {
+      this.raw = await this.rawFactory();
+      this.rawFactory = undefined;
+      this._setupCallbacks();
+    }
+
     const replaceRaw =
       this.hasConnected && (this.closed || !this.raw.connected);
 
@@ -298,6 +356,9 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
       this.closed = false;
       this.closing = false;
       this.statusOverride = undefined;
+      if (!this.ready) {
+        await (this.readying ?? this._handleConnected());
+      }
       return;
     }
 
@@ -307,11 +368,10 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
       this.statusOverride = undefined;
 
       // If the raw client was previously closed, Bun doesn't support
-      // reconnecting on the same instance. Create a fresh raw client.
+      // reconnecting on the same instance. Create a fresh raw client aimed at
+      // the same server via Bun's native `duplicate()` (see #4582).
       if (replaceRaw) {
-        const BunRedisClient = this.raw
-          .constructor as BunRedisClientConstructor<TClient>;
-        this.raw = new BunRedisClient(this.raw.url);
+        this.raw = await this._duplicateRaw(this.raw);
         this._setupCallbacks();
       }
 
@@ -329,6 +389,32 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     }
 
     await this.connecting;
+    await this.readying;
+
+    // Bun may report the socket as connected before this adapter transitions
+    // to ready (for example while applying CLIENT SETNAME on duplicates).
+    // Keep connect() aligned with ioredis semantics by waiting until the
+    // adapter is either ready or closed.
+    if (!this.ready && !this.closed && !this.closing && this.raw?.connected) {
+      await new Promise<void>(resolve => {
+        const cleanup = () => {
+          this.off('ready', onDone);
+          this.off('close', onDone);
+          this.off('end', onDone);
+        };
+        const onDone = () => {
+          cleanup();
+          resolve();
+        };
+        this.on('ready', onDone);
+        this.on('close', onDone);
+        this.on('end', onDone);
+
+        if (this.ready || this.closed || this.closing || !this.raw?.connected) {
+          onDone();
+        }
+      });
+    }
   }
 
   private _closeRaw(): void {
@@ -339,7 +425,12 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     }
     this.reconnecting = false;
 
+    // A duplicate closed before it ever connected has no raw client yet.
+    this.rawFactory = undefined;
     const raw = this.raw;
+    if (!raw) {
+      return;
+    }
     raw.onconnect = () => {};
     raw.onclose = () => {};
     raw.onerror = () => {};
@@ -371,17 +462,19 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
       this.statusOverride = undefined;
 
       const raw = this.raw;
-      raw.onclose = () => {};
-      if (raw.connected) {
-        setImmediate(() => {
-          try {
-            if (raw.connected) {
-              raw.close();
+      if (raw) {
+        raw.onclose = () => {};
+        if (raw.connected) {
+          setImmediate(() => {
+            try {
+              if (raw.connected) {
+                raw.close();
+              }
+            } catch (_err) {
+              // swallow
             }
-          } catch (_err) {
-            // swallow
-          }
-        });
+          });
+        }
       }
 
       this.emit('close');
@@ -416,15 +509,50 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     return 'OK';
   }
 
+  /**
+   * Create a fresh raw client aimed at the *same* Redis server as `src`.
+   *
+   * Bun's `RedisClient` exposes no public connection info (no `url`, host,
+   * port or options), so the target cannot be reconstructed from the instance.
+   * Its native `duplicate()` is the only reliable way to clone the target and
+   * options; we fall back to URL-based reconstruction for exotic raw clients
+   * that don't implement it. See #4582.
+   */
+  private async _duplicateRaw(src: TClient): Promise<TClient> {
+    if (typeof src.duplicate === 'function') {
+      return await src.duplicate();
+    }
+    const Ctor = src.constructor as BunRedisClientConstructor<TClient>;
+    return new Ctor(src.url);
+  }
+
+  /**
+   * Return the raw client, materializing it first when this adapter is a
+   * lazily-initialized duplicate (created via `duplicate()` with a
+   * `rawFactory`). Command paths that touch `this.raw` directly use this so a
+   * duplicate can be used immediately without an explicit `connect()`.
+   */
+  async _ensureRaw(): Promise<TClient> {
+    if (!this.raw) {
+      await this.connect();
+    }
+    return this.raw;
+  }
+
   duplicate(...args: any[]): IRedisClient {
-    // Bun's duplicate() is async, but IRedisClient.duplicate() is sync.
-    // We create a new RedisClient with the same URL/options instead.
-    // The raw client constructor in Bun doesn't connect until connect() or
-    // first command, so this is safe.
-    const BunRedisClient = this.raw
-      .constructor as BunRedisClientConstructor<TClient>;
-    const dup = new BunRedisClient(this.raw.url);
-    const adapter = new BunRedisAdapter(dup);
+    // Bun's duplicate() is async, but IRedisClient.duplicate() is sync. The
+    // duplicate adapter is therefore created immediately with a `rawFactory`
+    // that clones the connection target lazily (via Bun's native duplicate)
+    // on first connect. Rebuilding from `this.raw.url` is not possible because
+    // Bun never exposes the URL, which previously sent duplicates to the
+    // wrong (default) server (#4582).
+    const parentRaw = this.raw;
+    const adapter = new BunRedisAdapter<TClient>(
+      undefined as unknown as TClient,
+      {
+        rawFactory: () => this._duplicateRaw(parentRaw),
+      },
+    );
 
     // Copy registered scripts to the duplicate
     for (const [name, script] of this.scripts) {
@@ -540,6 +668,15 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
       return Promise.reject(new ConnectionClosedError('Connection is closed'));
     }
 
+    // A duplicate created via `duplicate()` builds its raw client lazily on the
+    // first `connect()` (Bun's native `duplicate()` is async). Materialize it
+    // here so commands issued before an explicit `connect()` don't throw on an
+    // undefined `raw` — matching other adapters where duplicates connect
+    // implicitly on first use.
+    if (!this.raw) {
+      return this.connect().then(() => this.sendCommand<T>(command, args));
+    }
+
     // Send directly to the underlying Bun client. Redis protocol guarantees
     // responses arrive in the same order as requests on a single connection,
     // so concurrent send() calls are safe and enable implicit pipelining
@@ -571,11 +708,11 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
   // ---------------------------------------------------------------
 
   multi(): IRedisTransaction {
-    return new BunRedisTransaction(this.raw, this.scripts, true, this);
+    return new BunRedisTransaction(this.scripts, true, this);
   }
 
   pipeline(): IRedisTransaction {
-    return new BunRedisTransaction(this.raw, this.scripts, false, this);
+    return new BunRedisTransaction(this.scripts, false, this);
   }
 
   // ---------------------------------------------------------------
@@ -784,7 +921,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     for (const [k, v] of Object.entries(fields)) {
       args.push(k, String(v));
     }
-    return await this.raw.send('XADD', args);
+    return await (await this._ensureRaw()).send('XADD', args);
   }
 
   async xread(
@@ -1067,7 +1204,6 @@ class BunRedisTransaction implements IRedisTransaction {
   private scriptsToLoad: LuaScript[] = [];
 
   constructor(
-    private readonly raw: any,
     private readonly scripts: Map<string, LuaScript>,
     private readonly transactional: boolean,
     private readonly adapter: BunRedisAdapter<any>,
@@ -1261,17 +1397,20 @@ class BunRedisTransaction implements IRedisTransaction {
     const swallow = (_: unknown) => {
       /* error surfaces via EXEC or the outer try/catch */
     };
+    // Materialize the raw client (a lazily-initialized duplicate may not have
+    // one yet) so the MULTI…EXEC frames can be written as a contiguous burst.
+    const raw = await this.adapter._ensureRaw();
     try {
       // Fire MULTI without awaiting — no round-trip needed before commands.
-      this.raw.send('MULTI', []).catch(swallow);
+      raw.send('MULTI', []).catch(swallow);
 
       // Fire all queued commands synchronously (no awaits).
       for (const { cmd, args } of this.commands) {
-        this.raw.send(cmd, args).catch(swallow);
+        raw.send(cmd, args).catch(swallow);
       }
 
       // EXEC is the only await — it returns the array of results.
-      const results = await this.raw.send('EXEC', []);
+      const results = await raw.send('EXEC', []);
 
       if (!results) {
         return null;
@@ -1289,7 +1428,7 @@ class BunRedisTransaction implements IRedisTransaction {
     } catch (err) {
       // Try to discard the MULTI state on error
       try {
-        await this.raw.send('DISCARD', []);
+        await raw.send('DISCARD', []);
       } catch {
         // ignore
       }

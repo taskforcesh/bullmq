@@ -15,16 +15,16 @@ import {
 } from 'vitest';
 
 import * as sinon from 'sinon';
+import { EventEmitter } from 'events';
 import {
   Queue,
   QueueEvents,
   Job,
+  RedisQueueBackend,
   UnrecoverableError,
   Worker,
-  WaitingChildrenError,
   DelayedError,
   WaitingError,
-  RedisQueueBackend,
 } from '../src/classes';
 import { MinimalJob, IRedisClient } from '../src/interfaces';
 import { JobsOptions, KeepJobs } from '../src/types';
@@ -1233,6 +1233,180 @@ describe('workers', () => {
         await worker.close();
       }
     });
+
+    it('does not disconnect a reconnecting blocking client (#4585)', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      const backend = worker.getBackend();
+      const bclient = (await backend.blockingClient)!;
+
+      // Reproduce the #4585 wedge: after an outage longer than the block
+      // timeout, IORedis is already in "reconnecting" (it has an armed retry
+      // timer but no live socket). Calling `disconnect(false)` here clears that
+      // timer without emitting a `close` event, parking the client in
+      // "reconnecting" forever. The watchdog must therefore only disconnect a
+      // "ready" client and otherwise let IORedis finish its own reconnect.
+      sandbox.stub(bclient, 'status').value('reconnecting');
+      const disconnect = sandbox.stub(bclient, 'disconnect');
+      sandbox.stub(bclient, 'bzpopmin').returns(new Promise(() => {}) as any);
+      const reconnectBlocking = sandbox
+        .stub(backend, 'reconnectBlocking')
+        .resolves();
+
+      try {
+        const result = await backend.waitForJob(0.001);
+        expect(result).toBe(null);
+        expect(disconnect.called).toBe(false);
+        expect(reconnectBlocking.calledOnce).toBe(true);
+      } finally {
+        await worker.close();
+      }
+    });
+
+    it('drops the abandoned blocking command once the client is live again (#4585)', async () => {
+      const worker = new Worker(queueName, NoopProc, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      const backend = worker.getBackend();
+      const bclient = (await backend.blockingClient)!;
+
+      // Waiting for IORedis to finish its own reconnect is not enough: under
+      // `maxRetriesPerRequest: null` it re-queues and re-sends the interrupted
+      // blocking command, so it would be served ahead of the next
+      // `waitForJob`. Once the client is live again the socket must be torn
+      // down (and re-established) so the abandoned command is actually gone.
+      let status = 'reconnecting';
+      sandbox.stub(bclient, 'status').get(() => status);
+      sandbox.stub(bclient, 'bzpopmin').returns(new Promise(() => {}) as any);
+
+      const disconnectedWhileLive: boolean[] = [];
+      sandbox
+        .stub(backend.blockingConnection!, 'disconnect')
+        .callsFake(async () => {
+          disconnectedWhileLive.push(status === 'ready');
+          status = 'end';
+        });
+      const reconnectBlocking = sandbox
+        .stub(backend, 'reconnectBlocking')
+        .callsFake(async () => {
+          status = 'ready';
+        });
+
+      try {
+        const result = await backend.waitForJob(0.001);
+        expect(result).toBe(null);
+        // First the retry timer is left alone until the client is live again,
+        // then the live socket is torn down and re-established.
+        expect(disconnectedWhileLive).toEqual([true]);
+        expect(reconnectBlocking.callCount).toBe(2);
+      } finally {
+        await worker.close();
+      }
+    });
+
+    it('reconnects a healthy connection torn down by the watchdog (#4585 ready-path race)', async () => {
+      // Models the second #4585 race (reported on 6.0.11): after a brief drop
+      // IORedis self-heals back to "ready" *before* the watchdog fires, so the
+      // watchdog fires against a live connection with a still-unsettled blocking
+      // command. It tears the connection down to abandon that command — but
+      // IORedis closes the socket asynchronously, so `status` is still "ready"
+      // for the current microtask run. If the reset then calls `reconnect()`
+      // (which early-returns on "ready") *before* the close lands, it no-ops and
+      // the pending close kills the connection for good.
+      //
+      // We call `RedisQueueBackend.prototype.waitForJob` with a fake context that
+      // faithfully models (a) IORedis' asynchronous socket close and (b) the real
+      // `RedisConnection.disconnect(true)` (close, then await "end") and
+      // `RedisConnection.reconnect()` (early-return on "ready") contracts.
+      const emitter = new EventEmitter();
+      let status = 'ready';
+      const client = {
+        get status() {
+          return status;
+        },
+        bzpopmin: () => new Promise(() => {}), // never settles
+        // IORedis closes the socket asynchronously: `status` stays "ready" for
+        // the current microtask run and only flips on a later macrotask.
+        disconnect: () => {
+          setTimeout(() => {
+            status = 'end';
+            emitter.emit('end');
+          }, 0);
+        },
+        connect: () => {
+          status = 'ready';
+          return Promise.resolve();
+        },
+        once: (ev: string, fn: () => void) => emitter.once(ev, fn),
+        removeListener: (ev: string, fn: () => void) =>
+          emitter.removeListener(ev, fn),
+      };
+
+      const connection = {
+        capabilities: { canDoubleTimeout: true },
+        client: Promise.resolve(client),
+        // Mirrors RedisConnection.disconnect(true): close, then await "end".
+        disconnect: async (wait = true) => {
+          if (status === 'end') {
+            return;
+          }
+          if (!wait) {
+            return client.disconnect();
+          }
+          const ended = new Promise<void>(res => client.once('end', res));
+          client.disconnect();
+          await ended;
+        },
+        // Mirrors RedisConnection.reconnect(): early-return on "ready".
+        reconnect: async () => {
+          for (;;) {
+            if (status === 'ready') {
+              return;
+            }
+            if (status === 'wait' || status === 'end') {
+              return client.connect();
+            }
+            await new Promise(r => setTimeout(r, 5));
+          }
+        },
+      };
+
+      const backend = {
+        closing: false,
+        blockingConnection: connection,
+        connection,
+        queue: {
+          keys: { marker: 'm' },
+          blockingClient: Promise.resolve(client),
+        },
+        reconnectBlocking() {
+          return connection.reconnect();
+        },
+      };
+
+      const result = await (
+        RedisQueueBackend.prototype.waitForJob as (
+          this: unknown,
+          blockTimeout: number,
+        ) => Promise<unknown>
+      ).call(backend, 0.001);
+
+      expect(result).toBe(null);
+      // Let any pending asynchronous close land.
+      await new Promise(r => setTimeout(r, 30));
+      // The blocking connection must be healthy again — not left dead by a
+      // reconnect() that raced the watchdog's disconnect.
+      expect(status).toBe('ready');
+    }, 10000);
   });
 
   describe('when calling getBlockTimeout', () => {

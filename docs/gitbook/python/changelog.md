@@ -1,3 +1,17 @@
+## [3.2.1](https://github.com/taskforcesh/bullmq/compare/vpy3.2.0...vpy3.2.1) (2026-09-01)
+
+
+### Bug Fixes
+
+* **deps:** update dependency psycopg to v3.3.5 [python] ([#4668](https://github.com/taskforcesh/bullmq/issues/4668)) ([63cee3f](https://github.com/taskforcesh/bullmq/commit/63cee3f977a13304a4e6b07262db15bfad3eb436))
+
+# [3.2.0](https://github.com/taskforcesh/bullmq/compare/vpy3.1.1...vpy3.2.0) (2026-08-31)
+
+
+### Features
+
+* **queue:** support getDeduplicationJobId method [python] ([#4655](https://github.com/taskforcesh/bullmq/issues/4655)) ref [#4647](https://github.com/taskforcesh/bullmq/issues/4647) ([903f017](https://github.com/taskforcesh/bullmq/commit/903f0171a2da4983ec3d23a978dc3e9ab19e85e6))
+
 ## [3.1.1](https://github.com/taskforcesh/bullmq/compare/vpy3.1.0...vpy3.1.1) (2026-08-29)
 
 
