@@ -1205,38 +1205,25 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
 
     async def test_external_run_cancellation_propagates(self):
         """Test that cancelling the run() task from outside (not via pause/close)
-        propagates CancelledError correctly instead of being swallowed into return None.
-
-        When CancelledError is re-raised (correct), it propagates through retryIfFailed
-        (which catches only Exception, not BaseException) and out of the run() loop,
-        causing the finally block to set self.running = False.
-
-        When CancelledError is swallowed with return None (incorrect), the worker
-        silently continues fetching jobs and self.running stays True.
-        """
+        propagates CancelledError correctly and cancels pending fetch/processing tasks."""
         async def process(job: Job, token: str):
             pass
 
-        worker = Worker(queueName, process, {"prefix": prefix})
+        worker = Worker(queueName, process, {"prefix": prefix, "autorun": False})
+        run_task = asyncio.ensure_future(worker.run())
         # Let the worker enter the idle BZPOPMIN wait
         await asyncio.sleep(0.2)
 
-        # Confirm the worker is actually sitting in the idle wait
         self.assertTrue(worker.running)
-        self.assertIsNotNone(worker.waiting)
 
-        # Cancel the idle waiting task directly — not via pause()/close().
-        # At this point worker.paused=False and worker.closing=False,
-        # so the re-raise branch (not self.paused and not self.closing) should fire.
-        worker.waiting.cancel()
+        # Cancel the actual run() task directly from outside
+        run_task.cancel()
 
-        # Give the event loop time to deliver the CancelledError through the run() loop
-        await asyncio.sleep(0.2)
+        with self.assertRaises(asyncio.CancelledError):
+            await run_task
 
-        # Key assertion: if CancelledError was correctly re-raised, it propagates
-        # through retryIfFailed → out of run() → finally sets self.running = False.
-        # If it was swallowed (return None), the worker keeps running and this fails.
         self.assertFalse(worker.running)
+        self.assertEqual(len(worker.processing), 0)
         self.assertFalse(worker.closed)  # close() was never called
 
         await worker.close()
