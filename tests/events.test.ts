@@ -426,15 +426,18 @@ describe('events', () => {
       prefix,
     });
 
-    await queue.add('test', {});
+    await worker.waitUntilReady();
 
-    const completed = new Promise<void>(resolve => {
+    const completed = new Promise<void>((resolve, reject) => {
       worker.once('active', function () {
         worker.once('completed', async function () {
           resolve();
         });
       });
+      worker.once('error', reject);
     });
+
+    await queue.add('test', {});
 
     await completed;
     await worker.close();
