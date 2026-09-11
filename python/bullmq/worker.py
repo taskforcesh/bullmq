@@ -218,10 +218,20 @@ class Worker(EventEmitter):
                     return
         finally:
             # Ensure background resources are released even when the loop
-            # exits via the broad-exception `return` above; otherwise the
-            # lock renewal task and stalled-check timer would keep hitting
-            # Redis after run() has given up.
+            # exits via cancellation or the broad-exception `return` above;
+            # otherwise the lock renewal task and stalled-check timer would keep
+            # hitting Redis after run() has given up.
             self.running = False
+            if not self.closing:
+                for task in self.processing:
+                    if not task.done():
+                        task.cancel()
+                if self.waiting and not self.waiting.done():
+                    self.waiting.cancel()
+                if self.processing:
+                    await asyncio.gather(*self.processing, return_exceptions=True)
+                self.processing.clear()
+
             if self.stalledCheckTimer is not None:
                 try:
                     self.stalledCheckTimer.stop()
@@ -608,30 +618,25 @@ class Worker(EventEmitter):
             self.lockManager.cancel_all_jobs("worker force-closed")
             self.cancelProcessing()
 
+        async def teardown():
+            if not force and len(self.processing) > 0:
+                await asyncio.wait(self.processing, return_when=asyncio.ALL_COMPLETED)
+            await self.lockManager.close()
+            try:
+                await self.backend.close(force=force)
+            except Exception as err:
+                self.emit('error', err)
+            self.closed = True
+            self.emit('closed')
+
+        teardown_task = asyncio.ensure_future(teardown())
         cancelled = False
-        if not force and len(self.processing) > 0:
-            # Ensure close() actually waits for in-flight jobs to finish before
-            # tearing down connections, even if this task is cancelled (once or
-            # repeatedly) while waiting.
-            wait_for_processing = asyncio.ensure_future(
-                asyncio.wait(self.processing, return_when=asyncio.ALL_COMPLETED)
-            )
-            while True:
-                try:
-                    await asyncio.shield(wait_for_processing)
-                    break
-                except asyncio.CancelledError:
-                    cancelled = True
-
-        await self.lockManager.close()
-
-        try:
-            await self.backend.close(force=force)
-        except Exception as err:
-            self.emit('error', err)
-
-        self.closed = True
-        self.emit('closed')
+        while True:
+            try:
+                await asyncio.shield(teardown_task)
+                break
+            except asyncio.CancelledError:
+                cancelled = True
 
         if cancelled:
             raise asyncio.CancelledError()
