@@ -1393,6 +1393,16 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
     return await this.execCommand(client, 'getCountsPerPriority', args);
   }
 
+  async getOldestJobTimestamp(): Promise<number | null> {
+    const client = await this.queue.client;
+
+    const result = await this.execCommand(client, 'getOldestJobTimestamp', [
+      this.queue.keys[''],
+    ]);
+
+    return result === null ? null : Number(result);
+  }
+
   protected getDependencyCountsArgs(
     jobId: string,
     types: string[],

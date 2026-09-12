@@ -942,6 +942,81 @@ describe('Jobs getters', () => {
     });
   });
 
+  describe('.getOldestJobTimestamp', () => {
+    it('returns null when there are no pending jobs', async () => {
+      await queue.waitUntilReady();
+
+      expect(await queue.getOldestJobTimestamp()).toBeNull();
+    });
+
+    it('returns the timestamp of the oldest waiting job', async () => {
+      await queue.waitUntilReady();
+
+      const oldTimestamp = Date.now() - 60_000;
+      await queue.add('old', {}, { timestamp: oldTimestamp });
+      await queue.add('new', {}, { timestamp: Date.now() });
+
+      expect(await queue.getOldestJobTimestamp()).toBe(oldTimestamp);
+    });
+
+    it('returns the ready-timestamp of an overdue delayed job, not its enqueue time', async () => {
+      await queue.waitUntilReady();
+
+      const enqueuedAt = Date.now() - 60_000;
+      await queue.add('delayed', {}, { timestamp: enqueuedAt, delay: 10_000 });
+
+      expect(await queue.getOldestJobTimestamp()).toBe(enqueuedAt + 10_000);
+    });
+
+    it('returns a future ready-timestamp for a delayed job whose delay has not elapsed yet', async () => {
+      await queue.waitUntilReady();
+
+      const enqueuedAt = Date.now();
+      await queue.add(
+        'delayed',
+        {},
+        { timestamp: enqueuedAt, delay: 60 * 60 * 1000 },
+      );
+
+      // The job is still "pending" even though it isn't due yet, so its real
+      // (future) ready-timestamp is returned as-is, like getDelayed() would
+      // return the job itself. Callers computing an "age" should clamp
+      // Date.now() - timestamp to zero themselves.
+      expect(await queue.getOldestJobTimestamp()).toBe(
+        enqueuedAt + 60 * 60 * 1000,
+      );
+    });
+
+    it('finds the oldest job at a lower priority even behind a fresher higher-priority job', async () => {
+      await queue.waitUntilReady();
+
+      const oldTimestamp = Date.now() - 60_000;
+      await queue.add(
+        'stale-low-priority',
+        {},
+        { priority: 2, timestamp: oldTimestamp },
+      );
+      await queue.add(
+        'fresh-high-priority',
+        {},
+        { priority: 1, timestamp: Date.now() },
+      );
+
+      expect(await queue.getOldestJobTimestamp()).toBe(oldTimestamp);
+    });
+
+    it('finds the oldest job across non-contiguous priority levels', async () => {
+      await queue.waitUntilReady();
+
+      const oldTimestamp = Date.now() - 60_000;
+      await queue.add('stale', {}, { priority: 10, timestamp: oldTimestamp });
+      await queue.add('fresh-1', {}, { priority: 1, timestamp: Date.now() });
+      await queue.add('fresh-5', {}, { priority: 5, timestamp: Date.now() });
+
+      expect(await queue.getOldestJobTimestamp()).toBe(oldTimestamp);
+    });
+  });
+
   describe('.getDependencies', () => {
     it('return unprocessed jobs that are dependencies of a given parent job', async () => {
       const flowProducer = new FlowProducer({ connection, prefix });
