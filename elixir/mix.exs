@@ -99,7 +99,7 @@ defmodule BullMQ.MixProject do
       {:ex_doc, "== 0.40.4", only: :dev, runtime: false},
       {:credo, "== 1.7.19", only: [:dev, :test], runtime: false},
       {:excoveralls, "== 0.18.5", only: :test},
-      {:mox, "== 1.3.1", only: :test},
+      {:mox, "== 1.3.2", only: :test},
       {:stream_data, "== 1.4.0", only: [:dev, :test]}
     ]
   end
