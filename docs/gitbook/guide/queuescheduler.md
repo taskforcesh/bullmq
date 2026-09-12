@@ -11,7 +11,7 @@ import { QueueScheduler } from 'bullmq';
 
 const queueScheduler = new QueueScheduler('test');
 
-// Later, when shuting down gracefully
+// Later, when shutting down gracefully
 await queueScheduler.close();
 ```
 

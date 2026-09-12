@@ -6,7 +6,7 @@ description: A pattern for applying time-to-live to sandboxed processors.
 
 When you are working with sandboxed processors, every job is run in a separate process. This opens the possibility to implement a time-to-live (TTL) mechanism, that kills the process if it has not been able to complete in a reasonable time.
 
-It is important to understand that killing a process can have unintented consecuences, for instance it could be killed in the middle of a writing transaction to a file, that would most likely result in a corrupt file. However, this is kind of the best that is possible to achieve in a runtime as NodeJS which based on asynchronous calls within an event loop. There is currently no known method to achieve this functionality in a more robust way.
+It is important to understand that killing a process can have unintended consequences, for instance it could be killed in the middle of a writing transaction to a file, that would most likely result in a corrupt file. However, this is kind of the best that is possible to achieve in a runtime as NodeJS which based on asynchronous calls within an event loop. There is currently no known method to achieve this functionality in a more robust way.
 
 This pattern tries to be as possible, but please, keep in mind the trade-offs mentioned above. The pattern uses two timeouts so that it is possible to have a cleanup operation to minimize the effects of a hard kill of the process. Obviously if the cleanup itself hangs, or if the cleanup is not correctly implemented, we can still end killing some database connections or writing operantions right in the middle, with the potential negative outcomes.&#x20;
 

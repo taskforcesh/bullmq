@@ -54,7 +54,7 @@ In order to process the jobs, use a pro worker as you normally do with standard 
 import { WorkerPro } from '@taskforcesh/bullmq-pro';
 
 const worker = new WorkerPro('test', async job => {
-  // Do something usefull.
+  // Do something useful.
 
   // You can also do something different depending on the group
   await doSomethingSpecialForMyGroup(job.opts.group);
