@@ -42,6 +42,16 @@ defmodule BullMQ.BackoffTest do
       assert Backoff.calculate_from_config(config, 3) == 2000
     end
 
+    test "accepts map configuration with string keys" do
+      config_fixed = %{"type" => "fixed", "delay" => 3000}
+      assert Backoff.calculate_from_config(config_fixed, 1) == 3000
+
+      config_exp = %{"type" => "exponential", "delay" => 500}
+      assert Backoff.calculate_from_config(config_exp, 1) == 500
+      assert Backoff.calculate_from_config(config_exp, 2) == 1000
+      assert Backoff.calculate_from_config(config_exp, 3) == 2000
+    end
+
     test "handles nil config" do
       assert Backoff.calculate_from_config(nil, 1) == 0
     end
@@ -63,9 +73,9 @@ defmodule BullMQ.BackoffTest do
       max = Enum.max(results)
 
       # With 50% jitter on 1000ms delay:
-      # Range should be 500-1500 (1000 ± 500)
+      # Range should be 500-1000 (delay * (1 - jitter) to delay)
       assert min >= 500
-      assert max <= 1500
+      assert max <= 1000
       # Should have some variation
       assert max > min
     end
@@ -89,9 +99,10 @@ defmodule BullMQ.BackoffTest do
       max = Enum.max(results)
 
       # With 100% jitter on 1000ms delay:
-      # Range should be 0-2000 (1000 ± 1000)
+      # Range should be 0-1000 (delay * (1 - jitter) to delay)
       assert min >= 0
-      assert max <= 2000
+      assert max <= 1000
+      assert max > min
     end
   end
 

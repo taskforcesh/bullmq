@@ -345,4 +345,39 @@ defmodule BullMQ.JobTest do
       assert reconstructed.opts["backoff"] == %{"type" => "fixed", "delay" => 2000}
     end
   end
+
+  describe "calculate_backoff/1" do
+    test "returns 0 when no backoff configured" do
+      job = Job.new("queue", "task", %{})
+      assert Job.calculate_backoff(job) == 0
+    end
+
+    test "calculates fixed backoff" do
+      job = Job.new("queue", "task", %{}, backoff: %{type: :fixed, delay: 3000})
+      assert Job.calculate_backoff(job) == 3000
+    end
+
+    test "calculates exponential backoff based on attempts_made" do
+      job = Job.new("queue", "task", %{}, backoff: %{type: :exponential, delay: 1000})
+      # attempts_made = 0 -> attempt 1 -> 1000 * 2^0 = 1000
+      assert Job.calculate_backoff(job) == 1000
+
+      job2 = %{job | attempts_made: 1}
+      # attempts_made = 1 -> attempt 2 -> 1000 * 2^1 = 2000
+      assert Job.calculate_backoff(job2) == 2000
+
+      job3 = %{job | attempts_made: 2}
+      # attempts_made = 2 -> attempt 3 -> 1000 * 2^2 = 4000
+      assert Job.calculate_backoff(job3) == 4000
+    end
+
+    test "respects jitter upper bound" do
+      job =
+        Job.new("queue", "task", %{}, backoff: %{type: :fixed, delay: 1000, jitter: 0.5})
+
+      delays = for _ <- 1..50, do: Job.calculate_backoff(job)
+      assert Enum.min(delays) >= 500
+      assert Enum.max(delays) <= 1000
+    end
+  end
 end

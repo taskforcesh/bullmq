@@ -15,7 +15,7 @@ defmodule BullMQ.JobSchedulerProcessingTest do
   @moduletag :integration
   @moduletag :processing
 
-  alias BullMQ.{JobScheduler, Worker, QueueEvents, Keys}
+  alias BullMQ.{JobScheduler, Keys, QueueEvents, Worker}
 
   @redis_url BullMQ.TestHelper.redis_url()
   @test_prefix BullMQ.TestHelper.test_prefix()
@@ -135,7 +135,7 @@ defmodule BullMQ.JobSchedulerProcessingTest do
       wait_for_completions(1, 5_000)
 
       jobs = :ets.lookup(processed, :job) |> Enum.map(fn {:job, j} -> j end)
-      assert length(jobs) >= 1
+      assert jobs != []
 
       [first_job | _] = jobs
       assert first_job.name == "test-job"
@@ -248,7 +248,7 @@ defmodule BullMQ.JobSchedulerProcessingTest do
         )
 
       job_data = %{
-        user_id: 12345,
+        user_id: 12_345,
         action: "sync",
         options: %{full: true, retry: 3}
       }
@@ -270,7 +270,7 @@ defmodule BullMQ.JobSchedulerProcessingTest do
       assert length(jobs) >= 2
 
       for job_data <- jobs do
-        assert job_data["user_id"] == 12345
+        assert job_data["user_id"] == 12_345
         assert job_data["action"] == "sync"
         assert job_data["options"] == %{"full" => true, "retry" => 3}
       end
@@ -407,7 +407,7 @@ defmodule BullMQ.JobSchedulerProcessingTest do
       wait_for_completions(1, 5_000)
 
       jobs = :ets.lookup(processed, :job) |> Enum.map(fn {:job, name} -> name end)
-      assert length(jobs) >= 1
+      assert jobs != []
       assert "cron-job" in jobs
 
       Worker.close(worker)

@@ -52,6 +52,8 @@ defmodule BullMQ.Backoff do
 
   use Agent
 
+  alias BullMQ.Utils
+
   @type strategy :: :fixed | :exponential | atom()
   @type backoff_fn :: (non_neg_integer(), non_neg_integer(), term(), map() -> non_neg_integer())
 
@@ -128,7 +130,7 @@ defmodule BullMQ.Backoff do
       #=> 4000
 
       BullMQ.Backoff.calculate(:exponential, 3, 1000, jitter: 0.2)
-      #=> ~4000 (with +/- 20% randomness)
+      #=> between 3200 and 4000 (with up to 20% jitter)
   """
   @spec calculate(strategy(), non_neg_integer(), non_neg_integer(), keyword()) ::
           non_neg_integer()
@@ -160,39 +162,65 @@ defmodule BullMQ.Backoff do
   end
 
   @doc """
-  Calculates backoff from a backoff configuration map.
+  Calculates backoff from a backoff configuration map or integer delay.
+
+  Supports both atom and string keys for `:type`, `:delay`, and `:jitter`.
 
   ## Examples
 
       config = %{type: :exponential, delay: 1000, jitter: 0.1}
       BullMQ.Backoff.calculate_from_config(config, 3)
       #=> ~4000
+
+      config = %{"type" => "exponential", "delay" => 1000}
+      BullMQ.Backoff.calculate_from_config(config, 2)
+      #=> 2000
   """
-  @spec calculate_from_config(map(), non_neg_integer(), keyword()) :: non_neg_integer()
+  @spec calculate_from_config(map() | integer() | nil, non_neg_integer(), keyword()) ::
+          non_neg_integer()
   def calculate_from_config(config, attempt, opts \\ [])
 
   def calculate_from_config(nil, _attempt, _opts), do: 0
 
-  def calculate_from_config(%{type: type, delay: delay} = config, attempt, opts) do
-    jitter = Map.get(config, :jitter, 0)
-    merged_opts = Keyword.merge(opts, jitter: jitter)
-    calculate(type, attempt, delay, merged_opts)
-  end
-
-  def calculate_from_config(%{delay: delay}, _attempt, _opts), do: delay
-
   def calculate_from_config(delay, _attempt, _opts) when is_integer(delay), do: delay
+
+  def calculate_from_config(config, attempt, opts) when is_map(config) do
+    type = parse_config_type(Utils.get_opt(config, [:type, "type"]))
+    delay = Utils.get_opt(config, [:delay, "delay"])
+    jitter = Utils.get_opt(config, [:jitter, "jitter"], 0)
+
+    calculate_delay(type, delay, attempt, Keyword.merge(opts, jitter: jitter))
+  end
 
   def calculate_from_config(_, _attempt, _opts), do: 0
 
   # Private functions
 
+  defp parse_config_type("fixed"), do: :fixed
+  defp parse_config_type("exponential"), do: :exponential
+  defp parse_config_type(t) when is_atom(t) and not is_nil(t), do: t
+
+  defp parse_config_type(t) when is_binary(t) do
+    String.to_existing_atom(t)
+  rescue
+    ArgumentError -> :fixed
+  end
+
+  defp parse_config_type(_), do: nil
+
+  defp calculate_delay(nil, delay, _attempt, _opts) when is_integer(delay), do: delay
+  defp calculate_delay(_type, delay, _attempt, _opts) when is_nil(delay), do: 0
+
+  defp calculate_delay(type, delay, attempt, opts) when is_number(delay) do
+    calculate(type || :fixed, attempt, delay, opts)
+  end
+
+  defp calculate_delay(_type, _delay, _attempt, _opts), do: 0
+
   defp get_custom_strategy(name) do
-    try do
-      Agent.get(__MODULE__, fn strategies -> Map.get(strategies, name) end)
-    catch
-      :exit, _ -> nil
-    end
+    Agent.get(__MODULE__, fn strategies -> Map.get(strategies, name) end)
+  catch
+    :exit, _ -> nil
   end
 
   defp apply_jitter(delay, 0), do: delay
@@ -201,7 +229,7 @@ defmodule BullMQ.Backoff do
 
   defp apply_jitter(delay, jitter) when jitter > 0 and jitter <= 1 do
     min_delay = trunc(delay * (1 - jitter))
-    jitter_range = trunc(delay * jitter * 2)
+    jitter_range = trunc(delay * jitter)
     min_delay + :rand.uniform(jitter_range + 1) - 1
   end
 

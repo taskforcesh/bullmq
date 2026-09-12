@@ -28,6 +28,7 @@ defmodule BullMQ.Backends.Postgres do
   @behaviour BullMQ.Backend
 
   alias BullMQ.Backends.Postgres.{Connection, SqlLoader}
+  alias BullMQ.Utils
 
   @minimum_block_timeout 0.001
   @event_read_batch 100
@@ -236,29 +237,40 @@ defmodule BullMQ.Backends.Postgres do
   @impl true
   def add_job(%__MODULE__{} = b, job, _opts) do
     opts = job.opts || %{}
-
-    result =
-      run(b, "add_job", [
-        b.queue_name,
-        job.id || "",
-        job.name,
-        to_jsonb(job.data),
-        to_jsonb(opts),
-        job.priority || opts[:priority] || 0,
-        job.delay || opts[:delay] || 0,
-        job.timestamp || now_ms(),
-        opts[:attempts] || 1,
-        parent_queue_key(job),
-        parent_id(job),
-        job.parent_key,
-        opts[:deduplication] && (opts[:deduplication][:id] || opts[:deduplication]["id"]),
-        job.repeat_job_key,
-        opts[:lifo] || false
-      ])
+    args = build_add_job_args(b.queue_name, job, opts)
+    result = run(b, "add_job", args)
 
     %{"id" => id} = first_map(result)
     {:ok, to_string(id)}
   end
+
+  defp build_add_job_args(queue_name, job, opts) do
+    [
+      queue_name,
+      job.id || "",
+      job.name,
+      to_jsonb(job.data),
+      to_jsonb(opts),
+      job_priority(job, opts),
+      job_delay(job, opts),
+      job_timestamp(job),
+      job_attempts(opts),
+      parent_queue_key(job),
+      parent_id(job),
+      job.parent_key,
+      deduplication_id(opts),
+      job.repeat_job_key,
+      opts[:lifo] || false
+    ]
+  end
+
+  defp job_priority(job, opts), do: job.priority || opts[:priority] || 0
+  defp job_delay(job, opts), do: job.delay || opts[:delay] || 0
+  defp job_timestamp(job), do: job.timestamp || now_ms()
+  defp job_attempts(opts), do: opts[:attempts] || 1
+
+  defp deduplication_id(%{deduplication: %{} = dedup}), do: dedup[:id] || dedup["id"]
+  defp deduplication_id(_opts), do: nil
 
   defp parent_queue_key(job) do
     case job.parent do
@@ -398,16 +410,7 @@ defmodule BullMQ.Backends.Postgres do
     end
   end
 
-  # Reads `key` (atom or its string form) from an options map, falling back to
-  # `default` when absent or nil.
-  defp opt(opts, key, default) when is_map(opts) do
-    case Map.get(opts, key, Map.get(opts, to_string(key))) do
-      nil -> default
-      value -> value
-    end
-  end
-
-  defp opt(_opts, _key, default), do: default
+  defp opt(opts, key, default), do: Utils.get_opt(opts, [key, to_string(key)], default)
 
   # ============================================================
   # Job state transitions
@@ -443,12 +446,12 @@ defmodule BullMQ.Backends.Postgres do
 
   defp build_next_job_result(b, [], limiter_max, now) do
     sig = first_map(run(b, "next_signal", [b.queue_name, limiter_max, now]))
-    ttl = to_int(sig["rate_limit_ttl"])
+    ttl = parse_int(sig["rate_limit_ttl"])
 
     if ttl > 0 do
       [nil, "", ttl, 0]
     else
-      [nil, "", 0, to_int(sig["next_delay"])]
+      [nil, "", 0, parse_int(sig["next_delay"])]
     end
   end
 
@@ -596,12 +599,14 @@ defmodule BullMQ.Backends.Postgres do
     %{"n" => n} =
       first_map(run(b, "move_active_to_wait", [b.queue_name, job_id, token || "0", now_ms()]))
 
-    {:ok, to_int(n)}
+    {:ok, parse_int(n)}
   end
 
   @impl true
   def move_to_waiting_children(%__MODULE__{} = b, job_id, token, _opts) do
-    %{"code" => code} = first_map(run(b, "move_to_waiting_children", [b.queue_name, job_id, token]))
+    %{"code" => code} =
+      first_map(run(b, "move_to_waiting_children", [b.queue_name, job_id, token]))
+
     {:ok, code == 1}
   end
 
@@ -726,7 +731,7 @@ defmodule BullMQ.Backends.Postgres do
     %{"n" => n} =
       first_map(run(b, "extend_lock", [b.queue_name, job_id, token, duration, now_ms()]))
 
-    {:ok, to_int(n)}
+    {:ok, parse_int(n)}
   end
 
   @impl true
@@ -762,7 +767,7 @@ defmodule BullMQ.Backends.Postgres do
   @impl true
   def add_log(%__MODULE__{} = b, job_id, log_row, keep_logs) do
     %{"idx" => idx} = first_map(run(b, "add_log", [b.queue_name, job_id, log_row]))
-    count = to_int(idx) + 1
+    count = parse_int(idx) + 1
 
     if keep_logs && count > keep_logs do
       run(b, "trim_logs", [b.queue_name, job_id, count - keep_logs])
@@ -775,7 +780,7 @@ defmodule BullMQ.Backends.Postgres do
   @impl true
   def remove(%__MODULE__{} = b, job_id, remove_children) do
     %{"n" => n} = first_map(run(b, "remove", [b.queue_name, job_id, remove_children]))
-    {:ok, to_int(n)}
+    {:ok, parse_int(n)}
   end
 
   @impl true
@@ -817,16 +822,25 @@ defmodule BullMQ.Backends.Postgres do
   end
 
   @impl true
-  def is_maxed(%__MODULE__{} = b) do
+  def maxed?(%__MODULE__{} = b) do
     %{"maxed" => maxed} = first_map(run(b, "is_maxed", [b.queue_name]))
-    {:ok, maxed}
+    maxed == true
+  end
+
+  @impl true
+  @deprecated "Use maxed?/1 instead"
+  def is_maxed(%__MODULE__{} = b) do
+    case first_map(run(b, "is_maxed", [b.queue_name])) do
+      %{"maxed" => true} -> {:ok, true}
+      _ -> {:ok, false}
+    end
   end
 
   @impl true
   def get_rate_limit_ttl(%__MODULE__{} = b, opts) do
     max_jobs = Keyword.get(opts, :max_jobs, 0)
     %{"ttl" => ttl} = first_map(run(b, "get_rate_limit_ttl", [b.queue_name, max_jobs, now_ms()]))
-    {:ok, to_int(ttl)}
+    {:ok, parse_int(ttl)}
   end
 
   @impl true
@@ -843,24 +857,24 @@ defmodule BullMQ.Backends.Postgres do
   @impl true
   def get_counts_per_priority(%__MODULE__{} = b, priorities) do
     result = run(b, "get_counts_per_priority", [b.queue_name, priorities])
-    {:ok, Enum.map(maps(result), fn row -> to_int(row["cnt"]) end)}
+    {:ok, Enum.map(maps(result), fn row -> parse_int(row["cnt"]) end)}
   end
 
   defp count_lookup(b) do
     row = first_map(run(b, "get_counts", [b.queue_name]))
-    waiting = to_int(row["waiting"])
-    prioritized = to_int(row["prioritized"])
+    waiting = parse_int(row["waiting"])
+    prioritized = parse_int(row["prioritized"])
     is_paused = row["paused"] == "1"
 
     %{
-      "active" => to_int(row["active"]),
-      "completed" => to_int(row["completed"]),
-      "failed" => to_int(row["failed"]),
-      "delayed" => to_int(row["delayed"]),
+      "active" => parse_int(row["active"]),
+      "completed" => parse_int(row["completed"]),
+      "failed" => parse_int(row["failed"]),
+      "delayed" => parse_int(row["delayed"]),
       "wait" => if(is_paused, do: 0, else: waiting),
       "waiting" => if(is_paused, do: 0, else: waiting),
       "prioritized" => prioritized,
-      "waiting-children" => to_int(row["waiting-children"]),
+      "waiting-children" => parse_int(row["waiting-children"]),
       "paused" => if(is_paused, do: waiting, else: 0)
     }
   end
@@ -885,7 +899,7 @@ defmodule BullMQ.Backends.Postgres do
   @impl true
   def get_job_logs(%__MODULE__{} = b, job_id, start, stop, asc) do
     %{"count" => count} = first_map(run(b, "get_job_logs_count", [b.queue_name, job_id]))
-    count = to_int(count)
+    count = parse_int(count)
 
     from = if start < 0, do: max(count + start, 0), else: start
     to = if stop < 0, do: count + stop, else: stop
@@ -953,17 +967,7 @@ defmodule BullMQ.Backends.Postgres do
     {:ok, workers}
   end
 
-  # Parses a `key=value key=value` client-list line into a string-keyed map.
-  defp parse_client_info(line) do
-    line
-    |> String.split(" ", trim: true)
-    |> Enum.reduce(%{}, fn kv, acc ->
-      case String.split(kv, "=", parts: 2) do
-        [key, value] -> Map.put(acc, key, value)
-        _ -> acc
-      end
-    end)
-  end
+  defp parse_client_info(line), do: Utils.parse_client_info(line)
 
   # ============================================================
   # Queue metadata
@@ -1026,7 +1030,9 @@ defmodule BullMQ.Backends.Postgres do
     result = run(b, "get_processed_children_values", [b.queue_name, job_id])
 
     {:ok,
-     Enum.flat_map(maps(result), fn m -> [m["child_key"] || m["k"], json(m["value"] || m["v"])] end)}
+     Enum.flat_map(maps(result), fn m ->
+       [m["child_key"] || m["k"], json(m["value"] || m["v"])]
+     end)}
   end
 
   @impl true
@@ -1048,7 +1054,7 @@ defmodule BullMQ.Backends.Postgres do
     # Mirrors the Redis backend's `SCARD` on the pending-dependencies set: the
     # number of not-yet-processed children.
     m = first_map(run(b, "get_dependency_counts", [b.queue_name, job_id]))
-    {:ok, to_int((m && (m["unprocessed"] || m["pending"] || m["count"])) || 0)}
+    {:ok, parse_int((m && (m["unprocessed"] || m["pending"] || m["count"])) || 0)}
   end
 
   # ============================================================
@@ -1060,13 +1066,16 @@ defmodule BullMQ.Backends.Postgres do
         %__MODULE__{} = b,
         scheduler_id,
         next_millis,
-        scheduler_opts,
-        template_data,
-        template_opts,
-        delayed_opts,
-        now,
-        producer_id
+        opts
       ) do
+    opts_map = Map.new(opts)
+    scheduler_opts = Map.fetch!(opts_map, :scheduler_opts)
+    template_data = Map.fetch!(opts_map, :template_data)
+    template_opts = Map.fetch!(opts_map, :template_opts)
+    delayed_opts = Map.fetch!(opts_map, :delayed_opts)
+    now = Map.fetch!(opts_map, :now)
+    producer_id = Map.get(opts_map, :producer_id)
+
     result =
       run(b, "add_job_scheduler", [
         b.queue_name,
@@ -1082,11 +1091,34 @@ defmodule BullMQ.Backends.Postgres do
 
     case first_map(result) do
       %{"job_id" => job_id, "delay" => delay} when not is_nil(job_id) ->
-        {:ok, [to_string(job_id), to_int(delay)]}
+        {:ok, [to_string(job_id), parse_int(delay)]}
 
       _ ->
         {:ok, nil}
     end
+  end
+
+  @impl true
+  @deprecated "Use add_job_scheduler/4 instead"
+  def add_job_scheduler(
+        %__MODULE__{} = b,
+        scheduler_id,
+        next_millis,
+        scheduler_opts,
+        template_data,
+        template_opts,
+        delayed_opts,
+        now,
+        producer_id \\ nil
+      ) do
+    add_job_scheduler(b, scheduler_id, next_millis,
+      scheduler_opts: scheduler_opts,
+      template_data: template_data,
+      template_opts: template_opts,
+      delayed_opts: delayed_opts,
+      now: now,
+      producer_id: producer_id
+    )
   end
 
   @impl true
@@ -1118,7 +1150,7 @@ defmodule BullMQ.Backends.Postgres do
   @impl true
   def remove_job_scheduler(%__MODULE__{} = b, scheduler_id) do
     m = first_map(run(b, "remove_job_scheduler", [b.queue_name, scheduler_id]))
-    {:ok, to_int(m && m["removed"])}
+    {:ok, parse_int(m && m["removed"])}
   end
 
   @impl true
@@ -1137,13 +1169,14 @@ defmodule BullMQ.Backends.Postgres do
   def get_job_schedulers_range(%__MODULE__{} = b, start, stop, asc) do
     count = if stop < 0, do: nil, else: stop - start + 1
     result = run(b, "get_job_schedulers_range", [b.queue_name, asc, start, count])
+
     {:ok, Enum.flat_map(maps(result), fn r -> [r["scheduler_id"], to_string(r["next_run_ms"])] end)}
   end
 
   @impl true
   def get_job_schedulers_count(%__MODULE__{} = b) do
     m = first_map(run(b, "get_job_schedulers_count", [b.queue_name]))
-    {:ok, to_int(m && m["count"])}
+    {:ok, parse_int(m && m["count"])}
   end
 
   # Mirrors NodeJS `mapSchedulerRow`: builds the Redis-hash-shaped scheduler map
@@ -1218,9 +1251,9 @@ defmodule BullMQ.Backends.Postgres do
   def read_events(%__MODULE__{} = b, id, block_ms) do
     cursor =
       if id == "$" do
-        to_int(first_map(run(b, "read_events_max", [b.queue_name]))["max"])
+        parse_int(first_map(run(b, "read_events_max", [b.queue_name]))["max"])
       else
-        to_int(id)
+        parse_int(id)
       end
 
     events =
@@ -1363,23 +1396,10 @@ defmodule BullMQ.Backends.Postgres do
   defp next_delay_ms(b) do
     case first_map(run(b, "next_delay", [b.queue_name])) do
       %{"next_delay" => nil} -> nil
-      %{"next_delay" => next} -> to_int(next) - now_ms()
+      %{"next_delay" => next} -> parse_int(next) - now_ms()
       _ -> nil
     end
   end
 
-  # ============================================================
-  # Helpers
-  # ============================================================
-
-  defp to_int(nil), do: 0
-  defp to_int(n) when is_integer(n), do: n
-  defp to_int(n) when is_float(n), do: trunc(n)
-
-  defp to_int(s) when is_binary(s) do
-    case Integer.parse(s) do
-      {i, _} -> i
-      :error -> 0
-    end
-  end
+  defp parse_int(v), do: Utils.parse_int(v)
 end

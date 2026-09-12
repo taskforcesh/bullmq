@@ -92,7 +92,7 @@ defmodule BullMQ.JobScheduler do
     * `"0 0 * * 7"` - Every Sunday at midnight (Elixir only)
   """
 
-  alias BullMQ.{Backend, Keys, Job}
+  alias BullMQ.{Backend, Job, Keys, Utils}
 
   require Logger
 
@@ -203,11 +203,29 @@ defmodule BullMQ.JobScheduler do
           map(),
           keyword()
         ) :: {:ok, Job.t()} | {:error, atom()}
+  # credo:disable-for-next-line Credo.Check.Refactor.FunctionArity
   def upsert(conn, queue_name, scheduler_id, repeat_opts, job_name, job_data \\ %{}, opts \\ []) do
     prefix = Keyword.get(opts, :prefix, "bull")
     ctx = Keys.new(queue_name, prefix: prefix)
+    now = System.system_time(:millisecond)
 
-    # Validate scheduler_id format
+    with :ok <- check_scheduler_id(scheduler_id),
+         :ok <- check_repeat_opts(repeat_opts),
+         :ok <- check_repeat_limits(repeat_opts, now) do
+      job_params = %{
+        queue_name: queue_name,
+        repeat_opts: repeat_opts,
+        job_name: job_name,
+        job_data: job_data,
+        now: now,
+        prefix: prefix
+      }
+
+      do_upsert(conn, ctx, scheduler_id, job_params, opts)
+    end
+  end
+
+  defp check_scheduler_id(scheduler_id) do
     case validate_scheduler_id(scheduler_id) do
       :ok ->
         :ok
@@ -220,46 +238,28 @@ defmodule BullMQ.JobScheduler do
         Logger.error("[BullMQ.JobScheduler] Invalid scheduler_id: #{inspect(reason)}")
         error
     end
-    |> case do
+  end
+
+  defp check_repeat_opts(repeat_opts) do
+    case validate_repeat_opts(repeat_opts) do
       :ok ->
-        case validate_repeat_opts(repeat_opts) do
-          :ok ->
-            # Check iteration limit
-            iteration_count = Map.get(repeat_opts, :count, 0) + 1
-            limit = Map.get(repeat_opts, :limit)
+        :ok
 
-            if limit && iteration_count > limit do
-              {:error, :limit_reached}
-            else
-              # Check end date
-              now = System.system_time(:millisecond)
-              end_date = normalize_date(Map.get(repeat_opts, :end_date))
-
-              if end_date && now > end_date do
-                {:error, :end_date_reached}
-              else
-                do_upsert(
-                  conn,
-                  ctx,
-                  queue_name,
-                  scheduler_id,
-                  repeat_opts,
-                  job_name,
-                  job_data,
-                  opts,
-                  now,
-                  prefix
-                )
-              end
-            end
-
-          {:error, reason} = error ->
-            Logger.error("[BullMQ.JobScheduler] Invalid repeat options: #{inspect(reason)}")
-            error
-        end
-
-      error ->
+      {:error, reason} = error ->
+        Logger.error("[BullMQ.JobScheduler] Invalid repeat options: #{inspect(reason)}")
         error
+    end
+  end
+
+  defp check_repeat_limits(repeat_opts, now) do
+    iteration_count = Map.get(repeat_opts, :count, 0) + 1
+    limit = Map.get(repeat_opts, :limit)
+    end_date = normalize_date(Map.get(repeat_opts, :end_date))
+
+    cond do
+      limit && iteration_count > limit -> {:error, :limit_reached}
+      end_date && now > end_date -> {:error, :end_date_reached}
+      true -> :ok
     end
   end
 
@@ -302,7 +302,7 @@ defmodule BullMQ.JobScheduler do
         {:ok, nil}
 
       {:ok, [raw_data, score]} when is_list(raw_data) ->
-        scheduler = transform_scheduler_data(scheduler_id, array_to_map(raw_data), score)
+        scheduler = transform_scheduler_data(scheduler_id, Utils.parse_hash_data(raw_data), score)
         {:ok, scheduler}
 
       {:ok, _} ->
@@ -353,13 +353,7 @@ defmodule BullMQ.JobScheduler do
           result
           |> Enum.chunk_every(2)
           |> Enum.map(fn [scheduler_id, score] ->
-            case get(conn, queue_name, scheduler_id, opts) do
-              {:ok, scheduler} when not is_nil(scheduler) ->
-                %{scheduler | next: parse_int(score)}
-
-              _ ->
-                nil
-            end
+            fetch_scheduler_with_score(conn, queue_name, scheduler_id, score, opts)
           end)
           |> Enum.reject(&is_nil/1)
 
@@ -367,6 +361,16 @@ defmodule BullMQ.JobScheduler do
 
       {:error, _} = error ->
         error
+    end
+  end
+
+  defp fetch_scheduler_with_score(conn, queue_name, scheduler_id, score, opts) do
+    case get(conn, queue_name, scheduler_id, opts) do
+      {:ok, scheduler} when not is_nil(scheduler) ->
+        %{scheduler | next: Utils.parse_int_or_nil(score)}
+
+      _ ->
+        nil
     end
   end
 
@@ -561,149 +565,107 @@ defmodule BullMQ.JobScheduler do
   defp validate_repeat_opts(%{every: _}), do: :ok
   defp validate_repeat_opts(_), do: {:error, :no_pattern_or_every}
 
-  defp do_upsert(
-         conn,
-         ctx,
-         queue_name,
-         scheduler_id,
-         repeat_opts,
-         job_name,
-         job_data,
-         opts,
-         now,
-         _prefix
-       ) do
-    # Calculate next execution time
-    next_millis = calculate_next_millis(repeat_opts, now)
-
-    if is_nil(next_millis) do
-      {:ok, nil}
-    else
-      # Clamp to now if in the past
-      next_millis = max(next_millis, now)
-
-      # Prepare script arguments
-      # Build scheduler opts for msgpack
-      scheduler_opts = build_scheduler_opts(repeat_opts, job_name)
-
-      # Build template opts
-      template_opts = build_template_opts(opts)
-
-      # Build delayed job opts
-      iteration_count = Map.get(repeat_opts, :count, 0) + 1
-      offset = Map.get(repeat_opts, :offset, 0)
-      delay = max(0, next_millis + offset - now)
-
-      delayed_opts =
-        %{
-          delay: delay,
-          timestamp: now,
-          prevMillis: next_millis,
-          repeatJobKey: scheduler_id,
-          repeat: %{
-            count: iteration_count,
-            limit: Map.get(repeat_opts, :limit),
-            pattern: Map.get(repeat_opts, :pattern),
-            every: Map.get(repeat_opts, :every),
-            offset: offset,
-            startDate: normalize_date(Map.get(repeat_opts, :start_date)),
-            endDate: normalize_date(Map.get(repeat_opts, :end_date)),
-            tz: Map.get(repeat_opts, :tz)
-          }
-        }
-        |> maybe_add_job_opts(opts)
-
-      # Encode data
-      template_data = Jason.encode!(job_data)
-
-      backend = Backend.create(ctx.name, connection: conn, prefix: ctx.prefix)
-
-      case Backend.add_job_scheduler(
-             backend,
-             scheduler_id,
-             next_millis,
-             scheduler_opts,
-             template_data,
-             template_opts,
-             delayed_opts,
-             now,
-             nil
-           ) do
-        {:ok, [job_id, delay]} when is_binary(job_id) ->
-          delay = if is_binary(delay), do: String.to_integer(delay), else: delay
-
-          job = %Job{
-            id: job_id,
-            name: job_name,
-            data: job_data,
-            queue_name: queue_name,
-            delay: delay,
-            timestamp: now,
-            opts: Map.new(opts),
-            repeat_job_key: scheduler_id
-          }
-
-          {:ok, job}
-
-        {:ok, @error_scheduler_job_id_collision} ->
-          {:error, :job_id_collision}
-
-        {:ok, @error_scheduler_job_slots_busy} ->
-          {:error, :job_slots_busy}
-
-        {:ok, nil} ->
-          {:ok, nil}
-
-        {:error, _} = error ->
-          error
-      end
+  defp do_upsert(conn, ctx, scheduler_id, job_params, opts) do
+    case calculate_next_millis(job_params.repeat_opts, job_params.now) do
+      nil -> {:ok, nil}
+      next_millis -> perform_upsert(conn, ctx, scheduler_id, job_params, opts, next_millis)
     end
+  end
+
+  defp perform_upsert(conn, ctx, scheduler_id, job_params, opts, next_millis) do
+    now = job_params.now
+    next_millis = max(next_millis, now)
+
+    scheduler_opts = build_scheduler_opts(job_params.repeat_opts, job_params.job_name)
+    template_opts = build_template_opts(opts)
+    delayed_opts = build_delayed_opts(job_params.repeat_opts, scheduler_id, next_millis, now, opts)
+    template_data = Jason.encode!(job_params.job_data)
+
+    backend = Backend.create(ctx.name, connection: conn, prefix: ctx.prefix)
+
+    result =
+      Backend.add_job_scheduler(
+        backend,
+        scheduler_id,
+        next_millis,
+        scheduler_opts: scheduler_opts,
+        template_data: template_data,
+        template_opts: template_opts,
+        delayed_opts: delayed_opts,
+        now: now,
+        producer_id: nil
+      )
+
+    handle_upsert_result(result, scheduler_id, job_params, opts)
+  end
+
+  defp handle_upsert_result({:ok, [job_id, delay]}, scheduler_id, job_params, opts)
+       when is_binary(job_id) do
+    parsed_delay = if is_binary(delay), do: String.to_integer(delay), else: delay
+
+    job = %Job{
+      id: job_id,
+      name: job_params.job_name,
+      data: job_params.job_data,
+      queue_name: job_params.queue_name,
+      delay: parsed_delay,
+      timestamp: job_params.now,
+      opts: Map.new(opts),
+      repeat_job_key: scheduler_id
+    }
+
+    {:ok, job}
+  end
+
+  defp handle_upsert_result({:ok, @error_scheduler_job_id_collision}, _id, _params, _opts) do
+    {:error, :job_id_collision}
+  end
+
+  defp handle_upsert_result({:ok, @error_scheduler_job_slots_busy}, _id, _params, _opts) do
+    {:error, :job_slots_busy}
+  end
+
+  defp handle_upsert_result({:ok, nil}, _id, _params, _opts), do: {:ok, nil}
+  defp handle_upsert_result({:error, _} = error, _id, _params, _opts), do: error
+  defp handle_upsert_result(other, _id, _params, _opts), do: {:ok, other}
+
+  defp build_delayed_opts(repeat_opts, scheduler_id, next_millis, now, opts) do
+    iteration_count = Map.get(repeat_opts, :count, 0) + 1
+    offset = Map.get(repeat_opts, :offset, 0)
+    delay = max(0, next_millis + offset - now)
+
+    %{
+      delay: delay,
+      timestamp: now,
+      prevMillis: next_millis,
+      repeatJobKey: scheduler_id,
+      repeat: %{
+        count: iteration_count,
+        limit: Map.get(repeat_opts, :limit),
+        pattern: Map.get(repeat_opts, :pattern),
+        every: Map.get(repeat_opts, :every),
+        offset: offset,
+        startDate: normalize_date(Map.get(repeat_opts, :start_date)),
+        endDate: normalize_date(Map.get(repeat_opts, :end_date)),
+        tz: Map.get(repeat_opts, :tz)
+      }
+    }
+    |> maybe_add_job_opts(opts)
   end
 
   defp build_scheduler_opts(repeat_opts, job_name) do
-    opts = %{name: job_name}
-
-    opts =
-      case Map.get(repeat_opts, :pattern) do
-        nil -> opts
-        pattern -> Map.put(opts, :pattern, pattern)
-      end
-
-    opts =
-      case Map.get(repeat_opts, :every) do
-        nil -> opts
-        every -> Map.put(opts, :every, every)
-      end
-
-    opts =
-      case Map.get(repeat_opts, :tz) do
-        nil -> opts
-        tz -> Map.put(opts, :tz, tz)
-      end
-
-    opts =
-      case Map.get(repeat_opts, :limit) do
-        nil -> opts
-        limit -> Map.put(opts, :limit, limit)
-      end
-
-    opts =
-      case normalize_date(Map.get(repeat_opts, :start_date)) do
-        nil -> opts
-        start_date -> Map.put(opts, :startDate, start_date)
-      end
-
-    opts =
-      case normalize_date(Map.get(repeat_opts, :end_date)) do
-        nil -> opts
-        end_date -> Map.put(opts, :endDate, end_date)
-      end
-
-    case Map.get(repeat_opts, :offset) do
-      nil -> opts
-      offset -> Map.put(opts, :offset, offset)
-    end
+    %{name: job_name}
+    |> maybe_put_opt(:pattern, Map.get(repeat_opts, :pattern))
+    |> maybe_put_opt(:every, Map.get(repeat_opts, :every))
+    |> maybe_put_opt(:tz, Map.get(repeat_opts, :tz))
+    |> maybe_put_opt(:limit, Map.get(repeat_opts, :limit))
+    |> maybe_put_opt(:startDate, normalize_date(Map.get(repeat_opts, :start_date)))
+    |> maybe_put_opt(:endDate, normalize_date(Map.get(repeat_opts, :end_date)))
+    |> maybe_put_opt(:offset, Map.get(repeat_opts, :offset))
   end
+
+  defp maybe_put_opt(map, _key, nil), do: map
+  defp maybe_put_opt(map, key, val), do: Map.put(map, key, val)
 
   defp build_template_opts(opts) do
     Enum.reduce(opts, %{}, fn
@@ -728,98 +690,30 @@ defmodule BullMQ.JobScheduler do
   end
 
   defp transform_scheduler_data(key, raw_data, score) when is_map(raw_data) do
-    scheduler = %{
+    %{
       key: key,
       name: Map.get(raw_data, "name", key)
     }
+    |> maybe_put_opt(:next, Utils.parse_int_or_nil(score))
+    |> maybe_put_parsed_int(:iteration_count, Map.get(raw_data, "ic"))
+    |> maybe_put_parsed_int(:limit, Map.get(raw_data, "limit"))
+    |> maybe_put_parsed_int(:start_date, Map.get(raw_data, "startDate"))
+    |> maybe_put_parsed_int(:end_date, Map.get(raw_data, "endDate"))
+    |> maybe_put_opt(:tz, Map.get(raw_data, "tz"))
+    |> maybe_put_opt(:pattern, Map.get(raw_data, "pattern"))
+    |> maybe_put_parsed_int(:every, Map.get(raw_data, "every"))
+    |> maybe_put_parsed_int(:offset, Map.get(raw_data, "offset"))
+    |> maybe_put_template(raw_data)
+  end
 
-    scheduler =
-      if score do
-        Map.put(scheduler, :next, parse_int(score))
-      else
-        scheduler
-      end
+  defp maybe_put_parsed_int(map, _key, nil), do: map
+  defp maybe_put_parsed_int(map, key, val), do: Map.put(map, key, Utils.parse_int_or_nil(val))
 
-    scheduler =
-      case Map.get(raw_data, "ic") do
-        nil -> scheduler
-        ic -> Map.put(scheduler, :iteration_count, parse_int(ic))
-      end
-
-    scheduler =
-      case Map.get(raw_data, "limit") do
-        nil -> scheduler
-        limit -> Map.put(scheduler, :limit, parse_int(limit))
-      end
-
-    scheduler =
-      case Map.get(raw_data, "startDate") do
-        nil -> scheduler
-        sd -> Map.put(scheduler, :start_date, parse_int(sd))
-      end
-
-    scheduler =
-      case Map.get(raw_data, "endDate") do
-        nil -> scheduler
-        ed -> Map.put(scheduler, :end_date, parse_int(ed))
-      end
-
-    scheduler =
-      case Map.get(raw_data, "tz") do
-        nil -> scheduler
-        tz -> Map.put(scheduler, :tz, tz)
-      end
-
-    scheduler =
-      case Map.get(raw_data, "pattern") do
-        nil -> scheduler
-        pattern -> Map.put(scheduler, :pattern, pattern)
-      end
-
-    scheduler =
-      case Map.get(raw_data, "every") do
-        nil -> scheduler
-        every -> Map.put(scheduler, :every, parse_int(every))
-      end
-
-    scheduler =
-      case Map.get(raw_data, "offset") do
-        nil -> scheduler
-        offset -> Map.put(scheduler, :offset, parse_int(offset))
-      end
-
-    # Build template if data or opts exist
-    template = %{}
-
+  defp maybe_put_template(scheduler, raw_data) do
     template =
-      case Map.get(raw_data, "data") do
-        nil ->
-          template
-
-        data when is_binary(data) ->
-          case Jason.decode(data) do
-            {:ok, decoded} -> Map.put(template, :data, decoded)
-            _ -> template
-          end
-
-        data ->
-          Map.put(template, :data, data)
-      end
-
-    template =
-      case Map.get(raw_data, "opts") do
-        nil ->
-          template
-
-        opts when is_binary(opts) ->
-          case Jason.decode(opts) do
-            {:ok, decoded} -> Map.put(template, :opts, decoded)
-            _ -> template
-          end
-
-        opts ->
-          Map.put(template, :opts, opts)
-      end
+      %{}
+      |> maybe_decode_json_field(:data, Map.get(raw_data, "data"))
+      |> maybe_decode_json_field(:opts, Map.get(raw_data, "opts"))
 
     if map_size(template) > 0 do
       Map.put(scheduler, :template, template)
@@ -828,21 +722,16 @@ defmodule BullMQ.JobScheduler do
     end
   end
 
-  defp array_to_map(array) when is_list(array) do
-    array
-    |> Enum.chunk_every(2)
-    |> Enum.into(%{}, fn
-      [k, v] -> {k, v}
-      [k] -> {k, nil}
-    end)
+  defp maybe_decode_json_field(map, _key, nil), do: map
+
+  defp maybe_decode_json_field(map, key, val) when is_binary(val) do
+    case Jason.decode(val) do
+      {:ok, decoded} -> Map.put(map, key, decoded)
+      _ -> map
+    end
   end
 
-  defp array_to_map(_), do: %{}
-
-  defp parse_int(nil), do: nil
-  defp parse_int(n) when is_integer(n), do: n
-  defp parse_int(s) when is_binary(s), do: String.to_integer(s)
-  defp parse_int(f) when is_float(f), do: round(f)
+  defp maybe_decode_json_field(map, key, val), do: Map.put(map, key, val)
 
   defp normalize_date(nil), do: nil
   defp normalize_date(ms) when is_integer(ms), do: ms

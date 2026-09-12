@@ -18,7 +18,7 @@ defmodule BullMQ.BlockingWaitTest do
 
   @moduletag :integration
 
-  alias BullMQ.{Queue, Worker, RedisConnection}
+  alias BullMQ.{Queue, RedisConnection, Worker}
 
   @redis_url BullMQ.TestHelper.redis_url()
   @test_prefix BullMQ.TestHelper.test_prefix() <> "_blocking"

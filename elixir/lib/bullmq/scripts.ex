@@ -14,7 +14,7 @@ defmodule BullMQ.Scripts do
   will be copied automatically during CI builds.
   """
 
-  alias BullMQ.{Keys, RedisConnection}
+  alias BullMQ.{Keys, RedisConnection, Utils}
 
   # Path to the scripts directory
   # First try priv/scripts (for CI and production), fallback to rawScripts (for local dev)
@@ -435,7 +435,7 @@ defmodule BullMQ.Scripts do
   Ensures scripts are loaded into Redis cache by executing a dummy SCRIPT LOAD.
   Call this before using pipelined operations to avoid NOSCRIPT errors.
   """
-  @spec ensure_scripts_loaded(atom(), [script_name()]) :: :ok | {:error, term()}
+  @spec ensure_scripts_loaded(atom(), [script_name()]) :: :ok
   def ensure_scripts_loaded(conn, script_names) do
     Enum.each(script_names, fn script_name ->
       case get(script_name) do
@@ -530,7 +530,7 @@ defmodule BullMQ.Scripts do
   Used for pipelining multiple job additions.
   """
   @spec build_add_standard_job_command(queue_context(), map() | struct(), map()) ::
-          {:ok, [String.t()]}
+          {:ok, [String.t()]} | {:error, term()}
   def build_add_standard_job_command(ctx, job, opts) do
     keys = [
       Keys.wait(ctx),
@@ -764,7 +764,7 @@ defmodule BullMQ.Scripts do
   Used for building flow transactions where all jobs are added atomically.
   """
   @spec build_add_parent_job_command(queue_context(), map() | struct(), map()) ::
-          {:ok, [String.t()]}
+          {:ok, [String.t()]} | {:error, term()}
   def build_add_parent_job_command(ctx, job, opts) do
     keys = [
       # KEYS[1] 'meta'
@@ -970,8 +970,17 @@ defmodule BullMQ.Scripts do
   @doc """
   Moves a job to finished (completed/failed) state.
   """
-  @spec move_to_finished(atom(), queue_context(), String.t(), String.t(), any(), atom(), keyword()) ::
+  @spec move_to_finished(
+          atom(),
+          queue_context(),
+          String.t(),
+          String.t(),
+          any(),
+          atom(),
+          keyword()
+        ) ::
           script_result()
+  # credo:disable-for-next-line Credo.Check.Refactor.FunctionArity
   def move_to_finished(conn, ctx, job_id, token, result, target, opts \\ []) do
     target_str = to_string(target)
     metrics_key = Keys.metrics(ctx, target_str)
@@ -1566,6 +1575,7 @@ defmodule BullMQ.Scripts do
           boolean(),
           integer()
         ) :: script_result()
+  # credo:disable-for-next-line Credo.Check.Refactor.FunctionArity
   def get_jobs(
         conn,
         ctx,
@@ -1671,6 +1681,7 @@ defmodule BullMQ.Scripts do
           binary(),
           String.t()
         ) :: script_result()
+  # credo:disable-for-next-line Credo.Check.Refactor.FunctionArity
   def update_job_scheduler(
         conn,
         ctx,
@@ -1815,16 +1826,26 @@ defmodule BullMQ.Scripts do
   @doc """
   Checks if the queue is at its max limit.
   """
-  @spec is_maxed(atom(), queue_context()) :: script_result()
-  def is_maxed(conn, ctx) do
+  @spec maxed?(atom(), queue_context()) :: script_result()
+  def maxed?(conn, ctx) do
     keys = [
-      Keys.limiter(ctx),
-      Keys.meta(ctx)
+      Keys.meta(ctx),
+      Keys.active(ctx)
     ]
 
     args = []
 
     execute(conn, :is_maxed, keys, args)
+  end
+
+  @deprecated "Use maxed?/2 instead"
+  @spec is_maxed(pid(), String.t()) :: {:ok, boolean()} | {:error, term()}
+  def is_maxed(conn, ctx) do
+    case maxed?(conn, ctx) do
+      {:ok, res} when res in [1, true, "1"] -> {:ok, true}
+      {:ok, _} -> {:ok, false}
+      {:error, _} = error -> error
+    end
   end
 
   @doc """
@@ -1869,7 +1890,13 @@ defmodule BullMQ.Scripts do
       * -1: Job does not exist
       * -3: Job was not found in the expected state
   """
-  @spec reprocess_job(atom(), queue_context(), String.t(), atom(), keyword()) :: script_result()
+  @spec reprocess_job(
+          atom(),
+          queue_context(),
+          String.t(),
+          :completed | :failed,
+          keyword()
+        ) :: script_result()
   def reprocess_job(conn, ctx, job_id, state, opts \\ []) when state in [:failed, :completed] do
     state_str = to_string(state)
     lifo = Keyword.get(opts, :lifo, false)
@@ -1930,11 +1957,11 @@ defmodule BullMQ.Scripts do
         {:ok,
          %{
            meta: %{
-             count: parse_int(count_str || "0"),
-             prev_ts: parse_int(prev_ts_str || "0"),
-             prev_count: parse_int(prev_count_str || "0")
+             count: Utils.parse_int(count_str),
+             prev_ts: Utils.parse_int(prev_ts_str),
+             prev_count: Utils.parse_int(prev_count_str)
            },
-           data: Enum.map(data || [], fn point -> parse_int(point || "0") end),
+           data: Enum.map(data || [], fn point -> Utils.parse_int(point) end),
            count: count || 0
          }}
 
@@ -1946,64 +1973,22 @@ defmodule BullMQ.Scripts do
     end
   end
 
-  defp parse_int(nil), do: 0
-  defp parse_int(val) when is_integer(val), do: val
-
-  defp parse_int(val) when is_binary(val) do
-    case Integer.parse(val) do
-      {int, _} -> int
-      :error -> 0
-    end
-  end
-
   # ---------------------------------------------------------------------------
   # Private Helpers
   # ---------------------------------------------------------------------------
 
-  defp get_job_id(job) when is_struct(job), do: Map.get(job, :id)
-  defp get_job_id(job) when is_map(job), do: Map.get(job, :id) || Map.get(job, "id")
-  defp get_job_id(_), do: nil
+  defp get_job_id(job), do: Utils.get_opt(job, [:id, "id"])
+  defp get_job_name(job), do: Utils.get_opt(job, [:name, "name"], "")
+  defp get_job_timestamp(job), do: Utils.get_opt(job, [:timestamp, "timestamp"])
+  defp get_job_data(job), do: Utils.get_opt(job, [:data, "data"], %{})
+  defp get_job_delay(job), do: Utils.get_opt(job, [:delay, "delay"], 0)
+  defp get_job_priority(job), do: Utils.get_opt(job, [:priority, "priority"], 0)
 
-  defp get_job_name(job) when is_struct(job), do: Map.get(job, :name) || ""
-  defp get_job_name(job) when is_map(job), do: Map.get(job, :name) || Map.get(job, "name") || ""
-  defp get_job_name(_), do: ""
-
-  defp get_job_timestamp(job) when is_struct(job), do: Map.get(job, :timestamp)
-
-  defp get_job_timestamp(job) when is_map(job),
-    do: Map.get(job, :timestamp) || Map.get(job, "timestamp")
-
-  defp get_job_timestamp(_), do: nil
-
-  defp get_job_data(job) when is_struct(job), do: Map.get(job, :data) || %{}
-  defp get_job_data(job) when is_map(job), do: Map.get(job, :data) || Map.get(job, "data") || %{}
-  defp get_job_data(_), do: %{}
-
-  defp get_job_delay(job) when is_struct(job), do: Map.get(job, :delay) || 0
-  defp get_job_delay(job) when is_map(job), do: Map.get(job, :delay) || Map.get(job, "delay") || 0
-  defp get_job_delay(_), do: 0
-
-  defp get_job_priority(job) when is_struct(job), do: Map.get(job, :priority) || 0
-
-  defp get_job_priority(job) when is_map(job),
-    do: Map.get(job, :priority) || Map.get(job, "priority") || 0
-
-  defp get_job_priority(_), do: 0
-
-  defp get_repeat_job_key(job) when is_struct(job), do: Map.get(job, :repeat_job_key)
-
-  defp get_repeat_job_key(job) when is_map(job),
-    do: Map.get(job, :repeat_job_key) || Map.get(job, "repeatJobKey")
-
-  defp get_repeat_job_key(_), do: nil
+  defp get_repeat_job_key(job),
+    do: Utils.get_opt(job, [:repeat_job_key, "repeatJobKey", "repeat_job_key"])
 
   defp get_deduplication_key(job, ctx) do
-    dedup_id =
-      cond do
-        is_struct(job) -> Map.get(job, :deduplication_id)
-        is_map(job) -> Map.get(job, :deduplication_id) || Map.get(job, "deduplicationId")
-        true -> nil
-      end
+    dedup_id = Utils.get_opt(job, [:deduplication_id, "deduplicationId", "deduplication_id"])
 
     if dedup_id do
       # Build deduplication key: prefix:queueName:de:deduplicationId
@@ -2014,35 +1999,13 @@ defmodule BullMQ.Scripts do
   end
 
   # Get full parent info: {parentKey, parentDepsKey, parent}
-  defp get_parent_info_full(job) when is_struct(job) do
-    parent = Map.get(job, :parent)
-
-    if parent do
-      parent_key = Map.get(parent, :key) || build_parent_key(parent)
-      parent_id = Map.get(parent, :id) || ""
-      queue_key = Map.get(parent, :queue_key) || ""
-      parent_deps_key = if parent_key != "", do: "#{parent_key}:dependencies", else: nil
-
-      parent_obj =
-        if parent_id != "" do
-          build_parent_obj(parent_id, queue_key, job)
-        else
-          nil
-        end
-
-      {parent_key, parent_deps_key, parent_obj}
-    else
-      {nil, nil, nil}
-    end
-  end
-
   defp get_parent_info_full(job) when is_map(job) do
-    parent = Map.get(job, :parent) || Map.get(job, "parent")
+    parent = Utils.get_opt(job, [:parent, "parent"])
 
     if parent do
-      parent_key = Map.get(parent, :key) || Map.get(parent, "key") || build_parent_key(parent)
-      parent_id = Map.get(parent, :id) || Map.get(parent, "id") || ""
-      queue_key = Map.get(parent, :queue_key) || Map.get(parent, "queueKey") || ""
+      parent_key = Utils.get_opt(parent, [:key, "key"]) || build_parent_key(parent)
+      parent_id = Utils.get_opt(parent, [:id, "id"], "")
+      queue_key = Utils.get_opt(parent, [:queue_key, "queueKey", "queue_key"], "")
       parent_deps_key = if parent_key != "", do: "#{parent_key}:dependencies", else: nil
 
       parent_obj =
@@ -2071,45 +2034,53 @@ defmodule BullMQ.Scripts do
     %{"id" => parent_id, "queueKey" => queue_key}
     |> maybe_add_opt(
       "fpof",
-      Map.get(job_opts, :fail_parent_on_failure) ||
-        Map.get(job_opts, "fail_parent_on_failure") ||
-        Map.get(job_opts, "failParentOnFailure") ||
-        Map.get(job_opts, :fpof) ||
-        Map.get(job_opts, "fpof"),
+      Utils.get_opt(job_opts, [
+        :fail_parent_on_failure,
+        "fail_parent_on_failure",
+        "failParentOnFailure",
+        :fpof,
+        "fpof"
+      ]),
       nil
     )
     |> maybe_add_opt(
       "cpof",
-      Map.get(job_opts, :continue_parent_on_failure) ||
-        Map.get(job_opts, "continue_parent_on_failure") ||
-        Map.get(job_opts, "continueParentOnFailure") ||
-        Map.get(job_opts, :cpof) ||
-        Map.get(job_opts, "cpof"),
+      Utils.get_opt(job_opts, [
+        :continue_parent_on_failure,
+        "continue_parent_on_failure",
+        "continueParentOnFailure",
+        :cpof,
+        "cpof"
+      ]),
       nil
     )
     |> maybe_add_opt(
       "idof",
-      Map.get(job_opts, :ignore_dependency_on_failure) ||
-        Map.get(job_opts, "ignore_dependency_on_failure") ||
-        Map.get(job_opts, "ignoreDependencyOnFailure") ||
-        Map.get(job_opts, :idof) ||
-        Map.get(job_opts, "idof"),
+      Utils.get_opt(job_opts, [
+        :ignore_dependency_on_failure,
+        "ignore_dependency_on_failure",
+        "ignoreDependencyOnFailure",
+        :idof,
+        "idof"
+      ]),
       nil
     )
     |> maybe_add_opt(
       "rdof",
-      Map.get(job_opts, :remove_dependency_on_failure) ||
-        Map.get(job_opts, "remove_dependency_on_failure") ||
-        Map.get(job_opts, "removeDependencyOnFailure") ||
-        Map.get(job_opts, :rdof) ||
-        Map.get(job_opts, "rdof"),
+      Utils.get_opt(job_opts, [
+        :remove_dependency_on_failure,
+        "remove_dependency_on_failure",
+        "removeDependencyOnFailure",
+        :rdof,
+        "rdof"
+      ]),
       nil
     )
   end
 
   defp build_parent_key(parent) when is_map(parent) do
-    queue_key = Map.get(parent, :queue_key) || Map.get(parent, "queueKey") || ""
-    id = Map.get(parent, :id) || Map.get(parent, "id") || ""
+    queue_key = Utils.get_opt(parent, [:queue_key, "queueKey"], "")
+    id = Utils.get_opt(parent, [:id, "id"], "")
 
     if queue_key != "" and id != "" do
       "#{queue_key}:#{id}"
@@ -2121,9 +2092,8 @@ defmodule BullMQ.Scripts do
   defp build_parent_key(_), do: ""
 
   # Get job options (opts field)
-  defp get_job_opts(job) when is_struct(job), do: Map.get(job, :opts) || %{}
-  defp get_job_opts(job) when is_map(job), do: Map.get(job, :opts) || Map.get(job, "opts") || %{}
-  defp get_job_opts(_), do: %{}
+  # Get job options (opts field)
+  defp get_job_opts(job), do: Utils.get_opt(job, [:opts, "opts"], %{})
 
   # Pack job options using msgpack with BullMQ's compressed option names
   # Note: This function is kept for potential future use in add_job operations
@@ -2136,43 +2106,53 @@ defmodule BullMQ.Scripts do
     # Build options map with BullMQ's short key names
     opts =
       %{}
-      |> maybe_add_opt("del", Map.get(job_opts, :delay) || Map.get(job_opts, "delay") || delay, 0)
+      |> maybe_add_opt("del", Utils.get_opt(job_opts, [:delay, "delay"], delay), 0)
       |> maybe_add_opt(
         "priority",
-        Map.get(job_opts, :priority) || Map.get(job_opts, "priority") || priority,
+        Utils.get_opt(job_opts, [:priority, "priority"], priority),
         0
       )
-      |> maybe_add_opt("at", Map.get(job_opts, :attempts) || Map.get(job_opts, "attempts"), nil)
+      |> maybe_add_opt("at", Utils.get_opt(job_opts, [:attempts, "attempts"]), nil)
       |> maybe_add_opt("bo", get_backoff_opts(job_opts), nil)
-      |> maybe_add_opt("lifo", Map.get(job_opts, :lifo) || Map.get(job_opts, "lifo"), nil)
+      |> maybe_add_opt("lifo", Utils.get_opt(job_opts, [:lifo, "lifo"]), nil)
       |> maybe_add_opt(
         "ro",
-        Map.get(job_opts, :remove_on_complete) || Map.get(job_opts, "removeOnComplete"),
+        Utils.get_opt(job_opts, [:remove_on_complete, "removeOnComplete", "remove_on_complete"]),
         nil
       )
       |> maybe_add_opt(
         "rof",
-        Map.get(job_opts, :remove_on_fail) || Map.get(job_opts, "removeOnFail"),
+        Utils.get_opt(job_opts, [:remove_on_fail, "removeOnFail", "remove_on_fail"]),
         nil
       )
       |> maybe_add_opt(
         "fpof",
-        Map.get(job_opts, :fail_parent_on_failure) || Map.get(job_opts, "failParentOnFailure"),
+        Utils.get_opt(job_opts, [
+          :fail_parent_on_failure,
+          "failParentOnFailure",
+          "fail_parent_on_failure"
+        ]),
         nil
       )
       |> maybe_add_opt(
         "idof",
-        Map.get(job_opts, :ignore_dependency_on_failure) ||
-          Map.get(job_opts, "ignoreDependencyOnFailure"),
+        Utils.get_opt(job_opts, [
+          :ignore_dependency_on_failure,
+          "ignoreDependencyOnFailure",
+          "ignore_dependency_on_failure"
+        ]),
         nil
       )
       |> maybe_add_opt(
         "rdof",
-        Map.get(job_opts, :remove_dependency_on_failure) ||
-          Map.get(job_opts, "removeDependencyOnFailure"),
+        Utils.get_opt(job_opts, [
+          :remove_dependency_on_failure,
+          "removeDependencyOnFailure",
+          "remove_dependency_on_failure"
+        ]),
         nil
       )
-      |> maybe_add_opt("kl", Map.get(job_opts, :keep_logs) || Map.get(job_opts, "keepLogs"), nil)
+      |> maybe_add_opt("kl", Utils.get_opt(job_opts, [:keep_logs, "keepLogs", "keep_logs"]), nil)
       |> maybe_add_opt("rep", get_repeat_opts(job_opts), nil)
       |> maybe_add_opt("de", get_deduplication_opts(job_opts), nil)
       |> Map.merge(additional_opts)
@@ -2185,7 +2165,7 @@ defmodule BullMQ.Scripts do
   defp maybe_add_opt(map, key, value, _default), do: Map.put(map, key, value)
 
   defp get_backoff_opts(opts) do
-    backoff = Map.get(opts, :backoff) || Map.get(opts, "backoff")
+    backoff = Utils.get_opt(opts, [:backoff, "backoff"])
 
     case backoff do
       %{type: type, delay: delay} -> %{"type" => type, "delay" => delay}
@@ -2195,60 +2175,37 @@ defmodule BullMQ.Scripts do
   end
 
   defp get_repeat_opts(opts) do
-    repeat = Map.get(opts, :repeat) || Map.get(opts, "repeat")
-
-    case repeat do
-      nil -> nil
+    case Utils.get_opt(opts, [:repeat, "repeat"]) do
       r when is_map(r) -> r
       _ -> nil
     end
   end
 
+  @dedup_key_mappings [
+    {"id", [:id, "id"]},
+    {"ttl", [:ttl, "ttl"]},
+    {"extend", [:extend, "extend"]},
+    {"replace", [:replace, "replace"]},
+    {"keepLastIfActive", [:keep_last_if_active, "keepLastIfActive", "keep_last_if_active"]}
+  ]
+
   defp get_deduplication_opts(opts) do
-    dedup = Map.get(opts, :deduplication) || Map.get(opts, "deduplication")
+    opts
+    |> Utils.get_opt([:deduplication, "deduplication"])
+    |> build_dedup_map()
+  end
 
-    case dedup do
-      nil ->
-        nil
+  defp build_dedup_map(dedup) when is_map(dedup) do
+    result = Enum.reduce(@dedup_key_mappings, %{}, &extract_dedup_opt(dedup, &1, &2))
+    if map_size(result) > 0, do: result, else: nil
+  end
 
-      d when is_map(d) ->
-        # Convert Elixir-style keys to the short keys expected by Lua scripts
-        result = %{}
+  defp build_dedup_map(_), do: nil
 
-        result =
-          case Map.get(d, :id) || Map.get(d, "id") do
-            nil -> result
-            v -> Map.put(result, "id", v)
-          end
-
-        result =
-          case Map.get(d, :ttl) || Map.get(d, "ttl") do
-            nil -> result
-            v -> Map.put(result, "ttl", v)
-          end
-
-        result =
-          case Map.get(d, :extend) || Map.get(d, "extend") do
-            nil -> result
-            v -> Map.put(result, "extend", v)
-          end
-
-        result =
-          case Map.get(d, :replace) || Map.get(d, "replace") do
-            nil -> result
-            v -> Map.put(result, "replace", v)
-          end
-
-        result =
-          case Map.get(d, :keep_last_if_active) || Map.get(d, "keepLastIfActive") do
-            nil -> result
-            v -> Map.put(result, "keepLastIfActive", v)
-          end
-
-        if map_size(result) > 0, do: result, else: nil
-
-      _ ->
-        nil
+  defp extract_dedup_opt(dedup, {target_key, source_keys}, acc) do
+    case Utils.get_opt(dedup, source_keys) do
+      nil -> acc
+      val -> Map.put(acc, target_key, val)
     end
   end
 
