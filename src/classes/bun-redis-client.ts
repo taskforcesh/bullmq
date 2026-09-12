@@ -546,11 +546,15 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     // on first connect. Rebuilding from `this.raw.url` is not possible because
     // Bun never exposes the URL, which previously sent duplicates to the
     // wrong (default) server (#4582).
-    const parentRaw = this.raw;
+    //
+    // Do not close over `this.raw`: a duplicate may not have materialized its
+    // raw client yet, so nested `duplicate().duplicate()` would capture
+    // undefined and throw in `_duplicateRaw` (#4706). Resolve the parent raw
+    // lazily, matching reconnect's fallback to `rawFactory`.
     const adapter = new BunRedisAdapter<TClient>(
       undefined as unknown as TClient,
       {
-        rawFactory: () => this._duplicateRaw(parentRaw),
+        rawFactory: async () => this._duplicateRaw(await this._ensureRaw()),
       },
     );
 
