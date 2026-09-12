@@ -87,7 +87,9 @@ export class ChildProcessor {
     if (this.status !== ChildStatus.Idle) {
       return this.send({
         cmd: ParentCommand.Error,
-        err: errorToJSON(new Error('cannot start a not idling child process')),
+        value: errorToJSON(
+          new Error('cannot start a not idling child process'),
+        ),
       });
     }
     this.status = ChildStatus.Starting;
@@ -108,7 +110,7 @@ export class ChildProcessor {
     if (this.status !== ChildStatus.Starting || !this.pending) {
       return this.send({
         cmd: ParentCommand.Error,
-        err: errorToJSON(new Error('cannot run a job that is not starting')),
+        value: errorToJSON(new Error('cannot run a job that is not starting')),
       });
     }
 
@@ -153,14 +155,14 @@ export class ChildProcessor {
       this.abortController.abort(reason);
 
       if (this.status === ChildStatus.Starting) {
-        this.status = ChildStatus.Idle;
-        this.abortController = undefined;
-        this.pending = undefined;
+        // Keep a non-idle status while the failure notification is in-flight.
+        this.status = ChildStatus.Terminating;
+        const error = new Error(reason || 'Job was cancelled');
         this.currentJobPromise = this.send({
           cmd: ParentCommand.Failed,
-          value: errorToJSON(new Error(reason || 'Job was cancelled')),
+          value: errorToJSON(error),
         }).finally(() => {
-          this.currentJobPromise = undefined;
+          this.resetCurrentJobState();
         });
       }
     }

@@ -196,7 +196,7 @@ describe('Sandboxed process using child processes', () => {
       expect(sentMessages.at(-1)).toMatchObject({
         cmd: ParentCommand.Error,
       });
-      expect(sentMessages.at(-1).err.message).toBe(
+      expect(sentMessages.at(-1).value.message).toBe(
         'cannot run a job that is not starting',
       );
     });
@@ -235,7 +235,7 @@ describe('Sandboxed process using child processes', () => {
       expect(sentMessages.at(-1)).toMatchObject({
         cmd: ParentCommand.Error,
       });
-      expect(sentMessages.at(-1).err.message).toBe(
+      expect(sentMessages.at(-1).value.message).toBe(
         'cannot start a not idling child process',
       );
     });
