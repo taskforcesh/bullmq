@@ -1395,11 +1395,12 @@ export class Worker<
    */
   private async whenCurrentJobsFinished(reconnect = true) {
     // The blocking connection is dedicated to bzpopmin, so it is safe to
-    // always disconnect it whenever the main loop is running. Waiting for the
-    // actual disconnect ('end' event) is required to avoid a race where the
-    // bzpopmin call is still in flight when the main loop awaits its result.
+    // always disconnect it whenever the main loop is running. Pause waits for
+    // the actual disconnect ('end' event) before reconnecting to avoid racing
+    // an in-flight bzpopmin. Final shutdown does not reconnect, and must not
+    // wait for an event that a socketless reconnecting client cannot emit.
     if (this.mainLoopRunning) {
-      await this.backend.disconnectBlocking(true);
+      await this.backend.disconnectBlocking(reconnect);
       await this.mainLoopRunning;
     } else {
       reconnect = false;
