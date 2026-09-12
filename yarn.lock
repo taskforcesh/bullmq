@@ -1434,10 +1434,10 @@
   dependencies:
     undici-types "~6.21.0"
 
-"@types/node@24.13.3":
-  version "24.13.3"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-24.13.3.tgz#49f18bd3c647866dcda51a0756c145e14590ce16"
-  integrity sha512-Dh8vAsV36ig5wa9OX4pXvMc9D3Veibfw2wix0CUwYODLD8nkj9UsLjASr49nPg+2eKzxhBV+v7L8pXvT4e639Q==
+"@types/node@24.13.4":
+  version "24.13.4"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-24.13.4.tgz#e54f74ceae6838bff57a814b7d31f5042a0f9074"
+  integrity sha512-YJ7EqCstVTzIr0fMr7qul/977en+pQHrfmuKIo6Zr9i75Be21dr3MovcfvGtyvi2HAUrRerWps5sMO9I7WaxDw==
   dependencies:
     undici-types "~7.18.0"
 
@@ -4020,10 +4020,10 @@ linkify-it@^5.0.2:
   dependencies:
     uc.micro "^2.0.0"
 
-lint-staged@17.5.0:
-  version "17.5.0"
-  resolved "https://registry.yarnpkg.com/lint-staged/-/lint-staged-17.5.0.tgz#4a52ae41a703cd535dae321589c431c923c15f40"
-  integrity sha512-ah2qsNtvKP1+Ak4rAvEEIvcXDLjjbr/xmxCvlequxqEOFYk0qINcZcRxD3Ic8wRn7/oQ8+wC9s0DfDrdMVCRFg==
+lint-staged@17.5.1:
+  version "17.5.1"
+  resolved "https://registry.yarnpkg.com/lint-staged/-/lint-staged-17.5.1.tgz#a9222014fc2680934837b5b2214e98c050d2ea3e"
+  integrity sha512-7EDuco1xnBMeVpvAbeMq1U5KXwJGLmY8q6l+Ye78r36C4mPc+Vg1Z2SK8gHyRTyvPro90A0q5/FAZ+Au23d6QQ==
   dependencies:
     picomatch "^4.0.7"
     string-argv "^0.3.2"
