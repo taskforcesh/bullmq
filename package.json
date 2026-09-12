@@ -20,7 +20,7 @@
     "dist"
   ],
   "engines": {
-    "node": ">=14.17.0"
+    "node": "v26.8.2"
   },
   "scripts": {
     "build": "npm run clean:dist && npm run pretest && npm run tsc:all && npm run copy:main:type && npm run clean:temp:files && npm run copy:lua && npm run copy:includes:lua && npm run copy:sql",
@@ -239,9 +239,9 @@
   "packageManager": "yarn@1.22.22",
   "resolutions": {
     "brace-expansion": "5.0.9",
-    "js-yaml": "5.2.3",
-    "picomatch": "4.0.5",
+    "js-yaml": "5.4.1",
+    "picomatch": "4.0.7",
     "tar": "7.5.22",
-    "yaml": ">=2.8.3"
+    "yaml": "2.9.0"
   }
 }
