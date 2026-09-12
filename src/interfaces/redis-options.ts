@@ -16,7 +16,7 @@ export interface RedisOptions extends BaseOptions {
   keyPrefix?: string;
   enableOfflineQueue?: boolean;
   maxRetriesPerRequest?: number | null;
-  retryStrategy?: (times: number) => number | void | null;
+  retryStrategy?: ((times: number) => number | void | null) | null;
   lazyConnect?: boolean;
   tls?: any;
   [key: string]: any;
