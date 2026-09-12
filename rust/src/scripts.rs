@@ -166,8 +166,8 @@ impl ScriptRegistry {
             ),
             (
                 "moveToDelayed",
-                12,
-                include_str!("commands/moveToDelayed-12.lua"),
+                11,
+                include_str!("commands/moveToDelayed-11.lua"),
             ),
             (
                 "moveToWaitingChildren",

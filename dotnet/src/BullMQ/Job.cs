@@ -187,6 +187,27 @@ public class Job
     public Task<bool> MoveToWaitingChildrenAsync(string token, string? childKey = null) =>
         _backend.MoveToWaitingChildrenAsync(Id!, token, childKey);
 
+    /// <summary>
+    /// Moves this active job to delayed until <paramref name="timestamp"/> (ms
+    /// since Unix epoch). Commonly used by manual processors right before
+    /// throwing <see cref="DelayedException"/>.
+    /// </summary>
+    public async Task MoveToDelayedAsync(long timestamp, string? token = null)
+    {
+        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var delay = Math.Max(timestamp - now, 0);
+        await _backend
+            .MoveToDelayedAsync(
+                Id!,
+                now,
+                delay,
+                token ?? Token ?? "0",
+                fetchNext: false,
+                skipAttempt: true)
+            .ConfigureAwait(false);
+        Delay = delay;
+    }
+
     /// <summary>Returns the processed children values (child key -&gt; deserialized value).</summary>
     public async Task<IReadOnlyDictionary<string, object?>> GetChildrenValuesAsync()
     {
