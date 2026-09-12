@@ -60,6 +60,6 @@ jobs:
           node-version: lts/*
           cache: 'yarn'
       - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
-      - run: npm install --no-save @valkey/valkey-glide@2.5.0
+      - run: npm install --no-save --legacy-peer-deps @valkey/valkey-glide@2.5.0
       - run: yarn build
       - run: yarn test:valkey-glide
