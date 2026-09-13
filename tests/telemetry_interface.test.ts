@@ -15,7 +15,7 @@ import {
   Worker,
   UnrecoverableError,
 } from '../src/classes';
-import { randomUUID } from '../src/utils';
+import { delay, randomUUID } from '../src/utils';
 import {
   Telemetry,
   ContextManager,
@@ -32,6 +32,7 @@ import {
   MetricOptions,
 } from '../src/interfaces';
 import * as sinon from 'sinon';
+import { AsyncLocalStorage } from 'async_hooks';
 import { SpanKind, TelemetryAttributes, MetricNames } from '../src/enums';
 import { createTestConnection } from './utils/connection-factory';
 import { cleanupQueue } from './utils/cleanup-queue';
@@ -626,6 +627,60 @@ describe('Telemetry', () => {
       startSpanSpy.restore();
       moveToFailedStub.restore();
       await worker.close();
+    });
+  });
+
+  describe('Worker.startStalledCheckTimer', () => {
+    it('should not parent stalled check spans to the startStalledCheckTimer span', async () => {
+      const storage = new AsyncLocalStorage<any>();
+      const contextManager: ContextManager = {
+        with: (context, fn) => storage.run(context, fn),
+        active: () => storage.getStore() ?? {},
+        getMetadata: () => '',
+        fromMetadata: activeContext => activeContext,
+      };
+
+      class ContextSpan extends MockSpan {
+        setSpanOnContext(ctx: any): any {
+          return { ...ctx, getSpan: () => this };
+        }
+      }
+
+      const startedSpans: { name: string; parent?: string }[] = [];
+      const tracer: Tracer = {
+        startSpan(name, options, context) {
+          const parentSpan = (context ?? contextManager.active()).getSpan?.();
+          startedSpans.push({ name, parent: parentSpan?.name });
+          return new ContextSpan(name, options);
+        },
+      };
+
+      const worker = new Worker(queueName, async () => {}, {
+        connection,
+        prefix,
+        telemetry: { tracer, contextManager },
+        stalledInterval: 50,
+      });
+
+      const stalledCheckSpans = () =>
+        startedSpans.filter(
+          span => span.name === `moveStalledJobsToWait ${queueName}`,
+        );
+
+      while (stalledCheckSpans().length < 2) {
+        await delay(20);
+      }
+
+      await worker.close();
+
+      expect(
+        startedSpans.some(
+          span => span.name === `startStalledCheckTimer ${queueName}`,
+        ),
+      ).toBe(true);
+      for (const span of stalledCheckSpans()) {
+        expect(span.parent).toBeUndefined();
+      }
     });
   });
 
