@@ -577,6 +577,37 @@ describe('RedisConnection', () => {
     });
   });
 
+  describe('close()', () => {
+    it('quits a healthy client orderly', async () => {
+      const client = createMockClusterClient();
+      const connection = new RedisConnection(client as any, {
+        skipVersionCheck: true,
+        skipWaitingForReady: true,
+      });
+      await connection.client;
+
+      await connection.close();
+
+      expect(client.quit.calledOnce).toBe(true);
+      expect(client.disconnect.called).toBe(false);
+    });
+
+    it('disconnects a reconnecting client instead of queuing quit', async () => {
+      const client = createMockClusterClient();
+      const connection = new RedisConnection(client as any, {
+        skipVersionCheck: true,
+        skipWaitingForReady: true,
+      });
+      await connection.client;
+      client.status = 'reconnecting';
+
+      await connection.close();
+
+      expect(client.disconnect.calledOnce).toBe(true);
+      expect(client.quit.called).toBe(false);
+    });
+  });
+
   describe('Queue', () => {
     it('propagates skipWaitingForReady to RedisConnection', () => {
       const queue = new Queue('test', {

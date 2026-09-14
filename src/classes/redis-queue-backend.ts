@@ -409,7 +409,20 @@ export class RedisQueueBackend extends EventEmitter implements IQueueBackend {
    */
   async disconnectBlocking(wait = true): Promise<void> {
     if (this.blockingConnection) {
-      await this.blockingConnection.disconnect(wait);
+      if (wait) {
+        await this.blockingConnection.disconnect(true);
+      } else {
+        // Final worker shutdown must cancel connection initialization and must
+        // not wait for an event from a socketless reconnecting client.
+        await this.blockingConnection.close(true);
+      }
+    }
+
+    if (!wait && this.connection.status === 'initializing') {
+      // A worker that never reached Redis can have its main loop parked on the
+      // regular connection's initialization as well. There cannot be an active
+      // job before that connection becomes ready, so it is safe to close early.
+      await this.connection.close(true);
     }
   }
 

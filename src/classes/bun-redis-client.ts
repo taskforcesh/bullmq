@@ -337,7 +337,17 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     // A duplicate created with a `rawFactory` builds its raw client lazily on
     // the first connect (Bun's native `duplicate()` is async).
     if (!this.raw && this.rawFactory) {
-      this.raw = await this.rawFactory();
+      const raw = await this.rawFactory();
+
+      // disconnect()/quit() cannot cancel the factory promise itself. If it
+      // resolved after final shutdown started, discard the late client before
+      // it can be wired up or open a socket after close() has resolved.
+      if (this.closing) {
+        this._closeRawClient(raw);
+        return;
+      }
+
+      this.raw = raw;
       this.rawFactory = undefined;
       this._setupCallbacks();
     }
@@ -417,20 +427,7 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     }
   }
 
-  private _closeRaw(): void {
-    // Cancel any pending reconnect
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
-    this.reconnecting = false;
-
-    // A duplicate closed before it ever connected has no raw client yet.
-    this.rawFactory = undefined;
-    const raw = this.raw;
-    if (!raw) {
-      return;
-    }
+  private _closeRawClient(raw: TClient): void {
     raw.onconnect = () => {};
     raw.onclose = () => {};
     raw.onerror = () => {};
@@ -447,6 +444,22 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
           // swallow
         }
       });
+    }
+  }
+
+  private _closeRaw(): void {
+    // Cancel any pending reconnect
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.reconnecting = false;
+
+    // A duplicate closed before it ever connected has no raw client yet.
+    this.rawFactory = undefined;
+    const raw = this.raw;
+    if (raw) {
+      this._closeRawClient(raw);
     }
   }
 
