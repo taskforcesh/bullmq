@@ -85,7 +85,7 @@ defmodule BullMQ.Worker do
 
   use GenServer
 
-  alias BullMQ.{Backend, CancellationToken, Job, Keys, LockManager, Types}
+  alias BullMQ.{Backend, CancellationToken, Job, JobScheduler, Keys, LockManager, Types}
 
   require Logger
 
@@ -2603,17 +2603,24 @@ defmodule BullMQ.Worker do
       repeat_opts = get_repeat_opts(job)
 
       # Check if we've hit the iteration limit
-      count = Map.get(repeat_opts, "count", 0)
-      limit = Map.get(repeat_opts, "limit")
+      count = parse_opt_int(Map.get(repeat_opts, "count") || Map.get(repeat_opts, :count), 0)
+      limit = parse_opt_int(Map.get(repeat_opts, "limit") || Map.get(repeat_opts, :limit), nil)
       next_count = count + 1
+
+      end_date =
+        parse_opt_int(
+          Map.get(repeat_opts, "endDate") ||
+            Map.get(repeat_opts, :end_date) ||
+            Map.get(repeat_opts, "end_date"),
+          nil
+        )
 
       cond do
         limit && next_count > limit ->
           # Limit reached, don't schedule next job
           :ok
 
-        Map.get(repeat_opts, "endDate") &&
-            System.system_time(:millisecond) > Map.get(repeat_opts, "endDate") ->
+        end_date && System.system_time(:millisecond) > end_date ->
           # End date passed, don't schedule next job
           :ok
 
@@ -2639,36 +2646,62 @@ defmodule BullMQ.Worker do
     spawn(fn ->
       try do
         now = System.system_time(:millisecond)
-        # Placeholder next_millis - Lua script calculates the real value based on 'every' interval
-        next_millis = now + 1000
+        repeat_opts = get_repeat_opts(job)
+        pattern = Map.get(repeat_opts, "pattern") || Map.get(repeat_opts, :pattern)
+        every = Map.get(repeat_opts, "every") || Map.get(repeat_opts, :every)
 
-        job_opts = build_scheduler_job_opts(job, next_count)
-        packed_opts = Msgpax.pack!(job_opts, iodata: false)
-        template_data = Jason.encode!(job.data || %{})
+        # In BullMQ, base time for next execution calculation is max(now, prevMillis)
+        prev_millis = get_job_prev_millis(job)
+        base_time = max(now, prev_millis)
 
-        case Backend.update_job_scheduler(
-               state.backend,
-               scheduler_id,
-               next_millis,
-               template_data,
-               packed_opts,
-               job.id
-             ) do
-          {:ok, nil} ->
-            # This can happen if: scheduler doesn't exist in Redis, job.id doesn't match
-            # the expected format, or next job already exists (duplicate)
-            Logger.warning(
-              "[BullMQ.Worker] Failed to schedule next iteration for scheduler '#{scheduler_id}': " <>
-                "scheduler may not exist or job ID mismatch (job.id=#{job.id})"
-            )
+        calc_opts = Map.put(repeat_opts, "prevMillis", prev_millis)
 
-          {:ok, _next_job_id} ->
-            :ok
+        next_millis =
+          cond do
+            pattern ->
+              JobScheduler.calculate_next_millis(calc_opts, base_time)
 
-          {:error, reason} ->
-            Logger.error(
-              "[BullMQ.Worker] Error scheduling next iteration for scheduler '#{scheduler_id}': #{inspect(reason)}"
-            )
+            every ->
+              # For 'every', Lua script / Postgres backend will recalculate based on interval,
+              # but calculate here as well for consistency.
+              JobScheduler.calculate_next_millis(calc_opts, base_time) ||
+                now + parse_opt_int(every, 1000)
+
+            true ->
+              nil
+          end
+
+        # Only schedule if next_millis is present or every is defined
+        if next_millis || every do
+          next_millis = next_millis || now
+          job_opts = build_scheduler_job_opts(job, next_count, next_millis, scheduler_id)
+          packed_opts = Msgpax.pack!(job_opts, iodata: false)
+          template_data = Jason.encode!(job.data || %{})
+
+          case Backend.update_job_scheduler(
+                 state.backend,
+                 scheduler_id,
+                 next_millis,
+                 template_data,
+                 packed_opts,
+                 job.id
+               ) do
+            {:ok, nil} ->
+              # This can happen if: scheduler doesn't exist in Redis, job.id doesn't match
+              # the expected format, or next job already exists (duplicate)
+              Logger.warning(
+                "[BullMQ.Worker] Failed to schedule next iteration for scheduler '#{scheduler_id}': " <>
+                  "scheduler may not exist or job ID mismatch (job.id=#{job.id})"
+              )
+
+            {:ok, _next_job_id} ->
+              :ok
+
+            {:error, reason} ->
+              Logger.error(
+                "[BullMQ.Worker] Error scheduling next iteration for scheduler '#{scheduler_id}': #{inspect(reason)}"
+              )
+          end
         end
       rescue
         e ->
@@ -2680,6 +2713,33 @@ defmodule BullMQ.Worker do
 
     :ok
   end
+
+  defp get_job_prev_millis(%Job{opts: opts} = job) when is_map(opts) do
+    val =
+      Map.get(opts, "prevMillis") ||
+        Map.get(opts, :prevMillis) ||
+        Map.get(opts, "prev_millis") ||
+        Map.get(opts, :prev_millis) ||
+        job.timestamp ||
+        0
+
+    parse_opt_int(val, 0)
+  end
+
+  defp get_job_prev_millis(%Job{timestamp: timestamp}) when is_integer(timestamp), do: timestamp
+  defp get_job_prev_millis(_), do: 0
+
+  defp parse_opt_int(nil, default), do: default
+  defp parse_opt_int(n, _default) when is_integer(n), do: n
+
+  defp parse_opt_int(s, default) when is_binary(s) do
+    case Integer.parse(s) do
+      {n, _} -> n
+      :error -> default
+    end
+  end
+
+  defp parse_opt_int(_, default), do: default
 
   # Extract repeat options from job opts
   defp get_repeat_opts(%Job{opts: opts}) when is_map(opts) do
@@ -2693,9 +2753,12 @@ defmodule BullMQ.Worker do
   defp get_repeat_opts(_), do: %{}
 
   # Build job options for the next scheduler iteration
-  defp build_scheduler_job_opts(job, next_count) do
+  defp build_scheduler_job_opts(job, next_count, next_millis, scheduler_id) do
     opts = job.opts || %{}
     repeat_opts = get_repeat_opts(job)
+    now = System.system_time(:millisecond)
+    offset = parse_opt_int(Map.get(repeat_opts, "offset") || Map.get(repeat_opts, :offset), 0)
+    delay = max(0, next_millis + offset - now)
 
     # Build the repeat sub-options with the updated count
     repeat =
@@ -2705,12 +2768,19 @@ defmodule BullMQ.Worker do
         "offset" => Map.get(repeat_opts, "offset") || Map.get(repeat_opts, :offset),
         "count" => next_count || Map.get(repeat_opts, "count", 0) + 1,
         "limit" => Map.get(repeat_opts, "limit") || Map.get(repeat_opts, :limit),
-        "endDate" => Map.get(repeat_opts, "endDate") || Map.get(repeat_opts, :end_date)
+        "endDate" => Map.get(repeat_opts, "endDate") || Map.get(repeat_opts, :end_date),
+        "startDate" => Map.get(repeat_opts, "startDate") || Map.get(repeat_opts, :start_date),
+        "tz" => Map.get(repeat_opts, "tz") || Map.get(repeat_opts, :tz)
       }
       |> Enum.reject(fn {_k, v} -> is_nil(v) end)
       |> Map.new()
 
     %{
+      "jobId" => "repeat:#{scheduler_id}:#{next_millis}",
+      "delay" => delay,
+      "timestamp" => now,
+      "prevMillis" => next_millis,
+      "repeatJobKey" => scheduler_id,
       "repeat" => repeat,
       "attempts" => opts["attempts"] || opts[:attempts],
       "backoff" => opts["backoff"] || opts[:backoff],
