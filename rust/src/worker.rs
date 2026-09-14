@@ -2018,7 +2018,6 @@ impl Worker {
         let stalled = keys.stalled();
         let wait = keys.wait();
         let limiter = keys.limiter();
-        let paused = keys.paused();
         let pc = keys.pc();
 
         let script_keys: Vec<&str> = vec![
@@ -2032,8 +2031,7 @@ impl Worker {
             &stalled,     // KEYS[8]
             &wait,        // KEYS[9]
             &limiter,     // KEYS[10]
-            &paused,      // KEYS[11]
-            &pc,          // KEYS[12]
+            &pc,          // KEYS[11]
         ];
 
         let prefix_str = std::str::from_utf8(prefix).unwrap_or("");

@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/taskforcesh/bullmq/compare/vnet1.1.1...vnet1.2.0) (2026-09-12)
+
+
+### Features
+
+* **delayed:** support DelayedException [dotnet] ([#4718](https://github.com/taskforcesh/bullmq/issues/4718)) ([e97e813](https://github.com/taskforcesh/bullmq/commit/e97e8135781402357acb77cbf8349ae4845e7516))
+
 ## [1.1.1](https://github.com/taskforcesh/bullmq/compare/vnet1.1.0...vnet1.1.1) (2026-08-25)
 
 
