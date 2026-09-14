@@ -128,7 +128,7 @@
     "@types/sinon": "22.0.0",
     "@typescript-eslint/eslint-plugin": "8.70.0",
     "@typescript-eslint/parser": "8.70.0",
-    "@vitest/coverage-v8": "5.0.0",
+    "@vitest/coverage-v8": "4.1.11",
     "coveralls-next": "6.0.2",
     "cpx2": "9.0.3",
     "eslint": "10.10.0",
@@ -158,7 +158,7 @@
     "typedoc": "0.28.20",
     "typescript": "6.0.3",
     "vitepress": "2.0.0-alpha.20",
-    "vitest": "5.0.0"
+    "vitest": "4.1.11"
   },
   "commitlint": {
     "extends": [
