@@ -1,3 +1,10 @@
+## [6.3.5](https://github.com/taskforcesh/bullmq/compare/v6.3.4...v6.3.5) (2026-09-14)
+
+
+### Bug Fixes
+
+* **deps:** update dependency cron-parser to v5.10.1 ([#4738](https://github.com/taskforcesh/bullmq/issues/4738)) ([d4b0414](https://github.com/taskforcesh/bullmq/commit/d4b041487fef73c7b6f611b8c401646bfb0fe3a7))
+
 ## [6.3.4](https://github.com/taskforcesh/bullmq/compare/v6.3.3...v6.3.4) (2026-09-01)
 
 
