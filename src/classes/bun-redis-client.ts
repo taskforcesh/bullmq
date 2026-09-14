@@ -141,6 +141,9 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
   // async. The duplicate adapter is created immediately with a `rawFactory`
   // and resolves its raw client when it connects.
   private rawFactory?: () => Promise<TClient>;
+  // In-flight `rawFactory()` so concurrent `connect()` / `_ensureRaw()` share
+  // one native client instead of overwriting an unclosed raw (#4706).
+  private materializing?: Promise<TClient>;
   // Auto-reconnect state
   private reconnecting = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -335,11 +338,11 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
 
   async connect(): Promise<void> {
     // A duplicate created with a `rawFactory` builds its raw client lazily on
-    // the first connect (Bun's native `duplicate()` is async).
-    if (!this.raw && this.rawFactory) {
-      this.raw = await this.rawFactory();
-      this.rawFactory = undefined;
-      this._setupCallbacks();
+    // the first connect (Bun's native `duplicate()` is async). Concurrent
+    // connect()/_ensureRaw() share one in-flight materialization so we don't
+    // create two native clients and overwrite an unclosed raw.
+    if (!this.raw && (this.rawFactory || this.materializing)) {
+      await this._materializeRaw();
     }
 
     const replaceRaw =
@@ -527,6 +530,38 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
   }
 
   /**
+   * Materialize a lazily-created raw client (duplicate `rawFactory`).
+   * Concurrent callers share the in-flight promise so the factory runs once.
+   */
+  private _materializeRaw(): Promise<TClient> {
+    if (this.raw) {
+      return Promise.resolve(this.raw);
+    }
+    if (this.materializing) {
+      return this.materializing;
+    }
+    const factory = this.rawFactory;
+    if (!factory) {
+      return Promise.resolve(this.raw);
+    }
+
+    const materializing = factory()
+      .then(raw => {
+        this.raw = raw;
+        this.rawFactory = undefined;
+        this._setupCallbacks();
+        return raw;
+      })
+      .finally(() => {
+        if (this.materializing === materializing) {
+          this.materializing = undefined;
+        }
+      });
+    this.materializing = materializing;
+    return materializing;
+  }
+
+  /**
    * Return the raw client, materializing it first when this adapter is a
    * lazily-initialized duplicate (created via `duplicate()` with a
    * `rawFactory`). Command paths that touch `this.raw` directly use this so a
@@ -546,11 +581,15 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     // on first connect. Rebuilding from `this.raw.url` is not possible because
     // Bun never exposes the URL, which previously sent duplicates to the
     // wrong (default) server (#4582).
-    const parentRaw = this.raw;
+    //
+    // Do not close over `this.raw`: a duplicate may not have materialized its
+    // raw client yet, so nested `duplicate().duplicate()` would capture
+    // undefined and throw in `_duplicateRaw` (#4706). Resolve the parent raw
+    // lazily, matching reconnect's fallback to `rawFactory`.
     const adapter = new BunRedisAdapter<TClient>(
       undefined as unknown as TClient,
       {
-        rawFactory: () => this._duplicateRaw(parentRaw),
+        rawFactory: async () => this._duplicateRaw(await this._ensureRaw()),
       },
     );
 
