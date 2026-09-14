@@ -1,3 +1,10 @@
+## [3.2.2](https://github.com/taskforcesh/bullmq/compare/vpy3.2.1...vpy3.2.2) (2026-09-14)
+
+
+### Bug Fixes
+
+* **deps:** update dependency semver to v3.1.0 [python] ([#4740](https://github.com/taskforcesh/bullmq/issues/4740)) ([3b3b927](https://github.com/taskforcesh/bullmq/commit/3b3b927d6bdf5b8a283198bda392514780ef2668))
+
 ## [3.2.1](https://github.com/taskforcesh/bullmq/compare/vpy3.2.0...vpy3.2.1) (2026-09-01)
 
 
