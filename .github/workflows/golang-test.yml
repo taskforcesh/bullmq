@@ -1,0 +1,107 @@
+name: Go Tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master, feat/v6]
+
+concurrency:
+  group: golang-test-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.filter.outputs.golang }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v4.0.3
+        id: filter
+        with:
+          filters: |
+            golang:
+              - 'golang/**'
+              - 'src/commands/**'
+              - '.github/workflows/golang-test.yml'
+
+  test:
+    needs: changes
+    if: needs.changes.outputs.should_run == 'true'
+    name: Go Tests
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: ['1.24', '1.25']
+
+    services:
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: lts/*
+          cache: 'yarn'
+
+      - name: Generate rawScripts (resolve Lua includes)
+        run: |
+          yarn install --frozen-lockfile --non-interactive
+          yarn generate:raw:scripts
+          yarn copy:lua:golang
+
+      - name: Setup Go
+        uses: actions/setup-go@v6.0.0
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache-dependency-path: golang/go.sum
+
+      - name: Check formatting
+        working-directory: golang
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "The following files are not gofmt'ed:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Verify go.mod is tidy
+        working-directory: golang
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
+      - name: Vet
+        working-directory: golang
+        run: go vet ./...
+
+      - name: Build
+        working-directory: golang
+        run: go build ./...
+
+      - name: Run tests
+        working-directory: golang
+        env:
+          REDIS_ADDR: 127.0.0.1:6379
+        run: go test -race -count=1 -timeout 10m ./...
