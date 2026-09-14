@@ -134,7 +134,7 @@ await queue.add('test-retry', { foo: 'bar' });
 ```
 
 {% hint style="info" %}
-Jitter percentage option value must be between 0 and 1. 0 percentage means no randomness is applied (default behavior), while 1 means that random delays will be generated beween 0 and max generated value by any of our built-in strategies.
+Jitter percentage option value must be between 0 and 1. 0 percentage means no randomness is applied (default behavior), while 1 means that random delays will be generated between 0 and max generated value by any of our built-in strategies.
 {% endhint %}
 
 ### Custom back-off strategies
