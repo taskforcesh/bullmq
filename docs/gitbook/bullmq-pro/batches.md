@@ -32,7 +32,7 @@ There is no strict maximum limit for the size of batches; however, keep in mind 
 In addition to the size option, two new options—`minSize` and `timeout`—provide greater control over batch processing:
 
 - `minSize`: Specifies the minimum number of jobs required before the worker processes a batch. The worker will wait until at least minSize jobs are available before fetching and processing them, up to the size limit. If fewer than minSize jobs are available, the worker waits indefinitely unless a timeout is also set.&#x20;
-- `timeout`: Defines the maximum time (in milliseconds) the worker will wait for minSize jobs to accumulate. If the timeout expires before minSize is reached, the worker processes whatever jobs are available, up to the size limit. If minSize is not set the timeout option is effectively ignored, as the worker batches only avaialble jobs.
+- `timeout`: Defines the maximum time (in milliseconds) the worker will wait for minSize jobs to accumulate. If the timeout expires before minSize is reached, the worker processes whatever jobs are available, up to the size limit. If minSize is not set the timeout option is effectively ignored, as the worker batches only available jobs.
 
 {% hint style="info" %}
 Important: Without `groupAffinity`, `minSize` and `timeout` are not compatible with groups. When groups are used without `groupAffinity`, the worker ignores `minSize` and batches only the currently available jobs without waiting.
@@ -146,7 +146,7 @@ const worker = new WorkerPro(
 );
 ```
 
-Only jobs explicitly marked with `setAsFailed` will fail; the remaining jobs in the batch will complete succesfully once the processor finishes.
+Only jobs explicitly marked with `setAsFailed` will fail; the remaining jobs in the batch will complete successfully once the processor finishes.
 
 ### Handling events
 

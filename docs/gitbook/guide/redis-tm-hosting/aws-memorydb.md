@@ -28,7 +28,7 @@ const connection = new Cluster(
 const worker = new Worker(
   'myqueue',
   async (job: Job) => {
-    // Do some usefull stuff
+    // Do some useful stuff
   },
   { connection },
 );
