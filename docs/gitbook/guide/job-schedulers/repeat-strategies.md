@@ -59,9 +59,9 @@ Below is the supported format for cron expressions in cron-parser:
 
 This format includes the optional second field, which is not typically available in standard cron schedules, allowing for even more precise scheduling.
 
-Cron expressions are quite powerful as in they support seemless handling timezone differences and daylight saving time transitions, crucial for tasks that depend on local times. And also because of the use of special characters to denote specific days or things like the last day of the month, providing flexibility for monthly and weekly tasks.
+Cron expressions are quite powerful as in they support seamless handling timezone differences and daylight saving time transitions, crucial for tasks that depend on local times. And also because of the use of special characters to denote specific days or things like the last day of the month, providing flexibility for monthly and weekly tasks.
 
-If you are new to Cron expressions, [Wikipedia](https://en.wikipedia.org/wiki/Cron) is an excelent starting point to learn how to use them.
+If you are new to Cron expressions, [Wikipedia](https://en.wikipedia.org/wiki/Cron) is an excellent starting point to learn how to use them.
 
 Here follows an example that sets up a job to execute at 9:00 AM from Monday to Friday:
 

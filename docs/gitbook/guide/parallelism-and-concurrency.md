@@ -6,7 +6,7 @@ In this chapter we would like to clean up some misconceptions regarding parallel
 
 Parallelism is the simplest of these two concepts as it means basically what your intuition will tell you: that two or more tasks can be run in parallel, independently of each other. This is the case when you have a multi-core processor, or if you have several machines running at the same time. There is a chance that tasks are running in parallel. However, running in parallel does not guarantee that the CPU time is maximized, mainly because most software is continually being blocked by slow IO operations such as reading from the network, writing to disk, sending and receiving data via peripherals, and so on.
 
-If tasks are very CPU intensive though, then being able to run them 100% in parallel will give you the biggest performance, as there will be very little overhead, but this is the exception rather than the norm, thats why in modern computers most tasks are instead run concurrently.
+If tasks are very CPU intensive though, then being able to run them 100% in parallel will give you the biggest performance, as there will be very little overhead, but this is the exception rather than the norm, that's why in modern computers most tasks are instead run concurrently.
 
 ## Concurrency
 
