@@ -73,6 +73,9 @@ function bigintOrUndefined(value: string | null): number | undefined {
 /** Max events fetched per readEvents round-trip. */
 const EVENT_READ_BATCH = 100;
 
+/** Namespaces the `addLog` advisory lock away from the migrator's own lock key. */
+const ADD_LOG_ADVISORY_LOCK_KEY = 0x4c4f4747; // 'LOGG'
+
 /** Strips `undefined` properties so the JSON shape matches the Redis backend. */
 function removeUndefined<T extends Record<string, any>>(obj: T): T {
   for (const key of Object.keys(obj)) {
@@ -1244,13 +1247,9 @@ export class PostgresQueueBackend
     logRow: string,
     keepLogs?: number,
   ): Promise<number> {
-    let rows: { idx: string }[];
+    let idx: number;
     try {
-      ({ rows } = await this.run<{ idx: string }>('add_log', [
-        this.queueName,
-        jobId,
-        logRow,
-      ]));
+      idx = await this.insertLogAtomically(jobId, logRow);
     } catch (err: any) {
       // 23503 = foreign_key_violation: the job no longer exists.
       if (err && err.code === '23503') {
@@ -1258,7 +1257,7 @@ export class PostgresQueueBackend
       }
       throw err;
     }
-    const count = Number(rows[0].idx) + 1;
+    const count = idx + 1;
 
     if (keepLogs && count > keepLogs) {
       await this.run('trim_logs', [this.queueName, jobId, count - keepLogs]);
@@ -1266,6 +1265,42 @@ export class PostgresQueueBackend
     }
 
     return count;
+  }
+
+  // A lock taken inside the same statement as the MAX(idx) read wouldn't help:
+  // under READ COMMITTED, a statement's snapshot is fixed when it starts, before
+  // the lock wait resolves, so a blocked caller can still read stale data. The
+  // lock and the read need to be separate statements on one connection instead.
+  private async insertLogAtomically(
+    jobId: string,
+    logRow: string,
+  ): Promise<number> {
+    const client = await this.connection.pool.connect();
+    try {
+      await client.query('BEGIN');
+      try {
+        await client.query(
+          "SELECT pg_advisory_xact_lock($1, hashtext($2 || ':' || $3))",
+          [ADD_LOG_ADVISORY_LOCK_KEY, this.queueName, jobId],
+        );
+        const { rows } = await client.query<{ idx: string }>(
+          'SELECT COALESCE(MAX(idx) + 1, 0) AS idx FROM job_log WHERE queue = $1 AND job_id = $2',
+          [this.queueName, jobId],
+        );
+        const idx = Number(rows[0].idx);
+        await client.query(
+          'INSERT INTO job_log (queue, job_id, idx, row) VALUES ($1, $2, $3, $4)',
+          [this.queueName, jobId, idx, logRow],
+        );
+        await client.query('COMMIT');
+        return idx;
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      }
+    } finally {
+      client.release();
+    }
   }
 
   async clearLogs(jobId: string, keepLogs?: number): Promise<void> {
