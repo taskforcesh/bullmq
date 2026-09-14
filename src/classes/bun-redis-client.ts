@@ -141,6 +141,9 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
   // async. The duplicate adapter is created immediately with a `rawFactory`
   // and resolves its raw client when it connects.
   private rawFactory?: () => Promise<TClient>;
+  // In-flight `rawFactory()` so concurrent `connect()` / `_ensureRaw()` share
+  // one native client instead of overwriting an unclosed raw (#4706).
+  private materializing?: Promise<TClient>;
   // Auto-reconnect state
   private reconnecting = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -335,11 +338,11 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
 
   async connect(): Promise<void> {
     // A duplicate created with a `rawFactory` builds its raw client lazily on
-    // the first connect (Bun's native `duplicate()` is async).
-    if (!this.raw && this.rawFactory) {
-      this.raw = await this.rawFactory();
-      this.rawFactory = undefined;
-      this._setupCallbacks();
+    // the first connect (Bun's native `duplicate()` is async). Concurrent
+    // connect()/_ensureRaw() share one in-flight materialization so we don't
+    // create two native clients and overwrite an unclosed raw.
+    if (!this.raw && (this.rawFactory || this.materializing)) {
+      await this._materializeRaw();
     }
 
     const replaceRaw =
@@ -524,6 +527,38 @@ class BunRedisAdapter<TClient extends BunRedisRawClient>
     }
     const Ctor = src.constructor as BunRedisClientConstructor<TClient>;
     return new Ctor(src.url);
+  }
+
+  /**
+   * Materialize a lazily-created raw client (duplicate `rawFactory`).
+   * Concurrent callers share the in-flight promise so the factory runs once.
+   */
+  private _materializeRaw(): Promise<TClient> {
+    if (this.raw) {
+      return Promise.resolve(this.raw);
+    }
+    if (this.materializing) {
+      return this.materializing;
+    }
+    const factory = this.rawFactory;
+    if (!factory) {
+      return Promise.resolve(this.raw);
+    }
+
+    const materializing = factory()
+      .then(raw => {
+        this.raw = raw;
+        this.rawFactory = undefined;
+        this._setupCallbacks();
+        return raw;
+      })
+      .finally(() => {
+        if (this.materializing === materializing) {
+          this.materializing = undefined;
+        }
+      });
+    this.materializing = materializing;
+    return materializing;
   }
 
   /**

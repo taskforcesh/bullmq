@@ -84,4 +84,45 @@ describe('bun adapter nested duplicate (#4706)', () => {
     await primary.quit();
     await grandchild.quit();
   });
+
+  it('serializes concurrent nested duplicate() so lazy rawFactory does not overwrite raw', async () => {
+    let duplicateCalls = 0;
+    const created: FakeRaw[] = [];
+
+    class CountingFakeRaw extends FakeRaw {
+      constructor(target = 'redis://localhost:6379') {
+        super(target);
+        created.push(this);
+      }
+      async duplicate() {
+        duplicateCalls++;
+        return new CountingFakeRaw(this.target);
+      }
+    }
+
+    const primary = createBunRedisClient(new CountingFakeRaw() as any);
+    await primary.connect();
+    duplicateCalls = 0;
+    const createdBefore = created.length;
+
+    // Constructor auto-starts connect(); nested duplicate() also calls
+    // _ensureRaw() → connect() while the child's rawFactory is still in
+    // flight. Both must share one materialization so we don't create two
+    // native clients and overwrite an unclosed raw.
+    const child = primary.duplicate();
+    const grandchild = child.duplicate();
+    await Promise.all([child.connect(), grandchild.connect()]);
+
+    expect(duplicateCalls).toBe(2);
+    expect(created.length - createdBefore).toBe(2);
+    expect((child as any).raw).toBeDefined();
+    expect((child as any).raw.connected).toBe(true);
+    expect((grandchild as any).raw).toBeDefined();
+    expect((grandchild as any).raw.connected).toBe(true);
+    expect((child as any).raw).not.toBe((grandchild as any).raw);
+
+    await primary.quit();
+    await child.quit();
+    await grandchild.quit();
+  });
 });
