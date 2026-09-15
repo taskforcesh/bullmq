@@ -118,8 +118,8 @@ describe('deduplication', () => {
         expect(deduplicationJobId).toBe('a2');
       });
 
-      describe('when keepLastIfActive is used with a ttl', () => {
-        it('removes stale deduplication key and adds the new job', async () => {
+      describe('when the existing deduplication key is persistent', () => {
+        it('recovers a stale keepLastIfActive key even when the next add uses ttl and extend', async () => {
           const testName = 'test';
           const dedupId = 'dedupId';
           const client = await getRedisClient(queue);
@@ -142,7 +142,7 @@ describe('deduplication', () => {
             { foo: 'baz' },
             {
               jobId: 'a2',
-              deduplication: { id: dedupId, ttl: 5000, keepLastIfActive: true },
+              deduplication: { id: dedupId, ttl: 5000, extend: true },
             },
           );
 
@@ -152,6 +152,44 @@ describe('deduplication', () => {
 
           const deduplicationJobId = await queue.getDeduplicationJobId(dedupId);
           expect(deduplicationJobId).toBe('a2');
+
+          const deduplicationKeyTtl = await (client as any).pttl(
+            queue.toKey(`de:${dedupId}`),
+          );
+          expect(deduplicationKeyTtl).toBeGreaterThan(0);
+        });
+
+        it('does not clear an existing ttl window when the next add omits ttl', async () => {
+          const testName = 'test';
+          const dedupId = 'dedupId';
+          const client = await getRedisClient(queue);
+
+          await queue.add(
+            testName,
+            { foo: 'bar' },
+            {
+              jobId: 'a1',
+              deduplication: { id: dedupId, ttl: 5000 },
+            },
+          );
+
+          // The throttle window is still active even if the job key is gone.
+          await client.del(queue.toKey('a1'));
+
+          await queue.add(
+            testName,
+            { foo: 'baz' },
+            {
+              jobId: 'a2',
+              deduplication: { id: dedupId },
+            },
+          );
+
+          const newJob = await queue.getJob('a2');
+          expect(newJob).toBeUndefined();
+
+          const deduplicationJobId = await queue.getDeduplicationJobId(dedupId);
+          expect(deduplicationJobId).toBe('a1');
         });
       });
     });
