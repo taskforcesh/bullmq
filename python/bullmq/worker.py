@@ -130,6 +130,8 @@ class Worker(EventEmitter):
         self.closed = False
         self.running = False
         self.paused = False
+        self.resume_event = asyncio.Event()
+        self.resume_event.set()
         self.processing = set()
         self.jobs = set()
         self.id = uuid4().hex
@@ -173,8 +175,13 @@ class Worker(EventEmitter):
 
         try:
             while not self.closed:
-                while not self.waiting and len(self.processing) < self.opts.get("concurrency") and not self.closing:
-                    token_postfix+=1
+                if self.paused and not self.closing:
+                    await self.resume_event.wait()
+                    continue
+
+                while (not self.waiting and len(self.processing) < self.opts.get("concurrency")
+                       and not self.closing and not self.paused):
+                    token_postfix += 1
                     token = f'{self.id}:{token_postfix}'
 
                     # Use retryIfFailed to wrap getNextJob call, similar to TypeScript worker
@@ -211,10 +218,20 @@ class Worker(EventEmitter):
                     return
         finally:
             # Ensure background resources are released even when the loop
-            # exits via the broad-exception `return` above; otherwise the
-            # lock renewal task and stalled-check timer would keep hitting
-            # Redis after run() has given up.
+            # exits via cancellation or the broad-exception `return` above;
+            # otherwise the lock renewal task and stalled-check timer would keep
+            # hitting Redis after run() has given up.
             self.running = False
+            if not self.closing:
+                for task in self.processing:
+                    if not task.done():
+                        task.cancel()
+                if self.waiting and not self.waiting.done():
+                    self.waiting.cancel()
+                if self.processing:
+                    await asyncio.gather(*self.processing, return_exceptions=True)
+                self.processing.clear()
+
             if self.stalledCheckTimer is not None:
                 try:
                     self.stalledCheckTimer.stop()
@@ -231,7 +248,7 @@ class Worker(EventEmitter):
         await self._ensure_client_names()
         job_instance = None
         if not self.waiting and self.drained:
-            self.waiting = self.waitForJob()
+            self.waiting = asyncio.ensure_future(self.waitForJob())
 
             try:
                 self.blockUntil = await self.waiting
@@ -239,6 +256,11 @@ class Worker(EventEmitter):
 
                 if self.blockUntil <= 0 or self.blockUntil <= timestamp:
                     job_instance = await self.moveToActive(token)
+            except asyncio.CancelledError:
+                if not self.paused and not self.closing:
+                    raise
+                # Expected when pause()/close() cancels the idle BZPOPMIN wait.
+                return None
             finally:
                 self.waiting = None
         else:
@@ -582,6 +604,11 @@ class Worker(EventEmitter):
         This method waits for current jobs to finalize before returning.
         """
         self.closing = True
+        self.paused = False
+        self.resume_event.set()
+        if self.waiting:
+            self.waiting.cancel()
+
         if force:
             self.forceClosing = True
             # Abort cooperating processors first so they can observe a
@@ -591,18 +618,28 @@ class Worker(EventEmitter):
             self.lockManager.cancel_all_jobs("worker force-closed")
             self.cancelProcessing()
 
-        if not force and len(self.processing) > 0:
-            await asyncio.wait(self.processing, return_when=asyncio.ALL_COMPLETED)
+        async def teardown():
+            if not force and len(self.processing) > 0:
+                await asyncio.wait(self.processing, return_when=asyncio.ALL_COMPLETED)
+            await self.lockManager.close()
+            try:
+                await self.backend.close(force=force)
+            except Exception as err:
+                self.emit('error', err)
+            self.closed = True
+            self.emit('closed')
 
-        await self.lockManager.close()
+        teardown_task = asyncio.ensure_future(teardown())
+        cancelled = False
+        while True:
+            try:
+                await asyncio.shield(teardown_task)
+                break
+            except asyncio.CancelledError:
+                cancelled = True
 
-        try:
-            await self.backend.close(force=force)
-        except Exception as err:
-            self.emit('error', err)
-
-        self.closed = True
-        self.emit('closed')
+        if cancelled:
+            raise asyncio.CancelledError()
 
     async def pause(self, do_not_wait_active: bool = False):
         """
@@ -610,11 +647,28 @@ class Worker(EventEmitter):
 
         This method waits for current jobs to finalize before returning.
         """
+        cancelled = False
         if not self.paused:
             self.paused = True
+            self.resume_event.clear()
+            if self.waiting:
+                self.waiting.cancel()
             if not do_not_wait_active and len(self.processing) > 0:
-                await asyncio.wait(self.processing, return_when=asyncio.ALL_COMPLETED)
+                # Ensure in-flight jobs finish before 'paused' is emitted, even if
+                # this task is cancelled (once or repeatedly) while waiting.
+                wait_for_processing = asyncio.ensure_future(
+                    asyncio.wait(self.processing, return_when=asyncio.ALL_COMPLETED)
+                )
+                while True:
+                    try:
+                        await asyncio.shield(wait_for_processing)
+                        break
+                    except asyncio.CancelledError:
+                        cancelled = True
         self.emit('paused')
+
+        if cancelled:
+            raise asyncio.CancelledError()
 
     def resume(self):
         """
@@ -622,6 +676,7 @@ class Worker(EventEmitter):
         """
         if self.paused:
             self.paused = False
+            self.resume_event.set()
             self.emit('resumed')
 
     def cancelProcessing(self):
