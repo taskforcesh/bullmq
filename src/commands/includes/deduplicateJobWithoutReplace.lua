@@ -48,6 +48,15 @@ local function deduplicateJobWithoutReplace(deduplicationId, deduplicationOpts, 
     if deduplicationKeyExists then
         local currentDeduplicatedJobId = rcall('GET', deduplicationKey)
 
+        -- In simple mode (no ttl), the deduplication key lives until the job is
+        -- completed or failed. If that job no longer exists because of an outage, the key is stale,
+        -- so we remove it and start a new deduplication window with this job.
+        if not (ttl and ttl > 0) and rcall('EXISTS', prefix .. currentDeduplicatedJobId) == 0 then
+            rcall('DEL', deduplicationKey)
+            rcall('SET', deduplicationKey, jobId)
+            return
+        end
+
         if storeDeduplicatedNextJob(deduplicationOpts, currentDeduplicatedJobId, prefix,
             deduplicationId, jobName, jobData, fullOpts, eventsKey, maxEvents, jobId,
             parentKey, parentData, parentDependenciesKey, repeatJobKey) then

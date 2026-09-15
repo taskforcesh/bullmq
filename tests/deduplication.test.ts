@@ -88,6 +88,37 @@ describe('deduplication', () => {
       expect(deduplicatedJob).toBeUndefined();
     });
 
+    describe('when job key no longer exists', () => {
+      it('removes stale deduplication key and adds the new job', async () => {
+        const testName = 'test';
+        const dedupId = 'dedupId';
+        const client = await getRedisClient(queue);
+
+        await queue.add(
+          testName,
+          { foo: 'bar' },
+          { jobId: 'a1', deduplication: { id: dedupId } },
+        );
+
+        // Simulate a stale deduplication key, the job key is gone but the
+        // deduplication key still points to it.
+        await client.del(queue.toKey('a1'));
+
+        await queue.add(
+          testName,
+          { foo: 'baz' },
+          { jobId: 'a2', deduplication: { id: dedupId } },
+        );
+
+        const newJob = await queue.getJob('a2');
+        expect(newJob).toBeDefined();
+        expect(newJob!.data).toEqual({ foo: 'baz' });
+
+        const deduplicationJobId = await queue.getDeduplicationJobId(dedupId);
+        expect(deduplicationJobId).toBe('a2');
+      });
+    });
+
     describe('when removing deduplication key', () => {
       it('should stop deduplication', async () => {
         const testName = 'test';
