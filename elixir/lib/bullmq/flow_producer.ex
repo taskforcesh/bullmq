@@ -73,7 +73,7 @@ defmodule BullMQ.FlowProducer do
 
   """
 
-  alias BullMQ.{Backend, Job, Keys}
+  alias BullMQ.{Backend, Job, Keys, Utils}
 
   require Logger
 
@@ -124,29 +124,20 @@ defmodule BullMQ.FlowProducer do
       )
 
     # Build all commands and job tree structure without executing
-    case build_flow_commands(flow, nil, prefix, [], backend) do
-      {:ok, commands, job_tree} ->
-        # Execute the whole flow atomically through the backend
-        case Backend.add_flow(backend, commands) do
-          {:ok, results} ->
-            # Check for errors in results
-            errors = Enum.filter(results, &match?({:error, _}, &1))
+    with {:ok, commands, job_tree} <- build_flow_commands(flow, nil, prefix, [], backend),
+         {:ok, results} <- Backend.add_flow(backend, commands),
+         :ok <- check_transaction_results(results) do
+      # Extract job IDs from results and populate the job tree
+      job_ids = Enum.map(results, fn {:ok, id} -> to_string(id) end)
+      populated_tree = populate_job_ids(job_tree, job_ids, conn, prefix, backend.__struct__)
+      {:ok, populated_tree}
+    end
+  end
 
-            if Enum.empty?(errors) do
-              # Extract job IDs from results and populate the job tree
-              job_ids = Enum.map(results, fn {:ok, id} -> to_string(id) end)
-              populated_tree = populate_job_ids(job_tree, job_ids, conn, prefix, backend.__struct__)
-              {:ok, populated_tree}
-            else
-              {:error, {:transaction_failed, errors}}
-            end
-
-          {:error, reason} ->
-            {:error, reason}
-        end
-
-      {:error, _} = error ->
-        error
+  defp check_transaction_results(results) do
+    case Enum.filter(results, &match?({:error, _}, &1)) do
+      [] -> :ok
+      errors -> {:error, {:transaction_failed, errors}}
     end
   end
 
@@ -177,7 +168,16 @@ defmodule BullMQ.FlowProducer do
         backend: Keyword.get(opts, :backend)
       )
 
-    # Build all commands for all flows
+    case build_bulk_flow_commands(flows, prefix, backend) do
+      {:ok, all_commands, all_trees} ->
+        execute_and_populate_flows(backend, all_commands, all_trees, conn, prefix)
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  defp build_bulk_flow_commands(flows, prefix, backend) do
     {all_commands, all_trees, errors} =
       Enum.reduce(flows, {[], [], []}, fn flow, {cmds_acc, trees_acc, errs_acc} ->
         case build_flow_commands(flow, nil, prefix, [], backend) do
@@ -189,30 +189,22 @@ defmodule BullMQ.FlowProducer do
         end
       end)
 
-    if not Enum.empty?(errors) do
+    if errors != [] do
       {:error, {:build_failed, errors}}
     else
-      # Execute all commands atomically through the backend
-      case Backend.add_flow(backend, all_commands) do
-        {:ok, results} ->
-          # Check for errors in results
-          result_errors = Enum.filter(results, &match?({:error, _}, &1))
+      {:ok, all_commands, all_trees}
+    end
+  end
 
-          if Enum.empty?(result_errors) do
-            # Extract job IDs and populate all trees
-            job_ids = Enum.map(results, fn {:ok, id} -> to_string(id) end)
+  defp execute_and_populate_flows(backend, all_commands, all_trees, conn, prefix) do
+    with {:ok, results} <- Backend.add_flow(backend, all_commands),
+         :ok <- check_transaction_results(results) do
+      job_ids = Enum.map(results, fn {:ok, id} -> to_string(id) end)
 
-            populated_trees =
-              populate_multiple_trees(all_trees, job_ids, conn, prefix, backend.__struct__)
+      populated_trees =
+        populate_multiple_trees(all_trees, job_ids, conn, prefix, backend.__struct__)
 
-            {:ok, populated_trees}
-          else
-            {:error, {:transaction_failed, result_errors}}
-          end
-
-        {:error, reason} ->
-          {:error, reason}
-      end
+      {:ok, populated_trees}
     end
   end
 
@@ -248,115 +240,64 @@ defmodule BullMQ.FlowProducer do
     # Build the queue key for this job
     queue_key = "#{prefix}:#{queue_name}"
 
+    node_info = %{
+      ctx: ctx,
+      queue_name: queue_name,
+      queue_key: queue_key,
+      name: name,
+      data: data,
+      opts: opts,
+      job_id: job_id,
+      timestamp: timestamp,
+      parent_info: parent_info,
+      prefix: prefix
+    }
+
     if Enum.empty?(children) do
       # Leaf node - add as standard job
-      build_leaf_node_command(
-        ctx,
-        queue_name,
-        name,
-        data,
-        opts,
-        job_id,
-        timestamp,
-        parent_info,
-        prefix,
-        commands_acc,
-        backend
-      )
+      build_leaf_node_command(node_info, commands_acc, backend)
     else
       # Parent node - add parent first, then children
-      build_parent_node_commands(
-        ctx,
-        queue_name,
-        queue_key,
-        name,
-        data,
-        opts,
-        job_id,
-        timestamp,
-        parent_info,
-        prefix,
-        children,
-        commands_acc,
-        backend
-      )
+      build_parent_node_commands(node_info, children, commands_acc, backend)
     end
   catch
     {:error, _} = error -> error
   end
 
-  defp build_leaf_node_command(
-         ctx,
-         queue_name,
-         name,
-         data,
-         opts,
-         job_id,
-         timestamp,
-         parent_info,
-         prefix,
-         commands_acc,
-         backend
-       ) do
-    job = build_job_map(job_id, name, data, queue_name, opts, timestamp, parent_info)
-    encoded_opts = encode_job_opts(opts)
+  defp build_leaf_node_command(node_info, commands_acc, backend) do
+    job = build_job_map(node_info)
+    encoded_opts = encode_job_opts(node_info.opts)
 
-    node_backend = Backend.for_queue(backend, ctx.name, ctx.prefix)
+    node_backend = Backend.for_queue(backend, node_info.ctx.name, node_info.ctx.prefix)
     {:ok, cmd} = Backend.build_add_standard_command(node_backend, job, encoded_opts)
 
-    job_template = %{
-      # Will be populated after execution
-      id: nil,
-      name: name,
-      data: data,
-      queue_name: queue_name,
-      opts: opts,
-      prefix: prefix,
-      timestamp: timestamp,
-      parent: build_parent_from_info(parent_info),
-      parent_key: build_parent_key_from_info(parent_info),
-      children: []
-    }
+    job_template = build_node_template(node_info, [])
 
     {:ok, commands_acc ++ [cmd], job_template}
   end
 
-  defp build_parent_node_commands(
-         ctx,
-         queue_name,
-         queue_key,
-         name,
-         data,
-         opts,
-         job_id,
-         timestamp,
-         parent_info,
-         prefix,
-         children,
-         commands_acc,
-         backend
-       ) do
-    job = build_job_map(job_id, name, data, queue_name, opts, timestamp, parent_info)
-    encoded_opts = encode_job_opts(opts)
+  defp build_parent_node_commands(node_info, children, commands_acc, backend) do
+    job = build_job_map(node_info)
+    encoded_opts = encode_job_opts(node_info.opts)
 
-    node_backend = Backend.for_queue(backend, ctx.name, ctx.prefix)
+    node_backend = Backend.for_queue(backend, node_info.ctx.name, node_info.ctx.prefix)
     {:ok, cmd} = Backend.build_add_parent_command(node_backend, job, encoded_opts)
 
     # Build parent info for children
-    parent_key = "#{queue_key}:#{job_id}"
+    parent_key = "#{node_info.queue_key}:#{node_info.job_id}"
 
     parent_info_for_children = %{
-      id: job_id,
-      queue: queue_name,
-      queue_key: queue_key,
+      id: node_info.job_id,
+      queue: node_info.queue_name,
+      queue_key: node_info.queue_key,
       key: parent_key,
-      prefix: prefix
+      prefix: node_info.prefix
     }
 
     # Build commands for all children recursively
     {children_commands, children_templates} =
       Enum.reduce(children, {[], []}, fn child, {cmds, templates} ->
-        case build_flow_commands(child, parent_info_for_children, prefix, [], backend) do
+        case build_flow_commands(child, parent_info_for_children, node_info.prefix, [], backend) do
           {:ok, child_cmds, child_template} ->
             {cmds ++ child_cmds, templates ++ [child_template]}
 
@@ -365,33 +306,37 @@ defmodule BullMQ.FlowProducer do
         end
       end)
 
-    job_template = %{
-      # Will be populated after execution
-      id: nil,
-      name: name,
-      data: data,
-      queue_name: queue_name,
-      opts: opts,
-      prefix: prefix,
-      timestamp: timestamp,
-      parent: build_parent_from_info(parent_info),
-      parent_key: build_parent_key_from_info(parent_info),
-      children: children_templates
-    }
+    job_template = build_node_template(node_info, children_templates)
 
     # Parent command comes first, then all children commands
     {:ok, commands_acc ++ [cmd] ++ children_commands, job_template}
   end
 
-  defp build_job_map(job_id, name, data, queue_name, opts, timestamp, parent_info) do
+  defp build_node_template(node_info, children_templates) do
     %{
-      id: job_id,
-      name: name,
-      data: data,
-      queue_name: queue_name,
-      opts: opts,
-      timestamp: timestamp,
-      parent: build_parent_from_info(parent_info)
+      # Will be populated after execution
+      id: nil,
+      name: node_info.name,
+      data: node_info.data,
+      queue_name: node_info.queue_name,
+      opts: node_info.opts,
+      prefix: node_info.prefix,
+      timestamp: node_info.timestamp,
+      parent: build_parent_from_info(node_info.parent_info),
+      parent_key: build_parent_key_from_info(node_info.parent_info),
+      children: children_templates
+    }
+  end
+
+  defp build_job_map(node_info) do
+    %{
+      id: node_info.job_id,
+      name: node_info.name,
+      data: node_info.data,
+      queue_name: node_info.queue_name,
+      opts: node_info.opts,
+      timestamp: node_info.timestamp,
+      parent: build_parent_from_info(node_info.parent_info)
     }
   end
 
@@ -463,22 +408,7 @@ defmodule BullMQ.FlowProducer do
   defp normalize_opts(opts) when is_map(opts), do: opts
   defp normalize_opts(_), do: %{}
 
-  defp encode_job_opts(opts) do
-    opts
-    |> Map.take([
-      :attempts,
-      :backoff,
-      :lifo,
-      :timeout,
-      :remove_on_complete,
-      :remove_on_fail,
-      :deduplication,
-      :fail_parent_on_failure,
-      :ignore_dependency_on_failure,
-      :remove_dependency
-    ])
-    |> Map.reject(fn {_k, v} -> is_nil(v) end)
-  end
+  defp encode_job_opts(opts), do: Utils.encode_job_opts(opts)
 
   defp generate_id do
     Base.encode16(:crypto.strong_rand_bytes(12), case: :lower)

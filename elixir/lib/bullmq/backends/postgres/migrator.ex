@@ -124,17 +124,21 @@ defmodule BullMQ.Backends.Postgres.Migrator do
           )
         end
 
-        if current < @latest_schema_version do
-          Enum.each(@migrations, fn {version, file} ->
-            if version > current, do: apply_migration(conn, version, file)
-          end)
-        end
+        maybe_apply_migrations(conn, current)
 
         max(current, @latest_schema_version)
       end,
       timeout: :timer.seconds(60)
     )
   end
+
+  defp maybe_apply_migrations(conn, current) when current < @latest_schema_version do
+    Enum.each(@migrations, fn {version, file} ->
+      if version > current, do: apply_migration(conn, version, file)
+    end)
+  end
+
+  defp maybe_apply_migrations(_conn, _current), do: :ok
 
   defp ensure_ledger_table(conn) do
     Postgrex.query!(
