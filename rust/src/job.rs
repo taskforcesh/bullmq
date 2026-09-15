@@ -1270,7 +1270,6 @@ impl Job {
         let stalled = ctx.keys.stalled();
         let wait = ctx.keys.wait();
         let limiter = ctx.keys.limiter();
-        let paused = ctx.keys.paused();
         let pc = ctx.keys.pc();
 
         let script_keys: Vec<&str> = vec![
@@ -1284,8 +1283,7 @@ impl Job {
             &stalled,     // KEYS[8]
             &wait,        // KEYS[9]
             &limiter,     // KEYS[10]
-            &paused,      // KEYS[11]
-            &pc,          // KEYS[12]
+            &pc,          // KEYS[11]
         ];
 
         let prefix = ctx.keys.key_prefix();

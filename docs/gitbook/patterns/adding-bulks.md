@@ -1,4 +1,4 @@
-# Adding jobs in bulk accross different queues
+# Adding jobs in bulk across different queues
 
 Sometimes it is necessary to atomically add jobs to different queues in bulk. For example, there could be a requirement that all the jobs must be created or none of them. Also, adding jobs in bulk can be faster, since it reduces the number of roundtrips to Redis:
 

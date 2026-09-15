@@ -20,6 +20,18 @@ public sealed class UnrecoverableException : BullMQException
     public UnrecoverableException(string message) : base(message) { }
 }
 
+/// <summary>
+/// Control-flow exception used by manual processors after explicitly moving an
+/// active job to delayed. Throwing this tells <see cref="Worker"/> not to
+/// auto-fail the job.
+/// </summary>
+public sealed class DelayedException : BullMQException
+{
+    public const string DefaultMessage = "bullmq:movedToDelayed";
+
+    public DelayedException(string message = DefaultMessage) : base(message) { }
+}
+
 /// <summary>Maps script error codes to the corresponding exception.</summary>
 internal static class FinishedErrors
 {
