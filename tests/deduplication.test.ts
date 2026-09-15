@@ -117,6 +117,43 @@ describe('deduplication', () => {
         const deduplicationJobId = await queue.getDeduplicationJobId(dedupId);
         expect(deduplicationJobId).toBe('a2');
       });
+
+      describe('when keepLastIfActive is used with a ttl', () => {
+        it('removes stale deduplication key and adds the new job', async () => {
+          const testName = 'test';
+          const dedupId = 'dedupId';
+          const client = await getRedisClient(queue);
+
+          await queue.add(
+            testName,
+            { foo: 'bar' },
+            {
+              jobId: 'a1',
+              deduplication: { id: dedupId, ttl: 5000, keepLastIfActive: true },
+            },
+          );
+
+          // ttl is ignored when keepLastIfActive is set, so the deduplication
+          // key is persistent and becomes stale once the job key is gone.
+          await client.del(queue.toKey('a1'));
+
+          await queue.add(
+            testName,
+            { foo: 'baz' },
+            {
+              jobId: 'a2',
+              deduplication: { id: dedupId, ttl: 5000, keepLastIfActive: true },
+            },
+          );
+
+          const newJob = await queue.getJob('a2');
+          expect(newJob).toBeDefined();
+          expect(newJob!.data).toEqual({ foo: 'baz' });
+
+          const deduplicationJobId = await queue.getDeduplicationJobId(dedupId);
+          expect(deduplicationJobId).toBe('a2');
+        });
+      });
     });
 
     describe('when removing deduplication key', () => {

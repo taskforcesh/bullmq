@@ -48,11 +48,16 @@ local function deduplicateJobWithoutReplace(deduplicationId, deduplicationOpts, 
     if deduplicationKeyExists then
         local currentDeduplicatedJobId = rcall('GET', deduplicationKey)
 
-        -- In simple mode (no ttl), the deduplication key lives until the job is
-        -- completed or failed. If that job no longer exists because of an outage, the key is stale,
+        -- When the deduplication key has no expiry (simple mode, or keepLastIfActive
+        -- where ttl is ignored), it lives until the job is completed or failed.
+        -- If that job no longer exists because of an outage, the key is stale,
         -- so we remove it and start a new deduplication window with this job.
-        if not (ttl and ttl > 0) and rcall('EXISTS', prefix .. currentDeduplicatedJobId) == 0 then
+        local isPersistentKey = deduplicationOpts['keepLastIfActive'] or not (ttl and ttl > 0)
+        if isPersistentKey and rcall('EXISTS', prefix .. currentDeduplicatedJobId) == 0 then
             rcall('DEL', deduplicationKey)
+            -- Discard any pending next-job payload stored for the stale winner,
+            -- otherwise it would be resurrected when this job finalizes.
+            rcall('DEL', prefix .. "dn:" .. deduplicationId)
             rcall('SET', deduplicationKey, jobId)
             return
         end
