@@ -10,7 +10,9 @@ use uuid::Uuid;
 
 use crate::error::Error;
 use crate::job::{Job, ScriptContext};
-use crate::keys::{resolve_parent_queue_key, validate_queue_name, QueueKeys};
+use crate::keys::{
+    resolve_parent_queue_key, validate_custom_job_id, validate_queue_name, QueueKeys,
+};
 use crate::options::JobOptions;
 use crate::paginate::{paginate_item_key, parse_paginate_reply};
 use crate::queue::Queue;
@@ -978,6 +980,17 @@ impl FlowProducer {
             entries.push(("de", b));
         }
 
+        // Persist the custom job id so the qualified job key
+        // (`{prefix}:{queueName}:{jobId}`) can be parsed back unambiguously.
+        // Mirrors `optsAsJSON` in the Node.js backend, which stores `jobId` too.
+        if let Some(ref job_id) = opts.job_id {
+            if !job_id.is_empty() {
+                let mut b = Vec::new();
+                write_str(&mut b, job_id).unwrap();
+                entries.push(("jobId", b));
+            }
+        }
+
         // Encode as msgpack map
         let mut buf = Vec::with_capacity(64);
         write_map_len(&mut buf, entries.len() as u32).unwrap();
@@ -1062,9 +1075,14 @@ impl FlowProducer {
     }
 
     /// Parse a child job key as `prefix:queueName:jobId`.
+    ///
+    /// Only the key is available here, so the boundary is resolved with the
+    /// last two separators, matching `parseNodeKey` in the Node.js backend.
+    /// Queue names cannot contain `:` and custom job ids are rejected at add
+    /// time, so the remainder belongs to the prefix.
     fn parse_child_key(child_key: &str) -> Option<(&str, &str, &str)> {
-        let (prefix, queue_and_job_id) = child_key.split_once(':')?;
-        let (queue_name, job_id) = queue_and_job_id.split_once(':')?;
+        let (queue_key, job_id) = child_key.rsplit_once(':')?;
+        let (prefix, queue_name) = queue_key.rsplit_once(':')?;
         if prefix.is_empty() || queue_name.is_empty() || job_id.is_empty() {
             return None;
         }
@@ -1123,6 +1141,9 @@ fn validate_flow_queue_names(flow: &FlowJob) -> Result<(), Error> {
                 "Prefix must be non-empty and cannot contain :".to_string(),
             ));
         }
+    }
+    if let Some(job_id) = flow.opts.as_ref().and_then(|opts| opts.job_id.as_deref()) {
+        validate_custom_job_id(job_id)?;
     }
     if let Some(children) = flow.children.as_ref() {
         for child in children {
@@ -1255,10 +1276,10 @@ mod tests {
     }
 
     #[test]
-    fn parse_child_key_preserves_job_id_segments() {
+    fn parse_child_key_preserves_prefix_segments() {
         assert_eq!(
-            FlowProducer::parse_child_key("bull:queue:job:1"),
-            Some(("bull", "queue", "job:1"))
+            FlowProducer::parse_child_key("tenant:region:queue:1"),
+            Some(("tenant:region", "queue", "1"))
         );
     }
 

@@ -8,7 +8,9 @@ use tracing::{debug, instrument};
 
 use crate::error::Error;
 use crate::job::{Job, ScriptContext};
-use crate::keys::{resolve_parent_queue_key, validate_queue_name, QueueKeys};
+use crate::keys::{
+    resolve_parent_queue_key, validate_custom_job_id, validate_queue_name, QueueKeys,
+};
 use crate::options::{DeduplicationOptions, JobOptions, ParentOptions, QueueOptions};
 use crate::paginate::{paginate_item_key, parse_paginate_reply, value_to_string};
 use crate::redis_connection::RedisConnection;
@@ -73,7 +75,8 @@ pub struct Queue {
 }
 
 impl Queue {
-    fn validate_job_size(job: &Job, argv2: &str) -> Result<(), Error> {
+    /// Client-side job validation, mirroring `Job.validateOptions` in Node.js.
+    fn validate_job_options(job: &Job, argv2: &str) -> Result<(), Error> {
         if let Some(size_limit) = job.opts().size_limit {
             if argv2.len() > size_limit {
                 return Err(Error::InvalidConfig(format!(
@@ -82,6 +85,10 @@ impl Queue {
                     size_limit
                 )));
             }
+        }
+
+        if let Some(job_id) = job.opts().job_id.as_deref() {
+            validate_custom_job_id(job_id)?;
         }
 
         Ok(())
@@ -220,7 +227,7 @@ impl Queue {
             .iter()
             .map(|job| {
                 let argv2 = serde_json::to_string(job.data())?;
-                Self::validate_job_size(job, &argv2)?;
+                Self::validate_job_options(job, &argv2)?;
                 Ok(argv2)
             })
             .collect::<Result<_, Error>>()?;
@@ -313,7 +320,7 @@ impl Queue {
 
         // Enforce sizeLimit client-side (matches Node.js `validateOptions`):
         // reject jobs whose serialized data exceeds the configured byte limit.
-        Self::validate_job_size(job, &argv2)?;
+        Self::validate_job_options(job, &argv2)?;
 
         // Build ARGV[3]: msgpack map of options
         let argv3 = self.pack_job_opts(job);
@@ -556,6 +563,17 @@ impl Queue {
         if let Some(ref dedup) = opts.deduplication {
             let b = Self::encode_deduplication(dedup);
             entries.push(("de", b));
+        }
+
+        // Persist the custom job id so the qualified job key
+        // (`{prefix}:{queueName}:{jobId}`) can be parsed back unambiguously.
+        // Mirrors `optsAsJSON` in the Node.js backend, which stores `jobId` too.
+        if let Some(ref job_id) = opts.job_id {
+            if !job_id.is_empty() {
+                let mut b = Vec::new();
+                write_str(&mut b, job_id).unwrap();
+                entries.push(("jobId", b));
+            }
         }
 
         // Encode as msgpack map
@@ -2796,19 +2814,24 @@ impl Queue {
 
     /// Parse `<prefix>:<queueName>:<jobId>` from a qualified job key.
     ///
-    /// The serialized job options disambiguate custom IDs containing `:`
-    /// from prefixes containing `:`.
+    /// Both the prefix and the job id may contain `:`, so the split point is
+    /// ambiguous from the key alone. When the stored job options carry a custom
+    /// `jobId` it is used to find the boundary; otherwise we fall back to the
+    /// last two separators, matching `parseNodeKey` in the Node.js backend.
     fn parse_qualified_job_key<'a>(
         key: &'a str,
         custom_job_id: Option<&str>,
     ) -> Option<(&'a str, &'a str, String)> {
-        let (queue_key, job_id) = match custom_job_id {
-            Some(job_id) => (key.strip_suffix(&format!(":{job_id}"))?, job_id.to_string()),
-            None => {
+        let (queue_key, job_id) = custom_job_id
+            .filter(|job_id| !job_id.is_empty())
+            .and_then(|job_id| {
+                let queue_key = key.strip_suffix(&format!(":{job_id}"))?;
+                Some((queue_key, job_id.to_string()))
+            })
+            .or_else(|| {
                 let (queue_key, job_id) = key.rsplit_once(':')?;
-                (queue_key, job_id.to_string())
-            }
-        };
+                Some((queue_key, job_id.to_string()))
+            })?;
         let (prefix, queue_name) = queue_key.rsplit_once(':')?;
         if prefix.is_empty() || queue_name.is_empty() || job_id.is_empty() {
             return None;
@@ -3256,8 +3279,8 @@ mod dependency_key_tests {
     #[test]
     fn preserves_colons_in_custom_job_ids() {
         assert_eq!(
-            Queue::parse_qualified_job_key("bull:queue:job:1", Some("job:1")),
-            Some(("bull", "queue", "job:1".to_string()))
+            Queue::parse_qualified_job_key("bull:queue:repeat:sched:1", Some("repeat:sched:1")),
+            Some(("bull", "queue", "repeat:sched:1".to_string()))
         );
     }
 
@@ -3265,6 +3288,14 @@ mod dependency_key_tests {
     fn preserves_colons_in_prefixes() {
         assert_eq!(
             Queue::parse_qualified_job_key("tenant:region:queue:1", None),
+            Some(("tenant:region", "queue", "1".to_string()))
+        );
+    }
+
+    #[test]
+    fn falls_back_to_positional_parse_when_custom_id_does_not_match() {
+        assert_eq!(
+            Queue::parse_qualified_job_key("tenant:region:queue:1", Some("other")),
             Some(("tenant:region", "queue", "1".to_string()))
         );
     }
