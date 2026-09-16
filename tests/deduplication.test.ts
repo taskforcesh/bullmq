@@ -192,6 +192,37 @@ describe('deduplication', () => {
           expect(deduplicationJobId).toBe('a1');
         });
       });
+
+      describe('when replace is provided as true without ttl', () => {
+        it('removes stale deduplication key and adds the new job', async () => {
+          const testName = 'test';
+          const dedupId = 'dedupId';
+          const client = await getRedisClient(queue);
+
+          await queue.add(
+            testName,
+            { foo: 'bar' },
+            { jobId: 'a1', deduplication: { id: dedupId, replace: true } },
+          );
+
+          // The job is not in delayed state, so it cannot be replaced. Once its
+          // key is gone the persistent deduplication key is stale.
+          await client.del(queue.toKey('a1'));
+
+          await queue.add(
+            testName,
+            { foo: 'baz' },
+            { jobId: 'a2', deduplication: { id: dedupId, replace: true } },
+          );
+
+          const newJob = await queue.getJob('a2');
+          expect(newJob).toBeDefined();
+          expect(newJob!.data).toEqual({ foo: 'baz' });
+
+          const deduplicationJobId = await queue.getDeduplicationJobId(dedupId);
+          expect(deduplicationJobId).toBe('a2');
+        });
+      });
     });
 
     describe('when removing deduplication key', () => {
