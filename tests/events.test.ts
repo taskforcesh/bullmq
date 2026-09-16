@@ -426,15 +426,34 @@ describe('events', () => {
       prefix,
     });
 
-    await queue.add('test', {});
+    await worker.waitUntilReady();
 
-    const completed = new Promise<void>(resolve => {
-      worker.once('active', function () {
-        worker.once('completed', async function () {
-          resolve();
-        });
-      });
+    const completed = new Promise<void>((resolve, reject) => {
+      const onCompleted = async function () {
+        cleanup();
+        resolve();
+      };
+
+      const onActive = function () {
+        worker.once('completed', onCompleted);
+      };
+
+      const onError = function (err: Error) {
+        cleanup();
+        reject(err);
+      };
+
+      const cleanup = function () {
+        worker.off('active', onActive);
+        worker.off('completed', onCompleted);
+        worker.off('error', onError);
+      };
+
+      worker.once('active', onActive);
+      worker.once('error', onError);
     });
+
+    await queue.add('test', {});
 
     await completed;
     await worker.close();

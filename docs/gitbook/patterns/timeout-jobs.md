@@ -2,7 +2,7 @@
 
 BullMQ does not provide a specific mechanism to timeout jobs, however this can be accomplished in many cases with a custom timeout code in the worker's process function.
 
-The basic concept is to set up a timeout callback that will abort the job processing, and throw an UnrecoverableError (to avoid retries, although this may not alway be the desired behaviour, if so just throw a normal Error).  Note how we specified the timeout as a property of the job's data, in case we want to have different timeouts depending on the job, but we could also have a fixed constant timeout for all jobs if we wanted.
+The basic concept is to set up a timeout callback that will abort the job processing, and throw an UnrecoverableError (to avoid retries, although this may not always be the desired behaviour, if so just throw a normal Error).  Note how we specified the timeout as a property of the job's data, in case we want to have different timeouts depending on the job, but we could also have a fixed constant timeout for all jobs if we wanted.
 
 ```typescript
 const worker = new Worker('foo', async job => {

@@ -1163,8 +1163,7 @@ defmodule BullMQ.Scripts do
     # KEYS[8] stalled key
     # KEYS[9] wait key
     # KEYS[10] rate limiter key
-    # KEYS[11] paused key
-    # KEYS[12] pc priority counter
+    # KEYS[11] pc priority counter
     keys = [
       Keys.marker(ctx),
       Keys.active(ctx),
@@ -1176,7 +1175,6 @@ defmodule BullMQ.Scripts do
       Keys.stalled(ctx),
       Keys.wait(ctx),
       Keys.limiter(ctx),
-      Keys.paused(ctx),
       Keys.pc(ctx)
     ]
 
