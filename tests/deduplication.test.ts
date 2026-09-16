@@ -118,7 +118,7 @@ describe('deduplication', () => {
         expect(deduplicationJobId).toBe('a2');
       });
 
-      describe('when the existing deduplication key is persistent', () => {
+      describe('when the existing deduplication key points to a missing job', () => {
         it('recovers a stale keepLastIfActive key even when the next add uses ttl and extend', async () => {
           const testName = 'test';
           const dedupId = 'dedupId';
