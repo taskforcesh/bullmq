@@ -142,7 +142,7 @@ describe('deduplication', () => {
             { foo: 'baz' },
             {
               jobId: 'a2',
-              deduplication: { id: dedupId, ttl: 5000, extend: true },
+              deduplication: { id: dedupId, ttl: 100, extend: true },
             },
           );
 
@@ -153,10 +153,10 @@ describe('deduplication', () => {
           const deduplicationJobId = await queue.getDeduplicationJobId(dedupId);
           expect(deduplicationJobId).toBe('a2');
 
-          const deduplicationKeyTtl = await (client as any).pttl(
-            queue.toKey(`de:${dedupId}`),
-          );
-          expect(deduplicationKeyTtl).toBeGreaterThan(0);
+          // The recovered key is set with the incoming ttl, so the
+          // deduplication window expires instead of being persistent.
+          await delay(150);
+          expect(await queue.getDeduplicationJobId(dedupId)).toBeNull();
         });
 
         it('does not clear an existing ttl window when the next add omits ttl', async () => {
