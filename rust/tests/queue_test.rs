@@ -416,6 +416,113 @@ async fn test_get_dependencies_cross_queue_child_context() {
 }
 
 #[tokio::test]
+async fn test_add_rejects_custom_job_id_with_colon() {
+    let name = test_queue_name();
+    let queue = Queue::with_options(
+        &name,
+        QueueOptions {
+            connection: test_connection(),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let result = queue
+        .add("job", serde_json::json!({}))
+        .options(JobOptions {
+            job_id: Some("job:1".to_string()),
+            ..Default::default()
+        })
+        .await;
+
+    match result {
+        Err(err) => assert!(
+            err.to_string().contains("Custom Id cannot contain :"),
+            "got: {}",
+            err
+        ),
+        Ok(_) => panic!("expected error"),
+    }
+
+    cleanup_queue(&queue).await;
+}
+
+#[tokio::test]
+async fn test_get_dependencies_child_context_with_legacy_repeat_job_id() {
+    // Legacy repeatable ids (`repeat:<schedulerId>:<millis>`) are the one custom
+    // id shape allowed to contain `:`, so the qualified key
+    // `{prefix}:{queue}:repeat:sched:1` cannot be split positionally. The stored
+    // `opts.jobId` must be used to recover the child's queue context.
+    let parent_name = test_queue_name();
+    let child_name = test_queue_name();
+    let conn = test_connection();
+
+    let parent_queue = Queue::with_options(
+        &parent_name,
+        QueueOptions {
+            connection: conn.clone(),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let child_queue = Queue::with_options(
+        &child_name,
+        QueueOptions {
+            connection: conn,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let parent = parent_queue
+        .add("parent", serde_json::json!({}))
+        .options(JobOptions {
+            job_id: Some("parent-legacy-repeat".to_string()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let child_id = "repeat:scheduler-id:1700000000000";
+    let child = child_queue
+        .add("child", serde_json::json!({ "x": 1 }))
+        .options(JobOptions {
+            job_id: Some(child_id.to_string()),
+            parent: Some(bullmq::ParentOptions {
+                queue: parent_name.clone(),
+                id: parent.id().to_string(),
+                wait_children: None,
+            }),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(child.id(), child_id);
+
+    let dependencies = parent_queue
+        .get_dependencies(parent.id(), "pending", 0, -1)
+        .await
+        .unwrap();
+
+    let dep_child = dependencies
+        .jobs
+        .into_iter()
+        .find(|job| job.id() == child_id)
+        .expect("child job should keep its full colon-containing id");
+
+    // Regression guard: this must read from the child queue keys, which is only
+    // possible if the colon boundary was resolved from the stored `opts.jobId`.
+    assert_eq!(dep_child.get_state().await.unwrap(), JobState::Waiting);
+
+    cleanup_queue(&child_queue).await;
+    cleanup_queue(&parent_queue).await;
+}
+
+#[tokio::test]
 async fn test_get_dependencies_processed_cross_queue_child_context() {
     let parent_name = test_queue_name();
     let child_name = test_queue_name();

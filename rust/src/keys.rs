@@ -22,6 +22,24 @@ pub(crate) fn validate_queue_name(name: &str) -> Result<(), Error> {
     Ok(())
 }
 
+/// Validate a custom job id, mirroring `Job.validateOptions` in BullMQ Node.js.
+///
+/// Job ids are embedded verbatim in the qualified job key
+/// (`{prefix}:{queueName}:{jobId}`), so a `:` in the id makes that key
+/// ambiguous to parse back. Node.js keeps an exception for legacy repeatable
+/// job ids, which always have exactly three `:`-separated segments.
+pub(crate) fn validate_custom_job_id(job_id: &str) -> Result<(), Error> {
+    if job_id.is_empty() {
+        return Ok(());
+    }
+    if job_id.contains(':') && job_id.split(':').count() != 3 {
+        return Err(Error::InvalidConfig(
+            "Custom Id cannot contain :".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 /// Resolve `ParentOptions.queue` into a qualified queue key.
 ///
 /// Accepts either an unqualified queue name (`queue`) or a pre-qualified key
@@ -303,6 +321,26 @@ mod tests {
         assert!(matches!(err, Error::InvalidConfig(_)));
 
         let err = resolve_parent_queue_key("bull", "bull:parent:queue").unwrap_err();
+        assert!(matches!(err, Error::InvalidConfig(_)));
+    }
+
+    #[test]
+    fn accepts_custom_job_ids_without_colons() {
+        assert!(validate_custom_job_id("job-1").is_ok());
+        assert!(validate_custom_job_id("").is_ok());
+    }
+
+    #[test]
+    fn accepts_legacy_three_segment_repeatable_job_ids() {
+        assert!(validate_custom_job_id("repeat:scheduler-id:1700000000000").is_ok());
+    }
+
+    #[test]
+    fn rejects_ambiguous_custom_job_ids_with_colons() {
+        let err = validate_custom_job_id("job:1").unwrap_err();
+        assert!(matches!(err, Error::InvalidConfig(_)));
+
+        let err = validate_custom_job_id("a:b:c:d").unwrap_err();
         assert!(matches!(err, Error::InvalidConfig(_)));
     }
 }
