@@ -99,6 +99,10 @@ export class Child extends EventEmitter {
     }
 
     parent.on('exit', (exitCode: number, signalCode?: number) => {
+      if (exitCode > 0) {
+        console.error(`child process exited with code ${exitCode} and signal ${signalCode}`);
+      }
+
       this._exitCode = exitCode;
 
       // Coerce to null if undefined for backwards compatibility
