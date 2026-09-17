@@ -1626,9 +1626,11 @@ impl Queue {
                     .get("opts")
                     .and_then(|opts| serde_json::from_str::<JobOptions>(opts).ok())
                     .and_then(|opts| opts.job_id);
-                let Some((prefix, queue_name, job_id)) =
-                    Self::parse_qualified_job_key(&qualified_key, custom_job_id.as_deref())
-                else {
+                let Some((prefix, queue_name, job_id)) = Self::parse_qualified_job_key(
+                    &qualified_key,
+                    custom_job_id.as_deref(),
+                    self.keys.prefix(),
+                ) else {
                     continue;
                 };
 
@@ -2815,37 +2817,47 @@ impl Queue {
     /// Parse `<prefix>:<queueName>:<jobId>` from a qualified job key.
     ///
     /// Both the prefix and the job id may contain `:`, so the split point is
-    /// ambiguous from the key alone. The boundary is resolved in three steps:
+    /// ambiguous from the key alone. `queue_prefix` is the prefix of the queue
+    /// that owns the parent job and acts as an anchor. The boundary is resolved
+    /// in three steps:
     ///
     /// 1. The stored `opts.jobId`, when present, gives the exact suffix.
-    /// 2. Otherwise, jobs written by older releases (which accepted
-    ///    colon-containing ids but did not persist `opts.jobId`) are recovered
-    ///    with [`split_legacy_repeat_job_key`].
-    /// 3. Otherwise the last two separators are used, matching `parseNodeKey`
-    ///    in the Node.js backend.
+    /// 2. Otherwise, when the key sits under `queue_prefix` the boundary is
+    ///    exact as well: queue names cannot contain `:`, so the first separator
+    ///    after the prefix ends the queue name and the remainder is the id.
+    ///    This is the upgrade path for jobs written by earlier releases, which
+    ///    accepted arbitrary colon-containing custom ids but did not persist
+    ///    `opts.jobId`.
+    /// 3. Otherwise — a child stored under a different prefix — the last two
+    ///    separators are used, matching `parseNodeKey` in the Node.js backend.
+    ///    Legacy colon-containing ids cannot be recovered in that case, since
+    ///    nothing in the key marks where the foreign prefix ends.
+    ///
+    /// The prefix may legitimately be empty (`Queue::with_options` accepts an
+    /// empty prefix), so only the queue name and the job id are required to be
+    /// non-empty.
     fn parse_qualified_job_key<'a>(
         key: &'a str,
         custom_job_id: Option<&str>,
+        queue_prefix: &str,
     ) -> Option<(&'a str, &'a str, String)> {
-        let (queue_key, job_id): (&'a str, String) = custom_job_id
+        let (prefix, queue_name, job_id) = custom_job_id
             .filter(|job_id| !job_id.is_empty())
             .and_then(|job_id| {
                 let queue_key = key.strip_suffix(&format!(":{job_id}"))?;
-                Some((queue_key, job_id.to_string()))
+                let (prefix, queue_name) = queue_key.rsplit_once(':')?;
+                Some((prefix, queue_name, &key[queue_key.len() + 1..]))
             })
-            .or_else(|| {
-                split_legacy_repeat_job_key(key)
-                    .map(|(queue_key, job_id)| (queue_key, job_id.to_string()))
-            })
+            .or_else(|| split_job_key_under_prefix(key, queue_prefix))
             .or_else(|| {
                 let (queue_key, job_id) = key.rsplit_once(':')?;
-                Some((queue_key, job_id.to_string()))
+                let (prefix, queue_name) = queue_key.rsplit_once(':')?;
+                Some((prefix, queue_name, job_id))
             })?;
-        let (prefix, queue_name) = queue_key.rsplit_once(':')?;
-        if prefix.is_empty() || queue_name.is_empty() || job_id.is_empty() {
+        if queue_name.is_empty() || job_id.is_empty() {
             return None;
         }
-        Some((prefix, queue_name, job_id))
+        Some((prefix, queue_name, job_id.to_string()))
     }
 
     /// Decode one dependency item, matching Node.js `Queue.getDependencies`.
@@ -3160,36 +3172,24 @@ fn duration_as_millis(duration: Duration) -> u64 {
     u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
 }
 
-/// Split a qualified job key whose id is a legacy repeatable id
-/// (`repeat:<schedulerId>:<millis>`) into `(queue_key, job_id)`.
+/// Split a qualified job key that sits under `queue_prefix` into
+/// `(prefix, queue_name, job_id)`.
 ///
-/// This is an upgrade path: jobs added by earlier releases could use
-/// colon-containing ids but did not persist `opts.jobId`, so their keys carry
-/// no boundary marker and a positional parse would misread the scheduler id as
-/// the queue name. The legacy repeatable form is the only colon-containing id
-/// that BullMQ ever accepted, so it is the only shape that needs recovering.
+/// Queue names are validated to be non-empty and free of `:`, so once the
+/// prefix is known the first separator after it ends the queue name and
+/// everything that follows is the id — no matter how many `:` the id contains.
+/// This is what makes ids written before `opts.jobId` was persisted readable
+/// again, provided the child lives under the same prefix as its parent.
 ///
-/// Returns `None` unless the tail matches `:repeat:<non-empty>:<digits>` and
-/// leaves behind a queue key that still contains a `prefix:queueName` pair, so
-/// ambiguous keys fall through to the positional parse instead of being
-/// misattributed.
-fn split_legacy_repeat_job_key(key: &str) -> Option<(&str, &str)> {
-    let (head, millis) = key.rsplit_once(':')?;
-    if millis.is_empty() || !millis.bytes().all(|byte| byte.is_ascii_digit()) {
-        return None;
-    }
-
-    let (head, scheduler_id) = head.rsplit_once(':')?;
-    if scheduler_id.is_empty() {
-        return None;
-    }
-
-    let queue_key = head.strip_suffix(":repeat")?;
-    if !queue_key.contains(':') {
-        return None;
-    }
-
-    Some((queue_key, &key[queue_key.len() + 1..]))
+/// Returns `None` when `key` is not under `queue_prefix`, or when the remainder
+/// has no separator left to end the queue name.
+fn split_job_key_under_prefix<'a>(
+    key: &'a str,
+    queue_prefix: &str,
+) -> Option<(&'a str, &'a str, &'a str)> {
+    let rest = key.strip_prefix(queue_prefix)?.strip_prefix(':')?;
+    let (queue_name, job_id) = rest.split_once(':')?;
+    Some((&key[..queue_prefix.len()], queue_name, job_id))
 }
 
 /// Escape a Prometheus label value (`\`, `"`, and newlines).
@@ -3320,7 +3320,7 @@ mod dependency_key_tests {
     #[test]
     fn preserves_colons_in_custom_job_ids() {
         assert_eq!(
-            Queue::parse_qualified_job_key("bull:queue:repeat:sched:1", Some("repeat:sched:1")),
+            Queue::parse_qualified_job_key("bull:queue:repeat:sched:1", Some("repeat:sched:1"), ""),
             Some(("bull", "queue", "repeat:sched:1".to_string()))
         );
     }
@@ -3328,7 +3328,7 @@ mod dependency_key_tests {
     #[test]
     fn preserves_colons_in_prefixes() {
         assert_eq!(
-            Queue::parse_qualified_job_key("tenant:region:queue:1", None),
+            Queue::parse_qualified_job_key("tenant:region:queue:1", None, "bull"),
             Some(("tenant:region", "queue", "1".to_string()))
         );
     }
@@ -3336,49 +3336,89 @@ mod dependency_key_tests {
     #[test]
     fn falls_back_to_positional_parse_when_custom_id_does_not_match() {
         assert_eq!(
-            Queue::parse_qualified_job_key("tenant:region:queue:1", Some("other")),
+            Queue::parse_qualified_job_key("tenant:region:queue:1", Some("other"), "bull"),
             Some(("tenant:region", "queue", "1".to_string()))
         );
     }
 
     #[test]
-    fn recovers_legacy_repeat_ids_stored_without_persisted_job_id() {
-        // Jobs added before `opts.jobId` was persisted carry no boundary
-        // marker, so the legacy repeatable shape must be recognized from the
-        // key itself.
+    fn supports_empty_prefixes() {
         assert_eq!(
-            Queue::parse_qualified_job_key("bull:queue:repeat:sched:1700000000000", None),
-            Some(("bull", "queue", "repeat:sched:1700000000000".to_string()))
+            Queue::parse_qualified_job_key(":queue:child", None, ""),
+            Some(("", "queue", "child".to_string()))
         );
         assert_eq!(
-            Queue::parse_qualified_job_key("tenant:region:queue:repeat:sched:1", None),
+            Queue::parse_qualified_job_key(":queue:a:b", None, ""),
+            Some(("", "queue", "a:b".to_string()))
+        );
+    }
+
+    #[test]
+    fn rejects_keys_without_a_queue_name_or_job_id() {
+        assert_eq!(
+            Queue::parse_qualified_job_key("bull::1", None, "bull"),
+            None
+        );
+        assert_eq!(
+            Queue::parse_qualified_job_key("bull:queue:", None, "bull"),
+            None
+        );
+        assert_eq!(
+            Queue::parse_qualified_job_key("queue:1", None, "bull"),
+            None
+        );
+    }
+
+    #[test]
+    fn recovers_legacy_ids_stored_without_persisted_job_id() {
+        // Jobs added before `opts.jobId` was persisted carry no boundary
+        // marker. Anchoring on the queue prefix recovers every id earlier
+        // releases accepted, not just the legacy repeatable shape.
+        for (key, job_id) in [
+            (
+                "bull:queue:repeat:sched:1700000000000",
+                "repeat:sched:1700000000000",
+            ),
+            ("bull:queue:job:1", "job:1"),
+            ("bull:queue:a:b:c:d", "a:b:c:d"),
+        ] {
+            assert_eq!(
+                Queue::parse_qualified_job_key(key, None, "bull"),
+                Some(("bull", "queue", job_id.to_string()))
+            );
+        }
+
+        assert_eq!(
+            Queue::parse_qualified_job_key(
+                "tenant:region:queue:repeat:sched:1",
+                None,
+                "tenant:region"
+            ),
             Some(("tenant:region", "queue", "repeat:sched:1".to_string()))
         );
     }
 
     #[test]
-    fn legacy_repeat_recovery_ignores_non_matching_keys() {
-        // Not the legacy shape: the trailing segment is not a timestamp, the
-        // scheduler segment is missing, or `repeat` is part of the queue name.
-        for key in [
-            "bull:queue:repeat:sched:not-millis",
-            "bull:queue:repeat:1",
-            "bull:repeat:sched:1",
-        ] {
-            let parsed = Queue::parse_qualified_job_key(key, None).unwrap();
-            let (_, _, job_id) = parsed;
-            assert!(
-                !job_id.starts_with("repeat:"),
-                "{key} should not be treated as a legacy repeat id, got {job_id}"
-            );
-        }
+    fn falls_back_to_positional_parse_for_foreign_prefixes() {
+        // Nothing marks where a foreign prefix ends, so the Node.js
+        // `parseNodeKey` behaviour is used.
+        assert_eq!(
+            Queue::parse_qualified_job_key("other:queue:1", None, "bull"),
+            Some(("other", "queue", "1".to_string()))
+        );
     }
 
     #[test]
-    fn persisted_job_id_wins_over_legacy_recovery() {
+    fn persisted_job_id_wins_over_prefix_anchoring() {
+        // The persisted id is exact, so it also resolves children stored under
+        // a prefix other than the parent queue's.
         assert_eq!(
-            Queue::parse_qualified_job_key("bull:queue:repeat:sched:1", Some("repeat:sched:1")),
-            Some(("bull", "queue", "repeat:sched:1".to_string()))
+            Queue::parse_qualified_job_key(
+                "tenant:region:queue:repeat:sched:1",
+                Some("repeat:sched:1"),
+                "bull"
+            ),
+            Some(("tenant:region", "queue", "repeat:sched:1".to_string()))
         );
     }
 }
