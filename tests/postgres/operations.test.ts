@@ -334,4 +334,66 @@ describe('PostgreSQL backend operations', () => {
       await backend.close();
     }
   });
+
+  describe('.getOldestJobTimestamp', () => {
+    it('returns null when there are no pending jobs', async () => {
+      const backend = newBackend();
+      try {
+        await backend.waitUntilReady();
+        expect(await backend.getOldestJobTimestamp()).toBeNull();
+      } finally {
+        await backend.close();
+      }
+    });
+
+    it('returns the timestamp of the oldest waiting job', async () => {
+      const backend = newBackend();
+      try {
+        await backend.waitUntilReady();
+        const oldTimestamp = Date.now() - 60_000;
+        await backend.addJob(makeJob({ timestamp: oldTimestamp }), '');
+        await backend.addJob(makeJob({ timestamp: Date.now() }), '');
+
+        expect(await backend.getOldestJobTimestamp()).toBe(oldTimestamp);
+      } finally {
+        await backend.close();
+      }
+    });
+
+    it('returns the ready-timestamp of an overdue delayed job, not its enqueue time', async () => {
+      const backend = newBackend();
+      try {
+        await backend.waitUntilReady();
+        const enqueuedAt = Date.now() - 60_000;
+        await backend.addJob(
+          makeJob({ timestamp: enqueuedAt, delay: 10_000 }),
+          '',
+        );
+
+        expect(await backend.getOldestJobTimestamp()).toBe(enqueuedAt + 10_000);
+      } finally {
+        await backend.close();
+      }
+    });
+
+    it('finds the oldest job at a lower priority even behind a fresher higher-priority job', async () => {
+      const backend = newBackend();
+      try {
+        await backend.waitUntilReady();
+        const oldTimestamp = Date.now() - 60_000;
+        await backend.addJob(
+          makeJob({ timestamp: oldTimestamp, priority: 2 }),
+          '',
+        );
+        await backend.addJob(
+          makeJob({ timestamp: Date.now(), priority: 1 }),
+          '',
+        );
+
+        expect(await backend.getOldestJobTimestamp()).toBe(oldTimestamp);
+      } finally {
+        await backend.close();
+      }
+    });
+  });
 });

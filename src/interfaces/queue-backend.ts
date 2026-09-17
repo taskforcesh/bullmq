@@ -610,6 +610,16 @@ export interface IQueueBackend {
 
   getCountsPerPriority(priorities: number[]): Promise<number[]>;
 
+  /**
+   * Returns the ready-timestamp (ms since epoch) of the oldest pending job
+   * across the "wait" state, every priority level currently populated in
+   * the "prioritized" state, and any "delayed" job whose delay has already
+   * elapsed.
+   *
+   * @returns the timestamp, or null if there are no matching pending jobs.
+   */
+  getOldestJobTimestamp(): Promise<number | null>;
+
   getRanges(
     types: JobType[],
     start?: number,
