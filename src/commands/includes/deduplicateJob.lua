@@ -3,6 +3,7 @@
 ]]
 -- Includes
 --- @include "deduplicateJobWithoutReplace"
+--- @include "recoverStaleDeduplicationKey"
 --- @include "removeJobKeys"
 --- @include "setDeduplicationKey"
 --- @include "storeDeduplicatedNextJob"
@@ -45,6 +46,11 @@ local function deduplicateJob(deduplicationOpts, jobId, delayedKey, deduplicatio
                     end
                     return
                 else
+                    if recoverStaleDeduplicationKey(deduplicationKey, prefix, currentDeduplicatedJobId,
+                        jobId, deduplicationId, deduplicationOpts) then
+                        return
+                    end
+
                     storeDeduplicatedNextJob(deduplicationOpts, currentDeduplicatedJobId, prefix,
                         deduplicationId, jobName, jobData, fullOpts, eventsKey, maxEvents, jobId,
                         parentKey, parentData, parentDependenciesKey, repeatJobKey)
