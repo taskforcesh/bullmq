@@ -24,13 +24,24 @@ pub(crate) fn validate_queue_name(name: &str) -> Result<(), Error> {
 
 /// Validate a custom job id, mirroring `Job.validateOptions` in BullMQ Node.js.
 ///
-/// Job ids are embedded verbatim in the qualified job key
-/// (`{prefix}:{queueName}:{jobId}`), so a `:` in the id makes that key
-/// ambiguous to parse back. Node.js keeps an exception for legacy repeatable
-/// job ids, which always have exactly three `:`-separated segments.
+/// Two restrictions apply:
+///
+/// * Integer ids are rejected. The add scripts bump the automatic id counter
+///   even when a custom id is supplied, so an automatically added job would
+///   eventually be assigned the same numeric key and collide with (or
+///   overwrite) the custom one.
+/// * Job ids are embedded verbatim in the qualified job key
+///   (`{prefix}:{queueName}:{jobId}`), so a `:` in the id makes that key
+///   ambiguous to parse back. Node.js keeps an exception for legacy repeatable
+///   job ids, which always have exactly three `:`-separated segments.
 pub(crate) fn validate_custom_job_id(job_id: &str) -> Result<(), Error> {
     if job_id.is_empty() {
         return Ok(());
+    }
+    if is_canonical_integer(job_id) {
+        return Err(Error::InvalidConfig(
+            "Custom Id cannot be integers".to_string(),
+        ));
     }
     if job_id.contains(':') && job_id.split(':').count() != 3 {
         return Err(Error::InvalidConfig(
@@ -38,6 +49,17 @@ pub(crate) fn validate_custom_job_id(job_id: &str) -> Result<(), Error> {
         ));
     }
     Ok(())
+}
+
+/// Whether `value` round-trips through integer parsing unchanged.
+///
+/// Equivalent to Node.js `` `${parseInt(value, 10)}` === value ``: only the
+/// canonical decimal form of an integer matches, so `"100"` and `"-5"` are
+/// integers while `"007"`, `"+1"`, `"1.5"` and `"1a"` are not.
+fn is_canonical_integer(value: &str) -> bool {
+    value
+        .parse::<i64>()
+        .is_ok_and(|parsed| parsed.to_string() == value)
 }
 
 /// Resolve `ParentOptions.queue` into a qualified queue key.
@@ -342,5 +364,28 @@ mod tests {
 
         let err = validate_custom_job_id("a:b:c:d").unwrap_err();
         assert!(matches!(err, Error::InvalidConfig(_)));
+    }
+
+    #[test]
+    fn rejects_integer_custom_job_ids() {
+        for job_id in ["100", "0", "-5"] {
+            let err = validate_custom_job_id(job_id).unwrap_err();
+            assert!(
+                matches!(&err, Error::InvalidConfig(msg) if msg == "Custom Id cannot be integers"),
+                "got: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn accepts_non_canonical_integer_like_custom_job_ids() {
+        // Matches Node `` `${parseInt(id, 10)}` === id ``, which only rejects the
+        // canonical decimal form.
+        for job_id in ["007", "+1", "1.5", "1a", "9223372036854775808"] {
+            assert!(
+                validate_custom_job_id(job_id).is_ok(),
+                "expected {job_id} to be accepted"
+            );
+        }
     }
 }
