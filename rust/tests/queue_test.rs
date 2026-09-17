@@ -449,6 +449,39 @@ async fn test_add_rejects_custom_job_id_with_colon() {
 }
 
 #[tokio::test]
+async fn test_add_rejects_integer_custom_job_id() {
+    let name = test_queue_name();
+    let queue = Queue::with_options(
+        &name,
+        QueueOptions {
+            connection: test_connection(),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let result = queue
+        .add("job", serde_json::json!({}))
+        .options(JobOptions {
+            job_id: Some("100".to_string()),
+            ..Default::default()
+        })
+        .await;
+
+    match result {
+        Err(err) => assert!(
+            err.to_string().contains("Custom Id cannot be integers"),
+            "got: {}",
+            err
+        ),
+        Ok(_) => panic!("expected error"),
+    }
+
+    cleanup_queue(&queue).await;
+}
+
+#[tokio::test]
 async fn test_get_dependencies_child_context_with_legacy_repeat_job_id() {
     // Legacy repeatable ids (`repeat:<schedulerId>:<millis>`) are the one custom
     // id shape allowed to contain `:`, so the qualified key

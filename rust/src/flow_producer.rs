@@ -1076,13 +1076,14 @@ impl FlowProducer {
 
     /// Parse a child job key as `prefix:queueName:jobId`.
     ///
-    /// Only the key is available here, so the boundary is resolved with the
-    /// last two separators, matching `parseNodeKey` in the Node.js backend.
-    /// Queue names cannot contain `:` and custom job ids are rejected at add
-    /// time, so the remainder belongs to the prefix.
+    /// The boundaries are resolved with the first two separators because
+    /// prefixes and queue names are validated to never contain `:`, whereas job
+    /// ids may: `validate_custom_job_id` keeps the Node.js exception for legacy
+    /// repeatable ids (`repeat:<schedulerId>:<millis>`). Splitting from the
+    /// right would swallow those ids and resolve the wrong queue.
     fn parse_child_key(child_key: &str) -> Option<(&str, &str, &str)> {
-        let (queue_key, job_id) = child_key.rsplit_once(':')?;
-        let (prefix, queue_name) = queue_key.rsplit_once(':')?;
+        let (prefix, rest) = child_key.split_once(':')?;
+        let (queue_name, job_id) = rest.split_once(':')?;
         if prefix.is_empty() || queue_name.is_empty() || job_id.is_empty() {
             return None;
         }
@@ -1276,10 +1277,10 @@ mod tests {
     }
 
     #[test]
-    fn parse_child_key_preserves_prefix_segments() {
+    fn parse_child_key_preserves_colons_in_legacy_repeat_ids() {
         assert_eq!(
-            FlowProducer::parse_child_key("tenant:region:queue:1"),
-            Some(("tenant:region", "queue", "1"))
+            FlowProducer::parse_child_key("bull:queue:repeat:scheduler-id:1700000000000"),
+            Some(("bull", "queue", "repeat:scheduler-id:1700000000000"))
         );
     }
 
