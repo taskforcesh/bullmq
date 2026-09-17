@@ -2815,18 +2815,27 @@ impl Queue {
     /// Parse `<prefix>:<queueName>:<jobId>` from a qualified job key.
     ///
     /// Both the prefix and the job id may contain `:`, so the split point is
-    /// ambiguous from the key alone. When the stored job options carry a custom
-    /// `jobId` it is used to find the boundary; otherwise we fall back to the
-    /// last two separators, matching `parseNodeKey` in the Node.js backend.
+    /// ambiguous from the key alone. The boundary is resolved in three steps:
+    ///
+    /// 1. The stored `opts.jobId`, when present, gives the exact suffix.
+    /// 2. Otherwise, jobs written by older releases (which accepted
+    ///    colon-containing ids but did not persist `opts.jobId`) are recovered
+    ///    with [`split_legacy_repeat_job_key`].
+    /// 3. Otherwise the last two separators are used, matching `parseNodeKey`
+    ///    in the Node.js backend.
     fn parse_qualified_job_key<'a>(
         key: &'a str,
         custom_job_id: Option<&str>,
     ) -> Option<(&'a str, &'a str, String)> {
-        let (queue_key, job_id) = custom_job_id
+        let (queue_key, job_id): (&'a str, String) = custom_job_id
             .filter(|job_id| !job_id.is_empty())
             .and_then(|job_id| {
                 let queue_key = key.strip_suffix(&format!(":{job_id}"))?;
                 Some((queue_key, job_id.to_string()))
+            })
+            .or_else(|| {
+                split_legacy_repeat_job_key(key)
+                    .map(|(queue_key, job_id)| (queue_key, job_id.to_string()))
             })
             .or_else(|| {
                 let (queue_key, job_id) = key.rsplit_once(':')?;
@@ -3151,6 +3160,38 @@ fn duration_as_millis(duration: Duration) -> u64 {
     u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
 }
 
+/// Split a qualified job key whose id is a legacy repeatable id
+/// (`repeat:<schedulerId>:<millis>`) into `(queue_key, job_id)`.
+///
+/// This is an upgrade path: jobs added by earlier releases could use
+/// colon-containing ids but did not persist `opts.jobId`, so their keys carry
+/// no boundary marker and a positional parse would misread the scheduler id as
+/// the queue name. The legacy repeatable form is the only colon-containing id
+/// that BullMQ ever accepted, so it is the only shape that needs recovering.
+///
+/// Returns `None` unless the tail matches `:repeat:<non-empty>:<digits>` and
+/// leaves behind a queue key that still contains a `prefix:queueName` pair, so
+/// ambiguous keys fall through to the positional parse instead of being
+/// misattributed.
+fn split_legacy_repeat_job_key(key: &str) -> Option<(&str, &str)> {
+    let (head, millis) = key.rsplit_once(':')?;
+    if millis.is_empty() || !millis.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+
+    let (head, scheduler_id) = head.rsplit_once(':')?;
+    if scheduler_id.is_empty() {
+        return None;
+    }
+
+    let queue_key = head.strip_suffix(":repeat")?;
+    if !queue_key.contains(':') {
+        return None;
+    }
+
+    Some((queue_key, &key[queue_key.len() + 1..]))
+}
+
 /// Escape a Prometheus label value (`\`, `"`, and newlines).
 ///
 /// Mirrors Node.js `escapePrometheusLabelValue`.
@@ -3297,6 +3338,47 @@ mod dependency_key_tests {
         assert_eq!(
             Queue::parse_qualified_job_key("tenant:region:queue:1", Some("other")),
             Some(("tenant:region", "queue", "1".to_string()))
+        );
+    }
+
+    #[test]
+    fn recovers_legacy_repeat_ids_stored_without_persisted_job_id() {
+        // Jobs added before `opts.jobId` was persisted carry no boundary
+        // marker, so the legacy repeatable shape must be recognized from the
+        // key itself.
+        assert_eq!(
+            Queue::parse_qualified_job_key("bull:queue:repeat:sched:1700000000000", None),
+            Some(("bull", "queue", "repeat:sched:1700000000000".to_string()))
+        );
+        assert_eq!(
+            Queue::parse_qualified_job_key("tenant:region:queue:repeat:sched:1", None),
+            Some(("tenant:region", "queue", "repeat:sched:1".to_string()))
+        );
+    }
+
+    #[test]
+    fn legacy_repeat_recovery_ignores_non_matching_keys() {
+        // Not the legacy shape: the trailing segment is not a timestamp, the
+        // scheduler segment is missing, or `repeat` is part of the queue name.
+        for key in [
+            "bull:queue:repeat:sched:not-millis",
+            "bull:queue:repeat:1",
+            "bull:repeat:sched:1",
+        ] {
+            let parsed = Queue::parse_qualified_job_key(key, None).unwrap();
+            let (_, _, job_id) = parsed;
+            assert!(
+                !job_id.starts_with("repeat:"),
+                "{key} should not be treated as a legacy repeat id, got {job_id}"
+            );
+        }
+    }
+
+    #[test]
+    fn persisted_job_id_wins_over_legacy_recovery() {
+        assert_eq!(
+            Queue::parse_qualified_job_key("bull:queue:repeat:sched:1", Some("repeat:sched:1")),
+            Some(("bull", "queue", "repeat:sched:1".to_string()))
         );
     }
 }
