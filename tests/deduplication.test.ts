@@ -159,6 +159,105 @@ describe('deduplication', () => {
           expect(await queue.getDeduplicationJobId(dedupId)).toBeNull();
         });
 
+        it('discards the pending next job payload of the stale winner', async () => {
+          const testName = 'test';
+          const dedupId = 'dedupId';
+          const client = await getRedisClient(queue);
+          const deduplicationNextKey = queue.toKey(`dn:${dedupId}`);
+
+          let resolveFirstProcessing: () => void;
+          const firstProcessingStarted = new Promise<void>(resolve => {
+            resolveFirstProcessing = resolve;
+          });
+          let releaseFirstJob: () => void;
+          const firstJobGate = new Promise<void>(resolve => {
+            releaseFirstJob = resolve;
+          });
+
+          const crashingWorker = new Worker(
+            queueName,
+            async () => {
+              resolveFirstProcessing();
+              await firstJobGate;
+            },
+            { autorun: false, connection, prefix },
+          );
+          await crashingWorker.waitUntilReady();
+          crashingWorker.run();
+
+          await queue.add(
+            testName,
+            { seq: 1 },
+            {
+              jobId: 'a1',
+              deduplication: { id: dedupId, keepLastIfActive: true },
+            },
+          );
+
+          await firstProcessingStarted;
+
+          // a1 is active, so this add only stores a pending next job payload
+          // instead of creating a job.
+          await queue.add(
+            testName,
+            { seq: 2 },
+            {
+              jobId: 'a2',
+              deduplication: { id: dedupId, keepLastIfActive: true },
+            },
+          );
+
+          const pendingNextJob = await client.hgetall(deduplicationNextKey);
+          expect(pendingNextJob.jid).toBe('a2');
+          expect(JSON.parse(pendingNextJob.data)).toEqual({ seq: 2 });
+
+          // Simulate an outage: the worker dies and a1's job key is lost while
+          // the persistent deduplication key still points at it.
+          await crashingWorker.close(true);
+          await client.del(queue.toKey('a1'));
+
+          await queue.add(
+            testName,
+            { seq: 3 },
+            {
+              jobId: 'a3',
+              deduplication: { id: dedupId, keepLastIfActive: true },
+            },
+          );
+
+          // Recovering the stale key must also discard a1's pending payload.
+          expect(
+            (await client.hgetall(deduplicationNextKey))?.jid,
+          ).toBeUndefined();
+          expect(await queue.getDeduplicationJobId(dedupId)).toBe('a3');
+
+          const worker = new Worker(queueName, async job => job.data, {
+            autorun: false,
+            connection,
+            prefix,
+          });
+          await worker.waitUntilReady();
+          const replacementCompleted = new Promise<void>(resolve => {
+            worker.on('completed', job => {
+              if (job.id === 'a3') {
+                resolve();
+              }
+            });
+          });
+          worker.run();
+          await replacementCompleted;
+          await delay(100);
+
+          // a2 must not be resurrected when the replacement finishes.
+          expect(await queue.getJob('a2')).toBeUndefined();
+          expect(
+            (await client.hgetall(deduplicationNextKey))?.jid,
+          ).toBeUndefined();
+
+          releaseFirstJob!();
+          await worker.close();
+        });
+
         it('does not clear an existing ttl window when the next add omits ttl', async () => {
           const testName = 'test';
           const dedupId = 'dedupId';
