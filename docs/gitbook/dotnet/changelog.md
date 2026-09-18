@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/taskforcesh/bullmq/compare/vnet1.2.0...vnet1.2.1) (2026-09-18)
+
+
+### Bug Fixes
+
+* **deduplication:** remove deduplication key if job key does not longer exist (python) (elixir) (php) (rust) (dotnet) ([#4768](https://github.com/taskforcesh/bullmq/issues/4768)) ([75bb3a0](https://github.com/taskforcesh/bullmq/commit/75bb3a059ff214b419553822d41d3e8eaff7e888))
+
 # [1.2.0](https://github.com/taskforcesh/bullmq/compare/vnet1.1.1...vnet1.2.0) (2026-09-12)
 
 
