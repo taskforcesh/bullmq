@@ -3245,8 +3245,8 @@ fn qualified_job_key_splits(
             let legacy = anchored.filter(|anchored| anchored != &positional);
             Some(JobKeySplits { positional, legacy })
         }
-        // A key with a single `:` cannot be split positionally, but it can
-        // still be anchored on an empty prefix (`:queue:id` minus the id).
+        // Keys the positional split rejects (an id with a trailing or repeated
+        // `:`) can still be read when anchored on the known prefix.
         None => anchored.map(|anchored| JobKeySplits {
             positional: anchored,
             legacy: None,
