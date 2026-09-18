@@ -779,6 +779,85 @@ async fn test_get_dependencies_processed_cross_prefix_child_context() {
     cleanup_queue(&parent_queue).await;
 }
 
+// Regression: a child queue whose prefix extends the parent's prefix
+// (`tenant` -> `tenant:region`) produces a job key that is shaped exactly like
+// a legacy colon-containing id under the parent prefix. The dependency parser
+// must resolve it to the nested child queue, not to the parent's prefix.
+#[tokio::test]
+async fn test_get_dependencies_nested_child_prefix_context() {
+    let parent_name = test_queue_name();
+    let child_name = test_queue_name();
+    let conn = test_connection();
+    let parent_prefix = format!("nested-{}", test_queue_name());
+    let child_prefix = format!("{parent_prefix}:region");
+
+    let parent_queue = Queue::with_options(
+        &parent_name,
+        QueueOptions {
+            connection: conn.clone(),
+            prefix: parent_prefix.clone(),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let child_queue = Queue::with_options(
+        &child_name,
+        QueueOptions {
+            connection: conn.clone(),
+            prefix: child_prefix.clone(),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    // No custom job id: the child id is auto-generated, so `opts.jobId` is not
+    // persisted and the key boundary cannot be read off the id.
+    let flow = FlowJob::new("parent", parent_name.clone(), serde_json::json!({}))
+        .unwrap()
+        .add_child(
+            FlowJob::new("child", child_name.clone(), serde_json::json!({ "x": 1 }))
+                .unwrap()
+                .prefix(child_prefix.clone()),
+        );
+
+    let flow_producer = FlowProducer::with_options(FlowProducerOptions {
+        connection: conn.clone(),
+        prefix: Some(parent_prefix.clone()),
+    })
+    .await
+    .unwrap();
+
+    let tree = flow_producer.add(flow).await.unwrap();
+    let parent_id = tree.job.id().to_string();
+    let child_id = tree
+        .children
+        .as_ref()
+        .and_then(|children| children.first())
+        .expect("flow should have one child")
+        .job
+        .id()
+        .to_string();
+
+    let dependencies = parent_queue
+        .get_dependencies(&parent_id, "pending", 0, -1)
+        .await
+        .unwrap();
+    assert_eq!(dependencies.jobs.len(), 1);
+
+    let dep_child = dependencies.jobs.into_iter().next().unwrap();
+    assert_eq!(dep_child.id(), child_id);
+
+    // Regression guard: this lookup must use the nested child queue keys.
+    assert_eq!(dep_child.get_state().await.unwrap(), JobState::Waiting);
+
+    flow_producer.close().await;
+    cleanup_queue(&child_queue).await;
+    cleanup_queue(&parent_queue).await;
+}
+
 #[tokio::test]
 async fn test_add_bulk_jobs() {
     let name = test_queue_name();
