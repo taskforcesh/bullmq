@@ -1,3 +1,10 @@
+## [2.0.2](https://github.com/taskforcesh/bullmq/compare/vphp2.0.1...vphp2.0.2) (2026-09-18)
+
+
+### Bug Fixes
+
+* **deduplication:** remove deduplication key if job key does not longer exist (python) (elixir) (php) (rust) (dotnet) ([#4768](https://github.com/taskforcesh/bullmq/issues/4768)) ([75bb3a0](https://github.com/taskforcesh/bullmq/commit/75bb3a059ff214b419553822d41d3e8eaff7e888))
+
 ## [2.0.1](https://github.com/taskforcesh/bullmq/compare/vphp2.0.0...vphp2.0.1) (2026-08-05)
 
 
