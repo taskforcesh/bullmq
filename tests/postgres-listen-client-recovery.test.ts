@@ -203,6 +203,68 @@ describe('PostgresConnection LISTEN client recovery', () => {
       (client as unknown as FakeStandaloneClient).end,
     ).not.toHaveBeenCalled();
   });
+
+  it('does not memoize a failed connect, so the next call establishes a fresh client', async () => {
+    const { connection, createdClients } = makeStandaloneConnection();
+    const anyConn = connection as any;
+    const Client = anyConn.pgModule.Client;
+    anyConn.pgModule = {
+      Client: class extends Client {
+        constructor(config: any) {
+          super(config);
+          if (createdClients.length === 1) {
+            // Postgres is not accepting connections yet (e.g. mid-restart).
+            this.connect.mockRejectedValue(new Error('connect ECONNREFUSED'));
+          }
+        }
+      },
+    };
+
+    await expect(connection.getListenClient()).rejects.toThrow(
+      'connect ECONNREFUSED',
+    );
+
+    const client = await connection.getListenClient();
+    expect(createdClients).toHaveLength(2);
+    expect(client).toBe(createdClients[1]);
+  });
+
+  it('does not memoize a failed checkout from a user-supplied pool', async () => {
+    const { connection } = makePooledConnection();
+    const anyConn = connection as any;
+    const connect = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('connect ECONNREFUSED'))
+      .mockImplementation(anyConn.pool.connect);
+    anyConn.pool.connect = connect;
+
+    await expect(connection.getListenClient()).rejects.toThrow(
+      'connect ECONNREFUSED',
+    );
+
+    await expect(connection.getListenClient()).resolves.toBeDefined();
+    expect(connect).toHaveBeenCalledTimes(2);
+  });
+
+  it('shares one in-flight connect between concurrent callers, even when it fails', async () => {
+    const { connection } = makePooledConnection();
+    const anyConn = connection as any;
+    const connect = vi
+      .fn()
+      .mockRejectedValue(new Error('connect ECONNREFUSED'));
+    anyConn.pool.connect = connect;
+
+    const results = await Promise.allSettled([
+      connection.getListenClient(),
+      connection.getListenClient(),
+    ]);
+
+    expect(results.map(result => result.status)).toEqual([
+      'rejected',
+      'rejected',
+    ]);
+    expect(connect).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('PostgresQueueBackend LISTEN client recovery', () => {
