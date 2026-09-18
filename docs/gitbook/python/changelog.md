@@ -1,3 +1,10 @@
+## [3.2.3](https://github.com/taskforcesh/bullmq/compare/vpy3.2.2...vpy3.2.3) (2026-09-18)
+
+
+### Bug Fixes
+
+* **deduplication:** remove deduplication key if job key does not longer exist (python) (elixir) (php) (rust) (dotnet) ([#4768](https://github.com/taskforcesh/bullmq/issues/4768)) ([75bb3a0](https://github.com/taskforcesh/bullmq/commit/75bb3a059ff214b419553822d41d3e8eaff7e888))
+
 ## [3.2.2](https://github.com/taskforcesh/bullmq/compare/vpy3.2.1...vpy3.2.2) (2026-09-14)
 
 
