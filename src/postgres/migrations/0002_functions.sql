@@ -2786,9 +2786,6 @@ BEGIN
         PERFORM publish_event(p_queue, 'deduplicated',
           jsonb_build_object('jobId', p_job_id, 'deduplicationId', v_id,
             'deduplicatedJobId', v_cur));
-        -- Discard any pending proto-next stashed while the replaced job was
-        -- active, otherwise it would be resurrected when p_job_id finalizes.
-        DELETE FROM dedup_next WHERE queue = p_queue AND dedup_id = v_id;
         IF v_keeplast THEN
           UPDATE dedup SET job_id = p_job_id, expire_at_ms = NULL
            WHERE queue = p_queue AND dedup_id = v_id;

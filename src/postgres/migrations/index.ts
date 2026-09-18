@@ -35,6 +35,14 @@ export const MIGRATIONS: readonly Migration[] = [
     minClientVersion: 6,
     load: () => loadMigrationSql('0002_functions.sql'),
   },
+  {
+    version: 3,
+    name: '0003_dedup_stale_key',
+    // Function-body fix only (CREATE OR REPLACE, identical signature, no DDL),
+    // so clients from the same major keep working against the updated schema.
+    minClientVersion: 6,
+    load: () => loadMigrationSql('0003_dedup_stale_key.sql'),
+  },
 ];
 
 /**

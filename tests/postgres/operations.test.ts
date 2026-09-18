@@ -334,4 +334,84 @@ describe('PostgreSQL backend operations', () => {
       await backend.close();
     }
   });
+
+  describe('deduplication when the winner job no longer exists', () => {
+    const dedupJob = (dedupId: string) =>
+      makeJob({
+        opts: { deduplication: { id: dedupId } },
+        deduplicationId: dedupId,
+      } as Partial<JobJson>);
+
+    it('recovers the stale key on a single add', async () => {
+      const backend = newBackend();
+      try {
+        await backend.waitUntilReady();
+        const dedupId = 'stale-single';
+
+        expect(await backend.addJob(dedupJob(dedupId), 'a1')).toBe('a1');
+        expect(await backend.getDeduplicationJobId(dedupId)).toBe('a1');
+
+        // `drain` deletes the job row but leaves the deduplication row behind,
+        // so the key now points at a job that no longer exists.
+        await backend.drain(false);
+        expect(await backend.getJobData('a1')).toBeUndefined();
+        expect(await backend.getDeduplicationJobId(dedupId)).toBe('a1');
+
+        expect(await backend.addJob(dedupJob(dedupId), 'a2')).toBe('a2');
+        expect(await backend.getJobData('a2')).toBeTruthy();
+        expect(await backend.getDeduplicationJobId(dedupId)).toBe('a2');
+      } finally {
+        await backend.close();
+      }
+    });
+
+    it('recovers the stale key on a bulk add', async () => {
+      const backend = newBackend();
+      try {
+        await backend.waitUntilReady();
+        const dedupId = 'stale-bulk';
+
+        expect(
+          await backend.addJobs([{ job: dedupJob(dedupId), jobId: 'b1' }]),
+        ).toEqual(['b1']);
+        expect(await backend.getDeduplicationJobId(dedupId)).toBe('b1');
+
+        // `clean` also deletes the job row without clearing the dedup row.
+        expect(
+          await backend.cleanJobsByState('wait', Date.now() + 1000, 0),
+        ).toEqual(['b1']);
+        expect(await backend.getJobData('b1')).toBeUndefined();
+        expect(await backend.getDeduplicationJobId(dedupId)).toBe('b1');
+
+        expect(
+          await backend.addJobs([{ job: dedupJob(dedupId), jobId: 'b2' }]),
+        ).toEqual(['b2']);
+        expect(await backend.getJobData('b2')).toBeTruthy();
+        expect(await backend.getDeduplicationJobId(dedupId)).toBe('b2');
+      } finally {
+        await backend.close();
+      }
+    });
+
+    it('still deduplicates while the winner job exists', async () => {
+      const backend = newBackend();
+      try {
+        await backend.waitUntilReady();
+        const dedupId = 'live-winner';
+
+        expect(await backend.addJob(dedupJob(dedupId), 'c1')).toBe('c1');
+        // The winner is still there, so the second add is deduplicated.
+        expect(await backend.addJob(dedupJob(dedupId), 'c2')).toBe('c1');
+        expect(await backend.getJobData('c2')).toBeUndefined();
+
+        expect(
+          await backend.addJobs([{ job: dedupJob(dedupId), jobId: 'c3' }]),
+        ).toEqual(['c1']);
+        expect(await backend.getJobData('c3')).toBeUndefined();
+        expect(await backend.getDeduplicationJobId(dedupId)).toBe('c1');
+      } finally {
+        await backend.close();
+      }
+    });
+  });
 });

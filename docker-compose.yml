@@ -14,6 +14,31 @@ services:
       DFLY_default_lua_flags: 'allow-undeclared-keys'
       HEALTHCHECK_PORT: 6379
 
+  # PostgreSQL backend for `yarn test:postgres` / `yarn test:postgres:smoke`.
+  # Image and credentials match the CI service in .github/workflows/test.yml,
+  # and the database/port match the default POSTGRES_URL the tests fall back to
+  # (postgres://postgres:postgres@127.0.0.1:5432/bullmq_test), so no env var is
+  # needed locally. Storage is intentionally ephemeral — every run migrates
+  # from scratch and the suites drop their schemas.
+  #
+  # If something else already listens on 5432, publish another host port with
+  # `POSTGRES_PORT=5433 yarn dc:up` and point the tests at it with
+  # `POSTGRES_URL=postgres://postgres:postgres@127.0.0.1:5433/bullmq_test`.
+  postgres:
+    image: postgres:16-alpine
+    container_name: bullmq-postgres
+    ports:
+      - ${POSTGRES_PORT:-5432}:5432
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: bullmq_test
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d bullmq_test']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # Redis Cluster for integration tests
   # Note: On macOS, use `docker-compose --profile cluster up` to start the cluster
   # Uses static IPs in a custom subnet; client must use NAT mapping for 172.30.0.x -> 127.0.0.1
