@@ -316,7 +316,7 @@ export class PostgresConnection extends EventEmitter {
     // callers racing on the first use don't each open a connection — the
     // `await` below is exactly where a second caller would otherwise slip in.
     if (!this.listenClientPromise) {
-      this.listenClientPromise = (async () => {
+      const establishing = (async () => {
         if (this.pgModule && this.listenClientConfig) {
           const client = new this.pgModule.Client({
             ...this.listenClientConfig,
@@ -350,6 +350,16 @@ export class PostgresConnection extends EventEmitter {
           return client;
         }
       })();
+      this.listenClientPromise = establishing;
+      // Memoize only a connect that succeeds. A rejected one (e.g. Postgres
+      // mid-restart) would otherwise be handed to every later caller, so the
+      // worker could never LISTEN again until the process restarts. Callers
+      // sharing this attempt still see its rejection.
+      establishing.catch((): void => {
+        if (this.listenClientPromise === establishing) {
+          this.listenClientPromise = undefined;
+        }
+      });
     }
     return this.listenClientPromise;
   }
