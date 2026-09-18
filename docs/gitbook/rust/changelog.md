@@ -1,3 +1,10 @@
+## [1.2.10](https://github.com/taskforcesh/bullmq/compare/vrs1.2.9...vrs1.2.10) (2026-09-18)
+
+
+### Bug Fixes
+
+* **deduplication:** remove deduplication key if job key does not longer exist (python) (elixir) (php) (rust) (dotnet) ([#4768](https://github.com/taskforcesh/bullmq/issues/4768)) ([75bb3a0](https://github.com/taskforcesh/bullmq/commit/75bb3a059ff214b419553822d41d3e8eaff7e888))
+
 ## [1.2.9](https://github.com/taskforcesh/bullmq/compare/vrs1.2.8...vrs1.2.9) (2026-09-10)
 
 
