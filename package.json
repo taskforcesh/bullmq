@@ -145,7 +145,7 @@
     "minimatch": "10.2.6",
     "moment": "2.31.0",
     "pg": "8.23.0",
-    "prettier": "3.9.7",
+    "prettier": "3.9.8",
     "pretty-quick": "4.2.2",
     "progress": "2.0.3",
     "redis": "6.2.1",
