@@ -1615,30 +1615,46 @@ impl Queue {
                 total = page_total;
             }
 
+            // Compute the candidate splits for the whole page first, so the
+            // queues of any ambiguous key can be probed in one round trip
+            // instead of two awaited `EXISTS` calls per item.
+            let mut pending: Vec<(HashMap<String, String>, JobKeySplits)> =
+                Vec::with_capacity(page_items.len());
             for (item, raw_job) in page_items.iter().zip(raw_jobs.iter()) {
                 let Some(qualified_key) = paginate_item_key(item) else {
                     continue;
                 };
+                // A completed child may already have been deleted by
+                // `removeOnComplete` while its key and return value remain in the
+                // parent's processed hash, so `HGETALL` yields no fields. Keep the
+                // entry and build a default job from the qualified key to preserve
+                // the one-job-per-item ordering used by the Node.js implementation.
                 let fields = Self::parse_hash_array(raw_job);
-                if fields.is_empty() {
-                    continue;
-                }
                 let custom_job_id = fields
                     .get("opts")
                     .and_then(|opts| serde_json::from_str::<JobOptions>(opts).ok())
                     .and_then(|opts| opts.job_id);
-                let Some(split) = Self::resolve_qualified_job_key(
-                    &mut conn,
-                    &mut known_queues,
+                let Some(splits) = qualified_job_key_splits(
                     &qualified_key,
                     custom_job_id.as_deref(),
                     self.keys.prefix(),
-                )
-                .await?
-                else {
+                ) else {
                     continue;
                 };
 
+                pending.push((fields, splits));
+            }
+
+            let ambiguous = pending.iter().filter_map(|(_, splits)| {
+                splits
+                    .legacy
+                    .as_ref()
+                    .map(|legacy| (&splits.positional, legacy))
+            });
+            probe_queues(&mut conn, &mut known_queues, ambiguous).await?;
+
+            for (fields, splits) in pending {
+                let split = resolve_job_key_split(&known_queues, splits);
                 let mut job = Job::from_redis_hash(&split.job_id, &fields)?;
                 let keys = QueueKeys::new(&split.queue_name, Some(&split.prefix));
                 job.set_context(self.make_script_context_for_keys(keys));
@@ -2819,50 +2835,6 @@ impl Queue {
         map
     }
 
-    /// Resolve `<prefix>:<queueName>:<jobId>` from a qualified job key,
-    /// consulting Redis when the key alone is ambiguous.
-    ///
-    /// Both the prefix and the job id may contain `:`, so the split point
-    /// cannot always be derived from the key. With the parent prefix `tenant`,
-    /// `tenant:region:child:1` is either job `child:1` of queue `region` (a
-    /// legacy colon id written under the parent's own prefix) or job `1` of
-    /// queue `child` living under the nested prefix `tenant:region`. See
-    /// [`qualified_job_key_splits`] for how the candidates are produced; when
-    /// they disagree the tie is broken here:
-    ///
-    /// * both candidate queues are probed in Redis, and
-    /// * the legacy (prefix-anchored) split is chosen only when its queue
-    ///   exists and the positional one does not.
-    ///
-    /// Every other outcome keeps the positional split, so the fallback matches
-    /// `parseNodeKey` in the Node.js backend. `known_queues` caches the probes
-    /// for the duration of one [`Queue::get_dependencies`] call.
-    async fn resolve_qualified_job_key(
-        conn: &mut redis::aio::MultiplexedConnection,
-        known_queues: &mut HashMap<String, bool>,
-        key: &str,
-        custom_job_id: Option<&str>,
-        queue_prefix: &str,
-    ) -> Result<Option<SplitJobKey>, Error> {
-        let Some(splits) = qualified_job_key_splits(key, custom_job_id, queue_prefix) else {
-            return Ok(None);
-        };
-
-        let JobKeySplits { positional, legacy } = splits;
-        let Some(legacy) = legacy else {
-            return Ok(Some(positional));
-        };
-
-        let positional_exists = queue_exists(conn, known_queues, &positional).await?;
-        let legacy_exists = queue_exists(conn, known_queues, &legacy).await?;
-
-        Ok(Some(if legacy_exists && !positional_exists {
-            legacy
-        } else {
-            positional
-        }))
-    }
-
     /// Decode one dependency item, matching Node.js `Queue.getDependencies`.
     fn decode_dependency_item(item: &redis::Value) -> Option<DependencyItem> {
         match item {
@@ -3203,7 +3175,7 @@ impl SplitJobKey {
 ///
 /// `legacy` is only populated when the prefix-anchored split differs from the
 /// positional one, i.e. when the key is genuinely ambiguous and a Redis probe
-/// is required to pick a winner (see [`Queue::resolve_qualified_job_key`]).
+/// is required to pick a winner (see [`resolve_job_key_split`]).
 #[derive(Debug, PartialEq, Eq)]
 struct JobKeySplits {
     positional: SplitJobKey,
@@ -3285,33 +3257,86 @@ fn split_job_key_under_prefix(key: &str, queue_prefix: &str) -> Option<SplitJobK
     SplitJobKey::new(queue_prefix, queue_name, job_id)
 }
 
-/// Whether the queue addressed by `split` exists in Redis.
+/// Probe, in a single pipelined round trip, whether the queues addressed by
+/// `splits` exist in Redis.
 ///
 /// A queue is considered to exist when any of its bookkeeping keys is present:
 /// `meta` (written when a queue is instantiated), `events` (written by every
 /// job that is stored) or `id` (the auto-generated id counter). Results are
-/// memoized in `known_queues`, keyed by `<prefix>:<queueName>`.
-async fn queue_exists(
+/// memoized in `known_queues`, keyed by `<prefix>:<queueName>`, so repeated
+/// bases — within a page and across pages of the same
+/// [`Queue::get_dependencies`] call — are probed only once.
+async fn probe_queues<'a, I>(
     conn: &mut redis::aio::MultiplexedConnection,
     known_queues: &mut HashMap<String, bool>,
-    split: &SplitJobKey,
-) -> Result<bool, Error> {
-    let keys = QueueKeys::new(&split.queue_name, Some(&split.prefix));
-    let base = keys.base();
-    if let Some(exists) = known_queues.get(&base) {
-        return Ok(*exists);
+    splits: I,
+) -> Result<(), Error>
+where
+    I: IntoIterator<Item = (&'a SplitJobKey, &'a SplitJobKey)>,
+{
+    let mut pipe = redis::pipe();
+    let mut bases: Vec<String> = Vec::new();
+    let mut queued: HashSet<String> = HashSet::new();
+
+    for split in splits.into_iter().flat_map(|(a, b)| [a, b]) {
+        let keys = QueueKeys::new(&split.queue_name, Some(&split.prefix));
+        let base = keys.base();
+        if known_queues.contains_key(&base) || !queued.insert(base.clone()) {
+            continue;
+        }
+
+        pipe.cmd("EXISTS")
+            .arg(keys.meta())
+            .arg(keys.events())
+            .arg(keys.id());
+        bases.push(base);
     }
 
-    let found: i64 = redis::cmd("EXISTS")
-        .arg(keys.meta())
-        .arg(keys.events())
-        .arg(keys.id())
-        .query_async(conn)
-        .await?;
+    if bases.is_empty() {
+        return Ok(());
+    }
 
-    let exists = found > 0;
-    known_queues.insert(base, exists);
-    Ok(exists)
+    let found: Vec<i64> = pipe.query_async(conn).await?;
+    for (base, count) in bases.into_iter().zip(found) {
+        known_queues.insert(base, count > 0);
+    }
+
+    Ok(())
+}
+
+/// Pick the winning `<prefix>:<queueName>:<jobId>` split of a qualified job key.
+///
+/// Both the prefix and the job id may contain `:`, so the split point cannot
+/// always be derived from the key. With the parent prefix `tenant`,
+/// `tenant:region:child:1` is either job `child:1` of queue `region` (a legacy
+/// colon id written under the parent's own prefix) or job `1` of queue `child`
+/// living under the nested prefix `tenant:region`. See
+/// [`qualified_job_key_splits`] for how the candidates are produced; when they
+/// disagree the tie is broken here using the queue existence probed by
+/// [`probe_queues`]: the legacy (prefix-anchored) split is chosen only when its
+/// queue exists and the positional one does not.
+///
+/// Every other outcome keeps the positional split, so the fallback matches
+/// `parseNodeKey` in the Node.js backend.
+fn resolve_job_key_split(
+    known_queues: &HashMap<String, bool>,
+    splits: JobKeySplits,
+) -> SplitJobKey {
+    let JobKeySplits { positional, legacy } = splits;
+    let Some(legacy) = legacy else {
+        return positional;
+    };
+
+    let exists = |split: &SplitJobKey| {
+        let base = QueueKeys::new(&split.queue_name, Some(&split.prefix)).base();
+        known_queues.get(&base).copied().unwrap_or(false)
+    };
+
+    if exists(&legacy) && !exists(&positional) {
+        legacy
+    } else {
+        positional
+    }
 }
 
 /// Escape a Prometheus label value (`\`, `"`, and newlines).
