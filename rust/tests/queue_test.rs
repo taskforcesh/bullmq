@@ -815,45 +815,58 @@ async fn test_get_dependencies_nested_child_prefix_context() {
 
     // No custom job id: the child id is auto-generated, so `opts.jobId` is not
     // persisted and the key boundary cannot be read off the id.
-    let flow = FlowJob::new("parent", parent_name.clone(), serde_json::json!({}))
-        .unwrap()
-        .add_child(
-            FlowJob::new("child", child_name.clone(), serde_json::json!({ "x": 1 }))
-                .unwrap()
-                .prefix(child_prefix.clone()),
-        );
+    let parent = parent_queue
+        .add("parent", serde_json::json!({}))
+        .await
+        .unwrap();
+    let child = child_queue
+        .add("child", serde_json::json!({ "x": 1 }))
+        .await
+        .unwrap();
 
-    let flow_producer = FlowProducer::with_options(FlowProducerOptions {
-        connection: conn.clone(),
-        prefix: Some(parent_prefix.clone()),
-    })
-    .await
-    .unwrap();
-
-    let tree = flow_producer.add(flow).await.unwrap();
-    let parent_id = tree.job.id().to_string();
-    let child_id = tree
-        .children
-        .as_ref()
-        .and_then(|children| children.first())
-        .expect("flow should have one child")
-        .job
-        .id()
-        .to_string();
+    // The dependency link is wired directly in Redis: neither `FlowProducer`
+    // (which rejects colon-containing prefixes) nor `ParentOptions` (which
+    // qualifies the parent with the *child's* prefix) can express a parent
+    // whose prefix is a proper prefix of the child's. The resulting keys are
+    // exactly what a cross-prefix flow would store.
+    let parent_key = parent_queue.keys().job_key(parent.id());
+    let child_key = child_queue.keys().job_key(child.id());
+    let parent_deps_key = format!("{parent_key}:dependencies");
+    let mut redis_conn = parent_queue.connection().conn();
+    redis::cmd("SADD")
+        .arg(&parent_deps_key)
+        .arg(&child_key)
+        .query_async::<()>(&mut redis_conn)
+        .await
+        .unwrap();
+    redis::cmd("HSET")
+        .arg(&child_key)
+        .arg("parentKey")
+        .arg(&parent_key)
+        .arg("parent")
+        .arg(
+            serde_json::json!({
+                "id": parent.id(),
+                "queueKey": parent_queue.keys().base(),
+            })
+            .to_string(),
+        )
+        .query_async::<()>(&mut redis_conn)
+        .await
+        .unwrap();
 
     let dependencies = parent_queue
-        .get_dependencies(&parent_id, "pending", 0, -1)
+        .get_dependencies(parent.id(), "pending", 0, -1)
         .await
         .unwrap();
     assert_eq!(dependencies.jobs.len(), 1);
 
     let dep_child = dependencies.jobs.into_iter().next().unwrap();
-    assert_eq!(dep_child.id(), child_id);
+    assert_eq!(dep_child.id(), child.id());
 
     // Regression guard: this lookup must use the nested child queue keys.
     assert_eq!(dep_child.get_state().await.unwrap(), JobState::Waiting);
 
-    flow_producer.close().await;
     cleanup_queue(&child_queue).await;
     cleanup_queue(&parent_queue).await;
 }
