@@ -2,6 +2,7 @@
 
 mod common;
 
+use bullmq::flow_producer::{FlowJob, FlowProducer, FlowProducerOptions};
 use bullmq::types::JobState;
 use bullmq::worker::{CancellationToken, ProcessorFn};
 use bullmq::{BulkJob, Job, JobOptions, Queue, QueueOptions, Worker, WorkerOptions};
@@ -155,6 +156,716 @@ async fn test_add_job_with_parent_queue_name() {
         .await
         .unwrap();
     assert_eq!(deps.unprocessed, 1);
+
+    cleanup_queue(&child_queue).await;
+    cleanup_queue(&parent_queue).await;
+}
+
+#[tokio::test]
+async fn test_get_dependencies_pending() {
+    let name = test_queue_name();
+    let opts = QueueOptions {
+        connection: test_connection(),
+        ..Default::default()
+    };
+
+    let queue = Queue::with_options(&name, opts).await.unwrap();
+    let parent = queue
+        .add("parent", serde_json::json!({}))
+        .options(JobOptions {
+            job_id: Some("parent-pending".to_string()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    for i in 0..4 {
+        queue
+            .add("child", serde_json::json!({"idx": i}))
+            .options(JobOptions {
+                parent: Some(bullmq::ParentOptions {
+                    queue: name.clone(),
+                    id: parent.id().to_string(),
+                    wait_children: None,
+                }),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+    }
+
+    let result = queue
+        .get_dependencies(parent.id(), "pending", 0, -1)
+        .await
+        .unwrap();
+    assert_eq!(result.items.len(), 4);
+    assert_eq!(result.jobs.len(), 4);
+    assert_eq!(result.total, 4);
+    assert!(result.items.iter().all(|item| item.v.is_none()));
+    assert!(result.items.iter().all(|item| item.err.is_none()));
+
+    let partial = queue
+        .get_dependencies(parent.id(), "pending", 0, 2)
+        .await
+        .unwrap();
+    assert_eq!(partial.items.len(), 3);
+    assert_eq!(partial.total, 4);
+
+    cleanup_queue(&queue).await;
+}
+
+#[tokio::test]
+async fn test_get_dependencies_with_end_before_start_returns_empty_page() {
+    let name = test_queue_name();
+    let opts = QueueOptions {
+        connection: test_connection(),
+        ..Default::default()
+    };
+
+    let queue = Queue::with_options(&name, opts).await.unwrap();
+    let parent = queue
+        .add("parent", serde_json::json!({}))
+        .options(JobOptions {
+            job_id: Some("parent-empty-page".to_string()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    for i in 0..4 {
+        queue
+            .add("child", serde_json::json!({"idx": i}))
+            .options(JobOptions {
+                parent: Some(bullmq::ParentOptions {
+                    queue: name.clone(),
+                    id: parent.id().to_string(),
+                    wait_children: None,
+                }),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+    }
+
+    let result = queue
+        .get_dependencies(parent.id(), "pending", 3, 2)
+        .await
+        .unwrap();
+    assert!(result.items.is_empty());
+    assert!(result.jobs.is_empty());
+    assert_eq!(result.total, 4);
+
+    cleanup_queue(&queue).await;
+}
+
+#[tokio::test]
+async fn test_get_dependencies_processed() {
+    let name = test_queue_name();
+    let conn = test_connection();
+
+    let queue = Queue::with_options(
+        &name,
+        QueueOptions {
+            connection: conn.clone(),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let parent = queue
+        .add("parent", serde_json::json!({}))
+        .options(JobOptions {
+            job_id: Some("parent-processed".to_string()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    for i in 0..4 {
+        queue
+            .add("child", serde_json::json!({"idx": i}))
+            .options(JobOptions {
+                parent: Some(bullmq::ParentOptions {
+                    queue: name.clone(),
+                    id: parent.id().to_string(),
+                    wait_children: None,
+                }),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+    }
+
+    let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {
+        Box::pin(async move { Ok(serde_json::Value::Null) })
+    });
+    let worker = Worker::with_options(
+        &name,
+        processor,
+        WorkerOptions {
+            connection: conn,
+            autorun: true,
+            drain_delay: 1,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let settled = tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let counts = queue.get_dependencies_count(parent.id()).await.unwrap();
+            if counts.processed >= 4 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await;
+    assert!(settled.is_ok(), "children did not complete in time");
+
+    let pending = queue
+        .get_dependencies(parent.id(), "pending", 0, -1)
+        .await
+        .unwrap();
+    assert_eq!(pending.items.len(), 0);
+    assert_eq!(pending.total, 0);
+
+    let processed = queue
+        .get_dependencies(parent.id(), "processed", 0, -1)
+        .await
+        .unwrap();
+    assert_eq!(processed.items.len(), 4);
+    assert_eq!(processed.jobs.len(), 4);
+    assert_eq!(processed.total, 4);
+    assert!(processed.items.iter().all(|item| item.v.is_some()));
+
+    worker.close(5000).await.unwrap();
+    cleanup_queue(&queue).await;
+}
+
+#[tokio::test]
+async fn test_get_dependencies_cross_queue_child_context() {
+    let parent_name = test_queue_name();
+    let child_name = test_queue_name();
+    let conn = test_connection();
+    let prefix = "tenant:regression".to_string();
+
+    let parent_queue = Queue::with_options(
+        &parent_name,
+        QueueOptions {
+            connection: conn.clone(),
+            prefix: prefix.clone(),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let child_queue = Queue::with_options(
+        &child_name,
+        QueueOptions {
+            connection: conn,
+            prefix,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let parent = parent_queue
+        .add("parent", serde_json::json!({}))
+        .options(JobOptions {
+            job_id: Some("parent-cross-context".to_string()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let child = child_queue
+        .add("child", serde_json::json!({ "x": 1 }))
+        .options(JobOptions {
+            job_id: Some("child-cross-context".to_string()),
+            parent: Some(bullmq::ParentOptions {
+                queue: parent_name.clone(),
+                id: parent.id().to_string(),
+                wait_children: None,
+            }),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let dependencies = parent_queue
+        .get_dependencies(parent.id(), "pending", 0, -1)
+        .await
+        .unwrap();
+
+    let dep_child = dependencies
+        .jobs
+        .into_iter()
+        .find(|job| job.id() == child.id())
+        .expect("child job should be present in dependencies jobs");
+
+    // Regression guard: this must read from the child queue keys.
+    assert_eq!(dep_child.get_state().await.unwrap(), JobState::Waiting);
+
+    cleanup_queue(&child_queue).await;
+    cleanup_queue(&parent_queue).await;
+}
+
+#[tokio::test]
+async fn test_add_rejects_custom_job_id_with_colon() {
+    let name = test_queue_name();
+    let queue = Queue::with_options(
+        &name,
+        QueueOptions {
+            connection: test_connection(),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let result = queue
+        .add("job", serde_json::json!({}))
+        .options(JobOptions {
+            job_id: Some("job:1".to_string()),
+            ..Default::default()
+        })
+        .await;
+
+    match result {
+        Err(err) => assert!(
+            err.to_string().contains("Custom Id cannot contain :"),
+            "got: {}",
+            err
+        ),
+        Ok(_) => panic!("expected error"),
+    }
+
+    cleanup_queue(&queue).await;
+}
+
+#[tokio::test]
+async fn test_add_rejects_integer_custom_job_id() {
+    let name = test_queue_name();
+    let queue = Queue::with_options(
+        &name,
+        QueueOptions {
+            connection: test_connection(),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let result = queue
+        .add("job", serde_json::json!({}))
+        .options(JobOptions {
+            job_id: Some("100".to_string()),
+            ..Default::default()
+        })
+        .await;
+
+    match result {
+        Err(err) => assert!(
+            err.to_string().contains("Custom Id cannot be integers"),
+            "got: {}",
+            err
+        ),
+        Ok(_) => panic!("expected error"),
+    }
+
+    cleanup_queue(&queue).await;
+}
+
+#[tokio::test]
+async fn test_get_dependencies_child_context_with_legacy_repeat_job_id() {
+    // Legacy repeatable ids (`repeat:<schedulerId>:<millis>`) are the one custom
+    // id shape allowed to contain `:`, so the qualified key
+    // `{prefix}:{queue}:repeat:sched:1` cannot be split positionally. The stored
+    // `opts.jobId` must be used to recover the child's queue context.
+    let parent_name = test_queue_name();
+    let child_name = test_queue_name();
+    let conn = test_connection();
+
+    let parent_queue = Queue::with_options(
+        &parent_name,
+        QueueOptions {
+            connection: conn.clone(),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let child_queue = Queue::with_options(
+        &child_name,
+        QueueOptions {
+            connection: conn,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let parent = parent_queue
+        .add("parent", serde_json::json!({}))
+        .options(JobOptions {
+            job_id: Some("parent-legacy-repeat".to_string()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let child_id = "repeat:scheduler-id:1700000000000";
+    let child = child_queue
+        .add("child", serde_json::json!({ "x": 1 }))
+        .options(JobOptions {
+            job_id: Some(child_id.to_string()),
+            parent: Some(bullmq::ParentOptions {
+                queue: parent_name.clone(),
+                id: parent.id().to_string(),
+                wait_children: None,
+            }),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(child.id(), child_id);
+
+    let dependencies = parent_queue
+        .get_dependencies(parent.id(), "pending", 0, -1)
+        .await
+        .unwrap();
+
+    let dep_child = dependencies
+        .jobs
+        .into_iter()
+        .find(|job| job.id() == child_id)
+        .expect("child job should keep its full colon-containing id");
+
+    // Regression guard: this must read from the child queue keys, which is only
+    // possible if the colon boundary was resolved from the stored `opts.jobId`.
+    assert_eq!(dep_child.get_state().await.unwrap(), JobState::Waiting);
+
+    cleanup_queue(&child_queue).await;
+    cleanup_queue(&parent_queue).await;
+}
+
+#[tokio::test]
+async fn test_get_dependencies_processed_cross_queue_child_context() {
+    let parent_name = test_queue_name();
+    let child_name = test_queue_name();
+    let conn = test_connection();
+    let prefix = "tenant:regression".to_string();
+
+    let parent_queue = Queue::with_options(
+        &parent_name,
+        QueueOptions {
+            connection: conn.clone(),
+            prefix: prefix.clone(),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let child_queue = Queue::with_options(
+        &child_name,
+        QueueOptions {
+            connection: conn.clone(),
+            prefix,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let parent = parent_queue
+        .add("parent", serde_json::json!({}))
+        .options(JobOptions {
+            job_id: Some("parent-cross-processed".to_string()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let child = child_queue
+        .add("child", serde_json::json!({ "x": 2 }))
+        .options(JobOptions {
+            job_id: Some("child-cross-processed".to_string()),
+            parent: Some(bullmq::ParentOptions {
+                queue: parent_name.clone(),
+                id: parent.id().to_string(),
+                wait_children: None,
+            }),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {
+        Box::pin(async move { Ok(serde_json::Value::Null) })
+    });
+    let worker = Worker::with_options(
+        &child_name,
+        processor,
+        WorkerOptions {
+            connection: conn,
+            prefix: "tenant:regression".to_string(),
+            autorun: true,
+            drain_delay: 1,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let settled = tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let counts = parent_queue
+                .get_dependencies_count(parent.id())
+                .await
+                .unwrap();
+            if counts.processed >= 1 && counts.unprocessed == 0 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await;
+    assert!(
+        settled.is_ok(),
+        "child did not reach processed dependencies"
+    );
+
+    let dependencies = parent_queue
+        .get_dependencies(parent.id(), "processed", 0, -1)
+        .await
+        .unwrap();
+
+    let mut dep_child = dependencies
+        .jobs
+        .into_iter()
+        .find(|job| job.id() == child.id())
+        .expect("child job should be present in processed dependencies jobs");
+
+    // Regression guard: this state lookup must use child queue keys.
+    assert_eq!(dep_child.get_state().await.unwrap(), JobState::Completed);
+
+    // Stop worker first so the retried job remains in waiting state deterministically.
+    worker.close(5000).await.unwrap();
+
+    // Additional guard: a mutating child operation should also route to child keys.
+    dep_child.retry("completed", None).await.unwrap();
+    assert_eq!(
+        child_queue.get_job_state(child.id()).await.unwrap(),
+        JobState::Waiting
+    );
+
+    cleanup_queue(&child_queue).await;
+    cleanup_queue(&parent_queue).await;
+}
+
+#[tokio::test]
+async fn test_get_dependencies_processed_cross_prefix_child_context() {
+    let parent_name = test_queue_name();
+    let child_name = test_queue_name();
+    let conn = test_connection();
+    let parent_prefix = "parentpref";
+    let child_prefix = "childpref";
+
+    let parent_queue = Queue::with_options(
+        &parent_name,
+        QueueOptions {
+            connection: conn.clone(),
+            prefix: parent_prefix.to_string(),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let child_queue = Queue::with_options(
+        &child_name,
+        QueueOptions {
+            connection: conn.clone(),
+            prefix: child_prefix.to_string(),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let flow = FlowJob::new("parent", parent_name.clone(), serde_json::json!({}))
+        .unwrap()
+        .add_child(
+            FlowJob::new("child", child_name.clone(), serde_json::json!({ "x": 3 }))
+                .unwrap()
+                .prefix(child_prefix.to_string()),
+        );
+
+    let flow_producer = FlowProducer::with_options(FlowProducerOptions {
+        connection: conn.clone(),
+        prefix: Some(parent_prefix.to_string()),
+    })
+    .await
+    .unwrap();
+
+    let tree = flow_producer.add(flow).await.unwrap();
+    let parent_id = tree.job.id().to_string();
+
+    let processor: ProcessorFn = Arc::new(|_job: Job, _token: CancellationToken| {
+        Box::pin(async move { Ok(serde_json::Value::Null) })
+    });
+    let worker = Worker::with_options(
+        &child_name,
+        processor,
+        WorkerOptions {
+            connection: conn,
+            prefix: child_prefix.to_string(),
+            autorun: true,
+            drain_delay: 1,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let settled = tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let counts = parent_queue
+                .get_dependencies_count(&parent_id)
+                .await
+                .unwrap();
+            if counts.processed >= 1 && counts.unprocessed == 0 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await;
+    assert!(
+        settled.is_ok(),
+        "child did not reach processed dependencies"
+    );
+
+    let dependencies = parent_queue
+        .get_dependencies(&parent_id, "processed", 0, -1)
+        .await
+        .unwrap();
+    assert_eq!(dependencies.jobs.len(), 1);
+
+    let mut dep_child = dependencies.jobs.into_iter().next().unwrap();
+
+    // Regression guard: this lookup must use child queue keys (child prefix).
+    assert_eq!(dep_child.get_state().await.unwrap(), JobState::Completed);
+
+    // Stop worker first so the retried job remains in waiting state deterministically.
+    worker.close(5000).await.unwrap();
+
+    // Additional guard: mutating op should also target child-prefix keys.
+    dep_child.retry("completed", None).await.unwrap();
+    assert_eq!(
+        child_queue.get_job_state(dep_child.id()).await.unwrap(),
+        JobState::Waiting
+    );
+
+    flow_producer.close().await;
+    cleanup_queue(&child_queue).await;
+    cleanup_queue(&parent_queue).await;
+}
+
+// Regression: a child queue whose prefix extends the parent's prefix
+// (`tenant` -> `tenant:region`) produces a job key that is shaped exactly like
+// a legacy colon-containing id under the parent prefix. The dependency parser
+// must resolve it to the nested child queue, not to the parent's prefix.
+#[tokio::test]
+async fn test_get_dependencies_nested_child_prefix_context() {
+    let parent_name = test_queue_name();
+    let child_name = test_queue_name();
+    let conn = test_connection();
+    let parent_prefix = format!("nested-{}", test_queue_name());
+    let child_prefix = format!("{parent_prefix}:region");
+
+    let parent_queue = Queue::with_options(
+        &parent_name,
+        QueueOptions {
+            connection: conn.clone(),
+            prefix: parent_prefix.clone(),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let child_queue = Queue::with_options(
+        &child_name,
+        QueueOptions {
+            connection: conn.clone(),
+            prefix: child_prefix.clone(),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    // No custom job id: the child id is auto-generated, so `opts.jobId` is not
+    // persisted and the key boundary cannot be read off the id.
+    let parent = parent_queue
+        .add("parent", serde_json::json!({}))
+        .await
+        .unwrap();
+    let child = child_queue
+        .add("child", serde_json::json!({ "x": 1 }))
+        .await
+        .unwrap();
+
+    // The dependency link is wired directly in Redis: neither `FlowProducer`
+    // (which rejects colon-containing prefixes) nor `ParentOptions` (which
+    // qualifies the parent with the *child's* prefix) can express a parent
+    // whose prefix is a proper prefix of the child's. The resulting keys are
+    // exactly what a cross-prefix flow would store.
+    let parent_key = parent_queue.keys().job_key(parent.id());
+    let child_key = child_queue.keys().job_key(child.id());
+    let parent_deps_key = format!("{parent_key}:dependencies");
+    let mut redis_conn = parent_queue.connection().conn();
+    redis::cmd("SADD")
+        .arg(&parent_deps_key)
+        .arg(&child_key)
+        .query_async::<()>(&mut redis_conn)
+        .await
+        .unwrap();
+    redis::cmd("HSET")
+        .arg(&child_key)
+        .arg("parentKey")
+        .arg(&parent_key)
+        .arg("parent")
+        .arg(
+            serde_json::json!({
+                "id": parent.id(),
+                "queueKey": parent_queue.keys().base(),
+            })
+            .to_string(),
+        )
+        .query_async::<()>(&mut redis_conn)
+        .await
+        .unwrap();
+
+    let dependencies = parent_queue
+        .get_dependencies(parent.id(), "pending", 0, -1)
+        .await
+        .unwrap();
+    assert_eq!(dependencies.jobs.len(), 1);
+
+    let dep_child = dependencies.jobs.into_iter().next().unwrap();
+    assert_eq!(dep_child.id(), child.id());
+
+    // Regression guard: this lookup must use the nested child queue keys.
+    assert_eq!(dep_child.get_state().await.unwrap(), JobState::Waiting);
 
     cleanup_queue(&child_queue).await;
     cleanup_queue(&parent_queue).await;

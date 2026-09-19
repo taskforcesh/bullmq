@@ -22,6 +22,106 @@ pub(crate) fn validate_queue_name(name: &str) -> Result<(), Error> {
     Ok(())
 }
 
+/// Validate a custom job id, mirroring `Job.validateOptions` in BullMQ Node.js.
+///
+/// Two restrictions apply:
+///
+/// * Integer ids are rejected. The add scripts bump the automatic id counter
+///   even when a custom id is supplied, so an automatically added job would
+///   eventually be assigned the same numeric key and collide with (or
+///   overwrite) the custom one.
+/// * Job ids are embedded verbatim in the qualified job key
+///   (`{prefix}:{queueName}:{jobId}`), so a `:` in the id makes that key
+///   ambiguous to parse back. Node.js keeps an exception for legacy repeatable
+///   job ids, which always have exactly three `:`-separated segments.
+pub(crate) fn validate_custom_job_id(job_id: &str) -> Result<(), Error> {
+    if job_id.is_empty() {
+        return Ok(());
+    }
+    if is_canonical_integer(job_id) {
+        return Err(Error::InvalidConfig(
+            "Custom Id cannot be integers".to_string(),
+        ));
+    }
+    if job_id.contains(':') && job_id.split(':').count() != 3 {
+        return Err(Error::InvalidConfig(
+            "Custom Id cannot contain :".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+/// Whether `value` round-trips through JavaScript integer parsing unchanged.
+///
+/// Emulates Node.js `` `${parseInt(value, 10)}` === value ``. The round trip
+/// goes through an IEEE-754 double, so it is *not* the same as an exact integer
+/// parse: `"9007199254740993"` is accepted because `parseInt` rounds it to
+/// `9007199254740992`, and `"-9223372036854775808"` is accepted because it
+/// stringifies back as `-9223372036854776000`.
+fn is_canonical_integer(value: &str) -> bool {
+    js_number_to_string(js_parse_int_radix10(value)).as_deref() == Some(value)
+}
+
+/// Emulate JavaScript `parseInt(value, 10)`.
+///
+/// Skips leading whitespace, accepts an optional sign, then consumes the
+/// leading run of decimal digits and ignores the rest. Returns `NaN` when no
+/// digits are present. The digits are rounded to the nearest `f64`, exactly as
+/// the specification requires.
+fn js_parse_int_radix10(value: &str) -> f64 {
+    // JS `StrWhiteSpace` also includes the BOM, which Rust does not classify as
+    // whitespace.
+    let rest = value.trim_start_matches(|c: char| c.is_whitespace() || c == '\u{FEFF}');
+    let (negative, rest) = match rest.strip_prefix('-') {
+        Some(rest) => (true, rest),
+        None => (false, rest.strip_prefix('+').unwrap_or(rest)),
+    };
+
+    let digits_len = rest.bytes().take_while(u8::is_ascii_digit).count();
+    if digits_len == 0 {
+        return f64::NAN;
+    }
+
+    // Rust's float parser rounds correctly for arbitrarily long digit strings,
+    // and overflows to infinity just like `parseInt` does.
+    let magnitude: f64 = rest[..digits_len].parse().unwrap_or(f64::INFINITY);
+    if negative {
+        -magnitude
+    } else {
+        magnitude
+    }
+}
+
+/// Emulate JavaScript `` `${n}` `` for the integral values `parseInt` returns.
+///
+/// Returns `None` for magnitudes at or above `1e21`, where JavaScript switches
+/// to exponential notation (`"1e+21"`). Such a string can never equal the input
+/// that produced it — `parseInt` stops at the `e` and yields a small number —
+/// so the caller can treat `None` as "not an integer id".
+fn js_number_to_string(value: f64) -> Option<String> {
+    if value.is_nan() {
+        return Some("NaN".to_string());
+    }
+    if value.is_infinite() {
+        return Some(if value.is_sign_positive() {
+            "Infinity".to_string()
+        } else {
+            "-Infinity".to_string()
+        });
+    }
+    if value == 0.0 {
+        // Covers -0, which JavaScript stringifies as "0".
+        return Some("0".to_string());
+    }
+    if value.abs() >= 1e21 {
+        return None;
+    }
+
+    // Below 1e21 both languages print the shortest round-tripping decimal in
+    // positional notation, and `parseInt` never returns a fractional value.
+    Some(value.to_string())
+}
+
 /// Resolve `ParentOptions.queue` into a qualified queue key.
 ///
 /// Accepts either an unqualified queue name (`queue`) or a pre-qualified key
@@ -304,5 +404,80 @@ mod tests {
 
         let err = resolve_parent_queue_key("bull", "bull:parent:queue").unwrap_err();
         assert!(matches!(err, Error::InvalidConfig(_)));
+    }
+
+    #[test]
+    fn accepts_custom_job_ids_without_colons() {
+        assert!(validate_custom_job_id("job-1").is_ok());
+        assert!(validate_custom_job_id("").is_ok());
+    }
+
+    #[test]
+    fn accepts_legacy_three_segment_repeatable_job_ids() {
+        assert!(validate_custom_job_id("repeat:scheduler-id:1700000000000").is_ok());
+    }
+
+    #[test]
+    fn rejects_ambiguous_custom_job_ids_with_colons() {
+        let err = validate_custom_job_id("job:1").unwrap_err();
+        assert!(matches!(err, Error::InvalidConfig(_)));
+
+        let err = validate_custom_job_id("a:b:c:d").unwrap_err();
+        assert!(matches!(err, Error::InvalidConfig(_)));
+    }
+
+    #[test]
+    fn rejects_integer_custom_job_ids() {
+        for job_id in ["100", "0", "-5", "9007199254740992"] {
+            let err = validate_custom_job_id(job_id).unwrap_err();
+            assert!(
+                matches!(&err, Error::InvalidConfig(msg) if msg == "Custom Id cannot be integers"),
+                "got: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn accepts_non_canonical_integer_like_custom_job_ids() {
+        // Matches Node `` `${parseInt(id, 10)}` === id ``, which only rejects the
+        // canonical decimal form.
+        for job_id in ["007", "+1", "1.5", "1a", " 1", "-0"] {
+            assert!(
+                validate_custom_job_id(job_id).is_ok(),
+                "expected {job_id} to be accepted"
+            );
+        }
+    }
+
+    #[test]
+    fn accepts_integer_ids_outside_the_safe_double_range() {
+        // `parseInt` goes through an IEEE-754 double, so these do not survive
+        // the round trip in Node either:
+        //   parseInt('9007199254740993')      -> 9007199254740992
+        //   parseInt('-9223372036854775808')  -> -9223372036854776000
+        for job_id in [
+            "9007199254740993",
+            "9223372036854775808",
+            "-9223372036854775808",
+            "1000000000000000000000",
+        ] {
+            assert!(
+                validate_custom_job_id(job_id).is_ok(),
+                "expected {job_id} to be accepted"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_nan_like_node_does() {
+        // Quirk of the Node check being emulated: parseInt('NaN') is NaN and
+        // `${NaN}` === 'NaN', so Node reports it as an integer id.
+        let err = validate_custom_job_id("NaN").unwrap_err();
+        assert!(
+            matches!(&err, Error::InvalidConfig(msg) if msg == "Custom Id cannot be integers"),
+            "got: {err}"
+        );
+        // 'Infinity' is not affected: parseInt stops before any digit.
+        assert!(validate_custom_job_id("Infinity").is_ok());
     }
 }
