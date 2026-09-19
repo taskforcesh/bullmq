@@ -16,7 +16,8 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
   @moduletag :postgres
   @moduletag timeout: 30_000
 
-  alias BullMQ.{Backend, Backends, Job, Queue, Worker, QueueEvents, FlowProducer, JobScheduler}
+  alias BullMQ.{Backend, Backends, FlowProducer, Job, JobScheduler, Queue, QueueEvents, Worker}
+  alias BullMQ.Backends.Postgres.Connection, as: PostgresConnection
 
   @postgres_url System.get_env("POSTGRES_URL", "postgres://localhost:5432/bullmq_test")
 
@@ -27,10 +28,10 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
     conn = :pg_integration_conn
 
     {:ok, _} =
-      Backends.Postgres.Connection.start_link(name: conn, url: @postgres_url, schema: "bullmq")
+      PostgresConnection.start_link(name: conn, url: @postgres_url, schema: "bullmq")
 
     on_exit(fn ->
-      Backends.Postgres.Connection.close(conn)
+      PostgresConnection.close(conn)
 
       if previous do
         Application.put_env(:bullmq, :backend, previous)
@@ -184,7 +185,7 @@ defmodule BullMQ.Backends.PostgresIntegrationTest do
     # Stamp the deferred failure exactly as the stalled-recovery flow does.
     {:ok, _} =
       Postgrex.query(
-        Backends.Postgres.Connection.pool(conn),
+        PostgresConnection.pool(conn),
         "UPDATE job SET deferred_failure = $1 WHERE queue = $2 AND id = $3",
         [reason, queue, job.id]
       )
