@@ -1267,10 +1267,12 @@ export class PostgresQueueBackend
     return count;
   }
 
-  // A lock taken inside the same statement as the MAX(idx) read wouldn't help:
-  // under READ COMMITTED, a statement's snapshot is fixed when it starts, before
-  // the lock wait resolves, so a blocked caller can still read stale data. The
-  // lock and the read need to be separate statements on one connection instead.
+  // A lock taken inside the same statement as add_log.sql's own MAX(idx) read
+  // wouldn't help: under READ COMMITTED, a statement's snapshot is fixed when
+  // it starts, before the lock wait resolves, so a blocked caller can still
+  // read stale data. Running the lock as its own statement first — same
+  // connection, same transaction — forces add_log.sql's snapshot to start
+  // after the lock is held instead.
   private async insertLogAtomically(
     jobId: string,
     logRow: string,
@@ -1279,21 +1281,17 @@ export class PostgresQueueBackend
     try {
       await client.query('BEGIN');
       try {
-        await client.query(
-          "SELECT pg_advisory_xact_lock($1, hashtext($2 || ':' || $3))",
-          [ADD_LOG_ADVISORY_LOCK_KEY, this.queueName, jobId],
-        );
+        await client.query(loadCommandSql('lock_job_log'), [
+          ADD_LOG_ADVISORY_LOCK_KEY,
+          this.queueName,
+          jobId,
+        ]);
         const { rows } = await client.query<{ idx: string }>(
-          'SELECT COALESCE(MAX(idx) + 1, 0) AS idx FROM job_log WHERE queue = $1 AND job_id = $2',
-          [this.queueName, jobId],
-        );
-        const idx = Number(rows[0].idx);
-        await client.query(
-          'INSERT INTO job_log (queue, job_id, idx, row) VALUES ($1, $2, $3, $4)',
-          [this.queueName, jobId, idx, logRow],
+          loadCommandSql('add_log'),
+          [this.queueName, jobId, logRow],
         );
         await client.query('COMMIT');
-        return idx;
+        return Number(rows[0].idx);
       } catch (err) {
         await client.query('ROLLBACK');
         throw err;
