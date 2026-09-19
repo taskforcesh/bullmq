@@ -16,6 +16,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { CronExpressionParser } from 'cron-parser';
+import { PredefinedExpressions } from 'cron-parser/dist/CronExpressionParser';
 import {
   hasLegacyRepeatableKeyShape,
   isLegacyRepeatableJobKey,
@@ -51,6 +52,12 @@ describe('hasLegacyRepeatableKeyShape', () => {
           'myjob:job-id-1:1735689600000:Europe/Athens:@daily',
         ),
       ).toBe(true);
+    });
+
+    it('should detect the legacy key shape with an empty endDate', () => {
+      expect(hasLegacyRepeatableKeyShape('myjob:job-id::UTC:@daily')).toBe(
+        true,
+      );
     });
 
     it('should detect the legacy key shape through the isLegacyRepeatableJobKey alias', () => {
@@ -94,9 +101,26 @@ describe('hasLegacyRepeatableKeyShape', () => {
       expect(hasLegacyRepeatableKeyShape('myjob::::60000')).toBe(true);
     });
 
+    it('should detect the legacy key shape for numeric zero (control)', () => {
+      expect(hasLegacyRepeatableKeyShape('myjob::::0')).toBe(true);
+    });
+
+    it('should not detect the legacy key shape for an undefined suffix (control)', () => {
+      expect(hasLegacyRepeatableKeyShape('myjob::::undefined')).toBe(false);
+    });
+
     it('should not detect the legacy key shape for fewer than 5 segments (control)', () => {
       expect(hasLegacyRepeatableKeyShape('myjob:id:@daily')).toBe(false);
     });
+  });
+
+  it('should match cron-parser’s complete predefined alias table', () => {
+    const parserAliases = Object.keys(PredefinedExpressions);
+
+    expect(predefinedAliases).toEqual(parserAliases);
+    for (const alias of parserAliases) {
+      expect(hasLegacyRepeatableKeyShape(`myjob::::${alias}`)).toBe(true);
+    }
   });
 
   it('should only list aliases that cron-parser can parse (control)', () => {
