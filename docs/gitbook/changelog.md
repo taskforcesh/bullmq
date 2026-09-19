@@ -1,3 +1,10 @@
+## [6.3.8](https://github.com/taskforcesh/bullmq/compare/v6.3.7...v6.3.8) (2026-09-18)
+
+
+### Bug Fixes
+
+* **postgres:** retry the LISTEN connection after a failed connect ([#4781](https://github.com/taskforcesh/bullmq/issues/4781)) ([48a550b](https://github.com/taskforcesh/bullmq/commit/48a550b39ce29f69e398dde6e3ce3c62c873b723)), closes [#4729](https://github.com/taskforcesh/bullmq/issues/4729)
+
 ## [6.3.7](https://github.com/taskforcesh/bullmq/compare/v6.3.6...v6.3.7) (2026-09-18)
 
 
