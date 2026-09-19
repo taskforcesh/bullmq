@@ -1,6 +1,7 @@
 --[[
   Function to deduplicate a job.
 ]]
+--- @include "recoverStaleDeduplicationKey"
 --- @include "setDeduplicationKey"
 --- @include "storeDeduplicatedNextJob"
 
@@ -9,10 +10,15 @@ local function deduplicateJobWithoutReplace(deduplicationId, deduplicationOpts, 
     parentKey, parentData, parentDependenciesKey, repeatJobKey)
     local ttl = deduplicationOpts['ttl']
     local deduplicationKeyExists
+
     if ttl and ttl > 0 then
         if deduplicationOpts['extend'] then
             local currentDeduplicatedJobId = rcall('GET', deduplicationKey)
             if currentDeduplicatedJobId then
+                if recoverStaleDeduplicationKey(deduplicationKey, prefix, currentDeduplicatedJobId,
+                    jobId, deduplicationId, deduplicationOpts) then
+                    return
+                end
                 if storeDeduplicatedNextJob(deduplicationOpts, currentDeduplicatedJobId, prefix,
                     deduplicationId, jobName, jobData, fullOpts, eventsKey, maxEvents, jobId,
                     parentKey, parentData, parentDependenciesKey, repeatJobKey) then
@@ -47,6 +53,11 @@ local function deduplicateJobWithoutReplace(deduplicationId, deduplicationOpts, 
 
     if deduplicationKeyExists then
         local currentDeduplicatedJobId = rcall('GET', deduplicationKey)
+
+        if recoverStaleDeduplicationKey(deduplicationKey, prefix, currentDeduplicatedJobId,
+            jobId, deduplicationId, deduplicationOpts) then
+            return
+        end
 
         if storeDeduplicatedNextJob(deduplicationOpts, currentDeduplicatedJobId, prefix,
             deduplicationId, jobName, jobData, fullOpts, eventsKey, maxEvents, jobId,

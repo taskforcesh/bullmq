@@ -1,3 +1,24 @@
+## [3.2.5](https://github.com/taskforcesh/bullmq/compare/vpy3.2.4...vpy3.2.5) (2026-09-19)
+
+
+### Bug Fixes
+
+* **deps:** update dependency virtualenv to v21.7.16 [python] ([#4787](https://github.com/taskforcesh/bullmq/issues/4787)) ([0a49ff6](https://github.com/taskforcesh/bullmq/commit/0a49ff68808f774471634812c5b9b57ee51d7075))
+
+## [3.2.4](https://github.com/taskforcesh/bullmq/compare/vpy3.2.3...vpy3.2.4) (2026-09-18)
+
+
+### Bug Fixes
+
+* **deps:** update python dependencies [python] ([#4774](https://github.com/taskforcesh/bullmq/issues/4774)) ([063e6c8](https://github.com/taskforcesh/bullmq/commit/063e6c8d6e4082e37cff9a61f7435c799d1bd589))
+
+## [3.2.3](https://github.com/taskforcesh/bullmq/compare/vpy3.2.2...vpy3.2.3) (2026-09-18)
+
+
+### Bug Fixes
+
+* **deduplication:** remove deduplication key if job key does not longer exist (python) (elixir) (php) (rust) (dotnet) ([#4768](https://github.com/taskforcesh/bullmq/issues/4768)) ([75bb3a0](https://github.com/taskforcesh/bullmq/commit/75bb3a059ff214b419553822d41d3e8eaff7e888))
+
 ## [3.2.2](https://github.com/taskforcesh/bullmq/compare/vpy3.2.1...vpy3.2.2) (2026-09-14)
 
 

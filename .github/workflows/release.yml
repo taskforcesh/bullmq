@@ -205,8 +205,8 @@ jobs:
       - name: Setup Elixir
         uses: erlef/setup-beam@v1.24.1
         with:
-          elixir-version: '1.17'
-          otp-version: '27.x'
+          elixir-version: 'v1.17.3'
+          otp-version: '29.1'
       - name: Copy runtime artifacts for Elixir
         if: ${{ contains(env.commitmsg, '[elixir]') || contains(env.commitmsg, '(elixir)') }}
         run: |
@@ -481,7 +481,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v6.0.0
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: '10.0.401'
       - name: Copy runtime artifacts for .NET
         if: ${{ contains(env.commitmsg, '[dotnet]') || contains(env.commitmsg, '(dotnet)') }}
         run: |
