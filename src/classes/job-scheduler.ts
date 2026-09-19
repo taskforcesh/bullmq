@@ -22,7 +22,7 @@ export const LEGACY_REPEATABLE_JOBS_MIGRATION_URL =
 /**
  * Legacy repeatable job keys use the format `name:id:endDate:tz:pattern`.
  * The suffix after `name:id:endDate:tz:` is either:
- * - a cron pattern (contains spaces), or
+ * - a cron pattern (contains spaces, or is a predefined `@`-alias), or
  * - an `every` interval (purely numeric).
  */
 /**
@@ -80,7 +80,35 @@ export function hasLegacyRepeatableKeyShape(key: string): boolean {
     return true;
   }
 
+  // Predefined cron aliases (`@daily`, `@hourly`, ...) are valid patterns that
+  // contain no spaces, so the space check above does not see them.
+  if (isPredefinedCronAlias(key.substring(suffixStart))) {
+    return true;
+  }
+
   return isNumericSegment(key, suffixStart, key.length);
+}
+
+/**
+ * The space-free cron patterns accepted by cron-parser, which therefore may
+ * appear as the suffix of a legacy repeatable key.
+ * @see https://github.com/harrisiirak/cron-parser#predefined-expressions
+ */
+const PREDEFINED_CRON_ALIASES = new Set([
+  '@yearly',
+  '@annually',
+  '@monthly',
+  '@weekly',
+  '@daily',
+  '@hourly',
+  '@minutely',
+  '@secondly',
+  '@weekdays',
+  '@weekends',
+]);
+
+function isPredefinedCronAlias(suffix: string): boolean {
+  return PREDEFINED_CRON_ALIASES.has(suffix);
 }
 
 export const isLegacyRepeatableJobKey = hasLegacyRepeatableKeyShape;
