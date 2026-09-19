@@ -1361,15 +1361,18 @@ export class Worker<
             });
 
             this.stalledCheckerRunning = true;
-            this.stalledChecker()
-              .catch(err => {
-                this.emit('error', <Error>err);
-              })
-              .finally(() => {
-                this.stalledCheckerRunning = false;
-              });
           },
         );
+
+        // Start the checker outside of the traced callback so that the
+        // stalled checks are not traced as children of this span.
+        this.stalledChecker()
+          .catch(err => {
+            this.emit('error', <Error>err);
+          })
+          .finally(() => {
+            this.stalledCheckerRunning = false;
+          });
       }
     }
   }
