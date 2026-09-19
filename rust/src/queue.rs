@@ -88,6 +88,11 @@ impl Queue {
         }
 
         if let Some(job_id) = job.opts().job_id.as_deref() {
+            if job_id == "0" || job_id.starts_with("0:") {
+                return Err(Error::InvalidConfig(
+                    "JobId cannot be '0' or start with '0:'".to_string(),
+                ));
+            }
             validate_custom_job_id(job_id)?;
         }
 
