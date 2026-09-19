@@ -82,6 +82,9 @@ defmodule BullMQ.MixProject do
       # Cron expression parsing
       {:crontab, "== 1.2.0"},
 
+      # Timezone database
+      {:tz, "== 0.28.2"},
+
       # MessagePack encoding for Lua scripts
       {:msgpax, "== 2.4.0"},
 
