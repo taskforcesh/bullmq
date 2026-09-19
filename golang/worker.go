@@ -465,9 +465,9 @@ func (w *Worker) retryJob(ctx context.Context, job *Job, delay time.Duration) er
 	if delay > 0 {
 		return job.moveToDelayed(ctx, delay, false)
 	}
-	pushCmd := "RPUSH"
+	pushCmd := "LPUSH"
 	if job.Opts != nil && job.Opts.LIFO {
-		pushCmd = "LPUSH"
+		pushCmd = "RPUSH"
 	}
 	k := w.c.keys
 	return w.c.runScriptStatus(ctx, "retryJob", []string{
