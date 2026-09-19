@@ -174,9 +174,7 @@ for ev := range events.Events() {
 
 ### Sharing a Redis client
 
-Pass an existing `redis.UniversalClient` to reuse a connection pool. Note that a
-worker always opens one additional dedicated connection, because it blocks on
-`BZPOPMIN` while waiting for jobs.
+Pass an existing `redis.UniversalClient` to reuse a connection pool. Note that while waiting for jobs the worker blocks on `BZPOPMIN`, which occupies one connection from that pool.
 
 ```go
 rdb := redis.NewClient(&redis.Options{Addr: "127.0.0.1:6379"})
