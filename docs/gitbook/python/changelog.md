@@ -1,3 +1,10 @@
+## [3.2.4](https://github.com/taskforcesh/bullmq/compare/vpy3.2.3...vpy3.2.4) (2026-09-18)
+
+
+### Bug Fixes
+
+* **deps:** update python dependencies [python] ([#4774](https://github.com/taskforcesh/bullmq/issues/4774)) ([063e6c8](https://github.com/taskforcesh/bullmq/commit/063e6c8d6e4082e37cff9a61f7435c799d1bd589))
+
 ## [3.2.3](https://github.com/taskforcesh/bullmq/compare/vpy3.2.2...vpy3.2.3) (2026-09-18)
 
 
