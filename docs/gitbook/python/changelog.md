@@ -1,3 +1,10 @@
+## [3.2.5](https://github.com/taskforcesh/bullmq/compare/vpy3.2.4...vpy3.2.5) (2026-09-19)
+
+
+### Bug Fixes
+
+* **deps:** update dependency virtualenv to v21.7.16 [python] ([#4787](https://github.com/taskforcesh/bullmq/issues/4787)) ([0a49ff6](https://github.com/taskforcesh/bullmq/commit/0a49ff68808f774471634812c5b9b57ee51d7075))
+
 ## [3.2.4](https://github.com/taskforcesh/bullmq/compare/vpy3.2.3...vpy3.2.4) (2026-09-18)
 
 
