@@ -6,7 +6,7 @@ services:
     ports:
       - 6379:6379
   dragonfly:
-    image: 'docker.dragonflydb.io/dragonflydb/dragonfly:v1.40.2'
+    image: 'docker.dragonflydb.io/dragonflydb/dragonfly:v2.0.0'
     ports:
       - '6380:6379'
     environment:
@@ -26,7 +26,7 @@ services:
   # `POSTGRES_PORT=5433 yarn dc:up` and point the tests at it with
   # `POSTGRES_URL=postgres://postgres:postgres@127.0.0.1:5433/bullmq_test`.
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     container_name: bullmq-postgres
     ports:
       - ${POSTGRES_PORT:-5432}:5432
