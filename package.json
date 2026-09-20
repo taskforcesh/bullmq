@@ -108,8 +108,8 @@
     }
   },
   "devDependencies": {
-    "@commitlint/cli": "21.2.2",
-    "@commitlint/config-conventional": "21.2.2",
+    "@commitlint/cli": "21.2.3",
+    "@commitlint/config-conventional": "21.2.3",
     "@eslint/eslintrc": "3.3.7",
     "@eslint/js": "10.0.1",
     "@semantic-release/changelog": "7.0.0",
