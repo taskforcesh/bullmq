@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import {
   BackendFactory,
+  ConnectionOptions,
   IQueueBackend,
   MinimalQueue,
   QueueBaseOptions,
@@ -18,7 +19,10 @@ import { SpanKind } from '../enums';
  * This class is normally not used directly, but extended by the other classes.
  *
  */
-export class QueueBase<B extends IQueueBackend = IQueueBackend>
+export class QueueBase<
+  B extends IQueueBackend = IQueueBackend,
+  ConnectionOptionsType = ConnectionOptions,
+>
   extends EventEmitter
   implements MinimalQueue
 {
@@ -29,7 +33,7 @@ export class QueueBase<B extends IQueueBackend = IQueueBackend>
   protected closed = false;
   protected hasBlockingConnection = false;
   backend: B;
-  protected readonly backendFactory: BackendFactory<B>;
+  protected readonly backendFactory: BackendFactory<B, ConnectionOptionsType>;
   public readonly qualifiedName: string;
 
   /**
@@ -42,8 +46,16 @@ export class QueueBase<B extends IQueueBackend = IQueueBackend>
    */
   constructor(
     public readonly name: string,
-    public opts: QueueBaseOptions = { connection: {} },
-    backendFactory: BackendFactory<B> = getDefaultBackendFactory<B>(),
+    public opts: QueueBaseOptions<ConnectionOptionsType> = {
+      // Default value for the generic default (`ConnectionOptionsType =
+      // ConnectionOptions`); a caller passing an explicit connection-options
+      // type is expected to also pass `opts`.
+      connection: {} as ConnectionOptionsType,
+    },
+    backendFactory: BackendFactory<
+      B,
+      ConnectionOptionsType
+    > = getDefaultBackendFactory<B, ConnectionOptionsType>(),
     hasBlockingConnection = false,
   ) {
     super();

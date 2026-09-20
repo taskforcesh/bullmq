@@ -9,6 +9,7 @@ import {
 } from './minimal-job';
 import { ParentKeyOpts } from './parent';
 import { QueueBaseOptions } from './queue-options';
+import { ConnectionOptions } from './redis-options';
 import { RepeatableOptions } from './repeatable-options';
 import { RetryOptions } from './retry-options';
 import { StreamReadRaw } from './redis-streams';
@@ -790,10 +791,22 @@ export interface IQueueBackend {
  * caller (or class) parameterized on `B` keeps the concrete typing end-to-end
  * (e.g. `getBackend()` returning the concrete adapter instead of the bare
  * interface).
+ *
+ * It is also generic over `ConnectionOptionsType`, the shape of connection
+ * options the backend actually accepts (e.g. {@link ConnectionOptions} for
+ * Redis, or a Postgres-specific union for the PostgreSQL adapter). Because a
+ * `BackendFactory` value carries its own concrete `ConnectionOptionsType`,
+ * TypeScript infers it end-to-end from whichever factory is passed into a
+ * queue class's constructor: `new Queue(name, opts, createPostgresBackend)`
+ * type-checks `opts.connection` against the PostgreSQL adapter's connection
+ * type instead of Redis's, with no cast required on either side.
  */
-export type BackendFactory<B extends IQueueBackend = IQueueBackend> = (
+export type BackendFactory<
+  B extends IQueueBackend = IQueueBackend,
+  ConnectionOptionsType = ConnectionOptions,
+> = (
   name: string,
-  opts: QueueBaseOptions,
+  opts: QueueBaseOptions<ConnectionOptionsType>,
   options?: {
     /** The backend's main connection is itself blocking (e.g. QueueEvents). */
     blocking?: boolean;

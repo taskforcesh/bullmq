@@ -13,6 +13,7 @@ import {
   Tracer,
   ContextManager,
 } from '../interfaces';
+import { ConnectionOptions } from '../interfaces/redis-options';
 import { getParentKey, randomUUID, trace } from '../utils';
 import { getDefaultBackendFactory } from '../utils/create-backend';
 import { Job } from './job';
@@ -102,6 +103,7 @@ export interface FlowProducerListener extends IoredisListener {
  */
 export class FlowProducer<
   B extends IQueueBackend = RedisQueueBackend,
+  ConnectionOptionsType = ConnectionOptions,
 > extends EventEmitter {
   toKey: (name: string, type: string) => string;
   keys: KeysMap;
@@ -114,8 +116,13 @@ export class FlowProducer<
   };
 
   constructor(
-    public opts: FlowProducerOptions = { connection: {} },
-    backendFactory: BackendFactory<B> = getDefaultBackendFactory<B>(),
+    public opts: FlowProducerOptions<ConnectionOptionsType> = {
+      connection: {} as ConnectionOptionsType,
+    },
+    backendFactory: BackendFactory<
+      B,
+      ConnectionOptionsType
+    > = getDefaultBackendFactory<B, ConnectionOptionsType>(),
   ) {
     super();
 

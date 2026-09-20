@@ -5,6 +5,7 @@ import { Job } from './job';
 import { clientCommandMessageReg, QUEUE_EVENT_SUFFIX } from '../utils';
 import { JobState, JobType } from '../types';
 import { IQueueBackend, JobJson, Metrics, QueueMeta } from '../interfaces';
+import { ConnectionOptions } from '../interfaces/redis-options';
 import { IRedisClient } from '../interfaces/redis-client';
 import { MetricNames, TelemetryAttributes } from '../enums';
 import { RedisQueueBackend } from './redis-queue-backend';
@@ -32,7 +33,8 @@ function escapePrometheusLabelValue(value: string): string {
 export class QueueGetters<
   JobBase extends Job = Job,
   B extends IQueueBackend = IQueueBackend,
-> extends QueueBase<B> {
+  ConnectionOptionsType = ConnectionOptions,
+> extends QueueBase<B, ConnectionOptionsType> {
   getJob(jobId: string): Promise<JobBase | undefined> {
     return this.Job.fromId(this, jobId) as Promise<JobBase | undefined>;
   }

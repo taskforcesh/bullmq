@@ -1,11 +1,13 @@
 import { CronExpressionParser } from 'cron-parser';
 import {
   BackendFactory,
+  IQueueBackend,
   JobSchedulerJson,
   JobSchedulerTemplateJson,
   RepeatBaseOptions,
   RepeatOptions,
 } from '../interfaces';
+import { ConnectionOptions } from '../interfaces/redis-options';
 import {
   JobSchedulerTemplateOptions,
   JobSchedulerJobOptions,
@@ -93,13 +95,16 @@ export function getLegacyRepeatableJobError(key: string): Error {
   );
 }
 
-export class JobScheduler extends QueueBase {
+export class JobScheduler<
+  B extends IQueueBackend = IQueueBackend,
+  ConnectionOptionsType = ConnectionOptions,
+> extends QueueBase<B, ConnectionOptionsType> {
   private repeatStrategy: RepeatStrategy;
 
   constructor(
     name: string,
-    opts: RepeatBaseOptions,
-    backendFactory?: BackendFactory,
+    opts: RepeatBaseOptions<ConnectionOptionsType>,
+    backendFactory?: BackendFactory<B, ConnectionOptionsType>,
   ) {
     super(name, opts, backendFactory);
 

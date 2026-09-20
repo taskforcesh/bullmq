@@ -14,6 +14,7 @@ import {
   Span,
   WorkerOptions,
 } from '../interfaces';
+import { ConnectionOptions } from '../interfaces/redis-options';
 import { JobProgress, JobSchedulerJobOptions } from '../types';
 import { Processor } from '../types/processor';
 import {
@@ -200,8 +201,9 @@ export class Worker<
   NameType extends string = string,
   B extends IQueueBackend = RedisQueueBackend,
   ProgressType extends JobProgress = JobProgress,
-> extends QueueBase<B> {
-  declare readonly opts: WorkerOptions;
+  ConnectionOptionsType = ConnectionOptions,
+> extends QueueBase<B, ConnectionOptionsType> {
+  declare readonly opts: WorkerOptions<ConnectionOptionsType>;
   readonly id: string;
 
   private abortDelayController: AbortController | null = null;
@@ -217,7 +219,7 @@ export class Worker<
   private stalledCheckStopper?: () => void;
   private waiting: Promise<number> | null = null;
 
-  protected _jobScheduler: JobScheduler;
+  protected _jobScheduler: JobScheduler<B, ConnectionOptionsType>;
 
   protected paused: boolean;
   protected processFn: Processor<DataType, ResultType, NameType, ProgressType>;
@@ -235,8 +237,8 @@ export class Worker<
       | URL
       | null
       | Processor<DataType, ResultType, NameType, ProgressType>,
-    opts?: WorkerOptions,
-    backendFactory?: BackendFactory<B>,
+    opts?: WorkerOptions<ConnectionOptionsType>,
+    backendFactory?: BackendFactory<B, ConnectionOptionsType>,
   ) {
     super(
       name,
@@ -547,19 +549,21 @@ export class Worker<
     return this._concurrency;
   }
 
-  get jobScheduler(): Promise<JobScheduler> {
-    return new Promise<JobScheduler>(async resolve => {
-      if (!this._jobScheduler) {
-        // Share the worker's backend (same queue) with the scheduler.
-        this._jobScheduler = new JobScheduler(
-          this.name,
-          this.opts,
-          () => this.backend,
-        );
-        this._jobScheduler.on('error', this.emit.bind(this, 'error'));
-      }
-      resolve(this._jobScheduler);
-    });
+  get jobScheduler(): Promise<JobScheduler<B, ConnectionOptionsType>> {
+    return new Promise<JobScheduler<B, ConnectionOptionsType>>(
+      async resolve => {
+        if (!this._jobScheduler) {
+          // Share the worker's backend (same queue) with the scheduler.
+          this._jobScheduler = new JobScheduler(
+            this.name,
+            this.opts,
+            () => this.backend,
+          );
+          this._jobScheduler.on('error', this.emit.bind(this, 'error'));
+        }
+        resolve(this._jobScheduler);
+      },
+    );
   }
 
   async run() {

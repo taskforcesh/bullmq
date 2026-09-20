@@ -24,7 +24,10 @@ import {
 } from '../types';
 import { KeysMap } from '../classes/queue-keys';
 import { finishedErrors } from '../classes/finished-errors';
-import { PostgresConnection } from './postgres-connection';
+import {
+  PostgresConnection,
+  PostgresConnectionOptions,
+} from './postgres-connection';
 import { PgNotification, PgListenClient, PgQueryResult } from './pg-types';
 import { loadCommandSql } from './sql-loader';
 /**
@@ -292,7 +295,7 @@ export class PostgresQueueBackend
   constructor(
     public connection: PostgresConnection,
     protected readonly queueName: string,
-    protected readonly opts: QueueBaseOptions,
+    protected readonly opts: QueueBaseOptions<PostgresConnectionOptions>,
     protected readonly ownsConnection = true,
     /**
      * When set, the name applied to this backend's dedicated connection (its

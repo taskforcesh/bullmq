@@ -9,6 +9,7 @@ import {
   QueueOptions,
   RepeatOptions,
 } from '../interfaces';
+import { ConnectionOptions } from '../interfaces/redis-options';
 import {
   FinishedStatus,
   JobsOptions,
@@ -148,20 +149,25 @@ export class Queue<
   ResultType = ExtractResultType<DataTypeOrJob, DefaultResultType>,
   NameType extends string = ExtractNameType<DataTypeOrJob, DefaultNameType>,
   B extends IQueueBackend = RedisQueueBackend,
-> extends QueueGetters<JobBase<DataTypeOrJob, ResultType, NameType>, B> {
+  ConnectionOptionsType = ConnectionOptions,
+> extends QueueGetters<
+  JobBase<DataTypeOrJob, ResultType, NameType>,
+  B,
+  ConnectionOptionsType
+> {
   token = randomUUID();
   jobsOpts: BaseJobOptions;
-  declare opts: QueueOptions;
+  declare opts: QueueOptions<ConnectionOptionsType>;
 
   protected libName = 'bullmq';
 
-  protected _jobScheduler?: JobScheduler;
+  protected _jobScheduler?: JobScheduler<B, ConnectionOptionsType>;
   private readonly queueMetaInitialized: Promise<void>;
 
   constructor(
     name: string,
-    opts?: QueueOptions,
-    backendFactory?: BackendFactory<B>,
+    opts?: QueueOptions<ConnectionOptionsType>,
+    backendFactory?: BackendFactory<B, ConnectionOptionsType>,
   ) {
     super(
       name,
@@ -248,19 +254,21 @@ export class Queue<
     return await this.backend.getQueueMetaField('version');
   }
 
-  get jobScheduler(): Promise<JobScheduler> {
-    return new Promise<JobScheduler>(async resolve => {
-      if (!this._jobScheduler) {
-        // Share this queue's backend (same queue name/keys) with the scheduler.
-        this._jobScheduler = new JobScheduler(
-          this.name,
-          this.opts,
-          () => this.backend,
-        );
-        this._jobScheduler.on('error', this.emit.bind(this, 'error'));
-      }
-      resolve(this._jobScheduler);
-    });
+  get jobScheduler(): Promise<JobScheduler<B, ConnectionOptionsType>> {
+    return new Promise<JobScheduler<B, ConnectionOptionsType>>(
+      async resolve => {
+        if (!this._jobScheduler) {
+          // Share this queue's backend (same queue name/keys) with the scheduler.
+          this._jobScheduler = new JobScheduler(
+            this.name,
+            this.opts,
+            () => this.backend,
+          );
+          this._jobScheduler.on('error', this.emit.bind(this, 'error'));
+        }
+        resolve(this._jobScheduler);
+      },
+    );
   }
 
   /**
