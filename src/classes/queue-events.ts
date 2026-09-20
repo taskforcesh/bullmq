@@ -2,12 +2,14 @@ import { JobProgress } from '../types';
 import {
   BackendFactory,
   IoredisListener,
+  IQueueBackend,
   QueueEventsOptions,
   StreamReadRaw,
 } from '../interfaces';
-import { array2obj, isRedisInstance, QUEUE_EVENT_SUFFIX } from '../utils';
+import { ConnectionOptions } from '../interfaces/redis-options';
+import { array2obj, QUEUE_EVENT_SUFFIX } from '../utils';
 import { QueueBase } from './queue-base';
-import { createIORedisClient, isIRedisClient } from './ioredis-client';
+import { RedisQueueBackend } from './redis-queue-backend';
 
 export interface QueueEventsListener<ReturnType = any> extends IoredisListener {
   /**
@@ -256,27 +258,33 @@ type KeyOf<T extends object> = Extract<keyof T, string>;
  * This class requires a dedicated redis connection.
  *
  */
-export class QueueEvents<ReturnType = any> extends QueueBase {
+export class QueueEvents<
+  ReturnType = any,
+  B extends IQueueBackend = RedisQueueBackend,
+  ConnectionOptionsType = ConnectionOptions,
+> extends QueueBase<B, ConnectionOptionsType> {
   private running = false;
   private blocking = false;
 
   constructor(
     name: string,
-    { connection, autorun = true, ...opts }: QueueEventsOptions = {
-      connection: {},
+    {
+      connection,
+      autorun = true,
+      ...opts
+    }: QueueEventsOptions<ConnectionOptionsType> = {
+      connection: {} as ConnectionOptionsType,
     },
-    backendFactory?: BackendFactory,
+    backendFactory?: BackendFactory<B, ConnectionOptionsType>,
   ) {
+    // This class requires a dedicated connection: when the Redis backend is
+    // used, `createRedisBackend` duplicates a raw client instance passed as
+    // `connection` (see its `blocking` handling), rather than sharing it.
     super(
       name,
       {
         ...opts,
-        connection: isRedisInstance(connection)
-          ? (isIRedisClient(connection)
-              ? connection
-              : createIORedisClient(connection as any)
-            ).duplicate()
-          : connection,
+        connection,
       },
       backendFactory,
       true,
@@ -352,7 +360,7 @@ export class QueueEvents<ReturnType = any> extends QueueBase {
   }
 
   private async consumeEvents(): Promise<void> {
-    const opts: QueueEventsOptions = this.opts;
+    const opts: QueueEventsOptions<ConnectionOptionsType> = this.opts;
 
     let id = opts.lastEventId || '$';
 

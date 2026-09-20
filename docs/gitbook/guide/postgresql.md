@@ -31,25 +31,19 @@ npm install pg
 
 Pass `createPostgresBackend` as the **last constructor argument**, with a
 `connection` that node-postgres understands (a connection string, a pool config,
-or a `pg.Pool`):
+or a `pg.Pool`). TypeScript infers the backend type and its connection-options
+type directly from the `createPostgresBackend` argument, so `connection` is
+checked against PostgreSQL's own connection shape — no explicit generic type
+arguments or casts are needed:
 
 ```typescript
-import {
-  Queue,
-  Worker,
-  PostgresQueueBackend,
-  createPostgresBackend,
-} from 'bullmq';
+import { Queue, Worker, createPostgresBackend } from 'bullmq';
 
 const opts = {
   connection: 'postgres://user:password@localhost:5432/mydb',
 };
 
-const queue = new Queue<any, any, string, PostgresQueueBackend>(
-  'my-queue',
-  opts,
-  createPostgresBackend,
-);
+const queue = new Queue('my-queue', opts, createPostgresBackend);
 
 const worker = new Worker(
   'my-queue',
@@ -60,6 +54,13 @@ const worker = new Worker(
   createPostgresBackend,
 );
 ```
+
+{% hint style="warning" %}
+Avoid explicit generics like `Queue<any, any, string, PostgresQueueBackend>` —
+`PostgresQueueBackend` lands in the wrong type parameter and is silently
+ignored. Let TypeScript infer everything from `createPostgresBackend`, as
+above.
+{% endhint %}
 
 The argument positions mirror the Redis usage:
 

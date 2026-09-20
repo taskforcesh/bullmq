@@ -1,16 +1,25 @@
-import { BackendFactory, QueueEventsProducerOptions } from '../interfaces';
+import {
+  BackendFactory,
+  IQueueBackend,
+  QueueEventsProducerOptions,
+} from '../interfaces';
+import { ConnectionOptions } from '../interfaces/redis-options';
 import { QueueBase } from './queue-base';
+import { RedisQueueBackend } from './redis-queue-backend';
 
 /**
  * The QueueEventsProducer class is used for publishing custom events.
  */
-export class QueueEventsProducer extends QueueBase {
+export class QueueEventsProducer<
+  B extends IQueueBackend = RedisQueueBackend,
+  ConnectionOptionsType = ConnectionOptions,
+> extends QueueBase<B, ConnectionOptionsType> {
   constructor(
     name: string,
-    opts: QueueEventsProducerOptions = {
-      connection: {},
+    opts: QueueEventsProducerOptions<ConnectionOptionsType> = {
+      connection: {} as ConnectionOptionsType,
     },
-    backendFactory?: BackendFactory,
+    backendFactory?: BackendFactory<B, ConnectionOptionsType>,
   ) {
     super(
       name,
