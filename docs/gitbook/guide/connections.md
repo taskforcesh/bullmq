@@ -244,6 +244,10 @@ All high-level classes depend only on the `IQueueBackend` interface and receive 
 but you can inject your own as the last constructor argument to back BullMQ with a
 different datastore or with a mock in tests:
 
+When passing a backend factory, supply an options object with a `connection`
+accepted by that factory. Options can only be omitted for the default Redis
+backend, without an explicit factory or custom backend/connection type arguments.
+
 ```typescript
 import { Queue, BackendFactory } from 'bullmq';
 

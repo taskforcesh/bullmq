@@ -16,6 +16,8 @@ import {
 import { ConnectionOptions } from '../interfaces/redis-options';
 import { getParentKey, randomUUID, trace } from '../utils';
 import { getDefaultBackendFactory } from '../utils/create-backend';
+import { validateConnectionOptions } from '../utils/validate-connection-options';
+import type { DefaultQueueOptions } from '../types/default-queue-options';
 import { Job } from './job';
 import { RedisQueueBackend } from './redis-queue-backend';
 import { KeysMap } from './queue-keys';
@@ -108,6 +110,7 @@ export class FlowProducer<
   toKey: (name: string, type: string) => string;
   keys: KeysMap;
   closing: Promise<void> | undefined;
+  public opts: FlowProducerOptions<ConnectionOptionsType>;
 
   protected backend: B;
   protected telemetry: {
@@ -116,23 +119,26 @@ export class FlowProducer<
   };
 
   constructor(
-    public opts: FlowProducerOptions<ConnectionOptionsType> = {
-      connection: {} as ConnectionOptionsType,
-    },
-    backendFactory: BackendFactory<
-      B,
-      ConnectionOptionsType
-    > = getDefaultBackendFactory<B, ConnectionOptionsType>(),
+    opts: FlowProducerOptions<ConnectionOptionsType>,
+    backendFactory?: BackendFactory<B, ConnectionOptionsType>,
+  );
+  constructor(
+    ...args: DefaultQueueOptions<B, ConnectionOptionsType, RedisQueueBackend>
+  );
+  constructor(
+    opts?: FlowProducerOptions<ConnectionOptionsType>,
+    backendFactory?: BackendFactory<B, ConnectionOptionsType>,
   ) {
     super();
 
-    this.opts = {
-      ...opts,
-    };
+    validateConnectionOptions(opts, backendFactory !== undefined);
+    this.opts = Object.assign({ connection: {} }, opts);
 
     // The flow producer is not bound to a single queue: each flow entry carries
     // its own queue identity, so the backend is created with an empty name.
-    this.backend = backendFactory('', this.opts);
+    const factory =
+      backendFactory ?? getDefaultBackendFactory<B, ConnectionOptionsType>();
+    this.backend = factory('', this.opts);
 
     this.backend.on('error', (error: Error) => {
       if (this.listenerCount('error') > 0) {

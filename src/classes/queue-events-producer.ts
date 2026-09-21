@@ -6,6 +6,7 @@ import {
 import { ConnectionOptions } from '../interfaces/redis-options';
 import { QueueBase } from './queue-base';
 import { RedisQueueBackend } from './redis-queue-backend';
+import type { DefaultQueueOptions } from '../types/default-queue-options';
 
 /**
  * The QueueEventsProducer class is used for publishing custom events.
@@ -16,21 +17,22 @@ export class QueueEventsProducer<
 > extends QueueBase<B, ConnectionOptionsType> {
   constructor(
     name: string,
-    opts: QueueEventsProducerOptions<ConnectionOptionsType> = {
-      connection: {} as ConnectionOptionsType,
-    },
+    opts: QueueEventsProducerOptions<ConnectionOptionsType>,
+    backendFactory?: BackendFactory<B, ConnectionOptionsType>,
+  );
+  constructor(
+    name: string,
+    ...args: DefaultQueueOptions<B, ConnectionOptionsType, RedisQueueBackend>
+  );
+  constructor(
+    name: string,
+    opts?: QueueEventsProducerOptions<ConnectionOptionsType>,
     backendFactory?: BackendFactory<B, ConnectionOptionsType>,
   ) {
-    super(
-      name,
-      {
-        blockingConnection: false,
-        ...opts,
-      },
-      backendFactory,
-    );
-
-    this.opts = opts;
+    super(name, opts && { blockingConnection: false, ...opts }, backendFactory);
+    if (opts) {
+      this.opts = opts;
+    }
   }
 
   /**

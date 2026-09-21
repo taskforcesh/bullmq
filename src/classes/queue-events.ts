@@ -10,6 +10,7 @@ import { ConnectionOptions } from '../interfaces/redis-options';
 import { array2obj, QUEUE_EVENT_SUFFIX } from '../utils';
 import { QueueBase } from './queue-base';
 import { RedisQueueBackend } from './redis-queue-backend';
+import type { DefaultQueueOptions } from '../types/default-queue-options';
 
 export interface QueueEventsListener<ReturnType = any> extends IoredisListener {
   /**
@@ -268,27 +269,27 @@ export class QueueEvents<
 
   constructor(
     name: string,
-    {
-      connection,
-      autorun = true,
-      ...opts
-    }: QueueEventsOptions<ConnectionOptionsType> = {
-      connection: {} as ConnectionOptionsType,
-    },
+    opts: QueueEventsOptions<ConnectionOptionsType>,
+    backendFactory?: BackendFactory<B, ConnectionOptionsType>,
+  );
+  constructor(
+    name: string,
+    ...args: DefaultQueueOptions<B, ConnectionOptionsType, RedisQueueBackend>
+  );
+  constructor(
+    name: string,
+    opts?: QueueEventsOptions<ConnectionOptionsType>,
     backendFactory?: BackendFactory<B, ConnectionOptionsType>,
   ) {
+    const { autorun = true } = opts ?? {};
+    const queueOptions = opts && { ...opts };
+    if (queueOptions) {
+      delete queueOptions.autorun;
+    }
     // This class requires a dedicated connection: when the Redis backend is
     // used, `createRedisBackend` duplicates a raw client instance passed as
     // `connection` (see its `blocking` handling), rather than sharing it.
-    super(
-      name,
-      {
-        ...opts,
-        connection,
-      },
-      backendFactory,
-      true,
-    );
+    super(name, queueOptions, backendFactory, true);
 
     this.opts = Object.assign(
       {

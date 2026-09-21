@@ -10,6 +10,8 @@ import {
 
 import { delay, DELAY_TIME_5, isNotConnectionError, trace } from '../utils';
 import { getDefaultBackendFactory } from '../utils/create-backend';
+import { validateConnectionOptions } from '../utils/validate-connection-options';
+import type { DefaultQueueOptions } from '../types/default-queue-options';
 import { Job } from './job';
 import { KeysMap } from './queue-keys';
 import { SpanKind } from '../enums';
@@ -35,6 +37,8 @@ export class QueueBase<
   backend: B;
   protected readonly backendFactory: BackendFactory<B, ConnectionOptionsType>;
   public readonly qualifiedName: string;
+  public readonly name: string;
+  public opts: QueueBaseOptions<ConnectionOptionsType>;
 
   /**
    *
@@ -45,26 +49,34 @@ export class QueueBase<
    * datastore or a test mock.
    */
   constructor(
-    public readonly name: string,
-    public opts: QueueBaseOptions<ConnectionOptionsType> = {
-      // Default value for the generic default (`ConnectionOptionsType =
-      // ConnectionOptions`); a caller passing an explicit connection-options
-      // type is expected to also pass `opts`.
-      connection: {} as ConnectionOptionsType,
-    },
-    backendFactory: BackendFactory<
+    name: string,
+    opts: QueueBaseOptions<ConnectionOptionsType>,
+    backendFactory?: BackendFactory<B, ConnectionOptionsType>,
+    hasBlockingConnection?: boolean,
+  );
+  constructor(
+    name: string,
+    ...args: DefaultQueueOptions<
       B,
-      ConnectionOptionsType
-    > = getDefaultBackendFactory<B, ConnectionOptionsType>(),
+      ConnectionOptionsType,
+      IQueueBackend,
+      [hasBlockingConnection?: boolean]
+    >
+  );
+  constructor(
+    name: string,
+    opts?: QueueBaseOptions<ConnectionOptionsType>,
+    backendFactory?: BackendFactory<B, ConnectionOptionsType>,
     hasBlockingConnection = false,
   ) {
     super();
 
-    this.backendFactory = backendFactory;
+    validateConnectionOptions(opts, backendFactory !== undefined);
+    this.name = name;
+    this.backendFactory =
+      backendFactory ?? getDefaultBackendFactory<B, ConnectionOptionsType>();
     this.hasBlockingConnection = hasBlockingConnection;
-    this.opts = {
-      ...opts,
-    };
+    this.opts = Object.assign({ connection: {} }, opts);
 
     if (!name) {
       throw new Error('Queue name must be provided');

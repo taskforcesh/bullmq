@@ -27,6 +27,7 @@ import type {
   ExtractResultType,
   ExtractNameType,
 } from '../types/queue-type';
+import type { DefaultQueueOptions } from '../types/default-queue-options';
 
 export interface ObliterateOpts {
   /**
@@ -160,16 +161,19 @@ export class Queue<
 
   constructor(
     name: string,
+    opts: QueueOptions<ConnectionOptionsType>,
+    backendFactory?: BackendFactory<B, ConnectionOptionsType>,
+  );
+  constructor(
+    name: string,
+    ...args: DefaultQueueOptions<B, ConnectionOptionsType, RedisQueueBackend>
+  );
+  constructor(
+    name: string,
     opts?: QueueOptions<ConnectionOptionsType>,
     backendFactory?: BackendFactory<B, ConnectionOptionsType>,
   ) {
-    super(
-      name,
-      {
-        ...opts,
-      },
-      backendFactory,
-    );
+    super(name, opts, backendFactory);
 
     this.jobsOpts = opts?.defaultJobOptions ?? {};
 

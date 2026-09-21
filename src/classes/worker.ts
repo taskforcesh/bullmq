@@ -14,6 +14,7 @@ import {
   WorkerOptions,
 } from '../interfaces';
 import { ConnectionOptions } from '../interfaces/redis-options';
+import type { DefaultQueueOptions } from '../types/default-queue-options';
 import { JobProgress, JobSchedulerJobOptions } from '../types';
 import { Processor } from '../types/processor';
 import {
@@ -231,6 +232,26 @@ export class Worker<
 
   constructor(
     name: string,
+    processor:
+      | string
+      | URL
+      | null
+      | Processor<DataType, ResultType, NameType, ProgressType>
+      | undefined,
+    opts: WorkerOptions<ConnectionOptionsType>,
+    backendFactory?: BackendFactory<B, ConnectionOptionsType>,
+  );
+  constructor(
+    name: string,
+    processor?:
+      | string
+      | URL
+      | null
+      | Processor<DataType, ResultType, NameType, ProgressType>,
+    ...args: DefaultQueueOptions<B, ConnectionOptionsType, RedisQueueBackend>
+  );
+  constructor(
+    name: string,
     processor?:
       | string
       | URL
@@ -239,6 +260,10 @@ export class Worker<
     opts?: WorkerOptions<ConnectionOptionsType>,
     backendFactory?: BackendFactory<B, ConnectionOptionsType>,
   ) {
+    if (!opts || !opts.connection) {
+      throw new Error('Worker requires a connection');
+    }
+
     super(
       name,
       {
@@ -255,10 +280,6 @@ export class Worker<
       },
       backendFactory,
     );
-
-    if (!opts || !opts.connection) {
-      throw new Error('Worker requires a connection');
-    }
 
     if (
       typeof this.opts.maxStalledCount !== 'number' ||
