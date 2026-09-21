@@ -10,7 +10,6 @@ import {
   IQueueBackend,
   JobJson,
   LockManagerWorkerContext,
-  MinimalQueue,
   Span,
   WorkerOptions,
 } from '../interfaces';
@@ -494,7 +493,7 @@ export class Worker<
     data: JobJson,
     jobId: string,
   ): Job<DataType, ResultType, NameType, ProgressType> {
-    return this.Job.fromJSON(this as MinimalQueue, data, jobId) as Job<
+    return this.Job.fromJSON(this, data, jobId) as Job<
       DataType,
       ResultType,
       NameType,

@@ -256,8 +256,23 @@ const queue = new Queue('myqueue', { connection: {} }, myBackendFactory);
 
 The classes are generic over the backend type, so `getBackend()` returns the concrete
 type produced by whatever factory you provide (the default being
-`RedisQueueBackend`). A non-Redis user would, for example, write
-`new Queue<MyData, MyResult, string, MyBackend>(name, opts, createMyBackend)`.
+`RedisQueueBackend`). Give a custom factory the type
+`BackendFactory<MyBackend, MyConnectionOptions>` so its connection options are
+checked too.
+
+To specify job types, bind the backend before constructing the queue:
+
+```typescript
+import { withBackend } from 'bullmq';
+import { createMyBackend } from './my-backend';
+
+const { Queue, Worker } = withBackend(createMyBackend);
+const queue = new Queue<MyData, MyResult>('myqueue', opts);
+const worker = new Worker<MyData, MyResult>('myqueue', processor, opts);
+```
+
+The returned constructors use `createMyBackend` automatically, so you don't need
+to pass the factory to each instance.
 
 {% hint style="warning" %}
 Building a production-grade backend is substantial work: you must implement the full

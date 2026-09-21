@@ -3,18 +3,19 @@ import { SpanKind } from '../enums/telemetry-attributes';
 import { KeysMap } from '../classes/queue-keys';
 import { QueueBaseOptions } from './queue-options';
 import { IQueueBackend } from './queue-backend';
+import { ConnectionOptions } from './redis-options';
 
 /**
  * The minimal, datastore-agnostic surface that {@link Job} and other helpers
  * need from a queue. Redis specifics (client, version, …) live behind the
  * {@link IQueueBackend} the queue owns.
  */
-export interface MinimalQueue {
+export interface MinimalQueue<ConnectionOptionsType = ConnectionOptions> {
   readonly name: string;
   readonly qualifiedName: string;
   keys: KeysMap;
   toKey: (type: string) => string;
-  opts: QueueBaseOptions;
+  opts: QueueBaseOptions<ConnectionOptionsType>;
   closing: Promise<void> | undefined;
   /**
    * The datastore backend the queue operates through.

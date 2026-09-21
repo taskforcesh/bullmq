@@ -64,6 +64,7 @@
     "semantic-release-prepare": "ts-node tools/semantic-release-prepare",
     "test": "vitest run --no-file-parallelism",
     "test:smoke": "vitest run --no-file-parallelism --bail=1 tests/async_fifo_queue.test.ts tests/script_loader.test.ts tests/scripts.test.ts tests/child-pool.test.ts tests/bulk.test.ts tests/queue.test.ts",
+    "test:types": "tsc -p tsconfig.type-tests.json",
     "test:vitest": "vitest run --no-file-parallelism",
     "test:vitest:watch": "vitest",
     "test:vitest:ui": "vitest --ui",

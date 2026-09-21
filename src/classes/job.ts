@@ -176,7 +176,7 @@ export class Job<
   protected backend: IQueueBackend;
 
   constructor(
-    protected queue: MinimalQueue,
+    protected queue: MinimalQueue<unknown>,
     /**
      * The name of the Job
      */
@@ -252,7 +252,7 @@ export class Job<
    * @returns The created Job instance
    */
   static async create<T = any, R = any, N extends string = string>(
-    queue: MinimalQueue,
+    queue: MinimalQueue<unknown>,
     name: N,
     data: T,
     opts?: JobsOptions,
@@ -280,7 +280,7 @@ export class Job<
    * @returns The created Job instances
    */
   static async createBulk<T = any, R = any, N extends string = string>(
-    queue: MinimalQueue,
+    queue: MinimalQueue<unknown>,
     jobs: {
       name: N;
       data: T;
@@ -328,7 +328,7 @@ export class Job<
    * @returns A Job instance reconstructed from the JSON data
    */
   static fromJSON<T = any, R = any, N extends string = string>(
-    queue: MinimalQueue,
+    queue: MinimalQueue<unknown>,
     json: JobJson,
     jobId?: string,
   ): Job<T, R, N> {
@@ -445,7 +445,7 @@ export class Job<
    * @returns
    */
   static async fromId<T = any, R = any, N extends string = string>(
-    queue: MinimalQueue,
+    queue: MinimalQueue<unknown>,
     jobId: string,
   ): Promise<Job<T, R, N> | undefined> {
     // jobId can be undefined if moveJob returns undefined
@@ -469,7 +469,7 @@ export class Job<
    * @returns The total number of log entries for this job so far.
    */
   static addJobLog(
-    queue: MinimalQueue,
+    queue: MinimalQueue<unknown>,
     jobId: string,
     logRow: string,
     keepLogs?: number,
@@ -698,7 +698,7 @@ export class Job<
       this.attemptsMade + 1 < this.opts.attempts &&
       !(err instanceof UnrecoverableError || err.name == 'UnrecoverableError')
     ) {
-      const opts = this.queue.opts as WorkerOptions;
+      const opts: WorkerOptions<unknown> = this.queue.opts;
 
       const delay = await Backoffs.calculate(
         <BackoffOptions>this.opts.backoff,
@@ -1096,8 +1096,8 @@ export class Job<
    * @param queueEvents - Instance of QueueEvents.
    * @param ttl - Time in milliseconds to wait for job to finish before timing out.
    */
-  async waitUntilFinished(
-    queueEvents: QueueEvents,
+  async waitUntilFinished<B extends IQueueBackend, C>(
+    queueEvents: QueueEvents<any, B, C>,
     ttl?: number,
   ): Promise<ReturnType> {
     await this.queue.waitUntilReady();

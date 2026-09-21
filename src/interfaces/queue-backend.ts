@@ -799,7 +799,9 @@ export interface IQueueBackend {
  * TypeScript infers it end-to-end from whichever factory is passed into a
  * queue class's constructor: `new Queue(name, opts, createPostgresBackend)`
  * type-checks `opts.connection` against the PostgreSQL adapter's connection
- * type instead of Redis's, with no cast required on either side.
+ * type instead of Redis's, with no cast required on either side. This inference
+ * requires omitting explicit class type arguments. Use {@link withBackend} to
+ * bind the backend first when supplying job or event-result type arguments.
  */
 export type BackendFactory<
   B extends IQueueBackend = IQueueBackend,

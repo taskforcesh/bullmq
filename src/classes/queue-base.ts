@@ -24,7 +24,7 @@ export class QueueBase<
   ConnectionOptionsType = ConnectionOptions,
 >
   extends EventEmitter
-  implements MinimalQueue
+  implements MinimalQueue<ConnectionOptionsType>
 {
   toKey: (type: string) => string;
   keys: KeysMap;

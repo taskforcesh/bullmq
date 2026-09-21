@@ -5,7 +5,6 @@ import {
   IoredisListener,
   IQueueBackend,
   JobSchedulerJson,
-  MinimalQueue,
   QueueOptions,
   RepeatOptions,
 } from '../interfaces';
@@ -23,6 +22,11 @@ import { SpanKind, TelemetryAttributes } from '../enums';
 import { JobScheduler } from './job-scheduler';
 import { version } from '../version';
 import { randomUUID } from '../utils';
+import type {
+  ExtractDataType,
+  ExtractResultType,
+  ExtractNameType,
+} from '../types/queue-type';
 
 export interface ObliterateOpts {
   /**
@@ -104,16 +108,6 @@ type JobBase<T, ResultType, NameType extends string> =
     : T extends Job<any, any, any>
       ? T
       : Job<T, ResultType, NameType>;
-
-// Helper types to extract DataType, ResultType, and NameType
-type ExtractDataType<DataTypeOrJob, Default> =
-  DataTypeOrJob extends Job<infer D, any, any> ? D : Default;
-
-type ExtractResultType<DataTypeOrJob, Default> =
-  DataTypeOrJob extends Job<any, infer R, any> ? R : Default;
-
-type ExtractNameType<DataTypeOrJob, Default extends string> =
-  DataTypeOrJob extends Job<any, any, infer N> ? N : Default;
 
 /**
  * Queue
@@ -376,7 +370,7 @@ export class Queue<
     };
 
     const job = await this.Job.create<DataType, ResultType, NameType>(
-      this as MinimalQueue,
+      this,
       name,
       data,
       mergedOpts,
@@ -411,7 +405,7 @@ export class Queue<
         }
 
         return await this.Job.createBulk<DataType, ResultType, NameType>(
-          this as MinimalQueue,
+          this,
           jobs.map(job => {
             let telemetry = job.opts?.telemetry;
             if (srcPropagationMetadata) {

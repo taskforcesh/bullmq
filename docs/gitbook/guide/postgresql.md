@@ -55,14 +55,32 @@ const worker = new Worker(
 );
 ```
 
-{% hint style="warning" %}
-Avoid explicit generics like `Queue<any, any, string, PostgresQueueBackend>` —
-`PostgresQueueBackend` lands in the wrong type parameter and is silently
-ignored. Let TypeScript infer everything from `createPostgresBackend`, as
-above.
-{% endhint %}
+### Typed jobs and event results
 
-The argument positions mirror the Redis usage:
+When supplying explicit job types, bind the backend first with `withBackend`.
+TypeScript cannot infer trailing class type arguments once you specify leading
+ones such as `Queue<MyData>`.
+
+```typescript
+import { createPostgresBackend, withBackend } from 'bullmq';
+
+const { Queue, Worker, QueueEvents } = withBackend(createPostgresBackend);
+const opts = { connection: 'postgres://localhost:5432/mydb' };
+
+const queue = new Queue<{ value: number }, number>('my-queue', opts);
+const worker = new Worker<{ value: number }, number>(
+  'my-queue',
+  async job => job.data.value * 2,
+  opts,
+);
+const events = new QueueEvents<number>('my-queue', opts);
+```
+
+The bound constructors require connection options and preserve the concrete
+PostgreSQL backend type. The helper also provides `FlowProducer` and
+`QueueEventsProducer`; it does not change the process-wide default backend.
+
+Without `withBackend`, the factory argument positions are:
 
 | Class          | Constructor                                                |
 | -------------- | ---------------------------------------------------------- |
@@ -75,6 +93,10 @@ The argument positions mirror the Redis usage:
 
 If your whole application uses PostgreSQL, register it once as the process-wide
 default backend and drop the per-instance argument:
+
+This changes runtime behavior only, not TypeScript's default type arguments.
+Prefer `withBackend` when using explicit job types or accessing backend-specific
+methods.
 
 ```typescript
 import { setDefaultBackendFactory, createPostgresBackend, Queue } from 'bullmq';
