@@ -42,6 +42,16 @@ const logger = debuglog('bull');
 
 export const PRIORITY_LIMIT = 2 ** 21 - 1;
 
+interface JobQueue extends Omit<
+  MinimalQueue,
+  'opts' | 'on' | 'removeListener'
+> {
+  opts: Omit<WorkerOptions, 'connection'>;
+  // Fluent methods must return this connection-free view too.
+  on(...args: Parameters<MinimalQueue['on']>): this;
+  removeListener(...args: Parameters<MinimalQueue['removeListener']>): this;
+}
+
 /**
  * Job
  *
@@ -176,7 +186,7 @@ export class Job<
   protected backend: IQueueBackend;
 
   constructor(
-    protected queue: MinimalQueue<unknown>,
+    protected queue: JobQueue,
     /**
      * The name of the Job
      */
@@ -252,7 +262,7 @@ export class Job<
    * @returns The created Job instance
    */
   static async create<T = any, R = any, N extends string = string>(
-    queue: MinimalQueue<unknown>,
+    queue: JobQueue,
     name: N,
     data: T,
     opts?: JobsOptions,
@@ -280,7 +290,7 @@ export class Job<
    * @returns The created Job instances
    */
   static async createBulk<T = any, R = any, N extends string = string>(
-    queue: MinimalQueue<unknown>,
+    queue: JobQueue,
     jobs: {
       name: N;
       data: T;
@@ -328,7 +338,7 @@ export class Job<
    * @returns A Job instance reconstructed from the JSON data
    */
   static fromJSON<T = any, R = any, N extends string = string>(
-    queue: MinimalQueue<unknown>,
+    queue: JobQueue,
     json: JobJson,
     jobId?: string,
   ): Job<T, R, N> {
@@ -445,7 +455,7 @@ export class Job<
    * @returns
    */
   static async fromId<T = any, R = any, N extends string = string>(
-    queue: MinimalQueue<unknown>,
+    queue: JobQueue,
     jobId: string,
   ): Promise<Job<T, R, N> | undefined> {
     // jobId can be undefined if moveJob returns undefined
@@ -469,7 +479,7 @@ export class Job<
    * @returns The total number of log entries for this job so far.
    */
   static addJobLog(
-    queue: MinimalQueue<unknown>,
+    queue: JobQueue,
     jobId: string,
     logRow: string,
     keepLogs?: number,
@@ -698,7 +708,7 @@ export class Job<
       this.attemptsMade + 1 < this.opts.attempts &&
       !(err instanceof UnrecoverableError || err.name == 'UnrecoverableError')
     ) {
-      const opts: WorkerOptions<unknown> = this.queue.opts;
+      const opts = this.queue.opts;
 
       const delay = await Backoffs.calculate(
         <BackoffOptions>this.opts.backoff,

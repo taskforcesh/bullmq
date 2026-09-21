@@ -148,9 +148,16 @@ Job.create(minimal, 'double', { value: 2 });
 Job.createBulk(minimal, [{ name: 'double', data: { value: 2 } }]);
 Job.fromId(minimal, 'job-id');
 Job.addJobLog(minimal, 'job-id', 'message');
-const backendAgnostic: MinimalQueue<unknown> = minimal;
-// @ts-expect-error Backend-agnostic helpers cannot treat the connection as Redis.
-backendAgnostic.opts.connection.host;
+const backendAgnostic: ConstructorParameters<typeof Job>[0] = minimal;
+// @ts-expect-error Jobs do not expose the backend's connection options.
+backendAgnostic.opts.connection;
+// @ts-expect-error Fluent methods must not expose connection options either.
+backendAgnostic.on('completed', () => {}).opts.connection;
+declare const connectionlessQueue: Omit<MinimalQueue, 'opts'> & {
+  opts: Record<string, never>;
+};
+new Job(connectionlessQueue, 'double', { value: 2 });
+Job.create(connectionlessQueue, 'double', { value: 2 });
 new Job(minimal, 'double', { value: 2 }).waitUntilFinished(events);
 
 function acceptsArbitraryConnection<C>(
