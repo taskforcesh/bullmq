@@ -17,7 +17,7 @@ export class QueueEventsProducer<
 > extends QueueBase<B, ConnectionOptionsType> {
   constructor(
     name: string,
-    opts: QueueEventsProducerOptions<ConnectionOptionsType>,
+    opts: QueueEventsProducerOptions<NoInfer<ConnectionOptionsType>>,
     backendFactory?: BackendFactory<B, ConnectionOptionsType>,
   );
   constructor(

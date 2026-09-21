@@ -238,7 +238,7 @@ export class Worker<
       | null
       | Processor<DataType, ResultType, NameType, ProgressType>
       | undefined,
-    opts: WorkerOptions<ConnectionOptionsType>,
+    opts: WorkerOptions<NoInfer<ConnectionOptionsType>>,
     backendFactory?: BackendFactory<B, ConnectionOptionsType>,
   );
   constructor(
@@ -260,7 +260,7 @@ export class Worker<
     opts?: WorkerOptions<ConnectionOptionsType>,
     backendFactory?: BackendFactory<B, ConnectionOptionsType>,
   ) {
-    if (!opts || !opts.connection) {
+    if (!opts || opts.connection === undefined || opts.connection === null) {
       throw new Error('Worker requires a connection');
     }
 

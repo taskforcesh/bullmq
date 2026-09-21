@@ -103,7 +103,7 @@ export class JobScheduler<
 
   constructor(
     name: string,
-    opts: RepeatBaseOptions<ConnectionOptionsType>,
+    opts: RepeatBaseOptions<NoInfer<ConnectionOptionsType>>,
     backendFactory?: BackendFactory<B, ConnectionOptionsType>,
   ) {
     super(name, opts, backendFactory);

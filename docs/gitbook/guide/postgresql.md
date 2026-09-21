@@ -94,11 +94,12 @@ Without `withBackend`, the factory argument positions are:
 If your whole application uses PostgreSQL, register it once as the process-wide
 default backend and drop the per-instance argument:
 
-This changes runtime behavior only, not TypeScript's default type arguments.
-Prefer `withBackend` when using explicit job types or accessing backend-specific
-methods.
+This JavaScript example changes runtime behavior only. TypeScript cannot infer
+types from a process-wide setting: use `withBackend(createPostgresBackend)` or
+pass `createPostgresBackend` to each constructor to infer PostgreSQL connection
+types.
 
-```typescript
+```javascript
 import { setDefaultBackendFactory, createPostgresBackend, Queue } from 'bullmq';
 
 setDefaultBackendFactory(createPostgresBackend);

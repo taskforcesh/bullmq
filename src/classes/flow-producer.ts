@@ -119,7 +119,7 @@ export class FlowProducer<
   };
 
   constructor(
-    opts: FlowProducerOptions<ConnectionOptionsType>,
+    opts: FlowProducerOptions<NoInfer<ConnectionOptionsType>>,
     backendFactory?: BackendFactory<B, ConnectionOptionsType>,
   );
   constructor(

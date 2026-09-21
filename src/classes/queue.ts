@@ -161,7 +161,7 @@ export class Queue<
 
   constructor(
     name: string,
-    opts: QueueOptions<ConnectionOptionsType>,
+    opts: QueueOptions<NoInfer<ConnectionOptionsType>>,
     backendFactory?: BackendFactory<B, ConnectionOptionsType>,
   );
   constructor(

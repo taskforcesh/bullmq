@@ -50,7 +50,7 @@ export class QueueBase<
    */
   constructor(
     name: string,
-    opts: QueueBaseOptions<ConnectionOptionsType>,
+    opts: QueueBaseOptions<NoInfer<ConnectionOptionsType>>,
     backendFactory?: BackendFactory<B, ConnectionOptionsType>,
     hasBlockingConnection?: boolean,
   );

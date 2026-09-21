@@ -47,6 +47,42 @@ new FlowProducer(opts, factory);
 new Worker('tasks', undefined, opts, factory);
 new JobScheduler('tasks', opts, factory);
 
+// @ts-expect-error Without a factory, connection options must remain Redis-typed.
+new QueueBase('tasks', { connection: false });
+// @ts-expect-error Inherited constructors must preserve the Redis default.
+new QueueGetters('tasks', { connection: false });
+// @ts-expect-error Without a factory, connection options must remain Redis-typed.
+new Queue('tasks', { connection: false });
+// @ts-expect-error Without a factory, connection options must remain Redis-typed.
+new QueueEvents('tasks', { connection: false });
+// @ts-expect-error Without a factory, connection options must remain Redis-typed.
+new QueueEventsProducer('tasks', { connection: false });
+// @ts-expect-error Without a factory, connection options must remain Redis-typed.
+new FlowProducer({ connection: false });
+// @ts-expect-error Without a factory, connection options must remain Redis-typed.
+new Worker('tasks', undefined, { connection: 'postgres://localhost/mydb' });
+// @ts-expect-error Without a factory, connection options must remain Redis-typed.
+new JobScheduler('tasks', { connection: false });
+// @ts-expect-error Passing undefined as the factory must not enable inference.
+new Queue('tasks', { connection: false }, undefined);
+
+const redisOpts = { connection: { host: 'localhost' } };
+new QueueBase('tasks', redisOpts);
+new QueueGetters('tasks', redisOpts);
+new Queue('tasks', redisOpts);
+new QueueEvents('tasks', redisOpts);
+new QueueEventsProducer('tasks', redisOpts);
+new FlowProducer(redisOpts);
+new Worker('tasks', undefined, redisOpts);
+new JobScheduler('tasks', redisOpts);
+
+declare const falsyFactory: BackendFactory<CustomBackend, false | 0 | ''>;
+new Worker('tasks', undefined, { connection: false }, falsyFactory);
+new Worker('tasks', undefined, { connection: 0 }, falsyFactory);
+new Worker('tasks', undefined, { connection: '' }, falsyFactory);
+// @ts-expect-error The supplied factory, not the options, determines the connection type.
+new Worker('tasks', undefined, { connection: 'wrong' }, falsyFactory);
+
 // @ts-expect-error An explicit factory requires connection options.
 new QueueBase('tasks', undefined, factory);
 // @ts-expect-error Inherited constructors must require options too.

@@ -802,6 +802,8 @@ export interface IQueueBackend {
  * type instead of Redis's, with no cast required on either side. This inference
  * requires omitting explicit class type arguments. Use {@link withBackend} to
  * bind the backend first when supplying job or event-result type arguments.
+ * Without a factory or explicit connection type, constructors retain the Redis
+ * connection type; connection values alone do not select a backend.
  */
 export type BackendFactory<
   B extends IQueueBackend = IQueueBackend,

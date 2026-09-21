@@ -89,6 +89,26 @@ describe('backend constructor connection options', () => {
     expect(factory).not.toHaveBeenCalled();
   });
 
+  it.each([false, 0, ''] as const)(
+    'passes a valid falsy connection (%j) to the worker factory',
+    connection => {
+      const reachedFactory = new Error('Factory reached');
+      const factory = vi.fn(
+        (_name: string, _opts: QueueBaseOptions<false | 0 | ''>) => {
+          throw reachedFactory;
+        },
+      );
+      expect(
+        () => new Worker('tasks', undefined, { connection }, factory),
+      ).toThrow(reachedFactory);
+      expect(factory).toHaveBeenCalledWith(
+        'tasks',
+        expect.objectContaining({ connection }),
+        { withBlockingConnection: true },
+      );
+    },
+  );
+
   it('preserves no-options Redis constructors', async () => {
     const name = `defaults-${randomUUID()}`;
     const queue = new Queue(name);
