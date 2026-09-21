@@ -8,6 +8,17 @@ from bullmq.backends import RedisBackend, create_backend
 from bullmq.job import Job
 
 
+def _to_int_or_none(value):
+    """Queue metadata is stored as text on every backend; decode it back to an
+    int, treating a missing or malformed value as "not configured"."""
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 class Queue(EventEmitter):
     """
     Instantiate a Queue object
@@ -108,20 +119,17 @@ class Queue(EventEmitter):
 
     async def rateLimit(self, expire_time_ms: int) -> None:
         """
-        Overrides the rate limit to be active for the next jobs by writing
-        the limiter key with a large value that expires after
-        `expire_time_ms` milliseconds. Mirrors `Queue.rateLimit` in Node.
+        Overrides the rate limit to be active for the next jobs by opening
+        the limiter window for `expire_time_ms` milliseconds. Mirrors
+        `Queue.rateLimit` in Node.
         """
-        # 2^53 - 1, equivalent to Number.MAX_SAFE_INTEGER on the Node side.
-        await self.client.set(
-            self.keys["limiter"], 9007199254740991, px=expire_time_ms
-        )
+        await self.backend.setRateLimit(expire_time_ms)
 
     async def removeRateLimitKey(self) -> int:
         """
         Removes the rate limit key. Returns the number of keys removed (0 or 1).
         """
-        return await self.client.delete(self.keys["limiter"])
+        return await self.backend.removeRateLimitKey()
 
     async def setGlobalConcurrency(self, concurrency: int) -> int:
         """
@@ -129,27 +137,21 @@ class Queue(EventEmitter):
         queue can process in parallel. A value of 1 effectively serializes
         the queue. Mirrors `Queue.setGlobalConcurrency` in Node.
         """
-        return await self.client.hset(
-            self.keys["meta"], "concurrency", concurrency
-        )
+        return await self.backend.setQueueMeta({"concurrency": concurrency})
 
     async def getGlobalConcurrency(self):
         """
         Returns the configured global concurrency value, or None if not set.
         """
-        value = await self.client.hget(self.keys["meta"], "concurrency")
-        if value is None:
-            return None
-        try:
-            return int(value)
-        except (TypeError, ValueError):
-            return None
+        return _to_int_or_none(
+            await self.backend.getQueueMetaField("concurrency")
+        )
 
     async def removeGlobalConcurrency(self) -> int:
         """
         Clear the global concurrency cap. Returns the number of fields removed.
         """
-        return await self.client.hdel(self.keys["meta"], "concurrency")
+        return await self.backend.removeQueueMetaFields(["concurrency"])
 
     async def setGlobalRateLimit(self, max_jobs: int, duration_ms: int) -> int:
         """
@@ -157,8 +159,8 @@ class Queue(EventEmitter):
         workers within a rolling `duration_ms` window. Mirrors
         `Queue.setGlobalRateLimit` in Node.
         """
-        return await self.client.hset(
-            self.keys["meta"], mapping={"max": max_jobs, "duration": duration_ms}
+        return await self.backend.setQueueMeta(
+            {"max": max_jobs, "duration": duration_ms}
         )
 
     async def getGlobalRateLimit(self):
@@ -166,25 +168,24 @@ class Queue(EventEmitter):
         Returns `{"max": int, "duration": int}` if a global rate limit is
         configured, otherwise None.
         """
-        max_jobs, duration_ms = await self.client.hmget(
-            self.keys["meta"], "max", "duration"
+        max_jobs, duration_ms = await self.backend.getQueueMetaFields(
+            ["max", "duration"]
         )
+        max_jobs = _to_int_or_none(max_jobs)
+        duration_ms = _to_int_or_none(duration_ms)
         if max_jobs is None or duration_ms is None:
             return None
-        try:
-            return {"max": int(max_jobs), "duration": int(duration_ms)}
-        except (TypeError, ValueError):
-            return None
+        return {"max": max_jobs, "duration": duration_ms}
 
     async def removeGlobalRateLimit(self) -> int:
         """
         Clear the global rate limit by removing both `max` and `duration`
-        from the queue's meta hash. Mirrors `Queue.removeGlobalRateLimit`
+        from the queue's metadata. Mirrors `Queue.removeGlobalRateLimit`
         in Node and is the counterpart to `setGlobalRateLimit`.
 
         Returns the number of fields actually removed (0, 1, or 2).
         """
-        return await self.client.hdel(self.keys["meta"], "max", "duration")
+        return await self.backend.removeQueueMetaFields(["max", "duration"])
 
     async def get_workers(self):
         """
@@ -444,9 +445,13 @@ class Queue(EventEmitter):
             return jobs
 
         job_ids = await self.backend.getRanges(current_types, start, end, asc)
-        tasks = [asyncio.create_task(Job.fromId(self, i)) for i in job_ids]
-        job_set, _ = await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
-        return [extract_result(job_task, self.emit) for job_task in job_set]
+        tasks = [asyncio.ensure_future(Job.fromId(self, i)) for i in job_ids]
+        # `gather` (unlike `asyncio.wait`, which yields an unordered *set* of
+        # tasks) preserves `job_ids` order -- the asc/desc ordering getRanges
+        # was just asked to produce. It also tolerates an empty queue, where
+        # `asyncio.wait` raises on an empty task list.
+        await asyncio.gather(*tasks, return_exceptions=True)
+        return [extract_result(job_task, self.emit) for job_task in tasks]
 
     def sanitizeJobTypes(self, types):
         current_types = list(types)
