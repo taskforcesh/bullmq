@@ -33,6 +33,23 @@ describe('backend constructor connection options', () => {
   afterEach(() => setDefaultBackendFactory());
 
   describe.each(constructors)('$name', ({ Constructor, prefix }) => {
+    it.each([false, 0, '', { endpoint: 'localhost' }] as const)(
+      'passes the connection (%j) unchanged to the factory',
+      connection => {
+        const reachedFactory = new Error('Factory reached');
+        const factory = vi.fn(
+          (_name: string, _opts: QueueBaseOptions<typeof connection>) => {
+            throw reachedFactory;
+          },
+        );
+        expect(() =>
+          Reflect.construct(Constructor, [...prefix, { connection }, factory]),
+        ).toThrow(reachedFactory);
+        expect(factory).toHaveBeenCalledTimes(1);
+        expect(factory.mock.calls[0][1].connection).toBe(connection);
+      },
+    );
+
     it.each([
       undefined,
       null,
@@ -88,26 +105,6 @@ describe('backend constructor connection options', () => {
     }
     expect(factory).not.toHaveBeenCalled();
   });
-
-  it.each([false, 0, ''] as const)(
-    'passes a valid falsy connection (%j) to the worker factory',
-    connection => {
-      const reachedFactory = new Error('Factory reached');
-      const factory = vi.fn(
-        (_name: string, _opts: QueueBaseOptions<false | 0 | ''>) => {
-          throw reachedFactory;
-        },
-      );
-      expect(
-        () => new Worker('tasks', undefined, { connection }, factory),
-      ).toThrow(reachedFactory);
-      expect(factory).toHaveBeenCalledWith(
-        'tasks',
-        expect.objectContaining({ connection }),
-        { withBlockingConnection: true },
-      );
-    },
-  );
 
   it('preserves no-options Redis constructors', async () => {
     const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';

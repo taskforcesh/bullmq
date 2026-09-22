@@ -53,6 +53,13 @@ it('binds every constructor to the backend without changing global defaults', as
     }
     expect(Worker.RateLimitError).toBe(BaseWorker.RateLimitError);
     expect(getDefaultBackendFactory()).toBe(defaultFactory);
+    for (const instance of [queue, worker]) {
+      const scheduler = await instance.jobScheduler;
+      expect(scheduler.getBackend()).toBe(instance.getBackend());
+      expect(scheduler.opts.connection).toBe(connection);
+      expect(await instance.jobScheduler).toBe(scheduler);
+      await scheduler.waitUntilReady();
+    }
     expect(factory.mock.calls.map(call => call[2])).toEqual([
       { blocking: false },
       { withBlockingConnection: true },

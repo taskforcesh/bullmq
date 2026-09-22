@@ -102,15 +102,34 @@ new FlowProducer<CustomBackend, CustomConnection>(optionalFlowOpts);
 new Queue('tasks', useOptions ? { connection: false } : undefined);
 
 const queue = new Queue('tasks', opts, factory);
-queue.opts.connection.endpoint.toUpperCase();
-queue.getBackend().customOperation();
-new QueueBase('tasks', opts, factory);
-new QueueGetters('tasks', opts, factory);
-new QueueEvents('tasks', opts, factory);
-new QueueEventsProducer('tasks', opts, factory);
-new FlowProducer(opts, factory);
-new Worker('tasks', undefined, opts, factory);
-new JobScheduler('tasks', opts, factory);
+const worker = new Worker('tasks', undefined, opts, factory);
+for (const instance of [
+  queue,
+  worker,
+  new QueueBase('tasks', opts, factory),
+  new QueueGetters('tasks', opts, factory),
+  new QueueEvents('tasks', opts, factory),
+  new QueueEventsProducer('tasks', opts, factory),
+  new FlowProducer(opts, factory),
+  new JobScheduler('tasks', opts, factory),
+]) {
+  instance.opts.connection.endpoint.toUpperCase();
+  instance.getBackend().customOperation();
+  // @ts-expect-error Custom connections must not degrade to any.
+  instance.opts.connection.host;
+  // @ts-expect-error Custom backends must not degrade to any.
+  instance.getBackend().missingOperation();
+}
+for (const instance of [queue, worker]) {
+  instance.jobScheduler.then(scheduler => {
+    scheduler.opts.connection.endpoint.toUpperCase();
+    scheduler.getBackend().customOperation();
+    // @ts-expect-error Schedulers must preserve the custom connection type.
+    scheduler.opts.connection.host;
+    // @ts-expect-error Schedulers must preserve the custom backend type.
+    scheduler.getBackend().missingOperation();
+  });
+}
 
 // @ts-expect-error Without a factory, connection options must remain Redis-typed.
 new QueueBase('tasks', { connection: false });

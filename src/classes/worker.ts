@@ -579,7 +579,7 @@ export class Worker<
       async resolve => {
         if (!this._jobScheduler) {
           // Share the worker's backend (same queue) with the scheduler.
-          this._jobScheduler = new JobScheduler(
+          this._jobScheduler = new JobScheduler<B, ConnectionOptionsType>(
             this.name,
             this.opts,
             () => this.backend,

@@ -262,7 +262,7 @@ export class Queue<
       async resolve => {
         if (!this._jobScheduler) {
           // Share this queue's backend (same queue name/keys) with the scheduler.
-          this._jobScheduler = new JobScheduler(
+          this._jobScheduler = new JobScheduler<B, ConnectionOptionsType>(
             this.name,
             this.opts,
             () => this.backend,

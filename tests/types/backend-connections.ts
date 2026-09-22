@@ -5,6 +5,7 @@ import {
   ConnectionOptions,
   FlowProducer,
   Job,
+  JobScheduler,
   MinimalQueue,
   PostgresConnectionOptions,
   PostgresQueueBackend,
@@ -41,6 +42,12 @@ const job = queue.add('double', { value: 2 });
 expectType<Equal<Awaited<typeof job>, Job<Data, Result, Name>>>();
 expectType<Equal<ReturnType<typeof queue.getBackend>, PostgresQueueBackend>>();
 expectType<Equal<typeof queue.opts.connection, PostgresConnectionOptions>>();
+expectType<
+  Equal<
+    Awaited<typeof queue.jobScheduler>,
+    JobScheduler<PostgresQueueBackend, PostgresConnectionOptions>
+  >
+>();
 // @ts-expect-error Job data must retain its declared shape.
 queue.add('double', { value: '2' });
 // @ts-expect-error Job names must retain their declared union.
@@ -67,6 +74,12 @@ worker.on('completed', (job, result) => {
   expectType<Equal<typeof job.data, Data>>();
 });
 expectType<Equal<ReturnType<typeof worker.getBackend>, PostgresQueueBackend>>();
+expectType<
+  Equal<
+    Awaited<typeof worker.jobScheduler>,
+    JobScheduler<PostgresQueueBackend, PostgresConnectionOptions>
+  >
+>();
 new pg.Worker<Data>('tasks', undefined, opts);
 new pg.Worker<Data>('tasks', '/path/to/processor.js', opts);
 pg.Worker.RateLimitError();
