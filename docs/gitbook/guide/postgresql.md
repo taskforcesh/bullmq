@@ -31,10 +31,8 @@ npm install pg
 
 Pass `createPostgresBackend` as the **last constructor argument**, with a
 `connection` that node-postgres understands (a connection string, a pool config,
-or a `pg.Pool`). TypeScript infers the backend type and its connection-options
-type directly from the `createPostgresBackend` argument, so `connection` is
-checked against PostgreSQL's own connection shape — no explicit generic type
-arguments or casts are needed:
+or a `pg.Pool`). TypeScript infers the backend and connection types from the
+factory:
 
 ```typescript
 import { Queue, Worker, createPostgresBackend } from 'bullmq';

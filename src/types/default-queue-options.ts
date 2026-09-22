@@ -1,4 +1,5 @@
 import type { ConnectionOptions } from '../interfaces/redis-options';
+import type { QueueBaseOptions } from '../interfaces/queue-options';
 
 type Equal<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
@@ -6,16 +7,17 @@ type Equal<A, B> =
     : false;
 
 /**
- * Only the default Redis specialization can omit connection options.
+ * Only the default Redis specialization accepts optional options without a factory.
  */
 export type DefaultQueueOptions<
   B,
   C,
   DefaultBackend,
+  Options extends QueueBaseOptions = QueueBaseOptions,
   Extra extends unknown[] = [],
 > =
   Equal<B, DefaultBackend> extends true
     ? Equal<C, ConnectionOptions> extends true
-      ? [opts?: undefined, backendFactory?: undefined, ...Extra]
+      ? [opts?: Options, backendFactory?: undefined, ...Extra]
       : [opts: never]
     : [opts: never];

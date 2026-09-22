@@ -11,12 +11,8 @@ export enum ClientType {
 /**
  * Base Queue options.
  *
- * @typeParam ConnectionOptionsType - The shape of the `connection` option.
- * Defaults to the Redis connection union ({@link ConnectionOptions}). Backends
- * other than Redis (e.g. the PostgreSQL adapter) provide their own connection
- * type and their {@link BackendFactory} is typed accordingly, so passing that
- * factory into a queue class narrows `connection` to the matching type without
- * widening it for everyone else.
+ * @typeParam ConnectionOptionsType - Connection options accepted by the backend.
+ * Defaults to Redis {@link ConnectionOptions}.
  */
 export interface QueueBaseOptions<ConnectionOptionsType = ConnectionOptions> {
   /**

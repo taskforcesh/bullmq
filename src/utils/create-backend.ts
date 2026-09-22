@@ -55,10 +55,7 @@ export const createRedisBackend: BackendFactory<RedisQueueBackend> = (
   opts,
   { blocking = false, withBlockingConnection = false } = {},
 ) => {
-  // QueueEvents' main connection (`blocking: true`) must be dedicated: if the
-  // caller passed a raw client instance (rather than options), duplicate it
-  // so this instance never shares its consumption of the connection with
-  // whatever else the caller is doing with the original client.
+  // A blocking consumer must not block the caller's shared Redis client.
   const mainConnectionOpts =
     blocking && isRedisInstance(opts.connection)
       ? (isIRedisClient(opts.connection)
@@ -98,8 +95,7 @@ export const createRedisBackend: BackendFactory<RedisQueueBackend> = (
  * pass an explicit `backendFactory`. Initialised to the Redis backend so the
  * default behaviour is unchanged.
  */
-let defaultBackendFactory: BackendFactory =
-  createRedisBackend as unknown as BackendFactory;
+let defaultBackendFactory: BackendFactory = createRedisBackend;
 
 /**
  * Overrides the process-wide default {@link BackendFactory}. Useful to point
@@ -109,19 +105,15 @@ let defaultBackendFactory: BackendFactory =
  *
  * Pass no argument (or `undefined`) to reset back to the Redis backend.
  *
- * Generic over `B`/`C` so a backend-specific factory (e.g.
- * `createPostgresBackend`, whose `C` is its own connection-options type) can be
- * passed in without a cast at the call site. The process-wide default is
- * necessarily type-erased internally (it must be able to hold *any* backend's
- * factory), which is what the single, well-contained cast below accounts for.
+ * Registration changes runtime behavior, not constructor type defaults.
+ * Use {@link withBackend} to retain the factory's types.
  */
 export function setDefaultBackendFactory<
   B extends IQueueBackend = IQueueBackend,
   C = ConnectionOptions,
 >(factory?: BackendFactory<B, C>): void {
   defaultBackendFactory =
-    (factory as unknown as BackendFactory) ??
-    (createRedisBackend as unknown as BackendFactory);
+    (factory as unknown as BackendFactory) ?? createRedisBackend;
 }
 
 /**

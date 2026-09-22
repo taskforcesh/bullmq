@@ -60,6 +60,7 @@ export class QueueBase<
       B,
       ConnectionOptionsType,
       IQueueBackend,
+      QueueBaseOptions,
       [hasBlockingConnection?: boolean]
     >
   );

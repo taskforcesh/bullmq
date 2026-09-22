@@ -2,17 +2,24 @@ import {
   BackendFactory,
   ConnectionOptions,
   FlowProducer,
+  FlowProducerOptions,
   IQueueBackend,
   Job,
   JobScheduler,
   Queue,
   QueueBase,
+  QueueBaseOptions,
   QueueEvents,
+  QueueEventsOptions,
   QueueEventsProducer,
+  QueueEventsProducerOptions,
   QueueGetters,
+  QueueOptions,
   RedisQueueBackend,
   Worker,
+  WorkerOptions,
   createPostgresBackend,
+  createRedisBackend,
   withBackend,
 } from '../../dist/type-tests';
 
@@ -35,6 +42,59 @@ new QueueEventsProducer('tasks');
 new FlowProducer();
 new Queue('tasks', undefined);
 new QueueBase('tasks', undefined, undefined, true);
+
+declare const optionalBaseOpts: QueueBaseOptions | undefined;
+declare const optionalQueueOpts: QueueOptions | undefined;
+declare const optionalEventsOpts: QueueEventsOptions | undefined;
+declare const optionalProducerOpts: QueueEventsProducerOptions | undefined;
+declare const optionalFlowOpts: FlowProducerOptions | undefined;
+declare const optionalWorkerOpts: WorkerOptions | undefined;
+new QueueBase('tasks', optionalBaseOpts, undefined, true);
+new QueueGetters('tasks', optionalBaseOpts);
+new Queue('tasks', optionalQueueOpts);
+new Queue<{ value: number }>('tasks', optionalQueueOpts, undefined);
+new QueueEvents('tasks', optionalEventsOpts);
+new QueueEvents<number>('tasks', optionalEventsOpts, undefined);
+new QueueEventsProducer('tasks', optionalProducerOpts);
+new FlowProducer(optionalFlowOpts);
+new Worker<{ value: number }>('tasks', undefined, optionalWorkerOpts);
+
+declare const useOptions: boolean;
+new Queue(
+  'tasks',
+  useOptions
+    ? { connection: {}, defaultJobOptions: { attempts: 2 } }
+    : undefined,
+);
+new QueueEvents(
+  'tasks',
+  useOptions ? { connection: {}, autorun: false } : undefined,
+);
+new QueueEventsProducer(
+  'tasks',
+  useOptions ? { connection: {}, prefix: 'custom' } : undefined,
+);
+new FlowProducer(useOptions ? { connection: {}, prefix: 'custom' } : undefined);
+new Worker(
+  'tasks',
+  undefined,
+  useOptions ? { connection: {}, concurrency: 2 } : undefined,
+);
+
+// @ts-expect-error Optional options cannot be passed to an explicit factory.
+new Queue('tasks', optionalQueueOpts, createRedisBackend);
+// @ts-expect-error Optional options cannot be passed to an explicit factory.
+new QueueEvents('tasks', optionalEventsOpts, createRedisBackend);
+// @ts-expect-error Optional options cannot be passed to an explicit factory.
+new QueueEventsProducer('tasks', optionalProducerOpts, createRedisBackend);
+// @ts-expect-error Optional options cannot be passed to an explicit factory.
+new FlowProducer(optionalFlowOpts, createRedisBackend);
+// @ts-expect-error Optional options cannot be passed to an explicit factory.
+new Worker('tasks', undefined, optionalWorkerOpts, createRedisBackend);
+// @ts-expect-error Custom connection types cannot use the Redis fallback.
+new FlowProducer<CustomBackend, CustomConnection>(optionalFlowOpts);
+// @ts-expect-error A typed optional connection must not enable non-Redis inference.
+new Queue('tasks', useOptions ? { connection: false } : undefined);
 
 const queue = new Queue('tasks', opts, factory);
 queue.opts.connection.endpoint.toUpperCase();

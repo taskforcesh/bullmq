@@ -22,7 +22,12 @@ export class QueueEventsProducer<
   );
   constructor(
     name: string,
-    ...args: DefaultQueueOptions<B, ConnectionOptionsType, RedisQueueBackend>
+    ...args: DefaultQueueOptions<
+      B,
+      ConnectionOptionsType,
+      RedisQueueBackend,
+      QueueEventsProducerOptions
+    >
   );
   constructor(
     name: string,

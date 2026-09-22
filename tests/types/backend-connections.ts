@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import { PgPool } from '../../src/postgres/pg-types';
+import { PgPool } from '../../dist/type-tests/postgres/pg-types';
 import {
   BackendFactory,
   ConnectionOptions,
@@ -17,7 +17,7 @@ import {
   createPostgresBackend,
   createRedisBackend,
   withBackend,
-} from '../../src';
+} from '../../dist/type-tests';
 
 type Equal<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2

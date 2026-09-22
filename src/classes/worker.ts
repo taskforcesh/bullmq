@@ -248,7 +248,12 @@ export class Worker<
       | URL
       | null
       | Processor<DataType, ResultType, NameType, ProgressType>,
-    ...args: DefaultQueueOptions<B, ConnectionOptionsType, RedisQueueBackend>
+    ...args: DefaultQueueOptions<
+      B,
+      ConnectionOptionsType,
+      RedisQueueBackend,
+      WorkerOptions
+    >
   );
   constructor(
     name: string,

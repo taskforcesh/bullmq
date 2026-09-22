@@ -123,7 +123,12 @@ export class FlowProducer<
     backendFactory?: BackendFactory<B, ConnectionOptionsType>,
   );
   constructor(
-    ...args: DefaultQueueOptions<B, ConnectionOptionsType, RedisQueueBackend>
+    ...args: DefaultQueueOptions<
+      B,
+      ConnectionOptionsType,
+      RedisQueueBackend,
+      FlowProducerOptions
+    >
   );
   constructor(
     opts?: FlowProducerOptions<ConnectionOptionsType>,

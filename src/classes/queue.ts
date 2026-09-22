@@ -166,7 +166,12 @@ export class Queue<
   );
   constructor(
     name: string,
-    ...args: DefaultQueueOptions<B, ConnectionOptionsType, RedisQueueBackend>
+    ...args: DefaultQueueOptions<
+      B,
+      ConnectionOptionsType,
+      RedisQueueBackend,
+      QueueOptions
+    >
   );
   constructor(
     name: string,

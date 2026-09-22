@@ -2,8 +2,10 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": true,
-    "incremental": false
+    "incremental": false,
+    "strictNullChecks": true,
+    "skipLibCheck": true
   },
-  "include": ["src", "tests/types/**/*.ts"],
+  "include": ["tests/types/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

@@ -274,7 +274,12 @@ export class QueueEvents<
   );
   constructor(
     name: string,
-    ...args: DefaultQueueOptions<B, ConnectionOptionsType, RedisQueueBackend>
+    ...args: DefaultQueueOptions<
+      B,
+      ConnectionOptionsType,
+      RedisQueueBackend,
+      QueueEventsOptions
+    >
   );
   constructor(
     name: string,
@@ -286,9 +291,6 @@ export class QueueEvents<
     if (queueOptions) {
       delete queueOptions.autorun;
     }
-    // This class requires a dedicated connection: when the Redis backend is
-    // used, `createRedisBackend` duplicates a raw client instance passed as
-    // `connection` (see its `blocking` handling), rather than sharing it.
     super(name, queueOptions, backendFactory, true);
 
     this.opts = Object.assign(

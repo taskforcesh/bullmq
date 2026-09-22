@@ -787,23 +787,9 @@ export interface IQueueBackend {
  * datastore/connection. The default factory is the Redis one
  * (`createRedisBackend`).
  *
- * The factory is generic over the concrete backend type `B` it produces, so a
- * caller (or class) parameterized on `B` keeps the concrete typing end-to-end
- * (e.g. `getBackend()` returning the concrete adapter instead of the bare
- * interface).
- *
- * It is also generic over `ConnectionOptionsType`, the shape of connection
- * options the backend actually accepts (e.g. {@link ConnectionOptions} for
- * Redis, or a Postgres-specific union for the PostgreSQL adapter). Because a
- * `BackendFactory` value carries its own concrete `ConnectionOptionsType`,
- * TypeScript infers it end-to-end from whichever factory is passed into a
- * queue class's constructor: `new Queue(name, opts, createPostgresBackend)`
- * type-checks `opts.connection` against the PostgreSQL adapter's connection
- * type instead of Redis's, with no cast required on either side. This inference
- * requires omitting explicit class type arguments. Use {@link withBackend} to
- * bind the backend first when supplying job or event-result type arguments.
- * Without a factory or explicit connection type, constructors retain the Redis
- * connection type; connection values alone do not select a backend.
+ * Constructors infer the backend and connection types from this factory.
+ * Use {@link withBackend} when also specifying job or event-result type arguments.
+ * Without a factory or explicit types, constructors retain their Redis defaults.
  */
 export type BackendFactory<
   B extends IQueueBackend = IQueueBackend,
