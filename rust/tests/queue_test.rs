@@ -779,23 +779,24 @@ async fn test_get_dependencies_processed_cross_prefix_child_context() {
     cleanup_queue(&parent_queue).await;
 }
 
-// Regression: a child queue whose prefix extends the parent's prefix
-// (`tenant` -> `tenant:region`) produces a job key that is shaped exactly like
-// a legacy colon-containing id under the parent prefix. The dependency parser
-// must resolve it to the nested child queue, not to the parent's prefix.
+// Regression: a legacy child stored under a prefix other than the parent's,
+// with a colon-containing id and *without* the persisted `opts.jobId` that
+// newer versions write. Because prefixes and queue names may not contain `:`,
+// the dependency parser must still recover the child's queue context from the
+// qualified key alone.
 #[tokio::test]
-async fn test_get_dependencies_nested_child_prefix_context() {
+async fn test_get_dependencies_legacy_foreign_prefix_child_context() {
     let parent_name = test_queue_name();
     let child_name = test_queue_name();
     let conn = test_connection();
-    let parent_prefix = format!("nested-{}", test_queue_name());
-    let child_prefix = format!("{parent_prefix}:region");
+    let parent_prefix = "legacyparentpref";
+    let child_prefix = "legacychildpref";
 
     let parent_queue = Queue::with_options(
         &parent_name,
         QueueOptions {
             connection: conn.clone(),
-            prefix: parent_prefix.clone(),
+            prefix: parent_prefix.to_string(),
             ..Default::default()
         },
     )
@@ -806,29 +807,32 @@ async fn test_get_dependencies_nested_child_prefix_context() {
         &child_name,
         QueueOptions {
             connection: conn.clone(),
-            prefix: child_prefix.clone(),
+            prefix: child_prefix.to_string(),
             ..Default::default()
         },
     )
     .await
     .unwrap();
 
-    // No custom job id: the child id is auto-generated, so `opts.jobId` is not
-    // persisted and the key boundary cannot be read off the id.
     let parent = parent_queue
         .add("parent", serde_json::json!({}))
         .await
         .unwrap();
+    let child_id = "repeat:scheduler-id:1700000000000";
     let child = child_queue
         .add("child", serde_json::json!({ "x": 1 }))
+        .options(JobOptions {
+            job_id: Some(child_id.to_string()),
+            ..Default::default()
+        })
         .await
         .unwrap();
+    assert_eq!(child.id(), child_id);
 
-    // The dependency link is wired directly in Redis: neither `FlowProducer`
-    // (which rejects colon-containing prefixes) nor `ParentOptions` (which
-    // qualifies the parent with the *child's* prefix) can express a parent
-    // whose prefix is a proper prefix of the child's. The resulting keys are
-    // exactly what a cross-prefix flow would store.
+    // The dependency link is wired directly in Redis: `ParentOptions` qualifies
+    // the parent with the *child's* prefix, so it cannot express a parent
+    // living under a different prefix. These are the keys a cross-prefix flow
+    // stores.
     let parent_key = parent_queue.keys().job_key(parent.id());
     let child_key = child_queue.keys().job_key(child.id());
     let parent_deps_key = format!("{parent_key}:dependencies");
@@ -851,6 +855,10 @@ async fn test_get_dependencies_nested_child_prefix_context() {
             })
             .to_string(),
         )
+        // Jobs added before `opts.jobId` was persisted carry no boundary
+        // marker, so the colon-containing id must be recovered positionally.
+        .arg("opts")
+        .arg("{}")
         .query_async::<()>(&mut redis_conn)
         .await
         .unwrap();
@@ -862,9 +870,10 @@ async fn test_get_dependencies_nested_child_prefix_context() {
     assert_eq!(dependencies.jobs.len(), 1);
 
     let dep_child = dependencies.jobs.into_iter().next().unwrap();
-    assert_eq!(dep_child.id(), child.id());
+    assert_eq!(dep_child.id(), child_id);
 
-    // Regression guard: this lookup must use the nested child queue keys.
+    // Regression guard: this lookup must use the child queue keys (child
+    // prefix, child queue name), not a mis-split of the qualified key.
     assert_eq!(dep_child.get_state().await.unwrap(), JobState::Waiting);
 
     cleanup_queue(&child_queue).await;
