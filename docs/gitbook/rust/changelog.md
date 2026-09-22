@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/taskforcesh/bullmq/compare/vrs1.2.10...vrs1.3.0) (2026-09-22)
+
+
+### Features
+
+* **queue:** support get_dependencies method [rust] ([#4717](https://github.com/taskforcesh/bullmq/issues/4717)) ([64133c2](https://github.com/taskforcesh/bullmq/commit/64133c2d719eb6a992cd6247fb87328d52048ecd))
+
 ## [1.2.10](https://github.com/taskforcesh/bullmq/compare/vrs1.2.9...vrs1.2.10) (2026-09-18)
 
 
