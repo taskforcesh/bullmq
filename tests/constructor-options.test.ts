@@ -110,7 +110,9 @@ describe('backend constructor connection options', () => {
   );
 
   it('preserves no-options Redis constructors', async () => {
-    const name = `defaults-${randomUUID()}`;
+    const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
+    // Keep the test hash tag in the name since this test must omit options.
+    const name = `${prefix}-defaults-${randomUUID()}`;
     const queue = new Queue(name);
     const instances = [
       queue,
