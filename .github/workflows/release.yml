@@ -205,8 +205,8 @@ jobs:
       - name: Setup Elixir
         uses: erlef/setup-beam@v1.24.1
         with:
-          elixir-version: 'v1.17.3'
-          otp-version: '29.1'
+          elixir-version: 'v1.20.4'
+          otp-version: '29.1.1'
       - name: Copy runtime artifacts for Elixir
         if: ${{ contains(env.commitmsg, '[elixir]') || contains(env.commitmsg, '(elixir)') }}
         run: |
