@@ -199,6 +199,16 @@ async fn test_worker_recovers_after_connection_is_killed() {
     assert!(killed > 0, "expected CLIENT KILL to drop some connections");
 
     // The worker must reconnect by itself and keep processing.
+    tokio::time::timeout(Duration::from_secs(20), async {
+        loop {
+            if queue.connection().ping().await.is_ok() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("queue did not reconnect");
     queue.add("after", serde_json::json!({})).await.unwrap();
     let second = tokio::time::timeout(Duration::from_secs(20), rx.recv())
         .await
