@@ -42,6 +42,9 @@ new QueueEventsProducer('tasks');
 new FlowProducer();
 new Queue('tasks', undefined);
 new QueueBase('tasks', undefined, undefined, true);
+new QueueBase<RedisQueueBackend>('tasks');
+new QueueGetters<Job, RedisQueueBackend>('tasks');
+new QueueBase<RedisQueueBackend>('tasks', undefined, undefined, true);
 
 declare const optionalBaseOpts: QueueBaseOptions | undefined;
 declare const optionalQueueOpts: QueueOptions | undefined;
@@ -51,6 +54,8 @@ declare const optionalFlowOpts: FlowProducerOptions | undefined;
 declare const optionalWorkerOpts: WorkerOptions | undefined;
 new QueueBase('tasks', optionalBaseOpts, undefined, true);
 new QueueGetters('tasks', optionalBaseOpts);
+new QueueBase<RedisQueueBackend>('tasks', optionalBaseOpts);
+new QueueGetters<Job, RedisQueueBackend>('tasks', optionalBaseOpts);
 new Queue('tasks', optionalQueueOpts);
 new Queue<{ value: number }>('tasks', optionalQueueOpts, undefined);
 new QueueEvents('tasks', optionalEventsOpts);
@@ -175,6 +180,21 @@ new Queue('tasks', undefined, createPostgresBackend);
 new QueueBase<CustomBackend, CustomConnection>('tasks');
 // @ts-expect-error Explicit backend/connection types cannot use Redis defaults.
 new QueueGetters<Job, CustomBackend, CustomConnection>('tasks');
+// @ts-expect-error A custom backend with Redis connection options is not the default.
+new QueueBase<CustomBackend>('tasks');
+// @ts-expect-error Inherited constructors must also reject custom backends.
+new QueueGetters<Job, CustomBackend>('tasks');
+interface CustomRedisBackend extends RedisQueueBackend {
+  customOperation(): void;
+}
+// @ts-expect-error Redis subclasses with additional requirements are not the default.
+new QueueBase<CustomRedisBackend>('tasks');
+// @ts-expect-error Inherited constructors must also reject Redis subclasses.
+new QueueGetters<Job, CustomRedisBackend>('tasks');
+// @ts-expect-error Explicit Redis backends still require options for custom connection types.
+new QueueBase<RedisQueueBackend, CustomConnection>('tasks');
+// @ts-expect-error Redis options with additional required fields cannot be omitted.
+new QueueBase<RedisQueueBackend, ConnectionOptions & { host: string }>('tasks');
 // @ts-expect-error Explicit backend/connection types cannot use Redis defaults.
 new Queue<
   unknown,
