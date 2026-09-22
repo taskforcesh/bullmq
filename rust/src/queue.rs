@@ -8,8 +8,12 @@ use tracing::{debug, instrument};
 
 use crate::error::Error;
 use crate::job::{Job, ScriptContext};
-use crate::keys::{resolve_parent_queue_key, validate_queue_name, QueueKeys};
+use crate::keys::{
+    resolve_parent_queue_key, validate_custom_job_id, validate_prefix, validate_queue_name,
+    QueueKeys,
+};
 use crate::options::{DeduplicationOptions, JobOptions, ParentOptions, QueueOptions};
+use crate::paginate::{paginate_item_key, parse_paginate_reply, value_to_string};
 use crate::redis_connection::RedisConnection;
 use crate::types::{
     BackoffStrategy, DependenciesCount, JobCounts, JobState, QueueMeta, RemoveOnFinish,
@@ -27,6 +31,38 @@ const GET_JOBS_MAX_BACKFILL_ITERATIONS: usize = 5;
 /// forwarding job-count gauges to a metrics/telemetry backend.
 pub type JobCountRecorder<'a> = &'a dyn Fn(&str, u64);
 
+/// One dependency entry returned by [`Queue::get_dependencies`].
+///
+/// For `pending` dependencies, only `id` is populated.
+/// For `processed` dependencies, `v` contains the parsed JSON return value,
+/// or `err` contains the parse error message when the stored value is not
+/// valid JSON.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct DependencyItem {
+    /// Qualified child job key (`<prefix>:<queue>:<id>`).
+    pub id: String,
+    /// Parsed child return value (processed dependencies only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub v: Option<serde_json::Value>,
+    /// JSON parse error for `v` (processed dependencies only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub err: Option<String>,
+}
+
+/// Paginated dependencies view returned by [`Queue::get_dependencies`].
+///
+/// Mirrors Node.js `Queue.getDependencies` and includes both dependency items
+/// and the fetched child jobs.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct QueueDependencies {
+    /// Dependency entries (pending keys or processed key/value pairs).
+    pub items: Vec<DependencyItem>,
+    /// Child jobs fetched for the returned `items`.
+    pub jobs: Vec<Job>,
+    /// Total number of entries in the dependency collection.
+    pub total: u64,
+}
+
 /// A Queue is the main entry point for adding jobs to be processed.
 ///
 /// It provides methods for adding single and bulk jobs, and managing
@@ -40,7 +76,8 @@ pub struct Queue {
 }
 
 impl Queue {
-    fn validate_job_size(job: &Job, argv2: &str) -> Result<(), Error> {
+    /// Client-side job validation, mirroring `Job.validateOptions` in Node.js.
+    fn validate_job_options(job: &Job, argv2: &str) -> Result<(), Error> {
         if let Some(size_limit) = job.opts().size_limit {
             if argv2.len() > size_limit {
                 return Err(Error::InvalidConfig(format!(
@@ -49,6 +86,15 @@ impl Queue {
                     size_limit
                 )));
             }
+        }
+
+        if let Some(job_id) = job.opts().job_id.as_deref() {
+            if job_id == "0" || job_id.starts_with("0:") {
+                return Err(Error::InvalidConfig(
+                    "JobId cannot be '0' or start with '0:'".to_string(),
+                ));
+            }
+            validate_custom_job_id(job_id)?;
         }
 
         Ok(())
@@ -73,6 +119,7 @@ impl Queue {
     /// Create a new Queue with explicit options.
     pub async fn with_options(name: &str, opts: QueueOptions) -> Result<Self, Error> {
         validate_queue_name(name)?;
+        validate_prefix(&opts.prefix)?;
         let conn = RedisConnection::new(&opts.connection).await?;
         let keys = QueueKeys::new(name, Some(&opts.prefix));
 
@@ -95,6 +142,7 @@ impl Queue {
         opts: QueueOptions,
     ) -> Result<Self, Error> {
         validate_queue_name(name)?;
+        validate_prefix(&opts.prefix)?;
         let keys = QueueKeys::new(name, Some(&opts.prefix));
 
         let queue = Self {
@@ -187,7 +235,7 @@ impl Queue {
             .iter()
             .map(|job| {
                 let argv2 = serde_json::to_string(job.data())?;
-                Self::validate_job_size(job, &argv2)?;
+                Self::validate_job_options(job, &argv2)?;
                 Ok(argv2)
             })
             .collect::<Result<_, Error>>()?;
@@ -280,7 +328,7 @@ impl Queue {
 
         // Enforce sizeLimit client-side (matches Node.js `validateOptions`):
         // reject jobs whose serialized data exceeds the configured byte limit.
-        Self::validate_job_size(job, &argv2)?;
+        Self::validate_job_options(job, &argv2)?;
 
         // Build ARGV[3]: msgpack map of options
         let argv3 = self.pack_job_opts(job);
@@ -302,10 +350,15 @@ impl Queue {
     /// Per-job options take precedence over defaults.
     /// Create a ScriptContext for jobs returned by queue methods.
     fn make_script_context(&self) -> ScriptContext {
+        self.make_script_context_for_keys(self.keys.clone())
+    }
+
+    /// Create a ScriptContext for jobs that belong to `keys`.
+    fn make_script_context_for_keys(&self, keys: QueueKeys) -> ScriptContext {
         let (progress_tx, _) = tokio::sync::broadcast::channel(1);
         ScriptContext {
             conn: self.conn.clone(),
-            keys: self.keys.clone(),
+            keys,
             progress_tx,
             token: String::new(),
             lock_duration: 0,
@@ -518,6 +571,17 @@ impl Queue {
         if let Some(ref dedup) = opts.deduplication {
             let b = Self::encode_deduplication(dedup);
             entries.push(("de", b));
+        }
+
+        // Persist the custom job id so the qualified job key
+        // (`{prefix}:{queueName}:{jobId}`) can be parsed back unambiguously.
+        // Mirrors `optsAsJSON` in the Node.js backend, which stores `jobId` too.
+        if let Some(ref job_id) = opts.job_id {
+            if !job_id.is_empty() {
+                let mut b = Vec::new();
+                write_str(&mut b, job_id).unwrap();
+                entries.push(("jobId", b));
+            }
         }
 
         // Encode as msgpack map
@@ -1475,6 +1539,123 @@ impl Queue {
         }
 
         Ok(metrics)
+    }
+
+    /// Return dependencies of a parent job with pagination.
+    ///
+    /// Mirrors Node.js `Queue.getDependencies(parentId, type, start, end)`:
+    ///
+    /// - `dependency_type`: `"pending"` (dependencies set) or
+    ///   `"processed"` (processed hash)
+    /// - `start` / `end`: zero-based inclusive range (`-1` means all)
+    ///
+    /// Returns dependency items, fetched child jobs and total number of
+    /// dependency entries.
+    pub async fn get_dependencies(
+        &self,
+        parent_id: &str,
+        dependency_type: &str,
+        start: i64,
+        end: i64,
+    ) -> Result<QueueDependencies, Error> {
+        let script = self
+            .conn
+            .scripts()
+            .get("paginate")
+            .ok_or_else(|| Error::InvalidConfig("paginate script not found".to_string()))?
+            .clone();
+
+        let parent_key = self.keys.job_key(parent_id);
+        let key = match dependency_type {
+            "processed" => format!("{}:processed", parent_key),
+            "pending" => format!("{}:dependencies", parent_key),
+            other => {
+                return Err(Error::InvalidConfig(format!(
+                    "invalid dependency type: {other} (expected 'processed' or 'pending')"
+                )))
+            }
+        };
+
+        let page_size = if end >= 0 {
+            if end < start {
+                0
+            } else {
+                end.saturating_sub(start).saturating_add(1) as usize
+            }
+        } else {
+            usize::MAX
+        };
+
+        let mut cursor = "0".to_string();
+        let mut offset: i64 = 0;
+        let mut total: u64 = 0;
+        let mut collected_items: Vec<redis::Value> = Vec::new();
+        let mut jobs: Vec<Job> = Vec::new();
+        let mut conn = self.conn.conn();
+
+        loop {
+            let collected_len = i64::try_from(collected_items.len())
+                .map_err(|_| Error::InvalidConfig("dependency pagination overflow".to_string()))?;
+            let start_arg = start
+                .checked_add(collected_len)
+                .ok_or_else(|| Error::InvalidConfig("dependency pagination overflow".to_string()))?
+                .to_string();
+            let end_arg = end.to_string();
+            let offset_arg = offset.to_string();
+            let max_iterations = "5".to_string();
+            let fetch_jobs = "1".to_string();
+
+            let args: Vec<&[u8]> = vec![
+                start_arg.as_bytes(),
+                end_arg.as_bytes(),
+                cursor.as_bytes(),
+                offset_arg.as_bytes(),
+                max_iterations.as_bytes(),
+                fetch_jobs.as_bytes(),
+            ];
+
+            let raw = script.execute(&mut conn, &[&key], &args).await?;
+            let (next_cursor, next_offset, mut page_items, page_total, raw_jobs) =
+                parse_paginate_reply(&raw)?;
+
+            if total == 0 {
+                total = page_total;
+            }
+
+            for (item, raw_job) in page_items.iter().zip(raw_jobs.iter()) {
+                let Some(qualified_key) = paginate_item_key(item) else {
+                    continue;
+                };
+                let Some(split) = split_qualified_job_key(&qualified_key) else {
+                    continue;
+                };
+                // A completed child may already have been deleted by
+                // `removeOnComplete` while its key and return value remain in the
+                // parent's processed hash, so `HGETALL` yields no fields. Keep the
+                // entry and build a default job from the qualified key to preserve
+                // the one-job-per-item ordering used by the Node.js implementation.
+                let fields = Self::parse_hash_array(raw_job);
+                let mut job = Job::from_redis_hash(&split.job_id, &fields)?;
+                let keys = QueueKeys::new(&split.queue_name, Some(&split.prefix));
+                job.set_context(self.make_script_context_for_keys(keys));
+                jobs.push(job);
+            }
+
+            collected_items.append(&mut page_items);
+            cursor = next_cursor;
+            offset = next_offset;
+
+            if cursor == "0" || collected_items.len() >= page_size {
+                break;
+            }
+        }
+
+        let items = collected_items
+            .iter()
+            .filter_map(Self::decode_dependency_item)
+            .collect();
+
+        Ok(QueueDependencies { items, jobs, total })
     }
 
     /// Get return values of all completed children of a parent job.
@@ -2634,6 +2815,36 @@ impl Queue {
         map
     }
 
+    /// Decode one dependency item, matching Node.js `Queue.getDependencies`.
+    fn decode_dependency_item(item: &redis::Value) -> Option<DependencyItem> {
+        match item {
+            redis::Value::Array(pair) => {
+                let id = pair.first().and_then(value_to_string)?;
+                let raw = pair.get(1).and_then(value_to_string).unwrap_or_default();
+                match serde_json::from_str::<serde_json::Value>(&raw) {
+                    Ok(v) => Some(DependencyItem {
+                        id,
+                        v: Some(v),
+                        err: None,
+                    }),
+                    Err(err) => Some(DependencyItem {
+                        id,
+                        v: None,
+                        err: Some(err.to_string()),
+                    }),
+                }
+            }
+            other => {
+                let id = value_to_string(other)?;
+                Some(DependencyItem {
+                    id,
+                    v: None,
+                    err: None,
+                })
+            }
+        }
+    }
+
     /// Pack job options from a JobOptions struct into msgpack (for template opts).
     fn pack_job_opts_from_options(&self, opts: &JobOptions) -> Vec<u8> {
         use rmp::encode::*;
@@ -2916,6 +3127,43 @@ fn duration_as_millis(duration: Duration) -> u64 {
     u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
 }
 
+/// A `<prefix>:<queueName>:<jobId>` split of a qualified job key.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SplitJobKey {
+    prefix: String,
+    queue_name: String,
+    job_id: String,
+}
+
+impl SplitJobKey {
+    /// Build a split, rejecting the empty prefixes, queue names and job ids
+    /// that a malformed key produces.
+    fn new(prefix: &str, queue_name: &str, job_id: &str) -> Option<Self> {
+        if prefix.is_empty() || queue_name.is_empty() || job_id.is_empty() {
+            return None;
+        }
+        Some(Self {
+            prefix: prefix.to_string(),
+            queue_name: queue_name.to_string(),
+            job_id: job_id.to_string(),
+        })
+    }
+}
+
+/// Split a qualified job key into `{prefix}:{queueName}:{jobId}`.
+///
+/// Prefixes and queue names are validated to be non-empty and free of `:`
+/// (see `validate_prefix` and `validate_queue_name`), so the first two
+/// separators delimit them and everything that follows is the job id — however
+/// many `:` it contains, as legacy repeatable ids do. This holds for children
+/// stored under a prefix other than the parent queue's, since the boundary is
+/// derived from the key alone rather than from the parent's prefix.
+fn split_qualified_job_key(key: &str) -> Option<SplitJobKey> {
+    let (prefix, rest) = key.split_once(':')?;
+    let (queue_name, job_id) = rest.split_once(':')?;
+    SplitJobKey::new(prefix, queue_name, job_id)
+}
+
 /// Escape a Prometheus label value (`\`, `"`, and newlines).
 ///
 /// Mirrors Node.js `escapePrometheusLabelValue`.
@@ -3034,5 +3282,60 @@ mod progress_serialization_tests {
     fn serializes_regular_values_as_json() {
         let serialized = serialize_progress_for_script(&JobProgress::Number(42.0)).unwrap();
         assert_eq!(serialized, "42.0");
+    }
+}
+
+#[cfg(test)]
+mod dependency_key_tests {
+    use super::{split_qualified_job_key, SplitJobKey};
+
+    fn split(prefix: &str, queue_name: &str, job_id: &str) -> Option<SplitJobKey> {
+        SplitJobKey::new(prefix, queue_name, job_id)
+    }
+
+    #[test]
+    fn splits_plain_keys() {
+        assert_eq!(
+            split_qualified_job_key("bull:queue:1"),
+            split("bull", "queue", "1")
+        );
+    }
+
+    #[test]
+    fn preserves_colons_in_custom_job_ids() {
+        // Prefixes and queue names cannot contain `:`, so everything after the
+        // second separator belongs to the id — no stored `opts.jobId` or Redis
+        // probe is needed to find the boundary.
+        assert_eq!(
+            split_qualified_job_key("bull:queue:repeat:sched:1700000000000"),
+            split("bull", "queue", "repeat:sched:1700000000000")
+        );
+        assert_eq!(
+            split_qualified_job_key("bull:queue:a:b:c:d"),
+            split("bull", "queue", "a:b:c:d")
+        );
+    }
+
+    #[test]
+    fn splits_children_stored_under_a_foreign_prefix() {
+        // The boundary comes from the key itself, so a child living under a
+        // prefix other than the parent queue's resolves correctly, colon id or
+        // not.
+        assert_eq!(
+            split_qualified_job_key("tenant:child:1"),
+            split("tenant", "child", "1")
+        );
+        assert_eq!(
+            split_qualified_job_key("tenant:child:repeat:sched:1"),
+            split("tenant", "child", "repeat:sched:1")
+        );
+    }
+
+    #[test]
+    fn rejects_keys_without_a_prefix_queue_name_or_job_id() {
+        assert_eq!(split_qualified_job_key(":queue:1"), None);
+        assert_eq!(split_qualified_job_key("bull::1"), None);
+        assert_eq!(split_qualified_job_key("bull:queue:"), None);
+        assert_eq!(split_qualified_job_key("queue:1"), None);
     }
 }

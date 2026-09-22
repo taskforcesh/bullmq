@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::error::Error;
 use crate::job::Job;
-use crate::keys::{validate_queue_name, QueueKeys};
+use crate::keys::{validate_prefix, validate_queue_name, QueueKeys};
 use crate::options::{JobOptions, WorkerOptions};
 use crate::redis_connection::{BlockingRedisConnection, RedisConnection};
 use crate::types::RemoveOnFinish;
@@ -580,6 +580,7 @@ impl Worker {
         let processor: ProcessorFn = processor.into_processor();
 
         validate_queue_name(queue_name)?;
+        validate_prefix(&opts.prefix)?;
 
         // Validate options
         if opts.concurrency == 0 {

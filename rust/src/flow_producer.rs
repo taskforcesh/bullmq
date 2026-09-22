@@ -10,8 +10,12 @@ use uuid::Uuid;
 
 use crate::error::Error;
 use crate::job::{Job, ScriptContext};
-use crate::keys::{resolve_parent_queue_key, validate_queue_name, QueueKeys};
+use crate::keys::{
+    resolve_parent_queue_key, validate_custom_job_id, validate_prefix, validate_queue_name,
+    QueueKeys,
+};
 use crate::options::JobOptions;
+use crate::paginate::{paginate_item_key, parse_paginate_reply};
 use crate::queue::Queue;
 use crate::redis_connection::RedisConnection;
 use crate::types::ParentKeys;
@@ -235,22 +239,14 @@ impl FlowProducer {
     pub async fn with_options(opts: FlowProducerOptions) -> Result<Self, Error> {
         let conn = RedisConnection::new(&opts.connection).await?;
         let prefix = opts.prefix.unwrap_or_else(|| "bull".to_string());
-        if prefix.is_empty() || prefix.contains(':') {
-            return Err(Error::InvalidConfig(
-                "Prefix must be non-empty and cannot contain :".to_string(),
-            ));
-        }
+        validate_prefix(&prefix)?;
         Ok(Self { conn, prefix })
     }
 
     /// Create a FlowProducer with an existing Redis connection.
     pub fn with_connection(conn: RedisConnection, prefix: Option<String>) -> Result<Self, Error> {
         let prefix = prefix.unwrap_or_else(|| "bull".to_string());
-        if prefix.is_empty() || prefix.contains(':') {
-            return Err(Error::InvalidConfig(
-                "Prefix must be non-empty and cannot contain :".to_string(),
-            ));
-        }
+        validate_prefix(&prefix)?;
         Ok(Self { conn, prefix })
     }
 
@@ -421,11 +417,7 @@ impl FlowProducer {
     pub async fn get_flow(&self, opts: GetFlowOptions) -> Result<JobNode, Error> {
         validate_queue_name(&opts.queue_name)?;
         let prefix = opts.prefix.as_deref().unwrap_or(&self.prefix);
-        if prefix.is_empty() || prefix.contains(':') {
-            return Err(Error::InvalidConfig(
-                "Prefix must be non-empty and cannot contain :".to_string(),
-            ));
-        }
+        validate_prefix(prefix)?;
         let depth = opts.depth.unwrap_or(10);
         let max_children = opts.max_children.unwrap_or(20);
 
@@ -583,58 +575,15 @@ impl FlowProducer {
     /// `(cursor, offset, item_keys)`. For hashes each item is a `[field, value]`
     /// pair; only the field (child key) is kept.
     fn parse_paginate_result(value: &redis::Value) -> Result<(String, i64, Vec<String>), Error> {
-        let arr = match value {
-            redis::Value::Array(a) => a,
-            _ => {
-                return Err(Error::MsgPack(
-                    "unexpected paginate reply: not an array".to_string(),
-                ))
-            }
-        };
-
-        let cursor = arr
-            .first()
-            .and_then(Self::value_to_string)
-            .unwrap_or_else(|| "0".to_string());
-        let offset = arr.get(1).and_then(Self::value_as_i64).unwrap_or(0);
-
+        let (cursor, offset, items, _total, _jobs) = parse_paginate_reply(value)?;
         let mut keys = Vec::new();
-        if let Some(redis::Value::Array(items)) = arr.get(2) {
-            for item in items {
-                if let Some(k) = Self::paginate_item_key(item) {
-                    keys.push(k);
-                }
+        for item in &items {
+            if let Some(k) = paginate_item_key(item) {
+                keys.push(k);
             }
         }
 
         Ok((cursor, offset, keys))
-    }
-
-    /// Extract the key from a paginate item: a bare member (set) or the field of
-    /// a `[field, value]` pair (hash).
-    fn paginate_item_key(item: &redis::Value) -> Option<String> {
-        match item {
-            redis::Value::Array(pair) => pair.first().and_then(Self::value_to_string),
-            other => Self::value_to_string(other),
-        }
-    }
-
-    fn value_to_string(value: &redis::Value) -> Option<String> {
-        match value {
-            redis::Value::BulkString(b) => Some(String::from_utf8_lossy(b).to_string()),
-            redis::Value::SimpleString(s) => Some(s.clone()),
-            redis::Value::Int(n) => Some(n.to_string()),
-            _ => None,
-        }
-    }
-
-    fn value_as_i64(value: &redis::Value) -> Option<i64> {
-        match value {
-            redis::Value::Int(n) => Some(*n),
-            redis::Value::BulkString(b) => String::from_utf8_lossy(b).parse().ok(),
-            redis::Value::SimpleString(s) => s.parse().ok(),
-            _ => None,
-        }
     }
 
     /// Recursively add a node (job) to the pipeline.
@@ -1020,6 +969,17 @@ impl FlowProducer {
             entries.push(("de", b));
         }
 
+        // Persist the custom job id so the qualified job key
+        // (`{prefix}:{queueName}:{jobId}`) can be parsed back unambiguously.
+        // Mirrors `optsAsJSON` in the Node.js backend, which stores `jobId` too.
+        if let Some(ref job_id) = opts.job_id {
+            if !job_id.is_empty() {
+                let mut b = Vec::new();
+                write_str(&mut b, job_id).unwrap();
+                entries.push(("jobId", b));
+            }
+        }
+
         // Encode as msgpack map
         let mut buf = Vec::with_capacity(64);
         write_map_len(&mut buf, entries.len() as u32).unwrap();
@@ -1104,9 +1064,15 @@ impl FlowProducer {
     }
 
     /// Parse a child job key as `prefix:queueName:jobId`.
+    ///
+    /// The boundaries are resolved with the first two separators because
+    /// prefixes and queue names are validated to never contain `:`, whereas job
+    /// ids may: `validate_custom_job_id` keeps the Node.js exception for legacy
+    /// repeatable ids (`repeat:<schedulerId>:<millis>`). Splitting from the
+    /// right would swallow those ids and resolve the wrong queue.
     fn parse_child_key(child_key: &str) -> Option<(&str, &str, &str)> {
-        let (prefix, queue_and_job_id) = child_key.split_once(':')?;
-        let (queue_name, job_id) = queue_and_job_id.split_once(':')?;
+        let (prefix, rest) = child_key.split_once(':')?;
+        let (queue_name, job_id) = rest.split_once(':')?;
         if prefix.is_empty() || queue_name.is_empty() || job_id.is_empty() {
             return None;
         }
@@ -1160,11 +1126,10 @@ fn apply_queue_defaults(flow: &mut FlowJob, opts: &FlowOptions) {
 fn validate_flow_queue_names(flow: &FlowJob) -> Result<(), Error> {
     validate_queue_name(&flow.queue_name)?;
     if let Some(prefix) = flow.prefix.as_deref() {
-        if prefix.is_empty() || prefix.contains(':') {
-            return Err(Error::InvalidConfig(
-                "Prefix must be non-empty and cannot contain :".to_string(),
-            ));
-        }
+        validate_prefix(prefix)?;
+    }
+    if let Some(job_id) = flow.opts.as_ref().and_then(|opts| opts.job_id.as_deref()) {
+        validate_custom_job_id(job_id)?;
     }
     if let Some(children) = flow.children.as_ref() {
         for child in children {
@@ -1297,10 +1262,10 @@ mod tests {
     }
 
     #[test]
-    fn parse_child_key_preserves_job_id_segments() {
+    fn parse_child_key_preserves_colons_in_legacy_repeat_ids() {
         assert_eq!(
-            FlowProducer::parse_child_key("bull:queue:job:1"),
-            Some(("bull", "queue", "job:1"))
+            FlowProducer::parse_child_key("bull:queue:repeat:scheduler-id:1700000000000"),
+            Some(("bull", "queue", "repeat:scheduler-id:1700000000000"))
         );
     }
 

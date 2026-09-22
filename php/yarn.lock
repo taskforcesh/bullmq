@@ -291,6 +291,13 @@
   dependencies:
     "@octokit/types" "^16.0.0"
 
+"@octokit/plugin-paginate-rest@^15.0.0":
+  version "15.0.0"
+  resolved "https://registry.yarnpkg.com/@octokit/plugin-paginate-rest/-/plugin-paginate-rest-15.0.0.tgz#17b0dae6f33459888f790b40c5aaf087803d63a8"
+  integrity sha512-lw9A9YL5s4VPj+VEx8uMxaxQm2YTgrPDkrLEuZuu18R8TK3oPcXF4K6t52nx6xn1RcogZC9i188sAr/4XYJaQQ==
+  dependencies:
+    "@octokit/types" "^17.0.0"
+
 "@octokit/plugin-retry@^8.0.0":
   version "8.1.1"
   resolved "https://registry.yarnpkg.com/@octokit/plugin-retry/-/plugin-retry-8.1.1.tgz#eba8c670c3128a5474e8d1f62bd1b15fff09c583"
@@ -428,7 +435,30 @@
     micromatch "^4.0.0"
     p-reduce "^3.0.0"
 
-"@semantic-release/github@12.0.9", "@semantic-release/github@^12.0.0":
+"@semantic-release/github@12.0.10":
+  version "12.0.10"
+  resolved "https://registry.yarnpkg.com/@semantic-release/github/-/github-12.0.10.tgz#a0489f6a2d30a977e38b680ae2ef7524b59be8ad"
+  integrity sha512-QskygvpX8hFx9UEbqJ+C46OIhaJjsysNQ8PYJPuRDc/ek5+dh8WYGD1ofUahCcGLAOmnnwZTcmCJCEXM8XxhRw==
+  dependencies:
+    "@octokit/core" "^7.0.0"
+    "@octokit/plugin-paginate-rest" "^15.0.0"
+    "@octokit/plugin-retry" "^8.0.0"
+    "@octokit/plugin-throttling" "^11.0.0"
+    "@semantic-release/error" "^4.0.0"
+    aggregate-error "^5.0.0"
+    debug "^4.3.4"
+    dir-glob "^3.0.1"
+    http-proxy-agent "^9.0.0"
+    https-proxy-agent "^9.0.0"
+    issue-parser "^7.0.0"
+    lodash-es "^4.17.21"
+    mime "^4.0.0"
+    p-filter "^4.0.0"
+    tinyglobby "^0.2.14"
+    undici "^7.0.0"
+    url-join "^5.0.0"
+
+"@semantic-release/github@^12.0.0":
   version "12.0.9"
   resolved "https://registry.yarnpkg.com/@semantic-release/github/-/github-12.0.9.tgz#1cd28dafdad398fe423fd94578da772dbfb27d6a"
   integrity sha512-ODIqb0V3QqndipryEEiaBxUQCFjvv7Oese5Dt4omMGa60YRNEW0Sx3K+zri0uac2Y6S9nOlMehciWIzvvRCTGQ==
