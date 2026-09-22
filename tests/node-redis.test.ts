@@ -15,14 +15,14 @@ import {
 } from 'vitest';
 import { createClient, type RedisClientType } from 'redis';
 import {
+  createNodeRedisClient,
   Queue,
   Worker,
   FlowProducer,
   Job,
   RedisConnection,
 } from '../src/classes';
-import { createNodeRedisClient } from '../src/classes/node-redis-client';
-import { IRedisClient } from '../src/interfaces/redis-client';
+import { IRedisClient } from '../src/interfaces';
 import { randomUUID } from '../src/utils';
 
 const redisHost = process.env.REDIS_HOST || 'localhost';
