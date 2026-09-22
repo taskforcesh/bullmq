@@ -1,4 +1,4 @@
-use redis::aio::MultiplexedConnection;
+use redis::aio::ConnectionLike;
 use sha1::{Digest, Sha1};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -32,9 +32,13 @@ impl LuaScript {
     }
 
     /// Execute this script via EVALSHA, falling back to EVAL on NOSCRIPT.
-    pub async fn execute(
+    ///
+    /// The NOSCRIPT fallback also covers reconnects: a restarted Redis has an
+    /// empty script cache, so the first EVALSHA after recovery transparently
+    /// re-loads the script via EVAL.
+    pub async fn execute<C: ConnectionLike>(
         &self,
-        conn: &mut MultiplexedConnection,
+        conn: &mut C,
         keys: &[impl redis::ToRedisArgs],
         args: &[impl redis::ToRedisArgs],
     ) -> Result<redis::Value, Error> {
@@ -105,9 +109,9 @@ impl ScriptRegistry {
     ///
     /// This is intended for pipelined operations where EVALSHA must succeed
     /// without a NOSCRIPT -> EVAL fallback round trip.
-    pub async fn ensure_loaded(
+    pub async fn ensure_loaded<C: ConnectionLike>(
         &self,
-        conn: &mut MultiplexedConnection,
+        conn: &mut C,
         names: &[&str],
     ) -> Result<(), crate::error::Error> {
         let mut seen = HashSet::new();
@@ -321,7 +325,7 @@ mod tests {
         assert_eq!(sha.len(), 40);
     }
 
-    async fn test_conn() -> MultiplexedConnection {
+    async fn test_conn() -> redis::aio::MultiplexedConnection {
         let url =
             std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
         let client = redis::Client::open(url).expect("valid REDIS_URL");
@@ -331,7 +335,10 @@ mod tests {
             .expect("redis connection")
     }
 
-    async fn script_exists(conn: &mut MultiplexedConnection, shas: &[&str]) -> Vec<bool> {
+    async fn script_exists(
+        conn: &mut redis::aio::MultiplexedConnection,
+        shas: &[&str],
+    ) -> Vec<bool> {
         let mut cmd = redis::cmd("SCRIPT");
         cmd.arg("EXISTS");
         for sha in shas {

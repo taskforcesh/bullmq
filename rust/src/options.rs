@@ -82,6 +82,49 @@ impl std::fmt::Debug for TlsCerts {
     }
 }
 
+/// Automatic reconnection behaviour for Redis connections.
+///
+/// Every connection opened by this crate is managed: when the underlying
+/// socket dies (network blip, Redis restart, failover) the in-flight command
+/// fails with an I/O error and a reconnection is started in the background
+/// using an exponential backoff. Subsequent commands transparently use the
+/// re-established connection, so a `Worker`/`Queue`/`QueueEvents` recovers on
+/// its own without the process being restarted.
+#[derive(Clone, Debug)]
+pub struct ReconnectOptions {
+    /// Number of reconnection attempts per reconnect cycle.
+    ///
+    /// When a cycle is exhausted the connection stays in a failed state, but
+    /// the next command triggers a fresh cycle — recovery is never abandoned
+    /// permanently.
+    pub max_retries: usize,
+    /// Delay before the first reconnection attempt. Subsequent attempts grow
+    /// exponentially (with jitter) up to [`max_delay`](Self::max_delay).
+    pub min_delay: Duration,
+    /// Upper bound for the exponential backoff between reconnection attempts.
+    pub max_delay: Duration,
+    /// Timeout for establishing a single connection. `None` disables it.
+    pub connection_timeout: Option<Duration>,
+    /// Timeout applied to non-blocking command responses. `None` disables it.
+    ///
+    /// Blocking connections (worker `BZPOPMIN`, `QueueEvents` `XREAD`) always
+    /// run without a response timeout regardless of this setting, since they
+    /// are expected to block for their full duration.
+    pub response_timeout: Option<Duration>,
+}
+
+impl Default for ReconnectOptions {
+    fn default() -> Self {
+        Self {
+            max_retries: 10,
+            min_delay: Duration::from_millis(100),
+            max_delay: Duration::from_secs(5),
+            connection_timeout: Some(Duration::from_secs(10)),
+            response_timeout: Some(Duration::from_secs(10)),
+        }
+    }
+}
+
 /// Options for connecting to Redis.
 #[derive(Clone)]
 pub struct RedisConnectionOptions {
@@ -113,6 +156,8 @@ pub struct RedisConnectionOptions {
     /// When set, the connection uses TLS (`rediss://`) and is built with these
     /// certificates instead of relying only on the default WebPKI root store.
     pub tls_certs: Option<TlsCerts>,
+    /// Automatic reconnection behaviour (backoff, retries, timeouts).
+    pub reconnect: ReconnectOptions,
 }
 
 pub(crate) fn redact_url_userinfo(url: &str) -> String {
@@ -144,6 +189,7 @@ impl Default for RedisConnectionOptions {
             db: None,
             tls: false,
             tls_certs: None,
+            reconnect: ReconnectOptions::default(),
         }
     }
 }
