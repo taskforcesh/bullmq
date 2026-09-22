@@ -9,7 +9,8 @@ use tracing::{debug, instrument};
 use crate::error::Error;
 use crate::job::{Job, ScriptContext};
 use crate::keys::{
-    resolve_parent_queue_key, validate_custom_job_id, validate_queue_name, QueueKeys,
+    resolve_parent_queue_key, validate_custom_job_id, validate_prefix, validate_queue_name,
+    QueueKeys,
 };
 use crate::options::{DeduplicationOptions, JobOptions, ParentOptions, QueueOptions};
 use crate::paginate::{paginate_item_key, parse_paginate_reply, value_to_string};
@@ -118,6 +119,7 @@ impl Queue {
     /// Create a new Queue with explicit options.
     pub async fn with_options(name: &str, opts: QueueOptions) -> Result<Self, Error> {
         validate_queue_name(name)?;
+        validate_prefix(&opts.prefix)?;
         let conn = RedisConnection::new(&opts.connection).await?;
         let keys = QueueKeys::new(name, Some(&opts.prefix));
 
@@ -140,6 +142,7 @@ impl Queue {
         opts: QueueOptions,
     ) -> Result<Self, Error> {
         validate_queue_name(name)?;
+        validate_prefix(&opts.prefix)?;
         let keys = QueueKeys::new(name, Some(&opts.prefix));
 
         let queue = Self {
@@ -1588,7 +1591,6 @@ impl Queue {
         let mut total: u64 = 0;
         let mut collected_items: Vec<redis::Value> = Vec::new();
         let mut jobs: Vec<Job> = Vec::new();
-        let mut known_queues: HashMap<String, bool> = HashMap::new();
         let mut conn = self.conn.conn();
 
         loop {
@@ -1620,13 +1622,11 @@ impl Queue {
                 total = page_total;
             }
 
-            // Compute the candidate splits for the whole page first, so the
-            // queues of any ambiguous key can be probed in one round trip
-            // instead of two awaited `EXISTS` calls per item.
-            let mut pending: Vec<(HashMap<String, String>, JobKeySplits)> =
-                Vec::with_capacity(page_items.len());
             for (item, raw_job) in page_items.iter().zip(raw_jobs.iter()) {
                 let Some(qualified_key) = paginate_item_key(item) else {
+                    continue;
+                };
+                let Some(split) = split_qualified_job_key(&qualified_key) else {
                     continue;
                 };
                 // A completed child may already have been deleted by
@@ -1635,31 +1635,6 @@ impl Queue {
                 // entry and build a default job from the qualified key to preserve
                 // the one-job-per-item ordering used by the Node.js implementation.
                 let fields = Self::parse_hash_array(raw_job);
-                let custom_job_id = fields
-                    .get("opts")
-                    .and_then(|opts| serde_json::from_str::<JobOptions>(opts).ok())
-                    .and_then(|opts| opts.job_id);
-                let Some(splits) = qualified_job_key_splits(
-                    &qualified_key,
-                    custom_job_id.as_deref(),
-                    self.keys.prefix(),
-                ) else {
-                    continue;
-                };
-
-                pending.push((fields, splits));
-            }
-
-            let ambiguous = pending.iter().filter_map(|(_, splits)| {
-                splits
-                    .legacy
-                    .as_ref()
-                    .map(|legacy| (&splits.positional, legacy))
-            });
-            probe_queues(&mut conn, &mut known_queues, ambiguous).await?;
-
-            for (fields, splits) in pending {
-                let split = resolve_job_key_split(&known_queues, splits);
                 let mut job = Job::from_redis_hash(&split.job_id, &fields)?;
                 let keys = QueueKeys::new(&split.queue_name, Some(&split.prefix));
                 job.set_context(self.make_script_context_for_keys(keys));
@@ -3161,11 +3136,10 @@ struct SplitJobKey {
 }
 
 impl SplitJobKey {
-    /// Build a split, rejecting the empty queue names and job ids that a
-    /// malformed key produces. The prefix may legitimately be empty, since
-    /// [`Queue::with_options`] accepts an empty prefix.
+    /// Build a split, rejecting the empty prefixes, queue names and job ids
+    /// that a malformed key produces.
     fn new(prefix: &str, queue_name: &str, job_id: &str) -> Option<Self> {
-        if queue_name.is_empty() || job_id.is_empty() {
+        if prefix.is_empty() || queue_name.is_empty() || job_id.is_empty() {
             return None;
         }
         Some(Self {
@@ -3176,172 +3150,18 @@ impl SplitJobKey {
     }
 }
 
-/// The candidate splits of a qualified job key.
+/// Split a qualified job key into `{prefix}:{queueName}:{jobId}`.
 ///
-/// `legacy` is only populated when the prefix-anchored split differs from the
-/// positional one, i.e. when the key is genuinely ambiguous and a Redis probe
-/// is required to pick a winner (see [`resolve_job_key_split`]).
-#[derive(Debug, PartialEq, Eq)]
-struct JobKeySplits {
-    positional: SplitJobKey,
-    legacy: Option<SplitJobKey>,
-}
-
-/// Produce the candidate splits for a qualified job key.
-///
-/// 1. The stored `opts.jobId`, when present, gives the exact suffix, so the
-///    split is unambiguous and no legacy alternative is returned.
-/// 2. Otherwise the positional split (the last two `:`, matching `parseNodeKey`
-///    in the Node.js backend) is the default candidate.
-/// 3. When the key also sits under `queue_prefix` — the prefix of the queue
-///    that owns the parent job — the prefix-anchored split is returned as the
-///    legacy alternative: queue names cannot contain `:`, so the first
-///    separator after the prefix ends the queue name and the remainder is the
-///    id, however many `:` it contains. This is the upgrade path for jobs
-///    written by earlier releases, which accepted arbitrary colon-containing
-///    custom ids but did not persist `opts.jobId`. It is dropped when it agrees
-///    with the positional split, which is the case for every colon-free id.
-fn qualified_job_key_splits(
-    key: &str,
-    custom_job_id: Option<&str>,
-    queue_prefix: &str,
-) -> Option<JobKeySplits> {
-    if let Some(positional) = custom_job_id
-        .filter(|job_id| !job_id.is_empty())
-        .and_then(|job_id| split_job_key_with_id(key, job_id))
-    {
-        return Some(JobKeySplits {
-            positional,
-            legacy: None,
-        });
-    }
-
-    let anchored = split_job_key_under_prefix(key, queue_prefix);
-    match split_job_key_positionally(key) {
-        Some(positional) => {
-            let legacy = anchored.filter(|anchored| anchored != &positional);
-            Some(JobKeySplits { positional, legacy })
-        }
-        // Keys the positional split rejects (an id with a trailing or repeated
-        // `:`) can still be read when anchored on the known prefix.
-        None => anchored.map(|anchored| JobKeySplits {
-            positional: anchored,
-            legacy: None,
-        }),
-    }
-}
-
-/// Split a qualified job key whose job id is known exactly.
-fn split_job_key_with_id(key: &str, job_id: &str) -> Option<SplitJobKey> {
-    let queue_key = key.strip_suffix(&format!(":{job_id}"))?;
-    let (prefix, queue_name) = queue_key.rsplit_once(':')?;
-    SplitJobKey::new(prefix, queue_name, job_id)
-}
-
-/// Split a qualified job key on its last two separators, mirroring
-/// `parseNodeKey` in the Node.js backend.
-fn split_job_key_positionally(key: &str) -> Option<SplitJobKey> {
-    let (queue_key, job_id) = key.rsplit_once(':')?;
-    let (prefix, queue_name) = queue_key.rsplit_once(':')?;
-    SplitJobKey::new(prefix, queue_name, job_id)
-}
-
-/// Split a qualified job key that sits under `queue_prefix`.
-///
-/// Queue names are validated to be non-empty and free of `:`, so once the
-/// prefix is assumed the first separator after it ends the queue name and
-/// everything that follows is the id — no matter how many `:` the id contains.
-/// This is what makes ids written before `opts.jobId` was persisted readable
-/// again, provided the child lives under the same prefix as its parent.
-///
-/// Returns `None` when `key` is not under `queue_prefix`, or when the remainder
-/// has no separator left to end the queue name.
-fn split_job_key_under_prefix(key: &str, queue_prefix: &str) -> Option<SplitJobKey> {
-    let rest = key.strip_prefix(queue_prefix)?.strip_prefix(':')?;
+/// Prefixes and queue names are validated to be non-empty and free of `:`
+/// (see `validate_prefix` and `validate_queue_name`), so the first two
+/// separators delimit them and everything that follows is the job id — however
+/// many `:` it contains, as legacy repeatable ids do. This holds for children
+/// stored under a prefix other than the parent queue's, since the boundary is
+/// derived from the key alone rather than from the parent's prefix.
+fn split_qualified_job_key(key: &str) -> Option<SplitJobKey> {
+    let (prefix, rest) = key.split_once(':')?;
     let (queue_name, job_id) = rest.split_once(':')?;
-    SplitJobKey::new(queue_prefix, queue_name, job_id)
-}
-
-/// Probe, in a single pipelined round trip, whether the queues addressed by
-/// `splits` exist in Redis.
-///
-/// A queue is considered to exist when any of its bookkeeping keys is present:
-/// `meta` (written when a queue is instantiated), `events` (written by every
-/// job that is stored) or `id` (the auto-generated id counter). Results are
-/// memoized in `known_queues`, keyed by `<prefix>:<queueName>`, so repeated
-/// bases — within a page and across pages of the same
-/// [`Queue::get_dependencies`] call — are probed only once.
-async fn probe_queues<'a, I>(
-    conn: &mut redis::aio::MultiplexedConnection,
-    known_queues: &mut HashMap<String, bool>,
-    splits: I,
-) -> Result<(), Error>
-where
-    I: IntoIterator<Item = (&'a SplitJobKey, &'a SplitJobKey)>,
-{
-    let mut pipe = redis::pipe();
-    let mut bases: Vec<String> = Vec::new();
-    let mut queued: HashSet<String> = HashSet::new();
-
-    for split in splits.into_iter().flat_map(|(a, b)| [a, b]) {
-        let keys = QueueKeys::new(&split.queue_name, Some(&split.prefix));
-        let base = keys.base();
-        if known_queues.contains_key(&base) || !queued.insert(base.clone()) {
-            continue;
-        }
-
-        pipe.cmd("EXISTS")
-            .arg(keys.meta())
-            .arg(keys.events())
-            .arg(keys.id());
-        bases.push(base);
-    }
-
-    if bases.is_empty() {
-        return Ok(());
-    }
-
-    let found: Vec<i64> = pipe.query_async(conn).await?;
-    for (base, count) in bases.into_iter().zip(found) {
-        known_queues.insert(base, count > 0);
-    }
-
-    Ok(())
-}
-
-/// Pick the winning `<prefix>:<queueName>:<jobId>` split of a qualified job key.
-///
-/// Both the prefix and the job id may contain `:`, so the split point cannot
-/// always be derived from the key. With the parent prefix `tenant`,
-/// `tenant:region:child:1` is either job `child:1` of queue `region` (a legacy
-/// colon id written under the parent's own prefix) or job `1` of queue `child`
-/// living under the nested prefix `tenant:region`. See
-/// [`qualified_job_key_splits`] for how the candidates are produced; when they
-/// disagree the tie is broken here using the queue existence probed by
-/// [`probe_queues`]: the legacy (prefix-anchored) split is chosen only when its
-/// queue exists and the positional one does not.
-///
-/// Every other outcome keeps the positional split, so the fallback matches
-/// `parseNodeKey` in the Node.js backend.
-fn resolve_job_key_split(
-    known_queues: &HashMap<String, bool>,
-    splits: JobKeySplits,
-) -> SplitJobKey {
-    let JobKeySplits { positional, legacy } = splits;
-    let Some(legacy) = legacy else {
-        return positional;
-    };
-
-    let exists = |split: &SplitJobKey| {
-        let base = QueueKeys::new(&split.queue_name, Some(&split.prefix)).base();
-        known_queues.get(&base).copied().unwrap_or(false)
-    };
-
-    if exists(&legacy) && !exists(&positional) {
-        legacy
-    } else {
-        positional
-    }
+    SplitJobKey::new(prefix, queue_name, job_id)
 }
 
 /// Escape a Prometheus label value (`\`, `"`, and newlines).
@@ -3467,134 +3287,55 @@ mod progress_serialization_tests {
 
 #[cfg(test)]
 mod dependency_key_tests {
-    use super::{qualified_job_key_splits, JobKeySplits, SplitJobKey};
+    use super::{split_qualified_job_key, SplitJobKey};
 
-    fn split(prefix: &str, queue_name: &str, job_id: &str) -> SplitJobKey {
-        SplitJobKey::new(prefix, queue_name, job_id).expect("valid split")
+    fn split(prefix: &str, queue_name: &str, job_id: &str) -> Option<SplitJobKey> {
+        SplitJobKey::new(prefix, queue_name, job_id)
     }
 
-    fn unambiguous(prefix: &str, queue_name: &str, job_id: &str) -> Option<JobKeySplits> {
-        Some(JobKeySplits {
-            positional: split(prefix, queue_name, job_id),
-            legacy: None,
-        })
+    #[test]
+    fn splits_plain_keys() {
+        assert_eq!(
+            split_qualified_job_key("bull:queue:1"),
+            split("bull", "queue", "1")
+        );
     }
 
     #[test]
     fn preserves_colons_in_custom_job_ids() {
+        // Prefixes and queue names cannot contain `:`, so everything after the
+        // second separator belongs to the id — no stored `opts.jobId` or Redis
+        // probe is needed to find the boundary.
         assert_eq!(
-            qualified_job_key_splits("bull:queue:repeat:sched:1", Some("repeat:sched:1"), ""),
-            unambiguous("bull", "queue", "repeat:sched:1")
+            split_qualified_job_key("bull:queue:repeat:sched:1700000000000"),
+            split("bull", "queue", "repeat:sched:1700000000000")
+        );
+        assert_eq!(
+            split_qualified_job_key("bull:queue:a:b:c:d"),
+            split("bull", "queue", "a:b:c:d")
         );
     }
 
     #[test]
-    fn preserves_colons_in_prefixes() {
+    fn splits_children_stored_under_a_foreign_prefix() {
+        // The boundary comes from the key itself, so a child living under a
+        // prefix other than the parent queue's resolves correctly, colon id or
+        // not.
         assert_eq!(
-            qualified_job_key_splits("tenant:region:queue:1", None, "bull"),
-            unambiguous("tenant:region", "queue", "1")
+            split_qualified_job_key("tenant:child:1"),
+            split("tenant", "child", "1")
+        );
+        assert_eq!(
+            split_qualified_job_key("tenant:child:repeat:sched:1"),
+            split("tenant", "child", "repeat:sched:1")
         );
     }
 
     #[test]
-    fn falls_back_to_positional_parse_when_custom_id_does_not_match() {
-        assert_eq!(
-            qualified_job_key_splits("tenant:region:queue:1", Some("other"), "bull"),
-            unambiguous("tenant:region", "queue", "1")
-        );
-    }
-
-    #[test]
-    fn supports_empty_prefixes() {
-        assert_eq!(
-            qualified_job_key_splits(":queue:child", None, ""),
-            unambiguous("", "queue", "child")
-        );
-        assert_eq!(
-            qualified_job_key_splits(":queue:a:b", None, ""),
-            Some(JobKeySplits {
-                positional: split(":queue", "a", "b"),
-                legacy: Some(split("", "queue", "a:b")),
-            })
-        );
-    }
-
-    #[test]
-    fn rejects_keys_without_a_queue_name_or_job_id() {
-        assert_eq!(qualified_job_key_splits("bull::1", None, "bull"), None);
-        assert_eq!(qualified_job_key_splits("bull:queue:", None, "bull"), None);
-        assert_eq!(qualified_job_key_splits("queue:1", None, "bull"), None);
-    }
-
-    #[test]
-    fn offers_legacy_ids_stored_without_persisted_job_id_as_an_alternative() {
-        // Jobs added before `opts.jobId` was persisted carry no boundary
-        // marker, so anchoring on the queue prefix is offered as the legacy
-        // alternative. Which candidate wins is decided against Redis by
-        // `Queue::resolve_qualified_job_key`.
-        for (key, job_id) in [
-            (
-                "bull:queue:repeat:sched:1700000000000",
-                "repeat:sched:1700000000000",
-            ),
-            ("bull:queue:job:1", "job:1"),
-            ("bull:queue:a:b:c:d", "a:b:c:d"),
-        ] {
-            let splits = qualified_job_key_splits(key, None, "bull").expect("splits");
-            assert_eq!(splits.legacy, Some(split("bull", "queue", job_id)));
-            assert_ne!(splits.positional, split("bull", "queue", job_id));
-        }
-
-        assert_eq!(
-            qualified_job_key_splits("tenant:region:queue:repeat:sched:1", None, "tenant:region")
-                .and_then(|splits| splits.legacy),
-            Some(split("tenant:region", "queue", "repeat:sched:1"))
-        );
-    }
-
-    #[test]
-    fn nested_child_prefixes_are_ambiguous_and_default_to_the_positional_split() {
-        // A child queue whose prefix extends the parent's (`tenant` ->
-        // `tenant:region`) produces the very same key shape as a legacy colon
-        // id under the parent prefix, so both candidates are reported.
-        assert_eq!(
-            qualified_job_key_splits("tenant:region:child:1", None, "tenant"),
-            Some(JobKeySplits {
-                positional: split("tenant:region", "child", "1"),
-                legacy: Some(split("tenant", "region", "child:1")),
-            })
-        );
-    }
-
-    #[test]
-    fn colon_free_ids_under_the_queue_prefix_are_unambiguous() {
-        assert_eq!(
-            qualified_job_key_splits("bull:queue:1", None, "bull"),
-            unambiguous("bull", "queue", "1")
-        );
-    }
-
-    #[test]
-    fn falls_back_to_positional_parse_for_foreign_prefixes() {
-        // Nothing marks where a foreign prefix ends, so the Node.js
-        // `parseNodeKey` behaviour is used.
-        assert_eq!(
-            qualified_job_key_splits("other:queue:1", None, "bull"),
-            unambiguous("other", "queue", "1")
-        );
-    }
-
-    #[test]
-    fn persisted_job_id_wins_over_prefix_anchoring() {
-        // The persisted id is exact, so it resolves children stored under a
-        // prefix other than the parent queue's without probing Redis.
-        assert_eq!(
-            qualified_job_key_splits(
-                "tenant:region:queue:repeat:sched:1",
-                Some("repeat:sched:1"),
-                "bull"
-            ),
-            unambiguous("tenant:region", "queue", "repeat:sched:1")
-        );
+    fn rejects_keys_without_a_prefix_queue_name_or_job_id() {
+        assert_eq!(split_qualified_job_key(":queue:1"), None);
+        assert_eq!(split_qualified_job_key("bull::1"), None);
+        assert_eq!(split_qualified_job_key("bull:queue:"), None);
+        assert_eq!(split_qualified_job_key("queue:1"), None);
     }
 }

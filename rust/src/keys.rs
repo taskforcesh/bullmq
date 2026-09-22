@@ -22,6 +22,22 @@ pub(crate) fn validate_queue_name(name: &str) -> Result<(), Error> {
     Ok(())
 }
 
+/// Validate a key prefix.
+///
+/// The prefix is the first segment of every key (`{prefix}:{queueName}:...`),
+/// so it must be non-empty and free of `:`. Together with the same restriction
+/// on queue names, this makes a qualified job key unambiguous to parse back:
+/// the first two separators delimit the prefix and the queue name, and the
+/// remainder is the job id, however many `:` it contains.
+pub(crate) fn validate_prefix(prefix: &str) -> Result<(), Error> {
+    if prefix.is_empty() || prefix.contains(':') {
+        return Err(Error::InvalidConfig(
+            "Prefix must be non-empty and cannot contain :".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 /// Validate a custom job id, mirroring `Job.validateOptions` in BullMQ Node.js.
 ///
 /// Two restrictions apply:
@@ -410,6 +426,23 @@ mod tests {
     fn accepts_custom_job_ids_without_colons() {
         assert!(validate_custom_job_id("job-1").is_ok());
         assert!(validate_custom_job_id("").is_ok());
+    }
+
+    #[test]
+    fn accepts_plain_prefixes() {
+        assert!(validate_prefix("bull").is_ok());
+        assert!(validate_prefix("{bull}").is_ok());
+        assert!(validate_prefix("my-app_1").is_ok());
+    }
+
+    #[test]
+    fn rejects_empty_or_colon_containing_prefixes() {
+        for prefix in ["", "tenant:region", ":bull", "bull:"] {
+            assert!(
+                matches!(validate_prefix(prefix), Err(Error::InvalidConfig(_))),
+                "prefix {prefix:?} should be rejected"
+            );
+        }
     }
 
     #[test]

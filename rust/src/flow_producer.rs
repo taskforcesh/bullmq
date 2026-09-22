@@ -11,7 +11,8 @@ use uuid::Uuid;
 use crate::error::Error;
 use crate::job::{Job, ScriptContext};
 use crate::keys::{
-    resolve_parent_queue_key, validate_custom_job_id, validate_queue_name, QueueKeys,
+    resolve_parent_queue_key, validate_custom_job_id, validate_prefix, validate_queue_name,
+    QueueKeys,
 };
 use crate::options::JobOptions;
 use crate::paginate::{paginate_item_key, parse_paginate_reply};
@@ -238,22 +239,14 @@ impl FlowProducer {
     pub async fn with_options(opts: FlowProducerOptions) -> Result<Self, Error> {
         let conn = RedisConnection::new(&opts.connection).await?;
         let prefix = opts.prefix.unwrap_or_else(|| "bull".to_string());
-        if prefix.is_empty() || prefix.contains(':') {
-            return Err(Error::InvalidConfig(
-                "Prefix must be non-empty and cannot contain :".to_string(),
-            ));
-        }
+        validate_prefix(&prefix)?;
         Ok(Self { conn, prefix })
     }
 
     /// Create a FlowProducer with an existing Redis connection.
     pub fn with_connection(conn: RedisConnection, prefix: Option<String>) -> Result<Self, Error> {
         let prefix = prefix.unwrap_or_else(|| "bull".to_string());
-        if prefix.is_empty() || prefix.contains(':') {
-            return Err(Error::InvalidConfig(
-                "Prefix must be non-empty and cannot contain :".to_string(),
-            ));
-        }
+        validate_prefix(&prefix)?;
         Ok(Self { conn, prefix })
     }
 
@@ -424,11 +417,7 @@ impl FlowProducer {
     pub async fn get_flow(&self, opts: GetFlowOptions) -> Result<JobNode, Error> {
         validate_queue_name(&opts.queue_name)?;
         let prefix = opts.prefix.as_deref().unwrap_or(&self.prefix);
-        if prefix.is_empty() || prefix.contains(':') {
-            return Err(Error::InvalidConfig(
-                "Prefix must be non-empty and cannot contain :".to_string(),
-            ));
-        }
+        validate_prefix(prefix)?;
         let depth = opts.depth.unwrap_or(10);
         let max_children = opts.max_children.unwrap_or(20);
 
@@ -1137,11 +1126,7 @@ fn apply_queue_defaults(flow: &mut FlowJob, opts: &FlowOptions) {
 fn validate_flow_queue_names(flow: &FlowJob) -> Result<(), Error> {
     validate_queue_name(&flow.queue_name)?;
     if let Some(prefix) = flow.prefix.as_deref() {
-        if prefix.is_empty() || prefix.contains(':') {
-            return Err(Error::InvalidConfig(
-                "Prefix must be non-empty and cannot contain :".to_string(),
-            ));
-        }
+        validate_prefix(prefix)?;
     }
     if let Some(job_id) = flow.opts.as_ref().and_then(|opts| opts.job_id.as_deref()) {
         validate_custom_job_id(job_id)?;

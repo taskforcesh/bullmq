@@ -350,7 +350,7 @@ async fn test_get_dependencies_cross_queue_child_context() {
     let parent_name = test_queue_name();
     let child_name = test_queue_name();
     let conn = test_connection();
-    let prefix = "tenant:regression".to_string();
+    let prefix = "tenantregression".to_string();
 
     let parent_queue = Queue::with_options(
         &parent_name,
@@ -484,9 +484,9 @@ async fn test_add_rejects_integer_custom_job_id() {
 #[tokio::test]
 async fn test_get_dependencies_child_context_with_legacy_repeat_job_id() {
     // Legacy repeatable ids (`repeat:<schedulerId>:<millis>`) are the one custom
-    // id shape allowed to contain `:`, so the qualified key
-    // `{prefix}:{queue}:repeat:sched:1` cannot be split positionally. The stored
-    // `opts.jobId` must be used to recover the child's queue context.
+    // id shape allowed to contain `:`. Prefixes and queue names cannot contain
+    // `:`, so the qualified key `{prefix}:{queue}:repeat:sched:1` still splits
+    // unambiguously: everything after the second separator is the id.
     let parent_name = test_queue_name();
     let child_name = test_queue_name();
     let conn = test_connection();
@@ -548,7 +548,7 @@ async fn test_get_dependencies_child_context_with_legacy_repeat_job_id() {
         .expect("child job should keep its full colon-containing id");
 
     // Regression guard: this must read from the child queue keys, which is only
-    // possible if the colon boundary was resolved from the stored `opts.jobId`.
+    // possible if the colon boundary was resolved correctly.
     assert_eq!(dep_child.get_state().await.unwrap(), JobState::Waiting);
 
     cleanup_queue(&child_queue).await;
@@ -560,7 +560,7 @@ async fn test_get_dependencies_processed_cross_queue_child_context() {
     let parent_name = test_queue_name();
     let child_name = test_queue_name();
     let conn = test_connection();
-    let prefix = "tenant:regression".to_string();
+    let prefix = "tenantregression".to_string();
 
     let parent_queue = Queue::with_options(
         &parent_name,
@@ -615,7 +615,7 @@ async fn test_get_dependencies_processed_cross_queue_child_context() {
         processor,
         WorkerOptions {
             connection: conn,
-            prefix: "tenant:regression".to_string(),
+            prefix: "tenantregression".to_string(),
             autorun: true,
             drain_delay: 1,
             ..Default::default()
