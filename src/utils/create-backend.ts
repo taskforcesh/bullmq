@@ -2,14 +2,35 @@ import {
   BackendFactory,
   ConnectionOptions,
   IQueueBackend,
+  IRedisClient,
   KeyPrefixOptions,
   QueueBaseOptions,
+  RedisConnectionClient,
 } from '../interfaces';
 import { RedisQueueBackend } from '../classes/redis-queue-backend';
 import { RedisConnection } from '../classes/redis-connection';
 import { QueueKeys } from '../classes/queue-keys';
 import { createIORedisClient, isIRedisClient } from '../classes/ioredis-client';
 import { isRedisInstance } from './index';
+
+/**
+ * Duplicates a caller-supplied client. Native clients (e.g. node-redis) use
+ * their own `duplicate()` so {@link RedisConnection} detects the driver of the
+ * copy without attaching adapter listeners to the caller's client.
+ */
+const duplicateClient = (
+  client: IRedisClient | RedisConnectionClient,
+  connectionName?: string,
+): IRedisClient | RedisConnectionClient => {
+  if (isIRedisClient(client) || typeof client.defineCommand === 'function') {
+    return (
+      isIRedisClient(client) ? client : createIORedisClient(client as any)
+    ).duplicate(connectionName ? { connectionName } : undefined);
+  }
+  return client.duplicate(
+    connectionName ? { name: connectionName } : undefined,
+  );
+};
 
 /**
  * Builds the dedicated, blocking connection that a worker needs so its blocking
@@ -28,10 +49,7 @@ const createBlockingConnection = (
 
   return new RedisConnection(
     isRedisInstance(opts.connection)
-      ? (isIRedisClient(opts.connection)
-          ? opts.connection
-          : createIORedisClient(opts.connection as any)
-        ).duplicate({ connectionName })
+      ? duplicateClient(opts.connection, connectionName)
       : { ...opts.connection, connectionName },
     {
       shared: false,
@@ -59,10 +77,7 @@ export const createRedisBackend: BackendFactory<RedisQueueBackend> = (
   // A blocking consumer must not block the caller's shared Redis client.
   const mainConnectionOpts =
     blocking && isRedisInstance(opts.connection)
-      ? (isIRedisClient(opts.connection)
-          ? opts.connection
-          : createIORedisClient(opts.connection as any)
-        ).duplicate()
+      ? duplicateClient(opts.connection)
       : opts.connection;
 
   const connection = new RedisConnection(mainConnectionOpts, {
