@@ -126,7 +126,7 @@ describe('Telemetry', () => {
   class MockContextManager<Context = any> implements ContextManager<Context> {
     private activeContext: Context = {} as Context;
 
-    with<A extends(...args: any[]) => any>(
+    with<A extends (...args: any[]) => any>(
       context: Context,
       fn: A,
     ): ReturnType<A> {
@@ -677,6 +677,63 @@ describe('Telemetry', () => {
         startedSpans.some(
           span => span.name === `startStalledCheckTimer ${queueName}`,
         ),
+      ).toBe(true);
+      for (const span of stalledCheckSpans()) {
+        expect(span.parent).toBeUndefined();
+      }
+    });
+    it('should not parent stalled check spans to the resume span', async () => {
+      const storage = new AsyncLocalStorage<any>();
+      const contextManager: ContextManager = {
+        with: (context, fn) => storage.run(context, fn),
+        active: () => storage.getStore() ?? {},
+        getMetadata: () => '',
+        fromMetadata: activeContext => activeContext,
+      };
+
+      class ContextSpan extends MockSpan {
+        setSpanOnContext(ctx: any): any {
+          return { ...ctx, getSpan: () => this };
+        }
+      }
+
+      const startedSpans: { name: string; parent?: string }[] = [];
+      const tracer: Tracer = {
+        startSpan(name, options, context) {
+          const parentSpan = (context ?? contextManager.active()).getSpan?.();
+          startedSpans.push({ name, parent: parentSpan?.name });
+          return new ContextSpan(name, options);
+        },
+      };
+
+      const worker = new Worker(queueName, async () => {}, {
+        connection,
+        prefix,
+        telemetry: { tracer, contextManager },
+        stalledInterval: 50,
+      });
+
+      const stalledCheckSpans = () =>
+        startedSpans.filter(
+          span => span.name === `moveStalledJobsToWait ${queueName}`,
+        );
+
+      while (stalledCheckSpans().length < 1) {
+        await delay(20);
+      }
+
+      await worker.pause(true);
+      const countBeforeResume = stalledCheckSpans().length;
+      worker.resume();
+
+      while (stalledCheckSpans().length < countBeforeResume + 2) {
+        await delay(20);
+      }
+
+      await worker.close();
+
+      expect(
+        startedSpans.some(span => span.name === `resume ${queueName}`),
       ).toBe(true);
       for (const span of stalledCheckSpans()) {
         expect(span.parent).toBeUndefined();
