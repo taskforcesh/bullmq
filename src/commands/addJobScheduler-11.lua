@@ -128,7 +128,11 @@ if prevMillis and isJobSchedulerUnchanged(schedulerKey, schedulerOpts, templateD
     local unchangedJobId = "repeat:" .. jobSchedulerId .. ":" .. prevMillis
     local unchangedJobKey = schedulerKey .. ":" .. prevMillis
 
-    if rcall("EXISTS", unchangedJobKey) == 1 then
+    -- Only an iteration that still has to run is worth keeping. One that has
+    -- already finished keeps its hash unless removeOnComplete/Fail says
+    -- otherwise, and returning it here would leave the scheduler with nothing
+    -- left to produce a run.
+    if rcall("EXISTS", unchangedJobKey) == 1 and not rcall("HGET", unchangedJobKey, "finishedOn") then
         local unchangedDelay = prevMillis - now
         if unchangedDelay < 0 then
             unchangedDelay = 0
